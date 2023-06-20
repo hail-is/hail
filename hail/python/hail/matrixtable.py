@@ -12,8 +12,8 @@ import hail.ir as ir
 from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
     anyfunc, nullable, sequenceof, oneof, numeric, lazy, enumeration
-from hail.utils import storage_level, default_handler
-from hail.utils.java import warning, Env
+from hail.utils import storage_level, default_handler, deduplicate
+from hail.utils.java import warning, Env, info
 from hail.utils.misc import wrap_to_tuple, \
     get_key_by_exprs, \
     get_select_exprs, check_annotate_exprs, process_joins
@@ -1941,7 +1941,7 @@ class MatrixTable(ExprContainer):
         entry_ir = hl.if_else(
             hl.is_defined(self.entry),
             self.entry,
-            hl.literal(hl.Struct(**{k: hl.missing(v.dtype) for k, v in self.entry.items()})))._ir
+            hl.struct(**{k: hl.missing(v.dtype) for k, v in self.entry.items()}))._ir
         return MatrixTable(ir.MatrixMapEntries(self._mir, entry_ir))
 
     @typecheck_method(row_field=str, col_field=str)
@@ -2662,22 +2662,6 @@ class MatrixTable(ExprContainer):
         --------
         >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
         """
-        if _codec_spec is None:
-            _codec_spec = """{
-  "name": "LEB128BufferSpec",
-  "child": {
-    "name": "BlockingBufferSpec",
-    "blockSize": 32768,
-    "child": {
-      "name": "LZ4FastBlockBufferSpec",
-      "blockSize": 32768,
-      "child": {
-        "name": "StreamBlockBufferSpec"
-      }
-    }
-  }
-}"""
-
         hl.current_backend().validate_file_scheme(output)
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
@@ -3882,8 +3866,13 @@ class MatrixTable(ExprContainer):
     @typecheck_method(other=matrix_table_type,
                       row_join_type=enumeration('inner', 'outer'),
                       drop_right_row_fields=bool)
-    def union_cols(self, other: 'MatrixTable', row_join_type='inner', drop_right_row_fields=True) -> 'MatrixTable':
+    def union_cols(self, other: 'MatrixTable', row_join_type: str = 'inner', drop_right_row_fields: bool = True) -> 'MatrixTable':
         """Take the union of dataset columns.
+
+        Warning
+        -------
+
+        This method does not preserve the global fields from the other matrix table.
 
         Examples
         --------
@@ -3928,10 +3917,10 @@ class MatrixTable(ExprContainer):
         ----------
         other : :class:`.MatrixTable`
             Dataset to concatenate.
-        row_join_type : string
+        row_join_type : :obj:`.str`
             If `outer`, perform an outer join on rows; if 'inner', perform an
             inner join. Default `inner`.
-        drop_right_row_fields : boolean
+        drop_right_row_fields : :obj:`.bool`
             If true, non-key row fields of `other` are dropped. Otherwise,
             non-key row fields in the two datasets must have distinct names,
             and the result contains the union of the row fields.
@@ -3960,6 +3949,17 @@ class MatrixTable(ExprContainer):
 
         if drop_right_row_fields:
             other = other.select_rows()
+        else:
+            left_fields = set(self.row_value)
+            other_fields = set(other.row_value) - set(other.row_key)
+            renames, _ = deduplicate(
+                other_fields, max_attempts=100, already_used=left_fields)
+
+            if renames:
+                renames = dict(renames)
+                other = other.rename(renames)
+                info('Table.union_cols: renamed the following fields on the right to avoid name conflicts:'
+                     + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 

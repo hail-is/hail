@@ -1,10 +1,10 @@
-.. _sec-api:
+.. _sec-query-api:
 
-==========
-Python API
-==========
+=====================
+Hail Query Python API
+=====================
 
-This is the API documentation for ``Hail``, and provides detailed information
+This is the API documentation for ``Hail Query``, and provides detailed information
 on the Python programming interface.
 
 Use ``import hail as hl`` to access this functionality.

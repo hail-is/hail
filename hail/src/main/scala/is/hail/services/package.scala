@@ -11,7 +11,8 @@ import org.apache.http.ConnectionClosedException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
-import reactor.core.Exceptions.ReactiveException
+import is.hail.shadedazure.reactor.core.Exceptions.ReactiveException
+import is.hail.shadedazure.com.azure.storage.common.implementation.Constants
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
@@ -35,24 +36,36 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
-  def isRetryOnceError(_e: Throwable): Boolean = {
+  def isLimitedRetriesError(_e: Throwable): Boolean = {
     // An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     // provider can manifest as this exception *and* that manifestation is indistinguishable from a
     // true error.
-    val e = reactor.core.Exceptions.unwrap(_e)
+    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
-      case e: SocketException =>
-        e.getMessage != null && e.getMessage.contains("Connection reset")
-      case e: HttpResponseException =>
-        e.getStatusCode() == 400 && e.getMessage != null && (
-          e.getMessage.contains("Invalid grant: account not found") ||
-            e.getMessage.contains("{\"error\":\"unhandled_canonical_code_14\"}")
-        )
-      case e @ (_: SSLException | _: StorageException | _: IOException) =>
+      case e: RuntimeException
+          if e.getMessage != null && e.getMessage == Constants.STREAM_CLOSED =>
+        true
+      case e: SocketException
+          if e.getMessage != null && e.getMessage.contains("Connection reset") =>
+        true
+      case e: HttpResponseException
+          if e.getStatusCode() == 400 && e.getMessage != null && (
+            e.getMessage.contains("Invalid grant: account not found") ||
+              e.getMessage.contains("{\"error\":\"unhandled_canonical_code_14\"}")
+          ) =>
+        true
+      case e: IOException
+          if e.getMessage != null && e.getMessage.contains("Connection reset by peer") =>
+	// java.io.IOException: Connection reset by peer
+	//   at sun.nio.ch.FileDispatcherImpl.read0(NativeMethod) ~[?:1.8.0_362]
+	//   at sun.nio.ch.SocketDispatcher.read(SocketDispatcher.java:39)~[?:1.8.0_362]
+	//   at sun.nio.ch.IOUtil.readIntoNativeBuffer(IOUtil.java:223)~[?:1.8.0_362]
+	//   at sun.nio.ch.IOUtil.read(IOUtil.java:192) ~[?:1.8.0_362]
+	//   at sun.nio.ch.SocketChannelImpl.read(SocketChannelImpl.java:379) ~[?:1.8.0_362]
+        true
+      case e =>
         val cause = e.getCause
-        cause != null && isRetryOnceError(cause)
-      case _ =>
-        false
+        cause != null && isLimitedRetriesError(cause)
     }
   }
 
@@ -63,16 +76,19 @@ package object services {
     //
     // If the argument is a ReactiveException, it returns its cause. If the argument is not a
     // ReactiveException it returns the exception unmodified.
-    val e = reactor.core.Exceptions.unwrap(_e)
+    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
       case e: NoHttpResponseException =>
         true
-      case e: HttpResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
-      case e: ClientResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
-      case e: GoogleJsonResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
+      case e: HttpResponseException
+          if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
+        true
+      case e: ClientResponseException
+          if RETRYABLE_HTTP_STATUS_CODES.contains(e.status) =>
+        true
+      case e: GoogleJsonResponseException
+          if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
+        true
       case e: HttpHostConnectException =>
         true
       case e: NoRouteToHostException =>
@@ -85,15 +101,17 @@ package object services {
         true
       case e: ConnectionClosedException =>
         true
-      case e: SocketException =>
-        e.getMessage != null && (
-          e.getMessage.contains("Connection timed out (Read failed)") ||
-            e.getMessage.contains("Broken pipe") ||
-            e.getMessage.contains("Connection refused"))
-      case e: EOFException =>
-        e.getMessage != null && (
-          e.getMessage.contains("SSL peer shut down incorrectly"))
-      case e: IllegalStateException =>
+      case e: SocketException
+          if e.getMessage != null && (
+            e.getMessage.contains("Connection timed out (Read failed)") ||
+              e.getMessage.contains("Broken pipe") ||
+              e.getMessage.contains("Connection refused")) =>
+        true
+      case e: EOFException
+          if e.getMessage != null && e.getMessage.contains("SSL peer shut down incorrectly") =>
+        true
+      case e: IllegalStateException
+          if e.getMessage.contains("Timeout on blocking read") =>
         // Caused by: java.lang.IllegalStateException: Timeout on blocking read for 30000000000 NANOSECONDS
         // reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:123)
         // reactor.core.publisher.Mono.block(Mono.java:1727)
@@ -102,21 +120,20 @@ package object services {
         // is.hail.io.fs.AzureStorageFS$$anon$1.fill(AzureStorageFS.scala:152)
         // is.hail.io.fs.FSSeekableInputStream.read(FS.scala:141)
         // ...
-        e.getMessage.contains("Timeout on blocking read")
-      case e @ (_: SSLException | _: StorageException | _: IOException) =>
+        true
+      case e: java.net.SocketTimeoutException
+          if e.getMessage != null && e.getMessage.contains("connect timed out") =>
+        true
+      case e @ (_: SSLException | _: StorageException | _: IOException)
+          if e.getCause != null && NettyProxy.isRetryableNettyIOException(e.getCause) =>
+        true
+      case e =>
         val cause = e.getCause
-
-        (
-          NettyProxy.isRetryableNettyIOException(e)
-        ) || (
-          cause != null && isTransientError(cause)
-        )
-      case _ =>
-        false
+        cause != null && isTransientError(cause)
     }
   }
 
-  def retryTransientErrors[T](f: => T): T = {
+  def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T = {
     var delay = 0.1
     var errors = 0
     while (true) {
@@ -125,14 +142,19 @@ package object services {
       } catch {
         case e: Exception =>
           errors += 1
-          if (errors == 1 && isRetryOnceError(e))
-            return f
-          if (!isTransientError(e))
+          if (errors <= 5 && isLimitedRetriesError(e)) {
+            log.warn(
+              s"A limited retry error has occured. We will automatically retry " +
+                s"${5 - errors} more times. Do not be alarmed. (current delay: " +
+                s"$delay). The most recent error was $e.")
+          } else if (!isTransientError(e)) {
             throw e
-          if (errors % 10 == 0)
-            log.warn(s"encountered $errors transient errors, most recent one was $e")
+          } else if (errors % 10 == 0) {
+            log.warn(s"Encountered $errors transient errors, most recent one was $e.")
+          }
       }
       delay = sleepAndBackoff(delay)
+      reset.foreach(_())
     }
 
     throw new AssertionError("unreachable")

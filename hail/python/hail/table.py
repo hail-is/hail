@@ -1327,22 +1327,6 @@ class Table(ExprContainer):
         """
         hl.current_backend().validate_file_scheme(output)
 
-        if _codec_spec is None:
-            _codec_spec = """{
-  "name": "LEB128BufferSpec",
-  "child": {
-    "name": "BlockingBufferSpec",
-    "blockSize": 32768,
-    "child": {
-      "name": "LZ4FastBlockBufferSpec",
-      "blockSize": 32768,
-      "child": {
-        "name": "StreamBlockBufferSpec"
-      }
-    }
-  }
-}"""
-
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
             _assert_type = self._type
@@ -2567,9 +2551,6 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with at most `max_partitions` partitions.
         """
-        if hl.current_backend().requires_lowering:
-            return self.repartition(max_partitions)
-
         return Table(ir.TableRepartition(
             self._tir, max_partitions, ir.RepartitionStrategy.NAIVE_COALESCE))
 
@@ -3668,18 +3649,32 @@ class Table(ExprContainer):
 
         t = left.join(right, how='outer')
 
-        if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
-            g = hl.eval(t.globals)
-            print(f'Table._same: globals differ:\n{pprint.pformat(g[left_global_value])}\n{pprint.pformat(g[right_global_value])}')
+        mismatched_globals, mismatched_rows = t.aggregate(hl.tuple((
+            hl.or_missing(
+                ~_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute),
+                hl.struct(left=t[left_global_value], right=t[right_global_value])
+            ),
+            hl.agg.filter(
+                ~hl.all(
+                    hl.is_defined(t[left_value]),
+                    hl.is_defined(t[right_value]),
+                    _values_similar(t[left_value], t[right_value], tolerance, absolute),
+                ),
+                hl.agg.take(
+                    hl.struct(_key=t._key, left=t[left_value], right=t[right_value]),
+                    10
+                )
+            )
+        )))
+
+        if mismatched_globals is not None:
+            print(f'Table._same: globals differ:\n{pprint.pformat(mismatched_globals.left)}\n{pprint.pformat(mismatched_globals.right)}')
             return False
 
-        if not t.all(hl.is_defined(t[left_value]) & hl.is_defined(t[right_value])
-                     & _values_similar(t[left_value], t[right_value], tolerance, absolute)):
+        if len(mismatched_rows) > 0:
             print('Table._same: rows differ:')
-            t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
-            bad_rows = t.take(10)
-            for r in bad_rows:
-                print(f'  Row mismatch at key={r._key}:\n    Left:\n{pprint.pformat(r[left_value])}\n    Right:\n{pprint.pformat(r[right_value])}')
+            for r in mismatched_rows:
+                print(f'  Row mismatch at key={r._key}:\n    Left:\n{pprint.pformat(r.left)}\n    Right:\n{pprint.pformat(r.right)}')
             return False
 
         return True

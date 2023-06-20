@@ -1,4 +1,5 @@
 import os
+import pytest
 
 import hail as hl
 
@@ -6,7 +7,7 @@ from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from hail.vds.combiner import combine_variant_datasets, new_combiner, load_combiner, transform_gvcf
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, fails_local_backend, fails_service_backend
+from ..helpers import resource, fails_local_backend, fails_service_backend, test_timeout
 
 
 all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
@@ -48,6 +49,7 @@ def test_combiner_works():
 
 @fails_local_backend
 @fails_service_backend
+@test_timeout(12 * 60)
 def test_vcf_vds_combiner_equivalence():
     import hail.experimental.sparse_mt.vcf_combiner as vcf
     import hail.vds.combiner as vds
@@ -146,6 +148,7 @@ def test_move_load_combiner_plan():
 
 @fails_local_backend
 @fails_service_backend
+@test_timeout(5 * 60)
 def test_combiner_run():
 
     tmpdir = new_temp_file()
@@ -201,3 +204,29 @@ def test_combiner_manual_filtration():
     vds = hl.vds.read_vds(out_file)
     assert list(vds.variant_data.gvcf_info) == ['ExcessHet']
     assert list(vds.reference_data.entry) == ['END', 'GQ']
+
+
+@fails_service_backend()
+@fails_local_backend()
+def test_ref_block_max_len_propagates_in_combiner():
+    gvcfs = ['NA21123.hg38.g.vcf.gz', 'NA21099.hg38.g.vcf.gz', 'NA19747.hg38.g.vcf.gz']
+    with hl.TemporaryDirectory() as tmpdir:
+        vds_paths = []
+        for i, gvcf in enumerate(gvcfs):
+            p = os.path.join(tmpdir, f'{i}.vds')
+            vds_paths.append(p)
+            c = hl.vds.new_combiner(output_path=p, temp_path=tmpdir,
+                                    gvcf_paths=[os.path.join(resource('gvcfs'), '1kg_chr22', gvcf)],
+                                    reference_genome='GRCh38',
+                                    import_interval_size=1000000000)
+            c.run()
+
+        for path in vds_paths:
+            vds = hl.vds.read_vds(path)
+            assert hl.vds.VariantDataset.ref_block_max_length_field in vds.reference_data.globals
+        final_path = os.path.join(tmpdir, 'final.vds')
+        hl.vds.new_combiner(output_path=final_path, temp_path=tmpdir,
+                            vds_paths=vds_paths,
+                            reference_genome='GRCh38').run()
+        vds = hl.vds.read_vds(final_path)
+        assert hl.vds.VariantDataset.ref_block_max_length_field in vds.reference_data.globals

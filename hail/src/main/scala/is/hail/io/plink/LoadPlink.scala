@@ -469,7 +469,7 @@ class MatrixPLINKReader(
       }
     }
 
-    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+    val tt = matrixToTableType(fullMatrixType)
 
     new GenericTableValue(
       tt,

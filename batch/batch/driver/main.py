@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import signal
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Any, Dict, Set, Tuple
 
@@ -25,7 +25,10 @@ from prometheus_async.aio.web import server_stats
 from gear import (
     AuthClient,
     Database,
+    K8sCache,
     check_csrf_token,
+    json_request,
+    json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
@@ -57,7 +60,6 @@ from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
-from .k8s_cache import K8sCache
 
 uvloop.install()
 
@@ -85,6 +87,13 @@ def instance_from_request(request):
     return inst_coll_manager.get_instance(instance_name)
 
 
+# Old workers use the Authorization header for their identity token
+# but that can conflict with bearer tokens used when the driver is behind another
+# auth mechanism
+def instance_token(request):
+    return request.headers.get('X-Hail-Instance-Token') or authorization_token(request)
+
+
 def activating_instances_only(fun):
     @wraps(fun)
     async def wrapped(request):
@@ -98,7 +107,7 @@ def activating_instances_only(fun):
             log.info(f'instance {instance.name} not pending')
             raise web.HTTPUnauthorized()
 
-        activation_token = authorization_token(request)
+        activation_token = instance_token(request)
         if not activation_token:
             log.info(f'activation token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
@@ -131,7 +140,7 @@ def active_instances_only(fun):
             log.info(f'instance not active {instance.name}')
             raise web.HTTPUnauthorized()
 
-        token = authorization_token(request)
+        token = instance_token(request)
         if not token:
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
@@ -161,11 +170,12 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
     incremental_result, resource_agg_result = await asyncio.gather(
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
     )
-    data = {
-        'check_incremental_error': incremental_result,
-        'check_resource_aggregation_error': resource_agg_result,
-    }
-    return web.json_response(data=data)
+    return json_response(
+        {
+            'check_incremental_error': incremental_result,
+            'check_resource_aggregation_error': resource_agg_result,
+        }
+    )
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
@@ -215,7 +225,7 @@ async def get_gsa_key_1(instance):
     log.info(f'returning gsa-key to activating instance {instance}')
     with open('/gsa-key/key.json', 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
-    return web.json_response({'key': key})
+    return json_response({'key': key})
 
 
 async def get_credentials_1(instance):
@@ -223,11 +233,11 @@ async def get_credentials_1(instance):
     credentials_file = '/gsa-key/key.json'
     with open(credentials_file, 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
-    return web.json_response({'key': key})
+    return json_response({'key': key})
 
 
 async def activate_instance_1(request, instance):
-    body = await request.json()
+    body = await json_request(request)
     ip_address = body['ip_address']
 
     log.info(f'activating {instance}')
@@ -235,7 +245,7 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    return web.json_response({'token': token})
+    return json_response({'token': token})
 
 
 # deprecated
@@ -296,7 +306,7 @@ async def kill_instance(request, userdata):  # pylint: disable=unused-argument
 
 
 async def job_complete_1(request, instance):
-    body = await request.json()
+    body = await json_request(request)
     job_status = body['status']
     marked_job_started = body.get('marked_job_started', False)
 
@@ -345,7 +355,7 @@ async def job_complete(request, instance):
 
 
 async def job_started_1(request, instance):
-    body = await request.json()
+    body = await json_request(request)
     job_status = body['status']
 
     batch_id = job_status['batch_id']
@@ -370,7 +380,7 @@ async def job_started(request, instance):
 async def billing_update_1(request, instance):
     db: Database = request.app['db']
 
-    body = await request.json()
+    body = await json_request(request)
     update_timestamp = body['timestamp']
     running_attempts = body['attempts']
 
@@ -428,8 +438,8 @@ FROM user_inst_coll_resources;
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'live_total_cores_mcpu': inst_coll_manager.global_live_total_cores_mcpu,
-        'live_free_cores_mcpu': inst_coll_manager.global_live_free_cores_mcpu,
+        'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
+        'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
         'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
@@ -1315,12 +1325,15 @@ async def scheduling_cancelling_bump(app):
     app['cancel_running_state_changed'].set()
 
 
+Resource = namedtuple('Resource', ['resource_id', 'deduped_resource_id'])
+
+
 async def refresh_globals_from_db(app, db):
     resource_ids = {
-        record['resource']: record['resource_id']
+        record['resource']: Resource(record['resource_id'], record['deduped_resource_id'])
         async for record in db.select_and_fetchall(
             '''
-SELECT resource, resource_id FROM resources;
+SELECT resource, resource_id, deduped_resource_id FROM resources;
 '''
         )
     }

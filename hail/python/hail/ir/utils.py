@@ -19,15 +19,16 @@ default_row_uid = '__row_uid'
 default_col_uid = '__col_uid'
 
 
-def unpack_row_uid(new_row_type, uid_field_name):
+def unpack_row_uid(new_row_type, uid_field_name, drop_uid=True):
     import hail.ir.ir as ir
     new_row = ir.Ref('va', new_row_type)
     if uid_field_name in new_row_type.fields:
         uid = ir.GetField(new_row, uid_field_name)
     else:
         uid = ir.NA(tint64)
-    return uid, \
-        ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
+    if drop_uid:
+        new_row = ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
+    return uid, new_row
 
 
 def unpack_col_uid(new_col_type, uid_field_name):

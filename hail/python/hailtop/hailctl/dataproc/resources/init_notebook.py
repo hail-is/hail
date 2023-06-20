@@ -39,12 +39,12 @@ if role == 'Master':
         'mkl<2020',
         'lxml<5',
         'https://github.com/hail-is/jgscm/archive/v0.1.13+hail.zip',
-        'ipykernel==4.10.*',
-        'ipywidgets==7.5.*',
-        'jupyter-console==6.0.*',
-        'nbconvert==5.6.*',
-        'notebook==6.0.*',
-        'qtconsole==4.5.*'
+        'ipykernel==6.22.0',
+        'ipywidgets==8.0.6',
+        'jupyter-console==6.6.3',
+        'nbconvert==7.3.1',
+        'notebook==6.5.4',
+        'qtconsole==5.4.2',
     ]
 
     # add user-requested packages
@@ -96,14 +96,18 @@ if role == 'Master':
     print('setting environment')
 
     for e, value in env_to_set.items():
-        safe_call('/bin/sh', '-c',
-                  'set -ex; echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e,
-                                                                                                                   value))
+        safe_call(
+            '/bin/sh',
+            '-c',
+            'set -ex; echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value),
+        )
 
-    hail_jar = sp.check_output([
-        '/bin/sh', '-c',
-        'set -ex; python3 -m pip show hail | grep Location | sed "s/Location: //"'
-    ]).decode('ascii').strip() + '/hail/backend/hail-all-spark.jar'
+    hail_jar = (
+        sp.check_output(['/bin/sh', '-c', 'set -ex; python3 -m pip show hail | grep Location | sed "s/Location: //"'])
+        .decode('ascii')
+        .strip()
+        + '/hail/backend/hail-all-spark.jar'
+    )
 
     conf_to_set = [
         'spark.executorEnv.PYTHONHASHSEED=0',
@@ -129,13 +133,7 @@ if role == 'Master':
             python3_kernel = json.load(f)
     except:
         python3_kernel = {
-            'argv': [
-                '/opt/conda/default/bin/python',
-                '-m',
-                'ipykernel',
-                '-f',
-                '{connection_file}'
-            ],
+            'argv': ['/opt/conda/default/bin/python', '-m', 'ipykernel', '-f', '{connection_file}'],
             'display_name': 'Python 3',
             'language': 'python',
         }
@@ -152,10 +150,7 @@ if role == 'Master':
         json.dump(python3_kernel, f)
 
     # some old notebooks use the "Hail" kernel, so create that too
-    hail_kernel = {
-        **python3_kernel,
-        'display_name': 'Hail'
-    }
+    hail_kernel = {**python3_kernel, 'display_name': 'Hail'}
     mkdir_if_not_exists('/opt/conda/default/share/jupyter/kernels/hail/')
     with open('/opt/conda/default/share/jupyter/kernels/hail/kernel.json', 'w') as f:
         json.dump(hail_kernel, f)
@@ -169,12 +164,14 @@ if role == 'Master':
             'c.NotebookApp.open_browser = False',
             'c.NotebookApp.port = 8123',
             'c.NotebookApp.token = ""',
-            'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"'
+            'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"',
         ]
         f.write('\n'.join(opts) + '\n')
 
     print('copying spark monitor')
-    spark_monitor_gs = 'gs://hail-common/sparkmonitor-c1289a19ac117336fec31ec08a2b13afe7e420cf/sparkmonitor-0.0.12-py3-none-any.whl'
+    spark_monitor_gs = (
+        'gs://hail-common/sparkmonitor-c1289a19ac117336fec31ec08a2b13afe7e420cf/sparkmonitor-0.0.12-py3-none-any.whl'
+    )
     spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
     safe_call('gcloud', 'storage', 'cp', spark_monitor_gs, spark_monitor_wheel)
     safe_call('pip', 'install', spark_monitor_wheel)
@@ -186,7 +183,8 @@ if role == 'Master':
     safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension')
     safe_call(
         """ipython profile create && echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" >> $(ipython profile locate default)/ipython_kernel_config.py""",
-        shell=True)
+        shell=True,
+    )
 
     # create systemd service file for Jupyter notebook server process
     with open('/lib/systemd/system/jupyter.service', 'w') as f:
@@ -203,7 +201,7 @@ if role == 'Master':
             'Restart=always',
             'RestartSec=1',
             '[Install]',
-            'WantedBy=multi-user.target'
+            'WantedBy=multi-user.target',
         ]
         f.write('\n'.join(opts) + '\n')
 

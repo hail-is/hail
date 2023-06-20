@@ -145,6 +145,7 @@ class RequirednessSuite extends HailSuite {
     )
 
     val spec = TypedCodecSpec(pDisc, BufferSpec.default)
+    val vr = ETypeValueWriter(spec)
     val pr = PartitionNativeReader(spec, "rowUID")
     val contextType = pr.contextType
     val rt1 = TStruct("a" -> TInt32, "b" -> TArray(TInt32))
@@ -163,13 +164,13 @@ class RequirednessSuite extends HailSuite {
           pt.virtualType,
           pr),
         EmitType(SStream(EmitType(pt.sType, pt.required)), path.isInstanceOf[Str]))
-      nodes += Array(ReadValue(path, spec, pt.virtualType), pt.setRequired(path.isInstanceOf[Str]))
+      nodes += Array(ReadValue(path, ETypeValueReader(spec), pt.virtualType), pt.setRequired(path.isInstanceOf[Str]))
     }
 
     val value = Literal(pDisc.virtualType, Row(null, IndexedSeq(1), IndexedSeq(Row(1, IndexedSeq(1)))))
-    nodes += Array(WriteValue(value, Str("foo"), spec), PCanonicalString(required))
-    nodes += Array(WriteValue(NA(pDisc.virtualType), Str("foo"), spec), PCanonicalString(optional))
-    nodes += Array(WriteValue(value, NA(TString), spec), PCanonicalString(optional))
+    nodes += Array(WriteValue(value, Str("foo"), vr), PCanonicalString(required))
+    nodes += Array(WriteValue(NA(pDisc.virtualType), Str("foo"), vr), PCanonicalString(optional))
+    nodes += Array(WriteValue(value, NA(TString), vr), PCanonicalString(optional))
 
     // test bindings
     nodes += Array(bindIR(nestedarray(required, optional, optional)) { v => ArrayRef(v, I32(0)) },

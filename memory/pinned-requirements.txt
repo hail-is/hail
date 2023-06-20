@@ -11,5 +11,5 @@ async-timeout==4.0.2
     #   -c hail/memory/../gear/pinned-requirements.txt
     #   -c hail/memory/../hail/python/pinned-requirements.txt
     #   aioredis
-hiredis==2.2.2
+hiredis==2.2.3
     # via aioredis

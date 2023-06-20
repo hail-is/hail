@@ -36,6 +36,8 @@ resource "azurerm_mysql_flexible_server" "db" {
   # Which availability zone (out of 1,2,3) that the database should be hosted
   # in. This should ideally match the zone that batch is in but we don't have
   # availability zones enabled in AKS.
+  # Sometimes zones are not available in particular regions
+  # In this case either change to an appropriate zone or comment the below line out
   zone = 1
 
   delegated_subnet_id = var.subnet_id

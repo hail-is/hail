@@ -113,7 +113,7 @@ object EncodedLiteral {
       case ts: PString => Str(ts.loadString(addr))
       case _ =>
         val etype = EType.defaultFromPType(pt)
-        val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
+        val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.wireSpec)
         val bytes = codec.encodeArrays(ctx, pt, addr)
         EncodedLiteral(codec, bytes)
     }
@@ -947,8 +947,8 @@ final case class ReadPartition(context: IR, rowType: TStruct, reader: PartitionR
 final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
-final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
-final case class WriteValue(value: IR, path: IR, spec: AbstractTypedCodecSpec, stagingFile: Option[IR] = None) extends IR
+final case class ReadValue(path: IR, reader: ValueReader, requestedType: Type) extends IR
+final case class WriteValue(value: IR, path: IR, writer: ValueWriter, stagingFile: Option[IR] = None) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = {

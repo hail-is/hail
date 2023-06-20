@@ -1,4 +1,4 @@
-from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple
+from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple, Dict, Any
 import asyncio
 import io
 import nest_asyncio
@@ -168,15 +168,30 @@ def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int,
 
 
 class RouterFS(FS):
-    def __init__(self, afs: Optional[RouterAsyncFS] = None):
+    def __init__(self,
+                 afs: Optional[RouterAsyncFS] = None,
+                 *,
+                 local_kwargs: Optional[Dict[str, Any]] = None,
+                 gcs_kwargs: Optional[Dict[str, Any]] = None,
+                 azure_kwargs: Optional[Dict[str, Any]] = None,
+                 s3_kwargs: Optional[Dict[str, Any]] = None):
         nest_asyncio.apply()
-        self.afs = afs or RouterAsyncFS()
+        if afs and (local_kwargs or gcs_kwargs or azure_kwargs or s3_kwargs):
+            raise ValueError(
+                f'If afs is specified, no other arguments may be specified: {afs=}, {local_kwargs=}, {gcs_kwargs=}, {azure_kwargs=}, {s3_kwargs=}'
+            )
+        self.afs = afs or RouterAsyncFS(
+            local_kwargs=local_kwargs,
+            gcs_kwargs=gcs_kwargs,
+            azure_kwargs=azure_kwargs,
+            s3_kwargs=s3_kwargs
+        )
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
         del buffer_size
 
         if mode not in ('r', 'rb', 'w', 'wb'):
-            raise ValueError(f'Unsupported mode: {repr(mode)}')
+            raise ValueError(f'Unsupported mode: {mode!r}')
 
         strm: io.IOBase
         if mode[0] == 'r':

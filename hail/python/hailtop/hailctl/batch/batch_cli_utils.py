@@ -1,16 +1,57 @@
 import json
+from enum import Enum
 import yaml
-import aiohttp
 import csv
 from typing import List, Dict, Callable
 import tabulate
 import io
 
+from typer import Option as Opt
+
+from typing_extensions import Annotated as Ann
+
 TableData = List[Dict[str, str]]
 TABLE_FORMAT_OPTIONS = ['json', 'yaml', 'csv', *tabulate.tabulate_formats]
 
 
+class StructuredFormat(str, Enum):
+    YAML = 'yaml'
+    JSON = 'json'
+
+    def __str__(self):
+        return self.value
+
+
+StructuredFormatOption = Ann[StructuredFormat, Opt('--output', '-o')]
+
+
+class StructuredFormatPlusText(str, Enum):
+    TEXT = 'text'
+    YAML = 'yaml'
+    JSON = 'json'
+
+    def __str__(self):
+        return self.value
+
+
+StructuredFormatPlusTextOption = Ann[StructuredFormatPlusText, Opt('--output', '-o')]
+
+
+class ExtendedOutputFormat(str, Enum):
+    YAML = 'yaml'
+    JSON = 'json'
+    GRID = 'grid'
+
+    def __str__(self):
+        return self.value
+
+
+ExtendedOutputFormatOption = Ann[ExtendedOutputFormat, Opt('--output', '-o')]
+
+
 def get_batch_if_exists(client, id):
+    import aiohttp.client_exceptions  # pylint: disable=import-outside-toplevel
+
     try:
         return client.get_batch(id)
     except aiohttp.client_exceptions.ClientResponseError as cle:
@@ -20,6 +61,8 @@ def get_batch_if_exists(client, id):
 
 
 def get_job_if_exists(client, batch_id, job_id):
+    import aiohttp.client_exceptions  # pylint: disable=import-outside-toplevel
+
     try:
         return client.get_job(batch_id, job_id)
     except aiohttp.client_exceptions.ClientResponseError as cle:

@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
 import sys
 import abc
+import asyncio
 import collections
 import orjson
 import os
@@ -24,6 +25,7 @@ import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
@@ -413,9 +415,12 @@ class ServiceBackend(Backend[bc.Batch]):
         argument `bucket`. Paths should match a GCS URI like gs://<BUCKET_NAME>/<PATH> or an ABS
         URI of the form https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>.
     google_project:
-        If specified, the project to use when authenticating with Google
-        Storage. Google Storage is used to transfer serialized values between
-        this computer and the cloud machines that execute Python jobs.
+        DEPRECATED. Please use gcs_requester_pays_configuration.
+    gcs_requester_pays_configuration : either :class:`str` or :class:`tuple` of :class:`str` and :class:`list` of :class:`str`, optional
+        If a string is provided, configure the Google Cloud Storage file system to bill usage to the
+        project identified by that string. If a tuple is provided, configure the Google Cloud
+        Storage file system to bill usage to the specified project for buckets specified in the
+        list.
     token:
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
@@ -424,6 +429,7 @@ class ServiceBackend(Backend[bc.Batch]):
         available regions to choose from. Use py:attribute:`.ServiceBackend.ANY_REGION` to signify the default is jobs
         can run in any available region. The default is jobs can run in any region unless a default value has
         been set with hailctl. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
+
     """
 
     @staticmethod
@@ -449,7 +455,8 @@ class ServiceBackend(Backend[bc.Batch]):
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
                  token: Optional[str] = None,
-                 regions: Optional[List[str]] = None
+                 regions: Optional[List[str]] = None,
+                 gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
                  ):
         import nest_asyncio  # pylint: disable=import-outside-toplevel
         nest_asyncio.apply()
@@ -478,7 +485,20 @@ class ServiceBackend(Backend[bc.Batch]):
         user_config = get_user_config()
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
 
-        gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
+        gcs_kwargs: Dict[str, Any]
+        if google_project is not None:
+            if gcs_requester_pays_configuration is not None:
+                raise ValueError(
+                    'Both google_project and gcs_requester_pays_configuration were '
+                    'specified. Please remove the google_project argument.'
+                )
+            warnings.warn(
+                'The google_project parameter of ServiceBackend is deprecated. '
+                'Please replace with gcs_requester_pays_configuration.'
+            )
+            gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
+        else:
+            gcs_kwargs = {'gcs_requester_pays_configuration': gcs_requester_pays_configuration}
         self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:
@@ -790,6 +810,7 @@ class ServiceBackend(Backend[bc.Batch]):
             if verbose:
                 print(f'Waiting for batch {batch_handle.id}...')
             starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)
+            await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
             status = await batch_handle._async_batch.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
             print(f'batch {batch_handle.id} complete: {status["state"]}')
 

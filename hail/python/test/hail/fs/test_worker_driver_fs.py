@@ -1,8 +1,9 @@
 import hail as hl
+import pytest
 from hailtop.utils import secret_alnum_string
 from hailtop.test_utils import skip_in_azure, run_if_azure
 
-from ..helpers import fails_local_backend
+from ..helpers import fails_local_backend, hl_stop_for_test, hl_init_for_test, test_timeout
 
 
 @skip_in_azure
@@ -30,8 +31,8 @@ def test_requester_pays_write_no_settings():
 @skip_in_azure
 @fails_local_backend()
 def test_requester_pays_write_with_project():
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
     random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
     try:
         hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
@@ -40,21 +41,22 @@ def test_requester_pays_write_with_project():
 
 
 @skip_in_azure
+@test_timeout(local=5 * 60, batch=5 * 60)
 def test_requester_pays_with_project():
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
     assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
     assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
     assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
     try:
         hl.import_table('gs://hail-test-requester-pays-fds32/hello')
     except Exception as exc:
@@ -62,12 +64,13 @@ def test_requester_pays_with_project():
     else:
         assert False
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
     assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
 
 @skip_in_azure
+@test_timeout(local=5 * 60, batch=5 * 60)
 def test_requester_pays_with_project_more_than_one_partition():
     # NB: this test uses a file with more rows than partitions because Hadoop's Seekable input
     # streams do not permit seeking past the end of the input (ref:
@@ -91,20 +94,20 @@ def test_requester_pays_with_project_more_than_one_partition():
         hl.Struct(f0='9'),
     ]
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
     assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
     assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
     assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
     try:
         hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', min_partitions=8)
     except Exception as exc:
@@ -112,8 +115,8 @@ def test_requester_pays_with_project_more_than_one_partition():
     else:
         assert False
 
-    hl.stop()
-    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    hl_stop_for_test()
+    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
     assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
 

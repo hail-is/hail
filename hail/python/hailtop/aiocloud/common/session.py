@@ -3,7 +3,7 @@ from typing import Optional, Type, TypeVar, Mapping
 import aiohttp
 import abc
 from hailtop import httpx
-from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
+from hailtop.utils import retry_transient_errors, RateLimit, RateLimiter
 from .credentials import CloudCredentials
 
 SessionType = TypeVar('SessionType', bound='BaseSession')
@@ -104,7 +104,7 @@ class Session(BaseSession):
         # retry by default
         retry = kwargs.pop('retry', True)
         if retry:
-            return await request_retry_transient_errors(self._http_session, method, url, **kwargs)
+            return await retry_transient_errors(self._http_session.request, method, url, **kwargs)
         return await self._http_session.request(method, url, **kwargs)
 
     async def close(self) -> None:

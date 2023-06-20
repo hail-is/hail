@@ -39,6 +39,7 @@ class SQLConfig(NamedTuple):
         cnf = f'''[client]
 host={self.host}
 user={self.user}
+port={self.port}
 password="{self.password}"
 ssl-ca={self.ssl_ca}
 ssl-mode={self.ssl_mode}

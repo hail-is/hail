@@ -9,11 +9,11 @@ from typing import Dict, List, Optional, Tuple
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 
-from batch.driver.k8s_cache import K8sCache
 from ci.build import BuildConfiguration, Code
 from ci.environment import KUBERNETES_SERVER_URL, STORAGE_URI
 from ci.github import clone_or_fetch_script
 from ci.utils import generate_token
+from gear import K8sCache
 from hailtop.utils import check_shell_output
 
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
@@ -131,10 +131,9 @@ class LocalBatchBuilder:
                 files = []
                 for src, dest in j._input_files:
                     assert src.startswith(prefix), (prefix, src)
-                    src = f'/shared{src[len(prefix):]}'
                     files.append(
                         {
-                            'from': src,
+                            'from': f'/shared{src[len(prefix):]}',
                             'to': dest,
                         }
                     )
@@ -268,11 +267,10 @@ users:
                     files = []
                     for src, dest in j._output_files:
                         assert dest.startswith(prefix), (prefix, dest)
-                        dest = f'/shared{dest[len(prefix):]}'
                         files.append(
                             {
                                 'from': src,
-                                'to': dest,
+                                'to': f'/shared{dest[len(prefix):]}',
                             }
                         )
                     output_cid, output_ok = await docker_run(

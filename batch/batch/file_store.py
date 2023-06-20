@@ -39,6 +39,11 @@ class FileStore:
             return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/resource_usage'
         return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/resource_usage'
 
+    def jvm_profile_path(self, format_version, batch_id, job_id, attempt_id, task):
+        if not format_version.has_attempt_in_log_path():
+            return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/jvm_profile.html'
+        return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/jvm_profile.html'
+
     async def read_log_file(self, format_version, batch_id, job_id, attempt_id, task) -> bytes:
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
         return await self.fs.read(url)
@@ -46,6 +51,14 @@ class FileStore:
     async def write_log_file(self, format_version, batch_id, job_id, attempt_id, task, data: bytes):
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
         await self.fs.write(url, data)
+
+    async def write_jvm_profile(self, format_version, batch_id, job_id, attempt_id, task, data):
+        url = self.jvm_profile_path(format_version, batch_id, job_id, attempt_id, task)
+        await self.fs.write(url, data)
+
+    async def read_jvm_profile(self, format_version, batch_id, job_id, attempt_id, task):
+        url = self.jvm_profile_path(format_version, batch_id, job_id, attempt_id, task)
+        return await self.fs.read(url)
 
     async def read_resource_usage_file(
         self, format_version, batch_id, job_id, attempt_id, task

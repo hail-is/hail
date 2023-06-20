@@ -56,7 +56,8 @@ class Backend(abc.ABC):
         "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
         "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
         "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
-        "rng_nonce": ("HAIL_RNG_NONCE", "0x0")
+        "rng_nonce": ("HAIL_RNG_NONCE", "0x0"),
+        "profile": ("HAIL_PROFILE", None),
     }
 
     def _valid_flags(self) -> AbstractSet[str]:
@@ -194,11 +195,12 @@ class Backend(abc.ABC):
     def persist_expression(self, expr: Expression) -> Expression:
         pass
 
-    def _initialize_flags(self) -> None:
+    def _initialize_flags(self, initial_flags: Dict[str, str]) -> None:
         self.set_flags(**{
             k: configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
             for k, (deprecated_envvar, default) in Backend._flags_env_vars_and_defaults.items()
-        })
+            if k not in initial_flags
+        }, **initial_flags)
 
     @abc.abstractmethod
     def set_flags(self, **flags: Mapping[str, str]):

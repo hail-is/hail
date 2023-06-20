@@ -6,7 +6,7 @@ import pytest
 
 from hail import current_backend, init, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
-from .helpers import startTestHailContext, stopTestHailContext
+from .helpers import hl_init_for_test, hl_stop_for_test
 
 
 def pytest_collection_modifyitems(config, items):
@@ -37,9 +37,9 @@ def ensure_event_loop_is_initialized_in_test_thread():
 
 @pytest.fixture(scope="session", autouse=True)
 def init_hail():
-    startTestHailContext()
+    hl_init_for_test()
     yield
-    stopTestHailContext()
+    hl_stop_for_test()
 
 
 @pytest.fixture(autouse=True)

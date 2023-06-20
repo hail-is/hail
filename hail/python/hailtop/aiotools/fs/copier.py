@@ -382,7 +382,7 @@ class SourceCopier:
             raise NotADirectoryError(full_dest)
 
         async def copy_source(srcentry: FileListEntry) -> None:
-            srcfile = srcentry.url_maybe_trailing_slash()
+            srcfile = await srcentry.url_maybe_trailing_slash()
             assert srcfile.startswith(src)
 
             # skip files with empty names

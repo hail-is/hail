@@ -403,15 +403,15 @@ object Copy {
       case WriteMetadata(ctx, writer) =>
         assert(newChildren.length == 1)
         WriteMetadata(newChildren(0).asInstanceOf[IR], writer)
-      case ReadValue(path, spec, requestedType) =>
+      case ReadValue(path, writer, requestedType) =>
         assert(newChildren.length == 1)
-        ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)
-      case WriteValue(_, _, spec, _) =>
+        ReadValue(newChildren(0).asInstanceOf[IR], writer, requestedType)
+      case WriteValue(_, _, writer, _) =>
         assert(newChildren.length == 2 || newChildren.length == 3)
         val value = newChildren(0).asInstanceOf[IR]
         val path = newChildren(1).asInstanceOf[IR]
         val stage = if (newChildren.length == 3) Some(newChildren(2).asInstanceOf[IR]) else None
-        WriteValue(value, path, spec, stage)
+        WriteValue(value, path, writer, stage)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
     }

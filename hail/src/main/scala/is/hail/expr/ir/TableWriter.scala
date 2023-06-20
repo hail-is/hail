@@ -25,7 +25,7 @@ import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 
-import java.io.OutputStream
+import java.io.{BufferedOutputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
 import scala.language.existentials
@@ -405,6 +405,43 @@ object RelationalWriter {
     write, RelationalWriter(path, overwrite, refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))))
 }
 
+case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableType]) extends MetadataWriter {
+  lazy val maybeRefs = refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))
+
+  def annotationType: Type = TStruct()
+
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit = {
+    if (overwrite)
+      cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
+    else
+      cb.ifx(cb.emb.getFS.invoke[String, Boolean]("exists", path), cb._fatal(s"file already exists: $path"))
+    cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
+
+    maybeRefs.foreach { case (refRelPath, refs) =>
+      val referencesFQPath = s"$path/$refRelPath"
+      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", referencesFQPath)
+      refs.foreach { rg =>
+        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, referencesFQPath, cb.emb.getReferenceGenome(rg))
+      }
+    }
+  }
+}
+
+case class RelationalCommit(path: String) extends MetadataWriter {
+  def annotationType: Type = TStruct()
+
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit = {
+    cb += Code.invokeScalaObject2[FS, String, Unit](Class.forName("is.hail.utils.package$"), "writeNativeFileReadMe", cb.emb.getFS, path)
+    cb += cb.emb.create(s"$path/_SUCCESS").invoke[Unit]("close")
+  }
+}
+
 case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[String])]) extends MetadataWriter {
   def annotationType: Type = TVoid
 
@@ -504,6 +541,25 @@ case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHe
 }
 
 object TableTextFinalizer {
+  def writeManifest(fs: FS, outputPath: String, files: Array[String], optionalAdditionalFirstPath: String): Unit = {
+
+    def basename(f: String): String = (new java.io.File(f)).getName
+
+    using(fs.createNoCompression(fs.makeQualified(outputPath + "/shard-manifest.txt"))) { os =>
+      val bos = new BufferedOutputStream(os)
+
+      if (optionalAdditionalFirstPath != null) {
+        bos.write(basename(optionalAdditionalFirstPath).getBytes())
+        bos.write('\n')
+      }
+      files.foreach { f =>
+        bos.write(basename(f).getBytes())
+        bos.write('\n')
+      }
+      bos.flush()
+    }
+  }
+
   def cleanup(fs: FS, outputPath: String, files: Array[String]): Unit = {
     val outputFiles = fs.listStatus(fs.makeQualified(outputPath)).map(_.getPath).toSet
     val fileSet = files.map(fs.makeQualified(_)).toSet
@@ -547,19 +603,23 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
         cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, files, Code._null[String])
+
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
         cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
-        if (header) {
-          val headerFilePath = s"$outputPath/header$ext"
+        val headerPath = if (header) {
+          val headerFilePath = const(s"$outputPath/header$ext")
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
-          val os = cb.memoize(cb.emb.create(const(headerFilePath)))
+          val os = cb.memoize(cb.emb.create(headerFilePath))
           cb += os.invoke[Array[Byte], Unit]("write", const(headerStr).invoke[Array[Byte]]("getBytes"))
           cb += os.invoke[Int, Unit]("write", '\n')
           cb += os.invoke[Unit]("close")
-        }
+          headerFilePath
+        } else Code._null[String]
 
+        cb += Code.invokeScalaObject4[FS, String, Array[String], String, Unit](TableTextFinalizer.getClass, "writeManifest", cb.emb.getFS, outputPath, files, headerPath)
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
     }
   }
@@ -741,6 +801,11 @@ case class WrappedMatrixNativeMultiWriter(
   writer: MatrixNativeMultiWriter,
   colKey: IndexedSeq[String]
 ) {
+  def lower(ctx: ExecuteContext, ts: IndexedSeq[(TableStage, RTable)]): IR =
+    writer.lower(ctx, ts.map { case (ts, rt) =>
+      (LowerMatrixIR.colsFieldName, LowerMatrixIR.entriesFieldName, colKey, ts, rt)
+    })
+
   def apply(ctx: ExecuteContext, mvs: IndexedSeq[TableValue]): Unit = writer.apply(
     ctx, mvs.map(_.toMatrixValue(colKey)))
 }

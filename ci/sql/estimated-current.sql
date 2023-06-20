@@ -4,6 +4,11 @@ CREATE TABLE authorized_shas (
 
 CREATE INDEX authorized_shas_sha ON authorized_shas (sha);
 
+CREATE TABLE alerted_failed_shas (
+  sha VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`sha`)
+) ENGINE = InnoDB;
+
 CREATE TABLE invalidated_batches (
   batch_id BIGINT NOT NULL
 ) ENGINE = InnoDB;
