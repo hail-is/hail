@@ -2500,7 +2500,7 @@ class JVMContainer:
             memory_in_bytes=total_memory_bytes,
             env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
-            log_path=f'/batch/jvm-container-logs/jvm-{index}.log'
+            log_path=f'/batch/jvm-container-logs/jvm-{index}.log',
         )
 
         await c.create()
