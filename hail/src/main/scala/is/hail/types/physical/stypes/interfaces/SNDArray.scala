@@ -809,7 +809,14 @@ trait SNDArrayValue extends SValue {
 
   def assertHasShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue], msg: Code[String]*) =
     if (!hasShapeStatic(otherShape))
-      cb.ifx(!hasShape(cb, otherShape), cb._fatal(msg: _*))
+      cb.ifx(!hasShape(cb, otherShape),
+        cb._fatal(
+          msg ++
+          (const("\nExpected shape ").get +:
+            shapes.map(_.toS).intersperse[Code[String]]("(", ",", ")")) ++
+          (const(", found ").get +:
+            otherShape.map(_.toS).intersperse[Code[String]]("(", ",", ")")): _*,
+        ))
 
   // True IFF shape can be proven equal to otherShape statically
   def hasShapeStatic(otherShape: IndexedSeq[SizeValue]): Boolean =
