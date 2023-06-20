@@ -1,8 +1,6 @@
-import json
 import os
 import re
 from collections import defaultdict
-from typing import List
 
 import avro.schema
 from avro.datafile import DataFileReader
@@ -12,7 +10,7 @@ import hail as hl
 from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
     expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
-    expr_any, expr_int32, to_expr, analyze
+    expr_int32, to_expr, analyze
 from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
     tcall, tbool, tint64, tfloat32
 from hail.genetics.reference_genome import reference_genome_type
