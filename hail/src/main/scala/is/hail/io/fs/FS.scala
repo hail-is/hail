@@ -57,6 +57,14 @@ class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Po
   def getPosition: Long = count
 }
 
+trait FSURL[T <: FSURL[T]] {
+  def getPath: String
+  def addPathComponent(component: String): T
+  def fromString(s: String): T
+
+  override def toString(): String
+}
+
 trait FileStatus {
   def getPath: String
   def getModificationTime: java.lang.Long
@@ -257,6 +265,7 @@ object FS {
 }
 
 trait FS extends Serializable {
+  type URL <: FSURL[URL]
 
   def validUrl(filename: String): Boolean
 
@@ -336,9 +345,11 @@ trait FS extends Serializable {
 
   def listStatus(filename: String): Array[FileStatus]
 
+  def listStatus(url: URL): Array[FileStatus] = listStatus(url.toString)
+
   def glob(filename: String): Array[FileStatus]
 
-  def globWithPrefix(prefix: String, path: String) = {
+  def globWithPrefix(prefix: URL, path: String) = {
     val components =
       if (path == "")
         Array.empty[String]
@@ -348,8 +359,8 @@ trait FS extends Serializable {
     val javaFS = FileSystems.getDefault
 
     val ab = new mutable.ArrayBuffer[FileStatus]()
-    def f(prefix: String, fs: FileStatus, i: Int): Unit = {
-      assert(!prefix.endsWith("/"), prefix)
+    def f(prefix: URL, fs: FileStatus, i: Int): Unit = {
+      assert(!prefix.getPath.endsWith("/"), prefix)
 
       if (i == components.length) {
         var t = fs
@@ -370,17 +381,17 @@ trait FS extends Serializable {
           val m = javaFS.getPathMatcher(s"glob:$c")
           for (cfs <- listStatus(prefix)) {
             val p = dropTrailingSlash(cfs.getPath)
-            val d = p.drop(prefix.length + 1)
+            val d = p.drop(prefix.toString.length + 1)
             if (m.matches(javaFS.getPath(d))) {
-              f(p, cfs, i + 1)
+              f(prefix.fromString(p), cfs, i + 1)
             }
           }
         } else
-          f(s"$prefix/$c", null, i + 1)
+          f(prefix.addPathComponent(c), null, i + 1)
       }
     }
 
-    f(s"$prefix", null, 0)
+    f(prefix, null, 0)
     ab.toArray
   }
 
@@ -390,6 +401,8 @@ trait FS extends Serializable {
   def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
 
   def fileStatus(filename: String): FileStatus
+
+  def fileStatus(url: URL): FileStatus = fileStatus(url.toString)
 
   def makeQualified(path: String): String
 
