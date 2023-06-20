@@ -2079,10 +2079,12 @@ class StreamAgg(IR):
     def __init__(self, a, value_name, body):
         a = a.handle_randomness(body.uses_randomness)
         if body.uses_randomness:
-            tuple, uid, elt = unpack_uid(a.typ)
-            body = AggLet(value_name, elt, body)
-            body = with_split_rng_state(body, uid)
-            value_name = tuple
+            tup, uid, elt = unpack_uid(a.typ)
+            if body.uses_value_randomness:
+                body = Let('__rng_state', RNGStateLiteral(), body)
+            if body.uses_agg_randomness(is_scan=False):
+                body = AggLet('__rng_state', RNGSplit(RNGStateLiteral(), uid), body, is_scan=False)
+            value_name = tup
 
         super().__init__(a, body)
         self.a = a
