@@ -103,9 +103,6 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
     where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
     where_args = [batch_id]
 
-    cost_conditions = []
-    cost_args = []
-
     if last_job_id is not None:
         where_conditions.append('(jobs.job_id > %s)')
         where_args.append(last_job_id)
@@ -113,24 +110,21 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
     uses_attempts_table = False
     for query in queries:
         cond, args = query.query()
-        if isinstance(query, CostQuery):
-            cost_conditions.append(f'({cond})')
-            cost_args += args
-        else:
-            if isinstance(
-                query,
-                (
-                    StartTimeQuery,
-                    EndTimeQuery,
-                    DurationQuery,
-                    InstanceQuery,
-                    QuotedExactMatchQuery,
-                    UnquotedPartialMatchQuery,
-                ),
-            ):
-                uses_attempts_table = True
-            where_conditions.append(f'({cond})')
-            where_args += args
+        if isinstance(
+            query,
+            (
+                StartTimeQuery,
+                EndTimeQuery,
+                DurationQuery,
+                InstanceQuery,
+                QuotedExactMatchQuery,
+                UnquotedPartialMatchQuery,
+            ),
+        ):
+            uses_attempts_table = True
+
+        where_conditions.append(f'({cond})')
+        where_args += args
 
     if uses_attempts_table:
         attempts_table_join_str = (
@@ -139,42 +133,30 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
     else:
         attempts_table_join_str = ''
 
-    if cost_conditions:
-        cost_condition_str = f'HAVING {" AND ".join(cost_conditions)}'
-    else:
-        cost_condition_str = ''
-
     sql = f'''
-WITH base_t AS
-(
-  SELECT jobs.*, batches.user, batches.billing_project, batches.format_version,
-    job_attributes.value AS name
-  FROM jobs
-  INNER JOIN batches ON jobs.batch_id = batches.id
-  INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
-  LEFT JOIN job_attributes
+SELECT jobs.*, batches.user, batches.billing_project, batches.format_version, job_attributes.value AS name, cost_t.cost
+FROM jobs
+INNER JOIN batches ON jobs.batch_id = batches.id
+INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
+LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
     jobs.job_id = job_attributes.job_id AND
     job_attributes.`key` = 'name'
-  {attempts_table_join_str}
-  WHERE {" AND ".join(where_conditions)}
-)
-SELECT base_t.*, cost_t.cost
-FROM base_t,
-LATERAL (
+{attempts_table_join_str}
+LEFT JOIN LATERAL (
 SELECT COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM (SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_job_resources_v2
-  WHERE aggregated_job_resources_v2.batch_id = base_t.batch_id AND aggregated_job_resources_v2.job_id = base_t.job_id
+  WHERE aggregated_job_resources_v2.batch_id = jobs.batch_id AND aggregated_job_resources_v2.job_id = jobs.job_id
   GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
 ) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY usage_t.batch_id, usage_t.job_id
-{cost_condition_str}
-) AS cost_t
+) AS cost_t ON TRUE
+WHERE {" AND ".join(where_conditions)}
 LIMIT 50;
 '''
 
-    sql_args = where_args + cost_args
+    sql_args = where_args
 
     return (sql, sql_args)
