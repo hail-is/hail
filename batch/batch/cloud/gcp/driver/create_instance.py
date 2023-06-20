@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from shlex import quote as shq
-from typing import Dict
+from typing import Dict, List
 
 from gear.cloud_config import get_global_config
 
@@ -75,7 +75,7 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
-    configs = []
+    configs: List[str] = []
     touch_commands = []
     for jvm_cores in (1, 2, 4, 8):
         for _ in range(cores // jvm_cores):
