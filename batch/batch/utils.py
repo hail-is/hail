@@ -152,6 +152,7 @@ LEFT JOIN LATERAL (
     FROM aggregated_billing_project_user_resources_v2
     WHERE billing_projects.name = aggregated_billing_project_user_resources_v2.billing_project
     GROUP BY billing_project, resource_id
+    LOCK IN SHARE MODE
   ) AS usage_t
   LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
   GROUP BY usage_t.billing_project
@@ -166,8 +167,6 @@ LOCK IN SHARE MODE;
         else:
             record['users'] = json.loads(record['users'])
         return record
-
-    log.info(f'sql {sql} args {args}')
 
     billing_projects = [record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
 
