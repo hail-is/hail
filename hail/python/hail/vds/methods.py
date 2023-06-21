@@ -42,10 +42,10 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     # FIXME(chrisvittal) consider changing END semantics on VDS to make this better
     # see https://github.com/hail-is/hail/issues/13183 for why this is here and more discussion
     # we assume that END <= contig.length
-    ref = ref.annotate_rows(locus_global_pos=ref.locus.global_position(), locus_pos=ref.locus.position)
-    ref = ref.transmute_entries(END_GLOBAL=ref.locus_global_pos + (ref.END - ref.locus_pos))
+    ref = ref.annotate_rows(_locus_global_pos=ref.locus.global_position(), _locus_pos=ref.locus.position)
+    ref = ref.transmute_entries(_END_GLOBAL=ref.locus_global_pos + (ref.END - ref.locus_pos))
 
-    to_drop = 'alleles', 'rsid', 'ref_allele', 'locus_global_pos', 'locus_pos'
+    to_drop = 'alleles', 'rsid', 'ref_allele', '_locus_global_pos', '_locus_pos'
     ref = ref.drop(*(x for x in to_drop if x in ref.row))
     var = vds.variant_data
     refl = ref.localize_entries('_ref_entries')
@@ -78,7 +78,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         _dense=hl.rbind(dr._ref_entries,
                         lambda refs_at_this_row: hl.zip_with_index(hl.zip(dr._var_entries, dr.dense_ref)).map(
                             lambda tup: coalesce_join(hl.coalesce(refs_at_this_row[tup[0]],
-                                                                  hl.or_missing(tup[1][1].END_GLOBAL >= dr.locus.global_position(),
+                                                                  hl.or_missing(tup[1][1]._END_GLOBAL >= dr.locus.global_position(),
                                                                                 tup[1][1])), tup[1][0])
                         )),
     )
