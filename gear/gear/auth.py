@@ -39,10 +39,9 @@ class AuthClient:
         async def wrapped(request, *args, **kwargs):
             userdata = await self._userdata_from_rest_request(request)
             if not userdata:
-                web_userdata = await self._userdata_from_web_request(request)
-                if web_userdata:
-                    return web.HTTPUnauthorized(reason="provided web auth to REST endpoint")
-                raise web.HTTPUnauthorized()
+                userdata = await self._userdata_from_web_request(request)
+                if not userdata:
+                    raise web.HTTPUnauthorized()
             return await fun(request, userdata, *args, **kwargs)
 
         return wrapped

@@ -1,0 +1,188 @@
+/* TODO copy rules from the scss into here to make the header work like normal */
+/* variables */
+:root {
+  /* font stacks */
+  --sans-serif: 
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif,
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Segoe UI Symbol";
+  --monospace:
+    ui-monospace,
+    SFMono-Regular,
+    SF Mono,
+    Menlo,
+    Consolas,
+    Liberation Mono,
+    monospace;
+  /* margin/padding sizes */
+  --rem-4: 0.4rem;
+  --rem-8: 0.8rem;
+  --rem-16: 1.6rem;
+  /* colors */
+
+  --hail: rgb(60, 76, 165);
+  --hail-light: rgb(90, 106, 195);
+
+  --g-0: rgb(1, 4, 9);
+  --g-1: rgb(13, 17, 23);
+  --g-2: rgb(22, 27, 34);
+  --g-25: rgba(27, 31, 36, 0.15);
+  --g-3: rgb(33, 38, 45);
+  --g-35: rgb(36, 41, 47);
+  --g-4: rgb(48, 54, 61);
+  --g-45: rgb(107, 116, 126);
+  --g-5: rgb(139, 148, 158);
+  --g-6: rgb(201, 209, 217);
+  --g-625: rgb(243, 244, 246);
+  --g-65: rgb(246, 248, 250);
+  --g-7: rgb(255, 255, 255);
+}
+@media (prefers-color-scheme: light) { 
+  :root {
+    --link-color: var(--hail);
+    --background-color: var(--g-7);
+    --color: var(--g-45);
+    --header-color: var(--g-35);
+    --button-background-color: var(--g-65);
+    --button-hover-background-color: var(--g-625);
+    --button-hover-border-color: var(--g-25);
+    --card-background-color: var(--g-7);
+    --card-border-color: var(--g-25);
+    --table-header-color: var(--g-35);
+  }
+}
+@media (prefers-color-scheme: dark) { 
+  :root {
+    --link-color: var(--hail-light);
+    --background-color: var(--g-0);
+    --color: var(--g-5);
+    --header-color: var(--g-7);
+    --button-background-color: var(--g-2);
+    --button-hover-background-color: var(--g-4);
+    --button-hover-border-color: var(--g-7);
+    --card-background-color: var(--g-1);
+    --card-border-color: var(--g-4);
+    --table-header-color: var(--g-6);
+  }
+}
+
+/* base styles */
+html, body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+html {
+  font-family: var(--sans-serif);
+  width: 100vw;
+  background-color: var(--background-color);
+  color: var(--color);
+}
+body {
+  width: 95%;
+}
+h1, h2 {
+  color: var(--header-color);
+}
+a, a:visited {
+  text-decoration: none;
+  color: var(--link-color);
+}
+a:hover {
+  text-decoration: underline;
+}
+th, td {
+  padding-right: var(--rem-16);
+  padding-left: var(--rem-16);
+}
+th:first-child, td:first-child {
+  padding-left: 0;
+}
+th:last-child, td:last-child {
+  padding-right: 0;
+}
+th {
+  text-align: left;
+  color: var(--table-header-color);
+}
+td {
+  font-family: var(--monospace);
+  font-size: var(--rem-8);
+}
+
+/* classes */
+.hidden {
+  display: none;
+}
+.flex {
+  display: flex;
+}
+.justify-center {
+  justify-content: center;
+}
+.column {
+  flex-direction: column;
+}
+.align-center {
+  align-items: center;
+}
+.text-color {
+  color: var(--color);
+}
+.width-full {
+  width: 100%;
+}
+.width-most {
+  width: 95%;
+}
+.width-third {
+  width: 33%;
+}
+.button {
+  /* TODO for collapsed
+     writing-mode: sideways-lr; */
+  background-color: var(--button-background-color);
+  padding-top: var(--rem-8);
+  padding-bottom: var(--rem-8);
+  cursor: pointer;
+  user-select: none;
+  /* TODO this is for safari, what other webkit rules are we missing? -webkit-user-select: none; */
+}
+.button:hover {
+  border-color: var(--button-hover-border-color);
+  background-color: var(--button-hover-background-color);
+}
+.card {
+  align-items: center;
+  flex-direction: column;
+  display: flex;
+  background-color: var(--card-background-color);
+  margin-left: var(--rem-4);
+  margin-right: var(--rem-4);
+  padding-bottom: var(--rem-8);
+}
+.card-header {
+  margin-top: -1px;
+  margin-left: -1px;
+  margin-right: -1px;
+}
+.card, .card-header {
+  border-style: solid;
+  border-radius: var(--rem-4);
+  border-width: 1px;
+  border-color: var(--card-border-color);
+}
+.card-header, .card-body {
+  padding-left: var(--rem-8);
+  padding-right: var(--rem-8);
+}
+.card {
+  align-items: unset;
+}
