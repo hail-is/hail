@@ -303,7 +303,7 @@ case class LocalLDPrune(
 
   def execute[M[_]](mv: MatrixValue)(implicit M: MonadLower[M]): M[TableValue] =
     for {
-      ts <- TableExecuteIntermediate(mv.toTableValue).asTableStage
+      ts <- TableValueIntermediate(mv.toTableValue).asTableStage
       imm = ts.mapPartition(Some(typ(mv.typ).key)) { rows =>
         makeStream(rows, MatrixType.entriesIdentifier, mv.nCols)
       }.mapGlobals(_ => makestruct())

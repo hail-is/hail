@@ -1438,7 +1438,7 @@ class TableNativeReader(
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
 
   override def apply[M[_]: MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
-    lower(requestedType).flatMap(TableExecuteIntermediate(_).asTableValue)
+    lower(requestedType) >>= (TableStageIntermediate(_).asTableValue)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
@@ -1568,7 +1568,7 @@ case class TableNativeZippedReader(
   }
 
   override def apply[M[_]: MonadLower](requestedType: TableType, dropRows: Boolean): M[TableValue] =
-    lower(requestedType).flatMap(TableExecuteIntermediate(_).asTableValue)
+    lower(requestedType) >>= (TableStageIntermediate(_).asTableValue)
 
   override def lowerGlobals[M[_]](requestedGlobalsType: TStruct)(implicit M: MonadLower[M]): M[IR] =
     M.pure {
@@ -2157,7 +2157,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       leftTV <- left.execute(r) >>= (_.asTableStage)
       rightTV <- right.execute(r) >>= (_.asTableStage)
       joined <- LowerTableIRHelpers.lowerTableJoin(r, this, leftTV, rightTV)
-    } yield TableExecuteIntermediate(joined)
+    } yield TableStageIntermediate(joined)
 }
 
 case class TableIntervalJoin(
@@ -2475,8 +2475,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     for {
       tv <- child.execute(r) >>= (_.asTableValue)
       scanRef = genUID()
-      reqness <- Requiredness(this)
-      extracted = agg.Extract.apply(newRow, scanRef, reqness, isScan = true)
+      extracted = agg.Extract.apply(newRow, scanRef, r.requirednessAnalysis, isScan = true)
       ctx <- M.ask
       intermediate <- if (extracted.aggs.isEmpty) {
         for {
@@ -3046,8 +3045,7 @@ case class TableKeyByAndAggregate(
 
       globalsBc <- prev.globals.broadcast
       res = genUID()
-      reqness <- Requiredness(this)
-      extracted = agg.Extract(expr, res, reqness)
+      extracted = agg.Extract(expr, res, r.requirednessAnalysis)
 
       (_, makeInit) <- ir.CompileWithAggregators[M, AsmFunction2RegionLongUnit](
         extracted.states,
@@ -3190,15 +3188,14 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
-      prev <- child.execute(r).flatMap(_.asTableValue)
+      prev <- child.execute(r) >>= (_.asTableValue)
       prevRVD = prev.rvd.truncateKey(child.typ.key)
       ctx <- M.ask
       fsBc = ctx.fsBc
       sm = ctx.stateManager
 
       res = genUID()
-      reqness <- Requiredness(this)
-      extracted = agg.Extract(expr, res, reqness)
+      extracted = agg.Extract(expr, res, r.requirednessAnalysis)
 
       (_, makeInit) <-
         ir.CompileWithAggregators[M, AsmFunction2RegionLongUnit](
@@ -3324,7 +3321,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
   val typ: TableType = child.typ.copy(key = FastIndexedSeq())
 
   override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
-    child.execute(r).flatMap(_.asTableValue).flatMap { prev =>
+    child.execute(r) >>= (_.asTableValue) >>= { prev =>
       val physicalKey = prev.rvd.typ.key
       if (TableOrderBy.isAlreadyOrdered(sortFields, physicalKey))
         M.pure(TableValueIntermediate(prev.copy(typ = typ)))
@@ -3399,7 +3396,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
   }
 
   protected[ir] override def execute[M[_]: MonadLower](r: LoweringAnalyses): M[TableExecuteIntermediate] =
-    for {tv <- child.execute(r).flatMap(_.asTableValue)}
+    for {tv <- child.execute(r) >>= (_.asTableValue)}
       yield TableValueIntermediate(tv.rename(globalMap, rowMap))
 }
 

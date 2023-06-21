@@ -7,10 +7,10 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.expr.ir.lowering.utils.assertA
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering._
+import is.hail.expr.ir.lowering.utils.assertA
 import is.hail.io.exportTypes
 import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
@@ -26,11 +26,6 @@ import org.apache.spark.storage.StorageLevel
 
 import scala.language.higherKinds
 
-object TableExecuteIntermediate {
-  def apply(tv: TableValue): TableExecuteIntermediate = new TableValueIntermediate(tv)
-
-  def apply(ts: TableStage): TableExecuteIntermediate = new TableStageIntermediate(ts)
-}
 
 sealed trait TableExecuteIntermediate {
   def asTableStage[M[_]: MonadLower]: M[TableStage]

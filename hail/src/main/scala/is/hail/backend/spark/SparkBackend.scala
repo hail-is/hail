@@ -27,7 +27,7 @@ import is.hail.variant.ReferenceGenome
 import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark._
+import org.apache.spark.{unsafe => _, _}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -440,59 +440,60 @@ class SparkBackend(
     lowerTable: Boolean,
     lowerBM: Boolean,
     print: Option[PrintWriter] = None
-  )(implicit M: MonadLower[M]): M[Either[Unit, (PTuple, Long)]] = {
+  )(implicit M: MonadLower[M]): M[Either[Unit, (PTuple, Long)]] =
+    for {
+      typesToLower <- (lowerTable, lowerBM) match {
+        case (true, true) => M.pure(DArrayLowering.All)
+        case (true, false) => M.pure(DArrayLowering.TableOnly)
+        case (false, true) => M.pure(DArrayLowering.BMOnly)
+        case (false, false) => M.raiseError(new LowererUnsupportedOperation("no lowering enabled"))
+      }
 
-    val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
-      case (true, true) => DArrayLowering.All
-      case (true, false) => DArrayLowering.TableOnly
-      case (false, true) => DArrayLowering.BMOnly
-      case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
-    }
-
-    LoweringPipeline.darrayLowerer(optimize)(typesToLower)(ir0).flatMap { case ir: IR =>
-      if (!Compilable(ir))
+      bir <- LoweringPipeline.darrayLowerer(optimize)(typesToLower)(ir0)
+      ir <- unsafe(bir.asInstanceOf[IR])
+      _ <- M.unlessA(Compilable(ir)) {
         raisePretty(pretty => new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${pretty(ir)}"))
-      else
-        ir.typ match {
-          case TVoid =>
-            for {
-              (_, f) <- timeM("Compile") {
-                Compile[M, AsmFunction1RegionUnit](
-                  FastIndexedSeq(),
-                  FastIndexedSeq(classInfo[Region]), UnitInfo,
-                  ir,
-                  print = print
-                )
-              }
+      }
 
-              _ <- timeM("Run") {
-                scopedExecution { case (hcl, fs, htc, r) =>
-                  M.pure(f(hcl, fs, htc, r)(r))
-                }
-              }
+      result: Either[Unit, (PTuple, Long)] <- ir.typ match {
+        case TVoid =>
+          for {
+            (_, f) <- timeM("Compile") {
+              Compile[M, AsmFunction1RegionUnit](
+                FastIndexedSeq(),
+                FastIndexedSeq(classInfo[Region]), UnitInfo,
+                ir,
+                print = print
+              )
+            }
 
-            } yield Left(())
-
-          case _ =>
-            for {
-              (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) <- timeM("Compile") {
-                Compile[M, AsmFunction1RegionLong](
-                  FastIndexedSeq(),
-                  FastIndexedSeq(classInfo[Region]), LongInfo,
-                  MakeTuple.ordered(FastSeq(ir)),
-                  print = print
-                )
+            _ <- timeM("Run") {
+              scopedExecution { case (hcl, fs, htc, r) =>
+                M.pure(f(hcl, fs, htc, r)(r))
               }
+            }
 
-              results <- timeM("Run") {
-                scopedExecution { case (hcl, fs, htc, r) =>
-                  M.pure(f(hcl, fs, htc, r)(r))
-                }
+          } yield Left(())
+
+        case _ =>
+          for {
+            (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) <- timeM("Compile") {
+              Compile[M, AsmFunction1RegionLong](
+                FastIndexedSeq(),
+                FastIndexedSeq(classInfo[Region]), LongInfo,
+                MakeTuple.ordered(FastSeq(ir)),
+                print = print
+              )
+            }
+
+            results <- timeM("Run") {
+              scopedExecution { case (hcl, fs, htc, r) =>
+                M.pure(f(hcl, fs, htc, r)(r))
               }
-            } yield Right((pt, results))
-        }
-    }
-  }
+            }
+          } yield Right((pt, results))
+      }
+    } yield result
 
   def execute(timer: ExecutionTimer, ir: IR, optimize: Boolean): Any =
     withExecuteContext(timer) { ctx =>

@@ -62,7 +62,7 @@ abstract class MatrixWriter {
   def apply[M[_]](mv: MatrixValue)(implicit M: MonadLower[M]): M[Unit] =
     for {
       tv <- M.pure(mv.toTableValue)
-      ts <- TableExecuteIntermediate(tv).asTableStage
+      ts <- TableValueIntermediate(tv).asTableStage
       lowered <- lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier,
         mv.typ.colKey, ts, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable]
       )
