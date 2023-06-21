@@ -43,7 +43,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     # see https://github.com/hail-is/hail/issues/13183 for why this is here and more discussion
     # we assume that END <= contig.length
     ref = ref.annotate_rows(_locus_global_pos=ref.locus.global_position(), _locus_pos=ref.locus.position)
-    ref = ref.transmute_entries(_END_GLOBAL=ref.locus_global_pos + (ref.END - ref.locus_pos))
+    ref = ref.transmute_entries(_END_GLOBAL=ref._locus_global_pos + (ref.END - ref._locus_pos))
 
     to_drop = 'alleles', 'rsid', 'ref_allele', '_locus_global_pos', '_locus_pos'
     ref = ref.drop(*(x for x in to_drop if x in ref.row))
