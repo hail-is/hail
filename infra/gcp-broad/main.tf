@@ -461,6 +461,12 @@ module "auth_gsa_secret" {
   ]
 }
 
+module "test_auth_gsa_secret" {
+  source = "./gsa"
+  name = "test-auth"
+  project = var.gcp_project
+}
+
 module "batch_gsa_secret" {
   source = "./gsa"
   name = "batch"
@@ -478,6 +484,23 @@ resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_vie
   member = "serviceAccount:${module.batch_gsa_secret.email}"
 }
 
+module "test_batch_gsa_secret" {
+  source = "./gsa"
+  name = "test-batch"
+  project = var.gcp_project
+  iam_roles = [
+    "compute.instanceAdmin.v1",
+    "iam.serviceAccountUser",
+    "logging.viewer",
+  ]
+}
+
+resource "google_storage_bucket_iam_member" "test_batch_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_batch_gsa_secret.email}"
+}
+
 module "ci_gsa_secret" {
   source = "./gsa"
   name = "ci"
@@ -493,12 +516,41 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_vie
   member = "serviceAccount:${module.ci_gsa_secret.email}"
 }
 
+module "test_ci_gsa_secret" {
+  source = "./gsa"
+  name = "test-ci"
+  project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "test_ci_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_ci_gsa_secret.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_ci_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.artifact_registry_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${module.test_ci_gsa_secret.email}"
+}
+
 module "grafana_gsa_secret" {
   source = "./gsa"
   name = "grafana"
   project = var.gcp_project
 }
 
+module "test_grafana_gsa_secret" {
+  source = "./gsa"
+  name = "test-grafana"
+  project = var.gcp_project
+}
+
+# FIXME Now that there are test identities for each service, the test user no longer
+# needs this many permissions. Perform an audit to see which can be removed
 module "test_gsa_secret" {
   source = "./gsa"
   name = "test"

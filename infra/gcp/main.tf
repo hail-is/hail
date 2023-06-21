@@ -440,6 +440,12 @@ module "auth_gsa_secret" {
   ]
 }
 
+module "test_auth_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "test-auth"
+  project = var.gcp_project
+}
+
 module "batch_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "batch"
@@ -458,10 +464,48 @@ resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_vie
   member = "serviceAccount:${module.batch_gsa_secret.email}"
 }
 
+module "test_batch_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "test-batch"
+  project = var.gcp_project
+  iam_roles = [
+    "compute.instanceAdmin.v1",
+    "iam.serviceAccountUser",
+    "logging.viewer",
+  ]
+}
+
+resource "google_storage_bucket_iam_member" "test_batch_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_batch_gsa_secret.email}"
+}
+
 module "ci_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "ci"
   project = var.gcp_project
+}
+
+module "test_ci_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "test-ci"
+  project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "test_ci_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_ci_gsa_secret.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_ci_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${module.test_ci_gsa_secret.email}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
@@ -485,6 +529,14 @@ module "grafana_gsa_secret" {
   project = var.gcp_project
 }
 
+module "test_grafana_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "test-grafana"
+  project = var.gcp_project
+}
+
+# FIXME Now that there are test identities for each service, the test user no longer
+# needs this many permissions. Perform an audit to see which can be removed
 module "test_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test"
@@ -513,6 +565,12 @@ module "test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-dev"
   project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "test_dev_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_dev_gsa_secret.email}"
 }
 
 resource "google_service_account" "batch_agent" {
