@@ -711,6 +711,7 @@ class BashJob(Job):
             self._resources[name] = rg
             for rname, r in rg._resources.items():
                 self._resources_inverse[r] = f'{name}["{rname}"]'
+                self._mentioned.add(r)
             _add_resource_to_set(self._valid, rg)
         return self
 
