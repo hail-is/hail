@@ -55,6 +55,7 @@ package object tls {
 
   def setSSLConfigFromDir(configDir: String) = {
     _getSSLConfig = sslConfigFromDir(configDir)
+    log.info("TLS configured.")
   }
 
   def getSSLConfig(): SSLConfig = {

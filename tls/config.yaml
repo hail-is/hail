@@ -56,33 +56,13 @@ principals:
     - internal-gateway
   unmanged: True
   kind: nginx
-- name: batch-tests
-  domains:
-    - batch-tests
-  kind: json
-- name: ci-tests
-  domains:
-    - ci-tests
-  kind: json
 - name: memory
   domains:
     - memory
   kind: json
-- name: memory-tests
-  domains:
-    - memory-tests
-  kind: json
-- name: services-java-tests
-  domains:
-    - services-java-tests
-  kind: json
 - name: monitoring
   domains:
     - monitoring
-  kind: json
-- name: monitoring-tests
-  domains:
-    - monitoring-tests
   kind: json
 - name: batch-user-code
   domains:
