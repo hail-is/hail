@@ -11,6 +11,7 @@ CREATE TABLE `users` (
   `tokens_secret_name` varchar(255) DEFAULT NULL,
   -- identity
   `hail_identity` varchar(255) DEFAULT NULL,
+  `hail_identity_uid` VARCHAR(255) DEFAULT NULL,
   `hail_credentials_secret_name` varchar(255) DEFAULT NULL,
   -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
