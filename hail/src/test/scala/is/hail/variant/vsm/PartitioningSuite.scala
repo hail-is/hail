@@ -2,11 +2,10 @@ package is.hail.variant.vsm
 
 import is.hail.HailSuite
 import is.hail.annotations.BroadcastRow
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir
 import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 import is.hail.expr.ir.lowering.LoweringState
-import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableRange, TableValue}
+import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue}
 import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.virtual.{TInt32, TStruct}
@@ -34,20 +33,5 @@ class PartitioningSuite extends HailSuite {
       ),
       optimize = false
     ).runA(ctx, LoweringState()).rvd.count()
-  }
-
-  @Test def testEmptyRDDOrderedJoin() {
-    val tv = Interpret.apply(TableRange(100, 6)).runA(ctx, LoweringState())
-
-    val nonEmptyRVD = tv.rvd
-    val rvdType = nonEmptyRVD.typ
-
-    ExecuteContext.scoped() { ctx =>
-      val emptyRVD = RVD.empty(ctx, rvdType)
-      emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()
-      emptyRVD.orderedJoin(nonEmptyRVD, "inner", (_, it) => it.map(_._1), rvdType, ctx).count()
-      nonEmptyRVD.orderedJoin(emptyRVD, "left", (_, it) => it.map(_._1), rvdType, ctx).count()
-      nonEmptyRVD.orderedJoin(emptyRVD, "inner", (_, it) => it.map(_._1), rvdType, ctx).count()
-    }
   }
 }

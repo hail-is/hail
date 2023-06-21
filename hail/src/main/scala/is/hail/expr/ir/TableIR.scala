@@ -57,9 +57,9 @@ abstract sealed class TableIR extends BaseIR {
   val rowCountUpperBound: Option[Long]
 
   final def analyzeAndExecute[M[_]: MonadLower]: M[TableExecuteIntermediate] =
-    for {r <- Requiredness(this); v <- execute(new TableRunContext(r))} yield v
+    LoweringAnalyses(this) >>= execute[M]
 
-  protected[ir] def execute[M[_]: MonadLower](r: TableRunContext): M[TableExecuteIntermediate] =
+  protected[ir] def execute[M[_]: MonadLower](r: LoweringAnalyses): M[TableExecuteIntermediate] =
     prettyFatal(pretty => "tried to execute unexecutable IR:\n" + pretty(this))
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR
@@ -73,8 +73,6 @@ abstract sealed class TableIR extends BaseIR {
 
   def pyUnpersist(): TableIR = unpersist()
 }
-
-class TableRunContext(val req: RequirednessAnalysis)
 
 object TableLiteral {
   def apply[M[_]](value: TableValue)(implicit M: Ask[M, ExecuteContext]): M[TableLiteral] =
@@ -94,7 +92,7 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
   }
 
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M])
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M])
   : M[TableExecuteIntermediate] =
     M.reader { ctx =>
       val (globalPType: PStruct, dec) = enc.buildDecoder(ctx, typ.globalType)
@@ -1714,7 +1712,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
     TableRead(typ, dropRows, tr)
   }
 
-  override protected[ir] def execute[M[_]: MonadLower](r: TableRunContext): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]: MonadLower](r: LoweringAnalyses): M[TableExecuteIntermediate] =
     tr.apply(typ, dropRows).map(TableValueIntermediate).widen
 }
 
@@ -1740,7 +1738,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     FastIndexedSeq(),
     globalsType)
 
-  protected[ir] override def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  protected[ir] override def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
    for {
     (ptype: PStruct, res) <-
       CompileAndEvaluate._apply(rowsAndGlobal, optimize = false).map {
@@ -1835,12 +1833,9 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, isSorted)
   }
 
-  protected[ir] override def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
-  for {
-    i <- child.execute(r)
-    tv <- i.asTableValue
-    ctx <- M.ask
-  } yield TableValueIntermediate(tv.copy(typ = typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
+  protected[ir] override def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+    for {tv <- child.execute(r) >>= (_.asTableValue); ctx <- M.ask}
+      yield TableValueIntermediate(tv.copy(typ = typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
 }
 
 /**
@@ -1896,7 +1891,7 @@ case class TableGen(contexts: IR,
   override def children: IndexedSeq[BaseIR] =
     FastSeq(contexts, globals, body)
 
-  override protected[ir] def execute[M[_]: MonadLower](r: TableRunContext): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]: MonadLower](r: LoweringAnalyses): M[TableExecuteIntermediate] =
     for {
       analyses <- LoweringAnalyses(this)
       lowered <- LowerTableIR.applyTable(this, DArrayLowering.All, analyses)
@@ -1925,7 +1920,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     Array("idx"),
     TStruct.empty)
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     M.map2(M.ask, BroadcastRow.empty) { (ctx, br) =>
       val localRowType = PCanonicalStruct(true, "idx" -> PInt32Required)
       val localPartCounts = partCounts
@@ -1970,9 +1965,9 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M])
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M])
   : M[TableExecuteIntermediate] = {
-    val readTV = child.execute(r).flatMap(_.asTableValue)
+    val readTV = child.execute(r) >>= (_.asTableValue)
     pred match {
       case True() =>
         readTV.map(TableValueIntermediate)
@@ -2028,8 +2023,8 @@ trait TableSubset extends TableIR {
     case None => Some(n)
   }
 
-  override protected[ir] def execute[M[_]: MonadLower](r: TableRunContext): M[TableExecuteIntermediate] =
-    for {prev <- child.execute(r).flatMap(_.asTableValue)}
+  override protected[ir] def execute[M[_]: MonadLower](r: LoweringAnalyses): M[TableExecuteIntermediate] =
+    for {prev <- child.execute(r) >>= (_.asTableValue)}
       yield TableValueIntermediate(prev.copy(rvd = subsetKind match {
         case TableSubset.HEAD => prev.rvd.head(n, child.partitionCounts)
         case TableSubset.TAIL => prev.rvd.tail(n, child.partitionCounts)
@@ -2074,8 +2069,8 @@ case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends Table
     TableRepartition(newChild, n, strategy)
   }
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
-    for {prev <- child.execute(r).flatMap(_.asTableValue); ctx <- M.ask}
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+    for {prev <- child.execute(r) >>= (_.asTableValue); ctx <- M.ask}
       yield TableValueIntermediate(
         prev.copy(rvd = strategy match {
           case RepartitionStrategy.SHUFFLE => prev.rvd.coalesce(ctx, n, shuffle = true)
@@ -2157,116 +2152,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       joinKey)
   }
 
-
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  protected[ir] override def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
-      leftTV <- left.execute(r).flatMap(_.asTableValue)
-      rightTV <- right.execute(r).flatMap(_.asTableValue)
-
-      combinedRow = Row.fromSeq(leftTV.globals.javaValue.toSeq ++ rightTV.globals.javaValue.toSeq)
-      newGlobals <- BroadcastRow(combinedRow, newGlobalType)
-
-      leftRVDType = leftTV.rvd.typ.copy(key = left.typ.key.take(joinKey))
-      rightRVDType = rightTV.rvd.typ.copy(key = right.typ.key.take(joinKey))
-
-      leftRowType = leftRVDType.rowType
-      rightRowType = rightRVDType.rowType
-      leftKeyFieldIdx = leftRVDType.kFieldIdx
-      rightKeyFieldIdx = rightRVDType.kFieldIdx
-      leftValueFieldIdx = leftRVDType.valueFieldIdx
-      rightValueFieldIdx = rightRVDType.valueFieldIdx
-
-      noIndex = (pfs: IndexedSeq[PField]) =>
-        pfs.map(pf => (pf.name, pf.typ))
-
-      unionFieldPTypes = (ps: PStruct, ps2: PStruct) =>
-        ps.fields.zip(ps2.fields).map { case (pf1, pf2) =>
-          (pf1.name, InferPType.getCompatiblePType(Seq(pf1.typ, pf2.typ)))
-        }
-
-      castFieldRequiredeness = (ps: PStruct, required: Boolean) =>
-        ps.fields.map(pf => (pf.name, pf.typ.setRequired(required)))
-
-      (lkT, lvT, rvT) = joinType match {
-        case "inner" =>
-          val keyTypeFields = castFieldRequiredeness(leftRVDType.kType, true)
-          (keyTypeFields, noIndex(leftRVDType.valueType.fields), noIndex(rightRVDType.valueType.fields))
-        case "left" =>
-          val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
-          (noIndex(leftRVDType.kType.fields), noIndex(leftRVDType.valueType.fields), rValueTypeFields)
-        case "right" =>
-          val keyTypeFields = leftRVDType.kType.fields.zip(rightRVDType.kType.fields).map({
-            case (pf1, pf2) => {
-              assert(pf1.typ isOfType pf2.typ)
-              (pf1.name, pf2.typ)
-            }
-          })
-          val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
-          (keyTypeFields, lValueTypeFields, noIndex(rightRVDType.valueType.fields))
-        case "outer" =>
-          val keyTypeFields = unionFieldPTypes(leftRVDType.kType, rightRVDType.kType)
-          val lValueTypeFields = castFieldRequiredeness(leftRVDType.valueType, false)
-          val rValueTypeFields = castFieldRequiredeness(rightRVDType.valueType, false)
-          (keyTypeFields, lValueTypeFields, rValueTypeFields)
-      }
-
-      newRowPType = PCanonicalStruct(true, lkT ++ lvT ++ rvT: _ *)
-
-      _ <- assertA(newRowPType.virtualType == newRowType)
-
-      ctx <- M.ask
-      rvMerger = { (_: RVDContext, it: Iterator[JoinedRegionValue]) =>
-        val rvb = new RegionValueBuilder(ctx.stateManager)
-        val rv = RegionValue()
-        it.map { joined =>
-          val lrv = joined._1
-          val rrv = joined._2
-
-          if (lrv != null)
-            rvb.set(lrv.region)
-          else {
-            assert(rrv != null)
-            rvb.set(rrv.region)
-          }
-
-          rvb.start(newRowPType)
-          rvb.startStruct()
-
-          if (lrv != null)
-            rvb.addFields(leftRowType, lrv, leftKeyFieldIdx)
-          else {
-            assert(rrv != null)
-            rvb.addFields(rightRowType, rrv, rightKeyFieldIdx)
-          }
-
-          if (lrv != null)
-            rvb.addFields(leftRowType, lrv, leftValueFieldIdx)
-          else
-            rvb.skipFields(leftValueFieldIdx.length)
-
-          if (rrv != null)
-            rvb.addFields(rightRowType, rrv, rightValueFieldIdx)
-          else
-            rvb.skipFields(rightValueFieldIdx.length)
-
-          rvb.endStruct()
-          rv.set(rvb.region, rvb.end())
-          rv
-        }
-      }
-
-      leftRVD = leftTV.rvd
-      rightRVD = rightTV.rvd
-      joinedRVD = leftRVD.orderedJoin(
-        rightRVD,
-        joinKey,
-        joinType,
-        rvMerger,
-        RVDType(newRowPType, newKey),
-        ctx
-      )
-
-    } yield TableValueIntermediate(TableValue(typ, newGlobals, joinedRVD))
+      leftTV <- left.execute(r) >>= (_.asTableStage)
+      rightTV <- right.execute(r) >>= (_.asTableStage)
+      joined <- LowerTableIRHelpers.lowerTableJoin(r, this, leftTV, rightTV)
+    } yield TableExecuteIntermediate(joined)
 }
 
 case class TableIntervalJoin(
@@ -2287,10 +2178,10 @@ case class TableIntervalJoin(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
-      leftValue <- left.execute(r).flatMap(_.asTableValue)
-      rightValue <- right.execute(r).flatMap(_.asTableValue)
+      leftValue <- left.execute(r) >>= (_.asTableValue)
+      rightValue <- right.execute(r) >>= (_.asTableValue)
 
       leftRVDType = leftValue.rvd.typ
       rightRVDType = rightValue.rvd.typ.copy(key = rightValue.typ.key)
@@ -2386,7 +2277,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   def copy(newChildren: IndexedSeq[BaseIR]): TableMultiWayZipJoin =
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
       childValues <- children.traverse(_.execute(r).flatMap(_.asTableValue))
       ctx <- M.ask
@@ -2474,10 +2365,10 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
     TableLeftJoinRightDistinct(newLeft, newRight, root)
   }
 
-  override protected[ir] def execute[M[_]: MonadLower](r: TableRunContext): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]: MonadLower](r: LoweringAnalyses): M[TableExecuteIntermediate] =
     for {
-      leftValue <- left.execute(r).flatMap(_.asTableValue)
-      rightValue <- right.execute(r).flatMap(_.asTableValue)
+      leftValue <- left.execute(r) >>= (_.asTableValue)
+      rightValue <- right.execute(r) >>= (_.asTableValue)
       joinKey = math.min(left.typ.key.length, right.typ.key.length)
     } yield TableValueIntermediate(leftValue.copy(
       typ = typ,
@@ -2516,9 +2407,9 @@ case class TableMapPartitions(child: TableIR,
       globalName, partitionStreamName, newChildren(1).asInstanceOf[IR], requestedKey, allowedOverlap)
   }
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
-      tv <- child.execute(r).flatMap(_.asTableValue)
+      tv <- child.execute(r) >>= (_.asTableValue)
       rowPType = tv.rvd.rowPType
       globalPType = tv.globals.t
 
@@ -2580,9 +2471,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
-      tv <- child.execute(r).flatMap(_.asTableValue)
+      tv <- child.execute(r) >>= (_.asTableValue)
       scanRef = genUID()
       reqness <- Requiredness(this)
       extracted = agg.Extract.apply(newRow, scanRef, reqness, isScan = true)
@@ -2911,9 +2802,9 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  protected[ir] override def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  protected[ir] override def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
-      tv <- child.execute(r).flatMap(_.asTableValue)
+      tv <- child.execute(r) >>= (_.asTableValue)
       (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) <-
         Compile[M, AsmFunction2RegionLongLong](
           FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
@@ -2971,7 +2862,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
     TableExplode(newChildren(0).asInstanceOf[TableIR], path)
   }
 
-  protected[ir] override def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  protected[ir] override def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
       prev <- child.execute(r) >>= (_.asTableValue)
 
@@ -3044,8 +2935,8 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 
   val typ: TableType = children(0).typ
 
-  protected[ir] override def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
-    for {tvs <- children.traverse(_.execute(r).flatMap(_.asTableValue)); ctx <- M.ask}
+  protected[ir] override def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+    for {tvs <- children.traverse(_.execute(r) >>= (_.asTableValue)); ctx <- M.ask}
       yield TableValueIntermediate(tvs(0).copy(
         rvd = RVD.union(RVD.unify(ctx, tvs.map(_.rvd)), tvs(0).typ.key.length, ctx)
       ))
@@ -3105,8 +2996,8 @@ case class TableDistinct(child: TableIR) extends TableIR {
   val typ: TableType = child.typ
 
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
-    for {prev <- child.execute(r).flatMap(_.asTableValue); ctx <- M.ask}
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+    for {prev <- child.execute(r) >>= (_.asTableValue); ctx <- M.ask}
       yield TableValueIntermediate(prev.copy(rvd = prev.rvd.truncateKey(prev.typ.key).distinctByKey(ctx)))
 }
 
@@ -3135,9 +3026,9 @@ case class TableKeyByAndAggregate(
     key = keyType.fieldNames
   )
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
-      prev <- child.execute(r).flatMap(_.asTableValue)
+      prev <- child.execute(r) >>= (_.asTableValue)
       ctx <- M.ask
       fsBc = ctx.fsBc
       sm = ctx.stateManager
@@ -3297,7 +3188,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   val typ: TableType = child.typ.copy(rowType = child.typ.keyType ++ tcoerce[TStruct](expr.typ))
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
       prev <- child.execute(r).flatMap(_.asTableValue)
       prevRVD = prev.rvd.truncateKey(child.typ.key)
@@ -3432,7 +3323,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
   val typ: TableType = child.typ.copy(key = FastIndexedSeq())
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     child.execute(r).flatMap(_.asTableValue).flatMap { prev =>
       val physicalKey = prev.rvd.typ.key
       if (TableOrderBy.isAlreadyOrdered(sortFields, physicalKey))
@@ -3507,7 +3398,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     TableRename(newChild, rowMap, globalMap)
   }
 
-  protected[ir] override def execute[M[_]: MonadLower](r: TableRunContext): M[TableExecuteIntermediate] =
+  protected[ir] override def execute[M[_]: MonadLower](r: LoweringAnalyses): M[TableExecuteIntermediate] =
     for {tv <- child.execute(r).flatMap(_.asTableValue)}
       yield TableValueIntermediate(tv.rename(globalMap, rowMap))
 }
@@ -3524,9 +3415,9 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
 
   override lazy val typ: TableType = child.typ
 
-  protected[ir] override def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  protected[ir] override def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
     for {
-      tv <- child.execute(r).flatMap(_.asTableValue)
+      tv <- child.execute(r) >>= (_.asTableValue)
       partitioner <- M.reader { ctx =>
         RVDPartitioner.union(
           ctx.stateManager,
@@ -3570,7 +3461,7 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
 
   lazy val rowCountUpperBound: Option[Long] = if (function.preservesPartitionCounts) child.rowCountUpperBound else None
 
-  protected[ir] override def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+  protected[ir] override def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
   for {tv <- child.execute(r) >>= (_.asTableValue); fv <- function.execute(tv)}
     yield TableValueIntermediate(fv)
 
@@ -3593,7 +3484,7 @@ case class BlockMatrixToTableApply(
 
   override lazy val typ: TableType = function.typ(bm.typ, aux.typ)
 
-  override protected[ir] def execute[M[_]: MonadLower](r: TableRunContext): M[TableExecuteIntermediate] =
+  override protected[ir] def execute[M[_]: MonadLower](r: LoweringAnalyses): M[TableExecuteIntermediate] =
     for {
       b <- bm.execute
       a <- CompileAndEvaluate[M, Annotation](aux, optimize = false)
@@ -3616,11 +3507,9 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
     TableType(rvType, Array[String](), TStruct.empty)
   }
 
-  override protected[ir] def execute[M[_]](r: TableRunContext)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
-    for {
-      bm <- child.execute
-      ctx <- M.ask
-    } yield TableValueIntermediate(bm.entriesTable(ctx))
+  override protected[ir] def execute[M[_]](r: LoweringAnalyses)(implicit M: MonadLower[M]): M[TableExecuteIntermediate] =
+    for {bm <- child.execute; ctx <- M.ask}
+        yield TableValueIntermediate(bm.entriesTable(ctx))
 }
 
 case class RelationalLetTable(name: String, value: IR, body: TableIR) extends TableIR {

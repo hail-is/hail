@@ -1624,42 +1624,12 @@ object LowerTableIR {
           )
         } yield stage
 
-      case tj@TableJoin(left, right, joinType, joinKey) =>
+      case tj@TableJoin(left, right, _, _) =>
         for {
           loweredLeft <- lower(left)
           loweredRight <- lower(right)
-
-          lKeyFields = left.typ.key.take(joinKey)
-          lValueFields = left.typ.rowType.fieldNames.filter(f => !lKeyFields.contains(f))
-          rKeyFields = right.typ.key.take(joinKey)
-          rValueFields = right.typ.rowType.fieldNames.filter(f => !rKeyFields.contains(f))
-          lReq = analyses.requirednessAnalysis.lookup(left).asInstanceOf[RTable]
-          rReq = analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable]
-
-          joinedStage <- loweredLeft.orderedJoin(
-            loweredRight, joinKey, joinType,
-            (lGlobals, rGlobals) => {
-              val rGlobalType = rGlobals.typ.asInstanceOf[TStruct]
-              val rGlobalRef = Ref(genUID(), rGlobalType)
-              Let(rGlobalRef.name, rGlobals,
-                InsertFields(lGlobals, rGlobalType.fieldNames.map(f => f -> GetField(rGlobalRef, f))))
-            },
-            (lEltRef, rEltRef) => {
-              MakeStruct(
-                (lKeyFields, rKeyFields).zipped.map { (lKey, rKey) =>
-                  if (joinType == "outer" && lReq.field(lKey).required && rReq.field(rKey).required)
-                    lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey), Die("TableJoin expected non-missing key", left.typ.rowType.fieldType(lKey), -1)))
-                  else
-                    lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey)))
-                }
-                  ++ lValueFields.map(f => f -> GetField(lEltRef, f))
-                  ++ rValueFields.map(f => f -> GetField(rEltRef, f)))
-            },
-            analyses.distinctKeyedAnalysis.contains(right)
-          )
-
-          _ <- assertA(joinedStage.rowType == tj.typ.rowType)
-        } yield joinedStage
+          joined <- LowerTableIRHelpers.lowerTableJoin(analyses, tj, loweredLeft, loweredRight)
+        } yield joined
 
       case x@TableUnion(children) =>
         for {

@@ -160,9 +160,8 @@ case object SemanticHash extends Logging {
             case _ =>
               Hash(reader.getClass) <> reader
                 .pathsUsed
-                .flatMap(fs.globWithPrefix(_, "**"))
-                .filter(_.isFile)
-                .map(s => getFileHash(fs)(s.getPath))
+                .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+                .map(g => getFileHash(fs)(g.getPath))
                 .reduce(_ <> _)
           })
 

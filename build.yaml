@@ -1821,10 +1821,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-monitoring-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     timeout: 300
     inputs:
       - from: /repo/monitoring/test
@@ -2440,11 +2436,14 @@ steps:
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
-      if [[ "$HAIL_CLOUD" = "gcp" ]]
-      then
-          export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
-      fi
+      {% if global.cloud == "gcp" %}
+      export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
+      {% elif global.cloud == "azure" %}
+      export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
+      export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
+      {% endif %}
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
@@ -2490,10 +2489,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     dependsOn:
       - default_ns
       - merge_code
@@ -2613,10 +2608,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-memory-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -2691,10 +2682,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /dev-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -2743,10 +2730,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /dev-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     alwaysRun: true
     dependsOn:
       - create_deploy_config
@@ -2899,10 +2882,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-ci-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     timeout: 5400
     inputs:
       - from: /repo/ci/test
@@ -2968,10 +2947,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     dependsOn:
       - hailgenetics_hail_image
       - hailgenetics_hailtop_image
@@ -3089,10 +3064,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     dependsOn:
       - hailgenetics_hail_image
       - upload_query_jar
@@ -3588,10 +3559,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
-      - name: ssl-config-services-java-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -3638,10 +3605,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
-      - name: ssl-config-services-java-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     timeout: 1200
     dependsOn:
       - default_ns
@@ -3683,10 +3646,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     alwaysRun: true
     timeout: 300
     dependsOn:
@@ -3734,10 +3693,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     scopes:
       - test
       - dev
