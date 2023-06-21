@@ -7,7 +7,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.backend.utils.assertA
+import is.hail.expr.ir.lowering.utils.assertA
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering._

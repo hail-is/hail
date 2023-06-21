@@ -58,10 +58,11 @@ object QoBAppender {
   def createAppender(
     @PluginAttribute("name") name: String,
     @PluginAttribute("ignoreExceptions") ignoreExceptions: Boolean,
+    @PluginAttribute("immediateFlush") immediateFlush: Boolean,
     @PluginElement("Layout") layout: Layout[_],
     @PluginElement("Filters") filter: Filter
   ): QoBAppender = {
-    return new QoBAppender(name, ignoreExceptions, layout, filter)
+    return new QoBAppender(name, ignoreExceptions, immediateFlush, layout, filter)
   }
 }
 
@@ -69,6 +70,7 @@ object QoBAppender {
 class QoBAppender(
   name: String,
   ignoreExceptions: Boolean,
+  immediateFlush: Boolean,
   layout: Layout[_],
   filter: Filter
 ) extends AbstractOutputStreamAppender[QoBOutputStreamManager](
@@ -76,7 +78,7 @@ class QoBAppender(
   layout,
   filter,
   ignoreExceptions,
-  false,
+  immediateFlush,
   Array[Property](),
   QoBOutputStreamManager.getInstance(layout)
 ) {

@@ -5,7 +5,7 @@ import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
-import is.hail.backend.utils.unsafe
+import is.hail.expr.ir.lowering.utils.unsafe
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.ir.functions.MatrixToValueFunction

@@ -65,6 +65,12 @@ steps:
     script: |
       set -ex
 
+      retry() {
+          "$@" ||
+              (sleep 2 && "$@") ||
+              (sleep 5 && "$@");
+      }
+
       REGISTRY={{ global.docker_prefix.split('/')[0] }}
 
       {% if global.cloud == "gcp" %}
@@ -79,7 +85,7 @@ steps:
       {% endif %}
 
       cd /io/docker/third-party
-      DOCKER_PREFIX={{ global.docker_prefix }} bash copy_images.sh
+      DOCKER_PREFIX={{ global.docker_prefix }} retry bash copy_images.sh
     inputs:
       - from: /repo/docker
         to: /io/docker
@@ -186,9 +192,25 @@ steps:
       - merge_code
   - kind: runImage
     name: create_ssl_config_hail_root
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: create_certs_image.image
     script: |
+
+      {% if not deploy %}
+      kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root \
+        --template={% raw %}'{{index .data "hail-root-cert.pem"}}'{% endraw %} \
+        | base64 --decode \
+        | openssl x509 -checkend 0 -noout -in -
+
+      if [ "$?" -ne 0 ]
+      then
+          kubectl delete secret -n {{ default_ns.name }} ssl-config-hail-root
+      fi
+      {% endif %}
+
       openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
       until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
       do
@@ -208,6 +230,9 @@ steps:
       - create_certs_image
   - kind: runImage
     name: create_certs
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: create_certs_image.image
     script: |
@@ -255,35 +280,46 @@ steps:
     dependsOn:
       - base_image
       - merge_code
-  - kind: createDatabase
-    name: test_database_instance
-    databaseName: test-instance
-    image:
-      valueFrom: ci_utils_image.image
-    migrations: []
-    namespace:
-      valueFrom: default_ns.name
-    scopes:
-      - test
-    dependsOn:
-      - default_ns
-      - ci_utils_image
   - kind: runImage
-    name: create_database_server_config
+    name: create_test_database_server_config
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
-      valueFrom: ci_utils_image.image
+      valueFrom: create_certs_image.image
     script: |
-     kubectl -n {{ default_ns.name }} get -o json secret {{ test_database_instance.admin_secret_name }} | jq '{apiVersion, kind, type, data, metadata: {name: "database-server-config"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      set -ex
+
+      if ! kubectl get secret -n {{ default_ns.name }} database-server-config;
+      then
+          NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh
+      fi
     serviceAccount:
       name: admin
       namespace:
         valueFrom: default_ns.name
     scopes:
+      - dev
       - test
     dependsOn:
       - default_ns
-      - ci_utils_image
-      - test_database_instance
+      - create_certs_image
+  - kind: deploy
+    name: deploy_test_db
+    namespace:
+      valueFrom: default_ns.name
+    config: docker/mysql/db.yaml
+    wait:
+      - kind: Service
+        name: db
+        for: alive
+        resource_type: statefulset
+    scopes:
+      - dev
+      - test
+    dependsOn:
+      - default_ns
+      - create_test_database_server_config
   - kind: buildImage2
     name: admin_pod_image
     dockerFile: /io/repo/admin-pod/Dockerfile
@@ -316,8 +352,8 @@ steps:
       - default_ns
       - admin_pod_image
       - merge_code
-      - create_database_server_config
-  - kind: createDatabase
+      - create_test_database_server_config
+  - kind: createDatabase2
     name: auth_database
     databaseName: auth
     image:
@@ -354,8 +390,13 @@ steps:
       - merge_code
       - delete_auth_tables
       - ci_utils_image
+      - create_test_database_server_config
+      - deploy_test_db
   - kind: runImage
     name: create_deploy_config
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -400,6 +441,9 @@ steps:
       - create_certs
   - kind: runImage
     name: create_session_key
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -427,6 +471,9 @@ steps:
       - ci_utils_image
   - kind: runImage
     name: create_test_gsa_keys
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -481,6 +528,9 @@ steps:
       - default_ns
   - kind: runImage
     name: create_accounts
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: auth_image.image
     script: |
@@ -525,75 +575,7 @@ steps:
       - create_deploy_config
       - deploy_auth_driver_service_account
       - create_test_gsa_keys
-      - create_database_server_config
-  - kind: runImage
-    name: create_initial_user
-    runIfRequested: true
-    image:
-      valueFrom: auth_image.image
-    script: |
-      set -ex
-      export NAMESPACE={{ default_ns.name }}
-      export CLOUD={{ global.cloud }}
-      python3 /io/create_initial_account.py {{ code.username }} {{ code.login_id }}
-    serviceAccount:
-      name: admin
-      namespace:
-        valueFrom: default_ns.name
-    secrets:
-      - name:
-          valueFrom: auth_database.user_secret_name
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /sql-config
-    inputs:
-      - from: /repo/ci/create_initial_account.py
-        to: /io/create_initial_account.py
-    dependsOn:
-      - default_ns
-      - auth_image
-      - merge_code
-      - auth_database
-  - kind: buildImage2
-    name: hail_build_image
-    dockerFile: /io/hail/Dockerfile.hail-build
-    contextPath: /io/hail
-    publishAs: hail-build
-    inputs:
-      - from: /repo/hail/Dockerfile.hail-build
-        to: /io/hail/Dockerfile.hail-build
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: buildImage2
-    name: hail_run_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-run
-    contextPath: /io/repo
-    publishAs: hail-run
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/hail/Dockerfile.hail-run
-        to: /io/repo/hail/Dockerfile.hail-run
-      - from: /repo/hail/python/pinned-requirements.txt
-        to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /repo/hail/python/dev/pinned-requirements.txt
-        to: /io/repo/hail/python/dev/pinned-requirements.txt
-      - from: /repo/docker/core-site.xml
-        to: /io/repo/docker/core-site.xml
-      - from: /repo/hail/python/setup-hailtop.py
-        to: /io/repo/hail/python/setup-hailtop.py
-      - from: /repo/hail/python/hailtop
-        to: /io/repo/hail/python/hailtop
-      - from: /repo/hail/python/MANIFEST.in
-        to: /io/repo/hail/python/MANIFEST.in
-      - from: /hail_version
-        to: /io/repo/python/hailtop/hail_version
-    dependsOn:
-      - base_image
-      - merge_code
+      - create_test_database_server_config
   - kind: buildImage2
     name: hailgenetics_vep_grch37_85_image
     dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
@@ -709,37 +691,44 @@ steps:
       - merge_code
       - copy_third_party_images
   - kind: runImage
-    name: build_hail_jar_and_wheel_only
+    name: build_hail_jar_and_wheel
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
-      cpu: '4'
+      cpu: '2'
     script: |
       set -ex
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
       time retry make shadowJar wheel
+
+      # Check wheel size is small enough for pypi (< 200 MiB)
+      HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
+      WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
+      du -h $WHEEL_PATH
+      $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
+
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
-        to: /just-jar/hail.jar
+        to: /hail.jar
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /just-wheel/wheel-container.tar
+        to: /wheel-container.tar
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
-    name: build_hail
+    name: build_hail_debug_jar_and_wheel
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
-      cpu: '4'
+      cpu: '2'
     script: |
       set -ex
       cd /io/repo/hail
@@ -747,50 +736,42 @@ steps:
       time retry ./gradlew --version
       time retry make jars wheel HAIL_DEBUG_MODE=1
       (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
+        to: /hail-debug-test.jar
+      - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
+        to: /debug-wheel-container.tar
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_test_artifacts
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
       cd /io/repo/hail
-      mkdir build/debug_libs
-      mv build/libs/hail-all-spark.jar build/debug_libs/
-      mv build/libs/hail-all-spark-test.jar build/debug_libs/
-      mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
-      time retry make jars python-version-info wheel
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      time retry make shadowTestJar
 
-      # Check wheel size is small enough for pypi (< 100 MB)
-      HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
-      WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
-      du -h $WHEEL_PATH
-      $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
-
-      time (cd python && zip -r hail.zip hail hailtop)
       time tar czf test.tar.gz -C python test
       time tar czf resources.tar.gz -C src/test resources
       time tar czf data.tar.gz -C python/hail/docs data
-      (cd .. && time tar czf hail/website-src.tar.gz website)
-      time tar czf cluster-tests.tar.gz python/cluster-tests
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark.jar
-        to: /hail.jar
       - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
         to: /hail-test.jar
-      - from: /io/repo/hail/build/debug_libs/hail-all-spark-test.jar
-        to: /hail-debug-test.jar
-      - from: /io/repo/hail/testng-build.xml
-        to: /testng-build.xml
-      - from: /io/repo/hail/testng-services.xml
-        to: /testng-services.xml
-      - from: /io/repo/hail/testng-fs.xml
-        to: /testng-fs.xml
-      - from: /io/repo/hail/python/hail.zip
-        to: /hail.zip
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /wheel-container.tar
-      - from: /io/repo/hail/build/debug_libs/debug-wheel-container.tar
-        to: /debug-wheel-container.tar
       - from: /io/repo/hail/test.tar.gz
         to: /test.tar.gz
       - from: /io/repo/hail/resources.tar.gz
@@ -799,17 +780,13 @@ steps:
         to: /splits.tar.gz
       - from: /io/repo/hail/data.tar.gz
         to: /data.tar.gz
-      - from: /io/repo/hail/website-src.tar.gz
-        to: /website-src.tar.gz
-      - from: /io/repo/hail/cluster-tests.tar.gz
-        to: /cluster-tests.tar.gz
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
     name: build_wheel_for_azure
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -828,12 +805,33 @@ steps:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /wheel-for-azure-container.tar
     dependsOn:
-      - hail_build_image
+      - base_image
+      - merge_code
+  - kind: buildImage2
+    name: hail_run_image
+    dockerFile: /io/repo/hail/Dockerfile.hail-run
+    contextPath: /io/repo
+    publishAs: hail-run
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/hail/Dockerfile.hail-run
+        to: /io/repo/hail/Dockerfile.hail-run
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/repo/hail/python/dev/pinned-requirements.txt
+      - from: /repo/docker/core-site.xml
+        to: /io/repo/docker/core-site.xml
+    dependsOn:
+      - base_image
       - merge_code
   - kind: runImage
     name: jvm_entryway_jar
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
 
@@ -848,7 +846,7 @@ steps:
       - from: /io/batch/jvm-entryway/build/libs/jvm-entryway.jar
         to: /jvm-entryway.jar
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: batch_worker_image
@@ -975,27 +973,8 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail
-  - kind: buildImage2
-    name: hail_base_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-base
-    contextPath: /io/repo
-    publishAs: hail-base
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/hail/Dockerfile.hail-base
-        to: /io/repo/hail/Dockerfile.hail-base
-      - from: /hail.jar
-        to: /io/repo/hail.jar
-      - from: /hail.zip
-        to: /io/repo/hail.zip
-    dependsOn:
-      - hail_run_image
-      - build_hail
-      - merge_code
+      - build_hail_debug_jar_and_wheel
+      - build_hail_test_artifacts
   - kind: buildImage2
     name: hail_pip_installed_python39_image
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python39
@@ -1014,10 +993,10 @@ steps:
         to: /io/repo/setup.cfg
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - hail_ubuntu_image
       - merge_code
   - kind: buildImage2
@@ -1038,10 +1017,10 @@ steps:
         to: /io/repo/setup.cfg
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - hail_ubuntu_image
       - merge_code
   - kind: runImage
@@ -1148,7 +1127,7 @@ steps:
       - merge_code
   - kind: runImage
     name: test_hail_python
-    numSplits: 7
+    numSplits: 28
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1166,6 +1145,7 @@ steps:
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
 
+      export HAIL_QUERY_N_CORES=2
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
@@ -1180,6 +1160,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/inter_cloud \
+              --timeout=120 \
               test
     inputs:
       - from: /debug-wheel-container.tar
@@ -1198,7 +1179,8 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail
+      - build_hail_debug_jar_and_wheel
+      - build_hail_test_artifacts
     clouds:
       - gcp
   - kind: runImage
@@ -1224,6 +1206,9 @@ steps:
 
       export HAIL_TEST_AZURE_ACCOUNT=hailtest
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      # Required for SAS testing on Azure
+      export HAIL_TEST_AZURE_RESGRP=hail-dev
+      export HAIL_TEST_AZURE_SUBID=22cd45fe-f996-4c51-af67-ef329d977519
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       python3 -m pytest \
@@ -1234,7 +1219,9 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --timeout=120 \
               test/hailtop/inter_cloud
+    timeout: 1200
     inputs:
       - from: /repo/hail/python/dev/pinned-requirements.txt
         to: /io/test-requirements.txt
@@ -1256,7 +1243,7 @@ steps:
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
-      - build_hail
+      - build_hail_test_artifacts
     clouds:
       - gcp
   - kind: runImage
@@ -1293,6 +1280,7 @@ steps:
               -m unchecked_allocator \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/inter_cloud \
+              --timeout=120 \
               test
     inputs:
       - from: /wheel-container.tar
@@ -1311,14 +1299,18 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail
+      - build_hail_jar_and_wheel
+      - build_hail_test_artifacts
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend
-    numSplits: 14
+    numSplits: 48
     image:
       valueFrom: hail_run_image.image
+    resources:
+      memory: standard
+      cpu: '2'
     script: |
       set -ex
       cd /io
@@ -1337,6 +1329,7 @@ steps:
       export HAIL_TEST_STORAGE_URI=/io/tmp/
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_LOCAL_BACKEND_HEAP_SIZE=3G
 
       hailctl config set query/backend local
 
@@ -1349,7 +1342,9 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              --timeout=120 \
               test
+    timeout: 1200
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1367,14 +1362,27 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
-      - build_hail
+      - build_hail_debug_jar_and_wheel
+      - build_hail_test_artifacts
   - kind: runImage
     name: test_python_docs
     image:
-      valueFrom: hail_base_image.image
+      valueFrom: hail_run_image.image
+    resources:
+      memory: standard
+      cpu: '2'
     script: |
       set -ex
-      cd /hail/python/hail
+      tar xvf /io/wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      export HAIL_QUERY_N_CORES=2
+      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
+      export HAIL_LOCATION=$(dirname $(python3 -c 'import hail; print(hail.__file__)'))
+
+      mv /io/docs $HAIL_LOCATION/docs
+
+      # NB: do not use --timeout with doctest because there is no way to override it.
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1385,28 +1393,37 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
-              --ignore=docs/conf.py \
-              --ignore=docs/doctest_write_data.py
+              --ignore=$HAIL_LOCATION/docs/conf.py \
+              --ignore=$HAIL_LOCATION/docs/doctest_write_data.py \
+              $HAIL_LOCATION/docs
+    inputs:
+      - from: /repo/hail/python/hail/docs
+        to: /io/docs
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
     dependsOn:
-      - hail_base_image
+      - build_hail_jar_and_wheel
+      - hail_run_image
     clouds:
       - gcp
   - kind: runImage
     name: make_docs
+    resources:
+      memory: standard
+      cpu: '4'
     image:
-      valueFrom: hail_base_image.image
+      valueFrom: hail_run_image.image
     script: |
       set -ex
       set -o pipefail
       export HAIL_SHORT_VERSION='0.2'
       export SPHINXOPTS='-tgenerate_notebook_outputs'
 
-      mkdir -p {{ token }}/python
-      cd {{ token }}
-      unzip -q -d python /io/hail.zip
+      tar xvf /io/wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
-      tar xzf /io/website-src.tar.gz
-      export HAIL_WEBSITE_DIR=$(pwd)/website/website/
+      cd /io/hail
+      export HAIL_WEBSITE_DIR=/io/website/website/
 
       sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
         < python/hail/docs/change_log.md \
@@ -1423,20 +1440,22 @@ steps:
       find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
 
       tar czf /io/www.tar.gz www
-    resources:
-      memory: standard
-      cpu: '2'
     inputs:
-      - from: /hail.zip
-        to: /io/hail.zip
-      - from: /website-src.tar.gz
-        to: /io/website-src.tar.gz
+      - from: /repo/hail/python
+        to: /io/hail/python
+      - from: /hail_version
+        to: /io/repo/hail/python/hail/hail_version
+      - from: /repo/website/website
+        to: /io/website/website
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
     outputs:
       - from: /io/www.tar.gz
         to: /www.tar.gz
     dependsOn:
-      - hail_base_image
-      - build_hail
+      - merge_code
+      - build_hail_jar_and_wheel
+      - hail_run_image
   - kind: buildImage2
     name: hailgenetics_hail_image
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
@@ -1447,11 +1466,11 @@ steps:
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
       - merge_code
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: runImage
     name: test_hailgenetics_hail_image
@@ -1626,7 +1645,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - base_image
+      - hail_ubuntu_image
       - create_certs
       - copy_third_party_images
   - kind: deploy
@@ -1643,6 +1662,9 @@ steps:
       - copy_third_party_images
   - kind: runImage
     name: create_dummy_oauth2_client_secret
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -1676,6 +1698,36 @@ steps:
       - create_certs
       - create_accounts
   - kind: runImage
+    name: create_initial_user
+    runIfRequested: true
+    image:
+      valueFrom: hailgenetics_hailtop_image.image
+    script: |
+      set -ex
+      {% if default_ns.name == "default" %}
+      hailctl auth create-user --developer {{ code.username }} {{ code.login_id }}
+      {% else %}
+      hailctl auth create-user \
+        --developer \
+        --hail-identity {{ code.hail_identity }} \
+        --hail-credentials-secret-name {{ code.username }}-gsa-key \
+        {{ code.username }} {{ code.login_id }}
+      {% endif %}
+    secrets:
+      - name: worker-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-dev-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+    dependsOn:
+      - default_ns
+      - hailgenetics_hailtop_image
+      - merge_code
+      - deploy_auth
+  - kind: runImage
     name: delete_monitoring_tables
     image:
       valueFrom: admin_pod_image.image
@@ -1697,8 +1749,8 @@ steps:
       - default_ns
       - admin_pod_image
       - merge_code
-      - create_database_server_config
-  - kind: createDatabase
+      - create_test_database_server_config
+  - kind: createDatabase2
     name: monitoring_database
     databaseName: monitoring
     image:
@@ -1721,6 +1773,8 @@ steps:
       - merge_code
       - delete_monitoring_tables
       - ci_utils_image
+      - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_monitoring
     namespace:
@@ -1741,6 +1795,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_monitoring
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hail_dev_image.image
     script: |
@@ -1753,6 +1810,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --timeout=120 \
               /io/monitoring/test
     secrets:
       - name: worker-deploy-config
@@ -1782,6 +1840,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_auth_copy_paste_login
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -1841,6 +1902,9 @@ steps:
       - hailgenetics_hailtop_image
   - kind: runImage
     name: test_auth_copy_paste_login_timeout
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -1908,7 +1972,7 @@ steps:
       - default_ns
       - admin_pod_image
       - merge_code
-      - create_database_server_config
+      - create_test_database_server_config
   - kind: runImage
     name: delete_ci_tables
     image:
@@ -1931,8 +1995,8 @@ steps:
       - default_ns
       - admin_pod_image
       - merge_code
-      - create_database_server_config
-  - kind: createDatabase
+      - create_test_database_server_config
+  - kind: createDatabase2
     name: ci_database
     databaseName: ci
     image:
@@ -1951,6 +2015,9 @@ steps:
       - name: fix-default-namespace-record
         script: /io/sql/fix-default-namespace.py
         online: true
+      - name: record-failure-notifications
+        script: /io/sql/record-failure-notifications.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
@@ -1966,7 +2033,9 @@ steps:
       - merge_code
       - delete_ci_tables
       - ci_utils_image
-  - kind: createDatabase
+      - create_test_database_server_config
+      - deploy_test_db
+  - kind: createDatabase2
     name: batch_database
     databaseName: batch
     image:
@@ -2181,6 +2250,21 @@ steps:
       - name: mitigate-bad-attempt-resources-trigger
         script: /io/sql/mitigate-bad-attempt-resources-trigger.sql
         online: true
+      - name: set-test-and-dev-pools-to-16-core-max-3
+        script: /io/sql/set-test-and-dev-pools-to-16-core-max-3.py
+        online: true
+      - name: fix-billing-triggers-deduped-resource-id
+        script: /io/sql/fix-billing-triggers-deduped-resource-id.sql
+        online: true
+      - name: set-test-and-dev-pools-to-max-16-standing-16
+        script: /io/sql/set-test-and-dev-pools-to-max-16-standing-16.py
+        online: true
+      - name: set-test-min-pool-size-to-1
+        script: /io/sql/set-test-min-pool-size-to-1.py
+        online: true
+      - name: dedup-billing-project-users-v2
+        script: /io/sql/dedup_billing_project_users_v2.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2200,6 +2284,8 @@ steps:
       - merge_code
       - delete_batch_tables
       - ci_utils_image
+      - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_batch
     namespace:
@@ -2223,6 +2309,9 @@ steps:
       - create_certs
   - kind: runImage
     name: create_billing_projects
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -2305,7 +2394,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
-      - from: /just-jar/hail.jar
+      - from: /hail.jar
         to: /io/hail.jar
       - from: /git_version
         to: /io/git_version
@@ -2313,7 +2402,7 @@ steps:
       - default_ns
       - deploy_batch
       - hailgenetics_hailtop_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - merge_code
       - create_test_gsa_keys
   - kind: deploy
@@ -2332,11 +2421,11 @@ steps:
       - create_certs
   - kind: runImage
     name: test_hail_python_service_backend
-    numSplits: 5
+    numSplits: 32
     image:
       valueFrom: hail_run_image.image
     resources:
-      cpu: '1'
+      cpu: '0.25'
       preemptible: False
     script: |
       set -ex
@@ -2359,20 +2448,17 @@ steps:
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
-
-      hailctl config set query/backend batch
+      export HAIL_QUERY_BACKEND=batch
       {% if global.cloud == "azure" %}
-      hailctl config set batch/regions {{ global.azure_location }}
-      echo "using region {{ global.azure_location }}"
+      export HAIL_BATCH_REGIONS={{ global.azure_location }}
       {% elif global.cloud == "gcp" %}
-      hailctl config set batch/regions {{ global.gcp_region }}
-      echo "using region {{ global.gcp_region }}"
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
       {% else %}
       echo "unknown cloud {{ global.cloud }}"
       exit 1
       {% endif %}
-      hailctl config set batch/billing_project test
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
+      export HAIL_BATCH_BILLING_PROJECT=test
+      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
@@ -2382,12 +2468,12 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              -n 4 \
               --ignore=test/hailtop/ \
+              --timeout=300 \
               test
-    timeout: 5400
+    timeout: 2700
     inputs:
-      - from: /just-wheel/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
@@ -2418,8 +2504,41 @@ steps:
       - hail_run_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+  - kind: runImage
+    name: test_hail_spark_conf_requester_pays_parsing
+    image:
+      valueFrom: hail_run_image.image
+    resources:
+      cpu: '0.5'
+      preemptible: False
+    script: |
+      set -ex
+      tar xvf /io/wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      export YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS=1
+
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/test_requester_pays_parsing.py
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /repo/hail/scripts/test_requester_pays_parsing.py
+        to: /io/test_requester_pays_parsing.py
+    dependsOn:
+      - default_ns
+      - merge_code
+      - hail_run_image
+      - build_hail_jar_and_wheel
   - kind: buildImage2
     name: netcat_ubuntu_image
     publishAs: netcat
@@ -2436,6 +2555,8 @@ steps:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
         VOLUME ["/data"]
+        WORKDIR "/tmp"
+        VOLUME ["relative_volume"]
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2
@@ -2458,6 +2579,9 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_memory
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hail_dev_image.image
     resources:
@@ -2477,6 +2601,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --timeout=120 \
               test
     timeout: 600
     secrets:
@@ -2544,6 +2669,7 @@ steps:
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               -k "not test_scale and not test_invariants" \
+              --timeout=360 \
               /io/test/
     inputs:
       - from: /repo/batch/test
@@ -2589,6 +2715,9 @@ steps:
       - curl_image
   - kind: runImage
     name: delete_test_billing_projects
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: batch_image.image
     script: |
@@ -2661,6 +2790,7 @@ steps:
       cp -R /io/repo/ci/* ./ci/
       cp /io/repo/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
+      cp /io/repo/tls/create_test_db_config.sh ./ci/test/resources/
       cp /io/repo/pylintrc ./
       cp /io/repo/setup.cfg ./
       cp /io/repo/pyproject.toml ./
@@ -2693,6 +2823,9 @@ steps:
       - merge_code
   - kind: runImage
     name: create_ci_config
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -2725,7 +2858,6 @@ steps:
         for: alive
     dependsOn:
       - default_ns
-      - create_database_server_config
       - ci_image
       - ci_utils_image
       - create_accounts
@@ -2739,6 +2871,9 @@ steps:
       - hail_buildkit_image
   - kind: runImage
     name: test_ci
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hail_dev_image.image
     script: |
@@ -2786,6 +2921,9 @@ steps:
       - create_ci_test_repo
   - kind: runImage
     name: test_hailtop_batch
+    resources:
+      memory: standard
+      cpu: '0.25'
     numSplits: 5
     image:
       valueFrom: hail_dev_image.image
@@ -2809,6 +2947,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --timeout=360 \
               /io/test/hailtop/batch/
     inputs:
       - from: /repo/hail/python/test
@@ -2844,6 +2983,9 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
@@ -2980,6 +3122,7 @@ steps:
               --doctest-modules \
               --doctest-glob='*.rst' \
               --ignore=docs/cookbook/files/ \
+              --timeout=120 \
               --ignore=docs/conf.py
     secrets:
       - name: worker-deploy-config
@@ -3005,7 +3148,7 @@ steps:
     inputs:
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
-  - kind: createDatabase
+  - kind: createDatabase2
     name: notebook_database
     databaseName: notebook
     image:
@@ -3027,6 +3170,8 @@ steps:
       - default_ns
       - merge_code
       - ci_utils_image
+      - create_test_database_server_config
+      - deploy_test_db
   - kind: deploy
     name: deploy_notebook
     namespace:
@@ -3046,6 +3191,9 @@ steps:
         for: alive
   - kind: runImage
     name: cleanup_ci_test_repo
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: hail_ubuntu_image.image
     script: |
@@ -3264,7 +3412,6 @@ steps:
       - test_dataproc-38
       - default_ns
       - ci_utils_image
-      - build_hail
       - merge_code
       - hailgenetics_hail_image
       - hailgenetics_hailtop_image
@@ -3430,7 +3577,7 @@ steps:
         to: /io/resources.tar.gz
       - from: /hail-test.jar
         to: /io/hail-test.jar
-      - from: /testng-fs.xml
+      - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
     secrets:
       - name: test-tokens
@@ -3455,8 +3602,8 @@ steps:
       - create_certs
       - create_accounts
       - hail_run_image
-      - build_hail
-      - build_hail_jar_and_wheel_only
+      - build_hail_test_artifacts
+      - build_hail_jar_and_wheel
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
@@ -3480,7 +3627,7 @@ steps:
         to: /io/resources.tar.gz
       - from: /hail-test.jar
         to: /io/hail-test.jar
-      - from: /testng-services.xml
+      - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml
     secrets:
       - name: test-tokens
@@ -3501,7 +3648,7 @@ steps:
       - create_certs
       - create_accounts
       - hail_run_image
-      - build_hail
+      - build_hail_test_artifacts
       - deploy_batch
   - kind: runImage
     name: cancel_all_running_test_batches
@@ -3572,6 +3719,7 @@ steps:
               --durations=50 \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              --timeout=120 \
               /io/test/test_invariants.py
     inputs:
       - from: /repo/batch/test
@@ -3607,6 +3755,9 @@ steps:
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_gcp_batch_instances
+    resources:
+      memory: standard
+      cpu: '0.25'
     image:
       valueFrom: ci_utils_image.image
     alwaysRun: true
@@ -3619,12 +3770,12 @@ steps:
           --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
           --format="table[no-heading](zone.basename(), name)" \
           --project {{ global.gcp_project }} \
-        | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
+        | xargs -P8 -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
       gcloud -q compute disks list \
           --filter 'labels.batch=1 AND labels.namespace={{ default_ns.name }}' \
           --format="table[no-heading](zone.basename(), name)" \
           --project {{ global.gcp_project }} \
-        | xargs -n2 -r sh -c 'gcloud -q compute disks delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
+        | xargs -P8 -n2 -r sh -c 'gcloud -q compute disks delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
     secrets:
       - name: test-gsa-key
         namespace:

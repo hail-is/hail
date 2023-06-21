@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import cats.implicits.{toFlatMapOps, toFunctorOps}
 import is.hail.annotations._
-import is.hail.backend.utils.assertA
+import is.hail.expr.ir.lowering.utils.assertA
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.compatibility
 import is.hail.expr.ir.lowering.{MonadLower, TableStage, TableStageDependency}

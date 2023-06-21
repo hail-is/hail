@@ -40,6 +40,7 @@ case class BgenHeader(
 
 case class BgenFileMetadata(
   indexPath: String,
+  indexVersion: SemanticVersion,
   header: BgenHeader,
   rg: Option[String],
   contigRecoding: Map[String, String],
@@ -196,7 +197,8 @@ object LoadBgen {
         case _ => None
       }
       val metadata = IndexReader.readMetadata(fs, indexFile, keyType, annotationType)
-      val (leafSpec, internalSpec) = BgenSettings.indexCodecSpecs(rg)
+      val indexVersion = SemanticVersion(metadata.fileVersion)
+      val (leafSpec, internalSpec) = BgenSettings.indexCodecSpecs(indexVersion, rg)
 
       val getKeys = cacheByRG.getOrElseUpdate(rg, StagedBGENReader.queryIndexByPosition(ctx, leafSpec, internalSpec))
 
@@ -212,6 +214,7 @@ object LoadBgen {
 
       BgenFileMetadata(
         indexFile,
+        indexVersion,
         h,
         rg,
         contigRecoding,
@@ -341,6 +344,9 @@ object MatrixBGENReader {
     val indexFiles = LoadBgen.getIndexFiles(fs, allFiles, params.indexFileMap)
     val fileMetadata = LoadBgen.getBgenFileMetadata(ctx, allFiles, indexFiles)
     assert(fileMetadata.nonEmpty)
+    if (fileMetadata.exists(md => md.indexVersion != fileMetadata.head.indexVersion)) {
+      fatal("BGEN index version mismatch. The index versions of all files must be the same, use 'index_bgen' to reindex all files to ensure that all index versions match before calling 'import_bgen' again")
+    }
 
     val sampleIds = params.sampleFile.map(file => LoadBgen.readSampleFile(fs, file))
       .getOrElse(LoadBgen.readSamples(fs, fileMetadata.head.path))
@@ -611,7 +617,7 @@ case class BgenPartitionReaderWithVariantFilter(fileMetadata: Array[BgenFileMeta
     val contigRecoding = mb.genFieldThisRef[Map[String, String]]("bgen_contig_recoding")
 
     val indexNKeys = mb.genFieldThisRef[Long]("index_nkeys")
-    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(rg)
+    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(fileMetadata.head.indexVersion, rg)
     val index = new StagedIndexReader(mb, leafCodec, intCodec)
 
     val currVariantIndex = mb.genFieldThisRef[Long]("currVariantIndex")
@@ -749,7 +755,7 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
 
     val currVariantIndex = mb.genFieldThisRef[Long]("bgen_currIdx")
     val endVariantIndex = mb.genFieldThisRef[Long]("bgen_endIdx")
-    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(rg)
+    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(fileMetadata.head.indexVersion, rg)
     val index = new StagedIndexReader(mb, leafCodec, intCodec)
 
     var out: EmitSettable = null // filled in later

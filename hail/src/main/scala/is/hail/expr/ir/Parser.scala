@@ -1543,11 +1543,11 @@ object IRParser {
           WriteMetadata(ctx, writer)
         }
       case "ReadValue" =>
-        import AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[AbstractTypedCodecSpec]
+        import ValueReader.formats
+        val reader = JsonMethods.parse(string_literal(it)).extract[ValueReader]
         val typ = type_expr(it)
         ir_value_expr(env)(it).map { path =>
-          ReadValue(path, spec, typ)
+          ReadValue(path, reader, typ)
         }
       case "WriteValue" =>
         import ValueWriter.formats

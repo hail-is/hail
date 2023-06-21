@@ -81,6 +81,19 @@ check-pip-requirements:
 		ci \
 		memory
 
+.PHONY: check-linux-pip-requirements
+check-linux-pip-requirements:
+	./check_linux_pip_requirements.sh \
+		hail/python/hailtop \
+		hail/python \
+		hail/python/dev \
+		gear \
+		web_common \
+		auth \
+		batch \
+		ci \
+		memory
+
 .PHONY: install-dev-requirements
 install-dev-requirements:
 	python3 -m pip install \
@@ -144,6 +157,13 @@ base-image: hail-ubuntu-image docker/Dockerfile.base
 	$(eval BASE_IMAGE := $(DOCKER_PREFIX)/base:$(TOKEN))
 	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' docker/Dockerfile.base docker/Dockerfile.base.out
 	./docker-build.sh . docker/Dockerfile.base.out $(BASE_IMAGE)
+	echo $(BASE_IMAGE) > $@
+
+hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt docker/core-site.xml
+	$(eval BASE_IMAGE := $(DOCKER_PREFIX)/hail-run:$(TOKEN))
+	$(MAKE) -C hail wheel
+	python3 ci/jinja2_render.py '{"base_image":{"image":"'$$(cat base-image)'"}}' hail/Dockerfile.hail-run hail/Dockerfile.hail-run.out
+	./docker-build.sh . hail/Dockerfile.hail-run.out $(BASE_IMAGE)
 	echo $(BASE_IMAGE) > $@
 
 private-repo-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)

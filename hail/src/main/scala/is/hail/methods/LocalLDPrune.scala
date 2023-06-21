@@ -43,7 +43,9 @@ class BitPackedVectorBuilder(nSamples: Int) {
 
   def addGT(call: Int): Unit = {
     require(idx < nSamples)
-    require(Call.isDiploid(call))
+    if (!Call.isDiploid(call)) {
+      fatal(s"hail LD prune does not support non-diploid calls, found ${Call.toString(call)}")
+    }
     val gt = Call.nNonRefAlleles(call)
     pack = pack | ((gt & 3).toLong << packOffset)
 

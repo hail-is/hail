@@ -25,9 +25,7 @@ RUN wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | apt
   apt update && \
   apt -y install temurin-11-jdk
 
-COPY requirements.txt .
-RUN mkdir hailtop
-COPY hailtop_requirements.txt hailtop/requirements.txt
+COPY requirements.txt requirements.txt
 RUN python3 -m pip install --upgrade --no-cache-dir --upgrade pip && \
   python3 -m pip install --upgrade --no-cache-dir setuptools && \
   python3 -m pip install --upgrade --no-cache-dir -r requirements.txt && \

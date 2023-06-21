@@ -5,14 +5,12 @@ import json
 import webbrowser
 from aiohttp import web
 
+from typing import Optional
+
+
 from hailtop.config import get_deploy_config
 from hailtop.auth import get_tokens, hail_credentials
 from hailtop.httpx import client_session
-
-
-def init_parser(parser):
-    parser.add_argument("--namespace", "-n", type=str,
-                        help="Specify namespace for auth server.  (default: from deploy configuration)")
 
 
 routes = web.RouteTableDef()
@@ -47,34 +45,36 @@ async def start_server():
 async def auth_flow(deploy_config, default_ns, session):
     runner, port = await start_server()
 
-    async with session.get(deploy_config.url('auth', '/api/v1alpha/login'),
-                           params={'callback_port': port}) as resp:
+    async with session.get(deploy_config.url('auth', '/api/v1alpha/login'), params={'callback_port': port}) as resp:
         resp = await resp.json()
 
     flow = resp['flow']
     state = flow['state']
     authorization_url = flow['authorization_url']
 
-    print(f'''
+    print(
+        f'''
 Visit the following URL to log into Hail:
 
     {authorization_url}
 
 Opening in your browser.
-''')
+'''
+    )
     webbrowser.open(authorization_url)
 
     code = await runner.app['q'].get()
     await runner.cleanup()
 
     async with session.get(
-            deploy_config.url('auth', '/api/v1alpha/oauth2callback'),
-            params={
-                'callback_port': port,
-                'code': code,
-                'state': state,
-                'flow': json.dumps(flow),
-            }) as resp:
+        deploy_config.url('auth', '/api/v1alpha/oauth2callback'),
+        params={
+            'callback_port': port,
+            'code': code,
+            'state': state,
+            'flow': json.dumps(flow),
+        },
+    ) as resp:
         resp = await resp.json()
     token = resp['token']
     username = resp['username']
@@ -92,16 +92,11 @@ Opening in your browser.
         print(f'Logged into namespace {default_ns} as {username}.')
 
 
-async def async_main(args):
+async def async_login(namespace: Optional[str]):
     deploy_config = get_deploy_config()
-    if args.namespace:
-        deploy_config = deploy_config.with_default_namespace(args.namespace)
-    namespace = args.namespace or deploy_config.default_namespace()
+    if namespace:
+        deploy_config = deploy_config.with_default_namespace(namespace)
+    namespace = namespace or deploy_config.default_namespace()
     headers = await hail_credentials(namespace=namespace, authorize_target=False).auth_headers()
     async with client_session(headers=headers) as session:
         await auth_flow(deploy_config, namespace, session)
-
-
-def main(args, pass_through_args):  # pylint: disable=unused-argument
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(async_main(args))

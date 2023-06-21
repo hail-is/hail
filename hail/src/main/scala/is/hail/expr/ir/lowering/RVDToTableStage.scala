@@ -4,7 +4,7 @@ import cats.syntax.all._
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
-import is.hail.backend.utils.assertA
+import utils.assertA
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.ir._
 import is.hail.io.fs.FS

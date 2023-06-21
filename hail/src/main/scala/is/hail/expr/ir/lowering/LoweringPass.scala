@@ -2,7 +2,7 @@ package is.hail.expr.ir.lowering
 
 import cats.Id
 import cats.syntax.all._
-import is.hail.backend.utils._
+import utils._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir.analyses.SemanticHash

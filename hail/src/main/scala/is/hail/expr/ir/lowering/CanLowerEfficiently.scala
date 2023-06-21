@@ -31,7 +31,6 @@ object CanLowerEfficiently {
                TableRead(_, _, _: RVDTableReader) |
                TableRead(_, _, _: LocalSortReader) |
                TableRead(_, _, _: DistributionSortReader) |
-               TableRead(_, _, _: MatrixBGENReader) |
                TableRepartition(_, _, RepartitionStrategy.NAIVE_COALESCE) |
                _: TableLiteral |
                _: TableParallelize |
@@ -64,49 +63,52 @@ object CanLowerEfficiently {
                TableToValueApply(_, _: TableCalculateNewPartitions) =>
             Right(())
 
+          case TableRead(_, _, _: MatrixBGENReader) =>
+            Left("no lowering for MatrixBGENReader")
+
           case TableRead(_, _, _: TableFromBlockMatrixNativeReader) =>
-            Left(s"no lowering for TableFromBlockMatrixNativeReader")
+            Left("no lowering for TableFromBlockMatrixNativeReader")
 
           case _: TableRepartition =>
-            Left(s"TableRepartition has no lowered implementation")
+            Left("TableRepartition has no lowered implementation")
 
           case TableIntervalJoin(_, _, _, product) =>
             if (product) Left("TableIntervalJoin with \"product=true\" has no lowered implementation")
             else Right(())
 
           case t: TableUnion =>
-            if (t.children.length > 16) Left(s"TableUnion lowering generates deeply nested IR if it has many children")
+            if (t.children.length > 16) Left("TableUnion lowering generates deeply nested IR if it has many children")
             else Right(())
 
-          case t: TableMultiWayZipJoin =>
-            Left(s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin")
+          case _: TableMultiWayZipJoin =>
+            Left("TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin")
 
           case TableToValueApply(_, f: TableToValueFunction) =>
             Left(s"TableToValueApply: no lowering for ${f.getClass.getName}")
 
           case _: TableToTableApply =>
-            Left(s"TableToTableApply")
+            Left("TableToTableApply")
 
-          case _: BlockMatrixToTableApply => Left(s"BlockMatrixToTableApply")
-          case _: BlockMatrixToTable => Left(s"BlockMatrixToTable has no lowered implementation")
-          case _: BlockMatrixAgg => Left(s"BlockMatrixAgg needs to do tree aggregation")
-          case _: BlockMatrixIR => Left(s"BlockMatrixIR lowering not yet efficient/scalable")
-          case _: BlockMatrixWrite => Left(s"BlockMatrixIR lowering not yet efficient/scalable")
-          case _: BlockMatrixMultiWrite => Left(s"BlockMatrixIR lowering not yet efficient/scalable")
-          case _: BlockMatrixCollect => Left(s"BlockMatrixIR lowering not yet efficient/scalable")
-          case _: BlockMatrixToValueApply => Left(s"BlockMatrixIR lowering not yet efficient/scalable")
+          case _: BlockMatrixToTableApply => Left("BlockMatrixToTableApply")
+          case _: BlockMatrixToTable => Left("BlockMatrixToTable has no lowered implementation")
+          case _: BlockMatrixAgg => Left("BlockMatrixAgg needs to do tree aggregation")
+          case _: BlockMatrixIR => Left("BlockMatrixIR lowering not yet efficient/scalable")
+          case _: BlockMatrixWrite => Left("BlockMatrixIR lowering not yet efficient/scalable")
+          case _: BlockMatrixMultiWrite => Left("BlockMatrixIR lowering not yet efficient/scalable")
+          case _: BlockMatrixCollect => Left("BlockMatrixIR lowering not yet efficient/scalable")
+          case _: BlockMatrixToValueApply => Left("BlockMatrixIR lowering not yet efficient/scalable")
 
-          case _: MatrixMultiWrite => Left(s"no lowering for MatrixMultiWrite")
+          case _: MatrixMultiWrite => Left("no lowering for MatrixMultiWrite")
 
           case TableWrite(_, writer) =>
             if (!writer.canLowerEfficiently) Left(s"writer has no efficient lowering: ${writer.getClass.getSimpleName}")
             else Right(())
 
           case TableMultiWrite(_, _) =>
-            Left(s"no lowering available for TableMultiWrite")
+            Left("no lowering available for TableMultiWrite")
 
           case RelationalRef(_, _) =>
-            throw new RuntimeException(s"unexpected relational ref")
+            throw new RuntimeException("unexpected relational ref")
 
           case _: ApplySeeded =>
             Left("seeded randomness does not satisfy determinism restrictions in lowered IR")

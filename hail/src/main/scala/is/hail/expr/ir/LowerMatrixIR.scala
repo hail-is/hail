@@ -800,13 +800,14 @@ object LowerMatrixIR {
 
   private[this] def lowerTableIR[M[_]: MonadLower](tir: TableIR, ab: BoxedArrayBuilder[(String, IR)])
   : M[TableIR] =
-    assertIsomorphism(tir) {
+    assertTypeUnchanged(tir) {
       tir match {
         case CastMatrixToTable(child, entries, cols) =>
-          lowerMatrixIR(child, ab).map {
-            _.mapRows('row.selectFields(child.typ.rowType.fieldNames ++ Array(entriesFieldName): _*))
-              .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
-          }
+          lowerMatrixIR(child, ab).map(_
+            .mapRows('row.selectFields(child.typ.rowType.fieldNames ++ Array(entriesFieldName): _*))
+            .mapGlobals('global.selectFields(child.typ.globalType.fieldNames ++ Array(colsFieldName): _*))
+            .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
+          )
 
         case x@MatrixEntriesTable(child) =>
           lowerMatrixIR(child, ab).map { lc =>
@@ -912,13 +913,13 @@ object LowerMatrixIR {
   private[this] def lowerBlockMatrixIR[M[_]: MonadLower](bmir: BlockMatrixIR,
                                                          ab: BoxedArrayBuilder[(String, IR)]
                                                         ): M[BlockMatrixIR] =
-    assertIsomorphism(bmir) {
+    assertTypeUnchanged(bmir) {
       for {ir <- lowerChildren(bmir, ab)}
         yield ir.asInstanceOf[BlockMatrixIR]
     }
 
   private[this] def lowerIR[M[_]: MonadLower](ir: IR, ab: BoxedArrayBuilder[(String, IR)]): M[IR] =
-    assertIsomorphism(ir) {
+    assertTypeUnchanged(ir) {
       ir match {
         case MatrixToValueApply(child, function) =>
           lowerMatrixIR(child, ab).map { tableIr =>
@@ -970,13 +971,17 @@ object LowerMatrixIR {
       }
     }
 
-  private[this] def assertIsomorphism[M[_], A <: BaseIR](original: A)(lowered: M[A])
+  private[this] def assertTypeUnchanged[M[_], A <: BaseIR](original: A)(lowered: M[A])
                                                           (implicit M: MonadThrow[M]): M[A] =
     for {
       l <- lowered
       _ <- M.raiseWhen(l.typ != original.typ) {
-        new HailException(s"lowering changed type:\n  before: ${original.typ}\n after: ${l.typ}\n")
+        new HailException(
+          s"lowering changed type:" +
+            s"\n  before: ${original.typ}" +
+            s"\n  after: ${l.typ}" +
+            s"\n  ${ original.getClass.getName } => ${ lowered.getClass.getName })"
+        )
       }
     } yield l
-
 }

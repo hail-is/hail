@@ -1,5 +1,6 @@
 import json
 import os
+import pytest
 import shutil
 import unittest
 
@@ -37,19 +38,6 @@ _FLOAT_ARRAY_INFO_FIELDS = ['AF', 'MLEAF']
 class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
-
-    def test_import_export_same(self):
-        for i in range(10):
-            mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
-            f1 = new_temp_file(extension='vcf.bgz')
-            hl.export_vcf(mt, f1)
-            mt2 = hl.import_vcf(f1)
-            f2 = new_temp_file(extension='vcf.bgz')
-            hl.export_vcf(mt2, f2)
-            mt3 = hl.import_vcf(f2)
-
-            assert mt._same(mt2)
-            assert mt._same(mt3)
 
     def test_info_float64(self):
         """Test that floating-point info fields are 64-bit regardless of the entry float type"""
@@ -420,6 +408,7 @@ class VCFTests(unittest.TestCase):
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
+    @test_timeout(6 * 60)
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -914,14 +903,13 @@ class PLINKTests(unittest.TestCase):
 
         self.assertTrue(same)
 
-    def test_export_plink_exprs(self):
+    def test_export_plink_default_arguments(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
                        'f4': 'is_female', 'f5': 'pheno'}
         bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
                        'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
 
-        # Test default arguments
         out1 = new_temp_file()
         hl.export_plink(ds, out1)
         fam1 = (hl.import_table(out1 + '.fam', no_header=True, impute=False, missing="")
@@ -935,7 +923,11 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(bim1.all((bim1.varid == bim1.contig + ":" + bim1.position + ":" + bim1.a2 + ":" + bim1.a1) &
                                  (bim1.cm_position == "0.0")))
 
-        # Test non-default FAM arguments
+    def test_export_plink_non_default_arguments(self):
+        ds = get_dataset()
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
+                       'f4': 'is_female', 'f5': 'pheno'}
+
         out2 = new_temp_file()
         hl.export_plink(ds, out2, ind_id=ds.s, fam_id=ds.s, pat_id="nope",
                         mat_id="nada", is_female=True, pheno=False)
@@ -946,7 +938,12 @@ class PLINKTests(unittest.TestCase):
                                  (fam2.mat_id == "nada") & (fam2.is_female == "2") &
                                  (fam2.pheno == "1")))
 
-        # Test quantitative phenotype
+    def test_export_plink_quantitative_phenotype(self):
+        ds = get_dataset()
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
+                       'f4': 'is_female', 'f5': 'pheno'}
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
+                       'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
         out3 = new_temp_file()
         hl.export_plink(ds, out3, ind_id=ds.s, pheno=hl.float64(hl.len(ds.s)))
         fam3 = (hl.import_table(out3 + '.fam', no_header=True, impute=False, missing="")
@@ -956,7 +953,10 @@ class PLINKTests(unittest.TestCase):
                                  (fam3.mat_id == "0") & (fam3.is_female == "0") &
                                  (fam3.pheno != "0") & (fam3.pheno != "NA")))
 
-        # Test non-default BIM arguments
+    def test_export_plink_non_default_bim_arguments(self):
+        ds = get_dataset()
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
+                       'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
         out4 = new_temp_file()
         hl.export_plink(ds, out4, varid="hello", cm_position=100)
         bim4 = (hl.import_table(out4 + '.bim', no_header=True, impute=False)
@@ -964,7 +964,8 @@ class PLINKTests(unittest.TestCase):
 
         self.assertTrue(bim4.all((bim4.varid == "hello") & (bim4.cm_position == "100.0")))
 
-        # Test call expr
+    def test_export_plink_call_expression(self):
+        ds = get_dataset()
         out5 = new_temp_file()
         ds_call = ds.annotate_entries(gt_fake=hl.call(0, 0))
         hl.export_plink(ds_call, out5, call=ds_call.gt_fake)
@@ -972,11 +973,13 @@ class PLINKTests(unittest.TestCase):
         nerrors = ds_all_hom_ref.aggregate_entries(hl.agg.count_where(~ds_all_hom_ref.GT.is_hom_ref()))
         self.assertTrue(nerrors == 0)
 
-        # Test white-space in FAM id expr raises error
+    def test_export_plink_white_space_in_fam_id_raises_error(self):
+        ds = get_dataset()
         with self.assertRaisesRegex(TypeError, "has spaces in the following values:"):
             hl.export_plink(ds, new_temp_file(), mat_id="hello world")
 
-        # Test white-space in varid expr raises error
+    def test_export_plink_white_space_in_varid_raises_error(self):
+        ds = get_dataset()
         with self.assertRaisesRegex(FatalError, "no white space allowed:"):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
 
@@ -1220,7 +1223,7 @@ class BGENTests(unittest.TestCase):
 
         self.assertTrue(expected._same(part_1))
 
-    def test_import_bgen_locus_filtering_from_literals(self):
+    def test_import_bgen_locus_filtering_from_Struct_object(self):
         bgen_file = resource('example.8bits.bgen')
 
         # Test with Struct(Locus)
@@ -1231,20 +1234,26 @@ class BGENTests(unittest.TestCase):
             hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']) # Duplicated variant
         ]
 
-        locus_struct = hl.import_bgen(bgen_file,
-                                      ['GT'],
-                                      variants=desired_loci)
-        self.assertEqual(locus_struct.rows().key_by('locus', 'alleles').select().collect(),
-                         expected_result)
+        data = hl.import_bgen(bgen_file,
+                              ['GT'],
+                              variants=desired_loci)
+        assert data.rows().key_by('locus', 'alleles').select().collect() == expected_result
+
+    def test_import_bgen_locus_filtering_from_struct_expression(self):
+        bgen_file = resource('example.8bits.bgen')
 
         # Test with Locus object
         desired_loci = [hl.Locus('1', 10000)]
 
-        locus_object = hl.import_bgen(bgen_file,
-                                      ['GT'],
-                                      variants=desired_loci)
-        self.assertEqual(locus_object.rows().key_by('locus', 'alleles').select().collect(),
-                         expected_result)
+        expected_result = [
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']) # Duplicated variant
+        ]
+
+        data = hl.import_bgen(bgen_file,
+                              ['GT'],
+                              variants=desired_loci)
+        assert data.rows().key_by('locus', 'alleles').select().collect() == expected_result
 
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
@@ -1594,6 +1603,7 @@ class GENTests(unittest.TestCase):
                                resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
+    @test_timeout(local=4 * 60, batch=8 * 60)
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
                             sample_file=resource('example.sample'),
@@ -1753,7 +1763,7 @@ class LocusIntervalTests(unittest.TestCase):
 
 
 class ImportMatrixTableTests(unittest.TestCase):
-    def test_import_matrix_table(self):
+    def test_import_matrix_table_1(self):
         mt = hl.import_matrix_table(doctest_resource('matrix1.tsv'),
                                     row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
         self.assertEqual(mt['Barcode']._indices, mt._row_indices)
@@ -1764,16 +1774,27 @@ class ImportMatrixTableTests(unittest.TestCase):
 
         mt.count()
 
-        row_fields = {'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}
-        hl.import_matrix_table(doctest_resource('matrix2.tsv'),
-                               row_fields=row_fields, row_key=[])._force_count_rows()
-        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
-                               row_fields=row_fields,
-                               no_header=True)._force_count_rows()
-        hl.import_matrix_table(doctest_resource('matrix3.tsv'),
-                               row_fields=row_fields,
-                               no_header=True,
-                               row_key=[])._force_count_rows()
+    def test_import_matrix_table_2(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix2.tsv'),
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            row_key=[]
+        )._force_count_rows()
+
+    def test_import_matrix_table_3(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix3.tsv'),
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            no_header=True
+        )._force_count_rows()
+
+    def test_import_matrix_table_4(self):
+        hl.import_matrix_table(
+            doctest_resource('matrix3.tsv'),
+            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
+            no_header=True,
+            row_key=[]
+        )._force_count_rows()
 
     def test_import_matrix_table_no_cols(self):
         fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
@@ -1853,6 +1874,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         mt._force_count_rows()
 
+    @test_timeout(local=4 * 60)
     def test_devilish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr,
                   '': hl.tint32,
@@ -2190,3 +2212,18 @@ def test_matrix_and_table_read_intervals_with_hidden_key():
 
     hl.read_matrix_table(f2, _intervals=[hl.Interval(0, 3)])._force_count_rows()
     hl.read_table(f3, _intervals=[hl.Interval(0, 3)])._force_count()
+
+
+@pytest.mark.parametrize("i", list(range(10)))
+@test_timeout(6 * 60, local=7 * 60, batch=7 * 60)
+def test_import_export_same(i):
+    mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
+    f1 = new_temp_file(extension='vcf.bgz')
+    hl.export_vcf(mt, f1)
+    mt2 = hl.import_vcf(f1)
+    f2 = new_temp_file(extension='vcf.bgz')
+    hl.export_vcf(mt2, f2)
+    mt3 = hl.import_vcf(f2)
+
+    assert mt._same(mt2)
+    assert mt._same(mt3)

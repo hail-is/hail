@@ -741,9 +741,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val streamtype = tcoerce[RIterable](lookup(value))
         val ctxType = lookup(writeCtx)
         writer.unionTypeRequiredness(requiredness, ctxType, streamtype)
-      case ReadValue(path, spec, rt) =>
+      case ReadValue(path, reader, rt) =>
         requiredness.union(lookup(path).required)
-        requiredness.fromPType(spec.encodedType.decodedPType(rt))
+        reader.unionRequiredness(rt, requiredness)
       case In(_, t) => t match {
         case SCodeEmitParamType(et) => requiredness.unionFrom(et.typeWithRequiredness.r)
         case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType, eltRequired)) =>

@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction}
@@ -2629,7 +2629,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             else
               M.pure(null)
 
-          spec = BufferSpec.defaultUncompressed
+          spec = BufferSpec.blockedUncompressed
 
           // Order of operations:
           // 1. init op on all aggs and serialize to byte array.
@@ -3184,7 +3184,7 @@ case class TableKeyByAndAggregate(
 
       _ <- assertA(rTyp.virtualType == typ.valueType, s"$rTyp, ${typ.valueType}")
 
-      spec = BufferSpec.defaultUncompressed
+      spec = BufferSpec.blockedUncompressed
       serialize <- extracted.serialize(spec)
       deserialize <- extracted.deserialize(spec)
       combOp <- extracted.combOpFSerializedWorkersOnly(spec)

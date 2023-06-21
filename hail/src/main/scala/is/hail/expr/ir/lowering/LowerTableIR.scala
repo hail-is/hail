@@ -5,7 +5,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
-import is.hail.backend.utils._
+import utils._
 import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
 import is.hail.expr.ir.{ArrayRef, TableNativeWriter, agg, _}
@@ -689,7 +689,8 @@ object LowerTableIR {
           if (useTreeAggregate) {
             newTmpPath("aggregate_intermediates/").map { tmpDir =>
               val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
-              val writer = ETypeFileValueWriter(codecSpec)
+              val writer = ETypeValueWriter(codecSpec)
+              val reader = ETypeValueReader(codecSpec)
               lcWithInitBinding.mapCollectWithGlobals("table_aggregate")({ part: IR =>
                 Let("global", lc.globals,
                   RunAgg(
@@ -715,15 +716,14 @@ object LowerTableIR {
                     if (useInitStates) {
                       initFromSerializedStates
                     } else {
-                      bindIR(ReadValue(ArrayRef(partArrayRef, 0), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
-                        Begin(
-                          aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                            InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
-                          })
+                      bindIR(ReadValue(ArrayRef(partArrayRef, 0), reader, reader.spec.encodedVirtualType)) { serializedTuple =>
+                        Begin(aggs.aggs.zipWithIndex.map { case (sig, i) =>
+                          InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
+                        })
                       }
                     },
                     forIR(StreamRange(if (useInitStates) 0 else 1, ArrayLen(partArrayRef), 1, requiresMemoryManagementPerElement = true)) { fileIdx =>
-                      bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                      bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                         Begin(aggs.aggs.zipWithIndex.map { case (sig, i) =>
                           CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
                         })
@@ -802,6 +802,14 @@ object LowerTableIR {
           res <- writer.lower(stage, tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)))
         } yield res
 
+      case TableMultiWrite(children, writer) =>
+        val lowerChildren = children.traverse { child =>
+          for {lc <- lower(child)}
+            yield (lc, tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)))
+        }
+
+        lowerChildren >>= writer.lower[M]
+
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         raisePretty { pretty =>
           new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${pretty(node)}")
@@ -816,7 +824,7 @@ object LowerTableIR {
 
     def lower(tir: TableIR): M[TableStage] =
       this.applyTable(tir, typesToLower, analyses)
-    
+
     if (typesToLower == DArrayLowering.BMOnly)
       throw new LowererUnsupportedOperation("found TableIR in lowering; lowering only BlockMatrixIRs.")
 
@@ -1315,7 +1323,8 @@ object LowerTableIR {
               if (big) {
                 newTmpPath("aggregate_intermediates/").map { tmpDir =>
                   val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
-                  val writer = ETypeFileValueWriter(codecSpec)
+                  val writer = ETypeValueWriter(codecSpec)
+                  val reader = ETypeValueReader(codecSpec)
                   val partitionPrefixSumFiles = lcWithInitBinding.mapCollectWithGlobals("table_scan_write_prefix_sums")({ part: IR =>
                     Let("global", lcWithInitBinding.globals,
                       RunAgg(
@@ -1334,14 +1343,14 @@ object LowerTableIR {
 
                     def combineGroup(partArrayRef: IR): IR =
                       Begin(FastIndexedSeq(
-                        bindIR(ReadValue(ArrayRef(partArrayRef, 0), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                        bindIR(ReadValue(ArrayRef(partArrayRef, 0), reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                           Begin(
                             aggs.aggs.zipWithIndex.map { case (sig, i) =>
                               InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
                             })
                         },
                         forIR(StreamRange(1, ArrayLen(partArrayRef), 1, requiresMemoryManagementPerElement = true)) { fileIdx =>
-                          bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                          bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                             Begin(
                               aggs.aggs.zipWithIndex.map { case (sig, i) =>
                                 CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
@@ -1424,13 +1433,13 @@ object LowerTableIR {
                                   ToArray(RunAggScan(
                                     ToStream(GetField(context, "partialSums"), requiresMemoryManagementPerElement = true),
                                     elt.name,
-                                    bindIR(ReadValue(prev, codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                                    bindIR(ReadValue(prev, reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                                       Begin(
                                         aggs.aggs.zipWithIndex.map { case (sig, i) =>
                                           InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
                                         })
                                     },
-                                    bindIR(ReadValue(elt, codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                                    bindIR(ReadValue(elt, reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                                       Begin(
                                         aggs.aggs.zipWithIndex.map { case (sig, i) =>
                                           CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
@@ -1453,7 +1462,7 @@ object LowerTableIR {
                       }
                     }
                   }
-                  (partitionPrefixSumFiles, { (file: IR) => ReadValue(file, codecSpec, codecSpec.encodedVirtualType) })
+                  (partitionPrefixSumFiles, { (file: IR) => ReadValue(file, reader, reader.spec.encodedVirtualType) })
                 }
               } else M.pure {
                 val partitionAggs = lcWithInitBinding.mapCollectWithGlobals("table_scan_prefix_sums_singlestage")({ part: IR =>

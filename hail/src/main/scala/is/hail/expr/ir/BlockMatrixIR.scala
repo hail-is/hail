@@ -5,7 +5,7 @@ import breeze.numerics
 import cats.syntax.all.{catsSyntaxApply, toFlatMapOps, toFunctorOps}
 import is.hail.HailContext
 import is.hail.annotations.{Annotation, NDArray}
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering._
@@ -169,21 +169,21 @@ class BlockMatrixNativeReader(
 
       val vType = TNDArray(fullType.elementType, Nat(2))
       val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
+      val reader = ETypeValueReader(spec)
 
       def blockIR(ctx: IR): IR = {
         val path = Apply("concat", FastSeq(),
           FastSeq(Str(s"${params.path}/parts/"), ctx),
           TString, ErrorIDs.NO_ERROR)
 
-        ReadValue(path, spec, vType)
+        ReadValue(path, reader, vType)
       }
 
       BlockMatrixStage2(
         FastIndexedSeq(),
         fullType,
         contexts,
-        blockIR
-      )
+        blockIR)
     }
 
   override def toJValue: JValue = {
@@ -215,9 +215,11 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 
   override def lower[M[_]: MonadLower](evalCtx: IRBuilder): M[BlockMatrixStage2] =
     MonadLower[M].pure {
+      // FIXME numpy should be it's own value reader
       val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
       val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
-      val nd = evalCtx.memoize(ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2))))
+      val reader = ETypeValueReader(readFromNumpySpec)
+      val nd = evalCtx.memoize(ReadValue(Str(path), reader, TNDArray(TFloat64, nDimsBase = Nat(2))))
 
       val typ = fullType
       val contexts = BMSContexts.tabulate(typ, evalCtx) { (blockRow, blockCol) =>

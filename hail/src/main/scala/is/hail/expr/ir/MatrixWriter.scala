@@ -4,7 +4,7 @@ import cats.syntax.all._
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.ir.lowering.{MonadLower, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
@@ -78,33 +78,42 @@ abstract class MatrixWriter {
   ): M[IR]
 }
 
-case class MatrixNativeWriter(
-  path: String,
-  overwrite: Boolean = false,
-  stageLocally: Boolean = false,
-  codecSpecJSONStr: String = null,
-  partitions: String = null,
-  partitionsTypeStr: String = null
-) extends MatrixWriter {
+case class MatrixWriterComponents(
+  stage: TableStage,
+  setup: IR,
+  writePartition: (IR, Ref) => IR,
+  finalizeWrite: (IR, IR) => IR
+)
 
-  override def lower[M[_]](colsFieldName: String,
-                           entriesFieldName: String,
-                           colKey: IndexedSeq[String],
-                           tablestage: TableStage,
-                           r: RTable
-                          )(implicit M: MonadLower[M]): M[IR] =
+object MatrixNativeWriter {
+  def generateComponentFunctions[M[_]](colsFieldName: String,
+                                       entriesFieldName: String,
+                                       colKey: IndexedSeq[String],
+                                       tablestage: TableStage,
+                                       r: RTable,
+                                       path: String,
+                                       overwrite: Boolean = false,
+                                       stageLocally: Boolean = false,
+                                       codecSpecJSONStr: String = null,
+                                       partitions: String = null,
+                                       partitionsTypeStr: String = null
+                                      )
+                                      (implicit M: MonadLower[M])
+  : M[MatrixWriterComponents] =
     for {
       stateManager <- M.reader(_.stateManager)
       tm = MatrixType.fromTableType(tablestage.tableType, colsFieldName, entriesFieldName, colKey)
-      ts <- if (partitions == null) M.pure(tablestage) else {
+
+      lowered <- if (partitions == null) M.pure(tablestage) else {
         val partitionsType = IRParser.parseType(partitionsTypeStr)
         val jv = JsonMethods.parse(partitions)
-        val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType).asInstanceOf[IndexedSeq[Interval]]
+        val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
+          .asInstanceOf[IndexedSeq[Interval]]
         tablestage.repartitionNoShuffle(new RVDPartitioner(stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
       }
 
-      rm = r.asMatrixType(colsFieldName, entriesFieldName)
       bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
+      rm = r.asMatrixType(colsFieldName, entriesFieldName)
       rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.rowType, rm.rowType), tm.rowType, bufferSpec)
       entrySpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.entriesRVType, rm.entriesRVType), tm.entriesRVType, bufferSpec)
       colSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.colType, rm.colType), tm.colType, bufferSpec)
@@ -112,13 +121,13 @@ case class MatrixNativeWriter(
       emptySpec = TypedCodecSpec(EBaseStruct(FastIndexedSeq(), required = true), TStruct.empty, bufferSpec)
 
       // write out partitioner key, which may be stricter than table key
-      partitioner = ts.partitioner
+      partitioner = lowered.partitioner
       pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
 
-      localTmpdir <- M.reader(_.localTmpdir)
       emptyWriter = PartitionNativeWriter(emptySpec, IndexedSeq(), s"$path/globals/globals/parts/", None, None)
       globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/rows/parts/", None, None)
       colWriter = PartitionNativeWriter(colSpec, IndexedSeq(), s"$path/cols/rows/parts/", None, None)
+      localTmpdir <- M.reader(_.localTmpdir)
       rowWriter = SplitPartitionNativeWriter(
         rowSpec,
         s"$path/rows/rows/parts/",
@@ -126,7 +135,8 @@ case class MatrixNativeWriter(
         s"$path/entries/rows/parts/",
         pKey.virtualType.fieldNames,
         Some(s"$path/index/" -> pKey),
-        if (stageLocally) Some(FileSystems.getDefault.getPath(localTmpdir, s"hail_stage_tmp_${UUID.randomUUID}")) else None
+        if (stageLocally) Some(FileSystems.getDefault.getPath(localTmpdir, s"hail_stage_tmp_${UUID.randomUUID}"))
+        else None
       )
 
       globalTableWriter = TableSpecWriter(s"$path/globals", TableType(tm.globalType, FastIndexedSeq(), TStruct.empty), "rows", "globals", "../references", log = false)
@@ -134,18 +144,28 @@ case class MatrixNativeWriter(
       rowTableWriter = TableSpecWriter(s"$path/rows", tm.rowsTableType, "rows", "../globals/rows", "../references", log = false)
       entriesTableWriter = TableSpecWriter(s"$path/entries", TableType(tm.entriesRVType, FastIndexedSeq(), tm.globalType), "rows", "../globals/rows", "../references", log = false)
 
-      withWriteCtx = ts.mapContexts { oldCtx =>
-        val d = digitsNeeded(ts.numPartitions)
-        val partFiles = Array.tabulate(ts.numPartitions)(i => s"${partFile(d, i)}")
+      loweredMapContexts = lowered.mapContexts { oldCtx =>
+        val d = digitsNeeded(lowered.numPartitions)
+        val partFiles = Array.tabulate(lowered.numPartitions)(i => s"${partFile(d, i)}-")
 
         zip2(oldCtx, ToStream(Literal(TArray(TString), partFiles.toFastIndexedSeq)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
           MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf))
         }
       }(GetField(_, "oldCtx"))
 
-      cda = withWriteCtx.mapCollectWithContextsAndGlobals("matrix_native_writer")(
-        (rows, ctx) => WritePartition(rows, GetField(ctx, "writeCtx"), rowWriter)
-      ) { (parts, globals) =>
+      setup = Begin(FastIndexedSeq(
+        WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalSetup(path, overwrite = overwrite, Some(tablestage.tableType))),
+        WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalSetup(s"$path/globals", overwrite = false, None)),
+        WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalSetup(s"$path/cols", overwrite = false, None)),
+        WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalSetup(s"$path/rows", overwrite = false, None)),
+        WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalSetup(s"$path/entries", overwrite = false, None))
+      ))
+
+      writePartition: ((IR, Ref) => IR) =
+        (rows, ctx) => WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
+
+      finalizeWrite: ((IR, IR) => IR) = { (parts, globals) =>
+        // parts is array<struct> of partition results
         val writeEmpty = WritePartition(MakeStream(FastSeq(makestruct()), TStream(TStruct.empty)), Str(partFile(1, 0)), emptyWriter)
         val writeCols = WritePartition(ToStream(GetField(globals, colsFieldName)), Str(partFile(1, 0)), colWriter)
         val writeGlobals = WritePartition(MakeStream(FastSeq(SelectFields(globals, tm.globalType.fieldNames)), TStream(tm.globalType)),
@@ -169,8 +189,8 @@ case class MatrixNativeWriter(
               WriteMetadata(MakeArray(SelectFields(colInfo, IndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))), colTableWriter),
               bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "filePath") })) { files =>
                 Begin(FastIndexedSeq(
-                  WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, ts.partitioner, rowsIndexSpec))),
-                  WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(stateManager, ts.numPartitions), entriesIndexSpec)))))
+                  WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner, rowsIndexSpec))),
+                  WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(stateManager, lowered.numPartitions), entriesIndexSpec)))))
               },
               bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => SelectFields(fc, FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")) })) { countsAndKeyInfo =>
                 Begin(FastIndexedSeq(
@@ -179,26 +199,51 @@ case class MatrixNativeWriter(
                     ToArray(mapIR(ToStream(countsAndKeyInfo)) { countAndKeyInfo =>
                       InsertFields(SelectFields(countAndKeyInfo, IndexedSeq("partitionCounts", "distinctlyKeyed")), IndexedSeq("firstKey" -> MakeStruct(FastIndexedSeq()), "lastKey" -> MakeStruct(FastIndexedSeq())))
                     }),
-                    entriesTableWriter
-                  ),
+                    entriesTableWriter),
                   WriteMetadata(
                     makestruct(
                       "cols" -> GetField(colInfo, "partitionCounts"),
-                      "rows" -> ToArray(mapIR(ToStream(countsAndKeyInfo)) { countAndKey => GetField(countAndKey, "partitionCounts") })
-                    ),
-                    matrixWriter
-                  )
-                ))
-              }
-            ))
+                      "rows" -> ToArray(mapIR(ToStream(countsAndKeyInfo)) { countAndKey => GetField(countAndKey, "partitionCounts") })),
+                    matrixWriter)))
+              },
+              WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalCommit(path)),
+              WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalCommit(s"$path/globals")),
+              WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalCommit(s"$path/cols")),
+              WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalCommit(s"$path/rows")),
+              WriteMetadata(MakeStruct(FastIndexedSeq()), RelationalCommit(s"$path/entries"))))
           }
         }
       }
-    } yield RelationalWriter.scoped(path, overwrite = overwrite, Some(tablestage.tableType))(
-          RelationalWriter.scoped(s"$path/globals", overwrite = false, None)(
-            RelationalWriter.scoped(s"$path/cols", overwrite = false, None)(
-              RelationalWriter.scoped(s"$path/rows", overwrite = false, None)(
-                RelationalWriter.scoped(s"$path/entries", overwrite = false, None)(cda)))))
+
+    } yield MatrixWriterComponents(loweredMapContexts, setup, writePartition, finalizeWrite)
+}
+
+case class MatrixNativeWriter(
+  path: String,
+  overwrite: Boolean = false,
+  stageLocally: Boolean = false,
+  codecSpecJSONStr: String = null,
+  partitions: String = null,
+  partitionsTypeStr: String = null
+) extends MatrixWriter {
+
+  override def lower[M[_]](colsFieldName: String,
+                           entriesFieldName: String,
+                           colKey: IndexedSeq[String],
+                           tablestage: TableStage,
+                           r: RTable
+                          )(implicit M: MonadLower[M])
+  : M[IR] =
+    for {
+      components <-
+        MatrixNativeWriter.generateComponentFunctions(
+          colsFieldName, entriesFieldName, colKey, tablestage, r,
+          path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr
+        )
+    } yield Begin(FastIndexedSeq(
+      components.setup,
+      components.stage.mapCollectWithContextsAndGlobals("matrix_native_writer")(components.writePartition)(components.finalizeWrite)
+    ))
 }
 
 case class SplitPartitionNativeWriter(spec1: AbstractTypedCodecSpec,
@@ -1560,7 +1605,7 @@ case class MatrixBlockMatrixWriter(
       elementType = tm.entryType.fieldType(entryField)
       etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
       spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
-      writer = ETypeFileValueWriter(spec)
+      writer = ETypeValueWriter(spec)
 
       pathsWithColMajorIndices = tableOfNDArrays.mapCollect("matrix_block_matrix_writer") { partition =>
         ToArray(mapIR(partition) { singleNDArrayTuple =>
@@ -1592,5 +1637,72 @@ case class MatrixNativeMultiWriter(
   codecSpecJSONStr: String = null
 ) {
   val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally, bufferSpec)
+
+  def apply[M[_]](mvs: IndexedSeq[MatrixValue])(implicit M: MonadLower[M]): M[Unit] =
+    MatrixValue.writeMultiple(mvs, paths, overwrite, stageLocally, bufferSpec)
+
+  def lower[M[_]](tables: IndexedSeq[(String, String, IndexedSeq[String], TableStage, RTable)])
+                 (implicit M: MonadLower[M]): M[IR] = {
+    for {
+      components <- paths.zip(tables).traverse { case (path, (colsFieldName, entriesFieldName, colKey, ts, rt)) =>
+        MatrixNativeWriter.generateComponentFunctions(colsFieldName, entriesFieldName, colKey,
+          ts, rt, path, overwrite, stageLocally, codecSpecJSONStr)
+      }
+    } yield {
+
+      require(tables.map(_._4.tableType.keyType).distinct.length == 1)
+      val unionTuple = TTuple(components.map(c => TIterable.elementType(c.stage.contexts.typ)): _*)
+      val contextUnionType = TStruct(
+        "tag" -> TInt32,
+        "options" -> unionTuple)
+
+      def contextToTaggedUnion(ctx: IR, idx: Int): IR = {
+        MakeStruct(FastIndexedSeq(("tag", I32(idx)),
+          ("options", MakeTuple(
+            (0 until components.length)
+              .map { i => (i, if (i == idx) ctx else NA(unionTuple.types(i))) }))))
+      }
+
+      val concatenatedContexts = flatMapIR(ToStream(MakeArray(components.zipWithIndex.map { case (c, matrixIdx) =>
+        ToArray(mapIR(c.stage.contexts)(contextToTaggedUnion(_, matrixIdx)))
+      }, TArray(TArray(contextUnionType)))))(ToStream(_))
+
+      val partitionCounts = components.map(_.stage.numPartitions)
+      val partitionCountScan = partitionCounts.scanLeft(0)(_ + _)
+
+      val allBroadcastIdxSeq = components.flatMap(_.stage.broadcastVals)
+      val allBroadcasts = MakeStruct(allBroadcastIdxSeq)
+
+
+      Begin(FastIndexedSeq(
+        Begin(components.map(_.setup)),
+        TableStage.wrapInBindings(
+          bindIR(cdaIR(concatenatedContexts, allBroadcasts, "matrix_multi_writer") { case (ctx, bcVals) =>
+            bindIR(GetField(ctx, "tag")) { tag =>
+              bindIR(GetField(ctx, "options")) { options =>
+                val writeEach = components.zipWithIndex.map { case (c, idx) =>
+                  (idx, bindIR(GetTupleElement(options, idx)) { ctxRef =>
+                    c.writePartition(
+                      c.stage.partition(ctxRef), ctxRef)
+                  })
+                }
+
+                val partitionIR = writeEach.init.foldRight[IR](writeEach.last._2) { case ((i, writer), acc) =>
+                  If(tag ceq i, writer, acc)
+                }
+
+                allBroadcastIdxSeq.foldLeft(partitionIR) { case (accum, (name, _)) =>
+                  Let(name, GetField(bcVals, name), accum)
+                }
+
+              }
+            }
+          }) { cdaResult =>
+            Begin(components.zipWithIndex.map { case (c, i) =>
+              c.finalizeWrite(ArraySlice(cdaResult, partitionCountScan(i), Some(partitionCountScan(i + 1))), c.stage.globals)
+            })
+          }, components.flatMap(_.stage.letBindings))
+      ))
+    }
+  }
 }

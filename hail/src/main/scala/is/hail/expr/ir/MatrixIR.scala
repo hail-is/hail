@@ -8,7 +8,7 @@ import cats.{Applicative, Monad, MonadThrow}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.io.bgen.MatrixBGENReader

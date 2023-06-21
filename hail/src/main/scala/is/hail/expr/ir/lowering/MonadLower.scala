@@ -1,23 +1,24 @@
 package is.hail.expr.ir.lowering
 
-import cats.mtl.Stateful
-import cats.{Applicative, Monad}
-import is.hail.backend.{ExecuteContext, MonadExecute}
+import cats.mtl.{Local, Stateful}
+import cats.{Applicative, Monad, MonadThrow}
+import is.hail.backend.ExecuteContext
 
 import scala.annotation.tailrec
 import scala.language.{higherKinds, implicitConversions}
 
 trait MonadLower[M[_]]
-  extends MonadExecute[M]
+  extends MonadThrow[M]
+    with Local[M, ExecuteContext]
     with Stateful[M, LoweringState] {
   def liftLower[A](lower: Lower[A]): M[A]
 }
+
 
 object MonadLower {
   @inline def apply[M[_]: MonadLower]: MonadLower[M] =
     implicitly
 }
-
 
 
 final case class Lower[+A](run: (ExecuteContext, LoweringState) => (LoweringState, Either[Throwable, A])) {

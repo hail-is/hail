@@ -16,10 +16,10 @@ import org.testng.annotations.Test
 class PartitioningSuite extends HailSuite {
   @Test def testShuffleOnEmptyRDD() {
     val typ = TableType(TStruct("tidx" -> TInt32), FastIndexedSeq("tidx"), TStruct.empty)
-    val t = TableLiteral[Execute](
+    val t = TableLiteral[Run](
       TableValue(
         typ,
-        BroadcastRow.empty[Execute].apply(ctx),
+        BroadcastRow.empty[Run].apply(ctx),
         RVD.empty(ctx, typ.canonicalRVDType)
       )
     ).apply(ctx)

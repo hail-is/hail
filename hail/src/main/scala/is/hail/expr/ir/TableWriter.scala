@@ -5,7 +5,7 @@ import is.hail.GenericIndexedSeqSerializer
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering._
@@ -417,6 +417,43 @@ object RelationalWriter {
     write, RelationalWriter(path, overwrite, refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))))
 }
 
+case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableType]) extends MetadataWriter {
+  lazy val maybeRefs = refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))
+
+  def annotationType: Type = TStruct()
+
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit = {
+    if (overwrite)
+      cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
+    else
+      cb.ifx(cb.emb.getFS.invoke[String, Boolean]("exists", path), cb._fatal(s"file already exists: $path"))
+    cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
+
+    maybeRefs.foreach { case (refRelPath, refs) =>
+      val referencesFQPath = s"$path/$refRelPath"
+      cb += cb.emb.getFS.invoke[String, Unit]("mkDir", referencesFQPath)
+      refs.foreach { rg =>
+        cb += Code.invokeScalaObject3[FS, String, ReferenceGenome, Unit](ReferenceGenome.getClass, "writeReference", cb.emb.getFS, referencesFQPath, cb.emb.getReferenceGenome(rg))
+      }
+    }
+  }
+}
+
+case class RelationalCommit(path: String) extends MetadataWriter {
+  def annotationType: Type = TStruct()
+
+  def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region]): Unit = {
+    cb += Code.invokeScalaObject2[FS, String, Unit](Class.forName("is.hail.utils.package$"), "writeNativeFileReadMe", cb.emb.getFS, path)
+    cb += cb.emb.create(s"$path/_SUCCESS").invoke[Unit]("close")
+  }
+}
+
 case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[(String, Set[String])]) extends MetadataWriter {
   def annotationType: Type = TVoid
 
@@ -767,10 +804,12 @@ object WrappedMatrixNativeMultiWriter {
     GenericIndexedSeqSerializer
 }
 
-case class WrappedMatrixNativeMultiWriter(
-  writer: MatrixNativeMultiWriter,
-  colKey: IndexedSeq[String]
-) {
+case class WrappedMatrixNativeMultiWriter(writer: MatrixNativeMultiWriter, colKey: IndexedSeq[String]) {
   def apply[M[_]](mvs: IndexedSeq[TableValue])(implicit M: MonadLower[M]): M[Unit] =
-    M.reader { ctx => writer.apply(ctx, mvs.map(_.toMatrixValue(colKey))) }
+    writer.apply(mvs.map(_.toMatrixValue(colKey)))
+
+  def lower[M[_]](ts: IndexedSeq[(TableStage, RTable)])(implicit M: MonadLower[M]): M[IR] =
+    writer.lower(ts.map { case (ts, rt) =>
+      (LowerMatrixIR.colsFieldName, LowerMatrixIR.entriesFieldName, colKey, ts, rt)
+    })
 }

@@ -221,7 +221,7 @@ class SimplifySuite extends HailSuite {
       val tf = TableFilter(tp, GetField(Ref("row", tp.typ.rowType), "x") < 100)
 
       val rw = Simplify(ctx, tf)
-      TypeCheck[Execute](rw).apply(ctx)
+      TypeCheck[Run](rw).apply(ctx)
       assert(!Exists(rw, _.isInstanceOf[TableFilter]))
     }
   }

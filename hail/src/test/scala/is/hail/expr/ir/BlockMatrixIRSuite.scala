@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import breeze.linalg.{DenseMatrix => BDM}
 import cats.syntax.all._
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 import is.hail.expr.ir.lowering.{Lower, LoweringState}
@@ -174,11 +174,12 @@ class BlockMatrixIRSuite extends HailSuite {
 
     val typ = TNDArray(TFloat64, Nat(2))
     val spec = TypedCodecSpec(etype, typ, BlockMatrix.bufferSpec)
-    val read = ReadValue(Str(path), spec, typ)
+    val reader = ETypeValueReader(spec)
+    val read = ReadValue(Str(path), reader, typ)
     assertNDEvals(read, expected)
     assertNDEvals(ReadValue(
-      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")) + UUID4(), ETypeFileValueWriter(spec)),
-      spec, typ), expected)
+      WriteValue(read, Str(ctx.createTmpPath("read-blockmatrix-ir", "hv")) + UUID4(), ETypeValueWriter(spec)),
+      reader, typ), expected)
   }
 
   @Test def readWriteBlockMatrix() {

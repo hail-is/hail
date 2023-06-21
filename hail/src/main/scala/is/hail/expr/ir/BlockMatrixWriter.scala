@@ -56,7 +56,7 @@ case class BlockMatrixNativeWriter(
     M.reader { ctx =>
       val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(s.typ.elementType, eltR), encodeRowMajor = forceRowMajor, required = true)
       val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), BlockMatrix.bufferSpec)
-      val writer = ETypeFileValueWriter(spec)
+      val writer = ETypeValueWriter(spec)
 
       val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
         val suffix = strConcat("parts/part-", idx)
@@ -130,9 +130,11 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   override def lower[M[_]: MonadLower](s: BlockMatrixStage2, evalCtx: IRBuilder, eltR: TypeWithRequiredness): M[IR] =
     MonadLower[M].pure {
       val nd = s.collectLocal(evalCtx, "block_matrix_binary_writer")
+
+      // FIXME remove numpy encoder
       val etype = ENumpyBinaryNDArray(s.typ.nRows, s.typ.nCols, true)
       val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), new StreamBufferSpec())
-      val writer = ETypeFileValueWriter(spec)
+      val writer = ETypeValueWriter(spec)
       WriteValue(nd, Str(path), writer)
     }
 }

@@ -33,7 +33,7 @@ class Aggregators2Suite extends HailSuite {
     val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).setRequired(true).asInstanceOf[PStruct]
     val argVs = Row.fromSeq(args.map { case (_, (_, v)) => v })
     val argRef = Ref(genUID(), argT.virtualType)
-    val spec = BufferSpec.defaultUncompressed
+    val spec = BufferSpec.wireSpec
 
     import Lower.monadLowerInstanceForLower
     val (s1, Right((_, combAndDuplicate))) =

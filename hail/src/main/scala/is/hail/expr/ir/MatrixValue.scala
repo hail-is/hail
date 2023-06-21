@@ -1,8 +1,11 @@
 package is.hail.expr.ir
 
+import cats.implicits.toFlatMapOps
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.lowering.utils.unsafe
+import is.hail.expr.ir.lowering.MonadLower
 import is.hail.io.{BufferSpec, FileWriteMetadata}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD}
@@ -262,57 +265,58 @@ case class MatrixValue(typ: MatrixType, tv: TableValue) {
 }
 
 object MatrixValue {
-  def writeMultiple(
-    ctx: ExecuteContext,
+  def writeMultiple[M[_]](
     mvs: IndexedSeq[MatrixValue],
     paths: IndexedSeq[String],
     overwrite: Boolean,
     stageLocally: Boolean,
     bufferSpec: BufferSpec
-  ): Unit = {
-    val first = mvs.head
-    require(mvs.forall(_.typ == first.typ))
-    require(mvs.length == paths.length, s"found ${ mvs.length } matrix tables but ${ paths.length } paths")
-    val fs = ctx.fs
+  )(implicit M: MonadLower[M]): M[Unit] =
+    M.ask.flatMap { ctx =>
+      unsafe {
+        val first = mvs.head
+        require(mvs.forall(_.typ == first.typ))
+        require(mvs.length == paths.length, s"found ${mvs.length} matrix tables but ${paths.length} paths")
+        val fs = ctx.fs
 
-    paths.foreach { path =>
-      if (overwrite)
-        fs.delete(path, recursive = true)
-      else if (fs.exists(path))
-        fatal(s"file already exists: $path")
-      fs.mkDir(path)
+        paths.foreach { path =>
+          if (overwrite)
+            fs.delete(path, recursive = true)
+          else if (fs.exists(path))
+            fatal(s"file already exists: $path")
+          fs.mkDir(path)
+        }
+
+        val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
+        (mvs, paths, fileData).zipped.foreach { case (mv, path, fd) =>
+          mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
+        }
+      }
     }
 
-    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
-    (mvs, paths, fileData).zipped.foreach { case (mv, path, fd) =>
-      mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
-    }
-  }
+  def apply[M[_]](typ: MatrixType, globals: Row, colValues: IndexedSeq[Row], rvd: RVD)
+                 (implicit M: MonadLower[M]): M[MatrixValue] =
+    M.ask.flatMap { ctx =>
+      unsafe {
+        val globalsType = typ.globalType.appendKey(LowerMatrixIR.colsFieldName, TArray(typ.colType))
+        val globalsPType = PType.canonical(globalsType).asInstanceOf[PStruct]
+        val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+        rvb.start(globalsPType)
+        rvb.startStruct()
+        typ.globalType.fields.foreach { f =>
+          rvb.addAnnotation(f.typ, globals.get(f.index))
+        }
+        rvb.addAnnotation(TArray(typ.colType), colValues)
 
-  def apply(
-    ctx: ExecuteContext,
-    typ: MatrixType,
-    globals: Row,
-    colValues: IndexedSeq[Row],
-    rvd: RVD): MatrixValue = {
-    val globalsType = typ.globalType.appendKey(LowerMatrixIR.colsFieldName, TArray(typ.colType))
-    val globalsPType = PType.canonical(globalsType).asInstanceOf[PStruct]
-    val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
-    rvb.start(globalsPType)
-    rvb.startStruct()
-    typ.globalType.fields.foreach { f =>
-      rvb.addAnnotation(f.typ, globals.get(f.index))
+        MatrixValue(typ,
+          TableValue(TableType(
+            rowType = rvd.rowType,
+            key = typ.rowKey,
+            globalType = globalsType),
+            BroadcastRow(ctx.stateManager, RegionValue(ctx.r, rvb.end()), globalsPType),
+            rvd
+          )
+        )
+      }
     }
-    rvb.addAnnotation(TArray(typ.colType), colValues)
-
-    MatrixValue(typ,
-      TableValue(TableType(
-        rowType = rvd.rowType,
-        key = typ.rowKey,
-        globalType = globalsType),
-        BroadcastRow(ctx.stateManager, RegionValue(ctx.r, rvb.end()), globalsPType),
-        rvd
-      )
-    )
-  }
 }

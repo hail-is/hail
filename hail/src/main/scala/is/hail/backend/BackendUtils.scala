@@ -68,7 +68,11 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                 Try {
                   using(new LocalTaskContext(k, 0)) { htc =>
                     using(htc.getRegionPool().getRegion()) { r =>
-                      FastIndexedSeq((k, f(theDriverHailClassLoader, fs, htc, r)(r, context, globals)))
+                      val run = f(theDriverHailClassLoader, fs, htc, r)
+                      val res = is.hail.services.retryTransientErrors {
+                        run(r, context, globals)
+                      }
+                      FastSeq(k -> res)
                     }
                   }
                 }
@@ -84,10 +88,13 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                       val gs = globalsBC.value
                       fs.setConfiguration(fsConfig)
                       htc.getRegionPool().scopedRegion { region =>
-                        f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
+                        val run = f(theHailClassLoader, fs, htc, region)
+                        is.hail.services.retryTransientErrors {
+                          run(region, ctx, gs)
+                        }
                       }
                   }
-                (failureOpt, successes.map { case (k, v) => (remainingContexts(k)._2, v) })
+                (failureOpt, successes.map { case (k, v) => remainingContexts(k)._2 -> v })
             }
 
           log.info(s"[collectDArray|$stageName]: executed ${remainingContexts.length} tasks in ${formatTime(System.nanoTime() - t)}")

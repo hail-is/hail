@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import breeze.linalg.{*, diag, DenseMatrix => BDM, DenseVector => BDV}
 import cats.syntax.all._
-import is.hail.backend.utils.assertA
+import is.hail.expr.ir.lowering.utils.assertA
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen._
 import is.hail.check.Prop._

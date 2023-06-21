@@ -243,7 +243,7 @@ class SparkBackend(Py4JBackend):
 
             self._jbackend.startProgressBar()
 
-        self._initialize_flags()
+        self._initialize_flags({})
 
     def jvm(self):
         return self._jvm

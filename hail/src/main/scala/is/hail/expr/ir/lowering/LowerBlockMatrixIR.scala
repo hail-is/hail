@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import cats.Applicative
 import cats.syntax.all._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.utils.raisePretty
+import utils.raisePretty
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement

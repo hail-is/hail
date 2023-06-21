@@ -214,10 +214,10 @@ class MatrixIRSuite extends HailSuite {
     val colSig = TStruct("col_idx" -> TInt32, "tag" -> TString)
     val globalType = TStruct(("__cols", TArray(colSig)))
     (for {
-      tv_ <- TableValue[Execute](rowSig, keyNames, rowRdd);
-      br <- BroadcastRow[Execute](Row(cdata.toFastIndexedSeq), globalType)
+      tv_ <- TableValue[Run](rowSig, keyNames, rowRdd);
+      br <- BroadcastRow[Run](Row(cdata.toFastIndexedSeq), globalType)
       tv = tv_.copy(typ = tv_.typ.copy(globalType = globalType), globals = br)
-      lit <- TableLiteral[Execute](tv)
+      lit <- TableLiteral[Run](tv)
     } yield lit).apply(ctx)
   }
 

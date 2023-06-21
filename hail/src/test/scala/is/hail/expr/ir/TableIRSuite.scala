@@ -1151,7 +1151,7 @@ class TableIRSuite extends HailSuite {
       }, Row("Hello")))
 
     val e = intercept[HailException] {
-      TypeCheck[Execute](
+      TypeCheck[Run](
         collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))
       ).apply(ctx)
     }

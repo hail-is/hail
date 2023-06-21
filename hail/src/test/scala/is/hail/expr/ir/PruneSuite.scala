@@ -128,7 +128,7 @@ class PruneSuite extends HailSuite {
     TStruct("e1" -> TFloat64, "e2" -> TFloat64)
   )
 
-  lazy val mat = MatrixLiteral[Execute](
+  lazy val mat = MatrixLiteral[Run](
     mType,
     RVD.empty(ctx, mType.canonicalTableType.canonicalRVDType),
     Row(1, 1.0),

@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import cats.syntax.all._
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.ir.lowering.{LoweringPipeline, MonadLower}
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType

@@ -3,7 +3,7 @@ package is.hail.methods
 import cats.implicits.{catsSyntaxApply, toFlatMapOps}
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.lowering.MonadLower

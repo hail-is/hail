@@ -1,14 +1,15 @@
 package is.hail
 
 import breeze.linalg.DenseMatrix
-import cats.Applicative
+import cats.{Applicative, MonadThrow}
 import cats.implicits.catsSyntaxApply
+import cats.mtl.Ask
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.backend.spark.SparkBackend
-import is.hail.backend.utils._
-import is.hail.backend.{BroadcastValue, ExecuteContext, MonadExecute}
+import is.hail.expr.ir.lowering.utils._
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.io.fs.FS
@@ -257,34 +258,31 @@ class HailSuite extends TestNGSuite {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
 
 
-  type Execute[A] = ExecuteContext => A
-  implicit val monadExecuteInstanceFunction: MonadExecute[Execute] =
-    new MonadExecute[Execute] {
-      override def local[A](fa: Execute[A])(f: ExecuteContext => ExecuteContext): Execute[A] =
-        fa compose f
-
-      override def raiseError[A](e: Throwable): Execute[A] = {
+  type Run[A] = ExecuteContext => A
+  implicit val monadExecuteInstanceFunction =
+    new MonadThrow[Run] with Ask[Run, ExecuteContext] {
+      override def raiseError[A](e: Throwable): Run[A] = {
         val t = e.fillInStackTrace()
         _ => throw t
       }
 
-      override def handleErrorWith[A](fa: Execute[A])(f: Throwable => Execute[A]): Execute[A] =
+      override def handleErrorWith[A](fa: Run[A])(f: Throwable => Run[A]): Run[A] =
         ctx => try {
           fa(ctx)
         } catch {
           case NonFatal(t) => f(t)(ctx)
         }
 
-      override def applicative: Applicative[Execute] =
+      override def applicative: Applicative[Run] =
         this
 
-      override def ask[E2 >: ExecuteContext]: Execute[E2] =
+      override def ask[E2 >: ExecuteContext]: Run[E2] =
         identity
 
-      override def flatMap[A, B](fa: Execute[A])(f: A => Execute[B]): Execute[B] =
+      override def flatMap[A, B](fa: Run[A])(f: A => Run[B]): Run[B] =
         ctx => f(fa(ctx))(ctx)
 
-      override def tailRecM[A, B](a0: A)(f: A => Execute[Either[A, B]]): Execute[B] = {
+      override def tailRecM[A, B](a0: A)(f: A => Run[Either[A, B]]): Run[B] = {
         ctx =>
           @tailrec def go(a: A): B = f(a)(ctx) match {
             case Left(a) => go(a)
@@ -294,7 +292,7 @@ class HailSuite extends TestNGSuite {
           go(a0)
       }
 
-      override def pure[A](x: A): Execute[A] =
+      override def pure[A](x: A): Run[A] =
         _ => x
     }
 }

@@ -15,6 +15,11 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.117**
+
+- (`#13007 <https://github.com/hail-is/hail/pull/13007>`__) Memory and storage request strings may now be optionally terminated with a `B` for bytes.
+- (`#13051 <https://github.com/hail-is/hail/pull/13051>`__) Azure Blob Storage `https` URLs are now supported.
+
 **Version 0.2.115**
 
 - (`#12731 <https://github.com/hail-is/hail/pull/12731>`__) Introduced `hailtop.fs` that makes public a filesystem module that works for local fs, gs, s3 and abs. This can be used by `import hailtop.fs as hfs`.

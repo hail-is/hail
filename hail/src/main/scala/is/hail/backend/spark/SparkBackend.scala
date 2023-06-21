@@ -5,7 +5,7 @@ import cats.syntax.all._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering._

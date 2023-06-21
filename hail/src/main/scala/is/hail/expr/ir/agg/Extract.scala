@@ -265,55 +265,57 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
 
 // Takes ownership of both input regions, and returns ownership of region in
   // resulting RegionValue.
-  def combOpF(ctx: ExecuteContext, spec: BufferSpec): (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue = {
-    val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
-      ctx,
-      "combOpF3",
-      FastIndexedSeq[ParamType](classInfo[Region], LongInfo, classInfo[Region], LongInfo),
-      LongInfo)
+  def combOpF[M[_]](implicit M: MonadLower[M]): M[(HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue] =
+    M.reader { ctx =>
+      val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
+        ctx,
+        "combOpF3",
+        FastIndexedSeq[ParamType](classInfo[Region], LongInfo, classInfo[Region], LongInfo),
+        LongInfo
+      )
 
-    val leftAggRegion = fb.genFieldThisRef[Region]("agg_combine_left_top_region")
-    val leftAggOff = fb.genFieldThisRef[Long]("agg_combine_left_off")
-    val rightAggRegion = fb.genFieldThisRef[Region]("agg_combine_right_top_region")
-    val rightAggOff = fb.genFieldThisRef[Long]("agg_combine_right_off")
+      val leftAggRegion = fb.genFieldThisRef[Region]("agg_combine_left_top_region")
+      val leftAggOff = fb.genFieldThisRef[Long]("agg_combine_left_off")
+      val rightAggRegion = fb.genFieldThisRef[Region]("agg_combine_right_top_region")
+      val rightAggOff = fb.genFieldThisRef[Long]("agg_combine_right_off")
 
-    fb.emit(EmitCodeBuilder.scopedCode(fb.emb) { cb =>
-      cb.assign(leftAggRegion, fb.getCodeParam[Region](1))
-      cb.assign(leftAggOff, fb.getCodeParam[Long](2))
-      cb.assign(rightAggRegion, fb.getCodeParam[Region](3))
-      cb.assign(rightAggOff, fb.getCodeParam[Long](4))
+      fb.emit(EmitCodeBuilder.scopedCode(fb.emb) { cb =>
+        cb.assign(leftAggRegion, fb.getCodeParam[Region](1))
+        cb.assign(leftAggOff, fb.getCodeParam[Long](2))
+        cb.assign(rightAggRegion, fb.getCodeParam[Region](3))
+        cb.assign(rightAggOff, fb.getCodeParam[Long](4))
 
-      val leftStates = agg.StateTuple(states.map(s => AggStateSig.getState(s, fb.ecb)))
-      val leftAggState = new agg.TupleAggregatorState(fb.ecb, leftStates, leftAggRegion, leftAggOff)
-      val rightStates = agg.StateTuple(states.map(s => AggStateSig.getState(s, fb.ecb)))
-      val rightAggState = new agg.TupleAggregatorState(fb.ecb, rightStates, rightAggRegion, rightAggOff)
+        val leftStates = agg.StateTuple(states.map(s => AggStateSig.getState(s, fb.ecb)))
+        val leftAggState = new agg.TupleAggregatorState(fb.ecb, leftStates, leftAggRegion, leftAggOff)
+        val rightStates = agg.StateTuple(states.map(s => AggStateSig.getState(s, fb.ecb)))
+        val rightAggState = new agg.TupleAggregatorState(fb.ecb, rightStates, rightAggRegion, rightAggOff)
 
-      leftStates.createStates(cb)
-      leftAggState.load(cb)
+        leftStates.createStates(cb)
+        leftAggState.load(cb)
 
-      rightStates.createStates(cb)
-      rightAggState.load(cb)
+        rightStates.createStates(cb)
+        rightAggState.load(cb)
 
-      for (i <- 0 until nAggs) {
-        val rvAgg = agg.Extract.getAgg(aggs(i))
-        rvAgg.combOp(ctx, cb, leftAggState.states(i), rightAggState.states(i))
+        for (i <- 0 until nAggs) {
+          val rvAgg = agg.Extract.getAgg(aggs(i))
+          rvAgg.combOp(ctx, cb, leftAggState.states(i), rightAggState.states(i))
+        }
+
+        leftAggState.store(cb)
+        rightAggState.store(cb)
+        leftAggOff
+      })
+
+      val f = fb.resultWithIndex()
+      val fsBc = ctx.fsBc
+
+      { (hcl: HailClassLoader, htc: HailTaskContext, l: RegionValue, r: RegionValue) =>
+        val comb = f(hcl, fsBc.value, htc, l.region)
+        l.setOffset(comb(l.region, l.offset, r.region, r.offset))
+        r.region.invalidate()
+        l
       }
-
-      leftAggState.store(cb)
-      rightAggState.store(cb)
-      leftAggOff
-    })
-
-    val f = fb.resultWithIndex()
-    val fsBc = ctx.fsBc
-
-    { (hcl: HailClassLoader, htc: HailTaskContext, l: RegionValue, r: RegionValue) =>
-      val comb = f(hcl, fsBc.value, htc, l.region)
-      l.setOffset(comb(l.region, l.offset, r.region, r.offset))
-      r.region.invalidate()
-      l
     }
-  }
 
   def results: IR = {
     ResultOp.makeTuple(aggs)

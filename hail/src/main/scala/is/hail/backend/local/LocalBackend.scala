@@ -4,9 +4,9 @@ import cats.syntax.all._
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
-import is.hail.backend.utils.{raisePretty, scopedExecution, timeM}
+import is.hail.expr.ir.lowering.utils.{raisePretty, scopedExecution, timeM}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{TypeCheck, _}
+import is.hail.expr.ir._
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink

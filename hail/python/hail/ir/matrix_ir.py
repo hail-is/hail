@@ -128,11 +128,11 @@ class MatrixRead(MatrixIR):
         drop_col_uids = False
         if row_uid_field_name is None and self.drop_row_uids:
             drop_row_uids = True
-        elif row_uid_field_name != default_row_uid:
+        elif row_uid_field_name is not None and row_uid_field_name != default_row_uid:
             rename_row_uid = True
         if col_uid_field_name is None and self.drop_col_uids:
             drop_col_uids = True
-        elif col_uid_field_name != default_col_uid:
+        elif col_uid_field_name is not None and col_uid_field_name != default_col_uid:
             rename_col_uid = True
         result = MatrixRead(self.reader, self.drop_cols, self.drop_rows, drop_row_uids, drop_col_uids)
         if rename_row_uid or rename_col_uid:
@@ -156,7 +156,7 @@ class MatrixRead(MatrixIR):
                     col = ir.Ref('sa', self.typ.col_type)
                     result = MatrixMapCols(
                         result,
-                        ir.InsertFields(col, [(col_uid_field_name, ir.GetField(row, default_col_uid))], None),
+                        ir.InsertFields(col, [(col_uid_field_name, ir.GetField(col, default_col_uid))], None),
                         None)
             if rename:
                 result = MatrixRename(result, {}, col_map, row_map, {})
@@ -198,7 +198,7 @@ class MatrixFilterRows(MatrixIR):
             child = self.child.handle_randomness(None, col_uid_field_name)
             return MatrixFilterRows(child, self.pred)
 
-        drop_row_uid = row_uid_field_name is None
+        drop_row_uid = row_uid_field_name is None and default_row_uid not in self.child.typ.row_type
         if row_uid_field_name is None:
             row_uid_field_name = default_row_uid
         child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
@@ -521,7 +521,8 @@ class MatrixMapRows(MatrixIR):
         if row_uid_field_name is None:
             row_uid_field_name = default_row_uid
         child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
-        row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name)
+        row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name,
+                                          drop_uid=row_uid_field_name not in self.child.typ.row_type)
         new_row = ir.Let('va', old_row, self.new_row)
         if col_uid_field_name is not None:
             col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)

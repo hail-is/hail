@@ -8,6 +8,8 @@ import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
 import is.hail.utils._
 
+import com.github.luben.zstd.Zstd
+
 trait InputBuffer extends Closeable {
   def close(): Unit
 
@@ -86,7 +88,7 @@ trait InputBlockBuffer extends Spec with Closeable {
 }
 
 final class StreamInputBuffer(in: InputStream) extends InputBuffer {
-  private val buff = new Array[Byte](8)
+  private[this] val buff = new Array[Byte](8)
 
   def close(): Unit = in.close()
 
@@ -373,19 +375,15 @@ final class TracingInputBuffer(
 }
 
 final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBuffer {
-  private val buf = new Array[Byte](blockSize)
-  private var end: Int = 0
-  private var off: Int = 0
+  private[this] val buf = new Array[Byte](blockSize)
+  private[this] var end: Int = 0
+  private[this] var off: Int = 0
 
-  private def readBlock() {
-    assert(off == end)
-    end = in.readBlock(buf)
-    off = 0
-  }
-
-  private def ensure(n: Int) {
-    if (off == end)
-      readBlock()
+  private[this] def ensure(n: Int) {
+    if (off == end) {
+      end = in.readBlock(buf)
+      off = 0
+    }
     assert(off + n <= end)
   }
 
@@ -395,8 +393,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 
   def seek(offset: Long): Unit = {
     in.seek(offset)
-    off = end
-    readBlock()
+    end = in.readBlock(buf)
     off = (offset & 0xFFFF).asInstanceOf[Int]
     assert(off <= end)
   }
@@ -442,8 +439,10 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     var n = n0
 
     while (n > 0) {
-      if (end == off)
-        readBlock()
+      if (end == off) {
+        end = in.readBlock(buf)
+        off = 0
+      }
       val p = math.min(end - off, n)
       assert(p > 0)
       Region.storeBytes(toOff, buf, off, p)
@@ -458,8 +457,10 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     var n = n0
 
     while (n > 0) {
-      if (end == off)
-        readBlock()
+      if (end == off) {
+        end = in.readBlock(buf)
+        off = 0
+      }
       val p = math.min(end - off, n)
       assert(p > 0)
       System.arraycopy(buf, off, arr, toOff, p)
@@ -520,8 +521,10 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     var n = n0
 
     while (n > 0) {
-      if (end == off)
-        readBlock()
+      if (end == off) {
+        end = in.readBlock(buf)
+        off = 0
+      }
       val p = math.min(end - off, n << 3) >>> 3
       assert(p > 0)
       Memory.memcpy(to, toOff, buf, off, p)
@@ -533,7 +536,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 }
 
 final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
-  private val lenBuf = new Array[Byte](4)
+  private[this] val lenBuf = new Array[Byte](4)
 
   def close() {
     in.close()
@@ -553,7 +556,7 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
 }
 
 final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
+  private[this] val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
   def close() {
     in.close()
@@ -595,8 +598,8 @@ final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) 
 }
 
 final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
-  private var lim = 0
+  private[this] val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
+  private[this] var lim = 0
 
   def close() {
     in.close()
@@ -624,5 +627,59 @@ final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in
     }
     lim = result
     result
+  }
+}
+
+final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+  private val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+
+  def close(): Unit = {
+    in.close()
+  }
+
+  def seek(offset: Long): Unit = in.seek(offset)
+
+  def readBlock(buf: Array[Byte]): Int = {
+    val blockLen = in.readBlock(comp)
+    if (blockLen == -1) {
+      blockLen
+    } else {
+      val compLen = blockLen - 4
+      val decompLen = Memory.loadInt(comp, 0)
+      val ret = Zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
+      if (Zstd.isError(ret))
+        throw new com.github.luben.zstd.ZstdException(ret)
+      decompLen
+    }
+  }
+}
+
+final class ZstdSizedBasedInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+  private val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+
+  def close(): Unit = {
+    in.close()
+  }
+
+  def seek(offset: Long): Unit = in.seek(offset)
+
+  def readBlock(buf: Array[Byte]): Int = {
+    val blockLen = in.readBlock(comp)
+    if (blockLen == -1) {
+      blockLen
+    } else {
+      val compLen = blockLen - 4
+      val decomp = Memory.loadInt(comp, 0)
+      if (decomp % 2 == 0) {
+        System.arraycopy(comp, 4, buf, 0, compLen)
+        compLen
+      } else {
+        val decompLen = decomp >>> 1
+        val ret = Zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
+        if (Zstd.isError(ret))
+          throw new com.github.luben.zstd.ZstdException(ret)
+        decompLen
+      }
+    }
   }
 }

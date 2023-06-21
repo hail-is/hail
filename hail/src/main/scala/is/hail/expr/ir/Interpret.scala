@@ -7,7 +7,7 @@ import cats.{Foldable, MonadThrow, Traverse}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.backend.utils._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.expr.ir.lowering.{Lower, LoweringPipeline, MonadLower}
 import is.hail.io.BufferSpec
@@ -1003,7 +1003,6 @@ object Interpret {
         OptionT.liftF {
           for {
             value <- child.analyzeAndExecute >>= (_.asTableValue)
-            ctx <- M.ask
             globalsBc <- value.globals.broadcast
             globalsOffset = value.globals.value.offset
 
@@ -1065,7 +1064,7 @@ object Interpret {
                 _ = log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
                 _ = log.info(s"Aggregate: commutative=$isCommutative")
 
-                spec = BufferSpec.defaultUncompressed
+                spec = BufferSpec.blockedUncompressed
 
                 // creates a region, giving ownership to the caller
                 read <- extracted.deserialize(spec).map {
@@ -1091,10 +1090,10 @@ object Interpret {
                 }
 
                 // takes ownership of both inputs, returns ownership of result
-                combOpF = extracted.combOpF(ctx, spec)
+                combOpF <- extracted.combOpF[M]
 
-                // returns ownership of a new region holding the partition aggregation
-                // result
+                // returns ownership of a new region holding the partition aggregation result
+                ctx <- M.ask
                 fsBc = ctx.fsBc
                 itF = (theHailClassLoader: HailClassLoader, i: Int, ctx: RVDContext, it: Iterator[Long]) => {
                   val partRegion = ctx.partitionRegion

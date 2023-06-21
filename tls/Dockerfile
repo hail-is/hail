@@ -8,5 +8,5 @@ RUN curl -LO https://dl.k8s.io/release/v1.21.14/bin/linux/amd64/kubectl && \
     sed -i 's/^RANDFILE/#RANDFILE/' /etc/ssl/openssl.cnf && \
     hail-pip-install pyyaml
 
-COPY config.yaml .
-COPY create_certs.py .
+COPY config.yaml /
+COPY create_certs.py create_test_db_config.sh /

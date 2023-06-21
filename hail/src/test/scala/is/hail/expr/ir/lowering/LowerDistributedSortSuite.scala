@@ -52,7 +52,7 @@ class LowerDistributedSortSuite extends HailSuite {
 
       val rowFunc = myTable.typ.rowType.select(sortFields.map(_.field))._2
       val unsortedCollect = is.hail.expr.ir.TestUtils.collect(myTable)
-      val unsortedAnalyses = LoweringAnalyses[Execute](unsortedCollect).apply(ctx)
+      val unsortedAnalyses = LoweringAnalyses[Run](unsortedCollect).apply(ctx)
       val unsorted = TestUtils.eval {
         LowerTableIR.apply(unsortedCollect, DArrayLowering.All, unsortedAnalyses)
           .runA(ctx, LoweringState())

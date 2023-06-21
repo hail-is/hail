@@ -433,8 +433,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
     case WriteMetadata(writeAnnotations, writer) =>
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue), elide = elideLiterals))
-    case ReadValue(_, spec, reqType) =>
-      FastSeq(prettyStringLiteral(spec.toString), reqType.parsableString())
+    case ReadValue(_, reader, reqType) =>
+      FastSeq(prettyStringLiteral(JsonMethods.compact(reader.toJValue)), reqType.parsableString())
     case WriteValue(_, _, writer, _) =>
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
     case MakeNDArray(_, _, _, errorId) => FastSeq(errorId.toString)
