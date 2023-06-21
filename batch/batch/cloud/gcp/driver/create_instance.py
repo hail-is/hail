@@ -93,7 +93,7 @@ def create_vm_config(
 path {log_path}
 pos_file /var/lib/google-fluentd/pos/jvm-{idx}.pos
 read_from_head true
-tag worker.log
+tag jvm-{idx}.log
 </source>
 '''
             configs.append(config)
@@ -182,6 +182,35 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 #!/bin/bash
 set -x
 
+WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
+ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
+
+# format worker data disk
+sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
+XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
+
+# reconfigure docker to use local SSD
+sudo service docker stop
+sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
+sudo service docker start
+
+# reconfigure /batch and /logs and /gcsfuse to use local SSD
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
+
+sudo mkdir -p /etc/netns
+
 # Setup fluentd
 touch /worker.log
 touch /run.log
@@ -233,35 +262,6 @@ labels {{
 </match>
 EOF
 rm /etc/google-fluentd/google-fluentd.conf.bak
-
-WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
-UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
-ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
-
-# format worker data disk
-sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
-XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
-
-# reconfigure docker to use local SSD
-sudo service docker stop
-sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
-sudo service docker start
-
-# reconfigure /batch and /logs and /gcsfuse to use local SSD
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
-
-sudo mkdir -p /etc/netns
 
 mkdir -p /batch/jvm-container-logs/
 {jvm_touch_command}
