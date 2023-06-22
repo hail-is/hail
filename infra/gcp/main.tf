@@ -558,9 +558,12 @@ resource "google_storage_bucket_iam_member" "test_bucket_admin" {
   member = "serviceAccount:${module.test_gsa_secret.email}"
 }
 
-resource "google_storage_bucket_iam_member" "test_gcr_viewer" {
-  bucket = google_container_registry.registry.id
-  role = "roles/storage.objectViewer"
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
   member = "serviceAccount:${module.test_gsa_secret.email}"
 }
 
@@ -576,6 +579,16 @@ resource "google_storage_bucket_iam_member" "test_test_bucket_admin" {
   member = "serviceAccount:${module.test_test_gsa_secret.email}"
 }
 
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_test_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${module.test_test_gsa_secret.email}"
+}
+
+
 module "test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-dev"
@@ -588,6 +601,15 @@ resource "google_storage_bucket_iam_member" "test_dev_bucket_admin" {
   member = "serviceAccount:${module.test_dev_gsa_secret.email}"
 }
 
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_dev_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${module.test_dev_gsa_secret.email}"
+}
+
 module "test_test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-test-dev"
@@ -597,6 +619,15 @@ module "test_test_dev_gsa_secret" {
 resource "google_storage_bucket_iam_member" "test_test_dev_bucket_admin" {
   bucket = google_storage_bucket.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_test_dev_gsa_secret.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_test_dev_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
   member = "serviceAccount:${module.test_test_dev_gsa_secret.email}"
 }
 
