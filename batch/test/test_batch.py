@@ -916,6 +916,8 @@ python3 -c \'{script}\'''',
         assert status['state'] == 'Failed', str((status, b.debug_info()))
         assert "Please log in" in j.log()['main'], (str(j.log()['main']), status)
 
+
+def test_deploy_config_is_mounted_as_readonly(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(
         HAIL_GENETICS_HAILTOP_IMAGE,
@@ -925,8 +927,7 @@ python3 -c \'{script}\'''',
             f'''
 set -ex
 jq '.default_namespace = "default"' /deploy-config/deploy-config.json > tmp.json
-mv tmp.json /deploy-config/deploy-config.json
-python3 -c \'{script}\'''',
+mv tmp.json /deploy-config/deploy-config.json''',
         ],
         mount_tokens=True,
     )
