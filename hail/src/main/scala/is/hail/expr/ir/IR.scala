@@ -521,6 +521,17 @@ final case class NDArrayQR(nd: IR, mode: String, errorID: Int) extends IR
 
 final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean, errorID: Int) extends IR
 
+object NDArrayEigh {
+  def pTypes(eigvalsOnly: Boolean, req: Boolean): PType = {
+    if (eigvalsOnly) {
+      PCanonicalNDArray(PFloat64Required, 1, req)
+    } else {
+      PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 1, true), PCanonicalNDArray(PFloat64Required, 2, true))
+    }
+  }
+}
+final case class NDArrayEigh(nd: IR, eigvalsOnly: Boolean, errorID: Int) extends IR
+
 final case class NDArrayInv(nd: IR, errorID: Int) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
