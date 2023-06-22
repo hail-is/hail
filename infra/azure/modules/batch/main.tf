@@ -247,6 +247,23 @@ resource "azurerm_role_assignment" "test_test_container_contributor" {
   principal_id         = module.test_sp.principal_id
 }
 
+resource "azuread_application" "test_test" {
+  display_name = "${var.resource_group.name}-test-test"
+}
+module "test_test_sp" {
+  source = "../service_principal"
+
+  name                  = "test-test"
+  application_id        = azuread_application.test_test.application_id
+  application_object_id = azuread_application.test_test.object_id
+}
+
+resource "azurerm_role_assignment" "test_test_sp_test_container_contributor" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.test_test_sp.principal_id
+}
+
 resource "azuread_application" "ci" {
   display_name = "${var.resource_group.name}-ci"
 }
@@ -310,6 +327,17 @@ module "test_dev_sp" {
   name                  = "test-dev"
   application_id        = azuread_application.test_dev.application_id
   application_object_id = azuread_application.test_dev.object_id
+}
+
+resource "azuread_application" "test_test_dev" {
+  display_name = "${var.resource_group.name}-test-test-dev"
+}
+module "test_test_dev_sp" {
+  source = "../service_principal"
+
+  name                  = "test-test-dev"
+  application_id        = azuread_application.test_test_dev.application_id
+  application_object_id = azuread_application.test_test_dev.object_id
 }
 
 resource "azuread_application" "grafana" {

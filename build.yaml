@@ -41,8 +41,8 @@ steps:
       - name: auth-oauth2-client-secret
       - name: registry-push-credentials
       - name: hail-ci-0-1-github-oauth-token
-      - name: test-gsa-key
-      - name: test-dev-gsa-key
+      - name: test-test-gsa-key
+      - name: test-test-dev-gsa-key
       - name: test-auth-gsa-key
       - name: test-batch-gsa-key
       - name: test-ci-gsa-key
@@ -482,6 +482,8 @@ steps:
     image:
       valueFrom: ci_utils_image.image
     script: |
+      kubectl -n {{ default_ns.name }} get -o json secret test-test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret test-test-dev-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-auth-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-batch-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-ci-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -

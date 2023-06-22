@@ -564,6 +564,18 @@ resource "google_storage_bucket_iam_member" "test_gcr_viewer" {
   member = "serviceAccount:${module.test_gsa_secret.email}"
 }
 
+module "test_test_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "test-test"
+  project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "test_test_bucket_admin" {
+  bucket = module.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_test_gsa_secret.email}"
+}
+
 module "test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-dev"
@@ -574,6 +586,18 @@ resource "google_storage_bucket_iam_member" "test_dev_bucket_admin" {
   bucket = google_storage_bucket.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.test_dev_gsa_secret.email}"
+}
+
+module "test_test_dev_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "test-test-dev"
+  project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "test_test_dev_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_test_dev_gsa_secret.email}"
 }
 
 resource "google_service_account" "batch_agent" {
