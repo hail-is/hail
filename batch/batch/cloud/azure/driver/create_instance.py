@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from shlex import quote as shq
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from gear.cloud_config import get_global_config
 
@@ -80,12 +80,12 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
-    touch_commands = []
+    touch_commands: List[str] = []
     for jvm_cores in (1, 2, 4, 8):
         for _ in range(cores // jvm_cores):
             idx = len(touch_commands)
             log_path = f'/batch/jvm-container-logs/jvm-{idx}.log'
-            touch_commands.append(f'touch {log_path}')
+            touch_commands.append(f'sudo touch {log_path}')
 
     jvm_touch_command = '\n'.join(touch_commands)
 
