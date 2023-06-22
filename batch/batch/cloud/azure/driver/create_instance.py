@@ -147,6 +147,8 @@ sudo service docker start
 # reconfigure /batch and /logs to use data disk
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
+
+sudo mkdir -p /batch/jvm-container-logs/
 {jvm_touch_command}
 
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
