@@ -80,6 +80,15 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
+    touch_commands = []
+    for jvm_cores in (1, 2, 4, 8):
+        for _ in range(cores // jvm_cores):
+            idx = len(touch_commands)
+            log_path = f'/batch/jvm-container-logs/jvm-{idx}.log'
+            touch_commands.append(f'touch {log_path}')
+
+    jvm_touch_command = '\n'.join(touch_commands)
+
     startup_script = r'''#cloud-config
 
 mounts:
@@ -138,6 +147,7 @@ sudo service docker start
 # reconfigure /batch and /logs to use data disk
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
+{jvm_touch_command}
 
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
