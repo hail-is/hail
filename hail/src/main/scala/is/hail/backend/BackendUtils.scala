@@ -56,7 +56,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
           val f = getModule(modID)
 
           log.info(
-            s"[collectDArray|$stageName]: executing ${remainingContexts.length} , " +
+            s"[collectDArray|$stageName]: executing ${remainingContexts.length} tasks, " +
               s"contexts size = ${formatSpace(contexts.map(_.length.toLong).sum)}, " +
               s"globals size = ${formatSpace(globals.length)}"
           )

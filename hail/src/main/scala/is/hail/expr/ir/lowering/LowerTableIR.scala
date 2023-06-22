@@ -5,9 +5,9 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
-import utils._
 import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.ir.{ArrayRef, TableNativeWriter, agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFilterPartitions}
@@ -211,7 +211,7 @@ class TableStage(
   }
 
   def mapCollect(staticID: String, dynamicID: IR = NA(TString))(f: IR => IR): IR =
-    mapCollectWithGlobals(staticID, dynamicID)(f)((_, globals) => globals)
+    mapCollectWithGlobals(staticID, dynamicID)(f)((parts, _) => parts)
 
   def mapCollectWithGlobals(staticID: String, dynamicID: IR = NA(TString))
                            (mapF: IR => IR)
@@ -577,11 +577,11 @@ object LowerTableIR {
           count = stage.countPerPartition
         } yield invoke("sum", TInt64, count)
 
-      case TableToValueApply(child, ForceCountTable()) =>
+      case TableToValueApply(child, _: ForceCountTable) =>
         for {
           stage <- lower(child)
           sum = stage.mapCollect("table_force_count") { rows =>
-            foldIR(mapIR(rows)(row => Consume(row)), 0L)(_ + _)
+            foldIR(mapIR(rows)(Consume), 0L)(_ + _)
           }
         } yield invoke("sum", TInt64, sum)
 
@@ -1839,7 +1839,7 @@ object LowerTableIR {
         raisePretty(pretty => new LowererUnsupportedOperation(s"undefined: \n${pretty(node)}"))
     }
 
-    lowered <* lowered.flatMap { lowered =>
+    lowered.flatTap { lowered =>
       assertA(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}") *>
         assertA(tir.typ.rowType == lowered.rowType, s"\n  ir row: ${tir.typ.rowType}\n  lowered row: ${lowered.rowType}") *>
         assertA(tir.typ.keyType.isPrefixOf(lowered.kType), s"\n  ir key: ${tir.typ.key}\n  lowered key: ${lowered.key}")

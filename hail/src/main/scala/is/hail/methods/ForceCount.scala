@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{MatrixToValueFunction, TableToValueFunction}
 import is.hail.expr.ir.lowering.MonadLower
 import is.hail.expr.ir.{MatrixValue, TableValue}

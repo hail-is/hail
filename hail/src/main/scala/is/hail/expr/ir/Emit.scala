@@ -2493,7 +2493,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C], var loweringSta
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[SemanticHash.Type]("semhash", null)
+          val semhash = cb.newLocal[SemanticHash.Type]("semhash")
           val (newLoweringState, Right(nextHash)) = LoweringState.nextHash[Lower].run(ctx.executeContext, loweringState)
           loweringState = newLoweringState
           nextHash.foreach { h =>
