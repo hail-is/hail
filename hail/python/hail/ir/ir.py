@@ -2074,6 +2074,78 @@ class StreamFor(IR):
             return {}
 
 
+class StreamAgg(IR):
+    @typecheck_method(a=IR, value_name=str, body=IR)
+    def __init__(self, a, value_name, body):
+        a = a.handle_randomness(body.uses_agg_randomness)
+        if body.uses_agg_randomness:
+            tup, uid, elt = unpack_uid(a.typ)
+            body = AggLet(value_name, elt, body, is_scan=False)
+            body = with_split_rng_state(body, uid, is_scan=False)
+            value_name = tup
+
+        super().__init__(a, body)
+        self.a = a
+        self.value_name = value_name
+        self.body = body
+
+    @typecheck_method(a=IR, body=IR)
+    def copy(self, a, body):
+        return StreamAgg(a, self.value_name, body)
+
+    def head_str(self):
+        return escape_id(self.value_name)
+
+    def _eq(self, other):
+        return self.value_name == other.value_name
+
+    @property
+    def bound_variables(self):
+        return {self.value_name} | super().bound_variables
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(env, _env_bind(env, self.bindings(1)), deep_typecheck)
+        return self.body.typ
+
+    @property
+    def free_agg_vars(self):
+        return set()
+
+    @property
+    def free_vars(self):
+        fv = (self.body.free_agg_vars.difference({self.value_name})).union(self.a.free_vars)
+        return fv
+
+    def renderable_child_context_without_bindings(self, i: int, parent_context):
+        if i == 0:
+            return parent_context
+        (eval_c, agg_c, scan_c) = parent_context
+        return (eval_c, eval_c, None)
+
+    def renderable_agg_bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                value = self.a.typ.element_type
+            else:
+                value = default_value
+            return {self.value_name: value}
+        else:
+            return {}
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == 1:
+            return {BaseIR.agg_capability: default_value}
+        else:
+            return {}
+
+    def renderable_uses_agg_context(self, i: int):
+        return i == 0
+
+    def renderable_new_block(self, i: int) -> bool:
+        return i == 1
+
+
 class AggFilter(IR):
     @typecheck_method(cond=IR, agg_ir=IR, is_scan=bool)
     def __init__(self, cond, agg_ir, is_scan):
