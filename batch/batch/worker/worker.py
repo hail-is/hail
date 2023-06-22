@@ -773,6 +773,7 @@ class Container:
         volume_mounts: Optional[List[MountSpecification]] = None,
         env: Optional[List[str]] = None,
         stdin: Optional[str] = None,
+        log_path: Optional[str] = None,
     ):
         self.task_manager = task_manager
         self.fs = fs
@@ -809,7 +810,7 @@ class Container:
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
-        self.log_path = f'{self.container_scratch}/container.log'
+        self.log_path = log_path or f'{self.container_scratch}/container.log'
         self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
         self.overlay_mounted = False
@@ -2499,6 +2500,7 @@ class JVMContainer:
             memory_in_bytes=total_memory_bytes,
             env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
+            log_path=f'/batch/jvm-container-logs/jvm-{index}.log',
         )
 
         await c.create()
