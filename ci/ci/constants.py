@@ -28,8 +28,9 @@ AUTHORIZED_USERS = [
     User('nawatts'),
     User('patrick-schultz', 'pschultz', [COMPILER_TEAM]),
     User('pwc2', 'pcumming'),
+    User('tpoterba', 'tpoterba', []),
     User('vladsaveliev', 'vsavelye', []),
     User('illusional', 'mfrankli', []),
     User('iris-garden', 'irademac'),
-    User('ehigham', 'ehigham', []),
+    User('ehigham', 'ehigham', [COMPILER_TEAM]),
 ]
