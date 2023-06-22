@@ -444,6 +444,9 @@ module "test_auth_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-auth"
   project = var.gcp_project
+  iam_roles = [
+    "iam.serviceAccountViewer",
+  ]
 }
 
 module "batch_gsa_secret" {
