@@ -944,6 +944,7 @@ steps:
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
+      - create_test_gsa_keys
       - merge_code
   - kind: runImage
     name: test_hail_java
