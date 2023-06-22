@@ -4637,6 +4637,10 @@ class StreamExpression(Expression):
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(x, tstream(body.dtype), indices, aggregations)
 
+    @typecheck_method(f=func_spec(1, expr_any))
+    def aggregate(self, f):
+        return hl.agg._aggregate_local_array(self, f)
+
     def to_array(self):
         return construct_expr(ir.toArray(self._ir), tarray(self.dtype.element_type), self._indices, self._aggregations)
 

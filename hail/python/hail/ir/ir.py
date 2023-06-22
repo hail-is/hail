@@ -2077,14 +2077,11 @@ class StreamFor(IR):
 class StreamAgg(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):
-        a = a.handle_randomness(body.uses_randomness)
-        if body.uses_randomness:
+        a = a.handle_randomness(body.uses_agg_randomness)
+        if body.uses_agg_randomness:
             tup, uid, elt = unpack_uid(a.typ)
-            body = AggLet(value_name, elt, body)
-            if body.uses_value_randomness:
-                body = Let('__rng_state', RNGStateLiteral(), body)
-            if body.uses_agg_randomness(is_scan=False):
-                body = with_split_rng_state(body, is_scan=False)
+            body = AggLet(value_name, elt, body, is_scan=False)
+            body = with_split_rng_state(body, uid, is_scan=False)
             value_name = tup
 
         super().__init__(a, body)

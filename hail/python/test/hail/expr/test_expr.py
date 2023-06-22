@@ -3958,6 +3958,15 @@ def test_stream_randomness():
     assert_contains_node(a, ir.StreamScan)
     assert(len(set(hl.eval(a.to_array())[-1])) == 5)
 
+    # test StreamAgg
+    a = hl._stream_range(10)
+    a = a.aggregate(lambda x: hl.agg.collect(hl.rand_int64()))
+    assert_contains_node(a, ir.StreamAgg)
+    assert(len(set(hl.eval(a))) == 10)
+    a = hl._stream_range(10)
+    a = a.map(lambda x: hl._stream_range(10).aggregate(lambda y: hl.agg.count() + hl.rand_int64()))
+    assert_contains_node(a, ir.StreamAgg)
+
     # test AggExplode
     t = hl.utils.range_table(5)
     t = t.annotate(a = hl.range(t.idx))

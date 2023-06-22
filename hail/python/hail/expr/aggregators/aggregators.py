@@ -262,7 +262,11 @@ def _aggregate_local_array(array, f):
                                   "must take a mapping that contains aggregation expression.")
 
     indices, _ = unify_all(array, aggregated)
-    return construct_expr(ir.StreamAgg(ir.ToStream(array._ir), var, aggregated._ir),
+    if isinstance(array.dtype, tarray):
+        stream = ir.toStream(array._ir)
+    else:
+        stream = array._ir
+    return construct_expr(ir.StreamAgg(stream, var, aggregated._ir),
                           aggregated.dtype,
                           Indices(indices.source, indices.axes),
                           array._aggregations)
