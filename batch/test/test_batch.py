@@ -924,7 +924,7 @@ def test_deploy_config_is_mounted_as_readonly(client: BatchClient):
         [
             '/bin/bash',
             '-c',
-            f'''
+            '''
 set -ex
 jq '.default_namespace = "default"' /deploy-config/deploy-config.json > tmp.json
 mv tmp.json /deploy-config/deploy-config.json''',
