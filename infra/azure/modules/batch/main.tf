@@ -266,8 +266,8 @@ resource "azurerm_role_assignment" "test_test_sp_test_container_contributor" {
 
 # Necessary to generate SAS tokens
 resource "azurerm_role_assignment" "test_test_sp_test_account_key_operator" {
-  scope                = azurerm_storage_container.test.resource_manager_id
-  role_definition_name = "Storage Account Key Operator Service"
+  scope                = azurerm_storage_account.test.id
+  role_definition_name = "Storage Account Key Operator Service Role"
   principal_id         = module.test_test_sp.principal_id
 }
 
