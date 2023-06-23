@@ -1,11 +1,12 @@
 package is.hail.expr.ir.lowering
 
 import cats.mtl.{Local, Stateful}
-import cats.{Applicative, Monad, MonadThrow}
+import cats.{Applicative, Monad, MonadThrow, StackSafeMonad}
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.lowering.Lower.{>=>, Return}
 
 import scala.annotation.tailrec
-import scala.language.{higherKinds, implicitConversions}
+import scala.language.{existentials, higherKinds, implicitConversions}
 
 trait MonadLower[M[_]]
   extends MonadThrow[M]
@@ -21,16 +22,78 @@ object MonadLower {
 }
 
 
-final case class Lower[+A](run: (ExecuteContext, LoweringState) => (LoweringState, Either[Throwable, A])) {
+sealed trait Lower[+A] { self =>
+  def run(ctx: ExecuteContext, s: LoweringState): (LoweringState, Either[Throwable, A]) = {
+    @tailrec def go[B](head: Lower[B], tail: Lower.Chain[B, A])(s0: LoweringState)
+    : (LoweringState, Either[Throwable, A]) =
+      head match {
+       case Lower.Pure(b) => tail match {
+          case Return(refl) => (s0, Right(refl(b)))
+          case f >=> g => go(f(b), g)(s0)
+        }
+
+        case Lower.Apply(f) =>
+          f(ctx, s0) match {
+            case (s1, Right(a)) => tail match {
+              case Return(refl) => (s1, Right(refl(a)))
+              case f >=> g => go(f(a), g)(s1)
+            }
+            case (s1, Left(t)) => (s1, Left(t))
+          }
+
+        case f: Lower.FlatMap[B] =>
+          f.init match {
+            case l: Lower[f.Init] => go(l, f.bind >=> tail)(s0)
+          }
+
+        case Lower.Fail(throwable) =>
+          (s0, Left(throwable))
+
+        case Lower.Catch(fb, onError) =>
+          fb.run(ctx, s0) match {
+            case (s1, Right(a)) => go(Lower.Pure(a), tail)(s1)
+            case (s1, Left(t)) => go(onError(t), tail)(s1)
+          }
+      }
+
+    go(this, Return(implicitly[A <:< A]))(s)
+  }
+
   def runA(ctx: ExecuteContext, s: LoweringState): A =
     run(ctx, s)._2.fold(throw _, identity)
 }
 
-object Lower extends MonadLower[Lower] {
+object Lower extends MonadLower[Lower] with StackSafeMonad[Lower] {
+  def apply[A](f: (ExecuteContext, LoweringState) => (LoweringState, Either[Throwable, A])): Lower[A] =
+    Apply(f)
+
+  private final case class Pure[+A](a: A) extends Lower[A]
+  private final case class Apply[+A](f: (ExecuteContext, LoweringState) => (LoweringState, Either[Throwable, A])) extends Lower[A]
+  private final case class Fail[+A](t: Throwable) extends Lower[A]
+  private final case class Catch[+A](fa: Lower[A], handle: Throwable => Lower[A]) extends Lower[A]
+  private abstract class FlatMap[A] extends Lower[A] {
+    type Init
+    val init: Lower[Init]
+    val bind: Init => Lower[A]
+  }
+
+  private sealed abstract class Chain[A, B]
+  private final case class Return[A, B](refl: A => B) extends Chain[A, B]
+  private final case class >=>[A, B, C](f: A => Lower[B], chain: Chain[B, C]) extends Chain[A, C]
+
+  private implicit class ChainOps[A, B](f: A => Lower[B]) {
+    def >=>[C](chain: Chain[B, C]): Chain[A, C] =
+      new >=>(f, chain)
+  }
+
+  implicit val monadLowerInstanceForLower: MonadLower[Lower] =
+    this
+
   override def applicative: Applicative[Lower] =
-    Lower
+    this
+
   override def monad: Monad[Lower] =
-    Lower
+    this
 
   override def ask[E2 >: ExecuteContext]: Lower[E2] =
     Lower((ctx, s) => (s, Right(ctx.asInstanceOf[E2])))
@@ -48,41 +111,19 @@ object Lower extends MonadLower[Lower] {
     lower
 
   override def flatMap[A, B](fa: Lower[A])(f: A => Lower[B]): Lower[B] =
-    Lower { (ctx, s0) =>
-      fa.run(ctx, s0) match {
-        case (s1, Right(a)) => f(a).run(ctx, s1)
-        case (s1, Left(t)) => (s1, Left(t))
-      }
-    }
-
-  override def tailRecM[A, B](a0: A)(f: A => Lower[Either[A, B]]): Lower[B] =
-    Lower { (ctx, s0) =>
-      @tailrec def go(x: (LoweringState, Either[Throwable, Either[A, B]])): (LoweringState, Either[Throwable, B]) =
-        x match {
-          case (s, Right(Right(b))) => (s, Right(b))
-          case (s, Right(Left(a))) => go(f(a).run(ctx, s))
-          case (s, Left(t)) => (s, Left(t))
-        }
-
-      go((s0, Right(Left(a0))))
+    new Lower.FlatMap[B] {
+      override type Init = A
+      override val init: Lower[Init] = fa
+      override val bind: Init => Lower[B] = f
     }
 
   override def pure[A](a: A): Lower[A] =
     Lower((_, s) => (s, Right(a)))
 
-  override def raiseError[A](e: Throwable): Lower[A] = {
-    e.fillInStackTrace()
-    Lower((_, s) => (s, Left(e)))
-  }
+  override def raiseError[A](e: Throwable): Lower[A] =
+    Fail(e.fillInStackTrace())
 
   override def handleErrorWith[A](fa: Lower[A])(f: Throwable => Lower[A]): Lower[A] =
-    Lower { (ctx, s0) =>
-      fa.run(ctx, s0) match {
-        case (s1, Left(t)) => f(t).run(ctx, s1)
-        case success => success
-      }
-    }
-
-  implicit def monadLowerInstanceForLower: MonadLower[Lower] =
-    this
+    Catch(fa, f)
 }
+
