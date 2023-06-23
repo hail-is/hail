@@ -247,6 +247,12 @@ resource "azurerm_role_assignment" "test_test_container_contributor" {
   principal_id         = module.test_sp.principal_id
 }
 
+resource "azurerm_role_assignment" "test_registry_viewer" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
+  principal_id         = module.test_sp.principal_id
+}
+
 resource "azuread_application" "test_test" {
   display_name = "${var.resource_group.name}-test-test"
 }
@@ -268,6 +274,12 @@ resource "azurerm_role_assignment" "test_test_sp_test_container_contributor" {
 resource "azurerm_role_assignment" "test_test_sp_test_account_key_operator" {
   scope                = azurerm_storage_account.test.id
   role_definition_name = "Storage Account Key Operator Service Role"
+  principal_id         = module.test_test_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "test_test_registry_viewer" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
   principal_id         = module.test_test_sp.principal_id
 }
 
@@ -318,7 +330,7 @@ resource "azurerm_role_assignment" "test_ci_test_container_contributor" {
 }
 
 resource "azurerm_role_assignment" "test_ci_acr_role" {
-  for_each = toset(["acrpush", "acrdelete"])
+  for_each = toset(["AcrPush", "AcrDelete"])
 
   scope                = var.container_registry_id
   role_definition_name = each.key
@@ -336,6 +348,12 @@ module "test_dev_sp" {
   application_object_id = azuread_application.test_dev.object_id
 }
 
+resource "azurerm_role_assignment" "test_dev_registry_viewer" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
+  principal_id         = module.test_dev_sp.principal_id
+}
+
 resource "azuread_application" "test_test_dev" {
   display_name = "${var.resource_group.name}-test-test-dev"
 }
@@ -345,6 +363,12 @@ module "test_test_dev_sp" {
   name                  = "test-test-dev"
   application_id        = azuread_application.test_test_dev.application_id
   application_object_id = azuread_application.test_test_dev.object_id
+}
+
+resource "azurerm_role_assignment" "test_test_dev_registry_viewer" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
+  principal_id         = module.test_test_dev_sp.principal_id
 }
 
 resource "azuread_application" "grafana" {
