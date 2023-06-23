@@ -115,7 +115,7 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-async def query_billing_projects(db, user=None, billing_project=None):
+async def query_billing_projects(db, user=None, billing_project=None, include_cost=True):
     args = []
 
     where_conditions = ["billing_projects.`status` != 'deleted'"]
@@ -133,18 +133,8 @@ async def query_billing_projects(db, user=None, billing_project=None):
     else:
         where_condition = ''
 
-    sql = f'''
-SELECT billing_projects.name as billing_project,
-  billing_projects.`status` as `status`,
-  users, `limit`, COALESCE(cost_t.cost, 0) AS accrued_cost
-FROM billing_projects
-LEFT JOIN LATERAL (
-  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
-  FROM billing_project_users
-  WHERE billing_project_users.billing_project = billing_projects.name
-  GROUP BY billing_project_users.billing_project
-  LOCK IN SHARE MODE
-) AS t ON TRUE
+    if include_cost:
+        cost_query = '''
 LEFT JOIN LATERAL (
   SELECT SUM(`usage` * rate) as cost
   FROM (
@@ -157,6 +147,25 @@ LEFT JOIN LATERAL (
   LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
   GROUP BY usage_t.billing_project
 ) AS cost_t ON TRUE
+'''
+        cost_select = ', COALESCE(cost_t.cost, 0) AS accrued_cost'
+    else:
+        cost_query = ''
+        cost_select = ''
+
+    sql = f'''
+SELECT billing_projects.name as billing_project,
+  billing_projects.`status` as `status`,
+  users, `limit` {cost_select}
+FROM billing_projects
+LEFT JOIN LATERAL (
+  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
+  FROM billing_project_users
+  WHERE billing_project_users.billing_project = billing_projects.name
+  GROUP BY billing_project_users.billing_project
+  LOCK IN SHARE MODE
+) AS t ON TRUE
+{cost_query}
 {where_condition}
 LOCK IN SHARE MODE;
 '''

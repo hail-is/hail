@@ -2417,7 +2417,7 @@ async def ui_get_billing(request, userdata):
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
-    billing_projects = await query_billing_projects(db)
+    billing_projects = await query_billing_projects(db, include_cost=False)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
