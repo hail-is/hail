@@ -572,6 +572,12 @@ resource "google_storage_bucket_iam_member" "test_bucket_admin" {
   member = "serviceAccount:${module.test_gsa_secret.email}"
 }
 
+resource "google_storage_bucket_iam_member" "test_requester_pays_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_requester_pays_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_viewer" {
   provider = google-beta
   project = var.gcp_project
@@ -592,6 +598,12 @@ module "test_test_gsa_secret" {
 
 resource "google_storage_bucket_iam_member" "test_test_bucket_admin" {
   bucket = google_storage_bucket.hail_test_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_test_gsa_secret.email}"
+}
+
+resource "google_storage_bucket_iam_member" "test_test_requester_pays_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_requester_pays_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.test_test_gsa_secret.email}"
 }
