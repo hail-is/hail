@@ -264,6 +264,13 @@ resource "azurerm_role_assignment" "test_test_sp_test_container_contributor" {
   principal_id         = module.test_test_sp.principal_id
 }
 
+# Necessary to generate SAS tokens
+resource "azurerm_role_assignment" "test_test_sp_test_account_key_operator" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Account Key Operator Service"
+  principal_id         = module.test_test_sp.principal_id
+}
+
 resource "azuread_application" "ci" {
   display_name = "${var.resource_group.name}-ci"
 }
