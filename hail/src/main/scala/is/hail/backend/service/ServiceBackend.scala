@@ -435,11 +435,14 @@ object ServiceBackendSocketAPI2 {
     val outputURL = argv(6)
 
     val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
+    val deployConfig = DeployConfig.fromConfigFile(
+      s"$scratchDir/secrets/deploy-config/deploy-config.json")
+    DeployConfig.set(deployConfig)
     val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
     Tokens.set(userTokens)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
 
-    val sessionId = userTokens.namespaceToken(DeployConfig.get.defaultNamespace)
+    val sessionId = userTokens.namespaceToken(deployConfig.defaultNamespace)
     log.info("Namespace token acquired.")
     val batchClient = BatchClient.fromSessionID(sessionId)
     log.info("BatchClient allocated.")
