@@ -3770,9 +3770,9 @@ steps:
     alwaysRun: true
     script: |
       set -e -o pipefail
-      AZURE_USERNAME=$(jq -r '.appId' /test-gsa-key/key.json)
-      AZURE_PASSWORD=$(jq -r '.password' /test-gsa-key/key.json)
-      AZURE_TENANT_ID=$(jq -r '.tenant' /test-gsa-key/key.json)
+      AZURE_USERNAME=$(jq -r '.appId' /batch-gsa-key/key.json)
+      AZURE_PASSWORD=$(jq -r '.password' /batch-gsa-key/key.json)
+      AZURE_TENANT_ID=$(jq -r '.tenant' /batch-gsa-key/key.json)
       az login --service-principal -u $AZURE_USERNAME -p $AZURE_PASSWORD --tenant $AZURE_TENANT_ID
       set +e
       set -x
@@ -3792,10 +3792,10 @@ steps:
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az deployment delete --name "$1" || true' argv0
     secrets:
-      - name: test-gsa-key
+      - name: batch-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /test-gsa-key
+        mountPath: /batch-gsa-key
     scopes:
       - dev
       - test
