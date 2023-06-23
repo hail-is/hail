@@ -287,7 +287,7 @@ class JobDurationQuery(Query):
         operator = get_operator(op)
         if not isinstance(operator, ComparisonOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
-        time_msecs = int(parse_float(time) * 1000 + 1)
+        time_msecs = int(parse_float(time) * 1000)
         return JobDurationQuery(operator, time_msecs)
 
     def __init__(self, operator: ComparisonOperator, time_msecs: int):
@@ -537,7 +537,7 @@ class BatchDurationQuery(Query):
         operator = get_operator(op)
         if not isinstance(operator, ComparisonOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
-        time_msecs = int(parse_float(time) * 1000 + 1)
+        time_msecs = int(parse_float(time) * 1000)
         return BatchDurationQuery(operator, time_msecs)
 
     def __init__(self, operator: ComparisonOperator, time_msecs: int):
