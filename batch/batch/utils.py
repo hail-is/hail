@@ -3,7 +3,7 @@ import logging
 import secrets
 from collections import deque
 from functools import wraps
-from typing import Deque, Set, Tuple
+from typing import Deque, List, Optional, Set, Tuple
 
 from aiohttp import web
 
@@ -115,26 +115,51 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-async def query_billing_projects(db, user=None, billing_project=None, include_cost=True):
-    args = []
+def users_record_to_dict(record):
+    if record['users'] is None:
+        record['users'] = []
+    else:
+        record['users'] = json.loads(record['users'])
+    return record
 
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
+
+def _query_billing_projects_conditions(
+    user: Optional[str], billing_project: Optional[str]
+) -> Tuple[List[str], List[str]]:
+    args = []
+    conditions = ["billing_projects.`status` != 'deleted'"]
 
     if user:
-        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
+        conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
         args.append(user)
 
     if billing_project:
-        where_conditions.append('billing_projects.name_cs = %s')
+        conditions.append('billing_projects.name_cs = %s')
         args.append(billing_project)
+
+    return (conditions, args)
+
+
+async def query_billing_projects_with_cost(db, user=None, billing_project=None):
+    where_conditions, args = _query_billing_projects_conditions(user, billing_project)
 
     if where_conditions:
         where_condition = f'WHERE {" AND ".join(where_conditions)}'
     else:
         where_condition = ''
 
-    if include_cost:
-        cost_query = '''
+    sql = f'''
+SELECT billing_projects.name as billing_project,
+  billing_projects.`status` as `status`,
+  users, `limit`, COALESCE(cost_t.cost, 0) AS accrued_cost
+FROM billing_projects
+LEFT JOIN LATERAL (
+  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
+  FROM billing_project_users
+  WHERE billing_project_users.billing_project = billing_projects.name
+  GROUP BY billing_project_users.billing_project
+  LOCK IN SHARE MODE
+) AS t ON TRUE
 LEFT JOIN LATERAL (
   SELECT SUM(`usage` * rate) as cost
   FROM (
@@ -147,16 +172,27 @@ LEFT JOIN LATERAL (
   LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
   GROUP BY usage_t.billing_project
 ) AS cost_t ON TRUE
+{where_condition}
+LOCK IN SHARE MODE;
 '''
-        cost_select = ', COALESCE(cost_t.cost, 0) AS accrued_cost'
+
+    billing_projects = [users_record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
+
+    return billing_projects
+
+
+async def query_billing_projects_without_cost(db, user=None, billing_project=None):
+    where_conditions, args = _query_billing_projects_conditions(user, billing_project)
+
+    if where_conditions:
+        where_condition = f'WHERE {" AND ".join(where_conditions)}'
     else:
-        cost_query = ''
-        cost_select = ''
+        where_condition = ''
 
     sql = f'''
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
-  users, `limit` {cost_select}
+  users, `limit`
 FROM billing_projects
 LEFT JOIN LATERAL (
   SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
@@ -165,19 +201,11 @@ LEFT JOIN LATERAL (
   GROUP BY billing_project_users.billing_project
   LOCK IN SHARE MODE
 ) AS t ON TRUE
-{cost_query}
 {where_condition}
 LOCK IN SHARE MODE;
 '''
 
-    def record_to_dict(record):
-        if record['users'] is None:
-            record['users'] = []
-        else:
-            record['users'] = json.loads(record['users'])
-        return record
-
-    billing_projects = [record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
+    billing_projects = [users_record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
 
     return billing_projects
 

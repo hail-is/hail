@@ -81,7 +81,12 @@ from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE, RESERVED_STORA
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
-from ..utils import query_billing_projects, regions_to_bits_rep, unavailable_if_frozen
+from ..utils import (
+    query_billing_projects_with_cost,
+    query_billing_projects_without_cost,
+    regions_to_bits_rep,
+    unavailable_if_frozen,
+)
 from .query import CURRENT_QUERY_VERSION, build_batch_jobs_query
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
@@ -2218,7 +2223,7 @@ async def ui_get_billing_limits(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects(db, user=user)
+    billing_projects = await query_billing_projects_with_cost(db, user=user)
 
     page_context = {'billing_projects': billing_projects, 'is_developer': userdata['is_developer']}
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
@@ -2417,7 +2422,7 @@ async def ui_get_billing(request, userdata):
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
-    billing_projects = await query_billing_projects(db, include_cost=False)
+    billing_projects = await query_billing_projects_without_cost(db, include_cost=False)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
@@ -2435,7 +2440,7 @@ async def get_billing_projects(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects(db, user=user)
+    billing_projects = await query_billing_projects_with_cost(db, user=user)
     return json_response(billing_projects)
 
 
@@ -2450,7 +2455,7 @@ async def get_billing_project(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects(db, user=user, billing_project=billing_project)
+    billing_projects = await query_billing_projects_with_cost(db, user=user, billing_project=billing_project)
 
     if not billing_projects:
         raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
