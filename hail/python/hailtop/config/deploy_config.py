@@ -9,18 +9,10 @@ from .user_config import get_user_config
 log = logging.getLogger('deploy_config')
 
 
-def env_var_or_default(name: str, default: str) -> str:
-    return os.environ.get(f'HAIL_{name}') or default
-
-
 class DeployConfig:
     @staticmethod
     def from_config(config) -> 'DeployConfig':
-        return DeployConfig(
-            env_var_or_default('LOCATION', config['location']),
-            env_var_or_default('DEFAULT_NAMESPACE', config['default_namespace']),
-            env_var_or_default('DOMAIN', config.get('domain') or 'hail.is')
-        )
+        return DeployConfig(config['location'], config['default_namespace'], config.get('domain') or 'hail.is')
 
     def get_config(self) -> Dict[str, str]:
         return {
@@ -58,9 +50,6 @@ class DeployConfig:
 
     def with_default_namespace(self, default_namespace):
         return DeployConfig(self._location, default_namespace, self._domain)
-
-    def with_location(self, location):
-        return DeployConfig(location, self._default_namespace, self._domain)
 
     def default_namespace(self):
         return self._default_namespace
