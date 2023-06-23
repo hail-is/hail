@@ -36,7 +36,8 @@ from .query import (
 
 # <batches-query-list> ::= "" | <batches-query> "\n" <batches-query-list>
 # <batches-query> ::= <batch-id-query> | <state-query> | <start-time-query> | <end-time-query> |
-#                     <duration-query> | <cost-query> | <quoted-exact-match-query> | <unquoted-partial-match-query>
+#                     <duration-query> | <cost-query> | <quoted-exact-match-query> | <unquoted-partial-match-query> |
+#                     <billing-project-query> | <user-query>
 # <exact-match-operator> ::= "=" | "==" | "!="
 # <partial-match-operator> ::= "!~" | "=~"
 # <match-operator> ::= <exact-match-operator> | <partial-match-operator>
@@ -47,6 +48,8 @@ from .query import (
 # <end-time-query> ::= "end_time" <comparison-operator> <datetime_str>
 # <duration-query> ::= "duration" <comparison-operator> <float>
 # <cost-query> ::= "cost" <comparison-operator> <float>
+# <billing-project-query> ::= "billing_project" <exact-match-operator> <str>
+# <user-query> ::= "user" <exact-match-operator> <str>
 # <quoted-exact-match-query> ::= \" <str> \"
 # <unquoted-partial-match-query> ::= <str>
 
