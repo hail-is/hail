@@ -48,7 +48,7 @@ from hailtop import aiotools, httpx
 from hailtop.aiotools import AsyncFS, LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.config import DeployConfig
+from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import (
     CalledProcessError,
@@ -199,7 +199,7 @@ instance_config: Optional[InstanceConfig] = None
 
 N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
-deploy_config = DeployConfig('gce', NAMESPACE, {})
+deploy_config = get_deploy_config()
 
 docker: Optional[aiodocker.Docker] = None
 
@@ -773,6 +773,7 @@ class Container:
         volume_mounts: Optional[List[MountSpecification]] = None,
         env: Optional[List[str]] = None,
         stdin: Optional[str] = None,
+        log_path: Optional[str] = None,
     ):
         self.task_manager = task_manager
         self.fs = fs
@@ -809,7 +810,7 @@ class Container:
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
-        self.log_path = f'{self.container_scratch}/container.log'
+        self.log_path = log_path or f'{self.container_scratch}/container.log'
         self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
         self.overlay_mounted = False
@@ -1245,7 +1246,7 @@ class Container:
                     }
                 )
 
-        return (
+        mounts = (
             self.volume_mounts
             + external_volumes
             + [
@@ -1307,6 +1308,18 @@ class Container:
                 },
             ]
         )
+
+        if not any(v['destination'] == '/deploy-config' for v in self.volume_mounts):
+            mounts.append(
+                {
+                    'source': '/deploy-config/deploy-config.json',
+                    'destination': '/deploy-config/deploy-config.json',
+                    'type': 'none',
+                    'options': ['bind', 'ro', 'private'],
+                },
+            )
+
+        return mounts
 
     def _env(self):
         assert self.image.image_config
@@ -2084,6 +2097,11 @@ class JVMJob(Job):
         os.makedirs(f'{self.scratch}/batch-config')
         with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
             config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
+        # Necessary for backward compatibility for Hail Query jars that expect
+        # the deploy config at this path and not at `/deploy-config/deploy-config.json`
+        os.makedirs(f'{self.scratch}/secrets/deploy-config', exist_ok=True)
+        with open(f'{self.scratch}/secrets/deploy-config/deploy-config.json', 'wb') as config:
+            config.write(orjson.dumps(deploy_config.get_config()))
 
     def step(self, name):
         return self.timings.step(name)
@@ -2499,6 +2517,7 @@ class JVMContainer:
             memory_in_bytes=total_memory_bytes,
             env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
+            log_path=f'/batch/jvm-container-logs/jvm-{index}.log',
         )
 
         await c.create()

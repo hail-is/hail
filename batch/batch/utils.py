@@ -134,33 +134,31 @@ async def query_billing_projects(db, user=None, billing_project=None):
         where_condition = ''
 
     sql = f'''
-WITH base_t AS (
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
-  users, `limit`
-FROM (
+  users, `limit`, COALESCE(cost_t.cost, 0) AS accrued_cost
+FROM billing_projects
+LEFT JOIN LATERAL (
   SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
   FROM billing_project_users
-  GROUP BY billing_project
+  WHERE billing_project_users.billing_project = billing_projects.name
+  GROUP BY billing_project_users.billing_project
   LOCK IN SHARE MODE
-) AS t
-RIGHT JOIN billing_projects
-  ON t.billing_project = billing_projects.name
+) AS t ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(`usage` * rate) as cost
+  FROM (
+    SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_billing_project_user_resources_v2
+    WHERE billing_projects.name = aggregated_billing_project_user_resources_v2.billing_project
+    GROUP BY billing_project, resource_id
+    LOCK IN SHARE MODE
+  ) AS usage_t
+  LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
+  GROUP BY usage_t.billing_project
+) AS cost_t ON TRUE
 {where_condition}
-GROUP BY billing_projects.name, billing_projects.status, `limit`
-LOCK IN SHARE MODE
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) as accrued_cost
-FROM base_t
-LEFT JOIN (
-  SELECT base_t.billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_billing_project_user_resources_v2
-    ON base_t.billing_project = aggregated_billing_project_user_resources_v2.billing_project
-  GROUP BY base_t.billing_project, resource_id
-) AS usage_t ON usage_t.billing_project = base_t.billing_project
-LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
-GROUP BY base_t.billing_project;
+LOCK IN SHARE MODE;
 '''
 
     def record_to_dict(record):

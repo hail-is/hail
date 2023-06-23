@@ -3,9 +3,10 @@ import json
 import logging
 import os
 from shlex import quote as shq
-from typing import Dict
+from typing import Dict, List
 
 from gear.cloud_config import get_global_config
+from hailtop.config import get_deploy_config
 
 from ....batch_configuration import DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROOT_IMAGE, INTERNAL_GATEWAY_IP
 from ....file_store import FileStore
@@ -74,6 +75,32 @@ def create_vm_config(
     make_global_config_str = '\n'.join(make_global_config)
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
+
+    configs: List[str] = []
+    touch_commands = []
+    for jvm_cores in (1, 2, 4, 8):
+        for _ in range(cores // jvm_cores):
+            idx = len(configs)
+            log_path = f'/batch/jvm-container-logs/jvm-{idx}.log'
+            touch_commands.append(f'touch {log_path}')
+
+            config = f'''
+<source>
+@type tail
+<parse>
+    # 'none' indicates the log is unstructured (text).
+    @type none
+</parse>
+path {log_path}
+pos_file /var/lib/google-fluentd/pos/jvm-{idx}.pos
+read_from_head true
+tag jvm-{idx}.log
+</source>
+'''
+            configs.append(config)
+
+    jvm_fluentd_config = '\n'.join(configs)
+    jvm_touch_command = '\n'.join(touch_commands)
 
     def scheduling() -> dict:
         result = {
@@ -156,6 +183,35 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 #!/bin/bash
 set -x
 
+WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
+ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
+
+# format worker data disk
+sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
+sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
+XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
+
+# reconfigure docker to use local SSD
+sudo service docker stop
+sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
+sudo service docker start
+
+# reconfigure /batch and /logs and /gcsfuse to use local SSD
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
+
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
+
+sudo mkdir -p /etc/netns
+
 # Setup fluentd
 touch /worker.log
 touch /run.log
@@ -193,6 +249,10 @@ tag run.log
 </source>
 EOF
 
+sudo tee /etc/google-fluentd/config.d/jvm-logs.conf <<EOF
+{jvm_fluentd_config}
+EOF
+
 sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
 head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
 sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
@@ -204,36 +264,10 @@ labels {{
 EOF
 rm /etc/google-fluentd/google-fluentd.conf.bak
 
+mkdir -p /batch/jvm-container-logs/
+{jvm_touch_command}
+
 sudo service google-fluentd restart
-
-WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
-UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
-ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
-
-# format worker data disk
-sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
-sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
-XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
-
-# reconfigure docker to use local SSD
-sudo service docker stop
-sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
-sudo service docker start
-
-# reconfigure /batch and /logs and /gcsfuse to use local SSD
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/batch/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
-
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
-
-sudo mkdir -p /etc/netns
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
@@ -278,6 +312,12 @@ iptables --append FORWARD --source 172.20.0.0/16 --jump ACCEPT
 
 {make_global_config_str}
 
+mkdir /deploy-config
+cat >/deploy-config/deploy-config.json <<EOF
+{ json.dumps(get_deploy_config().with_location('gce').get_config()) }
+EOF
+
+
 # retry once
 docker pull $BATCH_WORKER_IMAGE || \
 (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
@@ -314,6 +354,7 @@ docker run \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /global-config:/global-config \
+-v /deploy-config:/deploy-config \
 -v /cloudfuse:/cloudfuse:shared \
 -v /etc/netns:/etc/netns \
 -v /sys/fs/cgroup:/sys/fs/cgroup \

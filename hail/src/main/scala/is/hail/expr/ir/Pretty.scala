@@ -272,6 +272,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case NDArrayMatMul(_, _, errorID) => single(s"$errorID")
     case NDArrayQR(_, mode, errorID) => FastSeq(errorID.toString, mode)
     case NDArraySVD(_, fullMatrices, computeUV, errorID) => FastSeq(errorID.toString, fullMatrices.toString, computeUV.toString)
+    case NDArrayEigh(_, eigvalsOnly, errorID) => FastSeq(errorID.toString, eigvalsOnly.toString)
     case NDArrayInv(_, errorID) => single(s"$errorID")
     case ArraySort(_, l, r, _) if !elideBindings => FastSeq(prettyIdentifier(l), prettyIdentifier(r))
     case ArrayRef(_,_, errorID) => single(s"$errorID")

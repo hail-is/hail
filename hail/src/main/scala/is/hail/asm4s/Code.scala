@@ -342,6 +342,21 @@ object Code {
         a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass, a14ct.runtimeClass, a15ct.runtimeClass, a16ct.runtimeClass),
       Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
 
+  def invokeScalaObject19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, S](
+    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
+    a9: Code[A9], a10: Code[A10], a11: Code[A11], a12: Code[A12], a13: Code[A13], a14: Code[A14], a15: Code[A15], a16: Code[A16],
+    a17: Code[A17], a18: Code[A18], a19: Code[A19])(
+    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], a12ct: ClassTag[A12], a13ct: ClassTag[A13], a14ct: ClassTag[A14],
+    a15ct: ClassTag[A15], a16ct: ClassTag[A16], a17ct: ClassTag[A17], a18ct: ClassTag[A18], a19ct: ClassTag[A19], sct: ClassTag[S]): Code[S] =
+    invokeScalaObject[S](
+      cls, method,
+      Array[Class[_]](
+        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
+        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass, a14ct.runtimeClass, a15ct.runtimeClass, a16ct.runtimeClass,
+        a17ct.runtimeClass, a18ct.runtimeClass, a19ct.runtimeClass),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+
   def invokeStatic[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     assert(m.isStatic)
