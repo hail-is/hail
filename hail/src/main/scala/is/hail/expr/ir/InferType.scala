@@ -222,6 +222,12 @@ object InferType {
         } else {
           TNDArray(TFloat64, Nat(1))
         }
+      case NDArrayEigh(nd, eigvalsOnly, _) =>
+        if (eigvalsOnly) {
+          TNDArray(TFloat64, Nat(1))
+        } else {
+          TTuple(TNDArray(TFloat64, Nat(1)), TNDArray(TFloat64, Nat(2)))
+        }
       case NDArrayInv(_, _) =>
         TNDArray(TFloat64, Nat(2))
       case NDArrayWrite(_, _) => TVoid

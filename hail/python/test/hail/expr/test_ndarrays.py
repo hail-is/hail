@@ -942,6 +942,37 @@ def test_svd():
     assert_evals_to_same_svd(rank_2_tall_rectangle, np_rank_2_tall_rectangle, full_matrices=False)
 
 
+def test_eigh():
+    def assert_evals_to_same_eig(nd_expr, np_array, eigvals_only=True):
+        evaled = hl.eval(hl.nd.eigh(nd_expr, eigvals_only))
+        np_eig = np.linalg.eigvalsh(np_array)
+
+        # check shapes
+        for h, n in zip(evaled, np_eig):
+            assert h.shape == n.shape
+
+        if eigvals_only:
+            np.testing.assert_array_almost_equal(evaled, np_eig)
+        else:
+            he, hv = evaled
+
+            # eigvals match
+            np.testing.assert_array_almost_equal(he, np_eig)
+
+            # V is orthonormal
+            vvt = hv @ hv.T
+            np.testing.assert_array_almost_equal(vvt, np.identity(vvt.shape[0]))
+
+            # V is eigenvectors
+            np.testing.assert_array_almost_equal(np_array @ hv, hv * he)
+
+    A = np.array([[6, 3, 1, 5], [3, 0, 5, 1], [1, 5, 6, 2], [5, 1, 2, 2]])
+    hA = hl.nd.array(A)
+
+    assert_evals_to_same_eig(hA, A)
+    assert_evals_to_same_eig(hA, A, eigvals_only=True)
+
+
 def test_numpy_interop():
     v = [2, 3]
     w = [3, 5]

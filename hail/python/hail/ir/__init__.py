@@ -8,7 +8,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, ProjectedTopLevelReference, SelectedTopLevelReference, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
     MakeArray, ArrayRef, ArraySlice, ArrayLen, ArrayZeros, StreamIota, StreamRange, StreamGrouped, MakeNDArray, \
-    NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayMap2, NDArrayRef, NDArraySlice, NDArraySVD, \
+    NDArrayShape, NDArrayReshape, NDArrayMap, NDArrayMap2, NDArrayRef, NDArraySlice, NDArraySVD, NDArrayEigh, \
     NDArrayReindex, NDArrayAgg, NDArrayMatMul, NDArrayQR, NDArrayInv, NDArrayConcat, NDArrayWrite, \
     ArraySort, ArrayMaximalIndependentSet, ToSet, ToDict, toArray, ToArray, CastToArray, \
     ToStream, toStream, LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, StreamTake, \
@@ -158,6 +158,7 @@ __all__ = [
     'NDArrayAgg',
     'NDArrayMatMul',
     'NDArrayQR',
+    'NDArrayEigh',
     'NDArraySVD',
     'NDArrayInv',
     'NDArrayConcat',
