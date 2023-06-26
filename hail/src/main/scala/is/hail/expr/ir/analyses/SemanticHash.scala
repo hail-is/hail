@@ -15,7 +15,6 @@ import scala.language.implicitConversions
 case object SemanticHash extends Logging {
 
   type Type = Int
-  type NextHash = () => Type
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
   object Hash {
@@ -156,6 +155,11 @@ case object SemanticHash extends Logging {
           Hash(dropRows) <> (reader match {
             case _: RVDTableReader =>
               unique
+
+            case StringTableReader(_, fileStatuses) =>
+               fileStatuses.foldLeft(Hash(classOf[StringTableReader])) { (hash, status) =>
+                 hash <> getFileHash(fs)(status.getPath)
+               }
 
             case _ =>
               Hash(reader.getClass) <> reader

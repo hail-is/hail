@@ -142,8 +142,8 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
   override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
-class StringTableReader(
-  val params: StringTableReaderParameters,
+case class StringTableReader(
+  params: StringTableReaderParameters,
   fileStatuses: IndexedSeq[FileStatus]
 ) extends TableReaderWithExtraUID {
 
