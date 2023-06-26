@@ -440,9 +440,9 @@ module "auth_gsa_secret" {
   ]
 }
 
-module "test_auth_gsa_secret" {
+module "testns_auth_gsa_secret" {
   source = "./gsa_k8s_secret"
-  name = "test-auth"
+  name = "testns-auth"
   project = var.gcp_project
   iam_roles = [
     "iam.serviceAccountViewer",
@@ -467,9 +467,9 @@ resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_vie
   member = "serviceAccount:${module.batch_gsa_secret.email}"
 }
 
-module "test_batch_gsa_secret" {
+module "testns_batch_gsa_secret" {
   source = "./gsa_k8s_secret"
-  name = "test-batch"
+  name = "testns-batch"
   project = var.gcp_project
   iam_roles = [
     "compute.instanceAdmin.v1",
@@ -478,10 +478,10 @@ module "test_batch_gsa_secret" {
   ]
 }
 
-resource "google_storage_bucket_iam_member" "test_batch_bucket_admin" {
+resource "google_storage_bucket_iam_member" "testns_batch_bucket_admin" {
   bucket = google_storage_bucket.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
-  member = "serviceAccount:${module.test_batch_gsa_secret.email}"
+  member = "serviceAccount:${module.testns_batch_gsa_secret.email}"
 }
 
 module "ci_gsa_secret" {
@@ -490,25 +490,25 @@ module "ci_gsa_secret" {
   project = var.gcp_project
 }
 
-module "test_ci_gsa_secret" {
+module "testns_ci_gsa_secret" {
   source = "./gsa_k8s_secret"
-  name = "test-ci"
+  name = "testns-ci"
   project = var.gcp_project
 }
 
-resource "google_storage_bucket_iam_member" "test_ci_bucket_admin" {
+resource "google_storage_bucket_iam_member" "testns_ci_bucket_admin" {
   bucket = google_storage_bucket.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
-  member = "serviceAccount:${module.test_ci_gsa_secret.email}"
+  member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_ci_viewer" {
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_ci_viewer" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
   role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${module.test_ci_gsa_secret.email}"
+  member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
@@ -532,9 +532,9 @@ module "grafana_gsa_secret" {
   project = var.gcp_project
 }
 
-module "test_grafana_gsa_secret" {
+module "testns_grafana_gsa_secret" {
   source = "./gsa_k8s_secret"
-  name = "test-grafana"
+  name = "testns-grafana"
   project = var.gcp_project
 }
 
@@ -567,25 +567,25 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_tes
   member = "serviceAccount:${module.test_gsa_secret.email}"
 }
 
-module "test_test_gsa_secret" {
+module "testns_test_gsa_secret" {
   source = "./gsa_k8s_secret"
-  name = "test-test"
+  name = "testns-test"
   project = var.gcp_project
 }
 
-resource "google_storage_bucket_iam_member" "test_test_bucket_admin" {
+resource "google_storage_bucket_iam_member" "testns_test_gsa_bucket_admin" {
   bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
-  member = "serviceAccount:${module.test_test_gsa_secret.email}"
+  member = "serviceAccount:${module.testns_test_gsa_secret.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_test_viewer" {
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_test_gsa_viewer" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
   role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${module.test_test_gsa_secret.email}"
+  member = "serviceAccount:${module.testns_test_gsa_secret.email}"
 }
 
 
@@ -610,25 +610,25 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_tes
   member = "serviceAccount:${module.test_dev_gsa_secret.email}"
 }
 
-module "test_test_dev_gsa_secret" {
+module "testns_test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
-  name = "test-test-dev"
+  name = "testns-test-dev"
   project = var.gcp_project
 }
 
-resource "google_storage_bucket_iam_member" "test_test_dev_bucket_admin" {
+resource "google_storage_bucket_iam_member" "testns_test_dev_bucket_admin" {
   bucket = google_storage_bucket.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
-  member = "serviceAccount:${module.test_test_dev_gsa_secret.email}"
+  member = "serviceAccount:${module.testns_test_dev_gsa_secret.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_test_dev_viewer" {
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_test_dev_viewer" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
   role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${module.test_test_dev_gsa_secret.email}"
+  member = "serviceAccount:${module.testns_test_dev_gsa_secret.email}"
 }
 
 resource "google_service_account" "batch_agent" {
