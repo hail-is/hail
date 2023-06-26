@@ -88,7 +88,13 @@ from ..utils import (
     regions_to_bits_rep,
     unavailable_if_frozen,
 )
-from .query import CURRENT_QUERY_VERSION, build_batch_jobs_query, build_list_batches_query
+from .query import (
+    CURRENT_QUERY_VERSION,
+    parse_list_batches_query_v1,
+    parse_list_batches_query_v2,
+    parse_batch_jobs_query_v1,
+    parse_batch_jobs_query_v2,
+)
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
 uvloop.install()
@@ -234,7 +240,11 @@ async def _handle_api_error(f, *args, **kwargs):
 
 async def _query_batch_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
     db: Database = request.app['db']
-    sql, sql_args = build_batch_jobs_query(batch_id, version, q, last_job_id)
+    if version == 1:
+        sql, sql_args = parse_batch_jobs_query_v1(batch_id, q, last_job_id)
+    else:
+        assert version == 2, version
+        sql, sql_args = parse_batch_jobs_query_v2(batch_id, q, last_job_id)
 
     jobs = [job_record_to_dict(record, record['name']) async for record in db.select_and_fetchall(sql, sql_args)]
 
@@ -602,7 +612,11 @@ async def rest_get_job_container_log(request, userdata, batch_id):  # pylint: di
 
 async def _query_batches(request, user: str, q: str, version: int, last_batch_id: Optional[int]):
     db: Database = request.app['db']
-    sql, sql_args = build_list_batches_query(user, version, q, last_batch_id)
+    if version == 1:
+        sql, sql_args = parse_list_batches_query_v1(user, q, last_batch_id)
+    else:
+        assert version == 2, version
+        sql, sql_args = parse_list_batches_query_v2(user, q, last_batch_id)
 
     batches = [batch_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
 

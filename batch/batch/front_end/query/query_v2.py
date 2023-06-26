@@ -155,9 +155,7 @@ ORDER BY id DESC
 LIMIT 51;
 '''
 
-    sql_args = where_args
-
-    return (sql, sql_args)
+    return (sql, where_args)
 
 
 # <jobs-query-list> ::= "" | <jobs-query> "\n" <jobs-query-list>
@@ -294,6 +292,4 @@ WHERE {" AND ".join(where_conditions)}
 LIMIT 50;
 '''
 
-    sql_args = where_args
-
-    return (sql, sql_args)
+    return (sql, where_args)

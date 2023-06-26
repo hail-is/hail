@@ -322,44 +322,64 @@ class JobCostQuery(Query):
         return (f'(cost {op} %s)', [self.cost])
 
 
-class BatchStateQuery(Query):
-    possible_states = {'open', 'closed', 'complete', 'running', 'cancelled', 'failure', 'success'}
+class BatchState(Enum):
+    OPEN = 'open'
+    CLOSED = 'closed'
+    COMPLETE = 'complete'
+    RUNNING = 'running'
+    CANCELLED = 'cancelled'
+    FAILURE = 'failure'
+    SUCCESS = 'success'
 
+
+batch_state_search_term_to_state = {
+    'open': BatchState.OPEN,
+    'closed': BatchState.CLOSED,
+    'complete': BatchState.COMPLETE,
+    'running': BatchState.RUNNING,
+    'cancelled': BatchState.CANCELLED,
+    'failure': BatchState.FAILURE,
+    'success': BatchState.SUCCESS,
+}
+
+
+class BatchStateQuery(Query):
     @staticmethod
-    def parse(op: str, state: str) -> 'BatchStateQuery':
+    def parse(op: str, maybe_state: str) -> 'BatchStateQuery':
         operator = get_operator(op)
         if not isinstance(operator, ExactMatchOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ExactMatchOperator.symbols}')
-        if state not in BatchStateQuery.possible_states:
-            raise QueryError(f'unknown state "{state}"')
+        if maybe_state not in batch_state_search_term_to_state:
+            raise QueryError(f'unknown state "{maybe_state}"')
+        state = batch_state_search_term_to_state[maybe_state]
         return BatchStateQuery(state, operator)
 
-    def __init__(self, state: str, operator: ExactMatchOperator):
+    def __init__(self, state: BatchState, operator: ExactMatchOperator):
         self.state = state
         self.operator = operator
 
     def query(self) -> Tuple[str, List[Any]]:
         args: List[Any]
-        if self.state == 'open':
+        if self.state == BatchState.OPEN:
             condition = "(`state` = 'open')"
             args = []
-        elif self.state == 'closed':
+        elif self.state == BatchState.CLOSED:
             condition = "(`state` != 'open')"
             args = []
-        elif self.state == 'complete':
+        elif self.state == BatchState.COMPLETE:
             condition = "(`state` = 'complete')"
             args = []
-        elif self.state == 'running':
+        elif self.state == BatchState.RUNNING:
             condition = "(`state` = 'running')"
             args = []
-        elif self.state == 'cancelled':
+        elif self.state == BatchState.CANCELLED:
             condition = '(batches_cancelled.id IS NOT NULL)'
             args = []
-        elif self.state == 'failure':
+        elif self.state == BatchState.FAILURE:
             condition = '(n_failed > 0)'
             args = []
         else:
-            assert self.state == 'success'
+            assert self.state == BatchState.SUCCESS
             # need complete because there might be no jobs
             condition = "(`state` = 'complete' AND n_succeeded = n_jobs)"
             args = []

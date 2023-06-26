@@ -340,148 +340,192 @@ def test_list_batches_v2(client: BatchClient):
         actual = full_actual.intersection(batch_id_test_universe)
         assert actual == expected, str((full_actual, max_id, span, b1.debug_info(), b2.debug_info()))
 
-    assert_batch_ids({b1.id, b2.id})
+    try:
+        assert_batch_ids({b1.id, b2.id})
 
-    assert_batch_ids({b1.id, b2.id}, f'tag={tag}')
-    assert_batch_ids({b1.id, b2.id}, f'tag=~{tag}')
-    assert_batch_ids(
-        {b1.id, b2.id},
-        f'''
+        assert_batch_ids({b1.id, b2.id}, f'tag={tag}')
+        assert_batch_ids({b1.id, b2.id}, f'tag=~{tag}')
+        assert_batch_ids(
+            {b1.id, b2.id},
+            f'''
 name=~b
 tag={tag}
 ''',
-    )
-    assert_batch_ids(
-        {b1.id},
-        f'''
+        )
+        assert_batch_ids(
+            {b1.id},
+            f'''
 name!~b2
 tag={tag}
 ''',
-    )
-    assert_batch_ids(
-        {b1.id},
-        f'''
+        )
+        assert_batch_ids(
+            {b1.id},
+            f'''
 name!=b2
 tag={tag}
 ''',
-    )
-    assert_batch_ids(
-        {b2.id},
-        f'''
+        )
+        assert_batch_ids(
+            {b2.id},
+            f'''
 b2
 tag={tag}
 ''',
-    )
+        )
 
-    b2.wait()
+        b2.wait()
 
-    assert_batch_ids(
-        {b1.id},
-        f'''
+        assert_batch_ids(
+            {b1.id},
+            f'''
 state != complete
 tag = {tag}
 ''',
-    )
-    assert_batch_ids(
-        {b2.id},
-        f'''
+        )
+        assert_batch_ids(
+            {b2.id},
+            f'''
 state=complete
 tag={tag}
 ''',
-    )
+        )
 
-    assert_batch_ids(
-        {b1.id},
-        f'''
+        assert_batch_ids(
+            {b1.id},
+            f'''
 state != success
 tag={tag}
 ''',
-    )
-    assert_batch_ids(
-        {b2.id},
-        f'''
+        )
+        assert_batch_ids(
+            {b2.id},
+            f'''
 state == success
 tag={tag}
 ''',
-    )
+        )
 
-    b1.cancel()
-    b1.wait()
+        b1.cancel()
+        b1.wait()
 
-    assert_batch_ids(
-        {b1.id},
-        f'''
+        assert_batch_ids(
+            {b1.id},
+            f'''
 state!=success
 tag={tag}
 ''',
-    )
-    assert_batch_ids(
-        {b2.id},
-        f'''
+        )
+        assert_batch_ids(
+            {b2.id},
+            f'''
 state = success
 tag={tag}
 ''',
-    )
+        )
 
-    assert_batch_ids(
-        set(),
-        f'''
+        assert_batch_ids(
+            set(),
+            f'''
 state != complete
 tag={tag}
 ''',
-    )
-    assert_batch_ids(
-        {b1.id, b2.id},
-        f'''
+        )
+        assert_batch_ids(
+            {b1.id, b2.id},
+            f'''
 state = complete
 tag={tag}
 ''',
-    )
+        )
 
-    assert_batch_ids(
-        {b2.id},
-        f'''
+        assert_batch_ids(
+            {b2.id},
+            f'''
 tag={tag}
 name=b2
 ''',
-    )
+        )
 
-    assert_batch_ids(
-        {b2.id},
-        f'''
+        assert_batch_ids(
+            {b2.id},
+            f'''
 tag={tag}
 "b2"
 ''',
-    )
+        )
 
-    assert_batch_ids(
-        {b2.id},
-        f'''
+        assert_batch_ids(
+            {b2.id},
+            f'''
 tag=~{tag}
 "b2"
 ''',
-    )
+        )
 
-    assert_batch_ids(
-        {b1.id, b2.id},
-        '''
+        assert_batch_ids(
+            batch_id_test_universe,
+            f'''
+user != foo
+tag={tag}
+''',
+        )
+
+        assert_batch_ids(
+            batch_id_test_universe,
+            f'''
+billing_project = {client.billing_project}
+tag={tag}
+''',
+        )
+
+        assert_batch_ids(
+            {b1.id, b2.id},
+            '''
 start_time >= 2023-02-24T17:15:25Z
 end_time < 3000-02-24T17:15:25Z
 ''',
-    )
+        )
 
-    assert_batch_ids(
-        set(),
-        '''
+        assert_batch_ids(
+            set(),
+            '''
 start_time >= 2023-02-24T17:15:25Z
 end_time == 2023-02-24T17:15:25Z
 ''',
-    )
+        )
 
-    assert_batch_ids(set(), 'duration > 50000')
-    assert_batch_ids(set(), 'cost > 1000')
-    assert_batch_ids({b1.id}, f'batch_id = {b1.id}')
-    assert_batch_ids({b1.id}, f'batch_id == {b1.id}')
+        assert_batch_ids(set(), 'duration > 50000')
+        assert_batch_ids(set(), 'cost > 1000')
+        assert_batch_ids({b1.id}, f'batch_id = {b1.id}')
+        assert_batch_ids({b1.id}, f'batch_id == {b1.id}')
+
+        with pytest.raises(httpx.ClientResponseError, match='could not parse term'):
+            assert_batch_ids(batch_id_test_universe, 'batch_id >= 1 abcde')
+        with pytest.raises(httpx.ClientResponseError, match='expected float, but found'):
+            assert_batch_ids(batch_id_test_universe, 'duration >= abcd')
+        with pytest.raises(httpx.ClientResponseError, match='expected int, but found'):
+            assert_batch_ids(batch_id_test_universe, 'batch_id >= abcd')
+        with pytest.raises(httpx.ClientResponseError, match='expected float, but found'):
+            assert_batch_ids(batch_id_test_universe, 'cost >= abcd')
+        with pytest.raises(httpx.ClientResponseError, match='unexpected operator'):
+            assert_batch_ids(batch_id_test_universe, 'state >= 1')
+        with pytest.raises(httpx.ClientResponseError, match='unknown state'):
+            assert_batch_ids(batch_id_test_universe, 'state = 1')
+        with pytest.raises(httpx.ClientResponseError, match='unexpected operator'):
+            assert_batch_ids(batch_id_test_universe, 'user >= 1')
+        with pytest.raises(httpx.ClientResponseError, match='unexpected operator'):
+            assert_batch_ids(batch_id_test_universe, 'billing_project >= 1')
+        with pytest.raises(httpx.ClientResponseError, match='expected date, but found'):
+            assert_batch_ids(batch_id_test_universe, 'start_time >= 1')
+        with pytest.raises(httpx.ClientResponseError, match='expected date, but found'):
+            assert_batch_ids(batch_id_test_universe, 'end_time >= 1')
+
+    finally:
+        try:
+            b1.cancel()
+        finally:
+            b2.cancel()
 
 
 def test_list_jobs_v1(client: BatchClient):
@@ -596,8 +640,26 @@ end_time <= 2023-02-24T17:18:25Z
 ''',
         )
 
+        with pytest.raises(httpx.ClientResponseError, match='could not parse term'):
+            assert_job_ids(no_jobs, 'job_id >= 1 abcde')
         with pytest.raises(httpx.ClientResponseError, match='expected float, but found'):
             assert_job_ids(no_jobs, 'duration >= abcd')
+        with pytest.raises(httpx.ClientResponseError, match='expected int, but found'):
+            assert_job_ids(no_jobs, 'job_id >= abcd')
+        with pytest.raises(httpx.ClientResponseError, match='expected float, but found'):
+            assert_job_ids(no_jobs, 'cost >= abcd')
+        with pytest.raises(httpx.ClientResponseError, match='unexpected operator'):
+            assert_job_ids(no_jobs, 'state >= 1')
+        with pytest.raises(httpx.ClientResponseError, match='unknown state'):
+            assert_job_ids(no_jobs, 'state = 1')
+        with pytest.raises(httpx.ClientResponseError, match='unexpected operator'):
+            assert_job_ids(no_jobs, 'instance_collection >= 1')
+        with pytest.raises(httpx.ClientResponseError, match='unexpected operator'):
+            assert_job_ids(no_jobs, 'instance >= 1')
+        with pytest.raises(httpx.ClientResponseError, match='expected date, but found'):
+            assert_job_ids(no_jobs, 'start_time >= 1')
+        with pytest.raises(httpx.ClientResponseError, match='expected date, but found'):
+            assert_job_ids(no_jobs, 'end_time >= 1')
     finally:
         b.cancel()
 

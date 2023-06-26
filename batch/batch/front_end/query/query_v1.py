@@ -114,9 +114,8 @@ LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY id
 ORDER BY id DESC;
 '''
-    sql_args = where_args
 
-    return (sql, sql_args)
+    return (sql, where_args)
 
 
 def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int]) -> Tuple[str, List[Any]]:
@@ -199,6 +198,5 @@ LEFT JOIN (
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY base_t.batch_id, base_t.job_id;
 '''
-    sql_args = where_args
 
-    return (sql, sql_args)
+    return (sql, where_args)
