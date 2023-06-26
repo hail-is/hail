@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import aiohttp
 import aiohttp_session
@@ -90,10 +90,10 @@ from ..utils import (
 )
 from .query import (
     CURRENT_QUERY_VERSION,
-    parse_list_batches_query_v1,
-    parse_list_batches_query_v2,
     parse_batch_jobs_query_v1,
     parse_batch_jobs_query_v2,
+    parse_list_batches_query_v1,
+    parse_list_batches_query_v2,
 )
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
@@ -210,22 +210,22 @@ async def rest_get_supported_regions(request, userdata):  # pylint: disable=unus
     return json_response(list(request.app['regions'].keys()))
 
 
-async def _handle_ui_error(session, f, *args, **kwargs):
+async def _handle_ui_error(session, f, *args, **kwargs) -> Tuple[bool, Any]:
     try:
-        await f(*args, **kwargs)
+        result = await f(*args, **kwargs)
     except KeyError as e:
         set_message(session, str(e), 'error')
         log.info(f'ui error: KeyError {e}')
-        return True
+        return (True, None)
     except BatchOperationAlreadyCompletedError as e:
         set_message(session, e.message, e.ui_error_type)
         log.info(f'ui error: BatchOperationAlreadyCompletedError {e.message}')
-        return True
+        return (True, None)
     except BatchUserError as e:
         set_message(session, e.message, e.ui_error_type)
         log.info(f'ui error: BatchUserError {e.message}')
-        return True
-    return False
+        return (True, None)
+    return (False, result)
 
 
 async def _handle_api_error(f, *args, **kwargs):
@@ -636,7 +636,7 @@ async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
     last_batch_id = request.query.get('last_batch_id')
-    batches, last_batch_id = await _query_batches(request, user, q, 1, last_batch_id)
+    batches, last_batch_id = await _handle_api_error(_query_batches, request, user, q, 1, last_batch_id)
     body = {'batches': batches}
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
@@ -650,7 +650,7 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user = {user}')
     last_batch_id = request.query.get('last_batch_id')
-    batches, last_batch_id = await _query_batches(request, user, q, 2, last_batch_id)
+    batches, last_batch_id = await _handle_api_error(_query_batches, request, user, q, 2, last_batch_id)
     body = {'batches': batches}
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
@@ -1670,7 +1670,7 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
     if q is not None:
         params['q'] = q
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
+    errored, _ = await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
     if not errored:
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
@@ -1698,12 +1698,17 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_batches(request, userdata):
+    session = await aiohttp_session.get_session(request)
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
         last_batch_id = int(last_batch_id)
-    batches, last_batch_id = await _query_batches(request, user, q, CURRENT_QUERY_VERSION, last_batch_id)
+    errored, (batches, last_batch_id) = await _handle_ui_error(
+        session, _query_batches, request, user, q, CURRENT_QUERY_VERSION, last_batch_id
+    )
+    if errored:
+        batches = []
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
     page_context = {'batches': batches, 'q': q, 'last_batch_id': last_batch_id}
@@ -2244,7 +2249,7 @@ async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unu
     post = await request.post()
     limit = post['limit']
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
+    errored, _ = await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
     if not errored:
         set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))
@@ -2469,7 +2474,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
     user = request.match_info['user']
 
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
+    errored, _ = await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
     if not errored:
         set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
@@ -2540,7 +2545,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
     session = await aiohttp_session.get_session(request)
 
-    errored = await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
+    errored, _ = await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
     if not errored:
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
@@ -2595,7 +2600,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = post['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _create_billing_project, db, billing_project)
+    errored, _ = await _handle_ui_error(session, _create_billing_project, db, billing_project)
     if not errored:
         set_message(session, f'Added billing project {billing_project}.', 'info')
 
@@ -2655,7 +2660,7 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _close_billing_project, db, billing_project)
+    errored, _ = await _handle_ui_error(session, _close_billing_project, db, billing_project)
     if not errored:
         set_message(session, f'Closed billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
@@ -2699,7 +2704,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
+    errored, _ = await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
     if not errored:
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
