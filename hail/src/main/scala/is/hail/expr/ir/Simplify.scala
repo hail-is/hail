@@ -104,8 +104,8 @@ object Simplify {
            _: ArrayRef |
            _: ArrayLen |
            _: GetField |
-           _: GetTupleElement => Children(x).exists(_.isInstanceOf[NA])
-      case ApplyComparisonOp(op, _, _) if op.strict => Children(x).exists(_.isInstanceOf[NA])
+           _: GetTupleElement => x.childrenSeq.exists(_.isInstanceOf[NA])
+      case ApplyComparisonOp(op, _, _) if op.strict => x.childrenSeq.exists(_.isInstanceOf[NA])
       case _ => false
     }
   }
@@ -437,7 +437,7 @@ object Simplify {
         case `r` => false // if the binding is referenced in any other context, don't rewrite
         case _: TableAggregate => true
         case _: MatrixAggregate => true
-        case _ => ir1.children
+        case _ => ir1.childrenSeq
           .iterator
           .zipWithIndex
           .forall {
@@ -471,7 +471,7 @@ object Simplify {
           SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames.toFastIndexedSeq)), fds)
         case ta: TableAggregate => ta
         case ma: MatrixAggregate => ma
-        case _ => ir1.copy(ir1.children
+        case _ => ir1.copy(ir1.childrenSeq
           .iterator
           .zipWithIndex
           .map {
@@ -680,7 +680,7 @@ object Simplify {
         case _: MatrixAggregate => true
         case AggLet(_, _, _, false) => false
         case x if IsAggResult(x) => false
-        case other => other.children.forall {
+        case other => other.childrenSeq.forall {
           case child: IR => canBeLifted(child)
           case _: BaseIR => true
         }
@@ -694,7 +694,7 @@ object Simplify {
         case _: MatrixAggregate => true
         case AggLet(_, _, _, true) => false
         case x if IsScanResult(x) => false
-        case other => other.children.forall {
+        case other => other.childrenSeq.forall {
           case child: IR => canBeLifted(child)
           case _: BaseIR => true
         }
@@ -785,7 +785,7 @@ object Simplify {
     // flatten unions
     case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) & canRepartition =>
       TableUnion(children.flatMap {
-        case u: TableUnion => u.children
+        case u: TableUnion => u.childrenSeq
         case c => Some(c)
       })
 
@@ -1011,7 +1011,7 @@ object Simplify {
     // flatten unions
     case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) & canRepartition =>
       MatrixUnionRows(children.flatMap {
-        case u: MatrixUnionRows => u.children
+        case u: MatrixUnionRows => u.childrenSeq
         case c => Some(c)
       })
 

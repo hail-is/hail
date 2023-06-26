@@ -36,7 +36,6 @@ object ComputeUsesAndDefs {
       }
 
       ir.children
-        .iterator
         .zipWithIndex
         .foreach { case (child, i) =>
           val e = ChildEnvWithoutBindings(ir, i, env)

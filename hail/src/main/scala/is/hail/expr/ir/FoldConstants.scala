@@ -39,7 +39,7 @@ object FoldConstants {
       case ir: IR if ir.typ.isInstanceOf[TStream] => None
       case ir: IR if !IsConstant(ir) &&
         Interpretable(ir) &&
-        ir.children.forall {
+        ir.childrenSeq.forall {
           case c: IR => IsConstant(c)
           case _ => false
         } =>

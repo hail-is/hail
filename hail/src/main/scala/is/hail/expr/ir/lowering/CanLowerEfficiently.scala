@@ -57,7 +57,7 @@ object CanLowerEfficiently {
         case t: TableMapRows =>
         case t: TableMapGlobals =>
         case t: TableExplode =>
-        case t: TableUnion if t.children.length > 16 => fail(s"TableUnion lowering generates deeply nested IR if it has many children")
+        case t: TableUnion if t.childrenSeq.length > 16 => fail(s"TableUnion lowering generates deeply nested IR if it has many children")
         case t: TableUnion =>
         case t: TableMultiWayZipJoin => fail(s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin")
         case t: TableDistinct =>
@@ -97,7 +97,7 @@ object CanLowerEfficiently {
 
         case x: IR =>
           // nodes with relational children should be enumerated above explicitly
-          if (!x.children.forall(_.isInstanceOf[IR])) {
+          if (!x.childrenSeq.forall(_.isInstanceOf[IR])) {
             throw new RuntimeException(s"IR must be enumerated explicitly: ${ x.getClass.getName }")
           }
       }

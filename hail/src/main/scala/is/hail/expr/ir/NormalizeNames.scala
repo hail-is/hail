@@ -237,12 +237,9 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newBody <- normalize(body)
         } yield RelationalLet(name, newValue, newBody)
       case x =>
-        for {
-          newChildren <- x.children.iterator.zipWithIndex.map { case (child, i) =>
-            normalizeBaseIR(child, ChildBindings.transformed(x, i, env, { case (name, _) => name }))
-          }.collectRecur
-        } yield x.copy(newChildren)
-
+        x.mapChildrenWithIndexStackSafe { (child, i) =>
+          normalizeBaseIR(child, ChildBindings.transformed(x, i, env, { case (name, _) => name }))
+        }
     }
   }
 }

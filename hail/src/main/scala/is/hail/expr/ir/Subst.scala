@@ -18,7 +18,7 @@ object Subst {
         env.eval.lookupOption(name).getOrElse(x)
       case _ =>
         e.copy(
-          e.children
+          e.childrenSeq
             .iterator
             .zipWithIndex
             .map { case (child: IR, i) =>

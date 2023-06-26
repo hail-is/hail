@@ -38,7 +38,7 @@ sealed trait IR extends BaseIR {
     _typ
   }
 
-  lazy val children: IndexedSeq[BaseIR] =
+  lazy val childrenSeq: IndexedSeq[BaseIR] =
     Children(this)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): IR =
@@ -52,7 +52,7 @@ sealed trait IR extends BaseIR {
     cp
   }
 
-  lazy val size: Int = 1 + children.map {
+  lazy val size: Int = 1 + childrenSeq.map {
       case x: IR => x.size
       case _ => 0
     }.sum

@@ -30,7 +30,6 @@ object TypeCheck {
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {
       _ <- ir.children
-        .iterator
         .zipWithIndex
         .foreachRecur { case (child, i) =>
           for {
@@ -122,7 +121,7 @@ object TypeCheck {
           case x: Recur =>
             x.name != name || tailPosition
           case _ =>
-            node.children.zipWithIndex
+            node.childrenSeq.zipWithIndex
               .forall {
                 case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
                 case _ => true

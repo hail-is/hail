@@ -4,6 +4,18 @@ import is.hail.utils._
 
 import scala.reflect.ClassTag
 
+class RichIndexedSeqAnyRef[T <: AnyRef](val a: IndexedSeq[T]) extends AnyVal {
+  def elementsSameObjects(b: IndexedSeq[T]): Boolean = {
+    if (a.length != b.length) return false
+    var same = true
+    var i = 0
+    while (same && i < a.length) {
+      same = a(i) eq b(i)
+      i += 1
+    }
+    same
+  }
+}
 /** Rich wrapper for an indexed sequence.
   *
   * Houses the generic binary search methods. All methods taking

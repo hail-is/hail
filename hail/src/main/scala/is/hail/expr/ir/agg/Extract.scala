@@ -564,7 +564,7 @@ object Extract {
         assert(!ContainsAgg(x))
         x
       case x =>
-        val newChildren = ir.children.zipWithIndex.map { case (child: IR, i) =>
+        val newChildren = ir.childrenSeq.zipWithIndex.map { case (child: IR, i) =>
           val nb = Bindings(x, i)
           val newEnv = if (nb.nonEmpty) {
             val re = RefEquality(x)

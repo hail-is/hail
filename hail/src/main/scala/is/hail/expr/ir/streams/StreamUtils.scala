@@ -134,7 +134,7 @@ object StreamUtils {
       case NDArrayMap2(l, r, _, _, body, _) =>
         traverse(l, mult); traverse(r, mult); traverse(body, 2)
 
-      case _ => ir.children.foreach {
+      case _ => ir.childrenSeq.foreach {
         case child: IR => traverse(child, mult)
         case _ =>
       }

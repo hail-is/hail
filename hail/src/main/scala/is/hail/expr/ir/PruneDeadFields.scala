@@ -1518,7 +1518,7 @@ object PruneDeadFields {
           memoizeValueIR(ctx, dynamicID, TString, memo),
         )
       case _: IR =>
-        val envs = ir.children.flatMap {
+        val envs = ir.childrenSeq.flatMap {
           case mir: MatrixIR =>
             memoizeMatrixIR(ctx, mir, mir.typ, memo)
             None
@@ -1656,12 +1656,12 @@ object PruneDeadFields {
         val bmir2 = rebuild(ctx, bmir, memo)
         val aux2 = rebuildIR(ctx, aux, BindingEnv.empty, memo)
         BlockMatrixToTableApply(bmir2, aux2, function)
-      case _ => tir.copy(tir.children.map {
+      case _ => tir.mapChildren {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(ctx, childT, memo)
         case childM: MatrixIR => rebuild(ctx, childM, memo)
         case childBm: BlockMatrixIR => rebuild(ctx, childBm, memo)
-      })
+      }.asInstanceOf[TableIR]
     }
   }
 
@@ -1793,11 +1793,11 @@ object PruneDeadFields {
         RelationalLetMatrixTable(name, value2, rebuild(ctx, body, memo))
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         CastTableToMatrix(rebuild(ctx, child, memo), entriesFieldName, colsFieldName, requestedType.colKey)
-      case _ => mir.copy(mir.children.map {
+      case _ => mir.mapChildren {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(ctx, childT, memo)
         case childM: MatrixIR => rebuild(ctx, childM, memo)
-      })
+      }.asInstanceOf[MatrixIR]
     }
   }
 
@@ -1811,14 +1811,12 @@ object PruneDeadFields {
       memo.relationalRefs += name -> value2.typ
       RelationalLetBlockMatrix(name, value2, rebuild(ctx, body, memo))
     case _ =>
-      bmir.copy(
-        bmir.children.map {
-          case tir: TableIR => rebuild(ctx, tir, memo)
-          case mir: MatrixIR => rebuild(ctx, mir, memo)
-          case ir: IR => rebuildIR(ctx, ir, BindingEnv.empty[Type], memo)
-          case bmir: BlockMatrixIR => rebuild(ctx, bmir, memo)
-        }
-      )
+      bmir.mapChildren {
+        case tir: TableIR => rebuild(ctx, tir, memo)
+        case mir: MatrixIR => rebuild(ctx, mir, memo)
+        case ir: IR => rebuildIR(ctx, ir, BindingEnv.empty[Type], memo)
+        case bmir: BlockMatrixIR => rebuild(ctx, bmir, memo)
+      }.asInstanceOf[BlockMatrixIR]
   }
 
   def rebuildIR(
@@ -2161,7 +2159,7 @@ object PruneDeadFields {
         val dynamicID2 = rebuildIR(ctx, dynamicID, env, memo)
         CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd)
       case _ =>
-        ir.copy(ir.children.map {
+        ir.copy(ir.childrenSeq.map {
           case valueIR: IR => rebuildIR(ctx, valueIR, env, memo) // FIXME: assert IR does not bind or change env
           case mir: MatrixIR => rebuild(ctx, mir, memo)
           case tir: TableIR => rebuild(ctx, tir, memo)

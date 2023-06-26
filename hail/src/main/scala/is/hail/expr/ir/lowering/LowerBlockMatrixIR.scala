@@ -852,7 +852,7 @@ object LowerBlockMatrixIR {
         case BlockMatrixWrite(child, writer) =>
           writer.lower(ctx, lower(child, ib), ib, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
         case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(ctx, node)
-        case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
+        case node if node.childrenSeq.exists(_.isInstanceOf[BlockMatrixIR]) =>
           throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(ctx, node) }")
 
         case node =>
