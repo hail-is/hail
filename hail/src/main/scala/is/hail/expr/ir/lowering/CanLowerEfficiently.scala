@@ -113,9 +113,12 @@ object CanLowerEfficiently {
           case _: ApplySeeded =>
             Left("seeded randomness does not satisfy determinism restrictions in lowered IR")
 
-          case x: IR if !x.children.forall(_.isInstanceOf[IR]) =>
+          case x: IR =>
             // nodes with relational children should be enumerated above explicitly
-            throw new RuntimeException(s"IR must be enumerated explicitly: ${x.getClass.getName}")
+            if (!x.children.forall(_.isInstanceOf[IR]))
+              throw new RuntimeException(s"IR must be enumerated explicitly: ${x.getClass.getName}")
+
+            Right(())
         }
   }
 }
