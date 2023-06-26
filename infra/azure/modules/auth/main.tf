@@ -21,8 +21,8 @@ module "auth_sp" {
   application_object_id = azuread_application.auth.object_id
 }
 
-resource "azuread_application" "test_auth" {
-  display_name = "${var.resource_group_name}-test-auth"
+resource "azuread_application" "testns_auth" {
+  display_name = "${var.resource_group_name}-testns-auth"
 
   required_resource_access {
     resource_app_id = "00000003-0000-0000-c000-000000000000"
@@ -37,9 +37,9 @@ resource "azuread_application" "test_auth" {
 module "test_auth_sp" {
   source = "../service_principal"
 
-  name                  = "test-auth"
-  application_id        = azuread_application.test_auth.application_id
-  application_object_id = azuread_application.test_auth.object_id
+  name                  = "testns-auth"
+  application_id        = azuread_application.testns_auth.application_id
+  application_object_id = azuread_application.testns_auth.object_id
 }
 
 resource "azuread_application" "oauth2" {
