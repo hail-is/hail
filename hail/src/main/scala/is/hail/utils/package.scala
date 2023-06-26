@@ -1019,7 +1019,7 @@ abstract class Thunk[Arbitrary[_[_]], A >: Null] {
   protected def run[F[_] : Arbitrary]: F[A]
 
   def apply[F[_] : Arbitrary](implicit F: Applicative[F]): F[A] =
-    F.whenA(x == null)(synchronized(F.map(run)(x = _))) *> F.pure(x)
+    if (x != null) F.pure(x) else F.map(run) { a => x = a; a }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

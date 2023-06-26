@@ -118,7 +118,7 @@ object Lower extends MonadLower[Lower] with StackSafeMonad[Lower] {
     }
 
   override def pure[A](a: A): Lower[A] =
-    Lower((_, s) => (s, Right(a)))
+    Pure(a)
 
   override def raiseError[A](e: Throwable): Lower[A] =
     Fail(e.fillInStackTrace())

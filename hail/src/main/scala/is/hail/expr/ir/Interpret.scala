@@ -7,8 +7,8 @@ import cats.{Foldable, MonadThrow, Traverse}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.expr.ir.lowering.utils._
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.ir.lowering.{Lower, LoweringPipeline, MonadLower}
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
@@ -138,8 +138,7 @@ object Interpret {
         }
 
       case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
-        interpret(cond, env, args).flatMap { case tf: Boolean =>
+        assertA[F](cnsq.typ == altr.typ) *> interpret(cond, env, args).flatMap { case tf: Boolean =>
           if (tf) interpret(cnsq, env, args)
           else interpret(altr, env, args)
         }
@@ -794,9 +793,9 @@ object Interpret {
 
 
       case MakeStruct(fields) =>
-        F.pure(Row.fromSeq(_)) ap fields.traverse { case (_, fieldIR) =>
+        F.lift[Seq[Any], Any](Row.fromSeq)(fields.traverse { case (_, fieldIR) =>
           interpret(fieldIR, env, args).orElse(F.pure(null))
-        }
+        }.widen)
 
       case SelectFields(old, fields) =>
         interpret(old, env, args).map { case oldRow: Row =>
@@ -805,11 +804,11 @@ object Interpret {
         }
 
       case x@InsertFields(old, fields, fieldOrder) =>
-        interpret(old, env, args).map { case struct: Row =>
+        interpret(old, env, args).flatMap { case struct: Row =>
           fieldOrder match {
             case Some(fds) =>
               FastSeq(fields: _*).traverse { case (name, ir) =>
-                F.pure((name, _: Any)) ap interpret(ir, env, args)
+                interpret(ir, env, args).map((name, _: Any))
               }
                 .map { kvs =>
                   val newValues = kvs.toMap
@@ -824,7 +823,7 @@ object Interpret {
                     val (newT, ins) = t.insert(body.typ, name)
                     (newT.asInstanceOf[TStruct], ins(struct, v))
                   }
-              }
+              }.widen
           }
         }
 
@@ -836,9 +835,9 @@ object Interpret {
         }
 
       case MakeTuple(types) =>
-        F.pure(Row.fromSeq(_)) ap types.traverse { case (_, x) =>
-          interpret(x, env, args).orElse(F.pure(null))
-        }
+        F.lift[Seq[Any], Any](Row.fromSeq)(types.traverse { case (_, x) =>
+            interpret(x, env, args).orElse(F.pure(null))
+        }.widen)
 
       case GetTupleElement(o, idx) =>
         interpret(o, env, args).map { case r: Row =>
@@ -1147,7 +1146,7 @@ object Interpret {
                 res
               }
             }
-          } yield wrapped
+          } yield wrapped.get(0)
         }
 
       case LiftMeOut(child) =>

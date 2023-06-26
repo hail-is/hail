@@ -117,7 +117,11 @@ case object SemanticHash extends Logging {
           fields.foldLeft(Hash.init)({ case (hash, (index, _)) => hash <> Hash(index) })
 
         case MatrixRead(_, _, _, reader) =>
-          reader.pathsUsed.map(getFileHash(fs)).reduce(_ <> _)
+          Hash(reader.getClass) <> reader
+            .pathsUsed
+            .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+            .map(g => getFileHash(fs)(g.getPath))
+            .reduce(_ <> _)
 
         case MatrixWrite(_, writer) =>
           Hash(writer.path)

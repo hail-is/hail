@@ -2423,6 +2423,7 @@ case class TableMapPartitions(child: TableIR,
 
       globalsBc <- tv.globals.broadcast
       ctx <- M.ask
+      fsBc = ctx.fsBc
       itF = { (idx: Int, consumerCtx: RVDContext, partition: RVDContext => Iterator[Long]) =>
         val boxedPartition = new NoBoxLongIterator {
           var eos: Boolean = false
@@ -2443,7 +2444,7 @@ case class TableMapPartitions(child: TableIR,
           override def close(): Unit = ()
         }
 
-        makeIterator(theHailClassLoaderForSparkWorkers, ctx.fsBc.value, SparkTaskContext.get(), consumerCtx,
+        makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), consumerCtx,
           globalsBc.value.readRegionValue(consumerCtx.partitionRegion, theHailClassLoaderForSparkWorkers),
           boxedPartition
         ).map(_.longValue())
@@ -2476,7 +2477,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       tv <- child.execute(r) >>= (_.asTableValue)
       scanRef = genUID()
       extracted = agg.Extract.apply(newRow, scanRef, r.requirednessAnalysis, isScan = true)
-      ctx <- M.ask
       intermediate <- if (extracted.aggs.isEmpty) {
         for {
           (Some(PTypeReferenceSingleCodeType(rTyp)), f) <-
@@ -2493,6 +2493,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
           rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
           globalsBc <- if (rowIterationNeedsGlobals) tv.globals.broadcast else M.pure(null)
+          fsBc <- M.reader(_.fsBc)
         } yield TableValueIntermediate(tv.copy(typ = typ,
           rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key)) {
             (i: Int, rvdCtx: RVDContext, it: Iterator[Long]) =>
@@ -2503,7 +2504,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
                 else
                   0
 
-              val newRow = f(theHailClassLoaderForSparkWorkers, ctx.fsBc.value, SparkTaskContext.get(), globalRegion)
+              val newRow = f(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), globalRegion)
               it.map(r => newRow(rvdCtx.r, globals, r))
           }
         ))
@@ -2536,6 +2537,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
           serializeF <- extracted.serialize(spec)
 
+          ctx <- M.ask
           (_, eltSeqF) <- ir.CompileWithAggregators[M, AsmFunction3RegionLongLongUnit](
             extracted.states,
             FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
