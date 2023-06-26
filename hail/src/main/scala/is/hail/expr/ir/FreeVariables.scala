@@ -52,7 +52,6 @@ object FreeVariables {
           zeroFreeVars.merge(seqOpFreeVars).merge(combOpFreeVars)
         case _ =>
           ir1.children
-            .iterator
             .zipWithIndex
             .map {
               case (child: IR, i) =>

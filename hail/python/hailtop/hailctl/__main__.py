@@ -10,7 +10,11 @@ from .dev import cli as dev_cli
 from .hdinsight import cli as hdinsight_cli
 
 
-app = typer.Typer(help='Manage and monitor hail deployments.', no_args_is_help=True)
+app = typer.Typer(
+    help='Manage and monitor hail deployments.',
+    no_args_is_help=True,
+    pretty_exceptions_show_locals=False,
+)
 
 for cli in (
     auth_cli.app,

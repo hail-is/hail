@@ -903,7 +903,7 @@ backend.close()
             '-c',
             f'''
 hailctl config set domain {DOMAIN}
-rm /deploy-config/deploy-config.json
+export HAIL_DEFAULT_NAMESPACE=default
 python3 -c \'{script}\'''',
         ],
         mount_tokens=True,
@@ -916,27 +916,26 @@ python3 -c \'{script}\'''',
         assert status['state'] == 'Failed', str((status, b.debug_info()))
         assert "Please log in" in j.log()['main'], (str(j.log()['main']), status)
 
+
+def test_deploy_config_is_mounted_as_readonly(client: BatchClient):
     bb = create_batch(client)
     j = bb.create_job(
         HAIL_GENETICS_HAILTOP_IMAGE,
         [
             '/bin/bash',
             '-c',
-            f'''
+            '''
+set -ex
 jq '.default_namespace = "default"' /deploy-config/deploy-config.json > tmp.json
-mv tmp.json /deploy-config/deploy-config.json
-python3 -c \'{script}\'''',
+mv tmp.json /deploy-config/deploy-config.json''',
         ],
         mount_tokens=True,
     )
     b = bb.submit()
     status = j.wait()
-    if NAMESPACE == 'default':
-        assert status['state'] == 'Success', str((status, b.debug_info()))
-    else:
-        assert status['state'] == 'Failed', str((status, b.debug_info()))
-        job_log = j.log()
-        assert "Please log in" in job_log['main'], str((job_log, b.debug_info()))
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+    job_log = j.log()
+    assert "mv: cannot move" in job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_cannot_contact_other_internal_ips(client: BatchClient):

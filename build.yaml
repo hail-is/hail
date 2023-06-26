@@ -2271,6 +2271,9 @@ steps:
       - name: list-jobs-extra-indices
         script: /io/sql/list-jobs-extra-indices.sql
         online: true
+      - name: dedup-billing-project-users-by-date
+        script: /io/sql/dedup_billing_project_users_by_date.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

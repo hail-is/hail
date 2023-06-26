@@ -136,11 +136,12 @@ object StackSafe {
     }
   }
 
-  implicit class RichIterator[A](val i: Iterator[A]) extends AnyVal {
+  implicit class RichIterator[A](val i: Iterable[A]) extends AnyVal {
     def foreachRecur(f: A => StackFrame[Unit]): StackFrame[Unit] = {
+      val it = i.iterator
       def loop(): StackFrame[Unit] = {
-        if (i.hasNext) {
-          f(i.next()).flatMap { _ => call(loop()) }
+        if (it.hasNext) {
+          f(it.next()).flatMap { _ => call(loop()) }
         } else {
           done(())
         }

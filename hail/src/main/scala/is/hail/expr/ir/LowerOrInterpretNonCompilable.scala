@@ -34,17 +34,8 @@ object LowerOrInterpretNonCompilable {
       result
     }
 
-    def rewriteChildren(x: BaseIR, m: mutable.Map[String, IR]): BaseIR = {
-      val children = x.children
-      val newChildren = children.map(rewrite(_, m))
-
-      // only recons if necessary
-      if ((children, newChildren).zipped.forall(_ eq _))
-        x
-      else
-        x.copy(newChildren)
-    }
-
+    def rewriteChildren(x: BaseIR, m: mutable.Map[String, IR]): BaseIR =
+      x.mapChildren(rewrite(_, m))
 
     def rewrite(x: BaseIR, m: mutable.Map[String, IR]): BaseIR = {
 

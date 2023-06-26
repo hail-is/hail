@@ -7,6 +7,7 @@ app = typer.Typer(
     name='billing',
     no_args_is_help=True,
     help='Manage billing on the service managed by the Hail team.',
+    pretty_exceptions_show_locals=False,
 )
 
 
