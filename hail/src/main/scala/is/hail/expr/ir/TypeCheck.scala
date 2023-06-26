@@ -30,7 +30,6 @@ object TypeCheck {
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {
       _ <- ir.children
-        .iterator
         .zipWithIndex
         .foreachRecur { case (child, i) =>
           for {
