@@ -60,7 +60,6 @@ from ..utils import (
     batch_only,
     json_to_value,
     query_billing_projects_with_cost,
-    query_billing_projects_without_cost,
 )
 from .canceller import Canceller
 from .driver import CloudDriver
