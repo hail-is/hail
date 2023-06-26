@@ -41,12 +41,12 @@ steps:
       - name: auth-oauth2-client-secret
       - name: registry-push-credentials
       - name: hail-ci-0-1-github-oauth-token
-      - name: test-test-gsa-key
-      - name: test-test-dev-gsa-key
-      - name: test-auth-gsa-key
-      - name: test-batch-gsa-key
-      - name: test-ci-gsa-key
-      - name: test-grafana-gsa-key
+      - name: testns-test-gsa-key
+      - name: testns-test-dev-gsa-key
+      - name: testns-auth-gsa-key
+      - name: testns-batch-gsa-key
+      - name: testns-ci-gsa-key
+      - name: testns-grafana-gsa-key
       - name: test-aws-key
         clouds:
           - gcp
@@ -482,12 +482,12 @@ steps:
     image:
       valueFrom: ci_utils_image.image
     script: |
-      kubectl -n {{ default_ns.name }} get -o json secret test-test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-      kubectl -n {{ default_ns.name }} get -o json secret test-test-dev-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-      kubectl -n {{ default_ns.name }} get -o json secret test-auth-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-      kubectl -n {{ default_ns.name }} get -o json secret test-batch-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-      kubectl -n {{ default_ns.name }} get -o json secret test-ci-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-      kubectl -n {{ default_ns.name }} get -o json secret test-grafana-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "grafana-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret testns-test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret testns-test-dev-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret testns-auth-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret testns-batch-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret testns-ci-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret testns-grafana-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "grafana-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
     scopes:
       - test
       - dev
