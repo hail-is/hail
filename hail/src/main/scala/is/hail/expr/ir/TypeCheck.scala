@@ -121,7 +121,7 @@ object TypeCheck {
           case x: Recur =>
             x.name != name || tailPosition
           case _ =>
-            node.childrenSeq.zipWithIndex
+            node.children.zipWithIndex
               .forall {
                 case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
                 case _ => true

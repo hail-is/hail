@@ -14,7 +14,7 @@ object Exists {
     if (visitor(node))
       true
     else
-      node.childrenSeq.exists {
+      node.children.exists {
         case child: TableAggregate => visitor(child)
         case child: MatrixAggregate => visitor(child)
         case child: IR => inIR(child, visitor)
@@ -66,7 +66,7 @@ object ContainsAgg {
     case _: TableAggregate => false
     case _: MatrixAggregate => false
     case _: StreamAgg => false
-    case _ => root.childrenSeq.exists {
+    case _ => root.children.exists {
       case child: IR => ContainsAgg(child)
       case _ => false
     }
@@ -85,7 +85,7 @@ object ContainsAggIntermediate {
     case _: CombOpValue => true
     case _: InitFromSerializedValue => true
     case _ => false
-  }) || root.childrenSeq.exists {
+  }) || root.children.exists {
     case child: IR => ContainsAggIntermediate(child)
     case _ => false
   }
@@ -103,7 +103,7 @@ object ContainsNonCommutativeAgg {
     case ApplyAggOp(_, _, sig) => !AggIsCommutative(sig.op)
     case _: TableAggregate => false
     case _: MatrixAggregate => false
-    case _ => root.childrenSeq.exists {
+    case _ => root.children.exists {
       case child: IR => ContainsNonCommutativeAgg(child)
       case _ => false
     }
@@ -116,7 +116,7 @@ object ContainsScan {
     case _: TableAggregate => false
     case _: MatrixAggregate => false
     case _: StreamAggScan => false
-    case _ => root.childrenSeq.exists {
+    case _ => root.children.exists {
       case child: IR => ContainsScan(child)
       case _ => false
     }

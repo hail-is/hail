@@ -104,8 +104,8 @@ object Simplify {
            _: ArrayRef |
            _: ArrayLen |
            _: GetField |
-           _: GetTupleElement => x.childrenSeq.exists(_.isInstanceOf[NA])
-      case ApplyComparisonOp(op, _, _) if op.strict => x.childrenSeq.exists(_.isInstanceOf[NA])
+           _: GetTupleElement => x.children.exists(_.isInstanceOf[NA])
+      case ApplyComparisonOp(op, _, _) if op.strict => x.children.exists(_.isInstanceOf[NA])
       case _ => false
     }
   }
@@ -437,8 +437,7 @@ object Simplify {
         case `r` => false // if the binding is referenced in any other context, don't rewrite
         case _: TableAggregate => true
         case _: MatrixAggregate => true
-        case _ => ir1.childrenSeq
-          .iterator
+        case _ => ir1.children
           .zipWithIndex
           .forall {
             case (child: IR, idx) => Binds(ir1, name, idx) || allRefsCanBePassedThrough(child)
@@ -454,7 +453,7 @@ object Simplify {
       val newFieldRefs = newFieldMap.map { case (k, ir) =>
         (k, Ref(genUID(), ir.typ))
       } // cannot be mapValues, or genUID() gets run for every usage!
-      def copiedNewFieldRefs(): IndexedSeq[(String, IR)] = fieldNames.map(name => (name, newFieldRefs(name).copy(FastSeq()))).toFastIndexedSeq
+      def copiedNewFieldRefs(): IndexedSeq[(String, IR)] = fieldNames.map(name => (name, newFieldRefs(name).deepCopy())).toFastIndexedSeq
 
       def rewrite(ir1: IR): IR = ir1 match {
         case GetField(Ref(`name`, _), fd) => newFieldRefs.get(fd) match {
@@ -471,13 +470,10 @@ object Simplify {
           SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames.toFastIndexedSeq)), fds)
         case ta: TableAggregate => ta
         case ma: MatrixAggregate => ma
-        case _ => ir1.copy(ir1.childrenSeq
-          .iterator
-          .zipWithIndex
-          .map {
+        case _ => ir1.mapChildrenWithIndex {
             case (child: IR, idx) => if (Binds(ir1, name, idx)) child else rewrite(child)
             case (child, _) => child
-          }.toFastIndexedSeq)
+          }
       }
 
       val rw = fieldNames.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, fieldName) =>
@@ -680,7 +676,7 @@ object Simplify {
         case _: MatrixAggregate => true
         case AggLet(_, _, _, false) => false
         case x if IsAggResult(x) => false
-        case other => other.childrenSeq.forall {
+        case other => other.children.forall {
           case child: IR => canBeLifted(child)
           case _: BaseIR => true
         }
@@ -694,7 +690,7 @@ object Simplify {
         case _: MatrixAggregate => true
         case AggLet(_, _, _, true) => false
         case x if IsScanResult(x) => false
-        case other => other.childrenSeq.forall {
+        case other => other.children.forall {
           case child: IR => canBeLifted(child)
           case _: BaseIR => true
         }

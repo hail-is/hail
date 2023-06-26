@@ -51,8 +51,7 @@ object FreeVariables {
           val combOpFreeVars = combOpFreeVarsCompute.copy(eval = Env.empty[Unit], scan = Some(combOpFreeVarsCompute.eval))
           zeroFreeVars.merge(seqOpFreeVars).merge(combOpFreeVars)
         case _ =>
-          ir1.childrenSeq
-            .iterator
+          ir1.children
             .zipWithIndex
             .map {
               case (child: IR, i) =>

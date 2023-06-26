@@ -1518,7 +1518,7 @@ object PruneDeadFields {
           memoizeValueIR(ctx, dynamicID, TString, memo),
         )
       case _: IR =>
-        val envs = ir.childrenSeq.flatMap {
+        val envs = ir.children.flatMap {
           case mir: MatrixIR =>
             memoizeMatrixIR(ctx, mir, mir.typ, memo)
             None
@@ -1530,7 +1530,7 @@ object PruneDeadFields {
           case ir: IR =>
             Some(memoizeValueIR(ctx, ir, ir.typ, memo))
         }
-        unifyEnvsSeq(envs)
+        unifyEnvsSeq(envs.toFastSeq)
     }
   }
 
@@ -2159,12 +2159,12 @@ object PruneDeadFields {
         val dynamicID2 = rebuildIR(ctx, dynamicID, env, memo)
         CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd)
       case _ =>
-        ir.copy(ir.childrenSeq.map {
+        ir.mapChildren {
           case valueIR: IR => rebuildIR(ctx, valueIR, env, memo) // FIXME: assert IR does not bind or change env
           case mir: MatrixIR => rebuild(ctx, mir, memo)
           case tir: TableIR => rebuild(ctx, tir, memo)
           case bmir: BlockMatrixIR => bmir //NOTE Currently no BlockMatrixIRs would have dead fields
-        })
+        }
     }
   }
 

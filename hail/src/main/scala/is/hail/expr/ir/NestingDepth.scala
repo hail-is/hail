@@ -103,7 +103,7 @@ object NestingDepth {
           computeMatrix(child)
           computeIR(query, ScopedDepth(0, 0, 0))
         case _ =>
-          ir.childrenSeq.iterator
+          ir.children
             .zipWithIndex
             .foreach {
               case (child: IR, i) => if (UsesAggEnv(ir, i))

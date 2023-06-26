@@ -564,7 +564,7 @@ object Extract {
         assert(!ContainsAgg(x))
         x
       case x =>
-        val newChildren = ir.childrenSeq.zipWithIndex.map { case (child: IR, i) =>
+        ir.mapChildrenWithIndex { case (child: IR, i) =>
           val nb = Bindings(x, i)
           val newEnv = if (nb.nonEmpty) {
             val re = RefEquality(x)
@@ -573,7 +573,6 @@ object Extract {
 
           this.extract(child, newEnv, bindingNodesReferenced, rewriteMap, ab, seqBuilder, letBuilder, memo, result, r, isScan)
         }
-        Copy(x, newChildren)
     }
 
     rewriteMap.bind(ir, newNode)
