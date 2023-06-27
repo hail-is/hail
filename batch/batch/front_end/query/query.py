@@ -87,7 +87,7 @@ class JobStateQuery(Query):
         self.state = state
         self.operator = operator
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         states = [s.value for s in job_state_search_term_to_states[self.state]]
         condition = ' OR '.join(['(jobs.state = %s)' for _ in states])
         condition = f'({condition})'
@@ -109,7 +109,7 @@ class JobIdQuery(Query):
         self.job_id = job_id
         self.operator = operator
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
         return (f'(jobs.job_id {op} %s)', [self.job_id])
 
@@ -126,7 +126,7 @@ class JobInstanceQuery(Query):
         self.instance = instance
         self.operator = operator
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         op = self.operator.to_sql()
         if isinstance(self.operator, PartialMatchOperator):
             self.instance = f'%{self.instance}%'
@@ -150,7 +150,7 @@ class JobInstanceCollectionQuery(Query):
         self.inst_coll = inst_coll
         self.operator = operator
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         op = self.operator.to_sql()
         if isinstance(self.operator, PartialMatchOperator):
             self.inst_coll = f'%{self.inst_coll}%'
@@ -170,7 +170,7 @@ class JobQuotedExactMatchQuery(Query):
     def __init__(self, term: str):
         self.term = term
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         sql = '''
 (((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
@@ -196,7 +196,7 @@ class JobUnquotedPartialMatchQuery(Query):
     def __init__(self, term: str):
         self.term = term
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         sql = '''
 (((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
@@ -222,7 +222,7 @@ class JobKeywordQuery(Query):
         self.key = key
         self.value = value
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         op = self.operator.to_sql()
         value = self.value
         if isinstance(self.operator, PartialMatchOperator):
@@ -248,7 +248,7 @@ class JobStartTimeQuery(Query):
         self.operator = operator
         self.time_msecs = time_msecs
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
         sql = f'''
 ((jobs.batch_id, jobs.job_id) IN
@@ -271,7 +271,7 @@ class JobEndTimeQuery(Query):
         self.operator = operator
         self.time_msecs = time_msecs
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
         sql = f'''
 ((jobs.batch_id, jobs.job_id) IN
@@ -294,7 +294,7 @@ class JobDurationQuery(Query):
         self.operator = operator
         self.time_msecs = time_msecs
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
         sql = f'''
 ((jobs.batch_id, jobs.job_id) IN
@@ -317,7 +317,7 @@ class JobCostQuery(Query):
         self.operator = operator
         self.cost = cost
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[float]]:
         op = self.operator.to_sql()
         return (f'(cost {op} %s)', [self.cost])
 
@@ -403,7 +403,7 @@ class BatchIdQuery(Query):
         self.batch_id = batch_id
         self.operator = operator
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
         return (f'(batches.id {op} %s)', [self.batch_id])
 
@@ -420,7 +420,7 @@ class BatchUserQuery(Query):
         self.user = user
         self.operator = operator
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         op = self.operator.to_sql()
         return (f'(batches.user {op} %s)', [self.user])
 
@@ -437,7 +437,7 @@ class BatchBillingProjectQuery(Query):
         self.billing_project = billing_project
         self.operator = operator
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         op = self.operator.to_sql()
         return (f'(batches.billing_project {op} %s)', [self.billing_project])
 
@@ -454,7 +454,7 @@ class BatchQuotedExactMatchQuery(Query):
     def __init__(self, term: str):
         self.term = term
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         sql = '''
 ((batches.id) IN
  (SELECT batch_id FROM batch_attributes
@@ -477,7 +477,7 @@ class BatchUnquotedPartialMatchQuery(Query):
     def __init__(self, term: str):
         self.term = term
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         sql = '''
 ((batches.id) IN
  (SELECT batch_id FROM batch_attributes
@@ -500,7 +500,7 @@ class BatchKeywordQuery(Query):
         self.key = key
         self.value = value
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[str]]:
         op = self.operator.to_sql()
         value = self.value
         if isinstance(self.operator, PartialMatchOperator):
@@ -526,7 +526,7 @@ class BatchStartTimeQuery(Query):
         self.operator = operator
         self.time_msecs = time_msecs
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
         sql = f'(batches.time_created {op} %s)'
         return (sql, [self.time_msecs])
@@ -545,7 +545,7 @@ class BatchEndTimeQuery(Query):
         self.operator = operator
         self.time_msecs = time_msecs
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
         sql = f'(batches.time_completed {op} %s)'
         return (sql, [self.time_msecs])
@@ -564,7 +564,7 @@ class BatchDurationQuery(Query):
         self.operator = operator
         self.time_msecs = time_msecs
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
         sql = f'((batches.time_completed - batches.time_created) {op} %s)'
         return (sql, [self.time_msecs])
@@ -583,6 +583,6 @@ class BatchCostQuery(Query):
         self.operator = operator
         self.cost = cost
 
-    def query(self) -> Tuple[str, List[Any]]:
+    def query(self) -> Tuple[str, List[float]]:
         op = self.operator.to_sql()
         return (f'(cost_t.cost {op} %s)', [self.cost])
