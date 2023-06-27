@@ -11,19 +11,12 @@ object Simplify {
 
   /** Transform 'ir' using simplification rules until none apply.
     */
-  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = Simplify(ctx, ir, allowRepartitioning = true)
-
-  /** Use 'allowRepartitioning'=false when in a context where simplification
-    * should not change the partitioning of the result of 'ast', such as when
-    * some parent (downstream) node of 'ast' uses seeded randomness.
-    */
-  private[ir] def apply(ctx: ExecuteContext, ast: BaseIR, allowRepartitioning: Boolean): BaseIR =
-    ast match {
-      case ir: IR => simplifyValue(ctx)(ir)
-      case tir: TableIR => simplifyTable(ctx, allowRepartitioning)(tir)
-      case mir: MatrixIR => simplifyMatrix(ctx, allowRepartitioning)(mir)
-      case bmir: BlockMatrixIR => simplifyBlockMatrix(ctx)(bmir)
-    }
+  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
+    case ir: IR => simplifyValue(ctx)(ir)
+    case tir: TableIR => simplifyTable(ctx)(tir)
+    case mir: MatrixIR => simplifyMatrix(ctx)(mir)
+    case bmir: BlockMatrixIR => simplifyBlockMatrix(ctx)(bmir)
+  }
 
   private[this] def visitNode[T <: BaseIR](
     visitChildren: BaseIR => BaseIR,
@@ -40,18 +33,18 @@ object Simplify {
       rewriteValueNode,
       simplifyValue(ctx))
 
-  private[this] def simplifyTable(ctx: ExecuteContext, allowRepartitioning: Boolean)(tir: TableIR): TableIR =
+  private[this] def simplifyTable(ctx: ExecuteContext)(tir: TableIR): TableIR =
     visitNode(
-      Simplify(ctx, _, allowRepartitioning && isDeterministicallyRepartitionable(tir)),
-      rewriteTableNode(ctx, allowRepartitioning),
-      simplifyTable(ctx, allowRepartitioning)
+      Simplify(ctx, _),
+      rewriteTableNode(ctx),
+      simplifyTable(ctx)
     )(tir)
 
-  private[this] def simplifyMatrix(ctx: ExecuteContext, allowRepartitioning: Boolean)(mir: MatrixIR): MatrixIR =
+  private[this] def simplifyMatrix(ctx: ExecuteContext)(mir: MatrixIR): MatrixIR =
     visitNode(
-      Simplify(ctx, _, allowRepartitioning && isDeterministicallyRepartitionable(mir)),
-      rewriteMatrixNode(allowRepartitioning),
-      simplifyMatrix(ctx, allowRepartitioning)
+      Simplify(ctx, _),
+      rewriteMatrixNode(),
+      simplifyMatrix(ctx)
     )(mir)
 
   private[this] def simplifyBlockMatrix(ctx: ExecuteContext)(bmir: BlockMatrixIR): BlockMatrixIR = {
@@ -65,11 +58,11 @@ object Simplify {
   private[this] def rewriteValueNode(ir: IR): Option[IR] =
     valueRules.lift(ir).orElse(numericRules(ir))
 
-  private[this] def rewriteTableNode(ctx: ExecuteContext, allowRepartitioning: Boolean)(tir: TableIR): Option[TableIR] =
-    tableRules(ctx, allowRepartitioning && isDeterministicallyRepartitionable(tir)).lift(tir)
+  private[this] def rewriteTableNode(ctx: ExecuteContext)(tir: TableIR): Option[TableIR] =
+    tableRules(ctx).lift(tir)
 
-  private[this] def rewriteMatrixNode(allowRepartitioning: Boolean)(mir: MatrixIR): Option[MatrixIR] =
-    matrixRules(allowRepartitioning && isDeterministicallyRepartitionable(mir)).lift(mir)
+  private[this] def rewriteMatrixNode()(mir: MatrixIR): Option[MatrixIR] =
+    matrixRules().lift(mir)
 
   private[this] def rewriteBlockMatrixNode: BlockMatrixIR => Option[BlockMatrixIR] = blockMatrixRules.lift
 
@@ -121,27 +114,6 @@ object Simplify {
            ApplyComparisonOp(EQWithNA(_, _), _, _) |
            ApplyComparisonOp(NEQWithNA(_, _), _, _) |
            _: I32 | _: I64 | _: F32 | _: F64 | True() | False() => true
-      case _ => false
-    }
-  }
-
-  /** Returns true if changing the partitioning of child (upstream) nodes of
-    * 'ir' can not otherwise change the contents of the result of 'ir'.
-    */
-  private[this] def isDeterministicallyRepartitionable(ir: BaseIR): Boolean =
-    ir.children.forall {
-      case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
-      case _ => true
-    }
-
-  private[this] def areFieldSelects(fields: Seq[(String, IR)]): Boolean = {
-    assert(fields.nonEmpty)
-    fields.head match {
-      case (_, GetField(s1, _)) =>
-        fields.forall {
-          case (f1, GetField(s2, f2)) if f1 == f2 && s1 == s2 => true
-          case _ => false
-        }
       case _ => false
     }
   }
@@ -706,7 +678,7 @@ object Simplify {
     case LiftMeOut(child) if IsConstant(child) => child
   }
 
-  private[this] def tableRules(ctx: ExecuteContext, canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
+  private[this] def tableRules(ctx: ExecuteContext): PartialFunction[TableIR, TableIR] = {
 
     case TableRename(child, m1, m2) if m1.isTrivial && m2.isTrivial => child
 
@@ -723,15 +695,18 @@ object Simplify {
       TableFilter(t,
         ApplySpecial("land", Array.empty[Type], Array(p1, p2), TBoolean, ErrorIDs.NO_ERROR))
 
-    case TableFilter(TableKeyBy(child, key, isSorted), p) if canRepartition => TableKeyBy(TableFilter(child, p), key, isSorted)
-    case TableFilter(TableRepartition(child, n, strategy), p) => TableRepartition(TableFilter(child, p), n, strategy)
+    case TableFilter(TableKeyBy(child, key, isSorted), p) =>
+      TableKeyBy(TableFilter(child, p), key, isSorted)
+
+    case TableFilter(TableRepartition(child, n, strategy), p) =>
+      TableRepartition(TableFilter(child, p), n, strategy)
 
     case TableOrderBy(TableKeyBy(child, _, false), sortFields) => TableOrderBy(child, sortFields)
 
-    case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
+    case TableFilter(TableOrderBy(child, sortFields), pred) =>
       TableOrderBy(TableFilter(child, pred), sortFields)
 
-    case TableFilter(TableParallelize(rowsAndGlobal, nPartitions), pred) if canRepartition =>
+    case TableFilter(TableParallelize(rowsAndGlobal, nPartitions), pred) =>
       val newRowsAndGlobal = rowsAndGlobal match {
         case MakeStruct(Seq(("rows", rows), ("global", globalVal))) =>
           Let("global", globalVal,
@@ -749,13 +724,13 @@ object Simplify {
       }
       TableParallelize(newRowsAndGlobal, nPartitions)
 
-    case TableKeyBy(TableOrderBy(child, sortFields), keys, false) if canRepartition =>
+    case TableKeyBy(TableOrderBy(child, sortFields), keys, false) =>
       TableKeyBy(child, keys, false)
 
-    case TableKeyBy(TableKeyBy(child, _, _), keys, false) if canRepartition =>
+    case TableKeyBy(TableKeyBy(child, _, _), keys, false) =>
       TableKeyBy(child, keys, false)
 
-    case TableKeyBy(TableKeyBy(child, _, true), keys, true) if canRepartition =>
+    case TableKeyBy(TableKeyBy(child, _, true), keys, true) =>
       TableKeyBy(child, keys, true)
 
     case TableKeyBy(child, key, _) if key == child.typ.key => child
@@ -779,7 +754,7 @@ object Simplify {
     case TableMapGlobals(child, Ref("global", _)) => child
 
     // flatten unions
-    case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) & canRepartition =>
+    case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) =>
       TableUnion(children.flatMap {
         case u: TableUnion => u.childrenSeq
         case c => Some(c)
@@ -817,8 +792,6 @@ object Simplify {
     case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
       if newKey.isEmpty
         && !ContainsAgg(newRow)
-        && canRepartition
-        && isDeterministicallyRepartitionable(x)
         && !ContainsScan(newRow) =>
       val mct = MatrixColsTable(child)
       TableMapRows(
@@ -845,10 +818,10 @@ object Simplify {
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
 
-    case TableHead(TableRepartition(child, nPar, shuffle), n) if canRepartition =>
+    case TableHead(TableRepartition(child, nPar, shuffle), n) =>
       TableRepartition(TableHead(child, n), nPar, shuffle)
 
-    case TableHead(tr@TableRange(nRows, nPar), n) if canRepartition =>
+    case TableHead(tr@TableRange(nRows, nPar), n) =>
       if (n < nRows)
         TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
       else
@@ -860,7 +833,7 @@ object Simplify {
     case TableHead(TableOrderBy(child, sortFields), n)
       if !TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key) // FIXME: https://github.com/hail-is/hail/issues/6234
         && sortFields.forall(_.sortOrder == Ascending)
-        && n < 256 && canRepartition =>
+        && n < 256 =>
       // n < 256 is arbitrary for memory concerns
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
@@ -882,21 +855,21 @@ object Simplify {
     case TableDistinct(TableAggregateByKey(child, expr)) => TableAggregateByKey(child, expr)
     case TableDistinct(TableMapRows(child, newRow)) => TableMapRows(TableDistinct(child), newRow)
     case TableDistinct(TableLeftJoinRightDistinct(child, right, root)) => TableLeftJoinRightDistinct(TableDistinct(child), right, root)
-    case TableDistinct(TableRepartition(child, n, strategy)) if canRepartition => TableRepartition(TableDistinct(child), n, strategy)
+    case TableDistinct(TableRepartition(child, n, strategy)) => TableRepartition(TableDistinct(child), n, strategy)
 
-    case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
+    case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
       TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
 
     case TableKeyByAndAggregate(child, expr, newKey, _, _)
       if (newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) ||
         newKey == SelectFields(Ref("row", child.typ.rowType), child.typ.key))
-        && child.typ.key.nonEmpty && canRepartition =>
+        && child.typ.key.nonEmpty =>
       TableAggregateByKey(child, expr)
 
-    case TableAggregateByKey(x@TableKeyBy(child, keys, false), expr) if canRepartition && !x.definitelyDoesNotShuffle =>
+    case TableAggregateByKey(x@TableKeyBy(child, keys, false), expr) if !x.definitelyDoesNotShuffle =>
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))), bufferSize = ctx.getFlag("grouped_aggregate_buffer_size").toInt)
 
-    case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
+    case TableParallelize(TableCollect(child), _) => child
 
     case TableFilterIntervals(child, intervals, keep) if intervals.isEmpty =>
       if (keep)
@@ -949,10 +922,10 @@ object Simplify {
       //     })))
       //   TableKeyBy(TableFilter(child, pred), keys, isSorted)
 
-    case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true) if canRepartition
-      && tr.spec.indexed
-      && tr.params.options.forall(_.filterIntervals)
-      && SemanticVersion(tr.spec.file_version) >= SemanticVersion(1, 3, 0) =>
+    case TableFilterIntervals(TableRead(t, false, tr: TableNativeReader), intervals, true)
+      if tr.spec.indexed
+        && tr.params.options.forall(_.filterIntervals)
+        && SemanticVersion(tr.spec.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.params.options match {
         case None =>
           val pt = t.keyType
@@ -965,10 +938,10 @@ object Simplify {
       }
       TableRead(t, false, new TableNativeReader(TableNativeReaderParameters(tr.params.path, Some(newOpts)), tr.spec))
 
-    case TableFilterIntervals(TableRead(t, false, tr: TableNativeZippedReader), intervals, true) if canRepartition
-      && tr.specLeft.indexed
-      && tr.options.forall(_.filterIntervals)
-      && SemanticVersion(tr.specLeft.file_version) >= SemanticVersion(1, 3, 0) =>
+    case TableFilterIntervals(TableRead(t, false, tr: TableNativeZippedReader), intervals, true)
+      if tr.specLeft.indexed
+        && tr.options.forall(_.filterIntervals)
+        && SemanticVersion(tr.specLeft.file_version) >= SemanticVersion(1, 3, 0) =>
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
@@ -982,13 +955,13 @@ object Simplify {
       TableRead(t, false, TableNativeZippedReader(tr.pathLeft, tr.pathRight, Some(newOpts), tr.specLeft, tr.specRight))
   }
 
-  private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {
+  private[this] def matrixRules(): PartialFunction[MatrixIR, MatrixIR] = {
     case MatrixMapRows(child, Ref("va", _)) => child
 
-    case MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, _), keys, false) if canRepartition =>
+    case MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, _), keys, false) =>
       MatrixKeyRowsBy(child, keys, false)
 
-    case MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, true), keys, true) if canRepartition =>
+    case MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, true), keys, true) =>
       MatrixKeyRowsBy(child, keys, true)
 
     case MatrixMapCols(child, Ref("sa", _), None) => child
@@ -1005,7 +978,7 @@ object Simplify {
     case MatrixMapGlobals(child, Ref("global", _)) => child
 
     // flatten unions
-    case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) & canRepartition =>
+    case MatrixUnionRows(children) if children.exists(_.isInstanceOf[MatrixUnionRows]) =>
       MatrixUnionRows(children.flatMap {
         case u: MatrixUnionRows => u.childrenSeq
         case c => Some(c)
