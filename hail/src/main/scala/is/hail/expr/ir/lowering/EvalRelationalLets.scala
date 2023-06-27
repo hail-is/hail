@@ -2,7 +2,6 @@ package is.hail.expr.ir.lowering
 
 import cats.syntax.all._
 import is.hail.expr.ir.{BaseIR, CompileAndEvaluate, IR, RelationalLet, RelationalLetMatrixTable, RelationalLetTable, RelationalRef}
-import is.hail.utils.traverseInstanceGenTraversable
 
 import scala.language.higherKinds
 
@@ -40,11 +39,7 @@ object EvalRelationalLets {
           MonadLower[M].pure(letsAbove(name))
 
         case x =>
-          val children = x.children
-          children.traverse(lower(_, letsAbove)).map { newChildren =>
-            if (children.zip(newChildren).forall { case (a, b) => a eq b }) x
-            else x.copy(newChildren)
-          }
+          x.traverseChildren(lower(_, letsAbove))
       }
     }
 

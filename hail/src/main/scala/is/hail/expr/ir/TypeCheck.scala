@@ -4,8 +4,8 @@ import cats.MonadThrow
 import cats.mtl.Ask
 import cats.syntax.all._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.lowering.utils.unsafe
 import is.hail.expr.Nat
+import is.hail.expr.ir.lowering.utils.unsafe
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
@@ -31,7 +31,6 @@ object TypeCheck {
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {
       _ <- ir.children
-        .iterator
         .zipWithIndex
         .foreachRecur { case (child, i) =>
           for {

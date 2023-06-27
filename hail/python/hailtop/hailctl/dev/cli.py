@@ -14,6 +14,7 @@ app = typer.Typer(
     name='dev',
     no_args_is_help=True,
     help='Manage Hail development utilities.',
+    pretty_exceptions_show_locals=False,
 )
 app.add_typer(
     config.app,

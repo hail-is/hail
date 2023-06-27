@@ -18,9 +18,9 @@ import scala.language.higherKinds
 object CanLowerEfficiently {
   def apply[M[_]](ir0: BaseIR)(implicit M: Ask[M, ExecuteContext]): M[Either[String, Unit]] =
     M.reader { ctx =>
-      if (ctx.getFlag("no_whole_stage_codegen") != null) 
+      if (ctx.getFlag("no_whole_stage_codegen") != null)
         Left("flag 'no_whole_stage_codegen' is enabled")
-      else 
+      else
         IRTraversal.preOrder(ir0).toTraversable.traverse_ {
           case TableRead(_, _, _: TableNativeReader) |
                TableRead(_, _, _: TableNativeZippedReader) |
@@ -77,7 +77,7 @@ object CanLowerEfficiently {
             else Right(())
 
           case t: TableUnion =>
-            if (t.children.length > 16) Left("TableUnion lowering generates deeply nested IR if it has many children")
+            if (t.childrenSeq.length > 16) Left("TableUnion lowering generates deeply nested IR if it has many children")
             else Right(())
 
           case _: TableMultiWayZipJoin =>

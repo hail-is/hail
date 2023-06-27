@@ -18,7 +18,7 @@ object LowerToCDA {
                  (implicit M: MonadLower[M]): M[IR] =
     ir match {
       case node if node.children.forall(_.isInstanceOf[IR]) =>
-        ir.children.traverse { case c: IR => lower(c, typesToLower, analyses) }.map(Copy(node, _))
+        ir.traverseChildren[M] { case c: IR => lower(c, typesToLower, analyses).widen }.asInstanceOf[M[IR]]
 
       case node if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n => n.isInstanceOf[TableIR] || n.isInstanceOf[IR]) =>
         LowerTableIR(ir, typesToLower, analyses)

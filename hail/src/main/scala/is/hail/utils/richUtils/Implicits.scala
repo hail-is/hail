@@ -1,12 +1,9 @@
 package is.hail.utils.richUtils
 
-import java.io.InputStream
-
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{JoinedRegionValue, Region, RegionValue}
 import is.hail.asm4s.{Code, Value}
-import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue, RichContextRDDLong}
-import is.hail.rvd.RVDContext
+import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDLong, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
 import org.apache.spark.SparkContext
@@ -14,6 +11,7 @@ import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
+import java.io.InputStream
 import scala.collection.{TraversableOnce, mutable}
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -23,6 +21,8 @@ trait Implicits {
   implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
 
   implicit def toRichIndexedSeq[T](s: IndexedSeq[T]): RichIndexedSeq[T] = new RichIndexedSeq(s)
+
+  implicit def toRichIndexedSeqAnyRef[T <: AnyRef](s: IndexedSeq[T]): RichIndexedSeqAnyRef[T] = new RichIndexedSeqAnyRef(s)
 
   implicit def arrayToRichIndexedSeq[T](s: Array[T]): RichIndexedSeq[T] = new RichIndexedSeq(s)
 

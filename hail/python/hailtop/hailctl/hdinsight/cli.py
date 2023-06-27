@@ -10,7 +10,12 @@ from .start import start as hdinsight_start, VepVersion
 from .submit import submit as hdinsight_submit
 
 
-app = typer.Typer(name='hdinsight', no_args_is_help=True, help='Manage and monitor Hail HDInsight clusters.')
+app = typer.Typer(
+    name='hdinsight',
+    no_args_is_help=True,
+    help='Manage and monitor Hail HDInsight clusters.',
+    pretty_exceptions_show_locals=False,
+)
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})

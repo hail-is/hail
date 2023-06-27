@@ -7,11 +7,7 @@ object RewriteTopDown {
         case Some(newAST) if newAST != ast =>
           rewrite(newAST)
         case None =>
-          val newChildren = ast.children.map(rewrite)
-          if ((ast.children, newChildren).zipped.forall(_ eq _))
-            ast
-          else
-            ast.copy(newChildren)
+          ast.mapChildren(rewrite)
       }
     }
 

@@ -1,9 +1,12 @@
 package is.hail.utils
 
+import cats.{Monad, StackSafeMonad}
+import is.hail.utils.StackSafe.StackFrame
+
 import scala.annotation.tailrec
 import scala.collection.generic.{CanBuild, CanBuildFrom}
 
-object StackSafe {
+object StackSafe extends StackFrameInstances {
 
   def done[A](result: A): StackFrame[A] = Done(result)
 
@@ -136,11 +139,12 @@ object StackSafe {
     }
   }
 
-  implicit class RichIterator[A](val i: Iterator[A]) extends AnyVal {
+  implicit class RichIterator[A](val i: Iterable[A]) extends AnyVal {
     def foreachRecur(f: A => StackFrame[Unit]): StackFrame[Unit] = {
+      val it = i.iterator
       def loop(): StackFrame[Unit] = {
-        if (i.hasNext) {
-          f(i.next()).flatMap { _ => call(loop()) }
+        if (it.hasNext) {
+          f(it.next()).flatMap { _ => call(loop()) }
         } else {
           done(())
         }
@@ -187,4 +191,17 @@ object StackSafe {
     }
     loop()
   }
+}
+
+sealed trait StackFrameInstances {
+
+  implicit val stackSafeInstanceForMonad: Monad[StackFrame] =
+    new Monad[StackFrame] with StackSafeMonad[StackFrame] {
+      override def pure[A](x: A): StackFrame[A] =
+        StackSafe.done(x)
+
+      override def flatMap[A, B](fa: StackFrame[A])(f: A => StackFrame[B]): StackFrame[B] =
+        fa.flatMap(f)
+    }
+
 }

@@ -37,19 +37,16 @@ object LowerMatrixIR {
 
   private[this] def lowerChildren[M[_]: MonadLower](ir: BaseIR, ab: BoxedArrayBuilder[(String, IR)])
   : M[BaseIR] =
-    ir.children.traverse {
+    ir.traverseChildren {
       case vir: IR => lowerIR(vir, ab).widen[BaseIR]
       case tir: TableIR => lowerTableIR(tir, ab).widen[BaseIR]
       case bmir: BlockMatrixIR => lowerBlockMatrixIR(bmir, ab).widen[BaseIR]
-
       case mir: MatrixIR =>
-        throw new RuntimeException(
-          s"expect specialized lowering rule for ${ir.getClass.getName}\n  Found MatrixIR child $mir"
+        MonadLower[M].raiseError(
+          new RuntimeException(
+            s"expect specialized lowering rule for ${ir.getClass.getName}\n  Found MatrixIR child $mir"
+          )
         )
-
-    }.map { loweredChildren =>
-      if ((ir.children, loweredChildren).zipped.forall(_ eq _)) ir
-      else ir.copy(loweredChildren)
     }
 
   def colVals(tir: TableIR): IR =

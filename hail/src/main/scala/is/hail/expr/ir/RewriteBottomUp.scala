@@ -18,7 +18,7 @@ object RewriteBottomUp {
         (fstack, n) =>
           for {
             stack <- fstack
-            ((changed, children), stack_) = dequeue(n.children.length, init, stack)
+            ((changed, children), stack_) = dequeue(n.numChildren, init, stack)
             node = if (changed) n.copy(FastIndexedSeq(children: _*)) else n
             rewritten <- rule(node).flatMap {
               case Some(x) => apply(x, rule).map((true, _))

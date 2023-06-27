@@ -470,7 +470,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
             list(prettyIdentifier(n), pretty(a))
           }
           pretty(old) +: prettyStringsOpt(fieldOrder) +: fieldDocs
-        case _ => ir.children.view.map(pretty)
+        case _ => ir.children.map(pretty).toFastIndexedSeq
       }
 
       /*
@@ -679,26 +679,25 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       case _ =>
         val strictChildBodies = mutable.ArrayBuilder.make[Doc]()
         val strictChildIdents = for {
-          i <- ir.children.indices
+          (child, i) <- ir.children.zipWithIndex
           if childIsStrict(ir, i)
         } yield {
-          val child = ir.children(i)
           child match {
             case Ref(name, _) =>
               bindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref"))
             case RelationalRef(name, _) =>
               bindings.lookupOption(name).getOrElse(uniqueify("%undefined_relational_ref"))
             case _ =>
-              val (body, ident) = prettyWithIdent(ir.children(i), bindings, "!")
+              val (body, ident) = prettyWithIdent(child, bindings, "!")
               strictChildBodies += body
               ident
           }
         }
 
-        val nestedBlocks = for {
-          i <- ir.children.indices
+        val nestedBlocks = (for {
+          (child, i) <- ir.children.zipWithIndex
           if !childIsStrict(ir, i)
-        } yield prettyBlock(ir.children(i), blockArgs(ir, i).get, bindings)
+        } yield prettyBlock(child, blockArgs(ir, i).get, bindings)).toFastIndexedSeq
 
         val attsIterable = header(ir, elideBindings = true)
         val attributes = if (attsIterable.isEmpty) Iterable.empty else

@@ -1,7 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
-
 import scala.collection.mutable
 
 object ForwardLets {
@@ -24,10 +22,9 @@ object ForwardLets {
             !ContainsAggIntermediate(value)
       }
 
-      def mapRewrite(): BaseIR = ir.copy(ir.children
-        .iterator
-        .zipWithIndex
-        .map { case (ir1, i) => rewrite(ir1, ChildEnvWithoutBindings(ir, i, env)) }.toFastIndexedSeq)
+      def mapRewrite(): BaseIR = ir.mapChildrenWithIndex { (ir1, i) =>
+        rewrite(ir1, ChildEnvWithoutBindings(ir, i, env))
+      }
 
       ir match {
         case l@Let(name, value, body) =>

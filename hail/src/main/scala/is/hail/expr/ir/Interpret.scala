@@ -383,7 +383,7 @@ object Interpret {
           yield aValue.asInstanceOf[IndexedSeq[Any]].filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
 
       case _: CastToArray | _: ToArray | _: ToStream =>
-        val c = ir.children(0).asInstanceOf[IR]
+        val c = ir.children.head.asInstanceOf[IR]
         for {cValue <- interpret(c, env, args); sm <- OptionT.liftF(M.reader(_.stateManager))}
           yield {
             val ordering = tcoerce[TIterable](c.typ).elementType.ordering(sm).toOrdering

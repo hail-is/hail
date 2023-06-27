@@ -115,10 +115,9 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-async def query_billing_projects(db, user=None, billing_project=None):
-    args = []
-
+async def query_billing_projects_with_cost(db, user=None, billing_project=None):
     where_conditions = ["billing_projects.`status` != 'deleted'"]
+    args = []
 
     if user:
         where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
@@ -161,14 +160,51 @@ LEFT JOIN LATERAL (
 LOCK IN SHARE MODE;
 '''
 
-    def record_to_dict(record):
-        if record['users'] is None:
-            record['users'] = []
-        else:
-            record['users'] = json.loads(record['users'])
-        return record
+    billing_projects = []
+    async for record in db.execute_and_fetchall(sql, tuple(args)):
+        record['users'] = json.loads(record['users']) if record['users'] is not None else []
+        billing_projects.append(record)
 
-    billing_projects = [record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
+    return billing_projects
+
+
+async def query_billing_projects_without_cost(db, user=None, billing_project=None):
+    where_conditions = ["billing_projects.`status` != 'deleted'"]
+    args = []
+
+    if user:
+        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
+        args.append(user)
+
+    if billing_project:
+        where_conditions.append('billing_projects.name_cs = %s')
+        args.append(billing_project)
+
+    if where_conditions:
+        where_condition = f'WHERE {" AND ".join(where_conditions)}'
+    else:
+        where_condition = ''
+
+    sql = f'''
+SELECT billing_projects.name as billing_project,
+  billing_projects.`status` as `status`,
+  users, `limit`
+FROM billing_projects
+LEFT JOIN LATERAL (
+  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
+  FROM billing_project_users
+  WHERE billing_project_users.billing_project = billing_projects.name
+  GROUP BY billing_project_users.billing_project
+  LOCK IN SHARE MODE
+) AS t ON TRUE
+{where_condition}
+LOCK IN SHARE MODE;
+'''
+
+    billing_projects = []
+    async for record in db.execute_and_fetchall(sql, tuple(args)):
+        record['users'] = json.loads(record['users']) if record['users'] is not None else []
+        billing_projects.append(record)
 
     return billing_projects
 
