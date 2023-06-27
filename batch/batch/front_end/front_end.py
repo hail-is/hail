@@ -2217,7 +2217,14 @@ async def ui_get_billing_limits(request, userdata):
 
     billing_projects = await query_billing_projects_with_cost(db, user=user)
 
-    page_context = {'billing_projects': billing_projects, 'is_developer': userdata['is_developer']}
+    open_billing_projects = [bp for bp in billing_projects if bp['status'] == 'open']
+    closed_billing_projects = [bp for bp in billing_projects if bp['status'] == 'closed']
+
+    page_context = {
+        'open_billing_projects': open_billing_projects,
+        'closed_billing_projects': closed_billing_projects,
+        'is_developer': userdata['is_developer'],
+    }
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
