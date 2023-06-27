@@ -26,6 +26,7 @@ from gear import (
     AuthClient,
     Database,
     K8sCache,
+    Transaction,
     check_csrf_token,
     json_request,
     json_response,
@@ -1369,63 +1370,137 @@ async def monitor_system(app):
 
 
 async def compact_agg_billing_project_users_table(db: Database):
-    async def compact(key: Optional[Tuple[str, str, int]]) -> Optional[Tuple[str, str, int]]:
+    @transaction(db)
+    async def compact(tx: Transaction, key: Optional[Tuple[str, str, int]]) -> Optional[Tuple[str, str, int]]:
         if key:
             billing_project, user, resource_id = key
             where_condition = (
-                'AND ((billing_project > %s) OR'
+                '((billing_project > %s) OR'
                 '(billing_project = %s AND `user` > %s) OR'
                 '(billing_project = %s AND `user` = %s AND resource_id > %s))'
             )
+            where_condition_all = f'WHERE {where_condition}'
+            where_condition_without_0 = f'WHERE token != 0 AND {where_condition}'
             args = [billing_project, billing_project, user, billing_project, user, resource_id]
         else:
-            where_condition = ''
+            where_condition_all = ''
+            where_condition_without_0 = ''
             args = []
 
         token = secret_alnum_string(5)
         scratch_table_name = f'`scratch_{token}`'
+        # you cannot refer to the same table twice in the same query
+        # therefore, we must make two copies of the fragment of the original
+        # table when doing a full outer join for the audit
+        temp_pre_update_all_a = f'{scratch_table_name}_all_a'
+        temp_pre_update_all_b = f'{scratch_table_name}_all_b'
+        temp_pre_update_without_0 = f'{scratch_table_name}_without_0'
 
         try:
-            next_key = await db.execute_and_fetchone(
+            last_processed_key = await tx.execute_and_fetchone(
                 f'''
-CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
+CREATE TEMPORARY TABLE {temp_pre_update_all_a} ENGINE=MEMORY
 AS (SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_billing_project_user_resources_v3
-    WHERE token != 0 {where_condition}
+    {where_condition_all}
     GROUP BY billing_project, `user`, resource_id
     ORDER BY billing_project, `user`, resource_id
-    LIMIT 1000
+    LIMIT 100
+    LOCK IN SHARE MODE
+);
+
+CREATE TEMPORARY TABLE {temp_pre_update_all_b} ENGINE=MEMORY
+AS (SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_billing_project_user_resources_v3
+    {where_condition_all}
+    GROUP BY billing_project, `user`, resource_id
+    ORDER BY billing_project, `user`, resource_id
+    LIMIT 100
+    LOCK IN SHARE MODE
+);
+
+CREATE TEMPORARY TABLE {temp_pre_update_without_0} ENGINE=MEMORY
+AS (SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_billing_project_user_resources_v3
+    {where_condition_without_0}
+    GROUP BY billing_project, `user`, resource_id
+    ORDER BY billing_project, `user`, resource_id
+    LIMIT 100
     LOCK IN SHARE MODE
 );
 
 DELETE aggregated_billing_project_user_resources_v3 FROM aggregated_billing_project_user_resources_v3
-INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_v3.billing_project = {scratch_table_name}.billing_project AND
-                      aggregated_billing_project_user_resources_v3.`user` = {scratch_table_name}.`user` AND
-                      aggregated_billing_project_user_resources_v3.resource_id = {scratch_table_name}.resource_id
+INNER JOIN {temp_pre_update_without_0} ON aggregated_billing_project_user_resources_v3.billing_project = {temp_pre_update_without_0}.billing_project AND
+                      aggregated_billing_project_user_resources_v3.`user` = {temp_pre_update_without_0}.`user` AND
+                      aggregated_billing_project_user_resources_v3.resource_id = {temp_pre_update_without_0}.resource_id
 WHERE token != 0;
 
 INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user`, resource_id, token, `usage`)
 SELECT billing_project, `user`, resource_id, 0, `usage`
-FROM {scratch_table_name}
-ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_v3.`usage` + {scratch_table_name}.`usage`;
+FROM {temp_pre_update_without_0}
+ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_v3.`usage` + {temp_pre_update_without_0}.`usage`;
 
 SELECT billing_project, `user`, resource_id
-FROM {scratch_table_name}
+FROM {temp_pre_update_without_0}
 ORDER BY billing_project DESC, `user` DESC, resource_id DESC
 LIMIT 1;
 ''',
-                args,
+                args + args + args,
+                query_name='compact_agg_billing_project_user_resources_v3'
             )
+
+            bad_record = await tx.execute_and_fetchone(
+                f'''
+WITH post_update_t AS (
+  SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_billing_project_user_resources_v3
+    WHERE {where_condition_all}
+    GROUP BY billing_project, `user`, resource_id
+    ORDER BY billing_project, `user`, resource_id
+    LIMIT 100
+    LOCK IN SHARE MODE
+)
+SELECT *
+FROM {temp_pre_update_all_a}
+LEFT OUTER JOIN post_update_t ON
+  post_update_t.billing_project = {temp_pre_update_all_a}.billing_project AND
+  post_update_t.`user` = {temp_pre_update_all_a}.`user` AND
+  post_update_t.resource_id = {temp_pre_update_all_a}.resource_id
+UNION
+SELECT *
+FROM {temp_pre_update_all_b}
+RIGHT OUTER JOIN post_update_t ON
+  post_update_t.billing_project = {temp_pre_update_all_b}.billing_project AND
+  post_update_t.`user` = {temp_pre_update_all_b}.`user` AND
+  post_update_t.resource_id = {temp_pre_update_all_b}.resource_id
+WHERE post_update_t.billing_project IS NULL OR
+  {temp_pre_update_all_b}.billing_project IS NULL OR
+  post_update_t.`usage` != {temp_pre_update_all_b}.`usage`
+LIMIT 1;
+''',
+                args,
+                query_name='compact_agg_billing_project_user_resources_v3_audit'
+            )
+
+            if bad_record:
+                log.exception('bad compaction operation for agg_billing_project_user_resources_v3')
+                raise ValueError('bad compaction operation for agg_billing_project_user_resources_v3')
         finally:
-            await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
+            try:
+                await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {temp_pre_update_all_a};')
+            finally:
+                try:
+                    await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {temp_pre_update_all_b};')
+                finally:
+                    await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {temp_pre_update_without_0}')
 
-        if next_key is None:
+        if last_processed_key is None:
             return None
-        return (next_key['billing_project'], next_key['user'], next_key['resource_id'])
+        return (last_processed_key['billing_project'], last_processed_key['user'], last_processed_key['resource_id'])
 
-    next_key = await compact(None)
-    while next_key is not None:
-        await compact(next_key)
+    last_processed_key = await compact(None)
+    while last_processed_key is not None:
+        await compact(last_processed_key)
 
 
 async def compact_agg_billing_project_users_by_date_table(db: Database):
@@ -1458,7 +1533,7 @@ async def compact_agg_billing_project_users_by_date_table(db: Database):
         scratch_table_name = f'`scratch_{token}`'
 
         try:
-            next_key = await db.execute_and_fetchone(
+            last_processed_key = await db.execute_and_fetchone(
                 f'''
 CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
 AS (SELECT billing_date, billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1466,7 +1541,7 @@ AS (SELECT billing_date, billing_project, `user`, resource_id, CAST(COALESCE(SUM
     WHERE token != 0 {where_condition}
     GROUP BY billing_date, billing_project, `user`, resource_id
     ORDER BY billing_date, billing_project, `user`, resource_id
-    LIMIT 1000
+    LIMIT 100
     LOCK IN SHARE MODE
 );
 
@@ -1492,13 +1567,18 @@ LIMIT 1;
         finally:
             await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
 
-        if next_key is None:
+        if last_processed_key is None:
             return None
-        return (next_key['billing_date'], next_key['billing_project'], next_key['user'], next_key['resource_id'])
+        return (
+            last_processed_key['billing_date'],
+            last_processed_key['billing_project'],
+            last_processed_key['user'],
+            last_processed_key['resource_id'],
+        )
 
-    next_key = await compact(None)
-    while next_key is not None:
-        await compact(next_key)
+    last_processed_key = await compact(None)
+    while last_processed_key is not None:
+        await compact(last_processed_key)
 
 
 async def scheduling_cancelling_bump(app):
