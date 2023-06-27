@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import cats.syntax.all._
-import is.hail.HailSuite
+import is.hail.{HailSuite, MonadRunSupport}
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 import is.hail.expr.ir.lowering.{Lower, LoweringState}
@@ -17,7 +17,7 @@ import org.testng.annotations.{DataProvider, Test}
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class PruneSuite extends HailSuite {
+class PruneSuite extends HailSuite with MonadRunSupport {
   @Test def testUnionType() {
     val base = TStruct(
       "a" -> TStruct(

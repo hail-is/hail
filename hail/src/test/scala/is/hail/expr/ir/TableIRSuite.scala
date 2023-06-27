@@ -12,13 +12,13 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailSuite, MonadRunSupport}
 import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll
 import org.scalatest.{Failed, Succeeded}
 import org.testng.annotations.{DataProvider, Test}
 
-class TableIRSuite extends HailSuite {
+class TableIRSuite extends HailSuite with MonadRunSupport {
 
   implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
@@ -1151,7 +1151,7 @@ class TableIRSuite extends HailSuite {
       }, Row("Hello")))
 
     val e = intercept[HailException] {
-      TypeCheck[Run](
+      TypeCheck(
         collect(TableMapPartitions(table, "g", "part", StreamFlatMap(StreamRange(0, 2, 1), "_", part)))
       ).apply(ctx)
     }

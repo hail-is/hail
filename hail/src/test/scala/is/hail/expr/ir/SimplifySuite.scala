@@ -5,11 +5,11 @@ import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
 import is.hail.variant.Locus
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailSuite, MonadRunSupport}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
-class SimplifySuite extends HailSuite {
+class SimplifySuite extends HailSuite with MonadRunSupport {
   implicit val execStrats = ExecStrategy.interpretOnly
 
   @Test def testTableMultiWayZipJoinGlobalsRewrite() {
@@ -221,7 +221,7 @@ class SimplifySuite extends HailSuite {
       val tf = TableFilter(tp, GetField(Ref("row", tp.typ.rowType), "x") < 100)
 
       val rw = Simplify(ctx, tf)
-      TypeCheck[Run](rw).apply(ctx)
+      TypeCheck(rw).apply(ctx)
       assert(!Exists(rw, _.isInstanceOf[TableFilter]))
     }
   }

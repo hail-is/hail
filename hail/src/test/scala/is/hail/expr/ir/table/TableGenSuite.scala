@@ -7,13 +7,13 @@ import is.hail.expr.ir._
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, HailException, Interval}
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailSuite, MonadRunSupport}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.scalatest.Matchers._
 import org.testng.annotations.Test
 
-class TableGenSuite extends HailSuite {
+class TableGenSuite extends HailSuite with MonadRunSupport {
 
   implicit val execStrategy = ExecStrategy.lowering
 
@@ -77,7 +77,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("requiredness"))
   def testRequiredness: Unit = {
     val table = mkTableGen()
-    val analysis = Requiredness[Run](table).apply(ctx)
+    val analysis = Requiredness(table).apply(ctx)
     analysis.lookup(table).required shouldBe true
     analysis.states.m.isEmpty shouldBe true
   }

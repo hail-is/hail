@@ -1,16 +1,16 @@
 package is.hail
 
 import breeze.linalg.DenseMatrix
-import cats.{Applicative, MonadThrow}
 import cats.implicits.catsSyntaxApply
 import cats.mtl.Ask
+import cats.{Applicative, MonadThrow}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.lowering.utils._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.ir._
+import is.hail.expr.ir.lowering.utils._
 import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.io.fs.FS
 import is.hail.types.virtual._
@@ -129,11 +129,11 @@ class HailSuite extends TestNGSuite {
       filteredExecStrats.foreach { strat =>
         val res = (strat match {
           case ExecStrategy.Interpret =>
-            assertA[Lower](agg.isEmpty) *> Interpret(x, env, args)
+            assertA(agg.isEmpty) *> Interpret(x, env, args)
           case ExecStrategy.InterpretUnoptimized =>
-            assertA[Lower](agg.isEmpty) *> Interpret(x, env, args, optimize = false)
+            assertA(agg.isEmpty) *> Interpret(x, env, args, optimize = false)
           case ExecStrategy.JvmCompile =>
-            assertA[Lower](Forall(x, node => Compilable(node))) *> eval(x, env, args, agg,
+            assertA(Forall(x, node => Compilable(node))) *> eval(x, env, args, agg,
               bytecodePrinter = Option(ctx.getFlag("jvm_bytecode_dump"))
                 .map { path =>
                   val pw = new PrintWriter(new File(path))
@@ -142,7 +142,7 @@ class HailSuite extends TestNGSuite {
                 }
             )
           case ExecStrategy.JvmCompileUnoptimized =>
-            assertA[Lower](Forall(x, node => Compilable(node))) *> eval(x, env, args, agg,
+            assertA(Forall(x, node => Compilable(node))) *> eval(x, env, args, agg,
               bytecodePrinter = Option(ctx.getFlag("jvm_bytecode_dump"))
                 .map { path =>
                   val pw = new PrintWriter(new File(path))
@@ -152,7 +152,7 @@ class HailSuite extends TestNGSuite {
               optimize = false
             )
           case ExecStrategy.LoweredJVMCompile =>
-            Lower.pure(loweredExecute(ctx, x, env, args, agg))
+            Lower.Pure(loweredExecute(ctx, x, env, args, agg))
         }).runA(ctx, LoweringState())
         if (t != TVoid) {
           assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
@@ -233,7 +233,7 @@ class HailSuite extends TestNGSuite {
       filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
         import Lower.monadLowerInstanceForLower
         assert(
-          Interpret[Lower](bm, optimize = strat == ExecStrategy.Interpret)
+          Interpret(bm, optimize = strat == ExecStrategy.Interpret)
             .runA(ctx, LoweringState())
             .toBreezeMatrix() == expected
         )
@@ -257,42 +257,43 @@ class HailSuite extends TestNGSuite {
                    (implicit execStrats: Set[ExecStrategy]): Unit =
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
 
+}
 
+trait MonadRunSupport {
   type Run[A] = ExecuteContext => A
-  implicit val monadExecuteInstanceFunction =
-    new MonadThrow[Run] with Ask[Run, ExecuteContext] {
-      override def raiseError[A](e: Throwable): Run[A] = {
-        val t = e.fillInStackTrace()
-        _ => throw t
+
+  implicit object monadThrowInstanceForRun extends MonadThrow[Run] {
+    override def raiseError[A](e: Throwable): Run[A] = {
+      val t = e.fillInStackTrace()
+      _ => throw t
+    }
+
+    override def handleErrorWith[A](fa: Run[A])(f: Throwable => Run[A]): Run[A] =
+      ctx => try {
+        fa(ctx)
+      } catch {
+        case NonFatal(t) => f(t)(ctx)
       }
 
-      override def handleErrorWith[A](fa: Run[A])(f: Throwable => Run[A]): Run[A] =
-        ctx => try {
-          fa(ctx)
-        } catch {
-          case NonFatal(t) => f(t)(ctx)
+    override def flatMap[A, B](fa: Run[A])(f: A => Run[B]): Run[B] =
+      ctx => f(fa(ctx))(ctx)
+
+    override def tailRecM[A, B](a0: A)(f: A => Run[Either[A, B]]): Run[B] = {
+      ctx =>
+        @tailrec def go(a: A): B = f(a)(ctx) match {
+          case Left(a) => go(a)
+          case Right(b) => b
         }
 
-      override def applicative: Applicative[Run] =
-        this
-
-      override def ask[E2 >: ExecuteContext]: Run[E2] =
-        identity
-
-      override def flatMap[A, B](fa: Run[A])(f: A => Run[B]): Run[B] =
-        ctx => f(fa(ctx))(ctx)
-
-      override def tailRecM[A, B](a0: A)(f: A => Run[Either[A, B]]): Run[B] = {
-        ctx =>
-          @tailrec def go(a: A): B = f(a)(ctx) match {
-            case Left(a) => go(a)
-            case Right(b) => b
-          }
-
-          go(a0)
-      }
-
-      override def pure[A](x: A): Run[A] =
-        _ => x
+        go(a0)
     }
+
+    override def pure[A](x: A): Run[A] =
+      _ => x
+  }
+
+  implicit object askInstanceForRun extends Ask[Run, ExecuteContext] {
+    override def applicative: Applicative[Run] = monadThrowInstanceForRun
+    override def ask[E2 >: ExecuteContext]: Run[E2] = identity
+  }
 }

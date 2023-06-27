@@ -14,14 +14,14 @@ import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSC
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailSuite, MonadRunSupport}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 import scala.language.higherKinds
 import scala.util.Try
 
-class EmitStreamSuite extends HailSuite {
+class EmitStreamSuite extends HailSuite with MonadRunSupport {
 
   implicit val execStrats = ExecStrategy.compileOnly
 
@@ -58,7 +58,7 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
 
-    val emitContext = EmitContext.analyze[Run](ir).apply(ctx)
+    val emitContext = EmitContext.analyze(ir).apply(ctx)
 
     var arrayType: PType = null
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
@@ -67,7 +67,7 @@ class EmitStreamSuite extends HailSuite {
         case ToArray(s) => s
         case s => s
       }
-      TypeCheck[Run](s).apply(ctx)
+      TypeCheck(s).apply(ctx)
       EmitStream.produce(new Emit(emitContext, fb.ecb, LoweringState()), s, cb, cb.emb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))), None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.getProducer(mb), region)
@@ -135,10 +135,10 @@ class EmitStreamSuite extends HailSuite {
     val region = mb.getCodeParam[Region](1)
     val ir = streamIR.deepCopy()
 
-    val emitContext = EmitContext.analyze[Run](ir).apply(ctx)
+    val emitContext = EmitContext.analyze(ir).apply(ctx)
 
     fb.emitWithBuilder { cb =>
-      TypeCheck[Run](ir).apply(ctx)
+      TypeCheck(ir).apply(ctx)
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 

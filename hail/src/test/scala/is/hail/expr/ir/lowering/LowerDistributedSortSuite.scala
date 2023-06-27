@@ -7,11 +7,11 @@ import is.hail.expr.ir.{Apply, Ascending, Descending, Env, ErrorIDs, GetField, I
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
 import is.hail.utils.FastIndexedSeq
-import is.hail.{ExecStrategy, HailSuite, TestUtils}
+import is.hail.{ExecStrategy, HailSuite, MonadRunSupport, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class LowerDistributedSortSuite extends HailSuite {
+class LowerDistributedSortSuite extends HailSuite with MonadRunSupport {
   implicit val execStrats = ExecStrategy.compileOnly
 
   @Test def testSamplePartition() {

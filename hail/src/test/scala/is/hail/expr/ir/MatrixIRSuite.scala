@@ -10,12 +10,12 @@ import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 import is.hail.expr.ir.lowering.LoweringState
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailSuite, MonadRunSupport}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
 
-class MatrixIRSuite extends HailSuite {
+class MatrixIRSuite extends HailSuite with MonadRunSupport {
 
   implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 

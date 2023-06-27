@@ -10,7 +10,6 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions._
-import is.hail.expr.ir.lowering.Lower.monadLowerInstanceForLower
 import is.hail.expr.ir.lowering.{Lower, LoweringState}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -24,14 +23,14 @@ import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailSuite, MonadRunSupport}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.testng.annotations.{DataProvider, Test}
 
 import scala.language.{dynamics, implicitConversions}
 
-class IRSuite extends HailSuite {
+class IRSuite extends HailSuite with MonadRunSupport {
   implicit val execStrats = ExecStrategy.nonLowering
 
   @Test def testRandDifferentLengthUIDStrings() {
@@ -2635,7 +2634,7 @@ class IRSuite extends HailSuite {
   def valueIRs(ctx: ExecuteContext): Array[Array[Object]] = {
     val fs = ctx.fs
 
-    CompileAndEvaluate(
+    CompileAndEvaluate[Lower, Any](
       invoke("index_bgen", TInt64, Array[Type](TLocus("GRCh37")),
       Str("src/test/resources/example.8bits.bgen"),
       Str("src/test/resources/example.8bits.bgen.idx2"),
@@ -2936,7 +2935,7 @@ class IRSuite extends HailSuite {
     try {
       val fs = ctx.fs
 
-      CompileAndEvaluate(
+      CompileAndEvaluate[Lower, Any](
         invoke("index_bgen", TInt64, Array[Type](TLocus("GRCh37")),
         Str("src/test/resources/example.8bits.bgen"),
         Str("src/test/resources/example.8bits.bgen.idx2"),
@@ -3156,15 +3155,15 @@ class IRSuite extends HailSuite {
     val t1 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g1" -> TInt32, "g2" -> TFloat64))
     val t2 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g3" -> TInt32, "g4" -> TFloat64))
     val tab1 = (for {
-      br <- BroadcastRow[Run](Row(1, 1.1), t1.globalType)
+      br <- BroadcastRow(Row(1, 1.1), t1.globalType)
       tv = TableValue(t1, br, RVD.empty(ctx, t1.canonicalRVDType))
-      lit <- TableLiteral[Run](tv)
+      lit <- TableLiteral(tv)
     } yield lit).apply(ctx)
 
     val tab2 = (for {
-      br <- BroadcastRow[Run](Row(2, 2.2), t2.globalType)
+      br <- BroadcastRow(Row(2, 2.2), t2.globalType)
       tv = TableValue(t2, br, RVD.empty(ctx, t2.canonicalRVDType))
-      lit <- TableLiteral[Run](tv)
+      lit <- TableLiteral(tv)
     } yield lit).apply(ctx)
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
