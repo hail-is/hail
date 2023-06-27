@@ -45,6 +45,24 @@ def batch_only(fun):
     return wrapped
 
 
+def add_metadata_to_request(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        request['batch_telemetry'] = {'operation': fun.__name__}
+
+        batch_id = request.match_info.get('batch_id')
+        if batch_id is not None:
+            request['batch_id'] = batch_id
+
+        job_id = request.match_info.get('job_id')
+        if job_id is not None:
+            request['job_id'] = job_id
+
+        return await fun(request, *args, **kwargs)
+
+    return wrapped
+
+
 def coalesce(x, default):
     if x is not None:
         return x

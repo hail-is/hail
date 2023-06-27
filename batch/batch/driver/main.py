@@ -56,6 +56,7 @@ from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
 from ..utils import (
+    add_metadata_to_request,
     authorization_token,
     batch_only,
     json_to_value,
@@ -184,6 +185,7 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
+@add_metadata_to_request
 @batch_only
 async def update_batch(request):
     db = request.app['db']
@@ -201,9 +203,6 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
         raise web.HTTPNotFound()
 
     request.app['scheduler_state_changed'].notify()
-
-    request['batch_id'] = str(batch_id)
-    request['batch_operation'] = 'driver_batch_update'
 
     return web.Response()
 
@@ -322,9 +321,8 @@ async def job_complete_1(request, instance):
     job_id = job_status['job_id']
     attempt_id = job_status['attempt_id']
 
-    request['batch_id'] = str(batch_id)
-    request['job_id'] = str(job_id)
-    request['batch_operation'] = 'driver_job_complete'
+    request['batch_telemetry']['batch_id'] = str(batch_id)
+    request['batch_telemetry']['job_id'] = str(job_id)
 
     state = job_status['state']
     if state == 'succeeded':
@@ -361,6 +359,7 @@ async def job_complete_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_complete')
+@add_metadata_to_request
 @active_instances_only
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
@@ -376,9 +375,8 @@ async def job_started_1(request, instance):
     start_time = job_status['start_time']
     resources = job_status.get('resources')
 
-    request['batch_id'] = str(batch_id)
-    request['job_id'] = str(job_id)
-    request['batch_operation'] = 'driver_job_started'
+    request['batch_telemetry']['batch_id'] = str(batch_id)
+    request['batch_telemetry']['job_id'] = str(job_id)
 
     await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time, resources)
 
@@ -388,6 +386,7 @@ async def job_started_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_started')
+@add_metadata_to_request
 @active_instances_only
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))

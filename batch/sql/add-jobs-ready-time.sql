@@ -1,4 +1,10 @@
-ALTER TABLE `jobs` ADD COLUMN `time_ready` BIGINT DEFAULT NULL, ALGORITHM=INSTANT;
+CREATE TABLE IF NOT EXISTS `jobs_telemetry` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `time_ready` BIGINT DEFAULT NULL,
+  PRIMARY KEY (`batch_id`, `job_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+) ENGINE = InnoDB;
 
 DELIMITER $$
 
@@ -56,7 +62,7 @@ BEGIN
       IF in_update_id != 1 THEN
         SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
-        UPDATE jobs
+        UPDATE jobs, jobs_telemetry
           LEFT JOIN (
             SELECT `job_parents`.batch_id, `job_parents`.job_id,
               COALESCE(SUM(1), 0) AS n_parents,
@@ -75,7 +81,7 @@ BEGIN
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
               jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
-              jobs.time_ready = IF(COALESCE(t.n_pending_parents, 0) = 0 AND jobs.time_ready IS NULL, in_timestamp, jobs.time_ready)
+              jobs_telemetry.time_ready = IF(COALESCE(t.n_pending_parents, 0) = 0 AND jobs_telemetry.time_ready IS NULL, in_timestamp, jobs_telemetry.time_ready)
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
@@ -171,14 +177,14 @@ BEGIN
       WHERE id = in_batch_id;
     END IF;
 
-    UPDATE jobs
+    UPDATE jobs, jobs_telemetry
       INNER JOIN `job_parents`
         ON jobs.batch_id = `job_parents`.batch_id AND
            jobs.job_id = `job_parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
           jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1),
-          jobs.time_ready = IF(jobs.n_pending_parents = 1, new_timestamp, jobs.time_ready)
+          jobs_telemetry.time_ready = IF(jobs.n_pending_parents = 1, new_timestamp, jobs_telemetry.time_ready)
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;

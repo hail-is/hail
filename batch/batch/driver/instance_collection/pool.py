@@ -620,6 +620,7 @@ WHERE user = %s AND `state` = 'running';
                     '''
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
@@ -637,6 +638,7 @@ LIMIT 300;
                         '''
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;

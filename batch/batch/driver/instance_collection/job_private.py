@@ -181,6 +181,7 @@ WHERE name = %s;
 SELECT jobs.*, batches.format_version, batches.userdata, batches.user, attempts.instance_name, time_ready
 FROM batches
 INNER JOIN jobs ON batches.id = jobs.batch_id
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE batches.state = 'running'

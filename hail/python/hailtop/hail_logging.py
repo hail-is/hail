@@ -60,22 +60,6 @@ class AccessLogger(AbstractAccessLogger):
             'x_real_ip': request.headers.get("X-Real-IP")
         }
 
-        batch_id = request.get('batch_id')
-        if batch_id:
-            extra['batch_id'] = batch_id
-
-        job_id = request.get('job_id')
-        if job_id:
-            extra['job_id'] = job_id
-
-        batch_operation = request.get('batch_operation')
-        if batch_operation:
-            extra['batch_operation'] = batch_operation
-
-        job_queue_time = request.get('job_queue_time')
-        if job_queue_time:
-            extra['job_queue_time'] = job_queue_time
-
         self.logger.info(f'{request.scheme} {request.method} {request.path} '
                          f'done in {time}s: {response.status}',
-                         extra=extra)
+                         extra={**extra, **request.get('batch_telemetry', {})})
