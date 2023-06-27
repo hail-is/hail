@@ -359,10 +359,7 @@ object MatrixRangeReader {
 
 case class MatrixRangeReaderParameters(nRows: Int, nCols: Int, nPartitions: Option[Int])
 
-class MatrixRangeReader(
-  val params: MatrixRangeReaderParameters,
-  nPartitionsAdj: Int
-) extends MatrixReader {
+case class MatrixRangeReader(params: MatrixRangeReaderParameters, nPartitionsAdj: Int) extends MatrixReader {
   def pathsUsed: Seq[String] = FastSeq()
 
   def rowUIDType = TInt64

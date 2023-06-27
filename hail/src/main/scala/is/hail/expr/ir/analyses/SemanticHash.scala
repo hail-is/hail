@@ -1,8 +1,8 @@
 package is.hail.expr.ir.analyses
 
-import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
 import is.hail.expr.ir.lowering.RVDTableReader
+import is.hail.expr.ir.{MatrixRangeReader, _}
 import is.hail.io.fs.FS
 import is.hail.methods._
 import is.hail.types.virtual._
@@ -117,11 +117,16 @@ case object SemanticHash extends Logging {
           fields.foldLeft(Hash.init)({ case (hash, (index, _)) => hash <> Hash(index) })
 
         case MatrixRead(_, _, _, reader) =>
-          Hash(reader.getClass) <> reader
-            .pathsUsed
-            .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
-            .map(g => getFileHash(fs)(g.getPath))
-            .reduce(_ <> _)
+          Hash(reader.getClass) <> (reader match {
+            case MatrixRangeReader(params, nPartitionsAdj) =>
+              Hash(params.nRows) <> Hash(params.nCols) <> params.nPartitions.foldLeft(Hash(nPartitionsAdj))(_ <> Hash(_))
+
+            case reader => reader
+              .pathsUsed
+              .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+              .map(g => getFileHash(fs)(g.getPath))
+              .reduce(_ <> _)
+          })
 
         case MatrixWrite(_, writer) =>
           Hash(writer.path)
