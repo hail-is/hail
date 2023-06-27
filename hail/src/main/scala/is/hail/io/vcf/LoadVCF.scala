@@ -514,7 +514,7 @@ final class VCFLine(
 
   def parseFormatFloat(): Float = {
     val s = parseFormatString()
-    s.toFloat
+    VCFUtils.parseVcfDouble(s).toFloat
   }
 
   def parseAddFormatFloat(rvb: RegionValueBuilder) {
@@ -528,7 +528,7 @@ final class VCFLine(
 
   def parseFormatDouble(): Double = {
     val s = parseFormatString()
-    s.toDouble
+    VCFUtils.parseVcfDouble(s)
   }
 
   def parseAddFormatDouble(rvb: RegionValueBuilder) {
@@ -766,17 +766,6 @@ final class VCFLine(
     v * mul
   }
 
-  // cdv: keep backwards compatibility with the old parser
-  def infoToDouble(s: String): Double = {
-    s match {
-      case "nan" => Double.NaN
-      case "-nan" => Double.NaN
-      case "inf" => Double.PositiveInfinity
-      case "-inf" => Double.NegativeInfinity
-      case _ => s.toDouble
-    }
-  }
-
   def parseAddInfoInt(rvb: RegionValueBuilder) {
     if (!infoFieldMissing()) {
       rvb.setPresent()
@@ -802,7 +791,7 @@ final class VCFLine(
   def parseAddInfoDouble(rvb: RegionValueBuilder) {
     if (!infoFieldMissing()) {
       rvb.setPresent()
-      rvb.addDouble(infoToDouble(parseInfoString()))
+      rvb.addDouble(VCFUtils.parseVcfDouble(parseInfoString()))
     }
   }
 
@@ -830,7 +819,7 @@ final class VCFLine(
     line.substring(start, end)
   }
 
-  def parseDoubleInInfoArray(): Double = infoToDouble(parseStringInInfoArray())
+  def parseDoubleInInfoArray(): Double = VCFUtils.parseVcfDouble(parseStringInInfoArray())
 
   def parseIntInfoArrayElement() {
     if (infoArrayElementMissing()) {
