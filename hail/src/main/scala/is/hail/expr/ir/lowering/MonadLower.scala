@@ -6,7 +6,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.Lower.{>=>, Return}
 
 import scala.annotation.tailrec
-import scala.language.{existentials, higherKinds, implicitConversions}
+import scala.language.{higherKinds, implicitConversions}
 
 trait MonadLower[M[_]]
   extends MonadThrow[M]
@@ -22,7 +22,7 @@ object MonadLower {
 }
 
 
-sealed trait Lower[+A] { self =>
+sealed trait Lower[+A] {
   def run(ctx: ExecuteContext, s: LoweringState): (LoweringState, Either[Throwable, A]) = {
     @tailrec def go[B](head: Lower[B], tail: Lower.Chain[B, A])(s0: LoweringState)
     : (LoweringState, Either[Throwable, A]) =
