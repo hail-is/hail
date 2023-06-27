@@ -77,10 +77,9 @@ object Interpret {
   : OptionT[M, Any] = {
 
     type F[A] = OptionT[M, A]
-    val F = MonadThrow[F]
 
-    def empty =
-      OptionT.none[M, Any]
+    val F = MonadThrow[F]
+    val empty = OptionT.none[M, Any]
 
     def readStateManager: F[HailStateManager] =
       Ask[F, ExecuteContext].reader(_.stateManager)
@@ -131,7 +130,9 @@ object Interpret {
       case CastRename(v, _) => interpret(v)
       case NA(_) => empty
 
-      case IsNA(value) => interpret(value, env, args).map(_ == null)
+      case IsNA(value) =>
+        OptionT.liftF(interpret(value, env, args).isEmpty.widen)
+
       case Coalesce(values) =>
         FastSeq(values: _*).foldMapK { x =>
           interpret(x, env, args)
@@ -145,12 +146,12 @@ object Interpret {
 
       case Let(name, value, body) =>
         for {
-          v <- OptionT.liftF(interpret(value, env, args).value)
-          r <- interpret(body, env.bind(name, v.orNull), args)
+          v <- interpret(value, env, args).orElse(F.pure(null))
+          r <- interpret(body, env.bind(name, v), args)
         } yield r
 
       case Ref(name, _) =>
-        F.pure(env.lookup(name))
+        OptionT.fromOption(Option(env.lookup(name)))
 
       case ApplyBinaryPrimOp(op, l, r) =>
         for {
@@ -398,17 +399,17 @@ object Interpret {
       case LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         for {
           cValue <- interpret(orderedCollection, env, args)
-          eValue <- OptionT.liftF(interpret(elem, env, args).value)
+          eValue <- interpret(elem, env, args).orElse(F.pure(null))
           stateManager <- readStateManager
         } yield {
           cValue match {
             case s: Set[_] =>
               assert(!onKey)
-              s.count(elem.typ.ordering(stateManager).lt(_, eValue.orNull))
+              s.count(elem.typ.ordering(stateManager).lt(_, eValue))
 
             case d: Map[_, _] =>
               assert(onKey)
-              d.count { case (k, _) => elem.typ.ordering(stateManager).lt(k, eValue.orNull) }
+              d.count { case (k, _) => elem.typ.ordering(stateManager).lt(k, eValue) }
 
             case a: IndexedSeq[_] =>
               if (onKey) {
@@ -421,10 +422,10 @@ object Interpret {
                   }, i.pointType)
                 }
                 val ordering = eltT.ordering(stateManager)
-                val lb = a.count(elem => ordering.lt(eltF(elem), eValue.orNull))
+                val lb = a.count(elem => ordering.lt(eltF(elem), eValue))
                 lb
               } else
-                a.count(elem.typ.ordering(stateManager).lt(_, eValue.orNull))
+                a.count(elem.typ.ordering(stateManager).lt(_, eValue))
           }
         }
 
@@ -675,20 +676,21 @@ object Interpret {
       case StreamFlatMap(a, name, body) =>
         for {
           as <- interpret(a, env, args)
-          bs <- as.asInstanceOf[IndexedSeq[Any]].foldMapK { a =>
+          bbs <- as.asInstanceOf[IndexedSeq[Any]].traverse { a =>
             interpret(body, env.bind(name, a), args)
               .map(_.asInstanceOf[IndexedSeq[Any]])
               .orElse(F.pure(IndexedSeq.empty[Any]))
           }
-        } yield bs
+        } yield bbs.flatten
 
       case StreamFold(a, zero, accumName, valueName, body) =>
         for {
           aValue <- interpret(a, env, args)
-          zeroValue <- interpret(zero, env, args)
+          zeroValue <- interpret(zero, env, args).orElse(F.pure(null))
           result <- aValue.asInstanceOf[IndexedSeq[Any]].foldM(zeroValue) { (accum, element) =>
             interpret(body, env.bind(accumName -> accum, valueName -> element), args).orElse(F.pure(null))
           }
+          if result != null
         } yield result
 
       case StreamFold2(a, accum, valueName, seq, res) =>
@@ -915,7 +917,9 @@ object Interpret {
                         optimize = false
                       )
                         .run(ctx, s0)
+
                     state = s1
+
                     r match {
                       case Left(t) => throw t
                       case Right((rt, makeFunction)) =>
@@ -926,10 +930,13 @@ object Interpret {
                   rvb.set(region)
                   rvb.start(argTuple)
                   rvb.startTuple()
+
                   ir.args.zip(argTuple.types).foreach { case (arg, t) =>
-                    val argValue = interpret(arg, env, args)
-                    rvb.addAnnotation(t.virtualType, argValue)
+                    state = run[Lower](arg, env, args, functionMemo).map { argValue =>
+                      rvb.addAnnotation(t.virtualType, argValue)
+                    }.value.runS(ctx, state)
                   }
+
                   rvb.endTuple()
                   val offset = rvb.end()
 
@@ -952,7 +959,7 @@ object Interpret {
         child.partitionCounts.map(counts => F.pure[Long](counts.sum))
           .getOrElse {
             OptionT.liftF {
-              for {inter <- child.analyzeAndExecute; tv <- inter.asTableValue}
+              for {tv <- child.analyzeAndExecute >>= (_.asTableValue)}
                 yield tv.rvd.count()
             }
           }

@@ -42,11 +42,9 @@ sealed trait Lower[+A] {
              (s, ())
          }
 
-         b match {
-           case b: B => tail match {
-             case Return(refl) => (s1, Right(refl(b)))
-             case f >=> g => go(f(b), g)(s1)
-           }
+         tail match {
+           case Return(refl) => (s1, Right(refl(b.asInstanceOf[B])))
+           case f >=> g => go(f(b.asInstanceOf[B]), g)(s1)
          }
 
        case Lower.Apply(f) =>
@@ -78,6 +76,11 @@ sealed trait Lower[+A] {
 
   def runA(ctx: ExecuteContext, s: LoweringState): A =
     run(ctx, s)._2.fold(throw _, identity)
+
+  def runS(ctx: ExecuteContext, s0: LoweringState): LoweringState = {
+    val (s1, res) = run(ctx, s0)
+    res.fold(throw _, _ => s1)
+  }
 }
 
 object Lower extends LowerInstances {
@@ -150,7 +153,7 @@ sealed trait LowerInstances {
         Lower.Pure(a)
 
       override def raiseError[A](e: Throwable): Lower[A] =
-        Lower.Fail(e.fillInStackTrace())
+        Lower.Fail(e)
 
       override def handleErrorWith[A](fa: Lower[A])(f: Throwable => Lower[A]): Lower[A] =
         Lower.Catch(fa, f)
