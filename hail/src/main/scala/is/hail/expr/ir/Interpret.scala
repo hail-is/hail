@@ -872,10 +872,22 @@ object Interpret {
         interpret(ir.explicitNode, env, args)
 
       case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>
-        interpret(left_).map(_.asInstanceOf[Boolean]).ifF(F.pure(true), interpret(right_))
+        OptionT(interpret(left_).value.flatMap {
+          case Some(true) => M.pure(Some(true))
+          case lvalue => interpret(right_).value.map {
+            case Some(true) => Some(true)
+            case rvalue => if (lvalue.isEmpty || rvalue.isEmpty) None else Some(false)
+          }
+        })
 
       case ApplySpecial("land", _, Seq(left_, right_), _, _) =>
-        interpret(left_).map(_.asInstanceOf[Boolean]).ifF(interpret(right_), F.pure(false))
+        OptionT(interpret(left_).value.flatMap {
+          case Some(false) => M.pure(Some(false))
+          case lvalue => interpret(right_).value.map {
+            case Some(false) => Some(false)
+            case rvalue => if (lvalue.isEmpty || rvalue.isEmpty) None else Some(true)
+          }
+        })
 
       case ir: AbstractApplyNode[_] =>
         OptionT.liftF {
