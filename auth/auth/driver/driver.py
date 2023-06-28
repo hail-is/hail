@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import random
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import aiohttp
 import kubernetes_asyncio.client
@@ -16,6 +16,8 @@ from gear.clients import get_identity_client
 from gear.cloud_config import get_gcp_config, get_global_config
 from hailtop import aiotools, httpx
 from hailtop import batch_client as bc
+from hailtop.aiocloud.aioazure import AzureGraphClient
+from hailtop.aiocloud.aiogoogle import GoogleIAmClient
 from hailtop.utils import secret_alnum_string, time_msecs
 
 log = logging.getLogger('auth.driver')
@@ -140,9 +142,13 @@ class K8sSecretResource:
 
 
 class GSAResource:
-    def __init__(self, iam_client, gsa_email=None):
+    def __init__(self, iam_client: GoogleIAmClient, gsa_email: Optional[str] = None):
         self.iam_client = iam_client
         self.gsa_email = gsa_email
+
+    async def get_unique_id(self) -> str:
+        service_account = await self.iam_client.get(f'/serviceAccounts/{self.gsa_email}')
+        return service_account['uniqueId']
 
     async def create(self, username):
         assert self.gsa_email is None
@@ -164,7 +170,7 @@ class GSAResource:
 
     async def _delete(self, gsa_email):
         try:
-            await self.iam_client.delete(f'/serviceAccounts/{gsa_email}/keys')
+            await self.iam_client.delete(f'/serviceAccounts/{gsa_email}')
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 pass
@@ -179,9 +185,16 @@ class GSAResource:
 
 
 class AzureServicePrincipalResource:
-    def __init__(self, graph_client, app_obj_id=None):
+    def __init__(self, graph_client: AzureGraphClient, app_obj_id: Optional[str] = None):
         self.graph_client = graph_client
         self.app_obj_id = app_obj_id
+
+    async def get_service_principal_object_id(self) -> str:
+        assert self.app_obj_id
+        app = await self.graph_client.get(f'/applications/{self.app_obj_id}')
+        app_id = app['appId']
+        service_principal = await self.graph_client.get(f"/servicePrincipals(appId='{app_id}')")
+        return service_principal['id']
 
     async def create(self, username):
         assert self.app_obj_id is None
@@ -496,6 +509,28 @@ UPDATE users SET state = 'deleted' WHERE id = %s;
     )
 
 
+async def resolve_identity_uid(app, hail_identity):
+    id_client = app['identity_client']
+    db = app['db']
+
+    if CLOUD == 'gcp':
+        gsa = GSAResource(id_client, hail_identity)
+        hail_identity_uid = await gsa.get_unique_id()
+    else:
+        assert CLOUD == 'azure'
+        sp = AzureServicePrincipalResource(id_client, hail_identity)
+        hail_identity_uid = await sp.get_service_principal_object_id()
+
+    await db.just_execute(
+        '''
+UPDATE users
+SET hail_identity_uid = %s
+WHERE hail_identity = %s
+''',
+        (hail_identity_uid, hail_identity),
+    )
+
+
 async def update_users(app):
     log.info('in update_users')
 
@@ -510,6 +545,12 @@ async def update_users(app):
 
     for user in deleting_users:
         await delete_user(app, user)
+
+    users_without_hail_identity_uid = [
+        x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE hail_identity_uid IS NULL')
+    ]
+    for user in users_without_hail_identity_uid:
+        await resolve_identity_uid(app, user['hail_identity'])
 
     return True
 

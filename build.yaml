@@ -375,6 +375,8 @@ steps:
         script: /io/sql/support-azure-oauth.sql
       - name: change-username-collation
         script: /io/sql/change-username-collation.sql
+      - name: add-hail-identity-uid
+        script: /io/sql/add-hail-identity-uid.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
