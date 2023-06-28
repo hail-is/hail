@@ -35,6 +35,8 @@ an earlier version of Hail to read files written in a later version.
 
 ## Version 0.2.119
 
+Released 2023-06-28
+
 ### New Features
 - (hail#12081) Hail now uses [Zstandard](https://facebook.github.io/zstd/) as
   the default compression algorithm for table and matrix table storage. Reducing
