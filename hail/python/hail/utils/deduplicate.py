@@ -1,11 +1,11 @@
-from typing import List, Tuple, Optional, Set
+from typing import Tuple, Optional, Iterable, List
 
 
 def deduplicate(
-        ids: List[str],
+        ids: Iterable[str],
         *,
         max_attempts: Optional[int] = None,
-        already_used: Set[int] = None
+        already_used: Optional[Iterable[str]] = None
 ) -> Tuple[List[Tuple[str, str]], List[str]]:
     """Deduplicate the strings in `ids`.
 
@@ -25,7 +25,7 @@ def deduplicate(
 
     Returns
     -------
-    list of pairs of :class:`str` and :obj:`str`
+    list of pairs of :obj:`.str` and :obj:`.str`
         A string and the deduplicated string, for each occurrence after the
         first.
 

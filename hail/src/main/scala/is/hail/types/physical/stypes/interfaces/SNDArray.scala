@@ -8,6 +8,7 @@ import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PNumeric, PPrimitive, PType}
+import is.hail.types.virtual.TInt32
 import is.hail.types.{RNDArray, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, toRichIterable, valueToRichCodeRegion}
 
@@ -626,6 +627,63 @@ object SNDArray {
       work.firstDataAddress, lwork.toI))
     cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Error code = ", info.toS))
   }
+
+  def syevr_query(cb: EmitCodeBuilder, jobz: String, uplo: String, n: Value[Int], region: Value[Region]): (SizeValue, SizeValue) = {
+    val WorkAddress = cb.memoize(region.allocate(8L, 8L))
+    val IWorkAddress = cb.memoize(region.allocate(4L, 4L))
+    val info = cb.memoize(Code.invokeScalaObject19[String, String, String, Int, Long, Int, Double, Double, Int, Int, Double, Long, Long, Int, Long, Long, Int, Long, Int, Int](LAPACK.getClass, "dsyevr",
+      jobz, "A", uplo,
+      n, 0, n,
+      0, 0, 0, 0,
+      0,
+      0, 0, n,
+      0,
+      WorkAddress, -1,
+      IWorkAddress, -1))
+    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DSYEVR. Failed size query. Error code = ", info.toS))
+    val LWork = cb.memoize(Region.loadDouble(WorkAddress).toL)
+    val LIWork = cb.memoize(Region.loadInt(IWorkAddress).toL)
+    (SizeValueDyn(cb.memoize((LWork > 0).mux(LWork, 1))), SizeValueDyn(cb.memoize((LIWork > 0).mux(LIWork, 1))))
+  }
+
+  def syevr(cb: EmitCodeBuilder, uplo: String, A: SNDArrayValue, W: SNDArrayValue, Z: Option[(SNDArrayValue, SNDArrayValue)], Work: SNDArrayValue, IWork: SNDArrayValue): Unit = {
+    assertMatrix(A)
+    assertColMajor(cb, "orgqr", A)
+    assertVector(W, Work, IWork)
+    assert(IWork.pt.elementType.virtualType == TInt32)
+
+    val n = A.shapes(0)
+    A.assertHasShape(cb, Array(n, n), "syevr: A must be square")
+    W.assertHasShape(cb, Array(n), "syevr: W has wrong size")
+
+    val ldA = A.eltStride(1).max(1)
+    val lWork = Work.shapes(0)
+    val lIWork = IWork.shapes(0)
+
+    val (jobz, zAddr: Value[Long], ldZ: Code[Int], iSuppZAddr: Value[Long]) = Z match {
+      case Some((z, iSuppZ)) =>
+        assertVector(iSuppZ)
+        assertMatrix(z)
+
+        z.assertHasShape(cb, Array(n, n), "syevr: Z has wrong size")
+        iSuppZ.assertHasShape(cb, IndexedSeq(SizeValueDyn(cb.memoize(n * 2))), "syevr: ISuppZ has wrong size")
+
+        ("V", z.firstDataAddress, z.eltStride(1).max(1), iSuppZ.firstDataAddress)
+      case None =>
+        ("N", const(0L), const(1).get, const(0L))
+    }
+
+    val info = cb.memoize(Code.invokeScalaObject19[String, String, String, Int, Long, Int, Double, Double, Int, Int, Double, Long, Long, Int, Long, Long, Int, Long, Int, Int](LAPACK.getClass, "dsyevr",
+      jobz, "A", uplo,
+      n.toI, A.firstDataAddress, ldA,
+      0, 0, 0, 0,
+      0,
+      W.firstDataAddress, zAddr, ldZ,
+      iSuppZAddr,
+      Work.firstDataAddress, lWork.toI,
+      IWork.firstDataAddress, lIWork.toI))
+    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DSYEVR. Error code = ", info.toS))
+  }
 }
 
 
@@ -751,7 +809,14 @@ trait SNDArrayValue extends SValue {
 
   def assertHasShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue], msg: Code[String]*) =
     if (!hasShapeStatic(otherShape))
-      cb.ifx(!hasShape(cb, otherShape), cb._fatal(msg: _*))
+      cb.ifx(!hasShape(cb, otherShape),
+        cb._fatal(
+          msg ++
+          (const("\nExpected shape ").get +:
+            shapes.map(_.toS).intersperse[Code[String]]("(", ",", ")")) ++
+          (const(", found ").get +:
+            otherShape.map(_.toS).intersperse[Code[String]]("(", ",", ")")): _*,
+        ))
 
   // True IFF shape can be proven equal to otherShape statically
   def hasShapeStatic(otherShape: IndexedSeq[SizeValue]): Boolean =

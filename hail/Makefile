@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.15
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 117
+HAIL_PATCH_VERSION := 118
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -121,6 +121,13 @@ endif
 services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	+./pgradle testServices $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
+.PHONY: services-jvm-test
+ifdef HAIL_COMPILE_NATIVES
+fs-jvm-test: native-lib-prebuilt
+endif
+fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+	+./pgradle testFS $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
+
 # javac args from compileJava in build.gradle
 $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
 	@mkdir -p $(BUILD_DEBUG_PREFIX)
@@ -178,6 +185,7 @@ pytest: python/README.md $(PYTHON_JAR)
             --durations=50 \
             --self-contained-html \
             --html=../build/reports/pytest.html \
+            --timeout=120 \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 
@@ -201,6 +209,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
             --durations=50 \
             --self-contained-html \
             --html=../build/reports/pytest.html \
+            --timeout=120 \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 

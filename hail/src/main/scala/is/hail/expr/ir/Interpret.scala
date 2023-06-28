@@ -340,7 +340,7 @@ object Interpret {
         else
           aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
       case _: CastToArray | _: ToArray | _: ToStream =>
-        val c = ir.children(0).asInstanceOf[IR]
+        val c = ir.children.head.asInstanceOf[IR]
         val cValue = interpret(c, env, args)
         if (cValue == null)
           null
@@ -897,7 +897,7 @@ object Interpret {
           // TODO Is this right? where does wrapped run?
           ctx.scopedExecution((hcl, fs, htc, r) => SafeRow(rt, f(hcl, fs, htc, r).apply(r, globalsOffset)))
         } else {
-          val spec = BufferSpec.defaultUncompressed
+          val spec = BufferSpec.blockedUncompressed
 
           val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
             extracted.states,

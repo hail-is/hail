@@ -1079,6 +1079,12 @@ object IRParser {
         ir_value_expr(env)(it).map { nd =>
           NDArraySVD(nd, fullMatrices, computeUV, errorID)
         }
+      case "NDArrayEigh" =>
+        val errorID = int32_literal(it)
+        val eigvalsOnly = boolean_literal(it)
+        ir_value_expr(env)(it).map { nd =>
+          NDArrayEigh(nd, eigvalsOnly, errorID)
+        }
       case "NDArrayInv" =>
         val errorID = int32_literal(it)
         ir_value_expr(env)(it).map{ nd => NDArrayInv(nd, errorID) }

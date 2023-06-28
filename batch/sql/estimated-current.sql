@@ -326,6 +326,8 @@ CREATE TABLE IF NOT EXISTS `job_attributes` (
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX job_attributes_key_value ON `job_attributes` (`key`, `value`(256));
+CREATE INDEX job_attributes_batch_id_key_value ON `job_attributes` (batch_id, `key`, `value`(256));
+CREATE INDEX job_attributes_value ON `job_attributes` (batch_id, `value`(256));
 
 CREATE TABLE IF NOT EXISTS `regions` (
   `region_id` INT NOT NULL AUTO_INCREMENT,

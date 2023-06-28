@@ -1,14 +1,16 @@
-from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union
 from types import TracebackType
 
+import abc
 import re
 import asyncio
 from functools import wraps
 import secrets
 import logging
-import datetime
+from datetime import datetime, timedelta
 
-from azure.storage.blob import BlobProperties
+from azure.mgmt.storage.aio import StorageManagementClient
+from azure.storage.blob import BlobProperties, ResourceTypes, generate_account_sas
 from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
@@ -228,9 +230,9 @@ class AzureFileListEntry(FileListEntry):
         return self._url.path
 
     async def url(self) -> str:
-        return str(self._url)
+        return self._url.base
 
-    def url_maybe_trailing_slash(self) -> str:
+    async def url_full(self) -> str:
         return str(self._url)
 
     async def is_file(self) -> bool:
@@ -256,14 +258,14 @@ class AzureFileStatus(FileStatus):
         assert isinstance(size, int)
         return size
 
-    def time_created(self) -> datetime.datetime:
+    def time_created(self) -> datetime:
         ct = self.blob_props.creation_time
-        assert isinstance(ct, datetime.datetime)
+        assert isinstance(ct, datetime)
         return ct
 
-    def time_modified(self) -> datetime.datetime:
+    def time_modified(self) -> datetime:
         lm = self.blob_props.last_modified
-        assert isinstance(lm, datetime.datetime)
+        assert isinstance(lm, datetime)
         return lm
 
     async def __getitem__(self, key: str) -> Any:
@@ -271,10 +273,11 @@ class AzureFileStatus(FileStatus):
 
 
 class AzureAsyncFSURL(AsyncFSURL):
-    def __init__(self, account: str, container: str, path: str):
+    def __init__(self, account: str, container: str, path: str, query: Optional[str]):
         self._account = account
         self._container = container
         self._path = path
+        self._query = query
 
     @property
     def bucket_parts(self) -> List[str]:
@@ -292,8 +295,20 @@ class AzureAsyncFSURL(AsyncFSURL):
     def container(self) -> str:
         return self._container
 
+    @property
+    def query(self) -> Optional[str]:
+        return self._query
+
+    @property
+    @abc.abstractmethod
+    def base(self) -> str:
+        pass
+
     def with_path(self, path) -> 'AzureAsyncFSURL':
-        return self.__class__(self._account, self._container, path)
+        return self.__class__(self._account, self._container, path, self._query)
+
+    def __str__(self) -> str:
+        return self.base if not self._query else f'{self.base}?{self._query}'
 
 
 class AzureAsyncFSHailAzURL(AzureAsyncFSURL):
@@ -301,7 +316,8 @@ class AzureAsyncFSHailAzURL(AzureAsyncFSURL):
     def scheme(self) -> str:
         return 'hail-az'
 
-    def __str__(self) -> str:
+    @property
+    def base(self) -> str:
         return f'hail-az://{self._account}/{self._container}/{self._path}'
 
 
@@ -310,7 +326,8 @@ class AzureAsyncFSHttpsURL(AzureAsyncFSURL):
     def scheme(self) -> str:
         return 'https'
 
-    def __str__(self) -> str:
+    @property
+    def base(self) -> str:
         return f'https://{self._account}.blob.core.windows.net/{self._container}/{self._path}'
 
 
@@ -319,13 +336,13 @@ class AzureAsyncFSHttpsURL(AzureAsyncFSURL):
 # that container going forward.
 def handle_public_access_error(fun):
     @wraps(fun)
-    async def wrapped(self, url, *args, **kwargs):
+    async def wrapped(self: 'AzureAsyncFS', url, *args, **kwargs):
         try:
             return await fun(self, url, *args, **kwargs)
         except azure.core.exceptions.ClientAuthenticationError:
             fs_url = self.parse_url(url)
             anon_client = BlobServiceClient(f'https://{fs_url.account}.blob.core.windows.net', credential=None)
-            self._blob_service_clients[(fs_url.account, fs_url.container)] = anon_client
+            self._blob_service_clients[(fs_url.account, fs_url.container, fs_url.query)] = anon_client
             return await fun(self, url, *args, **kwargs)
     return wrapped
 
@@ -345,7 +362,7 @@ class AzureAsyncFS(AsyncFS):
             raise ValueError('credential and credential_file cannot both be defined')
 
         self._credential = credentials.credential
-        self._blob_service_clients: Dict[Tuple[str, str], BlobServiceClient] = {}
+        self._blob_service_clients: Dict[Tuple[str, str, Union[AzureCredentials, str, None]], BlobServiceClient] = {}
 
     @staticmethod
     def valid_url(url: str) -> bool:
@@ -358,7 +375,28 @@ class AzureAsyncFS(AsyncFS):
             return suffix == 'blob.core.windows.net'
         return url.startswith('hail-az://')
 
-    def parse_url(self, url: str) -> AzureAsyncFSURL:
+    async def generate_sas_token(
+        self,
+        subscription_id: str,
+        resource_group: str,
+        account: str,
+        permissions: str = "rw",
+        valid_interval: timedelta = timedelta(hours=1)
+    ) -> str:
+        mgmt_client = StorageManagementClient(self._credential, subscription_id)
+        storage_keys = await mgmt_client.storage_accounts.list_keys(resource_group, account)
+        storage_key = storage_keys.keys[0].value
+
+        token = generate_account_sas(
+            account,
+            storage_key,
+            resource_types=ResourceTypes(container=True, object=True),
+            permission=permissions,
+            expiry=datetime.utcnow() + valid_interval)
+        return token
+
+    @staticmethod
+    def parse_url(url: str) -> AzureAsyncFSURL:
         colon_index = url.find(':')
         if colon_index == -1:
             raise ValueError(f'invalid URL: {url}')
@@ -386,27 +424,42 @@ class AzureAsyncFS(AsyncFS):
             assert name[0] == '/'
             name = name[1:]
 
+        name, token = AzureAsyncFS.get_name_parts(name)
+
         if scheme == 'hail-az':
             account = authority
-            return AzureAsyncFSHailAzURL(account, container, name)
+            return AzureAsyncFSHailAzURL(account, container, name, token)
 
         assert scheme == 'https'
         assert len(authority) > len('.blob.core.windows.net')
         account = authority[:-len('.blob.core.windows.net')]
-        return AzureAsyncFSHttpsURL(account, container, name)
+        return AzureAsyncFSHttpsURL(account, container, name, token)
 
-    def get_blob_service_client(self, account: str, container: str) -> BlobServiceClient:
-        k = account, container
+    @staticmethod
+    def get_name_parts(name: str) -> Tuple[str, str]:
+        # Look for a terminating SAS token.
+        query_index = name.rfind('?')
+        if query_index != -1:
+            query_string = name[query_index + 1:]
+            first_kv_pair = query_string.split('&')[0].split('=')
+            # We will accept it as a token string if it begins with at least 1 key-value pair of the form 'k=v'.
+            if len(first_kv_pair) == 2 and all(s != '' for s in first_kv_pair):
+                return (name[:query_index],  query_string)
+        return (name, '')
+
+    def get_blob_service_client(self, account: str, container: str, token: Optional[str]) -> BlobServiceClient:
+        credential = token if token else self._credential
+        k = account, container, token
         if k not in self._blob_service_clients:
-            self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=self._credential)
+            self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=credential)
         return self._blob_service_clients[k]
 
     def get_blob_client(self, url: AzureAsyncFSURL) -> BlobClient:
-        blob_service_client = self.get_blob_service_client(url.account, url.container)
+        blob_service_client = self.get_blob_service_client(url.account, url.container, url.query)
         return blob_service_client.get_blob_client(url.container, url.path)
 
     def get_container_client(self, url: AzureAsyncFSURL) -> ContainerClient:
-        return self.get_blob_service_client(url.account, url.container).get_container_client(url.container)
+        return self.get_blob_service_client(url.account, url.container, url.query).get_container_client(url.container)
 
     @handle_public_access_error
     async def open(self, url: str) -> ReadableStream:

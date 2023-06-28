@@ -390,7 +390,7 @@ class TableRead(TableIR):
         drop_row_uids = False
         if uid_field_name is None and self.drop_row_uids:
             drop_row_uids = True
-        elif uid_field_name != default_row_uid:
+        elif uid_field_name is not None and uid_field_name != default_row_uid:
             rename_row_uid = True
         result = TableRead(self.reader, self.drop_rows, drop_row_uids)
         if rename_row_uid:

@@ -30,7 +30,6 @@ object TypeCheck {
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {
       _ <- ir.children
-        .iterator
         .zipWithIndex
         .foreachRecur { case (child, i) =>
           for {
@@ -265,6 +264,10 @@ object TypeCheck {
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)
       case x@NDArraySVD(nd, _, _, _) =>
+        val ndType = nd.typ.asInstanceOf[TNDArray]
+        assert(ndType.elementType == TFloat64)
+        assert(ndType.nDims == 2)
+      case x@NDArrayEigh(nd, _, _) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         assert(ndType.elementType == TFloat64)
         assert(ndType.nDims == 2)

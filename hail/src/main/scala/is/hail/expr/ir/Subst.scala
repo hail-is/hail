@@ -17,17 +17,13 @@ object Subst {
       case x@Ref(name, _) =>
         env.eval.lookupOption(name).getOrElse(x)
       case _ =>
-        e.copy(
-          e.children
-            .iterator
-            .zipWithIndex
-            .map { case (child: IR, i) =>
-
-              val childEnv = ChildEnvWithoutBindings(e, i, env)
-              val newBindings = NewBindings(e, i, childEnv)
-              subst(child, childEnv.subtract(newBindings))
-            case (child, _) => child
-            }.toFastIndexedSeq)
+        e.mapChildrenWithIndex {
+          case (child: IR, i) =>
+            val childEnv = ChildEnvWithoutBindings(e, i, env)
+            val newBindings = NewBindings(e, i, childEnv)
+            subst(child, childEnv.subtract(newBindings))
+          case (child, _) => child
+        }
     }
   }
 }

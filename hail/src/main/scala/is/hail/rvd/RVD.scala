@@ -825,25 +825,6 @@ class RVD(
       typ.copy(rowType = newRowType))
   }
 
-  def orderedJoin(
-    right: RVD,
-    joinType: String,
-    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType,
-    ctx: ExecuteContext
-  ): RVD =
-    orderedJoin(right, typ.key.length, joinType, joiner, joinedType, ctx)
-
-  def orderedJoin(
-    right: RVD,
-    joinKey: Int,
-    joinType: String,
-    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType,
-    ctx: ExecuteContext
-  ): RVD =
-    keyBy(joinKey).orderedJoin(right.keyBy(joinKey), joinType, joiner, joinedType, ctx)
-
   def orderedLeftJoinDistinct(
     right: RVD,
     joinKey: Int,

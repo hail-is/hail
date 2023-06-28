@@ -172,6 +172,8 @@ object Children {
       Array(nd)
     case NDArraySVD(nd, _, _, _) =>
       Array(nd)
+    case NDArrayEigh(nd, _, _) =>
+      Array(nd)
     case NDArrayInv(nd, errorID) =>
       Array(nd)
     case NDArrayWrite(nd, path) =>

@@ -2,59 +2,45 @@ import os
 import tempfile
 import zipfile
 
+from typing import Optional, List
+
 from . import gcloud
 
 
-def init_parser(parser):
-    parser.add_argument('name', type=str, help='Cluster name.')
-    parser.add_argument('script', type=str, help="Path to script.")
-    parser.add_argument('--files', required=False, type=str, help='Comma-separated list of files to add to the working directory of the Hail application.')
-    parser.add_argument('--pyfiles', required=False, type=str, help='Comma-separated list of files (or directories with python files) to add to the PYTHONPATH.')
-    parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
-    parser.add_argument('--gcloud_configuration', help='Google Cloud configuration to submit job (defaults to currently set configuration).')
-    parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
-    parser.add_argument('--region', help='Compute region for the cluster.')
-
-
-async def main(args, pass_through_args):  # pylint: disable=unused-argument
-    print("Submitting to cluster '{}'...".format(args.name))
-
-    # create files argument
-    files = ''
-    if args.files:
-        files = args.files
+def submit(
+    name: str,
+    script: str,
+    files: str,
+    pyfiles: str,
+    properties: Optional[str],
+    gcloud_configuration: Optional[str],
+    dry_run: bool,
+    region: Optional[str],
+    pass_through_args: List[str],
+):
+    print("Submitting to cluster '{}'...".format(name))
 
     # If you only provide one (comma-sep) argument, and it's a zip file, use that file directly
-    if args.pyfiles and args.pyfiles.endswith('.zip') and ',' not in args.pyfiles:
-        # Adding the zip archive directly
-        pyfiles = args.pyfiles
-    else:
-        pyfiles = []
-        if args.pyfiles:
-            pyfiles.extend(args.pyfiles.split(','))
-        pyfiles.extend(os.environ.get('HAIL_SCRIPTS', '').split(':'))
+    if not (pyfiles and pyfiles.endswith('.zip') and ',' not in pyfiles):
+        pyfiles_list = []
         if pyfiles:
+            pyfiles_list.extend(pyfiles.split(','))
+        pyfiles_list.extend(os.environ.get('HAIL_SCRIPTS', '').split(':'))
+        if pyfiles_list:
             tfile = tempfile.mkstemp(suffix='.zip', prefix='pyscripts_')[1]
-            zipf = zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED)
-            for hail_script_entry in pyfiles:
-                if hail_script_entry.endswith('.py'):
-                    zipf.write(hail_script_entry, arcname=os.path.basename(hail_script_entry))
-                else:
-                    for root, _, pyfiles_walk in os.walk(hail_script_entry):
-                        for pyfile in pyfiles_walk:
-                            if pyfile.endswith('.py'):
-                                zipf.write(os.path.join(root, pyfile),
-                                           os.path.relpath(os.path.join(root, pyfile),
-                                                           os.path.join(hail_script_entry, '..')))
-            zipf.close()
+            with zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for hail_script_entry in pyfiles_list:
+                    if hail_script_entry.endswith('.py'):
+                        zipf.write(hail_script_entry, arcname=os.path.basename(hail_script_entry))
+                    else:
+                        for root, _, pyfiles_walk in os.walk(hail_script_entry):
+                            for pyfile in pyfiles_walk:
+                                if pyfile.endswith('.py'):
+                                    zipf.write(
+                                        os.path.join(root, pyfile),
+                                        os.path.relpath(os.path.join(root, pyfile), os.path.join(hail_script_entry, '..')),
+                                    )
             pyfiles = tfile
-        else:
-            pyfiles = ''
-
-    # create properties argument
-    properties = ''
-    if args.properties:
-        properties = args.properties
 
     # pyspark submit command
     cmd = [
@@ -62,17 +48,17 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
         'jobs',
         'submit',
         'pyspark',
-        args.script,
-        '--cluster={}'.format(args.name),
+        script,
+        '--cluster={}'.format(name),
         '--files={}'.format(files),
         '--py-files={}'.format(pyfiles),
-        '--properties={}'.format(properties)
+        '--properties={}'.format(properties or ''),
     ]
-    if args.gcloud_configuration:
-        cmd.append('--configuration={}'.format(args.gcloud_configuration))
+    if gcloud_configuration:
+        cmd.append('--configuration={}'.format(gcloud_configuration))
 
-    if args.region:
-        cmd.append('--region={}'.format(args.region))
+    if region:
+        cmd.append('--region={}'.format(region))
 
     # append arguments to pass to the Hail script
     if pass_through_args:
@@ -84,5 +70,5 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
     print('gcloud ' + ' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
 
     # submit job
-    if not args.dry_run:
+    if not dry_run:
         gcloud.run(cmd)

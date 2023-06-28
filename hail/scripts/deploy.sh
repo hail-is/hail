@@ -2,6 +2,8 @@
 
 set -ex
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 retry() {
     "$@" ||
         (sleep 2 && "$@") ||
@@ -58,6 +60,9 @@ then
     echo "release $HAIL_PIP_VERSION already exists"
     exit 1
 fi
+
+export PYPI_USED_STORAGE=$(curl https://pypi.org/pypi/hail/json | jq '[.releases[][].size ]| add')
+WHEEL=$WHEEL python3 $SCRIPT_DIR/assert_pypi_has_room.py
 
 # push git tag
 git tag $HAIL_PIP_VERSION -m "Hail version $HAIL_PIP_VERSION."

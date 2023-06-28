@@ -17,7 +17,6 @@ run-docker: build
 
 deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	$(MAKE) -C ../docker hail-ubuntu
 	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"scope":"$(SCOPE)","website_image":{"image":"$(WEBSITE_IMAGE)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 

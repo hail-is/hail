@@ -29,6 +29,7 @@ cd $dir
 # Create the MySQL server CA
 openssl req -new -x509 \
     -subj /CN=db-root -nodes -newkey rsa:4096 \
+    -days 365 \
     -keyout server-ca-key.pem -out server-ca.pem
 
 create_key_and_cert server

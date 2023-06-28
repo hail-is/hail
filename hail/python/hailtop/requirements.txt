@@ -1,6 +1,7 @@
 aiodns>=2.0.0,<3
 aiohttp>=3.8.1,<4
 azure-identity>=1.6.0,<2
+azure-mgmt-storage==20.1.0
 azure-storage-blob>=12.11.0,<13
 boto3>=1.17,<2.0
 botocore>=1.20,<2.0
@@ -14,7 +15,10 @@ nest_asyncio>=1.5.4,<2
 orjson>=3.6.4,<4
 protobuf==3.20.2
 rich==12.6.0
+typer>=0.9.0,<1
 python-json-logger>=2.0.2,<3
+pyyaml>=6.0,<7.0
 sortedcontainers>=2.4.0,<3
 tabulate>=0.8.9,<1
 uvloop>=0.16.0,<1; sys_platform!='win32'
+jproperties>=2.1.1,<3

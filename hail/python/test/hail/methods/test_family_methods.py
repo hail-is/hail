@@ -5,7 +5,8 @@ from ..helpers import *
 
 
 class Tests(unittest.TestCase):
-    def test_trio_matrix(self):
+    @test_timeout(local=3 * 60, batch=6 * 60)
+    def test_trio_matrix_1(self):
         """
         This test depends on certain properties of the trio matrix VCF and
         pedigree structure. This test is NOT a valid test if the pedigree
@@ -49,9 +50,30 @@ class Tests(unittest.TestCase):
         tt = tt.select('fam', 'data').explode('data')
         tt = tt.filter(hl.is_defined(tt.data.g)).key_by('locus', 'alleles', 'fam')
 
-        self.assertEqual(et.key.dtype, tt.key.dtype)
-        self.assertEqual(et.row.dtype, tt.row.dtype)
-        self.assertTrue(et._same(tt))
+        assert et.key.dtype == tt.key.dtype
+        assert et.row.dtype == tt.row.dtype
+        assert et._same(tt)
+
+    @test_timeout(local=3 * 60, batch=6 * 60)
+    def test_trio_matrix_2(self):
+        """
+        This test depends on certain properties of the trio matrix VCF and
+        pedigree structure. This test is NOT a valid test if the pedigree
+        includes quads: the trio_matrix method will duplicate the parents
+        appropriately, but the genotypes_table and samples_table orthogonal
+        paths would require another duplication/explode that we haven't written.
+        """
+        ped = hl.Pedigree.read(resource('triomatrix.fam'))
+        ht = hl.import_fam(resource('triomatrix.fam'))
+
+        mt = hl.import_vcf(resource('triomatrix.vcf'))
+        mt = mt.annotate_cols(fam=ht[mt.s].fam_id)
+
+        dads = ht.filter(hl.is_defined(ht.pat_id))
+        dads = dads.select(dads.pat_id, is_dad=True).key_by('pat_id')
+
+        moms = ht.filter(hl.is_defined(ht.mat_id))
+        moms = moms.select(moms.mat_id, is_mom=True).key_by('mat_id')
 
         # test annotations
         e_cols = (mt.cols()
@@ -73,9 +95,9 @@ class Tests(unittest.TestCase):
                                      hl.struct(role=2, sa=t_cols.mother)]).key_by('fam').select('data').explode('data')
         t_cols = t_cols.filter(hl.is_defined(t_cols.data.sa))
 
-        self.assertEqual(e_cols.key.dtype, t_cols.key.dtype)
-        self.assertEqual(e_cols.row.dtype, t_cols.row.dtype)
-        self.assertTrue(e_cols._same(t_cols))
+        assert e_cols.key.dtype == t_cols.key.dtype
+        assert e_cols.row.dtype == t_cols.row.dtype
+        assert e_cols._same(t_cols)
 
     def test_trio_matrix_null_keys(self):
         ped = hl.Pedigree.read(resource('triomatrix.fam'))
@@ -95,63 +117,109 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('triomatrix.vcf'))
         hl.trio_matrix(mt, ped, complete_trios=False)
 
-
-    def test_mendel_errors(self):
+    @test_timeout(4 * 60)
+    def test_mendel_errors_1(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
-
         men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
 
-        self.assertEqual(men.key.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   s=hl.tstr))
-        self.assertEqual(men.row.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   s=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   mendel_code=hl.tint))
-        self.assertEqual(fam.key.dtype, hl.tstruct(pat_id=hl.tstr,
-                                                   mat_id=hl.tstr))
-        self.assertEqual(fam.row.dtype, hl.tstruct(pat_id=hl.tstr,
-                                                   mat_id=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   children=hl.tint,
-                                                   errors=hl.tint64,
-                                                   snp_errors=hl.tint64))
-        self.assertEqual(ind.key.dtype, hl.tstruct(s=hl.tstr))
-        self.assertEqual(ind.row.dtype, hl.tstruct(s=hl.tstr,
-                                                   fam_id=hl.tstr,
-                                                   errors=hl.tint64,
-                                                   snp_errors=hl.tint64))
-        self.assertEqual(var.key.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr)))
-        self.assertEqual(var.row.dtype, hl.tstruct(locus=mt.locus.dtype,
-                                                   alleles=hl.tarray(hl.tstr),
-                                                   errors=hl.tint64))
+        assert men.key.dtype == hl.tstruct(locus=mt.locus.dtype,
+                                           alleles=hl.tarray(hl.tstr),
+                                           s=hl.tstr)
+        assert men.row.dtype == hl.tstruct(locus=mt.locus.dtype,
+                                           alleles=hl.tarray(hl.tstr),
+                                           s=hl.tstr,
+                                           fam_id=hl.tstr,
+                                           mendel_code=hl.tint)
+        assert fam.key.dtype == hl.tstruct(pat_id=hl.tstr,
+                                           mat_id=hl.tstr)
+        assert fam.row.dtype == hl.tstruct(pat_id=hl.tstr,
+                                           mat_id=hl.tstr,
+                                           fam_id=hl.tstr,
+                                           children=hl.tint,
+                                           errors=hl.tint64,
+                                           snp_errors=hl.tint64)
+        assert ind.key.dtype == hl.tstruct(s=hl.tstr)
+        assert ind.row.dtype == hl.tstruct(s=hl.tstr,
+                                           fam_id=hl.tstr,
+                                           errors=hl.tint64,
+                                           snp_errors=hl.tint64)
+        assert var.key.dtype == hl.tstruct(locus=mt.locus.dtype,
+                                           alleles=hl.tarray(hl.tstr))
+        assert var.row.dtype == hl.tstruct(locus=mt.locus.dtype,
+                                           alleles=hl.tarray(hl.tstr),
+                                           errors=hl.tint64)
 
-        self.assertEqual(men.count(), 41)
-        self.assertEqual(fam.count(), 2)
-        self.assertEqual(ind.count(), 7)
-        self.assertEqual(var.count(), mt.count_rows())
+    @test_timeout(4 * 60)
+    def test_mendel_errors_2(self):
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
 
-        self.assertEqual(set(fam.select('children', 'errors', 'snp_errors').collect()),
-                         {
-                             hl.utils.Struct(pat_id='Dad1', mat_id='Mom1', children=2,
-                                             errors=41, snp_errors=39),
-                             hl.utils.Struct(pat_id='Dad2', mat_id='Mom2', children=1,
-                                             errors=0, snp_errors=0)
-                         })
+        assert men.count() == 41
 
-        self.assertEqual(set(ind.select('errors', 'snp_errors').collect()),
-                         {
-                             hl.utils.Struct(s='Son1', errors=23, snp_errors=22),
-                             hl.utils.Struct(s='Dtr1', errors=18, snp_errors=17),
-                             hl.utils.Struct(s='Dad1', errors=19, snp_errors=18),
-                             hl.utils.Struct(s='Mom1', errors=22, snp_errors=21),
-                             hl.utils.Struct(s='Dad2', errors=0, snp_errors=0),
-                             hl.utils.Struct(s='Mom2', errors=0, snp_errors=0),
-                             hl.utils.Struct(s='Son2', errors=0, snp_errors=0)
-                         })
+    @test_timeout(4 * 60)
+    def test_mendel_errors_3(self):
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
+
+        assert fam.count() == 2
+
+    @test_timeout(4 * 60)
+    def test_mendel_errors_4(self):
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
+
+        assert ind.count() == 7
+
+    @test_timeout(4 * 60)
+    def test_mendel_errors_5(self):
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
+
+        assert var.count() == mt.count_rows()
+
+    @test_timeout(4 * 60)
+    def test_mendel_errors_6(self):
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
+
+        actual = set(fam.select('children', 'errors', 'snp_errors').collect())
+        expected = {
+            hl.utils.Struct(pat_id='Dad1', mat_id='Mom1', children=2,
+                            errors=41, snp_errors=39),
+            hl.utils.Struct(pat_id='Dad2', mat_id='Mom2', children=1,
+                            errors=0, snp_errors=0)
+        }
+        assert actual == expected
+
+    @test_timeout(4 * 60)
+    def test_mendel_errors_7(self):
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
+
+        actual = set(ind.select('errors', 'snp_errors').collect())
+        expected = {
+            hl.utils.Struct(s='Son1', errors=23, snp_errors=22),
+            hl.utils.Struct(s='Dtr1', errors=18, snp_errors=17),
+            hl.utils.Struct(s='Dad1', errors=19, snp_errors=18),
+            hl.utils.Struct(s='Mom1', errors=22, snp_errors=21),
+            hl.utils.Struct(s='Dad2', errors=0, snp_errors=0),
+            hl.utils.Struct(s='Mom2', errors=0, snp_errors=0),
+            hl.utils.Struct(s='Son2', errors=0, snp_errors=0)
+        }
+        assert actual == expected
+
+    @test_timeout(4 * 60)
+    def test_mendel_errors_8(self):
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
 
         to_keep = hl.set([
             (hl.Locus("1", 1), ['C', 'CT']),
@@ -161,22 +229,30 @@ class Tests(unittest.TestCase):
             (hl.Locus("Y", 1), ['C', 'T']),
             (hl.Locus("Y", 3), ['C', 'T'])
         ])
-        self.assertEqual(var.filter(to_keep.contains((var.locus, var.alleles)))
-                         .order_by('locus')
-                         .select('locus', 'alleles', 'errors').collect(),
-                         [
-                             hl.utils.Struct(locus=hl.Locus("1", 1), alleles=['C', 'CT'], errors=2),
-                             hl.utils.Struct(locus=hl.Locus("1", 2), alleles=['C', 'T'], errors=1),
-                             hl.utils.Struct(locus=hl.Locus("X", 1), alleles=['C', 'T'], errors=2),
-                             hl.utils.Struct(locus=hl.Locus("X", 3), alleles=['C', 'T'], errors=1),
-                             hl.utils.Struct(locus=hl.Locus("Y", 1), alleles=['C', 'T'], errors=1),
-                             hl.utils.Struct(locus=hl.Locus("Y", 3), alleles=['C', 'T'], errors=1),
-                         ])
+        var = var.filter(to_keep.contains((var.locus, var.alleles)))
+        var = var.order_by('locus')
+        var = var.select('locus', 'alleles', 'errors')
+        actual = var.collect()
+        expected = [
+            hl.utils.Struct(locus=hl.Locus("1", 1), alleles=['C', 'CT'], errors=2),
+            hl.utils.Struct(locus=hl.Locus("1", 2), alleles=['C', 'T'], errors=1),
+            hl.utils.Struct(locus=hl.Locus("X", 1), alleles=['C', 'T'], errors=2),
+            hl.utils.Struct(locus=hl.Locus("X", 3), alleles=['C', 'T'], errors=1),
+            hl.utils.Struct(locus=hl.Locus("Y", 1), alleles=['C', 'T'], errors=1),
+            hl.utils.Struct(locus=hl.Locus("Y", 3), alleles=['C', 'T'], errors=1),
+        ]
+        assert actual == expected
+
+    @test_timeout(4 * 60)
+    def test_mendel_errors_9(self):
+        mt = hl.import_vcf(resource('mendel.vcf'))
+        ped = hl.Pedigree.read(resource('mendel.fam'))
+        men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
 
         ped2 = hl.Pedigree.read(resource('mendelWithMissingSex.fam'))
         men2, _, _, _ = hl.mendel_errors(mt['GT'], ped2)
 
-        self.assertTrue(men2.filter(men2.s == 'Dtr1')._same(men.filter(men.s == 'Dtr1')))
+        assert men2.filter(men2.s == 'Dtr1')._same(men.filter(men.s == 'Dtr1'))
 
     def test_tdt(self):
         pedigree = hl.Pedigree.read(resource('tdt.fam'))

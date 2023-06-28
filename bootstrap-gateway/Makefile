@@ -6,8 +6,8 @@ GATEWAY_IMAGE := $(DOCKER_PREFIX)/gateway:$(TOKEN)
 IP := $(shell kubectl get secret global-config --template={{.data.ip}} | base64 --decode)
 
 build:
-	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
+	$(MAKE) -C .. hail-ubuntu-image
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../hail-ubuntu-image)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh . Dockerfile.out $(GATEWAY_IMAGE)
 
 deploy: build

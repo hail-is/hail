@@ -137,6 +137,9 @@ object Copy {
       case NDArraySVD(_, fullMatrices, computeUV, errorID) =>
         assert(newChildren.length == 1)
         NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV, errorID)
+      case NDArrayEigh(_, eigvalsOnly, errorID) =>
+        assert(newChildren.length == 1)
+        NDArrayEigh(newChildren(0).asInstanceOf[IR], eigvalsOnly, errorID)
       case NDArrayInv(_, errorID) =>
         assert(newChildren.length == 1)
         NDArrayInv(newChildren(0).asInstanceOf[IR], errorID)

@@ -49,7 +49,7 @@ object Scope {
         case RelationalLet(_, value, body) =>
           compute(value, EVAL)
           compute(body, scope)
-        case _ => ir.children.iterator.zipWithIndex.foreach {
+        case _ => ir.children.zipWithIndex.foreach {
           case (child: IR, i) =>
             val usesAgg = UsesAggEnv(ir, i)
             val usesScan = UsesScanEnv(ir, i)

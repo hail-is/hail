@@ -181,8 +181,8 @@ class Batch:
     def last_known_status(self):
         return async_to_blocking(self._async_batch.last_known_status())
 
-    def jobs(self, q=None):
-        return agen_to_blocking(self._async_batch.jobs(q=q))
+    def jobs(self, q=None, version=None):
+        return agen_to_blocking(self._async_batch.jobs(q=q, version=version))
 
     def get_job(self, job_id: int) -> Job:
         j = async_to_blocking(self._async_batch.get_job(job_id))
@@ -365,7 +365,7 @@ class BatchClient:
     def edit_billing_limit(self, project, limit):
         return async_to_blocking(self._async_client.edit_billing_limit(project, limit))
 
-    def supported_regions(self):
+    def supported_regions(self) -> List[str]:
         return async_to_blocking(self._async_client.supported_regions())
 
     def cloud(self):

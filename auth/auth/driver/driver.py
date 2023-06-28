@@ -4,8 +4,7 @@ import json
 import logging
 import os
 import random
-import secrets
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List
 
 import aiohttp
 import kubernetes_asyncio.client
@@ -17,7 +16,6 @@ from gear.clients import get_identity_client
 from gear.cloud_config import get_gcp_config, get_global_config
 from hailtop import aiotools, httpx
 from hailtop import batch_client as bc
-from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
 from hailtop.utils import secret_alnum_string, time_msecs
 
 log = logging.getLogger('auth.driver')
@@ -34,7 +32,7 @@ class DatabaseConflictError(Exception):
 
 
 class EventHandler:
-    def __init__(self, handler, event=None, bump_secs=60.0, min_delay_secs=0.1):
+    def __init__(self, handler, event=None, bump_secs=5.0, min_delay_secs=0.1):
         self.handler = handler
         if event is None:
             event = asyncio.Event()
@@ -234,86 +232,6 @@ class AzureServicePrincipalResource:
         self.app_obj_id = None
 
 
-class DatabaseResource:
-    def __init__(self, db_instance, name=None):
-        self.db_instance = db_instance
-        self.name = name
-        self.password = None
-
-    async def create(self, name):
-        assert self.name is None
-
-        if is_test_deployment:
-            return
-
-        await self._delete(name)
-
-        self.password = secrets.token_urlsafe(16)
-        await self.db_instance.just_execute(
-            f'''
-CREATE DATABASE `{name}`;
-
-CREATE USER '{name}'@'%' IDENTIFIED BY '{self.password}';
-GRANT ALL ON `{name}`.* TO '{name}'@'%';
-'''
-        )
-        self.name = name
-
-    def secret_data(self):
-        with open('/database-server-config/sql-config.json', 'r', encoding='utf-8') as f:
-            server_config = SQLConfig.from_json(f.read())
-        with open('/database-server-config/server-ca.pem', 'r', encoding='utf-8') as f:
-            server_ca = f.read()
-        client_cert: Optional[str]
-        client_key: Optional[str]
-        if server_config.using_mtls():
-            with open('/database-server-config/client-cert.pem', 'r', encoding='utf-8') as f:
-                client_cert = f.read()
-            with open('/database-server-config/client-key.pem', 'r', encoding='utf-8') as f:
-                client_key = f.read()
-        else:
-            client_cert = None
-            client_key = None
-
-        if is_test_deployment:
-            return create_secret_data_from_config(server_config, server_ca, client_cert, client_key)
-
-        assert self.name is not None
-        assert self.password is not None
-
-        config = SQLConfig(
-            host=server_config.host,
-            port=server_config.port,
-            user=self.name,
-            password=self.password,
-            instance=server_config.instance,
-            connection_name=server_config.connection_name,
-            db=self.name,
-            ssl_ca='/sql-config/server-ca.pem',
-            ssl_cert='/sql-config/client-cert.pem' if client_cert is not None else None,
-            ssl_key='/sql-config/client-key.pem' if client_key is not None else None,
-            ssl_mode='VERIFY_CA',
-        )
-        return create_secret_data_from_config(config, server_ca, client_cert, client_key)
-
-    async def _delete(self, name):
-        if is_test_deployment:
-            return
-
-        # no DROP USER IF EXISTS in current db version
-        row = await self.db_instance.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
-        if row is not None:
-            await self.db_instance.just_execute(f"DROP USER '{name}';")
-
-        await self.db_instance.just_execute(f'DROP DATABASE IF EXISTS `{name}`;')
-
-    async def delete(self):
-        if self.name is None:
-            return
-        await self._delete(self.name)
-        self.name = None
-
-
 class K8sNamespaceResource:
     def __init__(self, k8s_client, name=None):
         self.k8s_client = k8s_client
@@ -410,7 +328,6 @@ class BillingProjectResource:
 
 
 async def _create_user(app, user, skip_trial_bp, cleanup):
-    db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
     identity_client = app['identity_client']
@@ -481,20 +398,13 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         updates['hail_credentials_secret_name'] = hail_credentials_secret_name
 
     namespace_name = user['namespace_name']
-    if namespace_name is None and user['is_developer'] == 1:
+    # auth services in test namespaces cannot/should not be creating and deleting namespaces
+    if namespace_name is None and user['is_developer'] == 1 and not is_test_deployment:
         namespace_name = ident
         namespace = K8sNamespaceResource(k8s_client)
         cleanup.append(namespace.delete)
         await namespace.create(namespace_name)
         updates['namespace_name'] = namespace_name
-
-        db_resource = DatabaseResource(db_instance)
-        cleanup.append(db_resource.delete)
-        await db_resource.create(ident)
-
-        db_secret = K8sSecretResource(k8s_client)
-        cleanup.append(db_secret.delete)
-        await db_secret.create('database-server-config', namespace_name, db_resource.secret_data())
 
     if not skip_trial_bp and user['is_service_account'] != 1:
         trial_bp = user['trial_bp_name']
@@ -536,7 +446,6 @@ async def create_user(app, user, skip_trial_bp=False):
 
 
 async def delete_user(app, user):
-    db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
     identity_client = app['identity_client']
@@ -571,9 +480,6 @@ async def delete_user(app, user):
         # deleting the namespace
         namespace = K8sNamespaceResource(k8s_client, namespace_name)
         await namespace.delete()
-
-        db_resource = DatabaseResource(db_instance, user['username'])
-        await db_resource.delete()
 
     trial_bp_name = user['trial_bp_name']
     if trial_bp_name is not None:
@@ -619,10 +525,6 @@ async def async_main():
 
         app['client_session'] = httpx.client_session()
 
-        db_instance = Database()
-        await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
-        app['db_instance'] = db_instance
-
         kubernetes_asyncio.config.load_incluster_config()
         app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
 
@@ -647,18 +549,14 @@ async def async_main():
                 await app['db'].async_close()
         finally:
             try:
-                if 'db_instance_pool' in app:
-                    await app['db_instance_pool'].async_close()
+                await app['client_session'].close()
             finally:
                 try:
-                    await app['client_session'].close()
+                    if user_creation_loop is not None:
+                        user_creation_loop.shutdown()
                 finally:
                     try:
-                        if user_creation_loop is not None:
-                            user_creation_loop.shutdown()
+                        await app['identity_client'].close()
                     finally:
-                        try:
-                            await app['identity_client'].close()
-                        finally:
-                            k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
-                            await k8s_client.api_client.rest_client.pool_manager.close()
+                        k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
+                        await k8s_client.api_client.rest_client.pool_manager.close()

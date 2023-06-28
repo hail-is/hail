@@ -74,13 +74,20 @@ from ..exceptions import (
     ClosedBillingProjectError,
     InvalidBillingLimitError,
     NonExistentBillingProjectError,
+    QueryError,
 )
 from ..file_store import FileStore
 from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, complete_states
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
-from ..utils import query_billing_projects, regions_to_bits_rep, unavailable_if_frozen
+from ..utils import (
+    query_billing_projects_with_cost,
+    query_billing_projects_without_cost,
+    regions_to_bits_rep,
+    unavailable_if_frozen,
+)
+from .query import CURRENT_QUERY_VERSION, build_batch_jobs_query
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
 uvloop.install()
@@ -216,7 +223,7 @@ async def _handle_ui_error(session, f, *args, **kwargs):
 
 async def _handle_api_error(f, *args, **kwargs):
     try:
-        await f(*args, **kwargs)
+        return await f(*args, **kwargs)
     except BatchOperationAlreadyCompletedError as e:
         log.info(e.message)
         return
@@ -224,106 +231,9 @@ async def _handle_api_error(f, *args, **kwargs):
         raise e.http_response()
 
 
-async def _query_batch_jobs(request, batch_id):
-    state_query_values = {
-        'pending': ['Pending'],
-        'ready': ['Ready'],
-        'creating': ['Creating'],
-        'running': ['Running'],
-        'live': ['Ready', 'Creating', 'Running'],
-        'cancelled': ['Cancelled'],
-        'error': ['Error'],
-        'failed': ['Failed'],
-        'bad': ['Error', 'Failed'],
-        'success': ['Success'],
-        'done': ['Cancelled', 'Error', 'Failed', 'Success'],
-    }
-
-    db = request.app['db']
-
-    # batch has already been validated
-    where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
-    where_args = [batch_id]
-
-    last_job_id = request.query.get('last_job_id')
-    if last_job_id is not None:
-        last_job_id = int(last_job_id)
-        where_conditions.append('(jobs.job_id > %s)')
-        where_args.append(last_job_id)
-
-    q = request.query.get('q', '')
-    terms = q.split()
-    for _t in terms:
-        if _t[0] == '!':
-            negate = True
-            t = _t[1:]
-        else:
-            negate = False
-            t = _t
-
-        if '=' in t:
-            k, v = t.split('=', 1)
-            if k == 'job_id':
-                condition = '(jobs.job_id = %s)'
-                args = [v]
-            else:
-                condition = '''
-((jobs.batch_id, jobs.job_id) IN
- (SELECT batch_id, job_id FROM job_attributes
-  WHERE `key` = %s AND `value` = %s))
-'''
-                args = [k, v]
-        elif t.startswith('has:'):
-            k = t[4:]
-            condition = '''
-((jobs.batch_id, jobs.job_id) IN
- (SELECT batch_id, job_id FROM job_attributes
-  WHERE `key` = %s))
-'''
-            args = [k]
-        elif t in state_query_values:
-            values = state_query_values[t]
-            condition = ' OR '.join(['(jobs.state = %s)' for v in values])
-            condition = f'({condition})'
-            args = values
-        else:
-            session = await aiohttp_session.get_session(request)
-            set_message(session, f'Invalid search term: {t}.', 'error')
-            return ([], None)
-
-        if negate:
-            condition = f'(NOT {condition})'
-
-        where_conditions.append(condition)
-        where_args.extend(args)
-
-    sql = f'''
-WITH base_t AS
-(
-  SELECT jobs.*, batches.user, batches.billing_project, batches.format_version,
-    job_attributes.value AS name
-  FROM jobs
-  INNER JOIN batches ON jobs.batch_id = batches.id
-  INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
-  LEFT JOIN job_attributes
-  ON jobs.batch_id = job_attributes.batch_id AND
-    jobs.job_id = job_attributes.job_id AND
-    job_attributes.`key` = 'name'
-  WHERE {' AND '.join(where_conditions)}
-  LIMIT 50
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
-LEFT JOIN (
-  SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_job_resources_v2 ON base_t.batch_id = aggregated_job_resources_v2.batch_id AND base_t.job_id = aggregated_job_resources_v2.job_id
-  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
-) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_id = usage_t.job_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.batch_id, base_t.job_id;
-'''
-    sql_args = where_args
+async def _query_batch_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
+    db: Database = request.app['db']
+    sql, sql_args = build_batch_jobs_query(batch_id, version, q, last_job_id)
 
     jobs = [job_record_to_dict(record, record['name']) async for record in db.select_and_fetchall(sql, sql_args)]
 
@@ -335,10 +245,9 @@ GROUP BY base_t.batch_id, base_t.job_id;
     return (jobs, last_job_id)
 
 
-@routes.get('/api/v1alpha/batches/{batch_id}/jobs')
-@rest_billing_project_users_only
-async def get_jobs(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def _get_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
     db = request.app['db']
+
     record = await db.select_and_fetchone(
         '''
 SELECT * FROM batches
@@ -349,10 +258,33 @@ WHERE id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
+    jobs, last_job_id = await _query_batch_jobs(request, batch_id, version, q, last_job_id)
+
     resp = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
+    return resp
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs')
+@rest_billing_project_users_only
+async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-argument
+    q = request.query.get('q', '')
+    last_job_id = request.query.get('last_job_id')
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+    resp = await _handle_api_error(_get_jobs, request, batch_id, 1, q, last_job_id)
+    return json_response(resp)
+
+
+@routes.get('/api/v2alpha/batches/{batch_id}/jobs')
+@rest_billing_project_users_only
+async def get_jobs_v2(request, userdata, batch_id):  # pylint: disable=unused-argument
+    q = request.query.get('q', '')
+    last_job_id = request.query.get('last_job_id')
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+    resp = await _handle_api_error(_get_jobs, request, batch_id, 2, q, last_job_id)
     return json_response(resp)
 
 
@@ -1109,14 +1041,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             secrets.append(
                 {
                     'namespace': DEFAULT_NAMESPACE,
-                    'name': 'worker-deploy-config',
-                    'mount_path': '/deploy-config',
-                    'mount_in_copy': False,
-                }
-            )
-            secrets.append(
-                {
-                    'namespace': DEFAULT_NAMESPACE,
                     'name': 'ssl-config-batch-user-code',
                     'mount_path': '/ssl-config',
                     'mount_in_copy': False,
@@ -1760,7 +1684,19 @@ async def ui_batch(request, userdata, batch_id):
     app = request.app
     batch = await _get_batch(app, batch_id)
 
-    jobs, last_job_id = await _query_batch_jobs(request, batch_id)
+    q = request.query.get('q', '')
+    last_job_id = request.query.get('last_job_id')
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+
+    try:
+        jobs, last_job_id = await _query_batch_jobs(request, batch_id, CURRENT_QUERY_VERSION, q, last_job_id)
+    except QueryError as e:
+        session = await aiohttp_session.get_session(request)
+        set_message(session, e.message, 'error')
+        jobs = []
+        last_job_id = None
+
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
         j['cost'] = cost_str(j['cost'])
@@ -1768,7 +1704,11 @@ async def ui_batch(request, userdata, batch_id):
 
     batch['cost'] = cost_str(batch['cost'])
 
-    page_context = {'batch': batch, 'q': request.query.get('q'), 'last_job_id': last_job_id}
+    page_context = {
+        'batch': batch,
+        'q': q,
+        'last_job_id': last_job_id,
+    }
     return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 
@@ -2275,9 +2215,16 @@ async def ui_get_billing_limits(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects(db, user=user)
+    billing_projects = await query_billing_projects_with_cost(db, user=user)
 
-    page_context = {'billing_projects': billing_projects, 'is_developer': userdata['is_developer']}
+    open_billing_projects = [bp for bp in billing_projects if bp['status'] == 'open']
+    closed_billing_projects = [bp for bp in billing_projects if bp['status'] == 'closed']
+
+    page_context = {
+        'open_billing_projects': open_billing_projects,
+        'closed_billing_projects': closed_billing_projects,
+        'is_developer': userdata['is_developer'],
+    }
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
@@ -2474,7 +2421,7 @@ async def ui_get_billing(request, userdata):
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
-    billing_projects = await query_billing_projects(db)
+    billing_projects = await query_billing_projects_without_cost(db)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
@@ -2492,7 +2439,7 @@ async def get_billing_projects(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects(db, user=user)
+    billing_projects = await query_billing_projects_with_cost(db, user=user)
     return json_response(billing_projects)
 
 
@@ -2507,7 +2454,7 @@ async def get_billing_project(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects(db, user=user, billing_project=billing_project)
+    billing_projects = await query_billing_projects_with_cost(db, user=user, billing_project=billing_project)
 
     if not billing_projects:
         raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
