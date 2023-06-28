@@ -82,6 +82,7 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
 from ..utils import (
+    add_metadata_to_request,
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
     regions_to_bits_rep,
@@ -268,6 +269,7 @@ WHERE id = %s AND NOT deleted;
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-argument
     q = request.query.get('q', '')
     last_job_id = request.query.get('last_job_id')
@@ -279,6 +281,7 @@ async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-ar
 
 @routes.get('/api/v2alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_jobs_v2(request, userdata, batch_id):  # pylint: disable=unused-argument
     q = request.query.get('q', '')
     last_job_id = request.query.get('last_job_id')
@@ -563,6 +566,7 @@ async def _get_full_job_status(app, record):
 # deprecated
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     job_log_bytes = await _get_job_log(request.app, batch_id, job_id)
@@ -591,6 +595,7 @@ async def get_job_container_log(request, batch_id):
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def rest_get_job_container_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     return await get_job_container_log(request, batch_id)
 
@@ -728,6 +733,7 @@ ORDER BY id DESC;
 
 @routes.get('/api/v1alpha/batches')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
@@ -753,9 +759,9 @@ def check_service_account_permissions(user, sa):
 # Deprecated. Use create_jobs_for_update instead
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
-
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
@@ -763,6 +769,7 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_jobs_for_update(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
@@ -824,6 +831,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     jobs_args = []
     job_parents_args = []
     job_attributes_args = []
+    jobs_telemetry_args = []
 
     inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
         lambda: {
@@ -1059,6 +1067,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         # of pending parents
         if update_id == 1 and len(parent_ids) == 0:
             state = 'Ready'
+            time_ready = time_msecs()
             icr['n_ready_jobs'] += 1
             icr['ready_cores_mcpu'] += cores_mcpu
             if not always_run:
@@ -1066,6 +1075,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 icr['ready_cancellable_cores_mcpu'] += cores_mcpu
         else:
             state = 'Pending'
+            time_ready = None
 
         network = spec.get('network')
         if user != 'ci' and not (network is None or network == 'public'):
@@ -1093,6 +1103,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 regions_bits_rep,
             )
         )
+
+        jobs_telemetry_args.append((batch_id, job_id, time_ready))
 
         for parent_id in parent_ids:
             job_parents_args.append((batch_id, job_id, parent_id))
@@ -1138,6 +1150,7 @@ VALUES (%s, %s, %s);
                 if err.args[0] == 1062:
                     raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({job_parents_args})')
                 raise
+
             await tx.execute_many(
                 '''
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
@@ -1145,6 +1158,15 @@ VALUES (%s, %s, %s, %s);
 ''',
                 job_attributes_args,
                 query_name='insert_job_attributes',
+            )
+
+            await tx.execute_many(
+                '''
+INSERT INTO jobs_telemetry (batch_id, job_id, time_ready)
+VALUES (%s, %s, %s);
+''',
+                jobs_telemetry_args,
+                query_name='insert_jobs_telemetry',
             )
 
             batches_inst_coll_staging_args = [
@@ -1228,6 +1250,7 @@ VALUES (%s, %s, %s);
 
 @routes.post('/api/v1alpha/batches/create-fast')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1245,11 +1268,13 @@ async def create_batch_fast(request, userdata):
             return json_response({'id': batch_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
+    request['batch_telemetry']['batch_id'] = str(batch_id)
     return json_response({'id': batch_id})
 
 
 @routes.post('/api/v1alpha/batches/create')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_batch(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1263,6 +1288,7 @@ async def create_batch(request, userdata):
         )
     else:
         update_id = None
+    request['batch_telemetry']['batch_id'] = str(id)
     return json_response({'id': id, 'update_id': update_id})
 
 
@@ -1382,6 +1408,7 @@ VALUES (%s, %s, %s)
 
 @routes.post('/api/v1alpha/batches/{batch_id}/update-fast')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def update_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1408,11 +1435,13 @@ async def update_batch_fast(request, userdata):
             return json_response({'update_id': update_id, 'start_job_id': start_job_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
+    request['batch_telemetry']['batch_id'] = str(batch_id)
     return json_response({'update_id': update_id, 'start_job_id': start_job_id})
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/create')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_update(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1569,12 +1598,14 @@ WHERE id = %s AND NOT deleted;
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     return json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _handle_api_error(_cancel_batch, request.app, batch_id)
     return web.Response()
@@ -1583,6 +1614,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 # deprecated
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1618,6 +1650,7 @@ WHERE batch_id = %s AND update_id = 1;
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def commit_update(request: web.Request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1672,6 +1705,7 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _delete_batch(request.app, batch_id)
     return web.Response()
@@ -1874,6 +1908,7 @@ async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-a
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
@@ -2848,14 +2883,17 @@ async def delete_batch_loop_body(app):
 class BatchFrontEndAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
-        self.exclude = [
-            (endpoint[0], re.compile(deploy_config.base_path('batch') + endpoint[1]))
-            for endpoint in [
-                ('POST', '/api/v1alpha/batches/\\d*/jobs/create'),
-                ('GET', '/api/v1alpha/batches/\\d*'),
-                ('GET', '/metrics'),
+        if DEFAULT_NAMESPACE == 'default':
+            self.exclude = [
+                (endpoint[0], re.compile(deploy_config.base_path('batch') + endpoint[1]))
+                for endpoint in [
+                    ('POST', '/api/v1alpha/batches/\\d*/jobs/create'),
+                    ('GET', '/api/v1alpha/batches/\\d*'),
+                    ('GET', '/metrics'),
+                ]
             ]
-        ]
+        else:
+            self.exclude = []
 
     def log(self, request, response, time):
         for method, path_expr in self.exclude:

@@ -114,11 +114,13 @@ warnings.warn = deeper_stack_level_warn
 class BatchWorkerAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
-
-        self.exclude = [
-            ('GET', re.compile('/healthcheck')),
-            ('POST', re.compile('/api/v1alpha/batches/jobs/create')),
-        ]
+        if NAMESPACE == 'default':
+            self.exclude = [
+                ('GET', re.compile('/healthcheck')),
+                ('POST', re.compile('/api/v1alpha/batches/jobs/create')),
+            ]
+        else:
+            self.exclude = []
 
     def log(self, request, response, time):
         for method, path_expr in self.exclude:
@@ -3005,6 +3007,13 @@ class Worker:
         assert job_spec['job_id'] == job_id
         id = (batch_id, job_id)
 
+        request['batch_telemetry'] = {
+            'operation': 'create_job',
+            'batch_id': str(batch_id),
+            'job_id': str(job_id),
+            'job_queue_time': str(body['queue_time']),
+        }
+
         # already running
         if id in self.jobs:
             return web.HTTPForbidden()
@@ -3079,6 +3088,12 @@ class Worker:
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
+
+        request['batch_telemetry'] = {
+            'operation': 'delete_job',
+            'batch_id': str(batch_id),
+            'job_id': str(job_id),
+        }
 
         if id not in self.jobs:
             raise web.HTTPNotFound()

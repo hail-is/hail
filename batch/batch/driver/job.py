@@ -434,6 +434,7 @@ users:
         'user': record['user'],
         'gsa_key': gsa_key,
         'job_spec': job_spec,
+        'queue_time': time_msecs() - record['time_ready'] if record['time_ready'] else None,
     }
 
 

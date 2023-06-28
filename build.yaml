@@ -2269,6 +2269,9 @@ steps:
       - name: dedup-billing-project-users-by-date
         script: /io/sql/dedup_billing_project_users_by_date.py
         online: true
+      - name: add-jobs-ready-time
+        script: /io/sql/add-jobs-ready-time.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

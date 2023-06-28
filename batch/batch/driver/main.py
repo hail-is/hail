@@ -56,6 +56,7 @@ from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
 from ..utils import (
+    add_metadata_to_request,
     authorization_token,
     batch_only,
     json_to_value,
@@ -185,6 +186,7 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
 @batch_only
+@add_metadata_to_request
 async def update_batch(request):
     db = request.app['db']
 
@@ -269,6 +271,7 @@ async def get_credentials(request, instance):  # pylint: disable=unused-argument
 
 @routes.post('/api/v1alpha/instances/activate')
 @activating_instances_only
+@add_metadata_to_request
 async def activate_instance(request, instance):
     return await asyncio.shield(activate_instance_1(request, instance))
 
@@ -281,6 +284,7 @@ async def deactivate_instance_1(instance):
 
 @routes.post('/api/v1alpha/instances/deactivate')
 @active_instances_only
+@add_metadata_to_request
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
     await asyncio.shield(deactivate_instance_1(instance))
     return web.Response()
@@ -319,6 +323,9 @@ async def job_complete_1(request, instance):
     job_id = job_status['job_id']
     attempt_id = job_status['attempt_id']
 
+    request['batch_telemetry']['batch_id'] = str(batch_id)
+    request['batch_telemetry']['job_id'] = str(job_id)
+
     state = job_status['state']
     if state == 'succeeded':
         new_state = 'Success'
@@ -355,6 +362,7 @@ async def job_complete_1(request, instance):
 
 @routes.post('/api/v1alpha/instances/job_complete')
 @active_instances_only
+@add_metadata_to_request
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
 
@@ -369,6 +377,9 @@ async def job_started_1(request, instance):
     start_time = job_status['start_time']
     resources = job_status.get('resources')
 
+    request['batch_telemetry']['batch_id'] = str(batch_id)
+    request['batch_telemetry']['job_id'] = str(job_id)
+
     await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time, resources)
 
     await instance.mark_healthy()
@@ -378,6 +389,7 @@ async def job_started_1(request, instance):
 
 @routes.post('/api/v1alpha/instances/job_started')
 @active_instances_only
+@add_metadata_to_request
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
 
@@ -415,6 +427,7 @@ SET rollup_time = %s
 
 @routes.post('/api/v1alpha/billing_update')
 @active_instances_only
+@add_metadata_to_request
 async def billing_update(request, instance):
     return await asyncio.shield(billing_update_1(request, instance))
 
@@ -1349,18 +1362,21 @@ SELECT resource, resource_id, deduped_resource_id FROM resources;
 class BatchDriverAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
-        self.exclude = [
-            (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
-            for endpoint in [
-                ('POST', '/api/v1alpha/instances/billing_update'),
-                ('POST', '/api/v1alpha/instances/job_complete'),
-                ('POST', '/api/v1alpha/instances/job_started'),
-                ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
-                ('POST', '/api/v1alpha/batches/cancel'),
-                ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
-                ('GET', '/metrics'),
+        if DEFAULT_NAMESPACE == 'default':
+            self.exclude = [
+                (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
+                for endpoint in [
+                    ('POST', '/api/v1alpha/instances/billing_update'),
+                    ('POST', '/api/v1alpha/instances/job_complete'),
+                    ('POST', '/api/v1alpha/instances/job_started'),
+                    ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
+                    ('POST', '/api/v1alpha/batches/cancel'),
+                    ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
+                    ('GET', '/metrics'),
+                ]
             ]
-        ]
+        else:
+            self.exclude = []
 
     def log(self, request, response, time):
         for method, path_expr in self.exclude:

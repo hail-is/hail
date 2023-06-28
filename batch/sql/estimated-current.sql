@@ -274,6 +274,14 @@ CREATE INDEX `jobs_batch_id_update_id` ON `jobs` (`batch_id`, `update_id`);
 CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 
+CREATE TABLE IF NOT EXISTS `jobs_telemetry` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `time_ready` BIGINT DEFAULT NULL,
+  PRIMARY KEY (`batch_id`, `job_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,
   `start_job_id` INT NOT NULL,
@@ -1219,6 +1227,7 @@ BEGIN
         SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
         UPDATE jobs
+          LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
           LEFT JOIN (
             SELECT `job_parents`.batch_id, `job_parents`.job_id,
               COALESCE(SUM(1), 0) AS n_parents,
@@ -1236,7 +1245,8 @@ BEGIN
                jobs.job_id = t.job_id
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
-              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
+              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
+              jobs_telemetry.time_ready = IF(COALESCE(t.n_pending_parents, 0) = 0 AND jobs_telemetry.time_ready IS NULL, in_timestamp, jobs_telemetry.time_ready)
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
@@ -1711,12 +1721,14 @@ BEGIN
     END IF;
 
     UPDATE jobs
+      LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
       INNER JOIN `job_parents`
         ON jobs.batch_id = `job_parents`.batch_id AND
            jobs.job_id = `job_parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
-          jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1)
+          jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1),
+          jobs_telemetry.time_ready = IF(jobs.n_pending_parents = 1, new_timestamp, jobs_telemetry.time_ready)
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;
