@@ -279,7 +279,7 @@ CREATE TABLE IF NOT EXISTS `jobs_telemetry` (
   `job_id` INT NOT NULL,
   `time_ready` BIGINT DEFAULT NULL,
   PRIMARY KEY (`batch_id`, `job_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
