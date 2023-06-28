@@ -52,11 +52,11 @@ def add_metadata_to_request(fun):
 
         batch_id = request.match_info.get('batch_id')
         if batch_id is not None:
-            request['batch_id'] = batch_id
+            request['batch_telemetry']['batch_id'] = batch_id
 
         job_id = request.match_info.get('job_id')
         if job_id is not None:
-            request['job_id'] = job_id
+            request['batch_telemetry']['job_id'] = job_id
 
         return await fun(request, *args, **kwargs)
 

@@ -270,6 +270,7 @@ async def get_credentials(request, instance):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/instances/activate')
+@add_metadata_to_request
 @activating_instances_only
 async def activate_instance(request, instance):
     return await asyncio.shield(activate_instance_1(request, instance))
@@ -282,6 +283,7 @@ async def deactivate_instance_1(instance):
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
+@add_metadata_to_request
 @active_instances_only
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
     await asyncio.shield(deactivate_instance_1(instance))
@@ -424,6 +426,7 @@ SET rollup_time = %s
 
 
 @routes.post('/api/v1alpha/billing_update')
+@add_metadata_to_request
 @active_instances_only
 async def billing_update(request, instance):
     return await asyncio.shield(billing_update_1(request, instance))

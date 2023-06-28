@@ -3008,9 +3008,9 @@ class Worker:
         assert job_spec['job_id'] == job_id
         id = (batch_id, job_id)
 
-        request['batch_id'] = str(batch_id)
-        request['job_id'] = str(job_id)
-        request['job_queue_time'] = str(body['queue_time'])
+        request['batch_telemetry']['batch_id'] = str(batch_id)
+        request['batch_telemetry']['job_id'] = str(job_id)
+        request['batch_telemetry']['job_queue_time'] = str(body['queue_time'])
 
         # already running
         if id in self.jobs:

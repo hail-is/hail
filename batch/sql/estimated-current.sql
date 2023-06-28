@@ -1226,7 +1226,8 @@ BEGIN
       IF in_update_id != 1 THEN
         SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
-        UPDATE jobs, jobs_telemetry
+        UPDATE jobs
+          LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
           LEFT JOIN (
             SELECT `job_parents`.batch_id, `job_parents`.job_id,
               COALESCE(SUM(1), 0) AS n_parents,
@@ -1719,7 +1720,8 @@ BEGIN
       WHERE id = in_batch_id;
     END IF;
 
-    UPDATE jobs, jobs_telemetry
+    UPDATE jobs
+      LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
       INNER JOIN `job_parents`
         ON jobs.batch_id = `job_parents`.batch_id AND
            jobs.job_id = `job_parents`.job_id
