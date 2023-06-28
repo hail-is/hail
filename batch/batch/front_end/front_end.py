@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 
 import aiohttp
 import aiohttp_session
@@ -210,22 +210,21 @@ async def rest_get_supported_regions(request, userdata):  # pylint: disable=unus
     return json_response(list(request.app['regions'].keys()))
 
 
-async def _handle_ui_error(session, f, *args, **kwargs) -> Tuple[bool, Any]:
+async def _handle_ui_error(session, f, *args, **kwargs):
     try:
-        result = await f(*args, **kwargs)
+        return await f(*args, **kwargs)
     except KeyError as e:
         set_message(session, str(e), 'error')
         log.info(f'ui error: KeyError {e}')
-        return (True, None)
+        raise
     except BatchOperationAlreadyCompletedError as e:
         set_message(session, e.message, e.ui_error_type)
         log.info(f'ui error: BatchOperationAlreadyCompletedError {e.message}')
-        return (True, None)
+        raise
     except BatchUserError as e:
         set_message(session, e.message, e.ui_error_type)
         log.info(f'ui error: BatchUserError {e.message}')
-        return (True, None)
-    return (False, result)
+        raise
 
 
 async def _handle_api_error(f, *args, **kwargs):
@@ -1670,11 +1669,12 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
     if q is not None:
         params['q'] = q
     session = await aiohttp_session.get_session(request)
-    errored, _ = await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
-    if not errored:
+    try:
+        await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
-    location = request.app.router['batches'].url_for().with_query(params)
-    return web.HTTPFound(location=location)
+    finally:
+        location = request.app.router['batches'].url_for().with_query(params)
+        return web.HTTPFound(location=location)
 
 
 @routes.post('/batches/{batch_id}/delete')
@@ -1704,13 +1704,18 @@ async def ui_batches(request, userdata):
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
         last_batch_id = int(last_batch_id)
-    errored, (batches, last_batch_id) = await _handle_ui_error(
-        session, _query_batches, request, user, q, CURRENT_QUERY_VERSION, last_batch_id
-    )
-    if errored:
+    try:
+        batches, last_batch_id = await _handle_ui_error(
+            session, _query_batches, request, user, q, CURRENT_QUERY_VERSION, last_batch_id
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception:
         batches = []
+
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
+
     page_context = {'batches': batches, 'q': q, 'last_batch_id': last_batch_id}
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
@@ -2249,10 +2254,11 @@ async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unu
     post = await request.post()
     limit = post['limit']
     session = await aiohttp_session.get_session(request)
-    errored, _ = await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
-    if not errored:
+    try:
+        await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
         set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))
+    finally:
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))
 
 
 async def _query_billing(request, user=None):
@@ -2474,10 +2480,11 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
     user = request.match_info['user']
 
     session = await aiohttp_session.get_session(request)
-    errored, _ = await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
-    if not errored:
+    try:
+        await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
         set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+    finally:
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
@@ -2545,10 +2552,11 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
     session = await aiohttp_session.get_session(request)
 
-    errored, _ = await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
-    if not errored:
+    try:
+        await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+    finally:
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
@@ -2600,11 +2608,11 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = post['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored, _ = await _handle_ui_error(session, _create_billing_project, db, billing_project)
-    if not errored:
+    try:
+        await _handle_ui_error(session, _create_billing_project, db, billing_project)
         set_message(session, f'Added billing project {billing_project}.', 'info')
-
-    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+    finally:
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
@@ -2660,10 +2668,11 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored, _ = await _handle_ui_error(session, _close_billing_project, db, billing_project)
-    if not errored:
+    try:
+        await _handle_ui_error(session, _close_billing_project, db, billing_project)
         set_message(session, f'Closed billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+    finally:
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
@@ -2704,10 +2713,11 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored, _ = await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
-    if not errored:
+    try:
+        await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
-    return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+    finally:
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
