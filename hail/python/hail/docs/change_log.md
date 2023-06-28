@@ -54,6 +54,10 @@ an earlier version of Hail to read files written in a later version.
   the first reference block of the contig.
 - (hail#13173) Fix globbing in scala blob storage filesystem implementations.
 
+### File Format
+- The native file format version is now 1.7.0. Older versions of hail will not
+  be able to read tables or matrix tables written by this version of hail.
+
 ## Version 0.2.118
 
 Released 2023-05-30
