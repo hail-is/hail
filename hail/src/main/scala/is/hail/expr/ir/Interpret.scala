@@ -909,40 +909,38 @@ object Interpret {
                       case _ => wrappedArgs
                     })
 
-                    val (s1, r) =
-                      Compile[Lower, AsmFunction2RegionLongLong](
-                        FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)))),
-                        FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-                        MakeTuple.ordered(FastSeq(wrappedIR)),
-                        optimize = false
-                      )
-                        .run(ctx, s0)
+                    val (s, r) =
+                      (for {
+                        (rt, makeFunction) <- Compile[Lower, AsmFunction2RegionLongLong](
+                          FastIndexedSeq("in" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple))),
+                          FastIndexedSeq(classInfo[Region], LongInfo),
+                          LongInfo,
+                          MakeTuple.ordered(FastSeq(wrappedIR)),
+                          optimize = false
+                        )
+                      } yield (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)))
+                        .run(ctx, state)
 
-                    state = s1
+                    state = s
 
-                    r match {
-                      case Left(t) => throw t
-                      case Right((rt, makeFunction)) =>
-                        (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region))
-                    }
+                    r.fold(throw _, identity _)
                   })
                   val rvb = new RegionValueBuilder(ctx.stateManager)
                   rvb.set(region)
                   rvb.start(argTuple)
                   rvb.startTuple()
 
-                  ir.args.zip(argTuple.types).foreach { case (arg, t) =>
-                    state = run[Lower](arg, env, args, functionMemo).map { argValue =>
-                      rvb.addAnnotation(t.virtualType, argValue)
-                    }.value.runS(ctx, state)
-                  }
+                  state = ir.args.zip(argTuple.types).traverse_ { case (arg, t) =>
+                    for {argValue <- run[Lower](arg, env, args, functionMemo).value}
+                      yield rvb.addAnnotation(t.virtualType, argValue.orNull)
+                  }.runS(ctx, state)
 
                   rvb.endTuple()
                   val offset = rvb.end()
 
                   try {
                     val resultOffset = f(region, offset)
-                    (state, SafeRow(rt.asInstanceOf[PTypeReferenceSingleCodeType].pt.asInstanceOf[PTuple], resultOffset).get(0))
+                    SafeRow(rt.asInstanceOf[PTypeReferenceSingleCodeType].pt.asInstanceOf[PTuple], resultOffset).get(0)
                   } catch {
                     case e: Exception =>
                       fatal(s"error while calling '${ir.implementation.name}': ${e.getMessage}", e)
