@@ -185,8 +185,8 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
-@add_metadata_to_request
 @batch_only
+@add_metadata_to_request
 async def update_batch(request):
     db = request.app['db']
 
@@ -270,8 +270,8 @@ async def get_credentials(request, instance):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/instances/activate')
-@add_metadata_to_request
 @activating_instances_only
+@add_metadata_to_request
 async def activate_instance(request, instance):
     return await asyncio.shield(activate_instance_1(request, instance))
 
@@ -283,8 +283,8 @@ async def deactivate_instance_1(instance):
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
-@add_metadata_to_request
 @active_instances_only
+@add_metadata_to_request
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
     await asyncio.shield(deactivate_instance_1(instance))
     return web.Response()
@@ -361,8 +361,8 @@ async def job_complete_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_complete')
-@add_metadata_to_request
 @active_instances_only
+@add_metadata_to_request
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
 
@@ -388,8 +388,8 @@ async def job_started_1(request, instance):
 
 
 @routes.post('/api/v1alpha/instances/job_started')
-@add_metadata_to_request
 @active_instances_only
+@add_metadata_to_request
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
 
@@ -426,8 +426,8 @@ SET rollup_time = %s
 
 
 @routes.post('/api/v1alpha/billing_update')
-@add_metadata_to_request
 @active_instances_only
+@add_metadata_to_request
 async def billing_update(request, instance):
     return await asyncio.shield(billing_update_1(request, instance))
 

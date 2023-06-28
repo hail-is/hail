@@ -268,8 +268,8 @@ WHERE id = %s AND NOT deleted;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
-@add_metadata_to_request
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-argument
     q = request.query.get('q', '')
     last_job_id = request.query.get('last_job_id')
@@ -280,8 +280,8 @@ async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-ar
 
 
 @routes.get('/api/v2alpha/batches/{batch_id}/jobs')
-@add_metadata_to_request
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_jobs_v2(request, userdata, batch_id):  # pylint: disable=unused-argument
     q = request.query.get('q', '')
     last_job_id = request.query.get('last_job_id')
@@ -565,8 +565,8 @@ async def _get_full_job_status(app, record):
 
 # deprecated
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
-@add_metadata_to_request
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     job_log_bytes = await _get_job_log(request.app, batch_id, job_id)
@@ -594,8 +594,8 @@ async def get_job_container_log(request, batch_id):
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
-@add_metadata_to_request
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def rest_get_job_container_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     return await get_job_container_log(request, batch_id)
 
@@ -732,8 +732,8 @@ ORDER BY id DESC;
 
 
 @routes.get('/api/v1alpha/batches')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
@@ -758,8 +758,8 @@ def check_service_account_permissions(user, sa):
 
 # Deprecated. Use create_jobs_for_update instead
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
     batch_id = int(request.match_info['batch_id'])
@@ -768,8 +768,8 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_jobs_for_update(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
@@ -1249,8 +1249,8 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/api/v1alpha/batches/create-fast')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1273,8 +1273,8 @@ async def create_batch_fast(request, userdata):
 
 
 @routes.post('/api/v1alpha/batches/create')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_batch(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1407,8 +1407,8 @@ VALUES (%s, %s, %s)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/update-fast')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def update_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1440,8 +1440,8 @@ async def update_batch_fast(request, userdata):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/create')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def create_update(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1597,15 +1597,15 @@ WHERE id = %s AND NOT deleted;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
-@add_metadata_to_request
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     return json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
-@add_metadata_to_request
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _handle_api_error(_cancel_batch, request.app, batch_id)
     return web.Response()
@@ -1613,8 +1613,8 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 
 # deprecated
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1649,8 +1649,8 @@ WHERE batch_id = %s AND update_id = 1;
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')
-@add_metadata_to_request
 @auth.rest_authenticated_users_only
+@add_metadata_to_request
 async def commit_update(request: web.Request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1704,8 +1704,8 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
 
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
-@add_metadata_to_request
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _delete_batch(request.app, batch_id)
     return web.Response()
@@ -1907,8 +1907,8 @@ async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-a
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
-@add_metadata_to_request
 @rest_billing_project_users_only
+@add_metadata_to_request
 async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)

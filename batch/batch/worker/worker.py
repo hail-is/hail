@@ -3008,6 +3008,7 @@ class Worker:
         id = (batch_id, job_id)
 
         request['batch_telemetry'] = {
+            'operation': 'create_job',
             'batch_id': str(batch_id),
             'job_id': str(job_id),
             'job_queue_time': str(body['queue_time']),
@@ -3089,6 +3090,7 @@ class Worker:
         id = (batch_id, job_id)
 
         request['batch_telemetry'] = {
+            'operation': 'delete_job',
             'batch_id': str(batch_id),
             'job_id': str(job_id),
         }
