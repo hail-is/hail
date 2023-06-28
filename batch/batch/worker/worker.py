@@ -84,7 +84,7 @@ from ..instance_config import InstanceConfig
 from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
-from ..utils import Box, add_metadata_to_request
+from ..utils import Box
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
@@ -2977,7 +2977,6 @@ class Worker:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
 
-    @add_metadata_to_request
     async def create_job_1(self, request):
         body = await json_request(request)
 
@@ -3008,9 +3007,11 @@ class Worker:
         assert job_spec['job_id'] == job_id
         id = (batch_id, job_id)
 
-        request['batch_telemetry']['batch_id'] = str(batch_id)
-        request['batch_telemetry']['job_id'] = str(job_id)
-        request['batch_telemetry']['job_queue_time'] = str(body['queue_time'])
+        request['batch_telemetry'] = {
+            'batch_id': str(batch_id),
+            'job_id': str(job_id),
+            'job_queue_time': str(body['queue_time']),
+        }
 
         # already running
         if id in self.jobs:
@@ -3082,14 +3083,15 @@ class Worker:
         job = self._job_from_request(request)
         return json_response(job.status())
 
-    @add_metadata_to_request
     async def delete_job_1(self, request):
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
 
-        request['batch_id'] = str(batch_id)
-        request['job_id'] = str(job_id)
+        request['batch_telemetry'] = {
+            'batch_id': str(batch_id),
+            'job_id': str(job_id),
+        }
 
         if id not in self.jobs:
             raise web.HTTPNotFound()
