@@ -37,7 +37,7 @@ an earlier version of Hail to read files written in a later version.
 
 ### New Features
 - (hail#12081) Hail now uses [Zstandard](https://facebook.github.io/zstd/) as
-  the default compression algoritm for table and matrix table storage. Reducing
+  the default compression algorithm for table and matrix table storage. Reducing
   file size around 20% in most cases.
 - (hail#12988) Arbitrary aggregations can now be used on arrays via
   `ArrayExpression.aggregate`. This method is useful for accessing
