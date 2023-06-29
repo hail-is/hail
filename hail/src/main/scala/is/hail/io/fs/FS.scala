@@ -235,26 +235,28 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
 }
 
 object FS {
-  def cloudSpecificCacheableFS(credentialsPath: String, flags: Option[HailFeatureFlags]): FS =
-    retryTransientErrors {
-      val cloudSpecificFS = using(new FileInputStream(credentialsPath)) { is =>
-        val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
-        sys.env.get("HAIL_CLOUD") match {
-          case Some("gcp") =>
-            val requesterPaysConfiguration = flags.flatMap { flags =>
-              RequesterPaysConfiguration.fromFlags(
-                flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
-              )
-            }
-            new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
-          case Some("azure") =>
-            new AzureStorageFS(credentialsStr).asCacheable()
-          case Some(cloud) =>
-            throw new IllegalArgumentException(s"Bad cloud: $cloud")
-          case None =>
-            throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
-        }
+  def cloudSpecificCacheableFS(
+    credentialsPath: String,
+    flags: Option[HailFeatureFlags]
+  ): FS = retryTransientErrors {
+    val cloudSpecificFS = using(new FileInputStream(credentialsPath)) { is =>
+      val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
+      sys.env.get("HAIL_CLOUD") match {
+        case Some("gcp") =>
+          val requesterPaysConfiguration = flags.flatMap { flags =>
+            RequesterPaysConfiguration.fromFlags(
+              flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
+            )
+          }
+          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
+        case Some("azure") =>
+          new AzureStorageFS(credentialsStr).asCacheable()
+        case Some(cloud) =>
+          throw new IllegalArgumentException(s"Bad cloud: $cloud")
+        case None =>
+          throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
       }
+    }
 
     new RouterFS(Array(cloudSpecificFS, new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration()))))
   }
