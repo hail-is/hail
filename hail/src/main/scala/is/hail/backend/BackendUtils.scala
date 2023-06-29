@@ -9,6 +9,7 @@ import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.io.fs._
 import is.hail.utils._
 
+import javax.annotation.Nullable
 import scala.util.Try
 
 object BackendUtils {
@@ -30,70 +31,82 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                     contexts: Array[Array[Byte]],
                     globals: Array[Byte],
                     stageName: String,
-                    semhash: SemanticHash.Type,
+                    @Nullable semhash: SemanticHash.Type,
                     tsd: Option[TableStageDependency]
                    ): Array[Array[Byte]] = {
-    log.info(s"[collectDArray|$stageName]: querying cache for $semhash")
-    val cachedResults = backendContext.executionCache.lookup(semhash)
-    log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $semhash.")
-    Some {
-        for {
-          c@(_, k) <- contexts.zipWithIndex
-          if !cachedResults.containsOrdered[Int](k, _ < _, _._1)
-        } yield c
-      }
-        .filter(_.nonEmpty)
-        .map { remainingContexts =>
-          val backend = HailContext.backend
-          val f = getModule(modID)
 
-          log.info(
-            s"[collectDArray|$stageName]: executing ${remainingContexts.length} , " +
-              s"contexts size = ${formatSpace(contexts.map(_.length.toLong).sum)}, " +
-              s"globals size = ${formatSpace(globals.length)}"
-          )
+    val cachedResults =
+      Option(semhash)
+        .map { s =>
+          log.info(s"[collectDArray|$stageName]: querying cache for $s")
+          val cachedResults = backendContext.executionCache.lookup(s)
+          log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $s.")
+          cachedResults
+        }
+        .getOrElse(IndexedSeq.empty)
 
-          val t = System.nanoTime()
-          val (failureOpt, successes) =
-            remainingContexts match {
-              case Array((context, k)) if backend.canExecuteParallelTasksOnDriver =>
-                Try {
-                  using(new LocalTaskContext(k, 0)) { htc =>
-                    using(htc.getRegionPool().getRegion()) { r =>
-                      FastIndexedSeq((k, f(theDriverHailClassLoader, fs, htc, r)(r, context, globals)))
+    val remainingContexts =
+      for {
+        c@(_, k) <- contexts.zipWithIndex
+        if !cachedResults.containsOrdered[Int](k, _ < _, _._2)
+      } yield c
+
+    val results =
+      if (remainingContexts.isEmpty) cachedResults else {
+        val backend = HailContext.backend
+        val f = getModule(modID)
+
+        log.info(
+          s"[collectDArray|$stageName]: executing ${remainingContexts.length} tasks, " +
+            s"contexts size = ${formatSpace(contexts.map(_.length.toLong).sum)}, " +
+            s"globals size = ${formatSpace(globals.length)}"
+        )
+
+        val t = System.nanoTime()
+        val (failureOpt, successes) =
+          remainingContexts match {
+            case Array((context, k)) if backend.canExecuteParallelTasksOnDriver =>
+              Try {
+                using(new LocalTaskContext(k, 0)) { htc =>
+                  using(htc.getRegionPool().getRegion()) { r =>
+                    val run = f(theDriverHailClassLoader, fs, htc, r)
+                    val res = is.hail.services.retryTransientErrors {
+                      run(r, context, globals)
                     }
+                    FastSeq(res -> k)
                   }
                 }
-                  .fold(t => (Some(t), IndexedSeq.empty), (None, _))
+              }
+                .fold(t => (Some(t), IndexedSeq.empty), (None, _))
 
-              case _ =>
-                val globalsBC = backend.broadcast(globals)
-                val fsConfigBC = backend.broadcast(fs.getConfiguration())
-                val (failureOpt, successes) =
-                  backend.parallelizeAndComputeWithIndex(backendContext, fs, remainingContexts.map(_._1), stageName, tsd) {
-                    (ctx, htc, theHailClassLoader, fs) =>
-                      val fsConfig = fsConfigBC.value
-                      val gs = globalsBC.value
-                      fs.setConfiguration(fsConfig)
-                      htc.getRegionPool().scopedRegion { region =>
-                        f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
+            case _ =>
+              val globalsBC = backend.broadcast(globals)
+              val fsConfigBC = backend.broadcast(fs.getConfiguration())
+              val (failureOpt, successes) =
+                backend.parallelizeAndComputeWithIndex(backendContext, fs, remainingContexts, stageName, tsd) {
+                  (ctx, htc, theHailClassLoader, fs) =>
+                    val fsConfig = fsConfigBC.value
+                    val gs = globalsBC.value
+                    fs.setConfiguration(fsConfig)
+                    htc.getRegionPool().scopedRegion { region =>
+                      val run = f(theHailClassLoader, fs, htc, region)
+                      is.hail.services.retryTransientErrors {
+                        run(region, ctx, gs)
                       }
-                  }
-                (failureOpt, successes.map { case (k, v) => (remainingContexts(k)._2, v) })
-            }
+                    }
+                }
+              (failureOpt, successes)
+          }
 
-          log.info(s"[collectDArray|$stageName]: executed ${remainingContexts.length} tasks in ${formatTime(System.nanoTime() - t)}")
+        log.info(s"[collectDArray|$stageName]: executed ${remainingContexts.length} tasks in ${formatTime(System.nanoTime() - t)}")
 
-          // todo: merge join these
-          val results = (cachedResults ++ successes).sortBy(_._1)
-          backendContext.executionCache.put(semhash, results)
+        // todo: merge join these
+        val results = (cachedResults ++ successes).sortBy(_._2)
+        Option(semhash).foreach(s => backendContext.executionCache.put(s, results))
+        failureOpt.foreach(throw _)
 
-          failureOpt.foreach(throw _)
-
-          results
-        }
-      .getOrElse(cachedResults)
-      .map(_._2)
-      .toArray
+        results
+      }
+      results.map(_._1).toArray
   }
 }

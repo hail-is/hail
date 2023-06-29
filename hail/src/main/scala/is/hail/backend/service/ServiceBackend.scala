@@ -98,11 +98,11 @@ class ServiceBackend(
   override def parallelizeAndComputeWithIndex(
     _backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    collection: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): (Option[Throwable], IndexedSeq[(Int, Array[Byte])]) = {
+  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
     val token = tokenUrlSafe(32)
@@ -130,13 +130,13 @@ class ServiceBackend(
             var o = 12L * n
             var i = 0
             while (i < n) {
-              val len = collection(i).length
+              val len = collection(i)._1.length
               os.writeLong(o)
               os.writeInt(len)
               i += 1
               o += len
             }
-            collection.foreach { context =>
+            collection.foreach { case (_, context) =>
               os.write(context)
             }
           }
@@ -227,29 +227,32 @@ class ServiceBackend(
     val startTime = System.nanoTime()
 
     val r@(_, results) = runAllKeepFirstError(executor) {
-      for {i <- 0 until n} yield () => {
-        availableGCSConnections.acquire()
-        try {
-          val bytes = fs.readNoCompression(s"$root/result.$i")
-          if (bytes(0) != 0) {
-            bytes.slice(1, bytes.length)
-          } else {
-            val errorInformationBytes = bytes.slice(1, bytes.length)
-            val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-            val shortMessage = readString(is)
-            val expandedMessage = readString(is)
-            val errorId = is.readInt()
-            throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+      for {i <- 0 until n} yield (
+        () => {
+          availableGCSConnections.acquire()
+          try {
+            val bytes = fs.readNoCompression(s"$root/result.$i")
+            if (bytes(0) != 0) {
+              bytes.slice(1, bytes.length)
+            } else {
+              val errorInformationBytes = bytes.slice(1, bytes.length)
+              val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+              val shortMessage = readString(is)
+              val expandedMessage = readString(is)
+              val errorId = is.readInt()
+              throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+            }
+          } finally {
+            availableGCSConnections.release()
           }
-        } finally {
-          availableGCSConnections.release()
-        }
-      }
+        },
+        i
+      )
     }
 
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
-    val byterate = results.map(_._2.length).sum / resultsReadingSeconds / 1024 / 1024
+    val byterate = results.map(_._1.length).sum / resultsReadingSeconds / 1024 / 1024
     log.info(s"all results read. $resultsReadingSeconds s. $rate result/s. $byterate MiB/s.")
     r
   }

@@ -370,38 +370,35 @@ class SparkBackend(
   override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    collection: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
-  : (Option[Throwable], IndexedSeq[(Int, Array[Byte])]) = {
+  : (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
 
     val sparkDeps =
       for {rvdDep <- dependency.toIndexedSeq.flatMap(_.deps)}
         yield new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
 
     val rdd =
-      new RDD[Try[(Int, Array[Byte])]](sc, sparkDeps) {
+      new RDD[(Try[Array[Byte]], Int)](sc, sparkDeps) {
         override protected def getPartitions: Array[Partition] =
-          for {(c, k) <- collection.zipWithIndex}
+          for {(c, k) <- collection.toArray}
             yield SparkBackendComputeRDDPartition(c, k)
 
-        override def compute(partition: Partition, context: TaskContext): Iterator[Try[(Int, Array[Byte])]] = {
+        override def compute(partition: Partition, context: TaskContext): Iterator[(Try[Array[Byte]], Int)] = {
           val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
           val fs = new HadoopFS(null)
-          Iterator.single(Try((sp.index, f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))))
+          val result = Try(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
+          Iterator.single((result, sp.index))
         }
       }
 
-    val buffer = new ArrayBuffer[(Int, Array[Byte])](collection.length)
-    var err = Option.empty[Throwable]
-
-    rdd.collect().foreach {
-      case Success((k, v)) => buffer.+=((k, v))
-      case Failure(t) => err = err.orElse(Some(t))
+    val buffer = new ArrayBuffer[(Array[Byte], Int)](collection.length)
+    rdd.collect().foldLeft((Option.empty[Throwable], buffer)) {
+      case ((err, buffer), (Success(v), k)) => (err, buffer += ((v, k)))
+      case ((err, buffer), (Failure(t), _)) => (err.orElse(Some(t)), buffer)
     }
-
-    (err, buffer)
   }
 
   def defaultParallelism: Int = sc.defaultParallelism

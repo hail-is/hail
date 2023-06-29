@@ -943,34 +943,34 @@ package object utils extends Logging
   }
 
   def runAll[F[_], A](executor: Executor)
-                     (accum: (F[Throwable], (Int, Throwable)) => F[Throwable])
+                     (accum: (F[Throwable], (Throwable, Int)) => F[Throwable])
                      (init: F[Throwable])
-                     (tasks: IndexedSeq[() => A])
-  : (F[Throwable], IndexedSeq[(Int, A)]) = {
-    val completionService = new ExecutorCompletionService[(Int, Try[A])](executor)
+                     (tasks: IndexedSeq[(() => A, Int)])
+  : (F[Throwable], IndexedSeq[(A, Int)]) = {
+    val completionService = new ExecutorCompletionService[(Try[A], Int)](executor)
 
-    for ((task, k) <- tasks.zipWithIndex) {
-      completionService.submit(() => (k, Try(task())))
+    for ((task, k) <- tasks) {
+      completionService.submit(() => (Try(task()), k))
     }
 
     var err = init
-    val buffer = new mutable.ArrayBuffer[(Int, A)](tasks.length)
+    val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
 
     for (_ <- tasks.indices) {
       completionService.take.get match {
-        case (k, Success(v)) =>
-          buffer += ((k, v))
+        case (Success(v), k) =>
+          buffer += ((v, k))
 
-        case (k, Failure(t)) =>
-          err = accum(err, (k, t))
+        case (Failure(t), k) =>
+          err = accum(err, (t, k))
       }
     }
 
     (err, buffer)
   }
 
-  def runAllKeepFirstError[A](executor: Executor): IndexedSeq[() => A] => (Option[Throwable], IndexedSeq[(Int, A)]) =
-    runAll[Option, A](executor) { case (opt, (_, e)) => opt.orElse(Some(e)) } (None)
+  def runAllKeepFirstError[A](executor: Executor): IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
+    runAll[Option, A](executor) { case (opt, (e, _)) => opt.orElse(Some(e)) } (None)
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

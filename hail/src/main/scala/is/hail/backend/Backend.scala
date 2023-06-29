@@ -45,11 +45,11 @@ abstract class Backend {
   def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    collection: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
-  : (Option[Throwable], IndexedSeq[(Int, Array[Byte])])
+  : (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
 
   def stop(): Unit
 

@@ -13,8 +13,8 @@ import scala.util.control.NonFatal
 
 
 trait ExecutionCache extends Serializable {
-  def lookup(s: SemanticHash.Type): IndexedSeq[(Int, Array[Byte])]
-  def put(s: SemanticHash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit
+  def lookup(s: SemanticHash.Type): IndexedSeq[(Array[Byte], Int)]
+  def put(s: SemanticHash.Type, r: IndexedSeq[(Array[Byte], Int)]): Unit
 }
 
 case object ExecutionCache {
@@ -33,20 +33,20 @@ case object ExecutionCache {
   }
 
   def noCache: ExecutionCache = new ExecutionCache {
-    override def lookup(s: SemanticHash.Type): IndexedSeq[(Int, Array[Byte])] =
+    override def lookup(s: SemanticHash.Type): IndexedSeq[(Array[Byte], Int)] =
       IndexedSeq.empty
 
-    override def put(s: SemanticHash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit =
+    override def put(s: SemanticHash.Type, r: IndexedSeq[(Array[Byte], Int)]): Unit =
       ()
   }
 
   def forTesting: ExecutionCache = new ExecutionCache {
-    val storage = new ConcurrentHashMap[SemanticHash.Type, IndexedSeq[(Int, Array[Byte])]]
+    val storage = new ConcurrentHashMap[SemanticHash.Type, IndexedSeq[(Array[Byte], Int)]]
 
-    override def lookup(s: SemanticHash.Type): IndexedSeq[(Int, Array[Byte])] =
+    override def lookup(s: SemanticHash.Type): IndexedSeq[(Array[Byte], Int)] =
       storage.getOrDefault(s, IndexedSeq.empty)
 
-    override def put(s: SemanticHash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit =
+    override def put(s: SemanticHash.Type, r: IndexedSeq[(Array[Byte], Int)]): Unit =
       storage.put(s, r)
   }
 }
@@ -61,7 +61,7 @@ private case class FSExecutionCache(fs: FS, cacheDir: String)
   private val base64Decode: String => Array[Byte] =
     Base64.getUrlDecoder.decode
 
-  override def lookup(s: SemanticHash.Type): IndexedSeq[(Int, Array[Byte])] =
+  override def lookup(s: SemanticHash.Type): IndexedSeq[(Array[Byte], Int)] =
     try {
       using(fs.open(at(s))) {
         Source.fromInputStream(_).getLines().map(Line.read).toIndexedSeq
@@ -75,24 +75,24 @@ private case class FSExecutionCache(fs: FS, cacheDir: String)
         IndexedSeq.empty
     }
 
-  override def put(s: SemanticHash.Type, r: IndexedSeq[(Int, Array[Byte])]): Unit =
+  override def put(s: SemanticHash.Type, r: IndexedSeq[(Array[Byte], Int)]): Unit =
     fs.write(at(s)) { ostream => r.foreach(Line.write(_, ostream)) }
 
   private def at(s: SemanticHash.Type): String =
     s"$cacheDir/${base64Encode(s.toString.getBytes).mkString}"
 
   private case object Line {
-    private type Type = (Int, Array[Byte])
+    private type Type = (Array[Byte], Int)
     def write(entry: Type, ostream: OutputStream): Unit = {
-      ostream.write(entry._1.toString.getBytes)
+      ostream.write(entry._2.toString.getBytes)
       ostream.write(','.toInt)
-      ostream.write(base64Encode(entry._2))
+      ostream.write(base64Encode(entry._1))
       ostream.write('\n'.toInt)
     }
 
     def read(string: String): Type = {
       val Array(index, bytes) = string.split(",")
-      (index.toInt, base64Decode(bytes))
+      (base64Decode(bytes), index.toInt)
     }
   }
 }

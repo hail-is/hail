@@ -127,17 +127,20 @@ class LocalBackend(
   override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    collection: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
-  : (Option[Throwable], IndexedSeq[(Int, Array[Byte])]) = {
+  : (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
     val stageId = nextStageId()
     runAllKeepFirstError(MoreExecutors.sameThreadExecutor) {
-      collection.zipWithIndex.map { case (c, i) =>
-        () => using(new LocalTaskContext(i, stageId)) {
-          f(c, _, theHailClassLoader, fs)
-        }
+      collection.map { case (c, i) =>
+        (
+          () => using(new LocalTaskContext(i, stageId)) {
+            f(c, _, theHailClassLoader, fs)
+          },
+          i
+        )
       }
     }
   }
