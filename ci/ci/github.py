@@ -689,6 +689,8 @@ class WatchedBranch(Code):
 
         self.n_running_batches: int = 0
 
+        self.merge_candidate: Optional[PR] = None
+
     @property
     def deploy_state(self):
         return self._deploy_state
@@ -770,6 +772,7 @@ class WatchedBranch(Code):
                     self.github_changed = True
                     self.sha = None
                     self.state_changed = True
+                    self.merge_candidate = None
                     return
 
     async def _update_github(self, gh):
@@ -892,6 +895,9 @@ url: {url}
                 if is_authorized and (not merge_candidate or pri > merge_candidate_pri):
                     merge_candidate = pr
                     merge_candidate_pri = pri
+
+        self.merge_candidate = merge_candidate
+
         if merge_candidate:
             log.info(f'merge candidate {merge_candidate.number}')
 
