@@ -1674,7 +1674,7 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     finally:
         location = request.app.router['batches'].url_for().with_query(params)
-        return web.HTTPFound(location=location)
+        return web.HTTPFound(location=location)  # pylint: disable=lost-exception
 
 
 @routes.post('/batches/{batch_id}/delete')
@@ -2258,7 +2258,7 @@ async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unu
         await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
         set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
 
 
 async def _query_billing(request, user=None):
@@ -2484,7 +2484,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
         await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
         set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
@@ -2556,7 +2556,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
         await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
@@ -2612,7 +2612,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
         await _handle_ui_error(session, _create_billing_project, db, billing_project)
         set_message(session, f'Added billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
@@ -2672,7 +2672,7 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
         await _handle_ui_error(session, _close_billing_project, db, billing_project)
         set_message(session, f'Closed billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
@@ -2717,7 +2717,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
         await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
+        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
