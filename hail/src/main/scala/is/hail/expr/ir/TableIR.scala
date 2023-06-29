@@ -7,7 +7,7 @@ import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction}
-import is.hail.expr.ir.lowering._
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LowerTableIRHelpers, LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
@@ -17,6 +17,7 @@ import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlock
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
+import is.hail.types.tcoerce
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
@@ -25,6 +26,7 @@ import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
+import is.hail.variant._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
@@ -247,10 +249,7 @@ object LoweredTableReader {
           MakeStruct(FastIndexedSeq()),
           "context",
           "globals",
-          scanBody(Ref("context", contextType)),
-          NA(TString),
-          "table_coerce_sortedness"
-        )
+          scanBody(Ref("context", contextType)), NA(TString), "table_coerce_sortedness")
 
         val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
           mapIR(
@@ -1410,7 +1409,7 @@ class TableNativeReader(
     VirtualTypeWithReq(tcoerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
     TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
 
   override def toJValue: JValue = {

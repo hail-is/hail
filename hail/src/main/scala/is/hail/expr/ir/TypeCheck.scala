@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._

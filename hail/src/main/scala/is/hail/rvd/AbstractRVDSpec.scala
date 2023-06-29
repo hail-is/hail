@@ -1,19 +1,20 @@
 package is.hail.rvd
 
 import is.hail.annotations._
+import is.hail.asm4s.{AsmFunction3RegionLongLongLong, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.compatibility
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, ToStream}
 import is.hail.expr.{JSONAnnotationImpex, ir}
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.{ArrayZipBehavior, IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.types.TableType
 import is.hail.types.encoded.ETypeSerializer
-import is.hail.types.physical._
-import is.hail.types.virtual._
+import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
+import is.hail.types.virtual.{TStructSerializer, _}
 import is.hail.utils._
+import is.hail.{HailContext, compatibility}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -89,17 +90,16 @@ object AbstractRVDSpec {
   }
 
   def readZippedLowered(
-                         ctx: ExecuteContext,
-                         specLeft: AbstractRVDSpec,
-                         specRight: AbstractRVDSpec,
-                         pathLeft: String,
-                         pathRight: String,
-                         newPartitioner: Option[RVDPartitioner],
-                         filterIntervals: Boolean,
-                         requestedType: TStruct,
-                         requestedKey: IndexedSeq[String],
-                         uidFieldName: String,
-
+    ctx: ExecuteContext,
+    specLeft: AbstractRVDSpec,
+    specRight: AbstractRVDSpec,
+    pathLeft: String,
+    pathRight: String,
+    newPartitioner: Option[RVDPartitioner],
+    filterIntervals: Boolean,
+    requestedType: TStruct,
+    requestedKey: IndexedSeq[String],
+    uidFieldName: String
   ): IR => TableStage = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner(ctx.stateManager)

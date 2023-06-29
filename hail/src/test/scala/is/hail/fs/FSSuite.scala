@@ -2,7 +2,9 @@ package is.hail.fs
 
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.fs.azure.AzureStorageFSSuite
+import is.hail.io.fs.FSUtil.dropTrailingSlash
+import is.hail.io.fs.{FS, FileStatus, Seekable}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
@@ -289,6 +291,113 @@ trait FSSuite extends TestNGSuite {
     fs.delete(f, false)
 
     assert(!fs.exists(f))
+  }
+
+  @Test def testReadWriteBytesLargerThanBuffer(): Unit = {
+    val f = t()
+
+    val numWrites = 1000000
+    using(fs.create(f)) { os =>
+      os.write(1)
+      os.write(127)
+      os.write(255)
+
+      var i = 0
+      while (i < numWrites) {
+        os.write(i)
+        i = i + 1
+      }
+    }
+
+    assert(fs.exists(f))
+
+    using(fs.open(f)) { is =>
+      assert(is.read() == 1)
+      assert(is.read() == 127)
+      assert(is.read() == 255)
+
+      var i = 0
+      while (i < numWrites) {
+        val readFromIs = is.read()
+        assert(readFromIs == (i & 0xff), s"${i} ${i & 0xff} ${readFromIs}")
+        i = i + 1
+      }
+    }
+
+    fs.delete(f, false)
+
+    assert(!fs.exists(f))
+  }
+
+  @Test def testDropTrailingSlash(): Unit = {
+    assert(dropTrailingSlash("") == "")
+    assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
+    assert(dropTrailingSlash("foo/bar/") == "foo/bar")
+    assert(dropTrailingSlash("/foo///") == "/foo")
+    assert(dropTrailingSlash("///") == "")
+  }
+
+  @Test def testSeekMoreThanMaxInt(): Unit = {
+    val f = t()
+    using (fs.create(f)) { os =>
+      val eight_mib = 8 * 1024 * 1024
+      val arr = Array.fill(eight_mib){0.toByte}
+      var i = 0
+      // 256 * 8MiB = 2GiB
+      while (i < 256) {
+        os.write(arr, 0, eight_mib)
+        i = i + 1
+      }
+      os.write(10)
+      os.write(20)
+      os.write(30)
+    }
+
+    assert(fs.exists(f))
+
+    val debug = this.isInstanceOf[AzureStorageFSSuite]
+
+    using(fs.open(f, fs.getCodecFromPath(f), _debug=debug)) { is =>
+      is match {
+        case base: Seekable => base.seek(Int.MaxValue + 2.toLong)
+        case base: org.apache.hadoop.fs.Seekable => base.seek(Int.MaxValue + 2.toLong)
+      }
+      assert(is.read() == 20)
+      assert(is.read() == 30)
+    }
+
+    fs.delete(f, false)
+    assert(!fs.exists(f))
+  }
+
+  @Test def testSeekAndReadStraddlingBufferSize(): Unit = {
+    val data = Array.tabulate(251)(_.toByte)
+    val f = t()
+    using(fs.create(f)) { os =>
+      var i = 0
+      // 66058 replicates are 8MB of data
+      while (i < 70000) {
+        os.write(data)
+        i += 1
+      }
+    }
+
+    using(fs.openNoCompression(f)) { is =>
+
+      is.seek(251)
+      assert(is.read() == 0)
+      assert(is.read() == 1)
+
+      val seekPos = 8 * 1024 * 1024 - 512
+      is.seek(8 * 1024 * 1024 - 512)
+      assert(is.getPosition == seekPos)
+      val toRead = new Array[Byte](512)
+      is.readFully(toRead)
+
+      (0 until toRead.length).foreach { i =>
+        assert(toRead(i) == ((seekPos + i) % 251).toByte)
+      }
+    }
   }
 
   @Test def testFileChecksum(): Unit = {

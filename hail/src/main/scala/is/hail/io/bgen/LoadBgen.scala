@@ -17,6 +17,7 @@ import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
 import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
@@ -479,6 +480,7 @@ class MatrixBGENReader(
     VirtualTypeWithReq(PType.canonical(requestedType.globalType, required = true))
 
   def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+
     val _lc = lower(ctx, requestedType)
     val lc = if (dropRows)
       _lc.copy(partitioner = _lc.partitioner.copy(rangeBounds = Array[Interval]()),

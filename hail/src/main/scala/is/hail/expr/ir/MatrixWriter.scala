@@ -3,7 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
+import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
@@ -496,10 +497,10 @@ case class MatrixVCFWriter(
           "partFile" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_vcf_writer") { (rows, ctxRef) =>
+      val partFile = GetField(ctxRef, "partFile") + UUID4() + Str(ext)
       val ctx = MakeStruct(FastSeq(
         "cols" -> GetField(ts.globals, colsFieldName),
-        "partFile" -> (GetField(ctxRef, "partFile") + Str(ext))
-      ))
+        "partFile" -> partFile))
       WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
       val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "partFiles" -> parts))
@@ -935,7 +936,8 @@ case class MatrixGENWriter(
           "partFile" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_gen_writer") { (rows, ctxRef) =>
-      WritePartition(rows, GetField(ctxRef, "partFile"), lineWriter)
+      val ctx = GetField(ctxRef, "partFile") + UUID4()
+      WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
       val cols = ToStream(GetField(globals, colsFieldName))
       val sampleFileName = Str(s"$path.sample")
@@ -1056,12 +1058,12 @@ case class MatrixBGENWriter(
       StreamZip(FastSeq(oldCtx, partFiles, numVariants), FastSeq(ctxElt.name, pf.name, nv.name),
         MakeStruct(FastSeq("oldCtx" -> ctxElt, "numVariants" -> nv, "partFile" -> pf)),
         ArrayZipBehavior.AssertSameLength)
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_bgen_writer") { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_vcf_writer") { (rows, ctxRef) =>
+      val partFile = GetField(ctxRef, "partFile") + UUID4()
       val ctx = MakeStruct(FastSeq(
         "cols" -> GetField(ts.globals, colsFieldName),
         "numVariants" -> GetField(ctxRef, "numVariants"),
-        "partFile" -> GetField(ctxRef, "partFile")
-      ))
+        "partFile" -> partFile))
       WritePartition(rows, ctx, partWriter)
     }{ (results, globals) =>
       val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "results" -> results))
@@ -1310,7 +1312,7 @@ case class MatrixPLINKWriter(
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
       val files = Literal(TArray(TTuple(TString, TString)),
-                          Array.tabulate(ts.numPartitions)(i => Row(s"$tmpBedDir/${ partFile(d, i) }", s"$tmpBimDir/${ partFile(d, i) }-")).toFastIndexedSeq)
+                          Array.tabulate(ts.numPartitions)(i => Row(s"$tmpBedDir/${ partFile(d, i) }-", s"$tmpBimDir/${ partFile(d, i) }-")).toFastIndexedSeq)
 
       zip2(oldCtx, ToStream(files), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -1318,8 +1320,9 @@ case class MatrixPLINKWriter(
           "file" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("matrix_plink_writer") { (rows, ctxRef) =>
-      val bedFile = GetTupleElement(GetField(ctxRef, "file"), 0)
-      val bimFile = GetTupleElement(GetField(ctxRef, "file"), 1)
+      val id = UUID4()
+      val bedFile = GetTupleElement(GetField(ctxRef, "file"), 0) + id
+      val bimFile = GetTupleElement(GetField(ctxRef, "file"), 1) + id
       val ctx = MakeStruct(FastSeq("bedFile" -> bedFile, "bimFile" -> bimFile))
       WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
@@ -1556,7 +1559,9 @@ case class MatrixBlockMatrixWriter(
     val pathsWithColMajorIndices = tableOfNDArrays.mapCollect("matrix_block_matrix_writer") { partition =>
      ToArray(mapIR(partition) { singleNDArrayTuple =>
        bindIR(GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) { colMajorIndex =>
-         val blockPath = Str(s"$path/parts/part-") + invoke("str", TString, colMajorIndex)
+         val blockPath =
+           Str(s"$path/parts/part-") +
+             invoke("str", TString, colMajorIndex) + Str("-") + UUID4()
          maketuple(colMajorIndex, WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, writer))
        }
       })

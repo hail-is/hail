@@ -1,7 +1,14 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.annotations.{Region, SafeRow, UnsafeRow}
+import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction1RegionUnit, LongInfo, UnitInfo, classInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.physical.{PTuple, PType}
+import is.hail.types.virtual.Type
+import is.hail.utils.{FastIndexedSeq, FastSeq}
+import org.apache.spark.sql.Row
 
 object LowerToCDA {
 

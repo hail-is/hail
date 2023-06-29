@@ -10,12 +10,12 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.physical.PStruct
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SStackStruct, SStackStructValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue, primitive}
-import is.hail.types.physical.stypes.primitives.SInt64
-import is.hail.types.virtual._
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamValue, primitive}
+import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
+import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.virtual.{TArray, TInt32, TInt64, TStruct, TTuple, Type}
 import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -178,8 +178,7 @@ class GenericTableValue(
         bodyPType,
         body,
         context,
-        cacheKey
-      )
+        cacheKey)
     }
     ltrCoercer
   }
@@ -208,8 +207,7 @@ class GenericTableValue(
         ctx,
         globalsIR,
         contextType, contexts,
-        requestedBody
-      )
+        requestedBody)
     }
   }
 

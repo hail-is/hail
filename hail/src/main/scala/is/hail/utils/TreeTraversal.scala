@@ -11,11 +11,9 @@ object TreeTraversal {
       // Java (and Scala) iterators mutate on `next()` so it's convenient
       // to hold on to a node and its children as we visit the node after
       // its children.
-      private[this] var stack =
-        List((root, adj(root)))
+      private var stack = List((root, adj(root)))
 
-      override def hasNext: Boolean =
-        stack.nonEmpty
+      override def hasNext: Boolean = stack.nonEmpty
 
       override def next(): A = {
         while (stack.head._2.hasNext) {
@@ -31,11 +29,9 @@ object TreeTraversal {
 
   def preOrder[A](adj: A => Iterator[A])(root: A): Iterator[A] =
     new Iterator[A] {
-      private[this] var stack =
-        List(Iterator.single(root))
+      private var stack = List(Iterator.single(root))
 
-      override def hasNext: Boolean =
-        stack.nonEmpty
+      override def hasNext: Boolean = stack.nonEmpty
 
       override def next(): A = {
         val top = stack.head.next()
@@ -52,11 +48,9 @@ object TreeTraversal {
 
   def levelOrder[A](adj: A => Iterator[A])(root: A): Iterator[A] =
     new Iterator[A] {
-      private[this] val queue =
-        mutable.Queue(Iterator.single(root))
+      private val queue = mutable.Queue(Iterator.single(root))
 
-      override def hasNext: Boolean =
-        queue.nonEmpty
+      override def hasNext: Boolean = queue.nonEmpty
 
       override def next(): A = {
         val top = queue.front.next()

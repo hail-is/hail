@@ -1,11 +1,17 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
-import is.hail.expr.ir.{Requiredness, _}
-import is.hail.types._
+import is.hail.expr.ir.{LoweringAnalyses, BaseIR, IR, PruneDeadFields, RewriteBottomUp, TableExecuteIntermediate, TableKeyBy, TableKeyByAndAggregate, TableOrderBy, TableReader, TableValue}
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.types._
+import is.hail.expr.ir._
+import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
+import is.hail.io.TypedCodecSpec
+import is.hail.rvd.RVDPartitioner
+import is.hail.utils.{FastIndexedSeq, Interval}
+import org.apache.spark.sql.Row
+import org.json4s.JValue
+import org.json4s.JsonAST.JString
 
 
 object LowerAndExecuteShuffles {
@@ -58,14 +64,12 @@ object LowerAndExecuteShuffles {
 
         val analyses = LoweringAnalyses(partiallyAggregated, ctx)
         val preShuffleStage = ctx.backend.tableToTableStage(ctx, partiallyAggregated, analyses)
-
         // annoying but no better alternative right now
         val rt = analyses.requirednessAnalysis.lookup(partiallyAggregated).asInstanceOf[RTable]
         val partiallyAggregatedReader = ctx.backend.lowerDistributedSort(ctx,
           preShuffleStage,
           newKeyType.fieldNames.map(k => SortField(k, Ascending)),
-          rt
-        )
+          rt)
 
         val takeVirtualSig = TakeStateSig(VirtualTypeWithReq(newKeyType, rt.rowType.select(newKeyType.fieldNames)))
         val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)

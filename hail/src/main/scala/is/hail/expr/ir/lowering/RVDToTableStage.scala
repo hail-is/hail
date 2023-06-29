@@ -2,17 +2,17 @@ package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
-import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.expr.ir.{Compile, CompileIterator, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.rvd.{RVD, RVDType}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.types.{RTable, TableType, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual.TStruct
-import is.hail.types.{RTable, TableType, VirtualTypeWithReq}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
@@ -68,8 +68,10 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    RVDToTableStage(rvd, globals).upcast(ctx, requestedType)
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+    RVDToTableStage(rvd, globals)
+      .upcast(ctx, requestedType)
+  }
 }
 
 object RVDToTableStage {

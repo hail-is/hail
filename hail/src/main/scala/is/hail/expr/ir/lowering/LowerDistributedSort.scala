@@ -22,7 +22,7 @@ object LowerDistributedSort {
   def localSort(ctx: ExecuteContext, inputStage: TableStage, sortFields: IndexedSeq[SortField], rt: RTable): TableReader = {
 
     val numPartitions = inputStage.partitioner.numPartitions
-    val collected = inputStage.collectWithGlobals("shuffle_local_sort")
+    val collected = inputStage.collectWithGlobals( "shuffle_local_sort")
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),
@@ -70,7 +70,7 @@ object LowerDistributedSort {
 
     override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
       assert(!dropRows)
       TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
     }
@@ -612,7 +612,7 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     assert(!dropRows)
     TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
   }

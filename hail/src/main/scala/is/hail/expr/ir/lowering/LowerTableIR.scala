@@ -14,6 +14,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
+import scala.collection.immutable.IntMap
+
 class LowererUnsupportedOperation(msg: String = null) extends Exception(msg)
 
 object TableStage {
@@ -226,15 +228,14 @@ class TableStage(
     TableStage.wrapInBindings(bindIR(cda) { cdaRef => body(cdaRef, globals) }, letBindings)
   }
 
-  def collectWithGlobals(staticID: String,dynamicID: IR = NA(TString)): IR =
+  def collectWithGlobals(staticID: String, dynamicID: IR = NA(TString)): IR =
     mapCollectWithGlobals(staticID, dynamicID)(ToArray) { (parts, globals) =>
       MakeStruct(FastSeq(
         "rows" -> ToArray(flatMapIR(ToStream(parts))(ToStream(_))),
         "global" -> globals))
     }
 
-  def countPerPartition(): IR =
-    mapCollect("count_per_partition")(part => Cast(StreamLen(part), TInt64))
+  def countPerPartition(): IR = mapCollect("count_per_partition")(part => Cast(StreamLen(part), TInt64))
 
   def getGlobals(): IR = TableStage.wrapInBindings(globals, letBindings)
 
@@ -418,8 +419,7 @@ class TableStage(
           leftPart.rangeBounds ++ rightPart.rangeBounds)
       }
     }
-    val repartitionedLeft: TableStage =
-      repartitionNoShuffle(ec, newPartitioner)
+    val repartitionedLeft: TableStage = repartitionNoShuffle(ec, newPartitioner)
 
     val partitionJoiner: (IR, IR) => IR = (lPart, rPart) => {
       val lEltType = lPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
@@ -437,8 +437,7 @@ class TableStage(
 
     val newKey = kType.fieldNames ++ right.kType.fieldNames.drop(joinKey)
 
-    repartitionedLeft
-      .alignAndZipPartitions(ec, right, joinKey, globalJoiner, partitionJoiner)
+    repartitionedLeft.alignAndZipPartitions(ec, right, joinKey, globalJoiner, partitionJoiner)
       .extendKeyPreservesPartitioning(ec, newKey)
   }
 
@@ -510,8 +509,7 @@ class TableStage(
     val sortedReader = ctx.backend.lowerDistributedSort(ctx,
       rightWithPartNums,
       SortField("__partNum", Ascending) +: right.key.map(k => SortField(k, Ascending)),
-      rightTableRType
-    )
+      rightTableRType)
     val sorted = sortedReader.lower(ctx, sortedReader.fullType)
     assert(sorted.kType.fieldNames.sameElements("__partNum" +: right.key))
     val newRightPartitioner = new RVDPartitioner(
@@ -520,8 +518,7 @@ class TableStage(
       TStruct.concat(TStruct("__partNum" -> TInt32), right.kType),
       Array.tabulate[Interval](partitioner.numPartitions)(i => Interval(Row(i), Row(i), true, true))
       )
-    val repartitioned = sorted
-      .repartitionNoShuffle(ctx, newRightPartitioner)
+    val repartitioned = sorted.repartitionNoShuffle(ctx, newRightPartitioner)
       .changePartitionerNoRepartition(RVDPartitioner.unkeyed(ctx.stateManager, newRightPartitioner.numPartitions))
       .mapPartition(None) { part =>
         mapIR(part) { row =>
@@ -547,9 +544,7 @@ object LowerTableIR {
       case TableToValueApply(child, ForceCountTable()) =>
         val stage = lower(child)
         invoke("sum", TInt64,
-          stage.mapCollect("table_force_count") {
-            rows => foldIR(mapIR(rows)(row => Consume(row)), 0L)(_ + _)
-          })
+          stage.mapCollect("table_force_count")(rows => foldIR(mapIR(rows)(row => Consume(row)), 0L)(_ + _)))
 
       case TableToValueApply(child, TableCalculateNewPartitions(nPartitions)) =>
         val stage = lower(child)
@@ -712,8 +707,7 @@ object LowerTableIR {
                         aggs.states
                       ),
                       strConcat(Str("iteration="), invoke("str", TString, iterNumber), Str(", n_states="), invoke("str", TString, ArrayLen(currentAggStates))),
-                      "table_tree_aggregate"
-                    ),
+                      "table_tree_aggregate"),
                     iterNumber + 1),
                   currentAggStates.typ)))
             ) { finalParts =>
@@ -1483,8 +1477,7 @@ object LowerTableIR {
           .takeWhile { case (l, r) => l == r }
           .length
 
-        loweredChild
-          .changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
+        loweredChild.changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
           .extendKeyPreservesPartitioning(ctx, newKey)
 
       case TableLeftJoinRightDistinct(left, right, root) =>
@@ -1509,8 +1502,7 @@ object LowerTableIR {
               left.typ.key.take(commonKeyLength), right.typ.key,
               leftElementRef.name, rightElementRef.name,
               joiningOp, "left")
-          }
-        )
+          })
 
       case TableIntervalJoin(left, right, root, product) =>
         assert(!product)
@@ -1540,8 +1532,7 @@ object LowerTableIR {
           loweredRight,
           analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
           (lGlobals, _) => lGlobals,
-          partitionJoiner
-        )
+          partitionJoiner)
 
       case tj@TableJoin(left, right, joinType, joinKey) =>
         val loweredLeft = lower(left)

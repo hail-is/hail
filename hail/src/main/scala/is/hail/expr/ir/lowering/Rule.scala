@@ -1,57 +1,59 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir._
+import is.hail.types.virtual.TStream
 
-import scala.reflect.ClassTag
-
-trait Rule[State] extends scala.Product with Serializable {
-  def init: State
-  def apply(s: State, ir: BaseIR): (State, Boolean)
+trait Rule {
+  def allows(ir: BaseIR): Boolean
 }
 
-object Rule {
-  object Implicits {
-    import scala.language.implicitConversions
-    implicit def mkExistential[T: ClassTag](r: Rule[T]): Rule[Any] =
-      ExistentialRule(r)
+case object NoMatrixIR extends Rule {
+  def allows(ir: BaseIR): Boolean = !ir.isInstanceOf[MatrixIR]
+}
+
+case object NoTableIR extends Rule {
+  def allows(ir: BaseIR): Boolean = !ir.isInstanceOf[TableIR]
+}
+
+case object NoBlockMatrixIR extends Rule {
+  def allows(ir: BaseIR): Boolean = !ir.isInstanceOf[BlockMatrixIR]
+}
+
+case object NoRelationalLets extends Rule {
+  def allows(ir: BaseIR): Boolean = ir match {
+    case _: RelationalLet => false
+    case _: RelationalLetBlockMatrix => false
+    case _: RelationalLetMatrixTable => false
+    case _: RelationalLetTable => false
+    case _: RelationalRef => false
+    case _ => true
   }
 }
 
-case class PureRule(f: BaseIR => Boolean) extends Rule[Unit] {
-  override def init: Unit =
-    ()
-  override def apply(unit: Unit, ir: BaseIR): (Unit, Boolean) =
-    ((), f(ir))
+case object CompilableValueIRs extends Rule {
+  def allows(ir: BaseIR): Boolean = ir match {
+    case x: IR => Compilable(x)
+    case _ => true
+  }
 }
 
-case class ExistentialRule[T: ClassTag](r: Rule[T]) extends Rule[Any] {
-  override def init: Any =
-    r.init
-
-  override def apply(s: Any, ir: BaseIR): (Any, Boolean) =
-    r.apply(s.asInstanceOf[T], ir)
+case object NoApplyIR extends Rule {
+  override def allows(ir: BaseIR): Boolean = ir match {
+    case x: ApplyIR => false
+    case _ => true
+  }
 }
 
-object NoMatrixIR extends PureRule(!_.isInstanceOf[MatrixIR])
-object NoTableIR extends PureRule(!_.isInstanceOf[TableIR])
-object NoBlockMatrixIR extends PureRule(!_.isInstanceOf[BlockMatrixIR])
-object NoRelationalLets extends PureRule({
-  case _: RelationalLet => false
-  case _: RelationalLetBlockMatrix => false
-  case _: RelationalLetMatrixTable => false
-  case _: RelationalLetTable => false
-  case _: RelationalRef => false
-  case _ => true
-})
+case object ValueIROnly extends Rule {
+  def allows(ir: BaseIR): Boolean = ir match {
+    case _: IR => true
+    case _ => false
+  }
+}
 
-object CompilableValueIRs extends PureRule({
-  case x: IR => Compilable(x)
-  case _ => true
-})
-
-object NoApplyIR extends PureRule(!_.isInstanceOf[ApplyIR])
-object ValueIROnly extends PureRule(_.isInstanceOf[IR])
-object EmittableValueIRs extends PureRule({
-  case x: IR => Emittable(x)
-  case _ => true
-})
+case object EmittableValueIRs extends Rule {
+  override def allows(ir: BaseIR): Boolean = ir match {
+    case x: IR => Emittable(x)
+    case _ => true
+  }
+}

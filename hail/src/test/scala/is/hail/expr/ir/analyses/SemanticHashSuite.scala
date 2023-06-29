@@ -33,8 +33,8 @@ class SemanticHashSuite {
         TableCollect,
         TableAggregate(_, Void()),
         TableCount,
-        TableMapRows(_, MakeStruct.empty),
-        TableMapGlobals(_, MakeStruct.empty),
+        TableMapRows(_, MakeStruct(IndexedSeq.empty)),
+        TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
         TableFilter(_, Void()),
         TableDistinct
       ).flatMap { wrap =>

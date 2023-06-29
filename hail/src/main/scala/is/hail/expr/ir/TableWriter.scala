@@ -67,15 +67,16 @@ object TableNativeWriter {
     RelationalWriter.scoped(path, overwrite, Some(ts.tableType))(
       ts.mapContexts { oldCtx =>
         val d = digitsNeeded(ts.numPartitions)
-        val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }").toFastIndexedSeq)
+        val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
 
         zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
           MakeStruct(FastSeq(
             "oldCtx" -> ctxElt,
             "writeCtx" -> pf))
         }
-      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_native_writer") { (rows, ctxRef) =>
-        WritePartition(rows, GetField(ctxRef, "writeCtx"), rowWriter)
+      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals( "table_native_writer") { (rows, ctxRef) =>
+        val file = GetField(ctxRef, "writeCtx")
+        WritePartition(rows, file + UUID4(), rowWriter)
       } { (parts, globals) =>
         val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
           Str(partFile(1, 0)), globalWriter)
@@ -495,7 +496,7 @@ case class TableTextWriter(
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -503,7 +504,8 @@ case class TableTextWriter(
           "partFile" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_text_writer") { (rows, ctxRef) =>
-      WritePartition(rows, GetField(ctxRef, "partFile") + Str(ext), lineWriter)
+      val file = GetField(ctxRef, "partFile") + UUID4() + Str(ext)
+      WritePartition(rows, file, lineWriter)
     } { (parts, _) =>
       val commit = TableTextFinalizer(path, ts.rowType, delimiter, header, exportType)
       Begin(FastIndexedSeq(WriteMetadata(parts, commit)))
@@ -684,7 +686,8 @@ case class TableNativeFanoutWriter(
     }(
       GetField(_, "oldCtx")
     ).mapCollectWithContextsAndGlobals("table_native_fanout_writer") { (rows, ctxRef) =>
-      WritePartition(rows, GetField(ctxRef, "writeCtx"), new PartitionNativeFanoutWriter(targets))
+      val file = GetField(ctxRef, "writeCtx")
+      WritePartition(rows, file + UUID4(), new PartitionNativeFanoutWriter(targets))
     } { (parts, globals) =>
       bindIR(parts) { fileCountAndDistinct =>
         Begin(targets.zipWithIndex.map { case (target, index) =>

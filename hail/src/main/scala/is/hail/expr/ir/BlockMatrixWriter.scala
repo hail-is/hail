@@ -53,7 +53,7 @@ case class BlockMatrixNativeWriter(
     val writer = ETypeValueWriter(spec)
 
     val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
-      val suffix = strConcat("parts/part-", idx)
+      val suffix = strConcat("parts/part-", idx, UUID4())
       val filepath = strConcat(s"$path/", suffix)
       WriteValue(block, filepath, writer,
         if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None

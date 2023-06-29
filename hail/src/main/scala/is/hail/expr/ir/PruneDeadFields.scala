@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.annotations._
 import is.hail.expr.Nat
 import is.hail.types._
 import is.hail.types.virtual._
@@ -2152,12 +2152,12 @@ object PruneDeadFields {
         val seqOp2 = rebuildIR(ctx, seqOp, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val combOp2 = rebuildIR(ctx, combOp, env, memo)
         AggFold(zero2, seqOp2, combOp2, accumName, otherAccumName, isScan)
-      case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsdempty) =>
+      case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val contexts2 = upcast(ctx, rebuildIR(ctx, contexts, env, memo), memo.requestedType.lookup(contexts).asInstanceOf[Type])
         val globals2 = upcast(ctx, rebuildIR(ctx, globals, env, memo), memo.requestedType.lookup(globals).asInstanceOf[Type])
         val body2 = rebuildIR(ctx, body, BindingEnv(Env(cname -> TIterable.elementType(contexts2.typ), gname -> globals2.typ)), memo)
         val dynamicID2 = rebuildIR(ctx, dynamicID, env, memo)
-        CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsdempty)
+        CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd)
       case _ =>
         ir.mapChildren {
           case valueIR: IR => rebuildIR(ctx, valueIR, env, memo) // FIXME: assert IR does not bind or change env
