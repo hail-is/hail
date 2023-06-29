@@ -34,7 +34,7 @@ resource "azuread_application" "testns_auth" {
     }
   }
 }
-module "test_auth_sp" {
+module "testns_auth_sp" {
   source = "../service_principal"
 
   name                  = "testns-auth"
