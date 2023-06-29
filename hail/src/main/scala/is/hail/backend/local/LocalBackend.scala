@@ -3,6 +3,7 @@ package is.hail.backend.local
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
@@ -188,6 +189,7 @@ class LocalBackend(
     Validate(ir)
     val queryID = Backend.nextID()
     log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
+    ctx.irMetadata = ctx.irMetadata.copy(semhash = Some(SemanticHash(ctx.fs)(ir)))
     val res = _jvmLowerAndExecute(ctx, ir)
     log.info(s"finished execution of query $queryID")
     res

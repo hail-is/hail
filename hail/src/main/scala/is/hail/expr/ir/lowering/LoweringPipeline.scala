@@ -96,10 +96,8 @@ object LoweringPipeline {
       DArrayLowering.TableOnly,
       DArrayLowering.BMOnly
     ).map { lv =>
-      lv ->
-        (LoweringPipeline(ComputeSemanticHash) +
-          fullLoweringPipeline("darrayLowerer", LowerToDistributedArrayPass(lv)))
-  }.toMap
+      lv -> fullLoweringPipeline("darrayLowerer", LowerToDistributedArrayPass(lv))
+    }.toMap
 
   private val _dArrayLowerersNoOpt = _dArrayLowerers.mapValues(_.noOptimization()).toMap
 

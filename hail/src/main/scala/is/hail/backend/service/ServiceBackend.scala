@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
@@ -339,8 +340,9 @@ class ServiceBackend(
     bufferSpecString: String
   ): Array[Byte] = {
     log.info(s"executing: ${token} ${ctx.fs.getConfiguration()}")
-
-    execute(ctx, IRParser.parse_value_ir(ctx, code), bufferSpecString)
+    val ir = IRParser.parse_value_ir(ctx, code)
+    ctx.irMetadata = ctx.irMetadata.copy(semhash = Some(SemanticHash(ctx.fs)(ir)))
+    execute(ctx, ir, bufferSpecString)
   }
 
   override def lowerDistributedSort(

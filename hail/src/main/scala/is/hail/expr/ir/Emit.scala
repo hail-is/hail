@@ -2502,32 +2502,41 @@ class Emit[C](
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[Integer]("semhash")
-          emitI(dynamicID).consume(cb, (), { dynamicID =>
-            val dynV = dynamicID.asString.loadString(cb)
-            cb.assign(stageName, stageName.concat("|").concat(dynV))
-            ctx.executeContext.irMetadata.nextHash.foreach { staticHash =>
-              val dynamicHash =
-                Code.invokeScalaObject[SemanticHash.Type](
-                  SemanticHash.Hash.getClass,
-                  "apply",
-                  Array(classOf[String]),
-                  Array(dynV)
-                )
+          val semhash = cb.newLocal[SemanticHash.NullableType]("semhash")
+          val nextHash = ctx.executeContext.irMetadata.nextHash
 
-              val combined =
-                Code.newInstance[SemanticHash.NullableType, SemanticHash.Type](
+          emitI(dynamicID).consume(cb,
+            nextHash.foreach { hash =>
+              cb.assign(semhash,
+                Code.newInstance[SemanticHash.NullableType, SemanticHash.Type](hash)
+              )
+            },
+            { dynamicID =>
+              val dynV = dynamicID.asString.loadString(cb)
+              cb.assign(stageName, stageName.concat("|").concat(dynV))
+              nextHash.foreach { staticHash =>
+                val dynamicHash =
                   Code.invokeScalaObject[SemanticHash.Type](
                     SemanticHash.Hash.getClass,
-                    "combine",
-                    Array.fill(2)(classOf[SemanticHash.Type]),
-                    Array(staticHash, dynamicHash)
+                    "apply",
+                    Array(classOf[String]),
+                    Array(dynV)
                   )
-                )
 
-              cb.assign(semhash, combined)
+                val combined =
+                  Code.newInstance[SemanticHash.NullableType, SemanticHash.Type](
+                    Code.invokeScalaObject[SemanticHash.Type](
+                      SemanticHash.Hash.getClass,
+                      "combine",
+                      Array.fill(2)(classOf[SemanticHash.Type]),
+                      Array(staticHash, dynamicHash)
+                    )
+                  )
+
+                cb.assign(semhash, combined)
+              }
             }
-          })
+          )
 
           val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.NullableType, Option[TableStageDependency], Array[Array[Byte]]](

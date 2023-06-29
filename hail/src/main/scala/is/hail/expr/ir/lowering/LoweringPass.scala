@@ -168,14 +168,3 @@ case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends Lo
     LowerAndExecuteShuffles(ir, ctx, passesBelow)
   }
 }
-
-case object ComputeSemanticHash extends LoweringPass {
-  override val before: IRState = AnyIR
-  override val after: IRState = AnyIR
-  override val context: String = "ComputeSemanticHash"
-
-  override protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    ctx.irMetadata = ctx.irMetadata.copy(semhash = Some(SemanticHash(ctx.fs)(ir)))
-    ir
-  }
-}
