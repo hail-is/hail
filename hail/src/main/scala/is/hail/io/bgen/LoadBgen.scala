@@ -473,8 +473,8 @@ class MatrixBGENReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PType.canonical(requestedType.globalType, required = true))
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue = {
-    val _lc = lower(ctx, requestedType, semhash)
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    val _lc = lower(ctx, requestedType)
     val lc = if (dropRows)
       _lc.copy(partitioner = _lc.partitioner.copy(rangeBounds = Array[Interval]()),
         contexts = StreamTake(_lc.contexts, 0))
@@ -513,7 +513,7 @@ class MatrixBGENReader(
     case _ => false
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
 
     val globals = lowerGlobals(ctx, requestedType.globalType)
     variants match {

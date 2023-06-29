@@ -175,7 +175,6 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         else
           "<literal value>")
     case EncodedLiteral(codec, _) => single(codec.encodedVirtualType.parsableString())
-    case ExprSemanticHash(hash, _) => single(hash.toString)
     case Let(name, _, _) if !elideBindings => single(prettyIdentifier(name))
     case AggLet(name, _, _, isScan) => if (elideBindings)
       single(Pretty.prettyBooleanLiteral(isScan))
@@ -279,7 +278,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(Pretty.prettyBooleanLiteral(onKey))
     case In(i, typ) => FastSeq(typ.toString, i.toString)
     case Die(message, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
-    case CollectDistributedArray(_, _, cname, gname, _, _, staticID, _, _) if !elideBindings =>
+    case CollectDistributedArray(_, _, cname, gname, _, _, staticID, _) if !elideBindings =>
       FastSeq(staticID, prettyIdentifier(cname), prettyIdentifier(gname))
     case MatrixRead(typ, dropCols, dropRows, reader) =>
       FastSeq(if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
@@ -541,7 +540,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         Some(Array(lName -> "l_elt", rName -> "r_elt"))
       else
         None
-      case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _, _) =>
+      case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) =>
         if (i == 2) Some(Array(cname -> "ctx", gname -> "g")) else None
       case TableAggregate(child, _) =>
         if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None

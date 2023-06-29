@@ -1,7 +1,5 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.analyses.SemanticHash.Implicits._
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.expr.ir.{Apply, Ascending, Descending, ErrorIDs, GetField, I32, Literal, LoweringAnalyses, MakeStruct, Ref, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream, mapIR}
 import is.hail.types.RTable
@@ -43,10 +41,10 @@ class LowerDistributedSortSuite extends HailSuite {
       val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses)
 
       val sortedTs = LowerDistributedSort
-        .distributedSort(ctx, stage, sortFields, rt, analyses.nextHash)
-        .lower(ctx, myTable.typ.copy(key = FastIndexedSeq()), analyses.nextHash)
+        .distributedSort(ctx, stage, sortFields, rt)
+        .lower(ctx, myTable.typ.copy(key = FastIndexedSeq()))
 
-      val res = TestUtils.eval(sortedTs.mapCollect("test", analyses.nextHash)(x => ToArray(x))).asInstanceOf[IndexedSeq[IndexedSeq[Row]]].flatten
+      val res = TestUtils.eval(sortedTs.mapCollect("test")(x => ToArray(x))).asInstanceOf[IndexedSeq[IndexedSeq[Row]]].flatten
 
       val rowFunc = myTable.typ.rowType.select(sortFields.map(_.field))._2
       val unsortedCollect = is.hail.expr.ir.TestUtils.collect(myTable)

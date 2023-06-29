@@ -100,7 +100,7 @@ object AbstractRVDSpec {
                          requestedType: TStruct,
                          requestedKey: IndexedSeq[String],
                          uidFieldName: String,
-                         nextHash: SemanticHash.NextHash
+
   ): IR => TableStage = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner(ctx.stateManager)
@@ -184,9 +184,9 @@ object AbstractRVDSpec {
             contexts,
             body)
           if (filterIntervals)
-            ts.repartitionNoShuffle(ctx, partitioner, nextHash, dropEmptyPartitions = true)
+            ts.repartitionNoShuffle(ctx, partitioner, dropEmptyPartitions = true)
           else
-            ts.repartitionNoShuffle(ctx, extendedNewPartitioner.coarsen(requestedKey.length), nextHash)
+            ts.repartitionNoShuffle(ctx, extendedNewPartitioner.coarsen(requestedKey.length))
         }
     }
   }
@@ -219,8 +219,7 @@ abstract class AbstractRVDSpec {
     requestedType: TableType,
     uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false,
-    semhash: SemanticHash.NextHash
+    filterIntervals: Boolean = false
   ): IR => TableStage = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
     case None =>
@@ -428,8 +427,7 @@ case class IndexedRVDSpec2(
     requestedType: TableType,
     uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false,
-    semhash: SemanticHash.NextHash
+    filterIntervals: Boolean = false
   ): IR => TableStage = newPartitioner match {
     case Some(np) =>
 
@@ -472,12 +470,12 @@ case class IndexedRVDSpec2(
           TableStageDependency.none,
           contexts,
           body)
-        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, semhash, dropEmptyPartitions = true)
-        else ts.repartitionNoShuffle(ctx, extendedNP, semhash)
+        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, dropEmptyPartitions = true)
+        else ts.repartitionNoShuffle(ctx, extendedNP)
       }
 
     case None =>
-      super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals, semhash)
+      super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)
   }
 }
 

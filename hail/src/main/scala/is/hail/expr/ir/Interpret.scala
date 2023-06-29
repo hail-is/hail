@@ -862,7 +862,7 @@ object Interpret {
         val tvs = children.map(_.analyzeAndExecute(ctx).asTableValue(ctx))
         writer(ctx, tvs)
       case TableWrite(child, writer) =>
-        writer(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx), () => SemanticHash.unique)
+        writer(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx))
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>

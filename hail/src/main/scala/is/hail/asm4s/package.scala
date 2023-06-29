@@ -242,7 +242,7 @@ package object asm4s {
     new ClassInfo[C](c.getName)
   }
 
-  implicit def classInfo[C <: AnyRef](implicit cct: ClassTag[C]): TypeInfo[C] =
+  implicit def classInfo[C](implicit cct: ClassTag[C]): TypeInfo[C] =
     new ClassInfo[C](cct.runtimeClass.getName)
 
   implicit def arrayInfo[T](implicit tti: TypeInfo[T]): TypeInfo[Array[T]] =

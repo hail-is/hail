@@ -5,6 +5,7 @@ import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.Threefry
+import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.types.MapTypes
@@ -71,7 +72,8 @@ object ExecuteContext {
         tempFileManager,
         theHailClassLoader,
         referenceGenomes,
-        flags
+        flags,
+        IrMetadata(None)
       ))(f(_))
     }
   }
@@ -109,7 +111,8 @@ class ExecuteContext(
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
   private[this] val referenceGenomes: Map[String, ReferenceGenome],
-  private[this] val flags: HailFeatureFlags
+  private[this] val flags: HailFeatureFlags,
+  var irMetadata: IrMetadata
 ) extends Closeable {
   var backendContext: BackendContext = _
 

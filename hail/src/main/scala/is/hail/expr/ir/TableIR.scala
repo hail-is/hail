@@ -134,8 +134,7 @@ object LoweredTableReader {
     bodyPType: (TStruct) => PStruct,
     keys: (TStruct) => (Region, HailClassLoader, FS, Any) => Iterator[Long],
     context: String,
-    cacheKey: Any,
-    nextHash: SemanticHash.NextHash
+    cacheKey: Any
   ): LoweredTableReaderCoercer = {
     assert(key.nonEmpty)
     assert(contexts.nonEmpty)
@@ -252,8 +251,7 @@ object LoweredTableReader {
           "globals",
           scanBody(Ref("context", contextType)),
           NA(TString),
-          "table_coerce_sortedness",
-          semhash = Some(nextHash())
+          "table_coerce_sortedness"
         )
 
         val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
@@ -400,7 +398,7 @@ object LoweredTableReader {
                 body)
 
               pkPartitioned
-                .extendKeyPreservesPartitioning(ctx, key, nextHash)
+                .extendKeyPreservesPartitioning(ctx, key)
                 .mapPartition(None) { part =>
                   flatMapIR(StreamGroupByKey(part, pkType.fieldNames, missingEqual = true)) { inner =>
                     ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
@@ -433,9 +431,8 @@ object LoweredTableReader {
               ctx.backend.lowerDistributedSort(ctx,
                 tableStage,
                 keyType.fieldNames.map(f => SortField(f, Ascending)),
-                RTable(rowRType, globRType, FastSeq()),
-                nextHash
-              ).lower(ctx, TableType(tableStage.rowType, keyType.fieldNames, globals.typ.asInstanceOf[TStruct]), nextHash)
+                RTable(rowRType, globRType, FastSeq())
+              ).lower(ctx, TableType(tableStage.rowType, keyType.fieldNames, globals.typ.asInstanceOf[TStruct]))
             }
           }
         }
@@ -487,7 +484,7 @@ trait TableReaderWithExtraUID extends TableReader {
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
@@ -512,7 +509,7 @@ abstract class TableReader {
   def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
 
-  def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage =
+  def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
 }
 
@@ -1415,8 +1412,8 @@ class TableNativeReader(
     VirtualTypeWithReq(tcoerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue =
-    TableExecuteIntermediate(lower(ctx, requestedType, semhash)).asTableValue(ctx)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
@@ -1446,7 +1443,7 @@ class TableNativeReader(
       0)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = spec.rowsSpec
     val specPart = rowsSpec.partitioner(ctx.stateManager)
@@ -1463,7 +1460,7 @@ class TableNativeReader(
     else
       uidFieldName
 
-    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, requestedUIDFieldName, partitioner, filterIntervals, semhash).apply(globals)
+    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, requestedUIDFieldName, partitioner, filterIntervals).apply(globals)
   }
 }
 
@@ -1531,8 +1528,8 @@ case class TableNativeZippedReader(
     (t, mk)
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue =
-    TableExecuteIntermediate(lower(ctx, requestedType, semhash)).asTableValue(ctx)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = specLeft.globalsSpec
@@ -1545,7 +1542,7 @@ case class TableNativeZippedReader(
       0)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = specLeft.rowsSpec
     val specPart = rowsSpec.partitioner(ctx.stateManager)
@@ -1558,7 +1555,7 @@ case class TableNativeZippedReader(
       specLeft.rowsSpec, specRight.rowsSpec,
       pathLeft + "/rows", pathRight + "/rows",
       partitioner, filterIntervals,
-      requestedType.rowType, requestedType.key, uidFieldName, semhash
+      requestedType.rowType, requestedType.key, uidFieldName
     ).apply(globals)
   }
 
@@ -1618,7 +1615,7 @@ case class TableFromBlockMatrixNativeReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalStruct.empty(required = true))
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue = {
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(
       ctx.fsBc, params.path, partitionRanges, requestedType.rowType, metadata,
       maybeMaximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes)
@@ -1672,7 +1669,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =
-    TableValueIntermediate(tr.apply(ctx, typ, dropRows, () => SemanticHash.unique))
+    TableValueIntermediate(tr.apply(ctx, typ, dropRows))
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {

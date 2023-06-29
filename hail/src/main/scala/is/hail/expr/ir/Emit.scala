@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash}
-import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.expr.ir.lowering.{IrMetadata, TableStageDependency}
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.fs.FS
@@ -2366,7 +2366,7 @@ class Emit[C](
         val rt = loopRef.resultType
         IEmitCode(CodeLabel(), CodeLabel(), rt.st.defaultValue, rt.required)
 
-      case x@CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd, _) =>
+      case x@CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val parentCB = mb.ecb
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamValue =>
 
@@ -2474,23 +2474,33 @@ class Emit[C](
           cb.assign(stageName, staticID)
 
           val semhash = cb.newLocal[SemanticHash.Type]("semhash")
-          assert(x.semhash.isDefined, "CDA missing semantic hash")
-          cb.assign(semhash, x.semhash.get)
-          
+          val nextHash = ctx.executeContext.irMetadata.nextHash
+          nextHash.foreach { h =>
+            cb.assign(semhash, h)
+          }
+
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)
             cb.assign(stageName, stageName.concat("|").concat(dynV))
-            cb.assign(semhash, {
+            nextHash.foreach { _ =>
               val dynamicHash =
                 Code.invokeScalaObject[SemanticHash.Type](
-                  SemanticHash.Hash.getClass, "apply", Array(classOf[String]), Array(dynV)
+                  SemanticHash.Hash.getClass,
+                  "apply",
+                  Array(classOf[String]),
+                  Array(dynV)
                 )
 
-              Code.newInstance[SemanticHash.Implicits.MagmaHashType, SemanticHash.Type](semhash)
-                .invoke[SemanticHash.Type, SemanticHash.Type]("$less$greater",
-                  dynamicHash
+              val combined =
+                Code.invokeScalaObject[SemanticHash.Type](
+                  SemanticHash.Hash.getClass,
+                  "combine",
+                  Array(classOf[SemanticHash.Type]),
+                  Array(semhash, dynamicHash)
                 )
-            })
+
+              cb.assign(semhash, combined)
+            }
           })
 
           val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
@@ -2504,7 +2514,8 @@ class Emit[C](
             baos.invoke[Array[Byte]]("toByteArray"),
             stageName,
             semhash,
-            mb.getObject(tsd)))
+            mb.getObject(tsd))
+          )
 
           val len = cb.memoize(encRes.length())
           val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).storageType)

@@ -22,14 +22,14 @@ import org.json4s.JsonAST.JString
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable, semhash: SemanticHash.Type) extends TableReader {
+case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader {
   lazy val fullType: TableType = TableType(rvd.rowType, rvd.typ.key, globals.typ.asInstanceOf[TStruct])
 
   override def pathsUsed: Seq[String] = Seq()
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue = {
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     assert(!dropRows)
     val (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) = Compile[AsmFunction1RegionLong](
       ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, PruneDeadFields.upcast(ctx, globals, requestedType.globalType))
@@ -69,7 +69,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable, semhash: SemanticHa
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage =
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     RVDToTableStage(rvd, globals).upcast(ctx, requestedType)
 }
 

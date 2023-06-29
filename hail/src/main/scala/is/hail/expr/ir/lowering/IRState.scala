@@ -79,9 +79,3 @@ case object LoweredShuffles extends IRState {
     })
   )
 }
-
-case object RootSemanticHash extends IRState {
-  override val rules: Array[AnyRule] =
-    Array(HasRootSemanticHash)
-
-}

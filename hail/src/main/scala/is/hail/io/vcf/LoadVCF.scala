@@ -1861,10 +1861,10 @@ class MatrixVCFReader(
         .apply(globals))
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, nextHash: SemanticHash.NextHash): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params, nextHash)
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params)
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, nextHash: SemanticHash.NextHash): TableValue =
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
     executeGeneric(ctx, dropRows).toTableValue(ctx, requestedType)
 
   override def toJValue: JValue = {

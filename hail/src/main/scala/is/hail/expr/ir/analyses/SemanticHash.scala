@@ -1,8 +1,8 @@
 package is.hail.expr.ir.analyses
 
-import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
 import is.hail.expr.ir.lowering.RVDTableReader
+import is.hail.expr.ir.{MatrixRangeReader, _}
 import is.hail.io.fs.FS
 import is.hail.methods._
 import is.hail.types.virtual._
@@ -10,12 +10,10 @@ import is.hail.utils.Logging
 import org.apache.commons.codec.digest.MurmurHash3
 
 import java.util.UUID
-import scala.language.implicitConversions
 
 case object SemanticHash extends Logging {
 
   type Type = Int
-  type NextHash = () => Type
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
   object Hash {
@@ -33,27 +31,24 @@ case object SemanticHash extends Logging {
 
     val init: Type =
       0
+
+    @inline def combine(a: SemanticHash.Type, b: SemanticHash.Type): SemanticHash.Type =
+      MurmurHash3.hash32(a, b, MurmurHash3.DEFAULT_SEED)
   }
 
-  object Implicits {
-    implicit class MagmaHashType(a: Type) {
-      def <>(b: Type): Type =
-        MurmurHash3.hash32(a, b, MurmurHash3.DEFAULT_SEED)
-    }
+  implicit class MagmaInstanceForSemanticHash(val a: SemanticHash.Type) extends AnyVal {
+    @inline def <>(b: Type): Type = Hash.combine(a, b)
   }
 
-  import Implicits._
-
-  def hashFileContents(fs: FS)(path: String): Type =
+  def getFileHash(fs: FS)(path: String): Type =
     Hash(fs.fileChecksum(path))
 
   def unique: Type =
     Hash(UUID.randomUUID.toString)
 
-  def apply(fs: FS)(root: BaseIR): NextHash = {
-    log.info("computing semhash: " ++ Pretty.sexprStyle(root))
+  def apply(fs: FS)(root: BaseIR): Type = {
     val normalized = new NormalizeNames(_.toString, allowFreeVariables = true)(root)
-    val semhash = IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
+    IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
       val thishash = semhash <> Hash(ir.getClass) <> (ir match {
         case a: AggExplode =>
           Hash(a.isScan)
@@ -110,13 +105,22 @@ case object SemanticHash extends Logging {
           Hash(idx)
 
         case Literal(typ, value) =>
-         Hash(typ.toJSON(value))
+          Hash(typ.toJSON(value))
 
         case MakeTuple(fields) =>
           fields.foldLeft(Hash.init)({ case (hash, (index, _)) => hash <> Hash(index) })
 
         case MatrixRead(_, _, _, reader) =>
-          reader.pathsUsed.map(hashFileContents(fs)).reduce(_ <> _)
+          Hash(reader.getClass) <> (reader match {
+            case MatrixRangeReader(params, nPartitionsAdj) =>
+              Hash(params.nRows) <> Hash(params.nCols) <> params.nPartitions.foldLeft(Hash(nPartitionsAdj))(_ <> Hash(_))
+
+            case reader => reader
+              .pathsUsed
+              .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+              .map(g => getFileHash(fs)(g.getPath))
+              .reduce(_ <> _)
+          })
 
         case MatrixWrite(_, writer) =>
           Hash(writer.path)
@@ -152,15 +156,19 @@ case object SemanticHash extends Logging {
 
         case TableRead(_, dropRows, reader)  =>
           Hash(dropRows) <> (reader match {
-            case RVDTableReader(_, _, _, semhash) =>
-              semhash
+            case _: RVDTableReader =>
+              unique
+
+            case StringTableReader(_, fileStatuses) =>
+              fileStatuses.foldLeft(Hash(classOf[StringTableReader])) { (hash, status) =>
+                hash <> getFileHash(fs)(status.getPath)
+              }
 
             case _ =>
               Hash(reader.getClass) <> reader
                 .pathsUsed
-                .flatMap(fs.globWithPrefix(_, "**"))
-                .filter(_.isFile)
-                .map(s => hashFileContents(fs)(s.getPath))
+                .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+                .map(g => getFileHash(fs)(g.getPath))
                 .reduce(_ <> _)
           })
 
@@ -232,10 +240,8 @@ case object SemanticHash extends Logging {
              _: NDArrayShape |
              _: NDArraySlice |
              _: NDArrayWrite |
-             _: RunAgg |
              _: RelationalLet |
              _: StreamAgg |
-             _: StreamBufferedAggregate |
              _: StreamDrop |
              _: StreamDropWhile |
              _: StreamFilter |
@@ -256,7 +262,6 @@ case object SemanticHash extends Logging {
              _: TableDistinct |
              _: TableFilter |
              _: TableMapGlobals |
-             _: TableMapPartitions |
              _: TableMapRows |
              _: TableRename |
              _: ToArray |
@@ -288,9 +293,6 @@ case object SemanticHash extends Logging {
       log.info(s"[$thishash]: $ir")
       thishash
     }
-    log.info(s"Query semantic hash = $semhash")
-    var count = 0
-    () => { val h = count; count += 1; semhash <> Hash(h)}
   }
 }
 

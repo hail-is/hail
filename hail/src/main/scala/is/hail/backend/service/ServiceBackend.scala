@@ -346,8 +346,8 @@ class ServiceBackend(
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable,
-    nextHash: SemanticHash.NextHash
-  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, nextHash)
+
+  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt)
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 

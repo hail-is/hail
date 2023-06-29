@@ -88,8 +88,7 @@ abstract class Backend {
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable,
-    semhash: SemanticHash.NextHash
+    rt: RTable
   ): TableReader
 
   final def lowerDistributedSort(
@@ -100,7 +99,7 @@ abstract class Backend {
   ): TableReader = {
     val analyses = LoweringAnalyses.apply(inputIR, ctx)
     val inputStage = tableToTableStage(ctx, inputIR, analyses)
-    lowerDistributedSort(ctx, inputStage, sortFields, rt, analyses.nextHash)
+    lowerDistributedSort(ctx, inputStage, sortFields, rt)
   }
 
   def tableToTableStage(ctx: ExecuteContext,

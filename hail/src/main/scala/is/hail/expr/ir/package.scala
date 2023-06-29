@@ -220,10 +220,10 @@ package object ir {
     AggFold(zero, seqOp(accum1, element), combOp(accum1, accum2), accum1.name, accum2.name, false)
   }
 
-  def cdaIR(contexts: IR, globals: IR, staticID: String, semhash: SemanticHash.NextHash, dynamicID: IR = NA(TString))(body: (Ref, Ref) => IR): CollectDistributedArray = {
+  def cdaIR(contexts: IR, globals: IR, staticID: String, dynamicID: IR = NA(TString))(body: (Ref, Ref) => IR): CollectDistributedArray = {
     val contextRef = Ref(genUID(), contexts.typ.asInstanceOf[TStream].elementType)
     val globalRef = Ref(genUID(), globals.typ)
-    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), dynamicID, staticID, None, Some(semhash()))
+    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), dynamicID, staticID, None)
   }
 
   def strConcat(irs: AnyRef*): IR = {

@@ -4,7 +4,17 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.analyses.SemanticHash.MagmaInstanceForSemanticHash
 import is.hail.utils._
+
+final case class IrMetadata(semhash: Option[SemanticHash.Type]) {
+  private[this] var hashCounter: Int = 0
+  def nextHash: Option[SemanticHash.Type] = {
+    hashCounter += 1
+    semhash.map(_ <> SemanticHash.Hash(hashCounter))
+  }
+
+}
 
 trait LoweringPass {
   val before: IRState
@@ -32,7 +42,7 @@ case class OptimizePass(_context: String) extends LoweringPass {
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {
-  val before: IRState = RootSemanticHash
+  val before: IRState = AnyIR
   val after: IRState = MatrixLoweredToTable
   val context: String = "LowerMatrixToTable"
 
@@ -69,7 +79,7 @@ case object LowerOrInterpretNonCompilablePass extends LoweringPass {
 }
 
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
-  val before: IRState = RootSemanticHash + MatrixLoweredToTable
+  val before: IRState = MatrixLoweredToTable
   val after: IRState = CompilableIR
   val context: String = "LowerToDistributedArray"
 
@@ -150,7 +160,7 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
 }
 
 case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends LoweringPass {
-  val before: IRState = RootSemanticHash + NoRelationalLetsState + MatrixLoweredToTable
+  val before: IRState = NoRelationalLetsState + MatrixLoweredToTable
   val after: IRState = before + LoweredShuffles
   val context: String = "LowerAndExecuteShuffles"
 
@@ -161,10 +171,11 @@ case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends Lo
 
 case object ComputeSemanticHash extends LoweringPass {
   override val before: IRState = AnyIR
-  override val after: IRState = RootSemanticHash
+  override val after: IRState = AnyIR
   override val context: String = "ComputeSemanticHash"
 
-  override protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ExprSemanticHash(SemanticHash(ctx.fs)(ir)(), ir.asInstanceOf[IR])
-
+  override protected def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+    ctx.irMetadata = ctx.irMetadata.copy(semhash = Some(SemanticHash(ctx.fs)(ir)))
+    ir
+  }
 }

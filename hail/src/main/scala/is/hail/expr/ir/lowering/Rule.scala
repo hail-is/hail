@@ -55,13 +55,3 @@ object EmittableValueIRs extends PureRule({
   case x: IR => Emittable(x)
   case _ => true
 })
-
-case object HasRootSemanticHash extends Rule[Option[ExprSemanticHash]] {
-  override def init: Option[ExprSemanticHash] =
-    None
-  override def apply(s: Option[ExprSemanticHash], ir: BaseIR): (Option[ExprSemanticHash], Boolean) =
-    if (s.isDefined) (s, true) else ir match {
-      case semhash: ExprSemanticHash => (Some(semhash), true)
-      case _ => (None, false)
-    }
-}

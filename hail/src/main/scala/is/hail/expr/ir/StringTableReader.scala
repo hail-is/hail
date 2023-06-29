@@ -140,7 +140,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
   override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
-class StringTableReader(
+case class StringTableReader(
   val params: StringTableReaderParameters,
   fileStatuses: IndexedSeq[FileStatus]
 ) extends TableReaderWithExtraUID {
@@ -156,7 +156,7 @@ class StringTableReader(
 
   override def pathsUsed: Seq[String] = params.files
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType, semhash: SemanticHash.NextHash): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val fs = ctx.fs
     val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
       params.filePerPartition)
@@ -169,8 +169,8 @@ class StringTableReader(
     )
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean, semhash: SemanticHash.NextHash): TableValue = {
-    val ts = lower(ctx, requestedType, semhash)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    val ts = lower(ctx, requestedType)
     val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
     TableValue(ctx, requestedType, broadCastRow, rvd)
   }

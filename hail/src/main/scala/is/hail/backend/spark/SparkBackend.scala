@@ -334,7 +334,8 @@ class SparkBackend(
       if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
       theHailClassLoader,
       this.references,
-      flags
+      flags,
+      IrMetadata(None)
     )
 
     ctx.backendContext = new BackendContext {
@@ -760,16 +761,16 @@ class SparkBackend(
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable,
-    nextHash: SemanticHash.NextHash
+
   ): TableReader = {
     if (getFlag("use_new_shuffle") != null)
-      return LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, nextHash)
+      return LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
 
     val (globals, rvd) = TableStageToRVD(ctx, stage)
     val globalsLit = globals.toEncodedLiteral(ctx.theHailClassLoader)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {
-      return RVDTableReader(rvd.changeKey(ctx, sortFields.map(_.field)), globalsLit, rt, nextHash())
+      return RVDTableReader(rvd.changeKey(ctx, sortFields.map(_.field)), globalsLit, rt)
     }
 
     val rowType = rvd.rowType
@@ -787,7 +788,7 @@ class SparkBackend(
     val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
     val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
-    RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt, nextHash())
+    RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =

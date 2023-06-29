@@ -42,12 +42,12 @@ object TableWriter {
 abstract class TableWriter {
   def path: String
 
-  def apply(ctx: ExecuteContext, tv: TableValue, semhash: SemanticHash.NextHash): Unit = {
+  def apply(ctx: ExecuteContext, tv: TableValue): Unit = {
     val tableStage = TableValueIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(ctx, lower(ctx, tableStage, RTable.fromTableStage(ctx, tableStage), semhash))
+    CompileAndEvaluate(ctx, lower(ctx, tableStage, RTable.fromTableStage(ctx, tableStage)))
   }
 
-  def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR =
+  def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 
   def canLowerEfficiently: Boolean =
@@ -56,7 +56,7 @@ abstract class TableWriter {
 
 object TableNativeWriter {
   def lower(ctx: ExecuteContext, ts: TableStage, path: String, overwrite: Boolean, stageLocally: Boolean,
-    rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec, semhash: SemanticHash.NextHash): IR = {
+    rowSpec: TypedCodecSpec, globalSpec: TypedCodecSpec): IR = {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
@@ -75,7 +75,7 @@ object TableNativeWriter {
             "oldCtx" -> ctxElt,
             "writeCtx" -> pf))
         }
-      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_native_writer", semhash) { (rows, ctxRef) =>
+      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_native_writer") { (rows, ctxRef) =>
         WritePartition(rows, GetField(ctxRef, "writeCtx"), rowWriter)
       } { (parts, globals) =>
         val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
@@ -104,12 +104,12 @@ case class TableNativeWriter(
   codecSpecJSONStr: String = null
 ) extends TableWriter {
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.rowType, r.rowType), ts.rowType, bufferSpec)
     val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)
 
-    TableNativeWriter.lower(ctx, ts, path, overwrite, stageLocally, rowSpec, globalSpec, semhash)
+    TableNativeWriter.lower(ctx, ts, path, overwrite, stageLocally, rowSpec, globalSpec)
   }
 }
 
@@ -443,10 +443,10 @@ case class TableTextWriter(
 
   override def canLowerEfficiently: Boolean = exportType != ExportType.PARALLEL_COMPOSABLE
 
-  override def apply(ctx: ExecuteContext, tv: TableValue, semhash: SemanticHash.NextHash): Unit =
+  override def apply(ctx: ExecuteContext, tv: TableValue): Unit =
     tv.export(ctx, path, typesFile, header, exportType, delimiter)
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
     val ext = ctx.fs.getCodecExtension(path)
@@ -466,7 +466,7 @@ case class TableTextWriter(
           "oldCtx" -> ctxElt,
           "partFile" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_text_writer", semhash) { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_text_writer") { (rows, ctxRef) =>
       WritePartition(rows, GetField(ctxRef, "partFile") + Str(ext), lineWriter)
     } { (parts, _) =>
       val commit = TableTextFinalizer(path, ts.rowType, delimiter, header, exportType)
@@ -605,7 +605,7 @@ case class TableNativeFanoutWriter(
   codecSpecJSONStr: String = null
 ) extends TableWriter {
 
-  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable, semhash: SemanticHash.NextHash): IR = {
+  override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val partitioner = ts.partitioner
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val globalSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(ts.globalType, r.globalType), ts.globalType, bufferSpec)
@@ -647,7 +647,7 @@ case class TableNativeFanoutWriter(
       }
     }(
       GetField(_, "oldCtx")
-    ).mapCollectWithContextsAndGlobals("table_native_fanout_writer", semhash) { (rows, ctxRef) =>
+    ).mapCollectWithContextsAndGlobals("table_native_fanout_writer") { (rows, ctxRef) =>
       WritePartition(rows, GetField(ctxRef, "writeCtx"), new PartitionNativeFanoutWriter(targets))
     } { (parts, globals) =>
       bindIR(parts) { fileCountAndDistinct =>
