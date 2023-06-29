@@ -487,7 +487,7 @@ class SparkBackend(
   private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean): Either[Unit, (PTuple, Long)] = {
     TypeCheck(ctx, ir)
     Validate(ir)
-    ctx.irMetadata = ctx.irMetadata.copy(semhash = Some(SemanticHash(ctx.fs)(ir)))
+    ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx.fs)(ir))
     try {
       val lowerTable = getFlag("lower") != null
       val lowerBM = getFlag("lower_bm") != null

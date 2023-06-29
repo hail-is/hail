@@ -44,12 +44,9 @@ case object SemanticHash extends Logging {
   def getFileHash(fs: FS)(path: String): Type =
     Hash(fs.fileChecksum(path))
 
-  def unique: Type =
-    Hash(UUID.randomUUID.toString)
-
-  def apply(fs: FS)(root: BaseIR): Type = {
+  def apply(fs: FS)(root: BaseIR): Option[Type] = {
     val normalized = new NormalizeNames(_.toString, allowFreeVariables = true)(root)
-    IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
+    val semhash = IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
       val thishash = semhash <> Hash(ir.getClass) <> (ir match {
         case a: AggExplode =>
           Hash(a.isScan)
@@ -92,6 +89,19 @@ case object SemanticHash extends Logging {
 
         case ApplyUnaryPrimOp(op, _) =>
           Hash(op.getClass)
+
+        case BlockMatrixToTableApply(_, _, function) =>
+          function match {
+            case PCRelate(maf, blockSize, kinship, stats) =>
+              Hash(classOf[PCRelate]) <> Hash(maf) <> Hash(blockSize) <> Hash(kinship) <> Hash(stats)
+          }
+
+        case BlockMatrixRead(reader) =>
+          Hash(reader.getClass) <> reader
+            .pathsUsed
+            .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+            .map(g => getFileHash(fs)(g.getPath))
+            .reduce(_ <> _)
 
         case Cast(_, typ) =>
           Hash(SemanticTypeName(typ))
@@ -158,7 +168,8 @@ case object SemanticHash extends Logging {
         case TableRead(_, dropRows, reader)  =>
           Hash(dropRows) <> (reader match {
             case _: RVDTableReader =>
-              unique
+              log.info("SemanticHash unknown: RVDTableReader")
+              return None
 
             case StringTableReader(_, fileStatuses) =>
               fileStatuses.foldLeft(Hash(classOf[StringTableReader])) { (hash, status) =>
@@ -184,7 +195,8 @@ case object SemanticHash extends Logging {
                   Hash(op.getClass)
 
                 case _: MatrixExportEntriesByCol =>
-                  unique
+                  log.info("SemanticHash unknown: MatrixExportEntriesByCol")
+                  return None
               })
 
             case _: ForceCountTable | _: NPartitionsTable =>
@@ -228,6 +240,7 @@ case object SemanticHash extends Logging {
              _: MakeStream |
              _: MakeStruct |
              _: MatrixAggregate |
+             _: MatrixColsTable |
              _: MatrixCount |
              _: MatrixMapGlobals |
              _: MatrixLiteral |
@@ -290,12 +303,15 @@ case object SemanticHash extends Logging {
         // invocations will never return the same thing.
         case _ =>
           log.info(s"SemanticHash unknown: ${ir.getClass.getName}")
-          unique
+          return None
       })
 
       log.info(s"[$thishash]: $ir")
       thishash
     }
+
+    log.info(s"IR Semantic Hash: ${semhash}")
+    Some(semhash)
   }
 }
 

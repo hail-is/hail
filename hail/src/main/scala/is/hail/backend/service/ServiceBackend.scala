@@ -341,7 +341,7 @@ class ServiceBackend(
   ): Array[Byte] = {
     log.info(s"executing: ${token} ${ctx.fs.getConfiguration()}")
     val ir = IRParser.parse_value_ir(ctx, code)
-    ctx.irMetadata = ctx.irMetadata.copy(semhash = Some(SemanticHash(ctx.fs)(ir)))
+    ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx.fs)(ir))
     execute(ctx, ir, bufferSpecString)
   }
 
@@ -349,8 +349,7 @@ class ServiceBackend(
     ctx: ExecuteContext,
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable,
-
+    rt: RTable
   ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt)
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
