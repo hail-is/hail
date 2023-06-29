@@ -2524,7 +2524,7 @@ class Emit[C](
                 Code.invokeScalaObject[SemanticHash.Type](
                   SemanticHash.Hash.getClass,
                   "combine",
-                  Array(classOf[SemanticHash.Type]),
+                  Array.fill(2)(classOf[SemanticHash.Type]),
                   Array(semhash, dynamicHash)
                 )
 
