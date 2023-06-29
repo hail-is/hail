@@ -1,7 +1,6 @@
 package is.hail.expr
 
 import is.hail.asm4s._
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.tcoerce

@@ -14,7 +14,6 @@ import random
 import logging
 import asyncio
 import aiohttp
-from aiohttp import web
 import urllib
 import urllib3
 import secrets
@@ -47,14 +46,13 @@ T = TypeVar('T')  # pylint: disable=invalid-name
 U = TypeVar('U')  # pylint: disable=invalid-name
 
 
-def unpack_comma_delimited_inputs(inputs):
+def unpack_comma_delimited_inputs(inputs: List[str]) -> List[str]:
     return [s.strip()
-            for steps in inputs
-            for step in steps
-            for s in step.split(',') if s.strip()]
+            for comma_separated_steps in inputs
+            for s in comma_separated_steps.split(',') if s.strip()]
 
 
-def unpack_key_value_inputs(inputs):
+def unpack_key_value_inputs(inputs: List[str]) -> Dict[str, str]:
     key_values = [i.split('=') for i in unpack_comma_delimited_inputs(inputs)]
     return {kv[0]: kv[1] for kv in key_values}
 
@@ -836,32 +834,6 @@ def sync_retry_transient_errors(f, *args, **kwargs):
             else:
                 raise
         delay = sync_sleep_and_backoff(delay)
-
-
-async def request_retry_transient_errors(
-        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
-        method: str,
-        url,
-        **kwargs
-) -> aiohttp.ClientResponse:
-    return await retry_transient_errors(session.request, method, url, **kwargs)
-
-
-async def request_raise_transient_errors(
-        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
-        method: str,
-        url,
-        **kwargs
-) -> aiohttp.ClientResponse:
-    try:
-        return await session.request(method, url, **kwargs)
-    except KeyboardInterrupt:
-        raise
-    except Exception as e:
-        if is_transient_error(e):
-            log.exception('request failed with transient exception: {method} {url}')
-            raise web.HTTPServiceUnavailable()
-        raise
 
 
 def retry_response_returning_functions(fun, *args, **kwargs):

@@ -4,7 +4,6 @@ import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.backend.{BroadcastValue, ExecuteContext}
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.{Compile, CompileIterator, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, TypedCodecSpec}

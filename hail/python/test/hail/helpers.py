@@ -9,17 +9,18 @@ import hail as hl
 
 
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
+HAIL_QUERY_N_CORES = os.environ.get('HAIL_QUERY_N_CORES', '2')
 
 
-def startTestHailContext():
+def hl_init_for_test(*args, **kwargs):
     backend_name = choose_backend()
     if backend_name == 'spark':
-        hl.init(master='local[2]', min_block_size=0, quiet=True, global_seed=0)
+        hl.init(master=f'local[{HAIL_QUERY_N_CORES}]', min_block_size=0, quiet=True, global_seed=0, *args, **kwargs)
     else:
-        hl.init(global_seed=0)
+        hl.init(global_seed=0, *args, **kwargs)
 
 
-def stopTestHailContext():
+def hl_stop_for_test():
     hl.stop()
 
 
@@ -62,7 +63,7 @@ _dataset = None
 def get_dataset():
     global _dataset
     if _dataset is None:
-        _dataset = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf'))).cache()
+        _dataset = hl.read_matrix_table(resource('split-multi-sample.vcf.mt')).select_globals()
     return _dataset
 
 def assert_time(f, max_duration):
@@ -144,6 +145,18 @@ def skip_when_service_backend(reason='skipping for Service Backend'):
     return wrapper
 
 
+def skip_when_service_backend_in_azure(reason='skipping for Service Backend in Azure'):
+    from hail.backend.service_backend import ServiceBackend
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), ServiceBackend) and os.environ.get('HAIL_CLOUD') == 'azure':
+            raise unittest.SkipTest(reason)
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
     from hail.backend.service_backend import ServiceBackend
     @decorator
@@ -174,6 +187,15 @@ fails_spark_backend = pytest.mark.xfail(
     choose_backend() == 'spark',
     reason="doesn't yet work on spark backend",
     strict=True)
+
+
+def test_timeout(overall=None, *, batch=None, local=None, spark=None):
+    backend = choose_backend()
+    specific_timeout = {'batch': batch, 'local': local, 'spark': spark}[backend]
+    timeout = specific_timeout or overall
+    if timeout is not None:
+        return pytest.mark.timeout(timeout)
+    return lambda f: f
 
 
 def assert_evals_to(e, v):

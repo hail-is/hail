@@ -28,6 +28,7 @@ from typing import (
     MutableMapping,
     Optional,
     Tuple,
+    TypedDict,
     Union,
 )
 
@@ -47,7 +48,7 @@ from hailtop import aiotools, httpx
 from hailtop.aiotools import AsyncFS, LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.config import DeployConfig
+from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import (
     CalledProcessError,
@@ -61,7 +62,6 @@ from hailtop.utils import (
     is_delayed_warning_error,
     parse_docker_image_reference,
     periodically_call,
-    request_retry_transient_errors,
     retry_transient_errors,
     retry_transient_errors_with_debug_string,
     retry_transient_errors_with_delayed_warnings,
@@ -85,7 +85,7 @@ from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..utils import Box
-from ..worker.worker_api import CloudDisk, CloudWorkerAPI
+from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
@@ -114,11 +114,13 @@ warnings.warn = deeper_stack_level_warn
 class BatchWorkerAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
-
-        self.exclude = [
-            ('GET', re.compile('/healthcheck')),
-            ('POST', re.compile('/api/v1alpha/batches/jobs/create')),
-        ]
+        if NAMESPACE == 'default':
+            self.exclude = [
+                ('GET', re.compile('/healthcheck')),
+                ('POST', re.compile('/api/v1alpha/batches/jobs/create')),
+            ]
+        else:
+            self.exclude = []
 
     def log(self, request, response, time):
         for method, path_expr in self.exclude:
@@ -199,7 +201,7 @@ instance_config: Optional[InstanceConfig] = None
 
 N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
-deploy_config = DeployConfig('gce', NAMESPACE, {})
+deploy_config = get_deploy_config()
 
 docker: Optional[aiodocker.Docker] = None
 
@@ -532,7 +534,7 @@ class Image:
                 if not self.is_cloud_image:
                     await self._ensure_image_is_pulled()
                 elif self.is_public_image:
-                    await self._ensure_image_is_pulled(auth=self._batch_worker_access_token)
+                    await self._ensure_image_is_pulled(auth=self._batch_worker_registry_credentials)
                 elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
                     self.credentials, (JVMUserCredentials, CopyStepCredentials)
                 ):
@@ -547,7 +549,7 @@ class Image:
                         str(self),
                         self._pull_with_auth_refresh,
                         self.image_ref_str,
-                        auth=self._current_user_access_token,
+                        auth=self._current_user_registry_credentials,
                     )
             except DockerError as e:
                 if e.status == 404 and 'pull access denied' in e.message:
@@ -579,10 +581,18 @@ class Image:
 
         await pull()
 
-        image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        try:
+            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        except:
+            # inspect non-deterministically fails sometimes
+            await asyncio.sleep(1)
+            await pull()
+            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
-    async def _ensure_image_is_pulled(self, auth: Optional[Callable[..., Awaitable[Optional[Dict[str, str]]]]] = None):
+    async def _ensure_image_is_pulled(
+        self, auth: Optional[Callable[..., Awaitable[Optional[ContainerRegistryCredentials]]]] = None
+    ):
         assert docker
 
         try:
@@ -595,13 +605,14 @@ class Image:
             else:
                 raise
 
-    async def _batch_worker_access_token(self) -> Dict[str, str]:
+    async def _batch_worker_registry_credentials(self) -> ContainerRegistryCredentials:
         assert CLOUD_WORKER_API
-        return await CLOUD_WORKER_API.worker_access_token(self.client_session)
+        return await CLOUD_WORKER_API.worker_container_registry_credentials(self.client_session)
 
-    async def _current_user_access_token(self) -> Dict[str, str]:
+    async def _current_user_registry_credentials(self) -> ContainerRegistryCredentials:
         assert self.credentials and isinstance(self.credentials, CloudUserCredentials)
-        return {'username': self.credentials.username, 'password': self.credentials.password}
+        assert CLOUD_WORKER_API
+        return await CLOUD_WORKER_API.user_container_registry_credentials(self.credentials)
 
     async def _extract_rootfs(self):
         assert self.image_id
@@ -739,6 +750,13 @@ def user_error(e):
     return False
 
 
+class MountSpecification(TypedDict):
+    source: str
+    destination: str
+    type: str
+    options: List[str]
+
+
 class Container:
     def __init__(
         self,
@@ -754,9 +772,10 @@ class Container:
         port: Optional[int] = None,
         timeout: Optional[int] = None,
         unconfined: Optional[bool] = None,
-        volume_mounts: Optional[List[dict]] = None,
+        volume_mounts: Optional[List[MountSpecification]] = None,
         env: Optional[List[str]] = None,
         stdin: Optional[str] = None,
+        log_path: Optional[str] = None,
     ):
         self.task_manager = task_manager
         self.fs = fs
@@ -770,7 +789,7 @@ class Container:
         self.port = port
         self.timeout = timeout
         self.unconfined = unconfined
-        self.volume_mounts = volume_mounts or []
+        self.volume_mounts: List[MountSpecification] = volume_mounts or []
         self.env = env or []
         self.stdin = stdin
 
@@ -793,7 +812,7 @@ class Container:
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
-        self.log_path = f'{self.container_scratch}/container.log'
+        self.log_path = log_path or f'{self.container_scratch}/container.log'
         self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
         self.overlay_mounted = False
@@ -807,6 +826,8 @@ class Container:
 
         self._killed = False
         self._cleaned_up = False
+
+        self.monitor: Optional[ResourceUsageMonitor] = None
 
     async def create(self):
         self.state = 'creating'
@@ -1014,6 +1035,22 @@ class Container:
             self.host_port = await port_allocator.allocate()
             await self.netns.expose_port(self.port, self.host_port)
 
+    def new_resource_usage_monitor(self, resource_usage_path):
+        assert self.netns is not None and self.netns.veth_host is not None
+        return ResourceUsageMonitor(
+            self.name,
+            self.container_overlay_path,
+            self.io_mount_path,
+            self.netns.veth_host,
+            resource_usage_path,
+            self.fs,
+        )
+
+    async def get_resource_usage(self) -> bytes:
+        if self.monitor is None:
+            return ResourceUsageMonitor.no_data()
+        return await self.monitor.read()
+
     async def _run_container(self) -> bool:
         self.started_at = time_msecs()
         try:
@@ -1037,13 +1074,9 @@ class Container:
 
                     assert self.netns
 
-                    async with ResourceUsageMonitor(
-                        self.name,
-                        self.container_overlay_path,
-                        self.io_mount_path,
-                        self.netns.veth_host,
-                        self.resource_usage_path,
-                    ):
+                    self.monitor = self.new_resource_usage_monitor(self.resource_usage_path)
+                    assert self.monitor
+                    async with self.monitor:
                         if self.stdin is not None:
                             await self.process.communicate(self.stdin.encode('utf-8'))
                         await self.process.wait()
@@ -1094,7 +1127,7 @@ class Container:
             'CAP_KILL',
             'CAP_AUDIT_WRITE',
         ]
-        config = {
+        config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
                 'path': '.',
@@ -1170,7 +1203,7 @@ class Container:
 
         return config
 
-    async def _get_in_container_user(self):
+    async def _get_in_container_user(self) -> Tuple[int, int]:
         assert self.image.image_config
         user = self.image.image_config['Config']['User']
         if not user:
@@ -1189,31 +1222,33 @@ class Container:
                     return uid, gid
             raise ValueError("Container user not found in image's /etc/passwd")
 
-    def _mounts(self, uid, gid):
+    def _mounts(self, uid: int, gid: int) -> List[MountSpecification]:
         assert self.image.image_config
         assert self.netns
         # Only supports empty volumes
-        external_volumes = []
+        external_volumes: List[MountSpecification] = []
         volumes = self.image.image_config['Config']['Volumes']
         if volumes:
             for v_container_path in volumes:
-                if not v_container_path.startswith('/'):
-                    v_container_path = '/' + v_container_path
+                if v_container_path.startswith('/'):
+                    v_absolute_container_path = v_container_path
+                else:
+                    v_absolute_container_path = '/' + v_container_path
                 mount_dir = self.io_mount_path if self.io_mount_path else self.container_scratch
-                v_host_path = f'{mount_dir}/volumes{v_container_path}'
+                v_host_path = f'{mount_dir}/volumes{v_absolute_container_path}'
                 os.makedirs(v_host_path)
                 if uid != 0 or gid != 0:
                     os.chown(v_host_path, uid, gid)
                 external_volumes.append(
                     {
                         'source': v_host_path,
-                        'destination': v_container_path,
+                        'destination': v_absolute_container_path,
                         'type': 'none',
                         'options': ['bind', 'rw', 'private'],
                     }
                 )
 
-        return (
+        mounts = (
             self.volume_mounts
             + external_volumes
             + [
@@ -1276,6 +1311,18 @@ class Container:
             ]
         )
 
+        if not any(v['destination'] == '/deploy-config' for v in self.volume_mounts):
+            mounts.append(
+                {
+                    'source': '/deploy-config/deploy-config.json',
+                    'destination': '/deploy-config/deploy-config.json',
+                    'type': 'none',
+                    'options': ['bind', 'ro', 'private'],
+                },
+            )
+
+        return mounts
+
     def _env(self):
         assert self.image.image_config
         env = self.image.image_config['Config']['Env'] + self.env
@@ -1335,16 +1382,6 @@ class Container:
     def container_finished(self):
         return self.process is not None and self.process.returncode is not None
 
-    async def get_resource_usage(self) -> bytes:
-        if os.path.exists(self.resource_usage_path):
-            return await self.fs.read(self.resource_usage_path)
-        return ResourceUsageMonitor.no_data()
-
-    async def get_resource_usage_file_size(self) -> int:
-        if os.path.exists(self.resource_usage_path):
-            return os.path.getsize(self.resource_usage_path)
-        return 0
-
     async def exec(
         self, cmd: List[str], *, global_options: Optional[List[str]] = None, options: Optional[List[str]] = None
     ):
@@ -1368,7 +1405,7 @@ def copy_container(
     job: 'DockerJob',
     task_name: str,
     files: List[dict],
-    volume_mounts: List[dict],
+    volume_mounts: List[MountSpecification],
     cpu_in_mcpu: int,
     memory_in_bytes: int,
     scratch: str,
@@ -1503,18 +1540,18 @@ class Job(abc.ABC):
             # basically fills the disk not allowing for caches etc. Most jobs
             # would need an external disk in that case.
             self.data_disk_storage_in_gib = min(
-                RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
+                RESERVED_STORAGE_GB_PER_CORE, int(self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE)
             )
 
         self.resources = instance_config.quantified_resources(
             self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib
         )
 
-        self.input_volume_mounts = []
-        self.main_volume_mounts = []
-        self.output_volume_mounts = []
+        self.input_volume_mounts: List[MountSpecification] = []
+        self.main_volume_mounts: List[MountSpecification] = []
+        self.output_volume_mounts: List[MountSpecification] = []
 
-        io_volume_mount = {
+        io_volume_mount: MountSpecification = {
             'source': self.io_host_path(),
             'destination': '/io',
             'type': 'none',
@@ -1561,7 +1598,7 @@ class Job(abc.ABC):
     def get_container_log_path(self, container_name: str) -> str:
         raise NotImplementedError
 
-    async def get_resource_usage(self) -> Dict[str, Optional[bytes]]:
+    async def get_resource_usage(self) -> Dict[str, bytes]:
         raise NotImplementedError
 
     async def delete(self):
@@ -1684,7 +1721,7 @@ class DockerJob(Job):
 
         if self.secrets:
             for secret in self.secrets:
-                volume_mount = {
+                volume_mount: MountSpecification = {
                     'source': self.secret_host_path(secret),
                     'destination': secret["mount_path"],
                     'type': 'none',
@@ -1982,7 +2019,7 @@ class DockerJob(Job):
     def get_container_log_path(self, container_name: str) -> str:
         return self.containers[container_name].log_path
 
-    async def get_resource_usage(self):
+    async def get_resource_usage(self) -> Dict[str, bytes]:
         return {name: await c.get_resource_usage() for name, c in self.containers.items()}
 
     async def delete(self):
@@ -2054,12 +2091,19 @@ class JVMJob(Job):
         should_profile = job_spec['process']['profile']
         self.profile_file = f'{self.scratch}/profile.html' if should_profile else None
 
+        self.resource_usage_file = f'{self.scratch}/resource_usage'
+
         assert self.worker.fs is not None
 
     def write_batch_config(self):
         os.makedirs(f'{self.scratch}/batch-config')
         with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
             config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
+        # Necessary for backward compatibility for Hail Query jars that expect
+        # the deploy config at this path and not at `/deploy-config/deploy-config.json`
+        os.makedirs(f'{self.scratch}/secrets/deploy-config', exist_ok=True)
+        with open(f'{self.scratch}/secrets/deploy-config/deploy-config.json', 'wb') as config:
+            config.write(orjson.dumps(deploy_config.get_config()))
 
     def step(self, name):
         return self.timings.step(name)
@@ -2192,7 +2236,13 @@ class JVMJob(Job):
 
                 with self.step('running'):
                     await self.jvm.execute(
-                        local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv, self.profile_file
+                        local_jar_location,
+                        self.scratch,
+                        self.log_file,
+                        self.jar_url,
+                        self.argv,
+                        self.profile_file,
+                        self.resource_usage_file,
                     )
 
                 self.state = 'succeeded'
@@ -2242,6 +2292,17 @@ class JVMJob(Job):
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
             )
 
+        with self.step('uploading_resource_usage'):
+            resource_usage_contents = await self.jvm.get_job_resource_usage()
+            await self.worker.file_store.write_resource_usage_file(
+                self.format_version,
+                self.batch_id,
+                self.job_id,
+                self.attempt_id,
+                'main',
+                resource_usage_contents,
+            )
+
         if self.profile_file is not None:
             with self.step('uploading_profile'):
                 if os.path.exists(self.profile_file):
@@ -2289,8 +2350,12 @@ class JVMJob(Job):
         assert container_name == 'main'
         return self.log_file
 
-    async def get_resource_usage(self):
-        return {'main': ResourceUsageMonitor.no_data()}
+    async def get_resource_usage(self) -> Dict[str, bytes]:
+        if self.jvm:
+            contents = await self.jvm.get_resource_usage()
+        else:
+            contents = ResourceUsageMonitor.no_data()
+        return {'main': contents}
 
     async def delete(self):
         await super().delete()
@@ -2404,7 +2469,7 @@ class JVMContainer:
             socket_file,
         ]
 
-        volume_mounts = [
+        volume_mounts: List[MountSpecification] = [
             {
                 'source': JVM.SPARK_HOME,
                 'destination': JVM.SPARK_HOME,
@@ -2454,6 +2519,7 @@ class JVMContainer:
             memory_in_bytes=total_memory_bytes,
             env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
+            log_path=f'/batch/jvm-container-logs/jvm-{index}.log',
         )
 
         await c.create()
@@ -2464,6 +2530,7 @@ class JVMContainer:
     def __init__(self, container: Container, fs: AsyncFS):
         self.container = container
         self.fs: AsyncFS = fs
+        self.job_monitor: Optional[ResourceUsageMonitor] = None
 
     @property
     def returncode(self) -> Optional[int]:
@@ -2485,6 +2552,21 @@ class JVMContainer:
             ['./profiler.sh', 'stop', '-o', 'flamegraph', '-f', output_file, 'jps'],
             options=['--cwd=/async-profiler-2.9-linux-x64/'],
         )
+
+    async def get_resource_usage(self) -> bytes:
+        return await self.container.get_resource_usage()
+
+    async def get_job_resource_usage(self) -> bytes:
+        if self.job_monitor is None:
+            return ResourceUsageMonitor.no_data()
+        return await self.job_monitor.read()
+
+    def monitor_resource_usage(self, path: str):
+        self.job_monitor = self.container.new_resource_usage_monitor(path)
+        return self.job_monitor
+
+    def clear_job_monitor(self):
+        self.job_monitor = None
 
 
 class JVMUserError(Exception):
@@ -2661,6 +2743,7 @@ class JVM:
         self.should_interrupt.set()
 
     def reset(self):
+        self.container.clear_job_monitor()
         self.should_interrupt.clear()
 
     async def kill(self):
@@ -2699,6 +2782,7 @@ class JVM:
         jar_url: str,
         argv: List[str],
         profile_file: Optional[str],
+        resource_usage_file: str,
     ):
         assert worker is not None
 
@@ -2722,9 +2806,10 @@ class JVM:
             stack.callback(wait_for_interrupt.cancel)
 
             async with JVMProfiler(self.container, profile_file):
-                await asyncio.wait(
-                    [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
-                )
+                async with self.container.monitor_resource_usage(resource_usage_file):
+                    await asyncio.wait(
+                        [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
+                    )
 
             if wait_for_interrupt.done():
                 await wait_for_interrupt  # retrieve exceptions
@@ -2775,6 +2860,12 @@ class JVM:
                 log.exception(f'{self}: unexpected message type: {message}\nJVM Output:\n\n{jvm_output}')
                 raise ValueError(f'{self}: unexpected message type: {message}')
 
+    async def get_resource_usage(self) -> bytes:
+        return await self.container.get_resource_usage()
+
+    async def get_job_resource_usage(self) -> bytes:
+        return await self.container.get_job_resource_usage()
+
 
 class Worker:
     def __init__(self, client_session: httpx.ClientSession):
@@ -2803,9 +2894,8 @@ class Worker:
             ],
         )
         self.file_store = FileStore(fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
-        self.compute_client = CLOUD_WORKER_API.get_compute_client()
 
-        self.headers: Optional[Dict[str, str]] = None
+        self.instance_token = os.environ['ACTIVATION_TOKEN']
 
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
@@ -2842,6 +2932,10 @@ class Worker:
         new_jvm = await JVM.create(jvm.index, jvm.n_cores, self)
         self._jvms.add(new_jvm)
 
+    @property
+    def headers(self) -> Dict[str, str]:
+        return {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
+
     async def shutdown(self):
         log.info('Worker.shutdown')
         self._jvm_initializer_task.cancel()
@@ -2860,17 +2954,12 @@ class Worker:
                         log.info('closed file store')
                 finally:
                     try:
-                        if self.compute_client:
-                            await self.compute_client.close()
-                            log.info('closed compute client')
+                        if self.fs:
+                            await self.fs.close()
+                            log.info('closed worker file system')
                     finally:
-                        try:
-                            if self.fs:
-                                await self.fs.close()
-                                log.info('closed worker file system')
-                        finally:
-                            await self.client_session.close()
-                            log.info('closed client session')
+                        await self.client_session.close()
+                        log.info('closed client session')
 
     async def run_job(self, job):
         try:
@@ -2917,6 +3006,13 @@ class Worker:
 
         assert job_spec['job_id'] == job_id
         id = (batch_id, job_id)
+
+        request['batch_telemetry'] = {
+            'operation': 'create_job',
+            'batch_id': str(batch_id),
+            'job_id': str(job_id),
+            'job_queue_time': str(body['queue_time']),
+        }
 
         # already running
         if id in self.jobs:
@@ -2992,6 +3088,12 @@ class Worker:
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
+
+        request['batch_telemetry'] = {
+            'operation': 'delete_job',
+            'batch_id': str(batch_id),
+            'job_id': str(job_id),
+        }
 
         if id not in self.jobs:
             raise web.HTTPNotFound()
@@ -3209,15 +3311,13 @@ class Worker:
 
     async def activate(self):
         log.info('activating')
-        resp = await request_retry_transient_errors(
-            self.client_session,
-            'POST',
+        resp_json = await retry_transient_errors(
+            self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
             json={'ip_address': os.environ['IP_ADDRESS']},
-            headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
+            headers=self.headers,
         )
-        resp_json = await resp.json()
-        self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
+        self.instance_token = resp_json['token']
         self.active = True
         self.last_updated = time_msecs()
 
@@ -3297,22 +3397,27 @@ async def async_main():
             log.info('worker shutdown', exc_info=True)
         finally:
             try:
-                await network_allocator_task_manager.shutdown_and_wait()
+                await CLOUD_WORKER_API.close()
             finally:
                 try:
-                    await docker.close()
-                    log.info('docker closed')
+                    await network_allocator_task_manager.shutdown_and_wait()
                 finally:
-                    asyncio.get_event_loop().set_debug(True)
-                    other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                    if other_tasks:
-                        log.warning('Tasks immediately after docker close')
-                        dump_all_stacktraces()
-                        _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                        for t in pending:
-                            log.warning('Dangling task:')
-                            t.print_stack()
-                            t.cancel()
+                    try:
+                        await docker.close()
+                        log.info('docker closed')
+                    finally:
+                        asyncio.get_event_loop().set_debug(True)
+                        other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                        if other_tasks:
+                            log.warning('Tasks immediately after docker close')
+                            dump_all_stacktraces()
+                            _, pending = await asyncio.wait(
+                                other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
+                            )
+                            for t in pending:
+                                log.warning('Dangling task:')
+                                t.print_stack()
+                                t.cancel()
 
 
 loop = asyncio.get_event_loop()

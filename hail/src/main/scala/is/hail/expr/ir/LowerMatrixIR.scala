@@ -45,17 +45,13 @@ object LowerMatrixIR {
     ir: BaseIR,
     ab: BoxedArrayBuilder[(String, IR)]
   ): BaseIR = {
-    val loweredChildren = ir.children.map {
+    ir.mapChildren {
       case tir: TableIR => lower(ctx, tir, ab)
       case mir: MatrixIR => throw new RuntimeException(s"expect specialized lowering rule for " +
         s"${ ir.getClass.getName }\n  Found MatrixIR child $mir")
       case bmir: BlockMatrixIR => lower(ctx, bmir, ab)
       case vir: IR => lower(ctx, vir, ab)
     }
-    if ((ir.children, loweredChildren).zipped.forall(_ eq _))
-      ir
-    else
-      ir.copy(loweredChildren)
   }
 
   def colVals(tir: TableIR): IR =
@@ -732,6 +728,7 @@ object LowerMatrixIR {
       case CastMatrixToTable(child, entries, cols) =>
         lower(ctx, child, ab)
           .mapRows('row.selectFields(child.typ.rowType.fieldNames ++ Array(entriesFieldName): _*))
+          .mapGlobals('global.selectFields(child.typ.globalType.fieldNames ++ Array(colsFieldName):  _*))
           .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
 
       case x@MatrixEntriesTable(child) =>
@@ -884,6 +881,6 @@ object LowerMatrixIR {
 
   private[this] def assertTypeUnchanged(original: BaseIR, lowered: BaseIR) {
     if (lowered.typ != original.typ)
-      fatal(s"lowering changed type:\n  before: ${ original.typ }\n after: ${ lowered.typ }\n")
+      fatal(s"lowering changed type:\n  before: ${ original.typ }\n after: ${ lowered.typ }\n  ${ original.getClass.getName } => ${ lowered.getClass.getName }")
   }
 }

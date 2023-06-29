@@ -3,7 +3,6 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
 import is.hail.expr.ir.{TableNativeWriter, agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -651,7 +650,8 @@ object LowerTableIR {
           val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
           val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
-          val writer = ETypeFileValueWriter(codecSpec)
+          val writer = ETypeValueWriter(codecSpec)
+          val reader = ETypeValueReader(codecSpec)
           lcWithInitBinding.mapCollectWithGlobals("table_aggregate")({ part: IR =>
             Let("global", lc.globals,
               RunAgg(
@@ -677,7 +677,7 @@ object LowerTableIR {
                 if (useInitStates) {
                   initFromSerializedStates
                 } else {
-                  bindIR(ReadValue(ArrayRef(partArrayRef, 0), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                  bindIR(ReadValue(ArrayRef(partArrayRef, 0), reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                     Begin(
                       aggs.aggs.zipWithIndex.map { case (sig, i) =>
                         InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
@@ -686,7 +686,7 @@ object LowerTableIR {
                 },
                 forIR(StreamRange(if (useInitStates) 0 else 1, ArrayLen(partArrayRef), 1, requiresMemoryManagementPerElement = true)) { fileIdx =>
 
-                  bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                  bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                     Begin(
                       aggs.aggs.zipWithIndex.map { case (sig, i) =>
                         CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
@@ -765,6 +765,9 @@ object LowerTableIR {
 
       case TableWrite(child, writer) =>
         writer.lower(ctx, lower(child), tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)))
+
+      case TableMultiWrite(children, writer) =>
+        writer.lower(ctx, children.map(child => (lower(child), tcoerce[RTable](analyses.requirednessAnalysis.lookup(child)))))
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(ctx, node) }")
@@ -1248,7 +1251,8 @@ object LowerTableIR {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
             val codecSpec = TypedCodecSpec(PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*), BufferSpec.wireSpec)
-            val writer = ETypeFileValueWriter(codecSpec)
+            val writer = ETypeValueWriter(codecSpec)
+            val reader = ETypeValueReader(codecSpec)
             val partitionPrefixSumFiles = lcWithInitBinding.mapCollectWithGlobals("table_scan_write_prefix_sums")({ part: IR =>
               Let("global", lcWithInitBinding.globals,
                 RunAgg(
@@ -1267,7 +1271,7 @@ object LowerTableIR {
 
               def combineGroup(partArrayRef: IR): IR = {
                 Begin(FastIndexedSeq(
-                  bindIR(ReadValue(ArrayRef(partArrayRef, 0), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                  bindIR(ReadValue(ArrayRef(partArrayRef, 0), reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                     Begin(
                       aggs.aggs.zipWithIndex.map { case (sig, i) =>
                         InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
@@ -1275,7 +1279,7 @@ object LowerTableIR {
                   },
                   forIR(StreamRange(1, ArrayLen(partArrayRef), 1, requiresMemoryManagementPerElement = true)) { fileIdx =>
 
-                    bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                    bindIR(ReadValue(ArrayRef(partArrayRef, fileIdx), reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                       Begin(
                         aggs.aggs.zipWithIndex.map { case (sig, i) =>
                           CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
@@ -1359,13 +1363,13 @@ object LowerTableIR {
                             ToArray(RunAggScan(
                               ToStream(GetField(context, "partialSums"), requiresMemoryManagementPerElement = true),
                               elt.name,
-                              bindIR(ReadValue(prev, codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                              bindIR(ReadValue(prev, reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                                 Begin(
                                   aggs.aggs.zipWithIndex.map { case (sig, i) =>
                                     InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
                                   })
                               },
-                              bindIR(ReadValue(elt, codecSpec, codecSpec.encodedVirtualType)) { serializedTuple =>
+                              bindIR(ReadValue(elt, reader, reader.spec.encodedVirtualType)) { serializedTuple =>
                                 Begin(
                                   aggs.aggs.zipWithIndex.map { case (sig, i) =>
                                     CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
@@ -1388,7 +1392,7 @@ object LowerTableIR {
                 }
               }
             }
-            (partitionPrefixSumFiles, { (file: IR) => ReadValue(file, codecSpec, codecSpec.encodedVirtualType) })
+            (partitionPrefixSumFiles, { (file: IR) => ReadValue(file, reader, reader.spec.encodedVirtualType) })
 
           } else {
             val partitionAggs = lcWithInitBinding.mapCollectWithGlobals("table_scan_prefix_sums_singlestage")({ part: IR =>
@@ -1542,38 +1546,7 @@ object LowerTableIR {
       case tj@TableJoin(left, right, joinType, joinKey) =>
         val loweredLeft = lower(left)
         val loweredRight = lower(right)
-
-        val lKeyFields = left.typ.key.take(joinKey)
-        val lValueFields = left.typ.rowType.fieldNames.filter(f => !lKeyFields.contains(f))
-        val rKeyFields = right.typ.key.take(joinKey)
-        val rValueFields = right.typ.rowType.fieldNames.filter(f => !rKeyFields.contains(f))
-        val lReq = analyses.requirednessAnalysis.lookup(left).asInstanceOf[RTable]
-        val rReq = analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable]
-
-        val joinedStage = loweredLeft.orderedJoin(ctx,
-          loweredRight, joinKey, joinType,
-          (lGlobals, rGlobals) => {
-            val rGlobalType = rGlobals.typ.asInstanceOf[TStruct]
-            val rGlobalRef = Ref(genUID(), rGlobalType)
-            Let(rGlobalRef.name, rGlobals,
-              InsertFields(lGlobals, rGlobalType.fieldNames.map(f => f -> GetField(rGlobalRef, f))))
-          },
-          (lEltRef, rEltRef) => {
-            MakeStruct(
-              (lKeyFields, rKeyFields).zipped.map { (lKey, rKey) =>
-                if (joinType == "outer" && lReq.field(lKey).required && rReq.field(rKey).required)
-                  lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey), Die("TableJoin expected non-missing key", left.typ.rowType.fieldType(lKey), -1)))
-                else
-                  lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey)))
-              }
-                ++ lValueFields.map(f => f -> GetField(lEltRef, f))
-                ++ rValueFields.map(f => f -> GetField(rEltRef, f)))
-          },
-          analyses.distinctKeyedAnalysis.contains(right)
-        )
-
-        assert(joinedStage.rowType == tj.typ.rowType)
-        joinedStage
+        LowerTableIRHelpers.lowerTableJoin(ctx, analyses, tj, loweredLeft, loweredRight)
 
       case x@TableUnion(children) =>
         val lowered = children.map(lower)

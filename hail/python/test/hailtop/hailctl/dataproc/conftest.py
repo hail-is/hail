@@ -43,7 +43,7 @@ def deploy_metadata():
     return {
         "wheel": "gs://hail-common/hailctl/dataproc/test-version/hail-test-version-py3-none-any.whl",
         "init_notebook.py": "gs://hail-common/hailctl/dataproc/test-version/init_notebook.py",
-        "pip_dependencies": "aiohttp>=3.6,<3.7|aiohttp_session>=2.7,<2.8|asyncinit>=0.2.4,<0.3|bokeh>1.1,<1.3|decorator<5|humanize==1.0.0|hurry.filesize==0.9|nest_asyncio|numpy<2|pandas>0.24,<0.26|parsimonious<0.9|PyJWT|python-json-logger==0.1.11|requests>=2.21.0,<2.21.1|scipy>1.2,<1.4|tabulate==0.8.9|tqdm==4.42.1|",
+        "pip_dependencies": "aiohttp>=3.6,<3.7|aiohttp_session>=2.7,<2.8|asyncinit>=0.2.4,<0.3|bokeh>1.1,<1.3|decorator<5|humanize==1.0.0|hurry.filesize==0.9|nest_asyncio|numpy<2|pandas>0.24,<0.26|parsimonious<0.9|PyJWT|python-json-logger==0.1.11|requests>=2.21.0,<2.21.1|scipy>1.2,<1.4|tabulate==0.8.9|tqdm==4.42.1|jproperties==2.1.1",
         "vep-GRCh37.sh": "gs://hail-common/hailctl/dataproc/test-version/vep-GRCh37.sh",
         "vep-GRCh38.sh": "gs://hail-common/hailctl/dataproc/test-version/vep-GRCh38.sh",
     }

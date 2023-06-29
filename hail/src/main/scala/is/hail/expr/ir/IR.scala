@@ -5,7 +5,6 @@ import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
-import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
@@ -39,11 +38,15 @@ sealed trait IR extends BaseIR {
     _typ
   }
 
-  lazy val children: IndexedSeq[BaseIR] =
+  protected lazy val childrenSeq: IndexedSeq[BaseIR] =
     Children(this)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): IR =
+  protected override def copy(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
+
+  override def mapChildren(f: BaseIR => BaseIR): IR = super.mapChildren(f).asInstanceOf[IR]
+
+  override def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): IR = super.mapChildrenWithIndex(f).asInstanceOf[IR]
 
   override def deepCopy(): this.type = {
 
@@ -112,7 +115,7 @@ object EncodedLiteral {
       case ts: PString => Str(ts.loadString(addr))
       case _ =>
         val etype = EType.defaultFromPType(pt)
-        val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
+        val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.wireSpec)
         val bytes = codec.encodeArrays(ctx, pt, addr)
         EncodedLiteral(codec, bytes)
     }
@@ -521,6 +524,17 @@ object NDArrayInv {
 final case class NDArrayQR(nd: IR, mode: String, errorID: Int) extends IR
 
 final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean, errorID: Int) extends IR
+
+object NDArrayEigh {
+  def pTypes(eigvalsOnly: Boolean, req: Boolean): PType = {
+    if (eigvalsOnly) {
+      PCanonicalNDArray(PFloat64Required, 1, req)
+    } else {
+      PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 1, true), PCanonicalNDArray(PFloat64Required, 2, true))
+    }
+  }
+}
+final case class NDArrayEigh(nd: IR, eigvalsOnly: Boolean, errorID: Int) extends IR
 
 final case class NDArrayInv(nd: IR, errorID: Int) extends IR
 
@@ -935,7 +949,7 @@ final case class ReadPartition(context: IR, rowType: TStruct, reader: PartitionR
 final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
-final case class ReadValue(path: IR, spec: AbstractTypedCodecSpec, requestedType: Type) extends IR
+final case class ReadValue(path: IR, reader: ValueReader, requestedType: Type) extends IR
 final case class WriteValue(value: IR, path: IR, writer: ValueWriter, stagingFile: Option[IR] = None) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {

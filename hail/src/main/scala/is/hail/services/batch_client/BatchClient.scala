@@ -174,6 +174,8 @@ class BatchClient(
   def waitForBatch(batchID: Long, excludeDriverJobInBatch: Boolean): JValue = {
     implicit val formats: Formats = DefaultFormats
 
+    Thread.sleep(600)  // it is not possible for the batch to be finished in less than 600ms
+
     val start = System.nanoTime()
 
     while (true) {

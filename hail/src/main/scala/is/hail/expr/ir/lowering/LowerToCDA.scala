@@ -13,7 +13,7 @@ object LowerToCDA {
 
   def lower(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses): IR = ir match {
     case node if node.children.forall(_.isInstanceOf[IR]) =>
-      Copy(node, ir.children.map { case c: IR => lower(c, typesToLower, ctx, analyses) })
+      ir.mapChildren { case c: IR => lower(c, typesToLower, ctx, analyses) }
 
     case node if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n => n.isInstanceOf[TableIR] || n.isInstanceOf[IR]) =>
       LowerTableIR(ir, typesToLower, ctx, analyses)

@@ -5,12 +5,11 @@ from typing import Dict, Optional, Tuple
 
 import aiohttp
 
-from gear.cloud_config import get_azure_config
 from hailtop import httpx
 from hailtop.aiocloud import aioazure
-from hailtop.utils import check_exec_output, request_retry_transient_errors, time_msecs
+from hailtop.utils import check_exec_output, retry_transient_errors, time_msecs
 
-from ....worker.worker_api import CloudWorkerAPI
+from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ..instance_config import AzureSlimInstanceConfig
 from .credentials import AzureUserCredentials
 from .disk import AzureDisk
@@ -40,18 +39,22 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
     def get_cloud_async_fs(self) -> aioazure.AzureAsyncFS:
         return aioazure.AzureAsyncFS(credentials=self.azure_credentials)
 
-    def get_compute_client(self) -> aioazure.AzureComputeClient:
-        azure_config = get_azure_config()
-        return aioazure.AzureComputeClient(azure_config.subscription_id, azure_config.resource_group)
-
     def user_credentials(self, credentials: Dict[str, str]) -> AzureUserCredentials:
         return AzureUserCredentials(credentials)
 
-    async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
+    async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         # https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
         return {
             'username': '00000000-0000-0000-0000-000000000000',
             'password': await self.acr_refresh_token.token(session),
+        }
+
+    async def user_container_registry_credentials(
+        self, user_credentials: AzureUserCredentials
+    ) -> ContainerRegistryCredentials:
+        return {
+            'username': user_credentials.username,
+            'password': user_credentials.password,
         }
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
@@ -112,6 +115,9 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
             os.remove(self._blobfuse_credential_files[mount_base_path_data])
             del self._blobfuse_credential_files[mount_base_path_data]
 
+    async def close(self):
+        pass
+
     def __str__(self):
         return f'subscription_id={self.subscription_id} resource_group={self.resource_group}'
 
@@ -137,18 +143,16 @@ class AadAccessToken(LazyShortLivedToken):
     async def _fetch(self, session: httpx.ClientSession) -> Tuple[str, int]:
         # https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
         params = {'api-version': '2018-02-01', 'resource': 'https://management.azure.com/'}
-        async with await request_retry_transient_errors(
-            session,
-            'GET',
+        resp_json = await retry_transient_errors(
+            session.get_read_json,
             'http://169.254.169.254/metadata/identity/oauth2/token',
             headers={'Metadata': 'true'},
             params=params,
             timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        ) as resp:
-            resp_json = await resp.json()
-            access_token: str = resp_json['access_token']
-            expiration_time_ms = int(resp_json['expires_on']) * 1000
-            return access_token, expiration_time_ms
+        )
+        access_token: str = resp_json['access_token']
+        expiration_time_ms = int(resp_json['expires_on']) * 1000
+        return access_token, expiration_time_ms
 
 
 class AcrRefreshToken(LazyShortLivedToken):
@@ -164,14 +168,13 @@ class AcrRefreshToken(LazyShortLivedToken):
             'service': self.acr_url,
             'access_token': await self.aad_access_token.token(session),
         }
-        async with await request_retry_transient_errors(
-            session,
-            'POST',
+        resp_json = await retry_transient_errors(
+            session.post_read_json,
             f'https://{self.acr_url}/oauth2/exchange',
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
             data=data,
             timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        ) as resp:
-            refresh_token: str = (await resp.json())['refresh_token']
-            expiration_time_ms = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour
-            return refresh_token, expiration_time_ms
+        )
+        refresh_token: str = resp_json['refresh_token']
+        expiration_time_ms = time_msecs() + 60 * 60 * 1000  # token expires in 3 hours so we refresh after 1 hour
+        return refresh_token, expiration_time_ms

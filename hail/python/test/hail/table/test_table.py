@@ -265,6 +265,7 @@ class Tests(unittest.TestCase):
             set(ht1.group_by('k').aggregate(mean_b = hl.agg.mean(ht1.b)).collect()),
             {hl.Struct(k='foo', mean_b=1.0), hl.Struct(k='bar', mean_b=2.0)})
 
+    @test_timeout(batch=6 * 60)
     def test_group_aggregate_na(self):
         ht = hl.utils.range_table(100, 8)
         ht = ht.key_by(k=hl.or_missing(ht.idx % 10 == 0, ht.idx % 4))
@@ -535,6 +536,7 @@ class Tests(unittest.TestCase):
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
+    @test_timeout(batch=8 * 60)
     def test_multi_way_zip_join(self):
         d1 = [{"id": 0, "name": "a", "data": 0.0},
               {"id": 1, "name": "b", "data": 3.14},
@@ -825,6 +827,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(dist.all(hl.len(dist.values) == 1))
         self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
 
+    @test_timeout(batch=6 * 60)
     def test_group_by_key(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -961,13 +964,9 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
-    def test_indexed_read(self):
-        t = hl.utils.range_table(2000, 10)
-        f = new_temp_file(extension='ht')
-        t.write(f)
-        t1 = hl.read_table(f, _create_row_uids=True)
-
-        t2 = hl.read_table(f, _intervals=[
+    def test_indexed_read_1(self):
+        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t2 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ], _create_row_uids=True)
@@ -976,14 +975,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(t2._force_count(), 350)
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
-        t2 = hl.read_table(f, _intervals=[
+    def test_indexed_read_2(self):
+        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t2 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ], _filter_intervals=True, _create_row_uids=True)
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
-        t2 = hl.read_table(f, _intervals=[
+    def test_indexed_read_3(self):
+        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t2 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _intervals=[
             hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
             hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
         ], _create_row_uids=True)
@@ -992,7 +995,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(t2._force_count(), 350)
         self.assertTrue(t1.filter((t1.idx > 150) & (t1.idx <= 500))._same(t2))
 
-        t2 = hl.read_table(f, _intervals=[
+    def test_indexed_read_4(self):
+        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t2 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _intervals=[
             hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
             hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
         ], _filter_intervals=True, _create_row_uids=True)
@@ -1007,6 +1012,7 @@ class Tests(unittest.TestCase):
         t = t.key_by(rev_idx=-t.idx)
         assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
+    @test_timeout(batch=5 * 60)
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
         self.assertEqual(ht.n_partitions(), 8)
@@ -1236,25 +1242,42 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
-    def test_join_types(self):
+    def get_test_join_types_hts(self):
         ht1 = hl.utils.range_table(3, 3)
         ht1 = ht1.key_by(idx=ht1.idx + 1)
         ht1 = ht1.annotate(L_DUP=hl.range(ht1.idx)).explode('L_DUP')
-        assert ht1.idx.collect() == [1, *([2] * 2), *([3] * 3)]
 
         ht2 = hl.utils.range_table(3, 3)
         ht2 = ht2.key_by(idx=ht2.idx + 2)
         ht2 = ht2.annotate(R_DUP=hl.range(ht2.idx)).explode('R_DUP')
+        return ht1, ht2
+
+    def test_join_types_ht1_is_what_we_expect(self):
+        ht1, _ = self.get_test_join_types_hts()
+        assert ht1.idx.collect() == [1, *([2] * 2), *([3] * 3)]
+
+    def test_join_types_ht2_is_what_we_expect(self):
+        _, ht2 = self.get_test_join_types_hts()
         assert ht2.idx.collect() == [*([2] * 2), *([3] * 3), *([4] * 4)]
 
+    def test_join_types_left(self):
+        ht1, ht2 = self.get_test_join_types_hts()
         left = ht1.join(ht2, 'left')
-        right = ht1.join(ht2, 'right')
-        inner = ht1.join(ht2, 'inner')
-        outer = ht1.join(ht2, 'outer')
-
         assert left.idx.collect() == [1, *([2] * 4), *([3] * 9)]
+
+    def test_join_types_right(self):
+        ht1, ht2 = self.get_test_join_types_hts()
+        right = ht1.join(ht2, 'right')
         assert right.idx.collect() == [*([2] * 4), *([3] * 9), *([4] * 4)]
+
+    def test_join_types_inner(self):
+        ht1, ht2 = self.get_test_join_types_hts()
+        inner = ht1.join(ht2, 'inner')
         assert inner.idx.collect() == [*([2] * 4), *([3] * 9)]
+
+    def test_join_types_outer(self):
+        ht1, ht2 = self.get_test_join_types_hts()
+        outer = ht1.join(ht2, 'outer')
         assert outer.idx.collect() == [1, *([2] * 4), *([3] * 9), *([4] * 4)]
 
     def test_partitioning_rewrite(self):
@@ -1501,6 +1524,7 @@ class Tests(unittest.TestCase):
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
+    @test_timeout(batch=5 * 60)
     def test_repartition_empty_key(self):
         data = [{'x': i} for i in range(1000)]
         ht = hl.Table.parallelize(data, hl.tstruct(x=hl.tint32), key=None, n_partitions=11)
@@ -1626,7 +1650,8 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-@pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail)])
+@pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail(strict=True))])
+@test_timeout(3 * 60, local=6 * 60, batch=6 * 60)
 def test_can_process_wide_tables(width):
     path = resource(f'width_scale_tests/{width}.tsv')
     ht = hl.import_table(path, impute=False)
@@ -1667,6 +1692,7 @@ def create_width_scale_files():
         write_file(w)
 
 
+@test_timeout(batch=6 * 60)
 def test_join_with_key_prefix():
     t = hl.utils.range_table(20, 2)
     t = t.annotate(pk=1)
@@ -1701,6 +1727,7 @@ def test_write_table_containing_ndarray():
     t2 = hl.read_table(f)
     assert t._same(t2)
 
+@test_timeout(batch=6 * 60)
 def test_group_within_partitions():
     t = hl.utils.range_table(10).repartition(2)
     t = t.annotate(sq=t.idx ** 2)
@@ -1751,6 +1778,7 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
+@test_timeout(batch=5 * 60)
 def test_read_write_all_types():
     ht = create_all_values_table()
     tmp_file = new_temp_file()
@@ -2021,6 +2049,7 @@ def test_literal_of_pandas_NA_and_numpy_int32():
     hl.eval(hl.literal(x))
 
 
+@test_timeout(batch=5 * 60)
 def test_write_many():
     t = hl.utils.range_table(5)
     t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
@@ -2066,27 +2095,29 @@ def test_indexed_read_boundaries(branching_factor):
         assert t1.idx.collect() == [141, 142, 143, 144, 152]
 
 
-def test_table_randomness():
-    def assert_unique_uids(ht):
-        ht = ht.annotate(r=hl.rand_int64())
-        x = ht.aggregate(hl.struct(r=hl.agg.collect_as_set(ht.r), n=hl.agg.count()))
-        assert(len(x.r) == x.n)
+def assert_unique_uids(ht):
+    ht = ht.annotate(r=hl.rand_int64())
+    x = ht.aggregate(hl.struct(r=hl.agg.collect_as_set(ht.r), n=hl.agg.count()))
+    assert(len(x.r) == x.n)
 
-    def assert_contains_node(t, node):
-        assert(t._tir.base_search(lambda x: isinstance(x, node)))
+def assert_contains_node(t, node):
+    assert(t._tir.base_search(lambda x: isinstance(x, node)))
 
-    # test TableRange
+
+def test_table_randomness_range_table():
     t = hl.utils.range_table(10, 3)
     assert_contains_node(t, ir.TableRange)
     assert_unique_uids(t)
 
-    # test MatrixRowsTable
+
+def test_table_randomness_range_matrix_rows_table():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt.rows()
     assert_contains_node(t, ir.MatrixRowsTable)
     assert_unique_uids(t)
 
-    # test TableJoin
+
+def test_table_randomness_join():
     t1 = hl.utils.range_table(12, 3)
     t1 = t1.key_by(k=(t1.idx // 2) * 2)
     t2 = hl.utils.range_table(8, 3)
@@ -2095,7 +2126,8 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableJoin)
     assert_unique_uids(t)
 
-    # test TableLeftJoinRightDistinct
+
+def test_table_randomness_left_join_right_distinct():
     t1 = hl.utils.range_table(12, 3)
     t1 = t1.key_by(k=(t1.idx // 2) * 2)
     t2 = hl.utils.range_table(4, 3)
@@ -2104,7 +2136,8 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableLeftJoinRightDistinct)
     assert_unique_uids(t)
 
-    # test TableIntervalJoin
+
+def test_table_randomness_interval_join():
     t1 = hl.utils.range_table(12, 3)
     t2 = hl.utils.range_table(4, 3)
     t2 = t2.key_by(k=hl.interval(t2.idx * 3, (t2.idx + 1) * 3))
@@ -2112,7 +2145,8 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableIntervalJoin)
     assert_unique_uids(t)
 
-    # test TableUnion
+
+def test_table_randomness_union():
     t1 = hl.utils.range_table(12, 3)
     t2 = hl.utils.range_table(4, 3)
     t2 = t2.key_by(idx=t2.idx * 3)
@@ -2120,55 +2154,68 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableUnion)
     assert_unique_uids(t)
 
-    # test TableMapGlobals
+
+def test_table_randomness_map_globals_with_body_randomness():
     rt = hl.utils.range_table(5)
-    # with body randomness
     t1 = rt.annotate_globals(x=hl.rand_int64())
     assert_contains_node(t1, ir.TableMapGlobals)
     t1._force_count() # test with no consumer randomness
     assert_unique_uids(t1)
-    # w/o body randomness
+
+
+def test_table_randomness_map_globals_without_body_randomness():
+    rt = hl.utils.range_table(5)
     t2 = rt.annotate_globals(x=1)
     assert_contains_node(t2, ir.TableMapGlobals)
     assert_unique_uids(t2)
 
-    # test TableExplode
+
+def test_table_randomness_explode():
     t = hl.utils.range_table(5)
     t = t.annotate(s=hl.struct(a=hl.range(t.idx)))
     t = t.explode(t.s.a)
     assert_contains_node(t, ir.TableExplode)
     assert_unique_uids(t)
 
-    # test TableKeyBy
+
+def test_table_randomness_key_by():
     t = hl.utils.range_table(12, 3)
     t = t.key_by(k=t.idx // 4)
     assert_contains_node(t, ir.TableKeyBy)
     assert_unique_uids(t)
 
-    # test TableMapRows
+
+def test_table_randomness_map_rows_with_body_randomness():
     rt = hl.utils.range_table(12, 3)
-    # with body randomness
     t = rt.annotate(x=hl.rand_int64())
     assert_contains_node(t, ir.TableMapRows)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # with body scan randomness
+
+
+def test_table_randomness_map_rows_with_scan_randomness():
+    rt = hl.utils.range_table(12, 3)
     t = rt.annotate(x=hl.scan.sum(hl.rand_int64()))
     assert_contains_node(t, ir.TableMapRows)
     assert_unique_uids(t)
-    # w/o body randomness
+
+
+def test_table_randomness_map_rows_without_body_randomness():
+    rt = hl.utils.range_table(12, 3)
     t = rt.annotate(x=1)
     assert_contains_node(t, ir.TableMapRows)
     assert_unique_uids(t)
 
-    # test TableMapPartitions
+
+def test_table_randomness_map_partitions():
     rt = hl.utils.range_table(10, 3)
     t = rt.annotate(x=hl.rand_int64())
     t = t._map_partitions(lambda part: part.map(lambda row: row.annotate(x=row.x / 2)))
     assert_contains_node(t, ir.TableMapPartitions)
     t._force_count() # test with no consumer randomness
 
-    # test TableRead
+
+def test_table_randomness_read():
     rt = hl.utils.range_table(10, 3)
     path = new_temp_file()
     rt.write(path)
@@ -2176,92 +2223,111 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableRead)
     assert_unique_uids(t)
 
-    # test MatrixEntriesTable
+
+def test_table_randomness_matrix_entries_table():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt.entries()
     assert_contains_node(t, ir.MatrixEntriesTable)
     assert_unique_uids(t)
 
-    # test TableFilter
+
+def test_table_randomness_filter_with_cond_randomness():
     rt = hl.utils.range_table(20, 3)
-    # with cond randomness
     t = rt.filter(hl.rand_int64() % 2 == 0)
     assert_contains_node(t, ir.TableFilter)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # w/o cond randomness
+
+
+def test_table_randomness_filter_without_cond_randomness():
+    rt = hl.utils.range_table(20, 3)
     t = rt.filter(rt.idx < 100)
     assert_contains_node(t, ir.TableFilter)
     assert_unique_uids(t)
 
-    # test TableKeyByAndAggregate
+
+def test_table_randomness_key_by_and_aggregate_with_body_randomness():
     rt = hl.utils.range_table(20, 3)
-    # with body randomness
     t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(rt.idx) + hl.rand_int64())
     assert_contains_node(t, ir.TableKeyByAndAggregate)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # with agg randomness
+
+
+def test_table_randomness_key_by_and_aggregate_with_agg_randomness():
+    rt = hl.utils.range_table(20, 3)
     t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(hl.rand_int64()))
     assert_contains_node(t, ir.TableKeyByAndAggregate)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # w/o body randomness
+
+
+def test_table_randomness_key_by_and_aggregate_without_body_randomness():
+    rt = hl.utils.range_table(20, 3)
     t = rt.group_by(k=rt.idx % 5).aggregate(x=hl.agg.sum(rt.idx))
     assert_contains_node(t, ir.TableKeyByAndAggregate)
     assert_unique_uids(t)
 
-    # test TableAggregateByKey
+
+def test_table_randomness_aggregate_by_key():
     rt = hl.utils.range_table(20, 3)
     t = rt.key_by(k=rt.idx % 5)
     t = t.collect_by_key()
     assert_contains_node(t, ir.TableAggregateByKey)
     assert_unique_uids(t)
 
-    # test MatrixColsTable
+
+def test_table_randomness_matrix_cols_table():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt.cols()
     assert_contains_node(t, ir.MatrixColsTable)
     assert_unique_uids(t)
 
-    # test TableParallelize
+
+def test_table_randomness_parallelize_with_body_randomness():
     rt = hl.utils.range_table(20, 3)
-    # with body randomness
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x, r=hl.rand_int64())))
     assert_contains_node(t, ir.TableParallelize)
     t._force_count() # test with no consumer randomness
     assert_unique_uids(t)
-    # w/o body randomness
+
+
+def test_table_randomness_parallelize_without_body_randomness():
+    rt = hl.utils.range_table(20, 3)
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x)))
     assert_contains_node(t, ir.TableParallelize)
     assert_unique_uids(t)
 
-    # test TableHead
+def test_table_randomness_head():
     t = hl.utils.range_table(20, 3)
     t = t.head(10)
     assert_contains_node(t, ir.TableHead)
     assert_unique_uids(t)
 
-    # test TableTail
+
+def test_table_randomness_tail():
     t = hl.utils.range_table(20, 3)
     t = t.tail(10)
     assert_contains_node(t, ir.TableTail)
     assert_unique_uids(t)
 
-    # test TableOrderBy
+
+def test_table_randomness_order_by():
     t = hl.utils.range_table(10, 3)
     t = t.order_by(-t.idx)
     assert_contains_node(t, ir.TableOrderBy)
     assert_unique_uids(t)
 
-    # test TableDistinct
+
+def test_table_randomness_distinct():
     rt = hl.utils.range_table(20, 3)
     t = rt.key_by(k=rt.idx % 5)
     t = t.distinct()
     assert_contains_node(t, ir.TableDistinct)
     assert_unique_uids(t)
 
-    # test TableRepartition
+
+def test_table_randomness_repartition():
     if not hl.current_backend().requires_lowering:
         rt = hl.utils.range_table(20, 3)
         t = rt.repartition(5)
@@ -2269,19 +2335,22 @@ def test_table_randomness():
         assert_contains_node(t, ir.TableRepartition)
         assert_unique_uids(t)
 
-    # test CastMatrixToTable
+
+def test_table_randomness_cast_matrix_to_table():
     mt = hl.utils.range_matrix_table(10, 10, 3)
     t = mt._localize_entries("entries", "cols")
     assert_contains_node(t, ir.CastMatrixToTable)
     assert_unique_uids(t)
 
-    # test TableRename
+
+def test_table_randomness_rename():
     rt = hl.utils.range_table(20, 3)
     t = rt.rename({'idx': 'index'})
     assert_contains_node(t, ir.TableRename)
     assert_unique_uids(t)
 
-    # test TableMultiWayZipJoin
+
+def test_table_randomness_multi_way_zip_join():
     t1 = hl.utils.range_table(12, 3)
     t1 = t1.key_by(k=(t1.idx // 2) * 2)
     t2 = hl.utils.range_table(12, 3)
@@ -2292,20 +2361,23 @@ def test_table_randomness():
     assert_contains_node(t, ir.TableMultiWayZipJoin)
     assert_unique_uids(t)
 
-    # test TableFilterIntervals
+
+def test_table_randomness_filter_intervals():
     rt = hl.utils.range_table(20, 3)
     intervals = [hl.interval(0, 5), hl.interval(10, 15)]
     t = hl.filter_intervals(rt, intervals)
     assert_contains_node(t, ir.TableFilterIntervals)
     assert_unique_uids(t)
 
-    # test BlockMatrixToTable
+
+def test_table_randomness_block_matrix_to_table():
     bm = hl.linalg.BlockMatrix.fill(10, 10, 0)
     t = bm.entries()
     assert_contains_node(t, ir.BlockMatrixToTable)
     assert_unique_uids(t)
 
-    # test TableGen
+
+def test_table_randomness_table_gen():
     t = hl.Table._generate(
         contexts=hl.repeat(hl.rand_int64, 2),
         globals=hl.struct(k=hl.rand_int64()),
@@ -2399,6 +2471,8 @@ def test_query_table_compound_key():
     ]
     assert hl.eval(queries) == expected
 
+
+@test_timeout(batch=5 * 60)
 def test_query_table_interval_key():
     f = new_temp_file(extension='ht')
 
@@ -2422,3 +2496,9 @@ def test_query_table_interval_key():
         [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
     ]
     assert hl.eval(queries) == expected
+
+
+@test_timeout(600)  # with sufficient available cores should take <=60s
+def test_large_number_of_partitions():
+    ht = hl.utils.range_table(1500, n_partitions=1500)
+    ht.collect()

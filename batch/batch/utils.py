@@ -45,6 +45,24 @@ def batch_only(fun):
     return wrapped
 
 
+def add_metadata_to_request(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        request['batch_telemetry'] = {'operation': fun.__name__}
+
+        batch_id = request.match_info.get('batch_id')
+        if batch_id is not None:
+            request['batch_telemetry']['batch_id'] = batch_id
+
+        job_id = request.match_info.get('job_id')
+        if job_id is not None:
+            request['batch_telemetry']['job_id'] = job_id
+
+        return await fun(request, *args, **kwargs)
+
+    return wrapped
+
+
 def coalesce(x, default):
     if x is not None:
         return x
@@ -115,10 +133,9 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-async def query_billing_projects(db, user=None, billing_project=None):
-    args = []
-
+async def query_billing_projects_with_cost(db, user=None, billing_project=None):
     where_conditions = ["billing_projects.`status` != 'deleted'"]
+    args = []
 
     if user:
         where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
@@ -134,43 +151,78 @@ async def query_billing_projects(db, user=None, billing_project=None):
         where_condition = ''
 
     sql = f'''
-WITH base_t AS (
+SELECT billing_projects.name as billing_project,
+  billing_projects.`status` as `status`,
+  users, `limit`, COALESCE(cost_t.cost, 0) AS accrued_cost
+FROM billing_projects
+LEFT JOIN LATERAL (
+  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
+  FROM billing_project_users
+  WHERE billing_project_users.billing_project = billing_projects.name
+  GROUP BY billing_project_users.billing_project
+  LOCK IN SHARE MODE
+) AS t ON TRUE
+LEFT JOIN LATERAL (
+  SELECT SUM(`usage` * rate) as cost
+  FROM (
+    SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_billing_project_user_resources_v2
+    WHERE billing_projects.name = aggregated_billing_project_user_resources_v2.billing_project
+    GROUP BY billing_project, resource_id
+    LOCK IN SHARE MODE
+  ) AS usage_t
+  LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
+  GROUP BY usage_t.billing_project
+) AS cost_t ON TRUE
+{where_condition}
+LOCK IN SHARE MODE;
+'''
+
+    billing_projects = []
+    async for record in db.execute_and_fetchall(sql, tuple(args)):
+        record['users'] = json.loads(record['users']) if record['users'] is not None else []
+        billing_projects.append(record)
+
+    return billing_projects
+
+
+async def query_billing_projects_without_cost(db, user=None, billing_project=None):
+    where_conditions = ["billing_projects.`status` != 'deleted'"]
+    args = []
+
+    if user:
+        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
+        args.append(user)
+
+    if billing_project:
+        where_conditions.append('billing_projects.name_cs = %s')
+        args.append(billing_project)
+
+    if where_conditions:
+        where_condition = f'WHERE {" AND ".join(where_conditions)}'
+    else:
+        where_condition = ''
+
+    sql = f'''
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
   users, `limit`
-FROM (
+FROM billing_projects
+LEFT JOIN LATERAL (
   SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
   FROM billing_project_users
-  GROUP BY billing_project
+  WHERE billing_project_users.billing_project = billing_projects.name
+  GROUP BY billing_project_users.billing_project
   LOCK IN SHARE MODE
-) AS t
-RIGHT JOIN billing_projects
-  ON t.billing_project = billing_projects.name
+) AS t ON TRUE
 {where_condition}
-GROUP BY billing_projects.name, billing_projects.status, `limit`
-LOCK IN SHARE MODE
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) as accrued_cost
-FROM base_t
-LEFT JOIN (
-  SELECT base_t.billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_billing_project_user_resources_v2
-    ON base_t.billing_project = aggregated_billing_project_user_resources_v2.billing_project
-  GROUP BY base_t.billing_project, resource_id
-) AS usage_t ON usage_t.billing_project = base_t.billing_project
-LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
-GROUP BY base_t.billing_project;
+LOCK IN SHARE MODE;
 '''
 
-    def record_to_dict(record):
-        if record['users'] is None:
-            record['users'] = []
-        else:
-            record['users'] = json.loads(record['users'])
-        return record
-
-    billing_projects = [record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
+    billing_projects = []
+    async for record in db.execute_and_fetchall(sql, tuple(args)):
+        record['users'] = json.loads(record['users']) if record['users'] is not None else []
+        billing_projects.append(record)
 
     return billing_projects
 

@@ -43,10 +43,10 @@ FAST_CODEC_SPEC = """{
   "name": "LEB128BufferSpec",
   "child": {
     "name": "BlockingBufferSpec",
-    "blockSize": 32768,
+    "blockSize": 65536,
     "child": {
-      "name": "LZ4FastBlockBufferSpec",
-      "blockSize": 32768,
+      "name": "ZstdBlockBufferSpec",
+      "blockSize": 65536,
       "child": {
         "name": "StreamBlockBufferSpec"
       }
@@ -224,14 +224,13 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  ):
         if not (vdses or gvcfs):
             raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
-        if not gvcf_import_intervals:
-            raise ValueError('gvcf import intervals must be nonempty')
-        interval = gvcf_import_intervals[0]
-        if not isinstance(interval.point_type, hl.tlocus):
-            raise ValueError(f'intervals point type must be a locus, found {interval.point_type}')
-        if interval.point_type.reference_genome != reference_genome:
-            raise ValueError(f'mismatch in intervals ({interval.point_type.reference_genome}) '
-                             f'and reference genome ({reference_genome}) types')
+        if gvcf_import_intervals:
+            interval = gvcf_import_intervals[0]
+            if not isinstance(interval.point_type, hl.tlocus):
+                raise ValueError(f'intervals point type must be a locus, found {interval.point_type}')
+            if interval.point_type.reference_genome != reference_genome:
+                raise ValueError(f'mismatch in intervals ({interval.point_type.reference_genome}) '
+                                 f'and reference genome ({reference_genome}) types')
         if (gvcf_sample_names is None) != (gvcf_external_header is None):
             raise ValueError("both 'gvcf_sample_names' and 'gvcf_external_header' must be set or unset")
         if gvcf_sample_names is not None and len(gvcf_sample_names) != len(gvcfs):
@@ -396,6 +395,19 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         if not self.finished:
             self._job_id += 1
 
+    def _write_final(self, vds):
+        fd = hl.vds.VariantDataset.ref_block_max_length_field
+
+        if fd not in vds.reference_data.globals:
+            info("VDS combiner: computing reference block max length...")
+            max_len = vds.reference_data.aggregate_entries(
+                hl.agg.max(vds.reference_data.END + 1 - vds.reference_data.locus.position))
+            info(f"VDS combiner: max reference block length is {max_len}")
+            vds = hl.vds.VariantDataset(reference_data=vds.reference_data.annotate_globals(**{fd: max_len}),
+                                        variant_data=vds.variant_data)
+
+        vds.write(self._output_path)
+
     def _step_vdses(self):
         current_bin = original_bin = min(self._vdses)
         files_to_merge = self._vdses[current_bin][:self._branch_factor]
@@ -438,7 +450,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         combined = combine_variant_datasets(vdss)
 
         if self.finished:
-            combined.write(self._output_path)
+            self._write_final(combined)
             return
 
         new_path = os.path.join(temp_path, 'dataset.vds')
@@ -480,7 +492,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             merge_vds.append(combine_variant_datasets(merging))
             merge_n_samples.append(len(merging))
         if self.finished and len(merge_vds) == 1:
-            merge_vds[0].write(self._output_path)
+            self._write_final(merge_vds[0])
             return
 
         temp_path = self._temp_out_path(f'gvcf-combine_job{self._job_id}/dataset_')
@@ -560,15 +572,6 @@ def new_combiner(*,
                              f'Received {batch_size} and {gvcf_batch_size}.')
     del batch_size
 
-    n_partition_args = (int(intervals is not None)
-                        + int(import_interval_size is not None)
-                        + int(use_genome_default_intervals)
-                        + int(use_exome_default_intervals))
-
-    if n_partition_args == 0:
-        raise ValueError("'new_combiner': require one argument from 'intervals', 'import_interval_size', "
-                         "'use_genome_default_intervals', or 'use_exome_default_intervals' to choose GVCF partitioning")
-
     def maybe_load_from_saved_path(save_path: str) -> Optional[VariantDatasetCombiner]:
         if force:
             return None
@@ -595,22 +598,34 @@ def new_combiner(*,
         if saved_combiner is not None:
             return saved_combiner
 
-    if n_partition_args > 1:
-        warning("'run_combiner': multiple colliding arguments found from 'intervals', 'import_interval_size', "
-                "'use_genome_default_intervals', or 'use_exome_default_intervals'."
-                "\n  The argument found first in the list in this warning will be used, and others ignored.")
+    if len(gvcf_paths) > 0:
+        n_partition_args = (int(intervals is not None)
+                            + int(import_interval_size is not None)
+                            + int(use_genome_default_intervals)
+                            + int(use_exome_default_intervals))
 
-    if intervals is not None:
-        pass
-    elif import_interval_size is not None:
-        intervals = calculate_even_genome_partitioning(reference_genome, import_interval_size)
-    elif use_genome_default_intervals:
-        size = VariantDatasetCombiner.default_genome_interval_size
-        intervals = calculate_even_genome_partitioning(reference_genome, size)
-    elif use_exome_default_intervals:
-        size = VariantDatasetCombiner.default_exome_interval_size
-        intervals = calculate_even_genome_partitioning(reference_genome, size)
-    assert intervals is not None
+        if n_partition_args == 0:
+            raise ValueError("'new_combiner': require one argument from 'intervals', 'import_interval_size', "
+                             "'use_genome_default_intervals', or 'use_exome_default_intervals' to choose GVCF partitioning")
+
+        if n_partition_args > 1:
+            warning("'run_combiner': multiple colliding arguments found from 'intervals', 'import_interval_size', "
+                    "'use_genome_default_intervals', or 'use_exome_default_intervals'."
+                    "\n  The argument found first in the list in this warning will be used, and others ignored.")
+
+        if intervals is not None:
+            pass
+        elif import_interval_size is not None:
+            intervals = calculate_even_genome_partitioning(reference_genome, import_interval_size)
+        elif use_genome_default_intervals:
+            size = VariantDatasetCombiner.default_genome_interval_size
+            intervals = calculate_even_genome_partitioning(reference_genome, size)
+        elif use_exome_default_intervals:
+            size = VariantDatasetCombiner.default_exome_interval_size
+            intervals = calculate_even_genome_partitioning(reference_genome, size)
+        assert intervals is not None
+    else:
+        intervals = []
 
     if isinstance(reference_genome, str):
         reference_genome = hl.get_reference(reference_genome)

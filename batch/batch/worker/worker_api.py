@@ -1,6 +1,8 @@
 import abc
 from typing import Dict, Generic, TypeVar
 
+from typing_extensions import TypedDict
+
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.utils import CalledProcessError, sleep_and_backoff
@@ -12,12 +14,13 @@ from .disk import CloudDisk
 CredsType = TypeVar("CredsType", bound=CloudUserCredentials)
 
 
+class ContainerRegistryCredentials(TypedDict):
+    username: str
+    password: str
+
+
 class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
     nameserver_ip: str
-
-    @abc.abstractmethod
-    def get_compute_client(self):
-        raise NotImplementedError
 
     @abc.abstractmethod
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> CloudDisk:
@@ -32,7 +35,11 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def worker_access_token(self, session: httpx.ClientSession) -> Dict[str, str]:
+    async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def user_container_registry_credentials(self, user_credentials: CredsType) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -70,4 +77,8 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
 
     @abc.abstractmethod
     async def unmount_cloudfuse(self, mount_base_path_data: str) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def close(self):
         raise NotImplementedError

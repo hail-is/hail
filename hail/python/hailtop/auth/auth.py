@@ -2,10 +2,11 @@ from typing import Optional, Dict, Tuple
 import os
 import aiohttp
 
+from hailtop import httpx
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.aiocloud.common import Session
 from hailtop.config import get_deploy_config, DeployConfig
-from hailtop.utils import async_to_blocking, request_retry_transient_errors
+from hailtop.utils import async_to_blocking, retry_transient_errors
 
 from .tokens import Tokens, get_tokens
 
@@ -97,14 +98,12 @@ def copy_paste_login(copy_paste_token: str, namespace: Optional[str] = None):
 
 async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str] = None):
     deploy_config, headers, namespace = deploy_config_and_headers_from_namespace(namespace, authorize_target=False)
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=5),
-            headers=headers) as session:
-        async with await request_retry_transient_errors(
-                session, 'POST', deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-                params={'copy_paste_token': copy_paste_token}) as resp:
-            data = await resp.json()
+    async with httpx.client_session(headers=headers) as session:
+        data = await retry_transient_errors(
+            session.post_read_json,
+            deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
+            params={'copy_paste_token': copy_paste_token}
+        )
     token = data['token']
     username = data['username']
 
@@ -118,6 +117,25 @@ async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str]
     return namespace, username
 
 
+async def async_logout():
+    deploy_config = get_deploy_config()
+
+    auth_ns = deploy_config.service_ns('auth')
+    tokens = get_tokens()
+    if auth_ns not in tokens:
+        print('Not logged in.')
+        return
+
+    headers = await hail_credentials().auth_headers()
+    async with httpx.client_session(headers=headers) as session:
+        async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
+            pass
+    auth_ns = deploy_config.service_ns('auth')
+
+    del tokens[auth_ns]
+    tokens.write()
+
+
 def get_user(username: str, namespace: Optional[str] = None) -> dict:
     return async_to_blocking(async_get_user(username, namespace))
 
@@ -125,34 +143,42 @@ def get_user(username: str, namespace: Optional[str] = None) -> dict:
 async def async_get_user(username: str, namespace: Optional[str] = None) -> dict:
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
+    async with httpx.client_session(
             timeout=aiohttp.ClientTimeout(total=30),
             headers=headers) as session:
-        async with await request_retry_transient_errors(
-                session, 'GET', deploy_config.url('auth', f'/api/v1alpha/users/{username}')) as resp:
-            return await resp.json()
+        return await retry_transient_errors(
+            session.get_read_json,
+            deploy_config.url('auth', f'/api/v1alpha/users/{username}')
+        )
 
 
-def create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
-    return async_to_blocking(async_create_user(username, login_id, is_developer, is_service_account, namespace=namespace))
-
-
-async def async_create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
+async def async_create_user(
+    username: str,
+    login_id: str,
+    is_developer: bool,
+    is_service_account: bool,
+    hail_identity: Optional[str],
+    hail_credentials_secret_name: Optional[str],
+    *,
+    namespace: Optional[str] = None
+):
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
 
     body = {
         'login_id': login_id,
         'is_developer': is_developer,
         'is_service_account': is_service_account,
+        'hail_identity': hail_identity,
+        'hail_credentials_secret_name': hail_credentials_secret_name,
     }
 
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
+    async with httpx.client_session(
             timeout=aiohttp.ClientTimeout(total=30),
             headers=headers) as session:
-        await request_retry_transient_errors(
-            session, 'POST', deploy_config.url('auth', f'/api/v1alpha/users/{username}/create'), json=body
+        await retry_transient_errors(
+            session.post,
+            deploy_config.url('auth', f'/api/v1alpha/users/{username}/create'),
+            json=body
         )
 
 
@@ -162,10 +188,10 @@ def delete_user(username: str, namespace: Optional[str] = None):
 
 async def async_delete_user(username: str, namespace: Optional[str] = None):
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
+    async with httpx.client_session(
             timeout=aiohttp.ClientTimeout(total=300),
             headers=headers) as session:
-        await request_retry_transient_errors(
-            session, 'DELETE', deploy_config.url('auth', f'/api/v1alpha/users/{username}')
+        await retry_transient_errors(
+            session.delete,
+            deploy_config.url('auth', f'/api/v1alpha/users/{username}')
         )

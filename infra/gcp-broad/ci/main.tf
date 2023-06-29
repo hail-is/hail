@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    sops = {
+      source = "carlpett/sops"
+      version = "0.6.3"
+    }
+  }
+}
+
 resource "random_string" "hail_ci_bucket_suffix" {
   length = 5
 }
@@ -49,14 +58,24 @@ resource "kubernetes_secret" "ci_config" {
   }
 }
 
+data "sops_file" "zuliprc" {
+  count = fileexists("${var.github_organization}/zuliprc.enc") ? 1 : 0
+  source_file = "${var.github_organization}/zuliprc.enc"
+  input_type = "raw"
+}
+
+locals {
+    zuliprc = length(data.sops_file.zuliprc) == 1 ? data.sops_file.zuliprc[0] : null
+}
+
 resource "kubernetes_secret" "zulip_config" {
-  count = fileexists("~/.hail/.zuliprc") ? 1 : 0
+  count = local.zuliprc != null ? 1 : 0
   metadata {
     name = "zulip-config"
   }
 
   data = {
-    ".zuliprc" = fileexists("~/.hail/.zuliprc") ? file("~/.hail/.zuliprc") : ""
+    ".zuliprc" = local.zuliprc.raw
   }
 }
 

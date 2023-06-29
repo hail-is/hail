@@ -21,6 +21,7 @@ from hailtop.utils import (
 )
 
 from ...batch_format_version import BatchFormatVersion
+from ...globals import INSTANCE_VERSION
 from ...inst_coll_config import PoolConfig
 from ...utils import ExceededSharesCounter, regions_bits_rep_to_regions
 from ..instance import Instance
@@ -205,7 +206,7 @@ WHERE removed = 0 AND inst_coll = %s;
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if instance.region in regions:
+            if instance.region in regions and instance.version == INSTANCE_VERSION:
                 return instance
             i += 1
         return None
@@ -237,9 +238,9 @@ WHERE removed = 0 AND inst_coll = %s;
         regions: List[str],
         remaining_max_new_instances_per_autoscaler_loop: int,
     ):
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-
-        live_free_cores_mcpu = sum(self.live_free_cores_mcpu_by_region[region] for region in regions)
+        pool_stats = self.current_worker_version_stats
+        n_live_instances = pool_stats.n_instances_by_state['pending'] + pool_stats.n_instances_by_state['active']
+        live_free_cores_mcpu = sum(pool_stats.live_free_cores_mcpu_by_region[region] for region in regions)
 
         instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
@@ -432,7 +433,8 @@ GROUP BY user;
                 if remaining_instances_per_autoscaler_loop <= 0:
                     break
 
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+        pool_stats = self.current_worker_version_stats
+        n_live_instances = pool_stats.n_instances_by_state['pending'] + pool_stats.n_instances_by_state['active']
 
         capacity_for_live_instances = max(0, self.max_live_instances - n_live_instances)
         capacity_for_any_instances = max(0, self.max_instances - self.n_instances)
@@ -457,8 +459,8 @@ GROUP BY user;
                 )
 
         log.info(
-            f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
-            f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
+            f'{self} n_instances {self.n_instances} {pool_stats.n_instances_by_state}'
+            f' free_cores {free_cores} live_free_cores {pool_stats.live_free_cores_mcpu / 1000}'
             f' full_job_queue_ready_cores {sum(ready_cores_mcpu_per_user.values()) / 1000}'
             f' head_job_queue_ready_cores {sum(head_job_queue_ready_cores_mcpu.values()) / 1000}'
         )
@@ -616,8 +618,9 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
@@ -633,8 +636,9 @@ LIMIT 300;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;

@@ -687,6 +687,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(r).required)
       case NDArrayQR(child, mode, _) => requiredness.fromPType(NDArrayQR.pType(mode, lookup(child).required))
       case NDArraySVD(child, _, computeUV, _) => requiredness.fromPType(NDArraySVD.pTypes(computeUV, lookup(child).required))
+      case NDArrayEigh(child, eigvalsOnly, _) => requiredness.fromPType(NDArrayEigh.pTypes(eigvalsOnly, lookup(child).required))
       case NDArrayInv(child, _) => requiredness.unionFrom(lookup(child))
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>
@@ -739,9 +740,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val streamtype = tcoerce[RIterable](lookup(value))
         val ctxType = lookup(writeCtx)
         writer.unionTypeRequiredness(requiredness, ctxType, streamtype)
-      case ReadValue(path, spec, rt) =>
+      case ReadValue(path, reader, rt) =>
         requiredness.union(lookup(path).required)
-        requiredness.fromPType(spec.encodedType.decodedPType(rt))
+        reader.unionRequiredness(rt, requiredness)
       case In(_, t) => t match {
         case SCodeEmitParamType(et) => requiredness.unionFrom(et.typeWithRequiredness.r)
         case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType, eltRequired)) =>

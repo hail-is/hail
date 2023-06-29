@@ -137,6 +137,9 @@ object Copy {
       case NDArraySVD(_, fullMatrices, computeUV, errorID) =>
         assert(newChildren.length == 1)
         NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV, errorID)
+      case NDArrayEigh(_, eigvalsOnly, errorID) =>
+        assert(newChildren.length == 1)
+        NDArrayEigh(newChildren(0).asInstanceOf[IR], eigvalsOnly, errorID)
       case NDArrayInv(_, errorID) =>
         assert(newChildren.length == 1)
         NDArrayInv(newChildren(0).asInstanceOf[IR], errorID)
@@ -399,9 +402,9 @@ object Copy {
       case WriteMetadata(ctx, writer) =>
         assert(newChildren.length == 1)
         WriteMetadata(newChildren(0).asInstanceOf[IR], writer)
-      case ReadValue(path, spec, requestedType) =>
+      case ReadValue(path, writer, requestedType) =>
         assert(newChildren.length == 1)
-        ReadValue(newChildren(0).asInstanceOf[IR], spec, requestedType)
+        ReadValue(newChildren(0).asInstanceOf[IR], writer, requestedType)
       case WriteValue(_, _, writer, _) =>
         assert(newChildren.length == 2 || newChildren.length == 3)
         val value = newChildren(0).asInstanceOf[IR]

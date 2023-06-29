@@ -178,9 +178,10 @@ WHERE name = %s;
 
         async for record in self.db.select_and_fetchall(
             '''
-SELECT jobs.*, batches.format_version, batches.userdata, batches.user, attempts.instance_name
+SELECT jobs.*, batches.format_version, batches.userdata, batches.user, attempts.instance_name, time_ready
 FROM batches
 INNER JOIN jobs ON batches.id = jobs.batch_id
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE batches.state = 'running'
@@ -219,7 +220,8 @@ LIMIT %s;
         return should_wait
 
     def max_instances_to_create(self):
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+        pool_stats = self.current_worker_version_stats
+        n_live_instances = pool_stats.n_instances_by_state['pending'] + pool_stats.n_instances_by_state['active']
 
         return min(
             self.max_live_instances - n_live_instances,

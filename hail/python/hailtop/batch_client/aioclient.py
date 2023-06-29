@@ -369,7 +369,8 @@ class Batch:
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def jobs(self, q=None):
+    async def jobs(self, q: Optional[str] = None, version: Optional[int] = None):
+        version = version or 1
         last_job_id = None
         while True:
             params = {}
@@ -377,7 +378,7 @@ class Batch:
                 params['q'] = q
             if last_job_id is not None:
                 params['last_job_id'] = last_job_id
-            resp = await self._client._get(f'/api/v1alpha/batches/{self.id}/jobs', params=params)
+            resp = await self._client._get(f'/api/v{version}alpha/batches/{self.id}/jobs', params=params)
             body = await resp.json()
             for job in body['jobs']:
                 yield job
@@ -983,7 +984,7 @@ class BatchClient:
         bp_resp = await self._post(f'/api/v1alpha/billing_limits/{project}/edit', json={'limit': limit})
         return await bp_resp.json()
 
-    async def supported_regions(self):
+    async def supported_regions(self) -> List[str]:
         resp = await self._get('/api/v1alpha/supported_regions')
         return await resp.json()
 

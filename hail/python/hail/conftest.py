@@ -7,6 +7,7 @@ import pytest
 import hail as hl
 
 SKIP_OUTPUT_CHECK = doctest.register_optionflag('SKIP_OUTPUT_CHECK')
+HAIL_QUERY_N_CORES = os.environ.get('HAIL_QUERY_N_CORES', '*')
 
 
 @pytest.fixture(autouse=True)
@@ -34,7 +35,7 @@ def init(doctest_namespace):
     os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           "docs"))
 
-    hl.init(global_seed=0)
+    hl.init(global_seed=0, master=f'local[{HAIL_QUERY_N_CORES}]')
     hl.reset_global_randomness()
 
     try:

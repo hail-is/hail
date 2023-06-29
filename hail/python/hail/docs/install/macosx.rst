@@ -12,5 +12,5 @@ Install Hail on Mac OS X
     brew install --cask temurin8
 
 - Install Python 3.8 or later. We recommend `Miniconda <https://docs.conda.io/en/latest/miniconda.html#macosx-installers>`__.
-- Open Terminal.app and execute ``pip install hail``.
+- Open Terminal.app and execute ``pip install hail``. If this command fails with a message about "Rust", please try this instead: ``pip install hail --only-binary=:all:``.
 - `Run your first Hail query! <try.rst>`__

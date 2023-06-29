@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import signal
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Any, Dict, Set, Tuple
 
@@ -25,6 +25,7 @@ from prometheus_async.aio.web import server_stats
 from gear import (
     AuthClient,
     Database,
+    K8sCache,
     check_csrf_token,
     json_request,
     json_response,
@@ -54,12 +55,17 @@ from ..exceptions import BatchUserError
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
-from ..utils import authorization_token, batch_only, json_to_value, query_billing_projects
+from ..utils import (
+    add_metadata_to_request,
+    authorization_token,
+    batch_only,
+    json_to_value,
+    query_billing_projects_with_cost,
+)
 from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
-from .k8s_cache import K8sCache
 
 uvloop.install()
 
@@ -87,6 +93,13 @@ def instance_from_request(request):
     return inst_coll_manager.get_instance(instance_name)
 
 
+# Old workers use the Authorization header for their identity token
+# but that can conflict with bearer tokens used when the driver is behind another
+# auth mechanism
+def instance_token(request):
+    return request.headers.get('X-Hail-Instance-Token') or authorization_token(request)
+
+
 def activating_instances_only(fun):
     @wraps(fun)
     async def wrapped(request):
@@ -100,7 +113,7 @@ def activating_instances_only(fun):
             log.info(f'instance {instance.name} not pending')
             raise web.HTTPUnauthorized()
 
-        activation_token = authorization_token(request)
+        activation_token = instance_token(request)
         if not activation_token:
             log.info(f'activation token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
@@ -133,7 +146,7 @@ def active_instances_only(fun):
             log.info(f'instance not active {instance.name}')
             raise web.HTTPUnauthorized()
 
-        token = authorization_token(request)
+        token = instance_token(request)
         if not token:
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
@@ -173,6 +186,7 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
 @batch_only
+@add_metadata_to_request
 async def update_batch(request):
     db = request.app['db']
 
@@ -257,6 +271,7 @@ async def get_credentials(request, instance):  # pylint: disable=unused-argument
 
 @routes.post('/api/v1alpha/instances/activate')
 @activating_instances_only
+@add_metadata_to_request
 async def activate_instance(request, instance):
     return await asyncio.shield(activate_instance_1(request, instance))
 
@@ -269,6 +284,7 @@ async def deactivate_instance_1(instance):
 
 @routes.post('/api/v1alpha/instances/deactivate')
 @active_instances_only
+@add_metadata_to_request
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
     await asyncio.shield(deactivate_instance_1(instance))
     return web.Response()
@@ -307,6 +323,9 @@ async def job_complete_1(request, instance):
     job_id = job_status['job_id']
     attempt_id = job_status['attempt_id']
 
+    request['batch_telemetry']['batch_id'] = str(batch_id)
+    request['batch_telemetry']['job_id'] = str(job_id)
+
     state = job_status['state']
     if state == 'succeeded':
         new_state = 'Success'
@@ -343,6 +362,7 @@ async def job_complete_1(request, instance):
 
 @routes.post('/api/v1alpha/instances/job_complete')
 @active_instances_only
+@add_metadata_to_request
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
 
@@ -357,6 +377,9 @@ async def job_started_1(request, instance):
     start_time = job_status['start_time']
     resources = job_status.get('resources')
 
+    request['batch_telemetry']['batch_id'] = str(batch_id)
+    request['batch_telemetry']['job_id'] = str(job_id)
+
     await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time, resources)
 
     await instance.mark_healthy()
@@ -366,6 +389,7 @@ async def job_started_1(request, instance):
 
 @routes.post('/api/v1alpha/instances/job_started')
 @active_instances_only
+@add_metadata_to_request
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
 
@@ -403,6 +427,7 @@ SET rollup_time = %s
 
 @routes.post('/api/v1alpha/billing_update')
 @active_instances_only
+@add_metadata_to_request
 async def billing_update(request, instance):
     return await asyncio.shield(billing_update_1(request, instance))
 
@@ -431,8 +456,8 @@ FROM user_inst_coll_resources;
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'live_total_cores_mcpu': inst_coll_manager.global_live_total_cores_mcpu,
-        'live_free_cores_mcpu': inst_coll_manager.global_live_free_cores_mcpu,
+        'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
+        'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
         'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
@@ -1175,7 +1200,7 @@ async def _cancel_batch(app, batch_id):
 async def monitor_billing_limits(app):
     db: Database = app['db']
 
-    records = await query_billing_projects(db)
+    records = await query_billing_projects_with_cost(db)
     for record in records:
         limit = record['limit']
         accrued_cost = record['accrued_cost']
@@ -1318,12 +1343,15 @@ async def scheduling_cancelling_bump(app):
     app['cancel_running_state_changed'].set()
 
 
+Resource = namedtuple('Resource', ['resource_id', 'deduped_resource_id'])
+
+
 async def refresh_globals_from_db(app, db):
     resource_ids = {
-        record['resource']: record['resource_id']
+        record['resource']: Resource(record['resource_id'], record['deduped_resource_id'])
         async for record in db.select_and_fetchall(
             '''
-SELECT resource, resource_id FROM resources;
+SELECT resource, resource_id, deduped_resource_id FROM resources;
 '''
         )
     }
@@ -1334,18 +1362,21 @@ SELECT resource, resource_id FROM resources;
 class BatchDriverAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
-        self.exclude = [
-            (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
-            for endpoint in [
-                ('POST', '/api/v1alpha/instances/billing_update'),
-                ('POST', '/api/v1alpha/instances/job_complete'),
-                ('POST', '/api/v1alpha/instances/job_started'),
-                ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
-                ('POST', '/api/v1alpha/batches/cancel'),
-                ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
-                ('GET', '/metrics'),
+        if DEFAULT_NAMESPACE == 'default':
+            self.exclude = [
+                (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
+                for endpoint in [
+                    ('POST', '/api/v1alpha/instances/billing_update'),
+                    ('POST', '/api/v1alpha/instances/job_complete'),
+                    ('POST', '/api/v1alpha/instances/job_started'),
+                    ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
+                    ('POST', '/api/v1alpha/batches/cancel'),
+                    ('PATCH', '/api/v1alpha/batches/.*/.*/update'),
+                    ('GET', '/metrics'),
+                ]
             ]
-        ]
+        else:
+            self.exclude = []
 
     def log(self, request, response, time):
         for method, path_expr in self.exclude:

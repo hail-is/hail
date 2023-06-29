@@ -740,7 +740,7 @@ class Emit[C](
         val ns = sigs.length
         val deserializers = sc.states.states
           .slice(start, start + ns)
-          .map(sc => sc.deserialize(BufferSpec.defaultUncompressed))
+          .map(sc => sc.deserialize(spec))
 
         Array.range(start, start + ns).foreach(i => sc.newState(cb, i))
 
@@ -1874,6 +1874,35 @@ class Emit[C](
 
         }
 
+      case NDArrayEigh(nd, eigvalsOnly, errorID) =>
+        emitNDArrayColumnMajorStrides(nd).map(cb) { case mat: SNDArrayValue =>
+          val n = mat.shapes(0)
+          val jobz = if (eigvalsOnly) "N" else "V"
+          val (workSize, iWorkSize) = SNDArray.syevr_query(cb, jobz, "U", cb.memoize(n.toI), region)
+
+          val matType = PCanonicalNDArray(PFloat64Required, 2)
+          val vecType = PCanonicalNDArray(PFloat64Required, 1)
+          val intVecType = PCanonicalNDArray(PInt32Required, 1)
+
+          val W = vecType.constructUninitialized(FastIndexedSeq(n), cb, region)
+          val work = vecType.constructUninitialized(FastIndexedSeq(SizeValueDyn(workSize)), cb, region)
+          val iWork = intVecType.constructUninitialized(FastIndexedSeq(iWorkSize), cb, region)
+
+          if (eigvalsOnly) {
+            SNDArray.syevr(cb, "U", mat, W, None, work, iWork)
+
+            W
+          } else {
+            val resultType = NDArrayEigh.pTypes(false, false).asInstanceOf[PCanonicalTuple]
+            val Z = matType.constructUninitialized(FastIndexedSeq(n, n), cb, region)
+            val iSuppZ = vecType.constructUninitialized(FastIndexedSeq(SizeValueDyn(cb.memoize(n * 2))), cb, region)
+
+            SNDArray.syevr(cb, "U", mat, W, Some((Z, iSuppZ)), work, iWork)
+
+            resultType.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, W), EmitCode.present(cb.emb, Z)), false)
+          }
+        }
+
       case x@NDArrayQR(nd, mode, errorID) =>
         // See here to understand different modes: https://docs.scipy.org/doc/numpy/reference/generated/numpy.linalg.qr.html
         emitNDArrayColumnMajorStrides(nd).map(cb) { case pndValue: SNDArrayValue =>
@@ -2280,12 +2309,11 @@ class Emit[C](
       case CastToArray(a) =>
         emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }
 
-      case ReadValue(path, spec, requestedType) =>
+      case ReadValue(path, reader, requestedType) =>
         emitI(path).map(cb) { pv =>
-          val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(
-            mb.openUnbuffered(pv.asString.loadString(cb), checkCodec = true)))
-          val decoded = spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
-          cb += ib.close()
+          val is = cb.memoize(mb.openUnbuffered(pv.asString.loadString(cb), checkCodec = true))
+          val decoded = reader.readValue(cb, requestedType, region, is)
+          cb += is.invoke[Unit]("close")
           decoded
         }
 
@@ -2293,8 +2321,9 @@ class Emit[C](
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
             val s = stagingFile.map(emitI(_).get(cb).asString)
-            val p = EmitCode.present(mb, s.getOrElse(pv))
-            writer.writeValue(cb, v, p)
+            val os = cb.memoize(mb.createUnbuffered(s.getOrElse(pv).loadString(cb)))
+            writer.writeValue(cb, v, os)
+            cb += os.invoke[Unit]("close")
             s.foreach { stage =>
               cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", stage.loadString(cb), pv.loadString(cb), const(true))
             }
@@ -2374,7 +2403,7 @@ class Emit[C](
             PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
           }
 
-          val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
+          val bufferSpec: BufferSpec = BufferSpec.blockedUncompressed
 
           val emitGlobals = EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals))
 

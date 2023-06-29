@@ -319,11 +319,7 @@ spec:
   selector:
     matchLabels:
       app: batch
-{% if deploy %}
-  replicas: 3
-{% else %}
-  replicas: 1
-{% endif %}
+  replicas: 5
   template:
     metadata:
       labels:
@@ -444,8 +440,8 @@ spec:
          - containerPort: 443
         resources:
           requests:
-            cpu: "20m"
-            memory: "20M"
+            cpu: "100m"
+            memory: "200M"
           limits:
             cpu: "1"
             memory: "1G"
@@ -493,6 +489,7 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-batch
+{% if deploy %}
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
@@ -503,13 +500,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: batch
-{% if deploy %}
   minReplicas: 3
   maxReplicas: 10
-{% else %}
-  minReplicas: 1
-  maxReplicas: 3
-{% endif %}
   metrics:
    - type: Resource
      resource:
@@ -521,14 +513,11 @@ kind: PodDisruptionBudget
 metadata:
   name: batch
 spec:
-{% if deploy %}
   minAvailable: 2
-{% else %}
-  minAvailable: 0
-{% endif %}
   selector:
     matchLabels:
       app: batch
+{% endif %}
 ---
 apiVersion: v1
 kind: Service

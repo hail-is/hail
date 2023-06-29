@@ -36,3 +36,7 @@ variable "deploy_steps" {
 variable "github_context" {
   type = string
 }
+
+variable "storage_account_suffix" {
+  type = string
+}

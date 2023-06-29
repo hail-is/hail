@@ -10,7 +10,7 @@ from hail.expr.expressions import (
     expr_numeric, Int64Expression, cast_expr, construct_expr, expr_bool,
     unify_all)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD, Apply
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD, NDArrayEigh, Apply
 
 
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
@@ -342,7 +342,7 @@ def qr(nd, mode="reduced"):
 
     .. math::
 
-        m \gte n \\
+        m \ge n \\
         nd : \mathbb{R}^{m \times n} \\
         Q : \mathbb{R}^{m \times n} \\
         R : \mathbb{R}^{n \times n} \\
@@ -353,7 +353,7 @@ def qr(nd, mode="reduced"):
 
     .. math::
 
-        m \gte n \\
+        m \ge n \\
         nd : \mathbb{R}^{m \times n} \\
         Q : \mathbb{R}^{m \times m} \\
         R : \mathbb{R}^{m \times n} \\
@@ -423,6 +423,31 @@ def svd(nd, full_matrices=True, compute_uv=True):
     ir = NDArraySVD(float_nd._ir, full_matrices, compute_uv)
 
     return_type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)) if compute_uv else tndarray(tfloat64, 1)
+    return construct_expr(ir, return_type, nd._indices, nd._aggregations)
+
+
+@typecheck(nd=expr_ndarray(), eigvals_only=bool)
+def eigh(nd, eigvals_only=False):
+    """Performs an eigenvalue decomposition of a symmetric matrix.
+
+    Parameters
+    ----------
+    nd : :class:`.NDArrayNumericExpression`
+        A 2 dimensional ndarray, shape(N, N).
+    eigvals_only: :class:`.bool`
+        If False (default), compute the eigenvectors and eigenvalues. Otherwise, only compute eigenvalues.
+
+    Returns
+    -------
+    - w: :class:`.NDArrayNumericExpression`
+        The eigenvalues, shape(N).
+    - v: :class:`.NDArrayNumericExpression`
+        The eigenvectors, shape(N, N). Only returned if eigvals_only is false.
+    """
+    float_nd = nd.map(lambda x: hl.float64(x))
+    ir = NDArrayEigh(float_nd._ir, eigvals_only)
+
+    return_type = tndarray(tfloat64, 1) if eigvals_only else ttuple(tndarray(tfloat64, 1), tndarray(tfloat64, 2))
     return construct_expr(ir, return_type, nd._indices, nd._aggregations)
 
 

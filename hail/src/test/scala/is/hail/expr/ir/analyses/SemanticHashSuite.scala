@@ -2,7 +2,7 @@ package is.hail.expr.ir.analyses
 
 import is.hail.expr.ir._
 import is.hail.io.FakeFS
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.{FS, FileStatus, HadoopFS, LocalFSURL}
 import is.hail.types.TableType
 import is.hail.types.virtual._
 import org.scalatest.Assertions.assertResult
@@ -107,6 +107,8 @@ class SemanticHashSuite {
 
   val fakeFs: FS =
     new FakeFS {
+      override type URL = LocalFSURL
+
       override def fileChecksum(filename: String): Array[Byte] =
         filename.getBytes
 

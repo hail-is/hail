@@ -57,6 +57,12 @@ class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Po
   def getPosition: Long = count
 }
 
+trait FSURL[T <: FSURL[T]] {
+  def getPath: String
+  def addPathComponent(component: String): T
+  def fromString(s: String): T
+}
+
 trait FileStatus {
   def getPath: String
   def getModificationTime: java.lang.Long
@@ -229,34 +235,33 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
 }
 
 object FS {
-  def cloudSpecificCacheableFS(
-    credentialsPath: String,
-    flags: Option[HailFeatureFlags]
-  ): FS = retryTransientErrors {
-    val cloudSpecificFS = using(new FileInputStream(credentialsPath)) { is =>
-      val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
-      sys.env.get("HAIL_CLOUD") match {
-        case Some("gcp") =>
-          val requesterPaysConfiguration = flags.flatMap { flags =>
-            RequesterPaysConfiguration.fromFlags(
-              flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
-            )
-          }
-          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
-        case Some("azure") =>
-          new AzureStorageFS(credentialsStr).asCacheable()
-        case Some(cloud) =>
-          throw new IllegalArgumentException(s"Bad cloud: $cloud")
-        case None =>
-          throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
+  def cloudSpecificCacheableFS(credentialsPath: String, flags: Option[HailFeatureFlags]): FS =
+    retryTransientErrors {
+      val cloudSpecificFS = using(new FileInputStream(credentialsPath)) { is =>
+        val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
+        sys.env.get("HAIL_CLOUD") match {
+          case Some("gcp") =>
+            val requesterPaysConfiguration = flags.flatMap { flags =>
+              RequesterPaysConfiguration.fromFlags(
+                flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
+              )
+            }
+            new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
+          case Some("azure") =>
+            new AzureStorageFS(credentialsStr).asCacheable()
+          case Some(cloud) =>
+            throw new IllegalArgumentException(s"Bad cloud: $cloud")
+          case None =>
+            throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
+        }
       }
-    }
 
     new RouterFS(Array(cloudSpecificFS, new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration()))))
   }
 }
 
 trait FS extends Serializable {
+  type URL <: FSURL[URL]
 
   def validUrl(filename: String): Boolean
 
@@ -323,7 +328,9 @@ trait FS extends Serializable {
   def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream
 
   def readNoCompression(filename: String): Array[Byte] = retryTransientErrors {
-    IOUtils.toByteArray(openNoCompression(filename))
+    using(openNoCompression(filename)) { is =>
+      IOUtils.toByteArray(is)
+    }
   }
 
   def createNoCompression(filename: String): PositionedDataOutputStream
@@ -334,9 +341,11 @@ trait FS extends Serializable {
 
   def listStatus(filename: String): Array[FileStatus]
 
+  def listStatus(url: URL): Array[FileStatus] = listStatus(url.toString)
+
   def glob(filename: String): Array[FileStatus]
 
-  def globWithPrefix(prefix: String, path: String) = {
+  def globWithPrefix(prefix: URL, path: String) = {
     val components =
       if (path == "")
         Array.empty[String]
@@ -346,8 +355,8 @@ trait FS extends Serializable {
     val javaFS = FileSystems.getDefault
 
     val ab = new mutable.ArrayBuffer[FileStatus]()
-    def f(prefix: String, fs: FileStatus, i: Int): Unit = {
-      assert(!prefix.endsWith("/"), prefix)
+    def f(prefix: URL, fs: FileStatus, i: Int): Unit = {
+      assert(!prefix.getPath.endsWith("/"), prefix)
 
       if (i == components.length) {
         var t = fs
@@ -368,17 +377,17 @@ trait FS extends Serializable {
           val m = javaFS.getPathMatcher(s"glob:$c")
           for (cfs <- listStatus(prefix)) {
             val p = dropTrailingSlash(cfs.getPath)
-            val d = p.drop(prefix.length + 1)
+            val d = p.drop(prefix.toString.length + 1)
             if (m.matches(javaFS.getPath(d))) {
-              f(p, cfs, i + 1)
+              f(prefix.fromString(p), cfs, i + 1)
             }
           }
         } else
-          f(s"$prefix/$c", null, i + 1)
+          f(prefix.addPathComponent(c), null, i + 1)
       }
     }
 
-    f(s"$prefix", null, 0)
+    f(prefix, null, 0)
     ab.toArray
   }
 
@@ -391,6 +400,8 @@ trait FS extends Serializable {
 
   /** Return a base64-encoded checksum of the contexts of filename */
   def fileChecksum(filename: String): Array[Byte]
+
+  def fileStatus(url: URL): FileStatus = fileStatus(url.toString)
 
   def makeQualified(path: String): String
 

@@ -1,11 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.types._
-import is.hail.types.physical.PStruct
-import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s._
@@ -198,5 +195,5 @@ class MatrixTableSpec(
 }
 
 object FileFormat {
-  val version: SemanticVersion = SemanticVersion(1, 6, 0)
+  val version: SemanticVersion = SemanticVersion(1, 7, 0)
 }
