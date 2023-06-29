@@ -54,7 +54,6 @@ object LoweringPipeline {
     // recursively lowers and executes
     val withShuffleRewrite =
       LoweringPipeline(
-        ComputeSemanticHash,
         LowerAndExecuteShufflesPass(base),
         OptimizePass(s"$context, after LowerAndExecuteShuffles")
       ) + base
@@ -91,11 +90,15 @@ object LoweringPipeline {
   )
   private val _compileLowererNoOpt = _compileLowerer.noOptimization()
 
-  private val _dArrayLowerers = Array(
-    DArrayLowering.All,
-    DArrayLowering.TableOnly,
-    DArrayLowering.BMOnly).map { lv =>
-    (lv -> fullLoweringPipeline("darrayLowerer", LowerToDistributedArrayPass(lv)))
+  private val _dArrayLowerers: Map[DArrayLowering.Type, LoweringPipeline] =
+    Array(
+      DArrayLowering.All,
+      DArrayLowering.TableOnly,
+      DArrayLowering.BMOnly
+    ).map { lv =>
+      lv ->
+        (LoweringPipeline(ComputeSemanticHash) +
+          fullLoweringPipeline("darrayLowerer", LowerToDistributedArrayPass(lv)))
   }.toMap
 
   private val _dArrayLowerersNoOpt = _dArrayLowerers.mapValues(_.noOptimization()).toMap

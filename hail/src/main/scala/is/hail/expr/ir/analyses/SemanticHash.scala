@@ -14,6 +14,7 @@ import java.util.UUID
 case object SemanticHash extends Logging {
 
   type Type = Int
+  type NullableType = Integer
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
   object Hash {
@@ -241,6 +242,8 @@ case object SemanticHash extends Logging {
              _: NDArraySlice |
              _: NDArrayWrite |
              _: RelationalLet |
+             _: RNGSplit |
+             _: RNGStateLiteral |
              _: StreamAgg |
              _: StreamDrop |
              _: StreamDropWhile |

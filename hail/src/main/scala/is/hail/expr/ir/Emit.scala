@@ -2502,16 +2502,11 @@ class Emit[C](
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[SemanticHash.Type]("semhash")
-          val nextHash = ctx.executeContext.irMetadata.nextHash
-          nextHash.foreach { h =>
-            cb.assign(semhash, h)
-          }
-
+          val semhash = cb.newLocal[Integer]("semhash")
           emitI(dynamicID).consume(cb, (), { dynamicID =>
             val dynV = dynamicID.asString.loadString(cb)
             cb.assign(stageName, stageName.concat("|").concat(dynV))
-            nextHash.foreach { _ =>
+            ctx.executeContext.irMetadata.nextHash.foreach { staticHash =>
               val dynamicHash =
                 Code.invokeScalaObject[SemanticHash.Type](
                   SemanticHash.Hash.getClass,
@@ -2521,11 +2516,13 @@ class Emit[C](
                 )
 
               val combined =
-                Code.invokeScalaObject[SemanticHash.Type](
-                  SemanticHash.Hash.getClass,
-                  "combine",
-                  Array.fill(2)(classOf[SemanticHash.Type]),
-                  Array(semhash, dynamicHash)
+                Code.newInstance[SemanticHash.NullableType, SemanticHash.Type](
+                  Code.invokeScalaObject[SemanticHash.Type](
+                    SemanticHash.Hash.getClass,
+                    "combine",
+                    Array.fill(2)(classOf[SemanticHash.Type]),
+                    Array(staticHash, dynamicHash)
+                  )
                 )
 
               cb.assign(semhash, combined)
@@ -2533,7 +2530,7 @@ class Emit[C](
           })
 
           val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
-          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.Type, Option[TableStageDependency], Array[Array[Byte]]](
+          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.NullableType, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
             mb.getHailClassLoader,

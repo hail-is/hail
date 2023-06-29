@@ -31,7 +31,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                     contexts: Array[Array[Byte]],
                     globals: Array[Byte],
                     stageName: String,
-                    @Nullable semhash: SemanticHash.Type,
+                    @Nullable semhash: SemanticHash.NullableType,
                     tsd: Option[TableStageDependency]
                    ): Array[Array[Byte]] = {
 
