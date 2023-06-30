@@ -107,12 +107,10 @@ class SemanticHashSuite {
 
   val fakeFs: FS =
     new FakeFS {
-      override type URL = LocalFSURL
-
       override def fileChecksum(filename: String): Array[Byte] =
         filename.getBytes
 
-      override def listStatus(filename: String): Array[FileStatus] =
+      override def glob(filename: String): Array[FileStatus] =
         Array(new FileStatus {
           override def getPath: String = filename
           override def getModificationTime: lang.Long = ???
