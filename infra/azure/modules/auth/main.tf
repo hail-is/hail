@@ -21,6 +21,27 @@ module "auth_sp" {
   application_object_id = azuread_application.auth.object_id
 }
 
+resource "azuread_application" "testns_auth" {
+  display_name = "${var.resource_group_name}-testns-auth"
+
+  required_resource_access {
+    resource_app_id = "00000003-0000-0000-c000-000000000000"
+
+    resource_access {
+      # Application.ReadWrite.All
+      id   = "1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9"
+      type = "Role"
+    }
+  }
+}
+module "testns_auth_sp" {
+  source = "../service_principal"
+
+  name                  = "testns-auth"
+  application_id        = azuread_application.testns_auth.application_id
+  application_object_id = azuread_application.testns_auth.object_id
+}
+
 resource "azuread_application" "oauth2" {
   display_name = "${var.resource_group_name}-oauth2"
 
