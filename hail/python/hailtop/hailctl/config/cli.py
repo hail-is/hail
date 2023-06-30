@@ -143,7 +143,7 @@ A parameter with more than one slash is invalid, for example:
 
 
 def complete_config_variable(incomplete: str):
-    for name, help_text, validation in config_variables():
+    for name, help_text, _ in config_variables():
         if name.startswith(incomplete):
             completion_item = (name, help_text)
             yield completion_item
@@ -160,7 +160,8 @@ def set(parameter: Ann[str, Arg(default=..., help="Configuration variable to set
 
     validations = {name: validation for name, _, validation in config_variables()}
 
-    if parameter not in config_variables:
+    if parameter not in validations:
+        print(f"Error: unknown parameter {parameter}", file=sys.stderr)
         sys.exit(1)
 
     validation_func, msg = validations.get(parameter, (lambda _: True, ''))  # type: ignore
@@ -182,11 +183,6 @@ def set(parameter: Ann[str, Arg(default=..., help="Configuration variable to set
         f = open(config_file, 'w', encoding='utf-8')
     with f:
         config.write(f)
-
-
-from rich.console import Console
-
-console = Console(stderr=True)
 
 
 def get_config_variable(incomplete: str):
