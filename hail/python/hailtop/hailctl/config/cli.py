@@ -130,7 +130,7 @@ Parameters must contain at most one slash separating the configuration section
 from the configuration parameter, for example: "batch/billing_project".
 
 Parameters may also have no slashes, indicating the parameter is a global
-parameter, for example: "email".
+parameter, for example: "domain".
 
 A parameter with more than one slash is invalid, for example:
 "batch/billing/project".
