@@ -171,8 +171,6 @@ def test_combiner_manual_filtration():
     assert list(vds.reference_data.entry) == ['END', 'GQ']
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_ref_block_max_len_propagates_in_combiner():
     gvcfs = ['NA21123.hg38.g.vcf.gz', 'NA21099.hg38.g.vcf.gz', 'NA19747.hg38.g.vcf.gz']
     with hl.TemporaryDirectory() as tmpdir:
