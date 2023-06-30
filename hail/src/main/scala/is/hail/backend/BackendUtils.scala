@@ -89,10 +89,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                     val gs = globalsBC.value
                     fs.setConfiguration(fsConfig)
                     htc.getRegionPool().scopedRegion { region =>
-                      val run = f(theHailClassLoader, fs, htc, region)
-                      is.hail.services.retryTransientErrors {
-                        run(region, ctx, gs)
-                      }
+                      f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
                     }
                 }
               (failureOpt, successes)
