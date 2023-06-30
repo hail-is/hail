@@ -238,7 +238,7 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
 
     vmt = vds.variant_data
     if 'GT' not in vmt.entry:
-        vmt = vmt.annotate_entries(GT=hl.experimental.lgt_to_gt(vmt.LGT, vmt.LA))
+        vmt = vmt.annotate_entries(GT=hl.vds.lgt_to_gt(vmt.LGT, vmt.LA))
 
     vmt = vmt.annotate_rows(**{
         variant_ac: hl.agg.call_stats(vmt.GT, vmt.alleles).AC,
