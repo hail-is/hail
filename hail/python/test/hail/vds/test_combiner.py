@@ -22,8 +22,6 @@ all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
                'NA20796', 'HG00323', 'HG01384', 'NA18613', 'NA20802']
 
 
-@fails_local_backend
-@fails_service_backend
 def test_combiner_works():
     _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
     paths = [resource(p) for p in _paths]
@@ -111,11 +109,8 @@ def test_move_load_combiner_plan():
     assert plan == plan_loaded
 
 
-@fails_local_backend
-@fails_service_backend
 @test_timeout(5 * 60)
 def test_combiner_run():
-
     tmpdir = new_temp_file()
     samples = all_samples[:5]
 
@@ -148,8 +143,6 @@ def test_combiner_run():
     assert hl.vds.read_vds(final_path_1)._same(hl.vds.read_vds(final_path_2))
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_combiner_manual_filtration():
     sample_names = all_samples[:2]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
