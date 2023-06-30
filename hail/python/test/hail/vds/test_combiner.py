@@ -47,41 +47,6 @@ def test_combiner_works():
         comb.reference_data._force_count_rows()
 
 
-@fails_local_backend
-@fails_service_backend
-@test_timeout(12 * 60)
-def test_vcf_vds_combiner_equivalence():
-    import hail.experimental.sparse_mt.vcf_combiner as vcf
-    import hail.vds.combiner as vds
-    _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
-    paths = [resource(p) for p in _paths]
-    parts = [
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
-                    includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
-                    includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
-                    includes_end=True)
-    ]
-    vcfs = [mt.annotate_rows(info=mt.info.annotate(
-        MQ_DP=hl.missing(hl.tint32),
-        VarDP=hl.missing(hl.tint32),
-        QUALapprox=hl.missing(hl.tint32)))
-            for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
-                                      array_elements_required=False)]
-    entry_to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000) - {'GT', 'PGT', 'PL'}
-    vds = vds.combine_variant_datasets([vds.transform_gvcf(mt, reference_entry_fields_to_keep=entry_to_keep) for mt in vcfs])
-    vds.variant_data = vds.variant_data.drop('RGQ')
-    smt = vcf.combine_gvcfs([vcf.transform_gvcf(mt) for mt in vcfs]).drop('RGQ')
-    vds_from_smt = hl.vds.VariantDataset.from_merged_representation(smt, ref_block_fields=list(vds.reference_data.entry.drop('END')))
-
-    assert vds.variant_data._same(vds_from_smt.variant_data, reorder_fields=True)
-    assert vds.reference_data._same(vds_from_smt.reference_data, reorder_fields=True)
-
-
 def test_combiner_plan_round_trip_serialization():
     sample_names = all_samples[:5]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]

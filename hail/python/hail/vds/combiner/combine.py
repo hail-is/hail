@@ -277,10 +277,10 @@ def make_reference_matrix_table(mt: MatrixTable,
 def transform_gvcf(mt: MatrixTable,
                    reference_entry_fields_to_keep: Collection[str],
                    info_to_keep: Optional[Collection[str]] = None) -> VariantDataset:
-    """Transforms a GVCF into a sparse matrix table
+    """Transforms a GVCF into a single sample VariantDataSet
 
-    The input to this should be some result of either :func:`.import_vcf` or
-    :func:`.import_gvcfs` with ``array_elements_required=False``.
+    The input to this should be some result of :func:`.import_vcf`
+    ``array_elements_required=False``.
 
     There is an assumption that this function will be called on a matrix table
     with one column (or a localized table version of the same).
