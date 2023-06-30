@@ -32,19 +32,9 @@ def config_variables():
 
     variables = [
         (
-            'email',
-            'Email address',
-            (lambda x: re.fullmatch(r'.+@.+', x) is not None, 'should be valid email address'),
-        ),
-        (
             'domain',
             'Domain of the Batch service',
             (lambda x: re.fullmatch(r'.+\..+', x) is not None, 'should be valid domain'),
-        ),
-        (
-            'default_namespace',
-            'For developers - name of namespace to target',
-            (lambda x: re.fullmatch(r'[^:/\s]+', x) is not None, 'should be valid namespace'),
         ),
         (
             'gcs_requester_pays/project',
