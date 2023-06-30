@@ -4,6 +4,7 @@ import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToVa
 import is.hail.expr.ir.lowering.RVDTableReader
 import is.hail.expr.ir.{MatrixRangeReader, _}
 import is.hail.io.fs.FS
+import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
 import is.hail.utils.Logging
@@ -45,6 +46,7 @@ case object SemanticHash extends Logging {
     Hash(fs.fileChecksum(path))
 
   def apply(fs: FS)(root: BaseIR): Option[Type] = {
+    log.info(s"Computing semantic hash of initial IR: $root")
     val normalized = new NormalizeNames(_.toString, allowFreeVariables = true)(root)
     val semhash = IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
       val thishash = semhash <> Hash(ir.getClass) <> (ir match {
@@ -126,11 +128,19 @@ case object SemanticHash extends Logging {
             case MatrixRangeReader(params, nPartitionsAdj) =>
               Hash(params.nRows) <> Hash(params.nCols) <> params.nPartitions.foldLeft(Hash(nPartitionsAdj))(_ <> Hash(_))
 
-            case reader => reader
-              .pathsUsed
-              .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
-              .map(g => getFileHash(fs)(g.getPath))
-              .reduce(_ <> _)
+            case _: MatrixNativeReader =>
+              reader
+                .pathsUsed
+                .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+                .map(g => getFileHash(fs)(g.getPath))
+                .reduce(_ <> _)
+
+            case _: MatrixVCFReader =>
+              reader.pathsUsed.map(getFileHash(fs)).reduce(_ <> _)
+
+            case _ =>
+              log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
+              return None
           })
 
         case MatrixWrite(_, writer) =>
@@ -166,22 +176,19 @@ case object SemanticHash extends Logging {
           Hash(count) <> Hash(numPartitions)
 
         case TableRead(_, dropRows, reader)  =>
-          Hash(dropRows) <> (reader match {
-            case _: RVDTableReader =>
-              log.info("SemanticHash unknown: RVDTableReader")
-              return None
-
+          Hash(dropRows) <> Hash(reader.getClass) <> (reader match {
             case StringTableReader(_, fileStatuses) =>
-              fileStatuses.foldLeft(Hash(classOf[StringTableReader])) { (hash, status) =>
-                hash <> getFileHash(fs)(status.getPath)
-              }
+              fileStatuses.map(s => getFileHash(fs)(s.getPath)).reduce(_ <> _)
 
-            case _ =>
-              Hash(reader.getClass) <> reader
-                .pathsUsed
+            case r: TableNativeReader =>
+              r.pathsUsed
                 .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
                 .map(g => getFileHash(fs)(g.getPath))
                 .reduce(_ <> _)
+
+            case _ =>
+              log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
+              return None
           })
 
         case TableToValueApply(_, op) =>
@@ -195,7 +202,7 @@ case object SemanticHash extends Logging {
                   Hash(op.getClass)
 
                 case _: MatrixExportEntriesByCol =>
-                  log.info("SemanticHash unknown: MatrixExportEntriesByCol")
+                  log.warn("SemanticHash unknown: MatrixExportEntriesByCol")
                   return None
               })
 
@@ -302,15 +309,15 @@ case object SemanticHash extends Logging {
         // In these cases, just return a random SemanticHash meaning that two
         // invocations will never return the same thing.
         case _ =>
-          log.info(s"SemanticHash unknown: ${ir.getClass.getName}")
+          log.warn(s"SemanticHash unknown: ${ir.getClass.getName}")
           return None
       })
 
-      log.info(s"[$thishash]: $ir")
+      log.debug(s"[$thishash]: $ir")
       thishash
     }
 
-    log.info(s"IR Semantic Hash: ${semhash}")
+    log.info(s"IR Semantic Hash: $semhash")
     Some(semhash)
   }
 }
