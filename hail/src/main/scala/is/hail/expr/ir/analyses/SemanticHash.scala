@@ -1,7 +1,6 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
-import is.hail.expr.ir.lowering.RVDTableReader
 import is.hail.expr.ir.{MatrixRangeReader, _}
 import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
@@ -9,8 +8,6 @@ import is.hail.methods._
 import is.hail.types.virtual._
 import is.hail.utils.Logging
 import org.apache.commons.codec.digest.MurmurHash3
-
-import java.util.UUID
 
 case object SemanticHash extends Logging {
 
