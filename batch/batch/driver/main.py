@@ -1427,7 +1427,7 @@ ORDER BY n_tokens DESC;
 
     async for target in targets:
         try:
-            await compact(target)
+            await compact(target)  # pylint: disable=no-value-for-parameter
         except asyncio.CancelledError:
             raise
         except ValueError:
