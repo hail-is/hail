@@ -1388,7 +1388,7 @@ INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE `usage` = %s
 ''',
-            (target['billing_project'], target['user'], target['resource_id'], 0, original_usage),
+            (target['billing_project'], target['user'], target['resource_id'], 0, original_usage, original_usage),
         )
 
         await tx.just_execute(
@@ -1410,11 +1410,13 @@ GROUP BY billing_project, `user`, resource_id;
         )
 
         if new_usage != original_usage:
-            log.exception(f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting')
+            log.exception(
+                f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
+            )
             raise ValueError()
 
     targets = db.execute_and_fetchall(
-                '''
+        '''
 SELECT billing_project, `user`, resource_id
 FROM (
   SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
@@ -1423,7 +1425,8 @@ FROM (
   GROUP BY billing_project, `user`, resource_id
 ) AS t
 ORDER BY n_tokens DESC;
-    ''')
+    '''
+    )
 
     async for target in targets:
         try:
