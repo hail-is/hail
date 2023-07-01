@@ -123,7 +123,6 @@ Reference documentation
 .. autofunction:: import_table
 .. autofunction:: import_lines
 .. autofunction:: import_vcf
-.. autofunction:: import_gvcfs
 .. autofunction:: export_vcf
 .. autofunction:: export_elasticsearch
 .. autofunction:: export_bgen
