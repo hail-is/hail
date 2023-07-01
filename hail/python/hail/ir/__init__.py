@@ -1,6 +1,5 @@
 from .export_type import ExportType
-from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, \
-    JIRVectorReference
+from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR
 from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     BlockMatrixMultiWrite, TableToValueApply, \
     MatrixToValueApply, BlockMatrixToValueApply, BlockMatrixCollect, \
@@ -68,7 +67,6 @@ __all__ = [
     'TableIR',
     'MatrixIR',
     'BlockMatrixIR',
-    'JIRVectorReference',
     'register_functions',
     'register_aggregators',
     'filter_predicate_with_keep',
