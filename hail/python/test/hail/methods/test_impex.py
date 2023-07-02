@@ -372,11 +372,12 @@ class VCFTests(unittest.TestCase):
 
     def test_import_gvcfs_long_line(self):
         import bz2
+        fs = hl.current_backend().fs
         path = resource('gvcfs/long_line.g.vcf.gz')
         vcf = hl.import_vcf(path, force_bgz=True)
         [data] = vcf.info.Custom.collect()
-        with bz2.open(resource('gvcfs/long_line.ref.bz2')) as ref:
-            ref_str = ref.read().decode('utf-8')
+        with fs.open(resource('gvcfs/long_line.ref.bz2'), 'rb') as ref:
+            ref_str = bz2.open(ref).read().decode('utf-8')
             self.assertEqual(ref_str, data)
 
     def test_vcf_parser_golden_master__ex_GRCh37(self):
