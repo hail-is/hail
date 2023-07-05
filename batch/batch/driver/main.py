@@ -1425,7 +1425,9 @@ GROUP BY billing_project, `user`, resource_id;
         )
 
         if new_usage['usage'] != original_usage['usage']:
-            raise ValueError(f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting')
+            raise ValueError(
+                f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
+            )
 
     await compact()  # pylint: disable=no-value-for-parameter
 
@@ -1495,7 +1497,9 @@ GROUP BY billing_date, billing_project, `user`, resource_id;
         )
 
         if new_usage['usage'] != original_usage['usage']:
-            raise ValueError(f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting')
+            raise ValueError(
+                f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
+            )
 
     await compact()  # pylint: disable=no-value-for-parameter
 
