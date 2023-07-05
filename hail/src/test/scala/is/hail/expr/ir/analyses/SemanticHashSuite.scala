@@ -3,8 +3,10 @@ package is.hail.expr.ir.analyses
 import is.hail.expr.ir._
 import is.hail.io.FakeFS
 import is.hail.io.fs.{FS, FileStatus, HadoopFS, LocalFSURL}
+import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.TableType
 import is.hail.types.virtual._
+import org.json4s.JValue
 import org.scalatest.Assertions.assertResult
 import org.testng.annotations.{DataProvider, Test}
 
@@ -13,90 +15,181 @@ import scala.util.Random
 
 class SemanticHashSuite {
 
-  def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {
-    def mkTableIR(ttype: TableType, path: String): TableIR =
-      TableRead(ttype, dropRows = false, new FakeTableReader() {
-        override def pathsUsed: Seq[String] = IndexedSeq(path)
-        override def fullType: TableType = ttype
-      })
-
-    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq(), TStruct())
-    val tir = mkTableIR(ttype, "gs://fake-bucket/fake-table")
-
-    Array.concat(
-      Array(
-        Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("a")), true),
-        Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("b")), false)
-      ),
-      Array(
-        TableGetGlobals,
-        TableCollect,
-        TableAggregate(_, Void()),
-        TableCount,
-        TableMapRows(_, MakeStruct(IndexedSeq.empty)),
-        TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
-        TableFilter(_, Void()),
-        TableDistinct
-      ).flatMap { wrap =>
-        Array(
-          Array(wrap(tir), wrap(tir), true),
-          Array(wrap(tir), wrap(mkTableIR(ttype, "/fake/table")), false)
-        )
-      }
+  def isTriviallySemanticallyEquivalent: Array[Array[Any]] =
+    Array(
+      Array(    True(),       True(),  true, "Refl"),
+      Array(   False(),      False(),  true, "Refl"),
+      Array(    True(),      False(), false, "Refl"),
+      Array(    I32(0),       I32(0),  true, "Refl"),
+      Array(    I32(0),       I32(1), false, "Refl"),
+      Array(    I64(0),       I64(0),  true, "Refl"),
+      Array(    I64(0),       I64(1), false, "Refl"),
+      Array(    F32(0),       F32(0),  true, "Refl"),
+      Array(    F32(0),       F32(1), false, "Refl"),
+      Array(    Void(),       Void(),  true, "Refl"),
+      Array(  Str("a"),     Str("a"),  true, "Refl"),
+      Array(  Str("a"),     Str("b"), false, "Refl"),
+      Array(NA(TInt32),   NA(TInt32),  true, "Refl"),
+      Array(NA(TInt32), NA(TFloat64), false, "Refl")
     )
-  }
 
-  def isLetSemanticallyEquivalent: Array[Array[Any]] = {
-    val input = Void()
+  def isLetSemanticallyEquivalent: Array[Array[Any]] =
     Array((Let, Ref), (RelationalLet, RelationalRef)).flatMap { case (let, ref) =>
       Array(
-        // let-bound names don't change the semantics
-        Array(let("A", input, ref("A", input.typ)), let("B", input, ref("B", input.typ)), true),
-
-        // if some other operation
-        Array(let("A", input, let("B", Void(), ref("A", input.typ))), let("B", input, ref("B", input.typ)), false),
-
-        // For simplicity, we assume copy propagation has occurred by this point.
         Array(
-          let("A", input, let("B", ref("A", input.typ), ref("B", input.typ))),
-          let("A", input, ref("A", input.typ)),
-          false
+          let("A", Void(), ref("A", TVoid)),
+          let("B", Void(), ref("B", TVoid)),
+          true,
+          "names used in let-bindings do not change semantics"
+        ),
+        Array(
+          let("A", I32(0), ref("A", TInt32)),
+          let("B", Void(), ref("B", TVoid)),
+          false,
+          "different IRs"
+        ),
+        /* `SemanticHash` does not perform or recognise opportunities for simplification.
+         * The following examples demonstrate some of its limitations as a consequence.
+         */
+        Array(
+          let("A", Void(), ref("A", TVoid)),
+          let("A", let(genUID(), I32(0), Void()), ref("A", TVoid)),
+          false,
+          "SemanticHash does not simplify"
+        ),
+        Array(
+          let("A", Void(), ref("A", TVoid)),
+          let("A", Void(), let("B", I32(0), ref("A", TVoid))),
+          false,
+          "SemanticHash does not simplify"
         )
       )
     }
-  }
 
-  def isMakeBaseStructSemanticallyEquivalent: Array[Array[Any]] =
+  def isBaseStructSemanticallyEquivalent: Array[Array[Any]] =
     Array.concat(
       Array(
-        Array(MakeStruct(Array.empty[(String, IR)]), MakeStruct(Array.empty[(String, IR)]), true),
-        Array(MakeStruct(Array(genUID() -> Void())), MakeStruct(Array(genUID() -> Void())), true),
-        Array(MakeTuple(Array.empty[(Int, IR)]), MakeTuple(Array.empty[(Int, IR)]), true),
-        Array(MakeTuple(Array(0 -> Void())), MakeTuple(Array(0 -> Void())), true),
-        Array(MakeTuple(Array(Random.nextInt -> Void())), MakeTuple(Array(Random.nextInt -> Void())), false)
+        Array(
+          MakeStruct(Array.empty[(String, IR)]),
+          MakeStruct(Array.empty[(String, IR)]),
+          true,
+          "empty structs"
+        ),
+        Array(
+          MakeStruct(Array(genUID() -> Void())),
+          MakeStruct(Array(genUID() -> Void())),
+          true,
+          "field names do not affect MakeStruct semantics"
+        ),
+        Array(
+          MakeTuple(Array.empty[(Int, IR)]),
+          MakeTuple(Array.empty[(Int, IR)]),
+          true,
+          "empty tuples"
+        ),
+        Array(
+          MakeTuple(Array(0 -> Void())),
+          MakeTuple(Array(0 -> Void())),
+          true,
+          "identical tuples"
+        ),
+        Array(
+          MakeTuple(Array(0 -> Void())),
+          MakeTuple(Array(1 -> Void())),
+          false,
+          "tuple indices affect MakeTuple semantics"
+        )
       ), {
-        def f(mkType: Int => Type, get: (IR, Int) => IR, isSame: Boolean) =
-          Array.tabulate(2) { idx => bindIR(NA(mkType(idx)))(get(_, idx)) } ++ Array(isSame)
+
+        def f(mkType: Int => Type, get: (IR, Int) => IR, isSame: Boolean, reason: String) =
+          Array.tabulate(2) { idx => bindIR(NA(mkType(idx)))(get(_, idx)) } ++ Array(isSame, reason)
 
         Array(
-          f(mkType = i => TStruct(i.toString -> TVoid), get = (ir, i) => GetField(ir, i.toString), isSame = true),
-          f(mkType = _ => TTuple(TVoid), get = (ir, _) => GetTupleElement(ir, 0), isSame = true),
-          f(mkType = i => TTuple(Array(TupleField(i, TVoid))), get = (ir, i) => GetTupleElement(ir, i), isSame = false)
+          f(
+            mkType = i => TStruct(i.toString -> TVoid),
+            get = (ir, i) => GetField(ir, i.toString),
+            isSame = true,
+            "field names do not affect GetField semantics"
+          ),
+          f(
+            mkType = _ => TTuple(TVoid),
+            get = (ir, _) => GetTupleElement(ir, 0),
+            isSame = true,
+            "GetTupleElement of same index"
+          ),
+          f(
+            mkType = i => TTuple(Array(TupleField(i, TVoid))),
+            get = (ir, i) => GetTupleElement(ir, i),
+            isSame = false,
+            "GetTupleElement on different index"
+          )
         )
       }
     )
+
+  def isValueIRSemanticallyEquivalent: Array[Array[Any]] =
+    Array.concat(
+      isTriviallySemanticallyEquivalent,
+      isLetSemanticallyEquivalent,
+      isBaseStructSemanticallyEquivalent
+    )
+
+  def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {
+    def mkTableIR(ttype: TableType, path: String): TableIR =
+      TableRead(ttype, dropRows = false, new TableNativeReader(
+        TableNativeReaderParameters(path, None),
+        new AbstractTableSpec {
+          override def references_rel_path: String = ???
+          override def table_type: TableType = ttype
+          override def rowsSpec: AbstractRVDSpec = ???
+          override def globalsSpec: AbstractRVDSpec = ???
+          override def file_version: Int = ???
+          override def hail_version: String = ???
+          override def components: Map[String, ComponentSpec] = ???
+          override def toJValue: JValue = ???
+        }
+      ))
+
+    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq(), TStruct())
+    val tir = mkTableIR(ttype, "/fake/table")
+
+    Array.concat(
+      Array(
+        Array(tir, tir, true, "TableRead same table"),
+        Array(tir, mkTableIR(ttype, "/another/fake/table"), false, "TableRead different table"),
+        Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("a")), true, "TableKeyBy same key"),
+        Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("b")), false, "TableKeyBy different key")
+      ),
+      Array(
+        TableGetGlobals,
+        TableAggregate(_, Void()),
+        TableCollect,
+        TableCount,
+        TableDistinct,
+        TableFilter(_, Void()),
+        TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
+        TableMapRows(_, MakeStruct(IndexedSeq.empty)),
+        TableRename(_, Map.empty, Map.empty),
+      ).map { wrap =>
+        Array(wrap(tir), wrap(tir), true, "")
+      }
+    )
+  }
+
+  def isMatrixIRSemanticallyEquivalent: Array[Array[Any]] =
+    Array.empty
 
   @DataProvider(name = "isBaseIRSemanticallyEquivalent")
   def isBaseIRSemanticallyEquivalent: Array[Array[Any]] =
     Array.concat(
+      isValueIRSemanticallyEquivalent,
       isTableIRSemanticallyEquivalent,
-      isLetSemanticallyEquivalent,
-      isMakeBaseStructSemanticallyEquivalent
+      isMatrixIRSemanticallyEquivalent
     )
 
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
-  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean): Unit =
-    assertResult(isEqual, s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b)")(
+  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
+    assertResult(isEqual, s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment")(
       semhash(a) == semhash(b)
     )
 

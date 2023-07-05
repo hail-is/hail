@@ -177,8 +177,8 @@ case object SemanticHash extends Logging {
             case StringTableReader(_, fileStatuses) =>
               fileStatuses.map(s => getFileHash(fs)(s.getPath)).reduce(_ <> _)
 
-            case r: TableNativeReader =>
-              r.pathsUsed
+            case _: TableNativeReader | _: TableNativeZippedReader =>
+              reader.pathsUsed
                 .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
                 .map(g => getFileHash(fs)(g.getPath))
                 .reduce(_ <> _)
@@ -303,7 +303,7 @@ case object SemanticHash extends Logging {
         case NA(typ) => Hash(SemanticTypeName(typ))
         case Str(x) => Hash(x)
 
-        // In these cases, just return a random SemanticHash meaning that two
+        // In these cases, just return None meaning that two
         // invocations will never return the same thing.
         case _ =>
           log.warn(s"SemanticHash unknown: ${ir.getClass.getName}")
