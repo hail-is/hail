@@ -1619,8 +1619,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
 
     # 3 seconds was chosen for the initial compaction time to get through all existing records in a reasonable amount of time
-    task_manager.ensure_future(periodically_call(3, compact_agg_billing_project_users_table, db))
-    task_manager.ensure_future(periodically_call(3, compact_agg_billing_project_users_by_date_table, db))
+    task_manager.ensure_future(periodically_call(1, compact_agg_billing_project_users_table, db))
+    task_manager.ensure_future(periodically_call(1, compact_agg_billing_project_users_by_date_table, db))
 
 
 async def on_cleanup(app):
