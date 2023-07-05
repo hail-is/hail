@@ -1373,13 +1373,10 @@ async def compact_agg_billing_project_users_table(db: Database):
     async def compact(tx: Transaction):
         target = await tx.execute_and_fetchone(
             '''
-SELECT billing_project, `user`, resource_id
-FROM (
-  SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
-  FROM aggregated_billing_project_user_resources_v3
-  WHERE token != 0
-  GROUP BY billing_project, `user`, resource_id
-) AS t
+SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
+FROM aggregated_billing_project_user_resources_v3
+WHERE token != 0
+GROUP BY billing_project, `user`, resource_id
 ORDER BY n_tokens DESC
 LIMIT 1;
 ''',
@@ -1419,7 +1416,7 @@ WHERE billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
 
         new_usage = await tx.execute_and_fetchone(
             '''
-SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
 FROM aggregated_billing_project_user_resources_v3
 WHERE billing_project = %s AND `user` = %s AND resource_id = %s
 GROUP BY billing_project, `user`, resource_id;
@@ -1427,11 +1424,8 @@ GROUP BY billing_project, `user`, resource_id;
             (target['billing_project'], target['user'], target['resource_id']),
         )
 
-        if new_usage != original_usage:
-            log.exception(
-                f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
-            )
-            raise ValueError()
+        if new_usage['usage'] != original_usage['usage']:
+            raise ValueError(f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting')
 
     await compact()  # pylint: disable=no-value-for-parameter
 
@@ -1441,13 +1435,10 @@ async def compact_agg_billing_project_users_by_date_table(db: Database):
     async def compact(tx: Transaction):
         target = await tx.execute_and_fetchone(
             '''
-SELECT billing_date, billing_project, `user`, resource_id
-FROM (
-  SELECT billing_date, billing_project, `user`, resource_id, COUNT(*) AS n_tokens
-  FROM aggregated_billing_project_user_resources_by_date_v3
-  WHERE token != 0
-  GROUP BY billing_date, billing_project, `user`, resource_id
-) AS t
+SELECT billing_date, billing_project, `user`, resource_id, COUNT(*) AS n_tokens
+FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE token != 0
+GROUP BY billing_date, billing_project, `user`, resource_id
 ORDER BY n_tokens DESC
 LIMIT 1;
 ''',
@@ -1495,7 +1486,7 @@ WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id
 
         new_usage = await tx.execute_and_fetchone(
             '''
-SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
 FROM aggregated_billing_project_user_resources_by_date_v3
 WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s
 GROUP BY billing_date, billing_project, `user`, resource_id;
@@ -1503,11 +1494,8 @@ GROUP BY billing_date, billing_project, `user`, resource_id;
             (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
         )
 
-        if new_usage != original_usage:
-            log.exception(
-                f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
-            )
-            raise ValueError()
+        if new_usage['usage'] != original_usage['usage']:
+            raise ValueError(f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting')
 
     await compact()  # pylint: disable=no-value-for-parameter
 
