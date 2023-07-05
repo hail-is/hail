@@ -175,6 +175,38 @@ resource "azurerm_role_assignment" "batch_test_container_contributor" {
   principal_id         = module.batch_sp.principal_id
 }
 
+resource "azuread_application" "testns_batch" {
+  display_name = "${var.resource_group.name}-testns-batch"
+}
+module "testns_batch_sp" {
+  source = "../service_principal"
+
+  name                  = "testns-batch"
+  application_id        = azuread_application.testns_batch.application_id
+  application_object_id = azuread_application.testns_batch.object_id
+
+  subscription_resource_id = data.azurerm_subscription.primary.id
+  subscription_roles = [
+    "Reader",
+    "Virtual Machine Contributor",
+  ]
+
+  resource_group_id = var.resource_group.id
+  resource_group_roles = [
+    "Network Contributor",
+    "Managed Identity Operator",
+    "Log Analytics Contributor",
+  ]
+}
+
+resource "azurerm_role_assignment" "testns_batch_test_container_contributor" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.testns_batch_sp.principal_id
+}
+
+# FIXME Now that there are test identities for each service, the test user no longer
+# needs this many permissions. Perform an audit to see which can be removed
 resource "azuread_application" "test" {
   display_name = "${var.resource_group.name}-test"
 
@@ -209,10 +241,46 @@ module "test_sp" {
   ]
 }
 
-resource "azurerm_role_assignment" "test_test_container_contributor" {
+resource "azurerm_role_assignment" "test_sp_test_container_contributor" {
   scope                = azurerm_storage_container.test.resource_manager_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = module.test_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "test_sp_registry_viewer" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
+  principal_id         = module.test_sp.principal_id
+}
+
+resource "azuread_application" "testns_test" {
+  display_name = "${var.resource_group.name}-testns-test"
+}
+module "testns_test_sp" {
+  source = "../service_principal"
+
+  name                  = "testns-test"
+  application_id        = azuread_application.testns_test.application_id
+  application_object_id = azuread_application.testns_test.object_id
+}
+
+resource "azurerm_role_assignment" "testns_test_sp_test_container_contributor" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.testns_test_sp.principal_id
+}
+
+# Necessary to generate SAS tokens
+resource "azurerm_role_assignment" "testns_test_sp_test_account_key_operator" {
+  scope                = azurerm_storage_account.test.id
+  role_definition_name = "Storage Account Key Operator Service Role"
+  principal_id         = module.testns_test_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "testns_test_sp_registry_viewer" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
+  principal_id         = module.testns_test_sp.principal_id
 }
 
 resource "azuread_application" "ci" {
@@ -225,6 +293,7 @@ module "ci_sp" {
   application_id        = azuread_application.ci.application_id
   application_object_id = azuread_application.ci.object_id
 }
+
 resource "azurerm_role_assignment" "ci_acr_role" {
   for_each = toset(["AcrPush", "AcrDelete"])
 
@@ -232,6 +301,7 @@ resource "azurerm_role_assignment" "ci_acr_role" {
   role_definition_name = each.key
   principal_id         = module.ci_sp.principal_id
 }
+
 resource "kubernetes_secret" "registry_push_credentials" {
   metadata {
     name = "registry-push-credentials"
@@ -242,6 +312,30 @@ resource "kubernetes_secret" "registry_push_credentials" {
   }
 }
 
+resource "azuread_application" "testns_ci" {
+  display_name = "${var.resource_group.name}-testns-ci"
+}
+module "testns_ci_sp" {
+  source = "../service_principal"
+
+  name                  = "testns-ci"
+  application_id        = azuread_application.testns_ci.application_id
+  application_object_id = azuread_application.testns_ci.object_id
+}
+
+resource "azurerm_role_assignment" "testns_ci_test_container_contributor" {
+  scope                = azurerm_storage_container.test.resource_manager_id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = module.testns_ci_sp.principal_id
+}
+
+resource "azurerm_role_assignment" "testns_ci_acr_role" {
+  for_each = toset(["AcrPush", "AcrDelete"])
+
+  scope                = var.container_registry_id
+  role_definition_name = each.key
+  principal_id         = module.testns_ci_sp.principal_id
+}
 
 resource "azuread_application" "test_dev" {
   display_name = "${var.resource_group.name}-test-dev"
@@ -254,6 +348,29 @@ module "test_dev_sp" {
   application_object_id = azuread_application.test_dev.object_id
 }
 
+resource "azurerm_role_assignment" "test_dev_registry_viewer" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
+  principal_id         = module.test_dev_sp.principal_id
+}
+
+resource "azuread_application" "testns_test_dev" {
+  display_name = "${var.resource_group.name}-testns-test-dev"
+}
+module "testns_test_dev_sp" {
+  source = "../service_principal"
+
+  name                  = "testns-test-dev"
+  application_id        = azuread_application.testns_test_dev.application_id
+  application_object_id = azuread_application.testns_test_dev.object_id
+}
+
+resource "azurerm_role_assignment" "testns_test_dev_registry_viewer" {
+  scope                = var.container_registry_id
+  role_definition_name = "AcrPull"
+  principal_id         = module.testns_test_dev_sp.principal_id
+}
+
 resource "azuread_application" "grafana" {
   display_name = "${var.resource_group.name}-grafana"
 }
@@ -263,6 +380,22 @@ module "grafana_sp" {
   name                  = "grafana"
   application_id        = azuread_application.grafana.application_id
   application_object_id = azuread_application.grafana.object_id
+
+  resource_group_id = var.resource_group.id
+  resource_group_roles = [
+    "Monitoring Reader",
+  ]
+}
+
+resource "azuread_application" "testns_grafana" {
+  display_name = "${var.resource_group.name}-testns-grafana"
+}
+module "testns_grafana_sp" {
+  source = "../service_principal"
+
+  name                  = "testns-grafana"
+  application_id        = azuread_application.testns_grafana.application_id
+  application_object_id = azuread_application.testns_grafana.object_id
 
   resource_group_id = var.resource_group.id
   resource_group_roles = [

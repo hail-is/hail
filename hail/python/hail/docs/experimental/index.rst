@@ -12,7 +12,6 @@ on this page.
 .. toctree::
     :maxdepth: 1
 
-    vcf_combiner
     ldscsim
 
 Contribution Guidelines

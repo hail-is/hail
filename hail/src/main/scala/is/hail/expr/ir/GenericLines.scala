@@ -309,7 +309,7 @@ object GenericLines {
     GenericLines.read(fs, contexts, gzAsBGZ, filePerPartition)
   }
 
-  def readTabix(fs: FS, fileStatus: FileStatus, contigMapping: Map[String, String], partitions: IndexedSeq[Interval]): GenericLines = {
+  def readTabix(fs: FS, path: String, contigMapping: Map[String, String], partitions: IndexedSeq[Interval]): GenericLines = {
     val reverseContigMapping: Map[String, String] =
       contigMapping.toArray
         .groupBy(_._2)
@@ -324,7 +324,7 @@ object GenericLines {
       val start = interval.start.asInstanceOf[Row].getAs[Locus](0)
       val end = interval.end.asInstanceOf[Row].getAs[Locus](0)
       val contig = reverseContigMapping.getOrElse(start.contig, start.contig)
-      Row(i, fileStatus.getPath, contig, start.position, end.position)
+      Row(i, path, contig, start.position, end.position)
     }
     val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
       val contextRow = context.asInstanceOf[Row]

@@ -200,6 +200,10 @@ object Copy {
       case StreamZipJoin(as, key, curKey, curVals, _) =>
         assert(newChildren.length == as.length + 1)
         StreamZipJoin(newChildren.init.asInstanceOf[IndexedSeq[IR]], key, curKey, curVals, newChildren(as.length).asInstanceOf[IR])
+      case StreamZipJoinProducers(_, ctxName, _, key, curKey, curVals, _) =>
+        assert(newChildren.length == 3)
+        StreamZipJoinProducers(newChildren(0).asInstanceOf[IR], ctxName, newChildren(1).asInstanceOf[IR],
+          key, curKey, curVals, newChildren(2).asInstanceOf[IR])
       case StreamMultiMerge(as, key) =>
         assert(newChildren.length == as.length)
         StreamMultiMerge(newChildren.asInstanceOf[IndexedSeq[IR]], key)

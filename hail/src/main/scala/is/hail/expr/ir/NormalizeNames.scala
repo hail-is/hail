@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.utils._
 import is.hail.utils.StackSafe._
 
 class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
@@ -29,9 +30,8 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val newName = gen()
         for {
           newValue <- normalize(value)
-          newBody <- normalize(body, env.copy(eval = env.eval.bind(name, newName)))
+          newBody <- normalize(body, env.bindEval(name, newName))
         } yield Let(newName, newValue, newBody)
-
       case Ref(name, typ) =>
         val newName = env.eval.lookupOption(name) match {
           case Some(n) => n
@@ -42,7 +42,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
               name
         }
         done(Ref(newName, typ))
-
       case Recur(name, args, typ) =>
         val newName = env.eval.lookupOption(name) match {
           case Some(n) => n
@@ -55,7 +54,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         for {
           newArgs <- args.mapRecur(v => normalize(v))
         } yield Recur(newName, newArgs, typ)
-
       case AggLet(name, value, body, isScan) =>
         val newName = gen()
         val (valueEnv, bodyEnv) = if (isScan)
@@ -66,7 +64,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newValue <- normalize(value, valueEnv)
           newBody <- normalize(body, bodyEnv)
         } yield AggLet(newName, newValue, newBody, isScan)
-
       case TailLoop(name, args, body) =>
         val newFName = gen()
         val newNames = Array.tabulate(args.length)(i => gen())
@@ -75,7 +72,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newValues <- values.mapRecur(v => normalize(v))
           newBody <- normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames) :+ name -> newFName: _*)))
         } yield TailLoop(newFName, newNames.zip(newValues), newBody)
-
       case ArraySort(a, left, right, lessThan) =>
         val newLeft = gen()
         val newRight = gen()
@@ -83,21 +79,18 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newA <- normalize(a)
           newLessThan <- normalize(lessThan, env.bindEval(left -> newLeft, right -> newRight))
         } yield ArraySort(newA, newLeft, newRight, newLessThan)
-
       case StreamMap(a, name, body) =>
         val newName = gen()
         for {
           newA <- normalize(a)
           newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamMap(newA, newName, newBody)
-
       case StreamZip(as, names, body, behavior, errorID) =>
         val newNames = names.map(_ => gen())
         for {
           newAs <- as.mapRecur(normalize(_))
           newBody <- normalize(body, env.bindEval(names.zip(newNames): _*))
         } yield StreamZip(newAs, newNames, newBody, behavior, errorID)
-
       case StreamZipJoin(as, key, curKey, curVals, joinF) =>
         val newCurKey = gen()
         val newCurVals = gen()
@@ -105,35 +98,39 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newAs <- as.mapRecur(normalize(_))
           newJoinF <- normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals))
         } yield StreamZipJoin(newAs, key, newCurKey, newCurVals, newJoinF)
-
+      case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, joinF) =>
+        val newCtxName = gen()
+        val newCurKey = gen()
+        val newCurVals = gen()
+        for {
+          newCtxs <- normalize(contexts)
+          newMakeProducer <- normalize(makeProducer, env.bindEval(ctxName -> newCtxName))
+          newJoinF <- normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals))
+        } yield StreamZipJoinProducers(newCtxs, newCtxName, newMakeProducer, key, newCurKey, newCurVals, newJoinF)
       case StreamFilter(a, name, body) =>
         val newName = gen()
         for {
           newA <- normalize(a)
           newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamFilter(newA, newName, newBody)
-
       case StreamTakeWhile(a, name, body) =>
         val newName = gen()
         for {
           newA <- normalize(a)
             newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamTakeWhile(newA, newName, newBody)
-
       case StreamDropWhile(a, name, body) =>
         val newName = gen()
         for {
           newA <- normalize(a)
             newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamDropWhile(newA, newName, newBody)
-
       case StreamFlatMap(a, name, body) =>
         val newName = gen()
         for {
           newA <- normalize(a)
           newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamFlatMap(newA, newName, newBody)
-
       case StreamFold(a, zero, accumName, valueName, body) =>
         val newAccumName = gen()
         val newValueName = gen()
@@ -142,7 +139,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newZero <- normalize(zero)
           newBody <- normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName))
         } yield StreamFold(newA, newZero, newAccumName, newValueName, newBody)
-
       case StreamFold2(a, accum, valueName, seq, res) =>
         val newValueName = gen()
         for {
@@ -159,7 +155,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newSeq <- seq.mapRecur(normalize(_, seqEnv))
           newRes <- normalize(res, resEnv)
         } yield StreamFold2(newA, newAcc, newValueName, newSeq, newRes)
-
       case StreamScan(a, zero, accumName, valueName, body) =>
         val newAccumName = gen()
         val newValueName = gen()
@@ -168,14 +163,12 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newZero <- normalize(zero)
           newBody <- normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName))
         } yield StreamScan(newA, newZero, newAccumName, newValueName, newBody)
-
       case StreamFor(a, valueName, body) =>
         val newValueName = gen()
         for {
           newA <- normalize(a)
           newBody <- normalize(body, env.bindEval(valueName, newValueName))
         } yield StreamFor(newA, newValueName, newBody)
-
       case StreamAgg(a, name, body) =>
         // FIXME: Uncomment when bindings are threaded through test suites
         // assert(env.agg.isEmpty)
@@ -185,7 +178,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newBody <- normalize(body, env.copy(agg = Some(env.eval.bind(name, newName))))
         } yield
         StreamAgg(newA, newName, newBody)
-
       case RunAggScan(a, name, init, seq, result, sig) =>
         val newName = gen()
         val e2 = env.bindEval(name, newName)
@@ -195,7 +187,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newSeq <- normalize(seq, e2)
           newResult <- normalize(result, e2)
         } yield RunAggScan(newA, newName, newInit, newSeq, newResult, sig)
-
       case StreamAggScan(a, name, body) =>
         // FIXME: Uncomment when bindings are threaded through test suites
         // assert(env.scan.isEmpty)
@@ -205,7 +196,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newA <- normalize(a)
           newBody <- normalize(body, env.copy(eval = newEnv, scan = Some(newEnv)))
         } yield StreamAggScan(newA, newName, newBody)
-
       case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinF, joinType) =>
         val newL = gen()
         val newR = gen()
@@ -215,14 +205,12 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newRight <- normalize(right)
           newJoinF <- normalize(joinF, newEnv)
         } yield StreamJoinRightDistinct(newLeft, newRight, lKey, rKey, newL, newR, newJoinF, joinType)
-
       case NDArrayMap(nd, name, body) =>
         val newName = gen()
         for {
           newNd <- normalize(nd)
           newBody <- normalize(body, env.bindEval(name -> newName))
         } yield NDArrayMap(newNd, newName, newBody)
-
       case NDArrayMap2(l, r, lName, rName, body, errorID) =>
         val newLName = gen()
         val newRName = gen()
@@ -231,7 +219,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newR <- normalize(r)
           newBody <- normalize(body, env.bindEval(lName -> newLName, rName -> newRName))
         } yield NDArrayMap2(newL, newR, newLName, newRName, newBody, errorID)
-
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
         val newElementName = gen()
         val newIndexName = gen()
@@ -244,7 +231,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newAggBody <- normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName))
           newKnownLength <- knownLength.mapRecur(normalize(_, env))
         } yield AggArrayPerElement(newA, newElementName, newIndexName, newAggBody, newKnownLength, isScan)
-
       case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val newC = gen()
         val newG = gen()
@@ -254,14 +240,12 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newBody <- normalize(body, BindingEnv.eval(cname -> newC, gname -> newG))
           newDynamicID <- normalize(dynamicID)
         } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody, newDynamicID, staticID, tsd)
-
       case RelationalLet(name, value, body) =>
         val newName = gen()
         for {
           newValue <- normalize(value, env)
           newBody <- normalize(body, env.bindRelational(name, newName))
         } yield RelationalLet(newName, newValue, newBody)
-
       case RelationalRef(name, typ) =>
         val newName = env.relational.lookupOption(name).getOrElse(
           if (!allowFreeVariables) throw new RuntimeException(s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}")

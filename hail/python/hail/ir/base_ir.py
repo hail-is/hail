@@ -1,7 +1,6 @@
 import abc
 
 from hail.expr.types import tstream
-from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
 
@@ -533,24 +532,3 @@ class BlockMatrixIR(BaseIR):
 
     def renderable_new_block(self, i: int) -> bool:
         return True
-
-
-class JIRVectorReference(object):
-    def __init__(self, jid, length, item_type):
-        self.jid = jid
-        self.length = length
-        self.item_type = item_type
-
-    def __len__(self):
-        return self.length
-
-    def __del__(self):
-        # can't do anything if the hail context is stopped
-        if Env._hc is None:
-            return
-        try:
-            Env.backend()._jhc.pyRemoveIrVector(self.jid)
-        # there is only so much we can do if the attempt to remove the unused IR fails,
-        # especially since this will often get called during interpreter shutdown.
-        except Exception:
-            pass

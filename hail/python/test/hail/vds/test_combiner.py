@@ -22,69 +22,27 @@ all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
                'NA20796', 'HG00323', 'HG01384', 'NA18613', 'NA20802']
 
 
-@fails_local_backend
-@fails_service_backend
 def test_combiner_works():
     _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
     paths = [resource(p) for p in _paths]
     parts = [
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
+        hl.Interval(start=hl.Locus('chr20', 17821257, reference_genome='GRCh38'),
+                    end=hl.Locus('chr20', 18708366, reference_genome='GRCh38'),
                     includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
+        hl.Interval(start=hl.Locus('chr20', 18708367, reference_genome='GRCh38'),
+                    end=hl.Locus('chr20', 19776611, reference_genome='GRCh38'),
                     includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
+        hl.Interval(start=hl.Locus('chr20', 19776612, reference_genome='GRCh38'),
+                    end=hl.Locus('chr20', 21144633, reference_genome='GRCh38'),
                     includes_end=True)
     ]
-    vcfs = hl.import_gvcfs(paths, parts, reference_genome='GRCh38', array_elements_required=False)
-    entry_to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000) - {'GT', 'PGT', 'PL'}
-    vcfs = [transform_gvcf(mt.annotate_rows(info=mt.info.annotate(
-        MQ_DP=hl.missing(hl.tint32),
-        VarDP=hl.missing(hl.tint32),
-        QUALapprox=hl.missing(hl.tint32))),
-                           reference_entry_fields_to_keep=entry_to_keep)
-            for mt in vcfs]
-    comb = combine_variant_datasets(vcfs)
-    assert len(parts) == comb.variant_data.n_partitions()
-    comb.variant_data._force_count_rows()
-    comb.reference_data._force_count_rows()
-
-
-@fails_local_backend
-@fails_service_backend
-@test_timeout(12 * 60)
-def test_vcf_vds_combiner_equivalence():
-    import hail.experimental.vcf_combiner.vcf_combiner as vcf
-    import hail.vds.combiner as vds
-    _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
-    paths = [resource(p) for p in _paths]
-    parts = [
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
-                    includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
-                    includes_end=True),
-        hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
-                    end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
-                    includes_end=True)
-    ]
-    vcfs = [mt.annotate_rows(info=mt.info.annotate(
-        MQ_DP=hl.missing(hl.tint32),
-        VarDP=hl.missing(hl.tint32),
-        QUALapprox=hl.missing(hl.tint32)))
-            for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
-                                      array_elements_required=False)]
-    entry_to_keep = defined_entry_fields(vcfs[0].filter_rows(hl.is_defined(vcfs[0].info.END)), 100_000) - {'GT', 'PGT', 'PL'}
-    vds = vds.combine_variant_datasets([vds.transform_gvcf(mt, reference_entry_fields_to_keep=entry_to_keep) for mt in vcfs])
-    vds.variant_data = vds.variant_data.drop('RGQ')
-    smt = vcf.combine_gvcfs([vcf.transform_gvcf(mt) for mt in vcfs]).drop('RGQ')
-    vds_from_smt = hl.vds.VariantDataset.from_merged_representation(smt, ref_block_fields=list(vds.reference_data.entry.drop('END')))
-
-    assert vds.variant_data._same(vds_from_smt.variant_data, reorder_fields=True)
-    assert vds.reference_data._same(vds_from_smt.reference_data, reorder_fields=True)
+    with hl.TemporaryDirectory() as tmpdir:
+        out = os.path.join(tmpdir, 'out.vds')
+        hl.vds.new_combiner(temp_path=tmpdir, output_path=out, gvcf_paths=paths, intervals=parts, reference_genome='GRCh38').run()
+        comb = hl.vds.read_vds(out)
+        assert len(parts) == comb.variant_data.n_partitions()
+        comb.variant_data._force_count_rows()
+        comb.reference_data._force_count_rows()
 
 
 def test_combiner_plan_round_trip_serialization():
@@ -151,11 +109,8 @@ def test_move_load_combiner_plan():
     assert plan == plan_loaded
 
 
-@fails_local_backend
-@fails_service_backend
-@test_timeout(5 * 60)
+@test_timeout(10 * 60)
 def test_combiner_run():
-
     tmpdir = new_temp_file()
     samples = all_samples[:5]
 
@@ -188,8 +143,6 @@ def test_combiner_run():
     assert hl.vds.read_vds(final_path_1)._same(hl.vds.read_vds(final_path_2))
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_combiner_manual_filtration():
     sample_names = all_samples[:2]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
@@ -211,8 +164,7 @@ def test_combiner_manual_filtration():
     assert list(vds.reference_data.entry) == ['END', 'GQ']
 
 
-@fails_service_backend()
-@fails_local_backend()
+@test_timeout(10 * 60)
 def test_ref_block_max_len_propagates_in_combiner():
     gvcfs = ['NA21123.hg38.g.vcf.gz', 'NA21099.hg38.g.vcf.gz', 'NA19747.hg38.g.vcf.gz']
     with hl.TemporaryDirectory() as tmpdir:

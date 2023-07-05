@@ -105,6 +105,7 @@ class WatchedBranchConfig(TypedDict):
     repo: str
     prs: List[PRConfig]
     gh_status_names: Set[str]
+    merge_candidate: Optional[str]
 
 
 async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
@@ -124,6 +125,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
         'repo': wb.branch.repo.short_str(),
         'prs': pr_configs,
         'gh_status_names': gh_status_names,
+        'merge_candidate': wb.merge_candidate.short_str() if wb.merge_candidate else None,
     }
 
 

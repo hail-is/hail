@@ -1,6 +1,5 @@
 from .export_type import ExportType
-from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, \
-    JIRVectorReference
+from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR
 from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     BlockMatrixMultiWrite, TableToValueApply, \
     MatrixToValueApply, BlockMatrixToValueApply, BlockMatrixCollect, \
@@ -18,7 +17,8 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
     TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount, \
     MatrixAggregate, TableWrite, udf, subst, clear_session_functions, ReadPartition, \
-    PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin, StreamAgg
+    PartitionNativeIntervalReader, StreamMultiMerge, StreamZipJoin, StreamAgg, StreamZipJoinProducers, \
+    GVCFPartitionReader
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import (MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, TableIntervalJoin,
@@ -36,7 +36,7 @@ from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
     MatrixRowsHead, MatrixColsHead, MatrixRowsTail, MatrixColsTail, \
     MatrixExplodeCols, CastTableToMatrix, MatrixAnnotateRowsTable, \
     MatrixAnnotateColsTable, MatrixToMatrixApply, MatrixRename, \
-    MatrixFilterIntervals, JavaMatrix, JavaMatrixVectorRef
+    MatrixFilterIntervals, JavaMatrix
 from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     BlockMatrixDot, BlockMatrixBroadcast, BlockMatrixAgg, BlockMatrixFilter, \
     BlockMatrixDensify, BlockMatrixSparsifier, BandSparsifier, \
@@ -67,7 +67,6 @@ __all__ = [
     'TableIR',
     'MatrixIR',
     'BlockMatrixIR',
-    'JIRVectorReference',
     'register_functions',
     'register_aggregators',
     'filter_predicate_with_keep',
@@ -173,6 +172,7 @@ __all__ = [
     'toStream',
     'ToStream',
     'StreamZipJoin',
+    'StreamZipJoinProducers',
     'StreamMultiMerge',
     'LowerBoundOnOrderedCollection',
     'GroupByKey',
@@ -260,7 +260,6 @@ __all__ = [
     'MatrixRename',
     'MatrixFilterIntervals',
     'JavaMatrix',
-    'JavaMatrixVectorRef',
     'MatrixReader',
     'MatrixNativeReader',
     'MatrixRangeReader',
@@ -320,6 +319,7 @@ __all__ = [
     'TableNativeFanoutWriter',
     'ReadPartition',
     'PartitionNativeIntervalReader',
+    'GVCFPartitionReader',
     'TableGen',
     'Partitioner'
 ]

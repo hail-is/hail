@@ -4,18 +4,16 @@ import json
 import os
 import sys
 import uuid
-
 from math import floor, log
 from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
-
 from hail.expr import HailType, tmatrix
 from hail.utils import Interval
 from hail.utils.java import info, warning
-from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
-    calculate_new_intervals
-from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields
+from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields, make_variant_stream, \
+    make_reference_stream, combine_r, calculate_even_genome_partitioning, \
+    calculate_new_intervals, combine
 
 
 class VDSMetadata(NamedTuple):
@@ -475,21 +473,79 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             self._gvcf_sample_names = self._gvcf_sample_names[self._gvcf_batch_size * step:]
         else:
             sample_names = None
+        header_file = self._gvcf_external_header or files_to_merge[0]
+        header_info = hl.eval(hl.get_vcf_header_info(header_file))
         merge_vds = []
         merge_n_samples = []
-        vcfs = [transform_gvcf(vcf,
-                               reference_entry_fields_to_keep=self._gvcf_reference_entry_fields_to_keep,
-                               info_to_keep=self._gvcf_info_to_keep)
-                for vcf in hl.import_gvcfs(files_to_merge,
-                                           self._gvcf_import_intervals,
-                                           array_elements_required=False,
-                                           _external_header=self._gvcf_external_header,
-                                           _external_sample_ids=[[name] for name in sample_names] if sample_names is not None else None,
-                                           reference_genome=self._reference_genome,
-                                           contig_recoding=self._contig_recoding)]
-        while vcfs:
-            merging, vcfs = vcfs[:step], vcfs[step:]
-            merge_vds.append(combine_variant_datasets(merging))
+
+        intervals_literal = hl.literal([hl.Struct(contig=i.start.contig, start=i.start.position, end=i.end.position) for
+                                        i in self._gvcf_import_intervals])
+
+        partition_interval_point_type = hl.tstruct(locus=hl.tlocus(self._reference_genome))
+        partition_intervals = [hl.Interval(start=hl.Struct(locus=i.start),
+                                           end=hl.Struct(locus=i.end),
+                                           includes_start=i.includes_start,
+                                           includes_end=i.includes_end,
+                                           point_type=partition_interval_point_type) for i in
+                               self._gvcf_import_intervals]
+        vcfs = files_to_merge
+        if sample_names is None:
+            vcfs_lit = hl.literal(vcfs)
+            range_ht = hl.utils.range_table(len(vcfs), n_partitions=min(len(vcfs), 32))
+
+            range_ht = range_ht.annotate(sample_id=hl.rbind(hl.get_vcf_header_info(vcfs_lit[range_ht.idx]),
+                                                            lambda header: header.sampleIDs[0]))
+
+            sample_ids = range_ht.aggregate(hl.agg.collect(range_ht.sample_id))
+        else:
+            sample_ids = sample_names
+        for start in range(0, len(vcfs), step):
+            ids = sample_ids[start:start + step]
+            merging = vcfs[start:start + step]
+
+            reference_ht = hl.Table._generate(contexts=intervals_literal,
+                                              partitions=partition_intervals,
+                                              rowfn=lambda interval, globals:
+                                              hl._zip_join_producers(hl.enumerate(hl.literal(merging)),
+                                                                     lambda idx_and_path: make_reference_stream(
+                                                                         hl.import_gvcf_interval(
+                                                                             idx_and_path[1], idx_and_path[0],
+                                                                             interval.contig,
+                                                                             interval.start, interval.end, header_info,
+                                                                             array_elements_required=False,
+                                                                             reference_genome=self._reference_genome,
+                                                                             contig_recoding=self._contig_recoding),
+                                                                         self._gvcf_reference_entry_fields_to_keep),
+                                                                     ['locus'],
+                                                                     lambda k, v: k.annotate(data=v)),
+                                              globals=hl.struct(
+                                                  g=hl.literal(ids).map(lambda s: hl.struct(__cols=[hl.struct(s=s)]))))
+            reference_ht = combine_r(reference_ht, ref_block_max_len_field=None)  # compute max length at the end
+
+            variant_ht = hl.Table._generate(contexts=intervals_literal,
+                                            partitions=partition_intervals,
+                                            rowfn=lambda interval, globals:
+                                            hl._zip_join_producers(hl.enumerate(hl.literal(merging)),
+                                                                   lambda idx_and_path: make_variant_stream(
+                                                                       hl.import_gvcf_interval(
+                                                                           idx_and_path[1], idx_and_path[0],
+                                                                           interval.contig,
+                                                                           interval.start, interval.end, header_info,
+                                                                           array_elements_required=False,
+                                                                           reference_genome=self._reference_genome,
+                                                                           contig_recoding=self._contig_recoding),
+                                                                       self._gvcf_info_to_keep),
+                                                                   ['locus'],
+                                                                   lambda k, v: k.annotate(data=v)),
+                                            globals=hl.struct(
+                                                g=hl.literal(ids).map(lambda s: hl.struct(__cols=[hl.struct(s=s)]))))
+            variant_ht = combine(variant_ht)
+            vds = hl.vds.VariantDataset(reference_ht._unlocalize_entries('__entries', '__cols', ['s']),
+                                        variant_ht._unlocalize_entries('__entries', '__cols',
+                                                                       ['s'])._key_rows_by_assert_sorted('locus',
+                                                                                                         'alleles'))
+
+            merge_vds.append(vds)
             merge_n_samples.append(len(merging))
         if self.finished and len(merge_vds) == 1:
             self._write_final(merge_vds[0])

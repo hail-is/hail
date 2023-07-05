@@ -4,6 +4,14 @@ from hail.expr.types import dtype, tvariable, tarray, \
 
 from .ir import register_function, register_seeded_function
 
+vcf_header_type_str = "struct{sampleIDs: array<str>, " \
+                      "infoFields: array<tuple(str, str)>, " \
+                      "formatFields: array<tuple(str, str)>, " \
+                      "filterAttrs: dict<str, dict<str, str>>, " \
+                      "infoAttrs: dict<str, dict<str, str>>, " \
+                      "formatAttrs: dict<str, dict<str, str>>, " \
+                      "infoFlagFields: array<str>}"
+
 
 def register_functions():
     locusVar = tvariable("R", "locus")
@@ -296,3 +304,4 @@ def register_functions():
     register_function("strftime", (dtype("str"), dtype("int64"), dtype("str")), dtype("str"))
     register_function("strptime", (dtype("str"), dtype("str"), dtype("str")), dtype("int64"))
     register_function("index_bgen", (dtype("str"), dtype("str"), dtype("dict<str, str>"), dtype('bool'), dtype("int32")), dtype("int64"), (dtype("?T"),))
+    register_function("getVCFHeader", (dtype("str"), dtype("str"), dtype("str"), dtype("str")), dtype(vcf_header_type_str),)

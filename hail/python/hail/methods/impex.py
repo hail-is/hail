@@ -1,8 +1,6 @@
-import json
 import os
 import re
 from collections import defaultdict
-from typing import List
 
 import avro.schema
 from avro.datafile import DataFileReader
@@ -12,8 +10,7 @@ import hail as hl
 from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
     expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
-    expr_any, \
-    to_expr, analyze
+    expr_int32, to_expr, analyze
 from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
     tcall, tbool, tint64, tfloat32
 from hail.genetics.reference_genome import reference_genome_type
@@ -2825,108 +2822,33 @@ def import_vcf(path,
     return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples, drop_row_uids=not _create_row_uids, drop_col_uids=not _create_col_uids))
 
 
-@typecheck(path=sequenceof(str),
-           partitions=expr_any,
-           call_fields=oneof(str, sequenceof(str)),
-           entry_float_type=enumeration(tfloat32, tfloat64),
-           reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)),
+@typecheck(path=expr_str,
+           file_num=expr_int32,
+           contig=expr_str,
+           start=expr_int32,
+           end=expr_int32,
+           header_info=anytype,
+           call_fields=sequenceof(str),
+           entry_float_type=hail_type,
            array_elements_required=bool,
+           reference_genome=reference_genome_type,
+           contig_recoding=nullable(dictof(str, str)),
            skip_invalid_loci=bool,
            filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)),
-           _external_sample_ids=nullable(sequenceof(sequenceof(str))),
-           _external_header=nullable(str))
-def import_gvcfs(path,
-                 partitions,
-                 call_fields=['PGT'],
-                 entry_float_type=tfloat64,
-                 reference_genome='default',
-                 contig_recoding=None,
-                 array_elements_required=True,
-                 skip_invalid_loci=False,
-                 filter=None,
-                 find_replace=None,
-                 _external_sample_ids=None,
-                 _external_header=None) -> List[MatrixTable]:
-    """(Experimental) Import multiple vcfs as multiple :class:`.MatrixTable`.
-
-    .. include:: ../_templates/experimental.rst
-
-    All files described by the ``path`` argument must be block gzipped VCF
-    files. They must all be tabix indexed. Because of this requirement, no
-    ``force`` or ``force_bgz`` arguments are present. Otherwise, the arguments
-    to this function are almost identical to :func:`.import_vcf`.  However, this
-    function also requrires a ``partitions`` argument, which is used to divide
-    and filter the vcfs.  It must be an expression or literal of type
-    ``array<interval<struct{locus:locus<RG>}>>``. A partition will be created
-    for every element of the array. Loci that fall outside of any interval will
-    not be imported. For example:
-
-    .. code-block:: python
-
-        [hl.Interval(hl.Locus("chr22", 1), hl.Locus("chr22", 5332423), includes_end=True)]
-
-    The ``includes_start`` and ``includes_end`` keys must be ``True``. The
-    ``contig`` fields must be the same.
-
-    One difference between :func:`.import_gvcfs` and :func:`.import_vcf` is that
-    :func:`.import_gvcfs` only keys the resulting matrix tables by ``locus``
-    rather than ``locus, alleles``.
-    """
-    hl.utils.no_service_backend('import_gvcfs')
-    rg = reference_genome.name if reference_genome else None
-
-    partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg),
-                                                                                    alleles=hl.tarray(hl.tstr)))
-
-    vector_ref_s = Env.spark_backend('import_vcfs')._jbackend.pyImportVCFs(
-        wrap_to_list(path),
-        wrap_to_list(call_fields),
-        entry_float_type._parsable_string(),
-        rg,
-        contig_recoding,
-        array_elements_required,
-        skip_invalid_loci,
-        partitions, partitions_type._parsable_string(),
-        filter,
-        find_replace[0] if find_replace is not None else None,
-        find_replace[1] if find_replace is not None else None,
-        _external_sample_ids,
-        _external_header)
-    vector_ref = json.loads(vector_ref_s)
-    jir_vref = ir.JIRVectorReference(vector_ref['vector_ir_id'],
-                                     vector_ref['length'],
-                                     hl.tmatrix._from_json(vector_ref['type']))
-
-    return [MatrixTable(ir.JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
-
-
-def import_vcfs(path,
-                partitions,
-                call_fields=['PGT'],
-                entry_float_type=tfloat64,
-                reference_genome='default',
-                contig_recoding=None,
-                array_elements_required=True,
-                skip_invalid_loci=False,
-                filter=None,
-                find_replace=None,
-                _external_sample_ids=None,
-                _external_header=None) -> List[MatrixTable]:
-    """This function is deprecated, use :func:`.import_gvcfs` instead"""
-    return import_gvcfs(path,
-                        partitions,
-                        call_fields,
-                        entry_float_type,
-                        reference_genome,
-                        contig_recoding,
-                        array_elements_required,
-                        skip_invalid_loci,
-                        filter,
-                        find_replace,
-                        _external_sample_ids,
-                        _external_header)
+           find=nullable(str),
+           replace=nullable(str))
+def import_gvcf_interval(path, file_num, contig, start, end, header_info, call_fields=[], entry_float_type='float64',
+                         array_elements_required=True, reference_genome='default', contig_recoding=None,
+                         skip_invalid_loci=False, filter=None, find=None, replace=None):
+    indices, aggs = hl.expr.unify_all(path, file_num, contig, start, end)
+    stream_ir = ir.ReadPartition(hl.struct(fileNum=file_num, path=path, contig=contig, start=start, end=end)._ir,
+                                 ir.GVCFPartitionReader(header_info, call_fields, entry_float_type,
+                                                        array_elements_required,
+                                                        reference_genome, contig_recoding or {},
+                                                        skip_invalid_loci, filter, find, replace,
+                                                        None))
+    arr = ir.ToArray(stream_ir)
+    return hl.expr.construct_expr(arr, arr.typ, indices, aggs)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -3027,6 +2949,18 @@ def index_bgen(path,
         path = paths[idx]
         idx_path = index_file_map.get(path, path)
         info(f"indexed {n} sites in {path} at {idx_path}")
+
+
+@typecheck(path=expr_str, filter=nullable(expr_str), find=nullable(expr_str), replace=nullable(expr_str))
+def get_vcf_header_info(path, filter=None, find=None, replace=None):
+    from hail.ir.register_functions import vcf_header_type_str
+    return hl.expr.functions._func(
+        "getVCFHeader",
+        hl.dtype(vcf_header_type_str),
+        path,
+        hl.missing('str') if filter is None else filter,
+        hl.missing('str') if find is None else find,
+        hl.missing('str') if replace is None else replace)
 
 
 @typecheck(path=str,
