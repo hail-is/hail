@@ -7,7 +7,7 @@ import re
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -45,7 +45,6 @@ from hailtop.utils import (
     dump_all_stacktraces,
     flatten,
     periodically_call,
-    secret_alnum_string,
     time_msecs,
 )
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
@@ -1371,7 +1370,25 @@ async def monitor_system(app):
 
 async def compact_agg_billing_project_users_table(db: Database):
     @transaction(db)
-    async def compact(tx: Transaction, target) -> bool:
+    async def compact(tx: Transaction):
+        target = await tx.execute_and_fetchone(
+            '''
+SELECT billing_project, `user`, resource_id
+FROM (
+  SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
+  FROM aggregated_billing_project_user_resources_v3
+  WHERE token != 0
+  GROUP BY billing_project, `user`, resource_id
+) AS t
+ORDER BY n_tokens DESC
+LIMIT 1;
+''',
+            query_name='find_agg_billing_project_user_resource_to_compact',
+        )
+
+        if target is None:
+            return
+
         original_usage = await tx.execute_and_fetchone(
             '''
 SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1382,6 +1399,7 @@ FOR UPDATE;
             (target['billing_project'], target['user'], target['resource_id']),
         )
 
+        # overwriting the value for token = 0 here is intentional because we've computed the total usage above
         await tx.execute_update(
             '''
 INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user`, resource_id, token, `usage`)
@@ -1415,106 +1433,83 @@ GROUP BY billing_project, `user`, resource_id;
             )
             raise ValueError()
 
-    targets = db.execute_and_fetchall(
-        '''
-SELECT billing_project, `user`, resource_id
-FROM (
-  SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
-  FROM aggregated_billing_project_user_resources_v3
-  WHERE token != 0
-  GROUP BY billing_project, `user`, resource_id
-) AS t
-ORDER BY n_tokens DESC;
-    '''
-    )
-
-    async for target in targets:
-        try:
-            await compact(target)  # pylint: disable=no-value-for-parameter
-        except asyncio.CancelledError:
-            raise
-        except ValueError:
-            pass
-        finally:
-            await asyncio.sleep(0.05)
+    await compact()  # pylint: disable=no-value-for-parameter
 
 
 async def compact_agg_billing_project_users_by_date_table(db: Database):
-    async def compact(key: Optional[Tuple[str, str, str, int]]) -> Optional[Tuple[str, str, str, int]]:
-        if key:
-            billing_date, billing_project, user, resource_id = key
-            where_condition = (
-                'AND ((billing_date > %s) OR'
-                '(billing_date = %s AND billing_project > %s) OR'
-                '(billing_date = %s AND billing_project = %s AND `user` > %s) OR'
-                '(billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id > %s))'
-            )
-            args = [
-                billing_date,
-                billing_date,
-                billing_project,
-                billing_date,
-                billing_project,
-                user,
-                billing_date,
-                billing_project,
-                user,
-                resource_id,
-            ]
-        else:
-            where_condition = ''
-            args = []
-
-        token = secret_alnum_string(5)
-        scratch_table_name = f'`scratch_{token}`'
-
-        try:
-            last_processed_key = await db.execute_and_fetchone(
-                f'''
-CREATE TEMPORARY TABLE {scratch_table_name} ENGINE=MEMORY
-AS (SELECT billing_date, billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-    FROM aggregated_billing_project_user_resources_by_date_v3
-    WHERE token != 0 {where_condition}
-    GROUP BY billing_date, billing_project, `user`, resource_id
-    ORDER BY billing_date, billing_project, `user`, resource_id
-    LIMIT 100
-    LOCK IN SHARE MODE
-);
-
-DELETE aggregated_billing_project_user_resources_by_date_v3 FROM aggregated_billing_project_user_resources_by_date_v3
-INNER JOIN {scratch_table_name} ON aggregated_billing_project_user_resources_by_date_v3.billing_date = {scratch_table_name}.billing_date AND
-                      aggregated_billing_project_user_resources_by_date_v3.billing_project = {scratch_table_name}.billing_project AND
-                      aggregated_billing_project_user_resources_by_date_v3.`user` = {scratch_table_name}.`user` AND
-                      aggregated_billing_project_user_resources_by_date_v3.resource_id = {scratch_table_name}.resource_id
-WHERE token != 0;
-
-INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, `user`, resource_id, token, `usage`)
-SELECT billing_date, billing_project, `user`, resource_id, 0, `usage`
-FROM {scratch_table_name}
-ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_by_date_v3.`usage` + {scratch_table_name}.`usage`;
-
+    @transaction(db)
+    async def compact(tx: Transaction):
+        target = await tx.execute_and_fetchone(
+            '''
 SELECT billing_date, billing_project, `user`, resource_id
-FROM {scratch_table_name}
-ORDER BY billing_date DESC, billing_project DESC, `user` DESC, resource_id DESC
+FROM (
+  SELECT billing_date, billing_project, `user`, resource_id, COUNT(*) AS n_tokens
+  FROM aggregated_billing_project_user_resources_by_date_v3
+  WHERE token != 0
+  GROUP BY billing_date, billing_project, `user`, resource_id
+) AS t
+ORDER BY n_tokens DESC
 LIMIT 1;
 ''',
-                args,
-            )
-        finally:
-            await db.just_execute(f'DROP TEMPORARY TABLE IF EXISTS {scratch_table_name};')
-
-        if last_processed_key is None:
-            return None
-        return (
-            last_processed_key['billing_date'],
-            last_processed_key['billing_project'],
-            last_processed_key['user'],
-            last_processed_key['resource_id'],
+            query_name='find_agg_billing_project_user_resource_by_date_to_compact',
         )
 
-    last_processed_key = await compact(None)
-    while last_processed_key is not None:
-        await compact(last_processed_key)
+        if target is None:
+            return
+
+        original_usage = await tx.execute_and_fetchone(
+            '''
+SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s
+FOR UPDATE;
+''',
+            (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
+        )
+
+        # overwriting the value for token = 0 here is intentional because we've computed the total usage above
+        await tx.execute_update(
+            '''
+INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, `user`, resource_id, token, `usage`)
+VALUES (%s, %s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE `usage` = %s
+''',
+            (
+                target['billing_date'],
+                target['billing_project'],
+                target['user'],
+                target['resource_id'],
+                0,
+                original_usage,
+                original_usage,
+            ),
+        )
+
+        await tx.just_execute(
+            '''
+DELETE FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
+''',
+            (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
+        )
+
+        new_usage = await tx.execute_and_fetchone(
+            '''
+SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s
+GROUP BY billing_date, billing_project, `user`, resource_id;
+''',
+            (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
+        )
+
+        if new_usage != original_usage:
+            log.exception(
+                f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
+            )
+            raise ValueError()
+
+    await compact()  # pylint: disable=no-value-for-parameter
 
 
 async def scheduling_cancelling_bump(app):
@@ -1622,8 +1617,10 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
-    task_manager.ensure_future(periodically_call(300, compact_agg_billing_project_users_table, db))
-    task_manager.ensure_future(periodically_call(300, compact_agg_billing_project_users_by_date_table, db))
+
+    # 3 seconds was chosen for the initial compaction time to get through all existing records in a reasonable amount of time
+    task_manager.ensure_future(periodically_call(3, compact_agg_billing_project_users_table, db))
+    task_manager.ensure_future(periodically_call(3, compact_agg_billing_project_users_by_date_table, db))
 
 
 async def on_cleanup(app):
