@@ -73,7 +73,6 @@ Hail has several functions to import genetics-specific file formats into Hail
     import_gen
     import_fam
     import_locus_intervals
-    import_gvcfs
 
 Export
 ------
@@ -124,7 +123,6 @@ Reference documentation
 .. autofunction:: import_table
 .. autofunction:: import_lines
 .. autofunction:: import_vcf
-.. autofunction:: import_gvcfs
 .. autofunction:: export_vcf
 .. autofunction:: export_elasticsearch
 .. autofunction:: export_bgen

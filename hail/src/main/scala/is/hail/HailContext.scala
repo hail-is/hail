@@ -136,10 +136,6 @@ object HailContext {
     theContext = null
   }
 
-  def pyRemoveIrVector(id: Int) {
-    get.irVectors.remove(id)
-  }
-
   def readPartitions[T: ClassTag](
     fs: FS,
     path: String,
@@ -175,20 +171,6 @@ class HailContext private(
   def sparkBackend(op: String): SparkBackend = backend.asSpark(op)
 
   var checkRVDKeys: Boolean = false
-
-  private var nextVectorId: Int = 0
-  val irVectors: mutable.Map[Int, Array[_ <: BaseIR]] = mutable.Map.empty[Int, Array[_ <: BaseIR]]
-
-  def addIrVector(irArray: Array[_ <: BaseIR]): Int = {
-    val typ = irArray.head.typ
-    irArray.foreach { ir =>
-      if (ir.typ != typ)
-        fatal("all ir vector items must have the same type")
-    }
-    irVectors(nextVectorId) = irArray
-    nextVectorId += 1
-    nextVectorId - 1
-  }
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
 

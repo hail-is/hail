@@ -44,8 +44,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def mb: MethodBuilder[_] = emb.mb
 
-  val stateManager: Value[HailStateManager] = null
-
   def uncheckedAppend(c: Code[Unit]): Unit = {
     code = Code(code, c)
   }

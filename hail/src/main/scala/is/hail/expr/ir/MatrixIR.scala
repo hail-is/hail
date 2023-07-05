@@ -108,7 +108,7 @@ trait MatrixReader {
 
   def colUIDType: Type
 
-  val fullMatrixType: MatrixType = {
+  lazy val fullMatrixType: MatrixType = {
     val mt = fullMatrixTypeWithoutUIDs
     val rowType = mt.rowType
     val newRowType = if (rowType.hasField(rowUIDFieldName))

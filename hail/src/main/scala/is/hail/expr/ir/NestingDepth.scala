@@ -60,6 +60,13 @@ object NestingDepth {
         case StreamZip(as, _, body, _, _) =>
           as.foreach(computeIR(_, depth))
           computeIR(body, depth.incrementEval)
+        case StreamZipJoin(as, _, _, _, joinF) =>
+          as.foreach(computeIR(_, depth))
+          computeIR(joinF, depth.incrementEval)
+        case StreamZipJoinProducers(contexts, _, makeProducer, _, _, _, joinF) =>
+          computeIR(contexts, depth)
+          computeIR(makeProducer, depth.incrementEval)
+          computeIR(joinF, depth.incrementEval)
         case StreamFor(a, valueName, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)

@@ -26,7 +26,6 @@ import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 import java.io.{Closeable, PrintWriter}
 import is.hail.io.plink.LoadPlink
-import is.hail.io.vcf.VCFsReader
 import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.rvd.RVD
 import is.hail.stats.LinearMixedModel
@@ -546,48 +545,6 @@ class SparkBackend(
     ExecutionTimer.logTime("SparkBackend.pyToDF") { timer =>
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         Interpret(tir, ctx).toDF()
-      }
-    }
-  }
-
-  def pyImportVCFs(
-    files: java.util.List[String],
-    callFields: java.util.List[String],
-    entryFloatTypeName: String,
-    rg: String,
-    contigRecoding: java.util.Map[String, String],
-    arrayElementsRequired: Boolean,
-    skipInvalidLoci: Boolean,
-    partitionsJSON: String,
-    partitionsTypeStr: String,
-    filter: String,
-    find: String,
-    replace: String,
-    externalSampleIds: java.util.List[java.util.List[String]],
-    externalHeader: String
-  ): String = {
-    ExecutionTimer.logTime("SparkBackend.pyImportVCFs") { timer =>
-      withExecuteContext(timer) { ctx =>
-        val reader = new VCFsReader(ctx,
-          files.asScala.toArray,
-          callFields.asScala.toSet,
-          entryFloatTypeName,
-          Option(rg),
-          Option(contigRecoding).map(_.asScala.toMap).getOrElse(Map.empty[String, String]),
-          arrayElementsRequired,
-          skipInvalidLoci,
-          TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
-          partitionsJSON, partitionsTypeStr,
-          Option(externalSampleIds).map(_.asScala.map(_.asScala.toArray).toArray),
-          Option(externalHeader))
-
-        val irs = reader.read(ctx)
-        val id = HailContext.get.addIrVector(irs)
-        val out = JObject(
-          "vector_ir_id" -> JInt(id),
-          "length" -> JInt(irs.length),
-          "type" -> reader.typ.pyJson)
-        JsonMethods.compact(out)
       }
     }
   }
