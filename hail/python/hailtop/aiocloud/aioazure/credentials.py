@@ -50,11 +50,15 @@ class AzureCredentials(CloudCredentials):
         self.scopes = scopes
 
     async def auth_headers(self):
+        access_token = await self.access_token()
+        return {'Authorization': f'Bearer {access_token.token}'}  # type: ignore
+
+    async def access_token(self):
         now = time.time()
         if self._access_token is None or (self._expires_at is not None and now > self._expires_at):
             self._access_token = await self.get_access_token()
             self._expires_at = now + (self._access_token.expires_on - now) // 2   # type: ignore
-        return {'Authorization': f'Bearer {self._access_token.token}'}  # type: ignore
+        return self._access_token
 
     async def get_access_token(self):
         return await self.credential.get_token(*self.scopes)
