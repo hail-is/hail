@@ -28,7 +28,7 @@ case object ExecutionCache {
     else fsCache(fs, Option(flags.get(Flags.Cachedir)).getOrElse(s"$tmpdir/hail"))
 
   def fsCache(fs: FS, cachedir: String): ExecutionCache = {
-    assert(fs.validUrl(cachedir))
+    assert(fs.validUrl(cachedir), s"""Invalid execution cache location: "$cachedir".""")
     FSExecutionCache(fs, s"$cachedir/${is.hail.HAIL_PIP_VERSION}")
   }
 
