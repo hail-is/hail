@@ -113,7 +113,12 @@ def start(
     properties: Ann[Optional[str], Opt(help='Additional configuration properties for the cluster.')] = None,
     metadata: Ann[Optional[str], Opt(help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2')] = None,
     packages: Ann[
-        Optional[str], Opt(help='Comma-separated list of Python packages to be installed on the master node.')
+        Optional[str],
+        Opt(
+            '--packages',
+            '--pkgs',
+            help='Comma-separated list of Python packages to be installed on the master node.',
+        ),
     ] = None,
     project: Ann[Optional[str], Opt(help='GCP project to start cluster (defaults to currently set project).')] = None,
     configuration: Ann[
