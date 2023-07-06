@@ -3,6 +3,7 @@ package is.hail.expr.ir.analyses
 import is.hail.expr.ir._
 import is.hail.io.FakeFS
 import is.hail.io.fs.{FS, FileStatus}
+import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.TableType
 import is.hail.types.virtual._
@@ -11,6 +12,7 @@ import org.scalatest.Assertions.assertResult
 import org.testng.annotations.{DataProvider, Test}
 
 import java.lang
+import scala.util.control.NonFatal
 
 class SemanticHashSuite {
 
@@ -168,16 +170,18 @@ class SemanticHashSuite {
         Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("a")), true, "TableKeyBy same key"),
         Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("b")), false, "TableKeyBy different key")
       ),
-      Array[String => TableIR] (
-        path => mkTableRead(new StringTableReader(StringTableReaderParameters(Array(path), None, false, false, false), fakeFs.glob(path))),
-        path => mkTableRead(TableNativeZippedReader(path + ".left", path + ".right", None, mkFakeTableSpec(ttype), mkFakeTableSpec(ttypeb)))
+      Array[String => TableReader](
+        path => new StringTableReader(StringTableReaderParameters(Array(path), None, false, false, false), fakeFs.glob(path)),
+        path => TableNativeZippedReader(path + ".left", path + ".right", None, mkFakeTableSpec(ttype), mkFakeTableSpec(ttypeb)),
 
-      ).flatMap { reader =>
-        Array(
-          Array(reader("/fake/table"), reader("/fake/table"), true, "read same table"),
-          Array(reader("/fake/table"), reader("/another/fake/table"), false, "read different table")
-        )
-      },
+      )
+        .map(mkTableRead _ compose _)
+        .flatMap { reader =>
+          Array(
+            Array(reader("/fake/table"), reader("/fake/table"), true, "read same table"),
+            Array(reader("/fake/table"), reader("/another/fake/table"), false, "read different table")
+          )
+        },
       Array(
         TableGetGlobals,
         TableAggregate(_, Void()),
@@ -195,15 +199,31 @@ class SemanticHashSuite {
   }
 
   def isMatrixIRSemanticallyEquivalent: Array[Array[Any]] =
-    Array.empty
+    Array[String => BlockMatrixReader](
+      path => BlockMatrixBinaryReader(path, Array(1L, 1L), 1),
+      path => new BlockMatrixNativeReader(BlockMatrixNativeReaderParameters(path), BlockMatrixMetadata(1, 1, 1, None, IndexedSeq.empty))
+    )
+      .map(BlockMatrixRead compose _)
+      .flatMap { reader =>
+        Array(
+          Array(reader("/fake/block-matrix"), reader("/fake/block-matrix"), true, "Read same block matrix"),
+          Array(reader("/fake/block-matrix"), reader("/another/fake/block-matrix"), false, "Read different block matrix"),
+        )
+      }
 
   @DataProvider(name = "isBaseIRSemanticallyEquivalent")
   def isBaseIRSemanticallyEquivalent: Array[Array[Any]] =
-    Array.concat(
-      isValueIRSemanticallyEquivalent,
-      isTableIRSemanticallyEquivalent,
-      isMatrixIRSemanticallyEquivalent
-    )
+    try {
+      Array.concat(
+        isValueIRSemanticallyEquivalent,
+        isTableIRSemanticallyEquivalent,
+        isMatrixIRSemanticallyEquivalent
+      )
+    } catch {
+      case NonFatal(t) =>
+        t.printStackTrace()
+        throw t
+    }
 
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
   def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
