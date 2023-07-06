@@ -96,11 +96,21 @@ case object SemanticHash extends Logging {
           }
 
         case BlockMatrixRead(reader) =>
-          Hash(reader.getClass) <> reader
-            .pathsUsed
-            .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
-            .map(g => getFileHash(fs)(g.getPath))
-            .reduce(_ <> _)
+          Hash(reader.getClass) <> (reader match {
+            case _: BlockMatrixNativeReader =>
+              reader.pathsUsed
+                .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+                .map(g => getFileHash(fs)(g.getPath))
+                .reduce(_ <> _)
+
+            case BlockMatrixBinaryReader(path, _, _) =>
+              getFileHash(fs)(path)
+
+            case _ =>
+              log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
+              return None
+          })
+
 
         case Cast(_, typ) =>
           Hash(SemanticTypeName(typ))

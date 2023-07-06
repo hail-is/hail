@@ -2,7 +2,7 @@ package is.hail.expr.ir.analyses
 
 import is.hail.expr.ir._
 import is.hail.io.FakeFS
-import is.hail.io.fs.{FS, FileStatus, HadoopFS, LocalFSURL}
+import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.TableType
 import is.hail.types.virtual._
@@ -11,7 +11,6 @@ import org.scalatest.Assertions.assertResult
 import org.testng.annotations.{DataProvider, Test}
 
 import java.lang
-import scala.util.Random
 
 class SemanticHashSuite {
 
@@ -135,22 +134,31 @@ class SemanticHashSuite {
     )
 
   def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {
+    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq(), TStruct())
+    val ttypeb = TableType(TStruct("c" -> TInt32, "d" -> TStruct()), IndexedSeq(), TStruct())
+
+    def mkTableRead(reader: TableReader): TableIR =
+      TableRead(typ = reader.fullType, dropRows = false, tr = reader)
+
+    def mkFakeTableSpec(ttype: TableType): AbstractTableSpec =
+      new AbstractTableSpec {
+        override def references_rel_path: String = ???
+        override def table_type: TableType = ttype
+        override def rowsSpec: AbstractRVDSpec = ???
+        override def globalsSpec: AbstractRVDSpec = ???
+        override def file_version: Int = 0
+        override def hail_version: String = ???
+        override def components: Map[String, ComponentSpec] =
+          Map("partition_counts" -> PartitionCountsComponentSpec(Array(1L)))
+        override def toJValue: JValue = ???
+      }
+
     def mkTableIR(ttype: TableType, path: String): TableIR =
-      TableRead(ttype, dropRows = false, new TableNativeReader(
+      mkTableRead(new TableNativeReader(
         TableNativeReaderParameters(path, None),
-        new AbstractTableSpec {
-          override def references_rel_path: String = ???
-          override def table_type: TableType = ttype
-          override def rowsSpec: AbstractRVDSpec = ???
-          override def globalsSpec: AbstractRVDSpec = ???
-          override def file_version: Int = ???
-          override def hail_version: String = ???
-          override def components: Map[String, ComponentSpec] = ???
-          override def toJValue: JValue = ???
-        }
+        mkFakeTableSpec(ttype)
       ))
 
-    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq(), TStruct())
     val tir = mkTableIR(ttype, "/fake/table")
 
     Array.concat(
@@ -160,6 +168,16 @@ class SemanticHashSuite {
         Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("a")), true, "TableKeyBy same key"),
         Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("b")), false, "TableKeyBy different key")
       ),
+      Array[String => TableIR] (
+        path => mkTableRead(new StringTableReader(StringTableReaderParameters(Array(path), None, false, false, false), fakeFs.glob(path))),
+        path => mkTableRead(TableNativeZippedReader(path + ".left", path + ".right", None, mkFakeTableSpec(ttype), mkFakeTableSpec(ttypeb)))
+
+      ).flatMap { reader =>
+        Array(
+          Array(reader("/fake/table"), reader("/fake/table"), true, "read same table"),
+          Array(reader("/fake/table"), reader("/another/fake/table"), false, "read different table")
+        )
+      },
       Array(
         TableGetGlobals,
         TableAggregate(_, Void()),
