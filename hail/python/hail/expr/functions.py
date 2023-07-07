@@ -266,6 +266,16 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
                             .format(dtype)) from e
 
     if wrapper['has_expr']:
+        if ( x._ir.free_vars.__len__() > 0 or
+             x._ir.free_agg_vars.__len__() > 0 or
+             x._ir.free_scan_vars.__len__() > 0
+           ):
+            raise ValueError(
+                "'literal' cannot be used with hail expressions that depend "
+                "on other expressions. Use expression 'x' directly "
+                "instead of passing it to 'literal'."
+            )
+
         return literal(hl.eval(to_expr(x, dtype)), dtype)
 
     if x is None or x is pd.NA:

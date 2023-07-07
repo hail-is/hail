@@ -85,3 +85,10 @@ def test_array():
 
     with pytest.raises(ValueError, match='array: only one dimensional ndarrays are supported: ndarray<float64, 2>'):
         hl.eval(hl.array(hl.nd.array([[1.0], [2.0]])))
+
+
+def test_literal_free_vars():
+    "Give better error messages in response to code written by ChatGPT"
+    array = hl.literal([1, 2, 3])
+    with pytest.raises(ValueError, match='expressions that depend on other expressions'):
+        array.map(hl.literal)
