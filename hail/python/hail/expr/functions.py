@@ -238,7 +238,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     def typecheck_expr(t, x):
         if isinstance(x, Expression):
             wrapper['has_expr'] = True
-            wrapper['has_free_vars'] = (
+            wrapper['has_free_vars'] |= (
                 builtins.len(x._ir.free_vars) > 0 or
                 builtins.len(x._ir.free_agg_vars) > 0 or
                 builtins.len(x._ir.free_scan_vars) > 0
