@@ -74,49 +74,56 @@ class BatchClient(
   def delete(path: String, token: String): JValue =
     request(new HttpDelete(s"$baseUrl$path"))
 
-  def update(batchID: Long, token: String, jobs: IndexedSeq[JObject]) = {
+  def update(batchID: Long, token: String, jobs: IndexedSeq[JObject]): Long = {
     implicit val formats: Formats = DefaultFormats
 
     val updateJson = JObject("n_jobs" -> JInt(jobs.length), "token" -> JString(token))
     val bunches = createBunches(jobs)
-    val updateID = if (bunches.length == 1) {
-      val b = new ByteArrayBuilder()
-      b ++= "{\"bunch\":".getBytes(StandardCharsets.UTF_8)
-      addBunchBytes(b, bunches(0))
-      b ++= ",\"update\":".getBytes(StandardCharsets.UTF_8)
-      b ++= JsonMethods.compact(updateJson).getBytes(StandardCharsets.UTF_8)
-      b += '}'
-      val data = b.result()
-      val resp = retryTransientErrors{
-        post(s"/api/v1alpha/batches/$batchID/update-fast",
-          new ByteArrayEntity(data, ContentType.create("application/json")))
-      }
-      b.clear()
-      (resp \ "update_id").extract[Long]
-    } else {
-      val resp = retryTransientErrors { post(s"/api/v1alpha/batches/$batchID/updates/create", json = updateJson) }
-      val updateID = (resp \ "update_id").extract[Long]
-
-      val b = new ByteArrayBuilder()
-      var i = 0
-      while (i < bunches.length) {
-        addBunchBytes(b, bunches(i))
+    val updateID =
+      if (bunches.length == 1) {
+        val b = new ByteArrayBuilder()
+        b ++= "{\"bunch\":".getBytes(StandardCharsets.UTF_8)
+        addBunchBytes(b, bunches(0))
+        b ++= ",\"update\":".getBytes(StandardCharsets.UTF_8)
+        b ++= JsonMethods.compact(updateJson).getBytes(StandardCharsets.UTF_8)
+        b += '}'
         val data = b.result()
-        retryTransientErrors {
-          post(
-            s"/api/v1alpha/batches/$batchID/updates/$updateID/jobs/create",
-            new ByteArrayEntity(
-              data,
-              ContentType.create("application/json")))
+        val resp = retryTransientErrors {
+          post(s"/api/v1alpha/batches/$batchID/update-fast",
+            new ByteArrayEntity(data, ContentType.create("application/json")))
         }
         b.clear()
-        i += 1
+        (resp \ "update_id").extract[Long]
+      } else {
+        val resp = retryTransientErrors {
+          post(s"/api/v1alpha/batches/$batchID/updates/create", json = updateJson)
+        }
+        val updateID = (resp \ "update_id").extract[Long]
+
+        val b = new ByteArrayBuilder()
+        var i = 0
+        while (i < bunches.length) {
+          addBunchBytes(b, bunches(i))
+          val data = b.result()
+          retryTransientErrors {
+            post(
+              s"/api/v1alpha/batches/$batchID/updates/$updateID/jobs/create",
+              new ByteArrayEntity(
+                data,
+                ContentType.create("application/json")))
+          }
+          b.clear()
+          i += 1
+        }
+
+        retryTransientErrors {
+          patch(s"/api/v1alpha/batches/$batchID/updates/$updateID/commit")
+        }
+        updateID
       }
 
-      retryTransientErrors { patch(s"/api/v1alpha/batches/$batchID/updates/$updateID/commit") }
-      updateID
-    }
     log.info(s"run: created update $updateID for batch $batchID")
+    updateID
   }
 
   def create(batchJson: JObject, jobs: IndexedSeq[JObject]): Long = {

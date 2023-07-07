@@ -109,59 +109,54 @@ class ServiceBackend(
     val token = tokenUrlSafe(32)
     val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
 
-    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
-
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
 
-    val uploadFunction = executor.submit(new Callable[Unit] {
-      def call(): Unit = {
-        retryTransientErrors {
-          write(s"$root/f") { fos =>
-            using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
-          }
+    val uploadFunction = executor.submit[Unit](() =>
+      retryTransientErrors {
+        fs.writePDOS(s"$root/f") { fos =>
+          using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
         }
       }
-    })
+    )
 
-    val uploadContexts = executor.submit(new Callable[Unit] {
-      def call(): Unit = {
-        retryTransientErrors {
-          write(s"$root/contexts") { os =>
-            var o = 12L * n
-            var i = 0
-            while (i < n) {
-              val len = collection(i)._1.length
-              os.writeLong(o)
-              os.writeInt(len)
-              i += 1
-              o += len
-            }
-            collection.foreach { case (_, context) =>
-              os.write(context)
-            }
+    val uploadContexts = executor.submit[Unit](() =>
+      retryTransientErrors {
+        fs.writePDOS(s"$root/contexts") { os =>
+          var o = 12L * n
+
+          // write header of context offsets and lengths
+          for ((context, _) <- collection) {
+            val len = context.length
+            os.writeLong(o)
+            os.writeInt(len)
+            o += len
+          }
+
+          // write context arrays themselves
+          for ((context, _) <- collection) {
+            os.write(context)
           }
         }
       }
-    })
+    )
 
     uploadFunction.get()
     uploadContexts.get()
 
-    val jobs = new Array[JObject](n)
-    var i = 0
-    while (i < n) {
+    val jobs = collection.map { case (_, i) =>
       var resources = JObject("preemptible" -> JBool(true))
       if (backendContext.workerCores != "None") {
-        resources = resources.merge(JObject(("cpu" -> JString(backendContext.workerCores))))
+        resources = resources.merge(JObject("cpu" -> JString(backendContext.workerCores)))
       }
       if (backendContext.workerMemory != "None") {
-        resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
+        resources = resources.merge(JObject("memory" -> JString(backendContext.workerMemory)))
       }
       if (backendContext.storageRequirement != "0Gi") {
-        resources = resources.merge(JObject(("storage" -> JString(backendContext.storageRequirement))))
+        resources = resources.merge(JObject("storage" -> JString(backendContext.storageRequirement)))
       }
-      jobs(i) = JObject(
+
+      JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
         "in_update_parent_ids" -> JArray(List()),
@@ -174,7 +169,8 @@ class ServiceBackend(
             JString(Main.WORKER),
             JString(root),
             JString(s"$i"),
-            JString(s"$n"))),
+            JString(s"$n")
+          )),
           "type" -> JString("jvm"),
           "profile" -> JBool(backendContext.profile),
         ),
@@ -184,7 +180,7 @@ class ServiceBackend(
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
         "regions" -> JArray(backendContext.regions.map(JString).toList),
-        "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map{ case (bucket, mountPoint, readonly) =>
+        "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map { case (bucket, mountPoint, readonly) =>
           JObject(
             "bucket" -> JString(bucket),
             "mount_path" -> JString(mountPoint),
@@ -192,26 +188,25 @@ class ServiceBackend(
           )
         }.toList)
       )
-      i += 1
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
     val (batchId, updateId) = curBatchId match {
-      case Some(id) => {
-        val updateId = batchClient.update(id, token, jobs)
-        (id, updateId)
-      }
-      case None => {
+      case Some(id) =>
+        (id, batchClient.update(id, token, jobs))
+
+      case None =>
         val batchId = batchClient.create(
           JObject(
             "billing_project" -> JString(backendContext.billingProject),
             "n_jobs" -> JInt(n),
             "token" -> JString(token),
-            "attributes" -> JObject("name" -> JString(name + "_" + stageCount))),
-          jobs)
+            "attributes" -> JObject("name" -> JString(name + "_" + stageCount))
+          ),
+          jobs
+        )
         (batchId, 1L)
-      }
     }
 
     val batch = batchClient.waitForBatch(batchId, true)
@@ -228,27 +223,29 @@ class ServiceBackend(
     val startTime = System.nanoTime()
 
     val r@(_, results) = runAllKeepFirstError(executor) {
-      for {i <- 0 until n} yield (
-        () => {
-          availableGCSConnections.acquire()
-          try {
-            val bytes = fs.readNoCompression(s"$root/result.$i")
-            if (bytes(0) != 0) {
-              bytes.slice(1, bytes.length)
-            } else {
-              val errorInformationBytes = bytes.slice(1, bytes.length)
-              val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-              val shortMessage = readString(is)
-              val expandedMessage = readString(is)
-              val errorId = is.readInt()
-              throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+      collection.map { case (_, i) =>
+        (
+          () => {
+            availableGCSConnections.acquire()
+            try {
+              val bytes = fs.readNoCompression(s"$root/result.$i")
+              if (bytes(0) != 0) {
+                bytes.slice(1, bytes.length)
+              } else {
+                val errorInformationBytes = bytes.slice(1, bytes.length)
+                val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+                val shortMessage = readString(is)
+                val expandedMessage = readString(is)
+                val errorId = is.readInt()
+                throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+              }
+            } finally {
+              availableGCSConnections.release()
             }
-          } finally {
-            availableGCSConnections.release()
-          }
-        },
-        i
-      )
+          },
+          i
+        )
+      }
     }
 
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
