@@ -239,9 +239,9 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         if isinstance(x, Expression):
             wrapper['has_expr'] = True
             wrapper['has_free_vars'] = (
-                x._ir.free_vars.__len__() > 0 or
-                x._ir.free_agg_vars.__len__() > 0 or
-                x._ir.free_scan_vars.__len__() > 0
+                builtins.len(x._ir.free_vars) > 0 or
+                builtins.len(x._ir.free_agg_vars) > 0 or
+                builtins.len(x._ir.free_scan_vars) > 0
             )
 
             if x.dtype != t:
