@@ -164,8 +164,8 @@ class GenericTableValue(
   assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
-  var ltrCoercer: LoweredTableReaderCoercer = _
-  def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any): LoweredTableReaderCoercer = {
+  private var ltrCoercer: LoweredTableReaderCoercer = _
+  private def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any): LoweredTableReaderCoercer = {
     if (ltrCoercer == null) {
       ltrCoercer = LoweredTableReader.makeCoercer(
         ctx,

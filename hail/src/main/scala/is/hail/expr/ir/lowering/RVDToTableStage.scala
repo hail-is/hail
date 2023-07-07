@@ -28,7 +28,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
     assert(!dropRows)
     val (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) = Compile[AsmFunction1RegionLong](
       ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, PruneDeadFields.upcast(ctx, globals, requestedType.globalType))
@@ -43,10 +43,10 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
         requestedType.rowType))
 
     val fsBc = ctx.fsBc
-    TableValue(ctx, requestedType, globRow, rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
+    TableExecuteIntermediate(TableValue(ctx, requestedType, globRow, rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
       val partF = rowF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion)
       it.map { elt => partF(ctx.r, elt) }
-    })
+    }))
   }
 
   override def isDistinctlyKeyed: Boolean = false
@@ -68,7 +68,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     RVDToTableStage(rvd, globals)
       .upcast(ctx, requestedType)
   }

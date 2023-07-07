@@ -70,9 +70,9 @@ object LowerDistributedSort {
 
     override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-    def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
       assert(!dropRows)
-      TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
+      TableExecuteIntermediate(_lower(ctx, requestedType))
     }
 
     override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
@@ -94,7 +94,7 @@ object LowerDistributedSort {
     override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
       PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
-    override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+    override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
       TableStage(
         globals = globals,
         partitioner = partitioner.coarsen(requestedType.key.length),
@@ -612,9 +612,9 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
     assert(!dropRows)
-    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
+    TableExecuteIntermediate(_lower(ctx, requestedType))
   }
 
   override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
@@ -636,7 +636,7 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
 
     val contextData = {
       var filesCount: Long = 0

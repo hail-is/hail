@@ -485,8 +485,8 @@ class MatrixPLINKReader(
       body)
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
-    executeGeneric(ctx).toTableValue(ctx, requestedType)
+  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate =
+    TableExecuteIntermediate(_lower(ctx, requestedType))
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
@@ -494,7 +494,7 @@ class MatrixPLINKReader(
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params)
 
   override def toJValue: JValue = {

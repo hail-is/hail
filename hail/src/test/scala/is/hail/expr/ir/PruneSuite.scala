@@ -114,7 +114,7 @@ class PruneSuite extends HailSuite {
 
     def pathsUsed: IndexedSeq[String] = FastSeq()
 
-    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
+    override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 

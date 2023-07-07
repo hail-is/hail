@@ -155,7 +155,7 @@ class StringTableReader(
 
   override def pathsUsed: Seq[String] = params.files
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val fs = ctx.fs
     val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
       params.filePerPartition)
@@ -168,10 +168,8 @@ class StringTableReader(
     )
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    val ts = lower(ctx, requestedType)
-    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
-    TableValue(ctx, requestedType, broadCastRow, rvd)
+  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
+    TableExecuteIntermediate(_lower(ctx, requestedType))
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
