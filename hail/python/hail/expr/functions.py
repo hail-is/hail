@@ -233,11 +233,17 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     -------
     :class:`.Expression`
     """
-    wrapper = {'has_expr': False}
+    wrapper = {'has_expr': False, 'has_free_vars': False}
 
     def typecheck_expr(t, x):
         if isinstance(x, Expression):
             wrapper['has_expr'] = True
+            wrapper['has_free_vars'] = (
+                x._ir.free_vars.__len__() > 0 or
+                x._ir.free_agg_vars.__len__() > 0 or
+                x._ir.free_scan_vars.__len__() > 0
+            )
+
             if x.dtype != t:
                 raise TypeError(f"'literal': type mismatch: expected '{t}', found '{x.dtype}'")
             elif x._indices.source is not None:
@@ -265,17 +271,14 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
             raise TypeError("'literal': object did not match the passed type '{}'"
                             .format(dtype)) from e
 
-    if wrapper['has_expr']:
-        if ( x._ir.free_vars.__len__() > 0 or
-             x._ir.free_agg_vars.__len__() > 0 or
-             x._ir.free_scan_vars.__len__() > 0
-           ):
-            raise ValueError(
-                "'literal' cannot be used with hail expressions that depend "
-                "on other expressions. Use expression 'x' directly "
-                "instead of passing it to 'literal'."
-            )
+    if wrapper['has_free_vars']:
+        raise ValueError(
+            "'literal' cannot be used with hail expressions that depend "
+            "on other expressions. Use expression 'x' directly "
+            "instead of passing it to 'literal'."
+        )
 
+    if wrapper['has_expr']:
         return literal(hl.eval(to_expr(x, dtype)), dtype)
 
     if x is None or x is pd.NA:
