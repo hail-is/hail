@@ -67,11 +67,12 @@ class Interval(object):
             .format(repr(self.start), repr(self.end), repr(self.includes_start), repr(self._includes_end))
 
     def __eq__(self, other):
-        return (isinstance(other, Interval)
-                and self._start == other._start
-                and self._end == other._end
-                and self._includes_start == other._includes_start
-                and self._includes_end == other._includes_end)
+        return ( self._start          == other._start and
+                 self._end            == other._end and
+                 self._includes_start == other._includes_start and
+                 self._includes_end   == other._includes_end
+               ) if isinstance(other, Interval) else NotImplemented
+
 
     def __hash__(self):
         return hash(self._start) ^ hash(self._end) ^ hash(self._includes_start) ^ hash(self._includes_end)

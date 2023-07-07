@@ -42,13 +42,15 @@ class LinkedList(Iterable):
         return ListIterator(self.node)
 
     def __str__(self):
-        return 'List({})'.format(', '.join(str(x) for x in self))
+        return f'''List({', '.join(str(x) for x in self)})'''
 
     def __repr__(self):
-        return 'List({})'.format(', '.join(repr(x) for x in self))
+        return f'''List({', '.join(repr(x) for x in self)})'''
 
     def __eq__(self, other):
-        return isinstance(other, LinkedList) and list(self) == list(other)
+        return list(self) == list(other) \
+            if isinstance(other, LinkedList) \
+            else NotImplemented
 
     def __ne__(self, other):
         return not self.__eq__(other)
