@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 
@@ -184,6 +185,7 @@ ON DUPLICATE KEY UPDATE region = region;
         async for nic_name in self.resources_client.list_nic_names(self.machine_name_prefix):
             if self._resource_is_orphaned(nic_name):
                 try:
+                    log.info(f'deleting orphaned nic {nic_name}')
                     await self.network_client.delete_nic(nic_name, ignore_not_found=True)
                 except asyncio.CancelledError:
                     raise
@@ -195,6 +197,7 @@ ON DUPLICATE KEY UPDATE region = region;
         async for public_ip_name in self.resources_client.list_public_ip_names(self.machine_name_prefix):
             if self._resource_is_orphaned(public_ip_name):
                 try:
+                    log.info(f'deleting orphaned public ip {public_ip_name}')
                     await self.network_client.delete_public_ip(public_ip_name, ignore_not_found=True)
                 except asyncio.CancelledError:
                     raise
@@ -209,6 +212,8 @@ ON DUPLICATE KEY UPDATE region = region;
                 deployment_name = deployment['name']
                 if deployment_name.startswith(self.machine_name_prefix):
                     try:
+                        deployment.pop('parameters', None)
+                        log.info(f'deleting deployment {deployment_name} {json.dumps(deployment)}')
                         await self.arm_client.delete(f'/deployments/{deployment_name}')
                     except asyncio.CancelledError:
                         raise
