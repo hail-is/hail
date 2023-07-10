@@ -429,7 +429,7 @@ object LoweredTableReader {
                 tableStage,
                 keyType.fieldNames.map(f => SortField(f, Ascending)),
                 RTable(rowRType, globRType, FastSeq())
-              )._lower(ctx, TableType(tableStage.rowType, keyType.fieldNames, globals.typ.asInstanceOf[TStruct]))
+              ).lower(ctx, TableType(tableStage.rowType, keyType.fieldNames, globals.typ.asInstanceOf[TStruct]), dropRows = false)
             }
           }
         }
@@ -522,7 +522,7 @@ abstract class TableReader {
     } else
       _lower(ctx, requestedType)
 
-  def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage
+  protected def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage
 }
 
 object TableNativeReader {
