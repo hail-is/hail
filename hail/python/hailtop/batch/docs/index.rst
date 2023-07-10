@@ -22,6 +22,7 @@ Contents
    Batch Service <service>
    Cookbooks <cookbook>
    Reference (Python API) <api>
+   Advanced UI Search Help <advanced_search_help>
    Change Log And Version Policy <change_log>
 
 
