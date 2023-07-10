@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
+import is.hail.expr.ir.lowering.TableStage
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.types._
@@ -114,7 +115,7 @@ class PruneSuite extends HailSuite {
 
     def pathsUsed: IndexedSeq[String] = FastSeq()
 
-    override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = ???
+    override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 

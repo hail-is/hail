@@ -481,7 +481,10 @@ trait TableReaderWithExtraUID extends TableReader {
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
-  def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate
+  def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
+    assert(!dropRows)
+    TableExecuteIntermediate(_lower(ctx, requestedType))
+  }
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
@@ -519,8 +522,7 @@ abstract class TableReader {
     } else
       _lower(ctx, requestedType)
 
-  def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
+  def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage
 }
 
 object TableNativeReader {
@@ -1422,9 +1424,6 @@ class TableNativeReader(
     VirtualTypeWithReq(tcoerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
 
-  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate =
-    TableExecuteIntermediate(_lower(ctx, requestedType))
-
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
     decomposeWithName(params, "TableNativeReader")
@@ -1538,9 +1537,6 @@ case class TableNativeZippedReader(
     (t, mk)
   }
 
-  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate =
-    TableExecuteIntermediate(_lower(ctx, requestedType))
-
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = specLeft.globalsSpec
     val globalsPath = specLeft.globalsComponent.absolutePath(pathLeft)
@@ -1637,6 +1633,9 @@ case class TableFromBlockMatrixNativeReader(
     val rvd = RVD(RVDType(rowTyp, fullType.key.filter(rowTyp.hasField)), partitioner, ContextRDD(rowsRDD))
     TableExecuteIntermediate(TableValue(ctx, requestedType, BroadcastRow.empty(ctx), rvd))
   }
+
+  def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+      throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
 
   override def toJValue: JValue = {
     decomposeWithName(params, "TableFromBlockMatrixNativeReader")(TableReader.formats)

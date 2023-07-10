@@ -44,10 +44,6 @@ class AvroTableReader(
 
   def renderShort(): String = defaultRender()
 
-  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
-    TableExecuteIntermediate(_lower(ctx, requestedType))
-  }
-
   override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = MakeStruct(FastIndexedSeq())
     val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>

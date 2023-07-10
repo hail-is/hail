@@ -1965,9 +1965,6 @@ class MatrixVCFReader(
   override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params)
 
-  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate =
-    TableExecuteIntermediate(_lower(ctx, requestedType))
-
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
     decomposeWithName(params, "MatrixVCFReader")

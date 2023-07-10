@@ -168,10 +168,6 @@ class StringTableReader(
     )
   }
 
-  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
-    TableExecuteIntermediate(_lower(ctx, requestedType))
-  }
-
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =

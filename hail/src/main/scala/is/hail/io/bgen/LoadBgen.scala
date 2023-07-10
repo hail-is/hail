@@ -479,17 +479,6 @@ class MatrixBGENReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PType.canonical(requestedType.globalType, required = true))
 
-  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
-
-    val _lc = _lower(ctx, requestedType)
-    val lc = if (dropRows)
-      _lc.copy(partitioner = _lc.partitioner.copy(rangeBounds = Array[Interval]()),
-        contexts = StreamTake(_lc.contexts, 0))
-    else _lc
-
-    TableExecuteIntermediate(lc)
-  }
-
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalType: TStruct): IR = {
     requestedGlobalType.fieldOption(LowerMatrixIR.colsFieldName) match {
       case Some(f) =>
