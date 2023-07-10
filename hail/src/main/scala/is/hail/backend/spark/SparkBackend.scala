@@ -369,7 +369,7 @@ class SparkBackend(
   override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: IndexedSeq[(Array[Byte], Int)],
+    contexts: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
   )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
@@ -381,21 +381,36 @@ class SparkBackend(
 
     val rdd =
       new RDD[(Try[Array[Byte]], Int)](sc, sparkDeps) {
+
+        /* Spark insists that `Partition.index` is indeed the index that partition
+         * appears in the result of `RDD.getPartitions`.
+         *
+         * We accept contexts in the form (data, index) and return results in the
+         * form (result, index). The index is the index of input context in the
+         * original array of contexts. This function may receive a subset of those
+         * contexts when retrying queries. We can't use it as the RDD Partition index,
+         * therefore; instead store it as a "tag" and use it to transform the RDD result.
+         *
+         * See `BackendUtils.collectDArray` for how the index is generated.
+         */
+        case class TaggedRDDPartition(data: Array[Byte], tag: Int, index: Int)
+          extends Partition
+
         override protected def getPartitions: Array[Partition] =
-          for {(c, k) <- collection.toArray}
-            yield SparkBackendComputeRDDPartition(c, k)
+          for {((data, index), rddIndex) <- contexts.zipWithIndex.toArray}
+            yield TaggedRDDPartition(data, index, rddIndex)
 
         override def compute(partition: Partition, context: TaskContext): Iterator[(Try[Array[Byte]], Int)] = {
-          val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
+          val sp = partition.asInstanceOf[TaggedRDDPartition]
           val fs = new HadoopFS(null)
           val result = Try(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
-          Iterator.single((result, sp.index))
+          Iterator.single((result, sp.tag))
         }
       }
 
-    val buffer = new ArrayBuffer[(Array[Byte], Int)](collection.length)
+    val buffer = new ArrayBuffer[(Array[Byte], Int)](contexts.length)
     rdd.collect().foldLeft((Option.empty[Throwable], buffer)) {
-      case ((err, buffer), (Success(v), k)) => (err, buffer += ((v, k)))
+      case ((err, buffer), (Success(v), index)) => (err, buffer += ((v, index)))
       case ((err, buffer), (Failure(t), _)) => (err.orElse(Some(t)), buffer)
     }
   }
@@ -765,6 +780,4 @@ class SparkBackend(
     }
   }
 }
-
-case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition
 
