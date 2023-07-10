@@ -826,7 +826,9 @@ class TableIRSuite extends HailSuite {
 
       def pathsUsed: Seq[String] = FastSeq()
 
-      override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = ???
+      override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = ???
+
+      override def lowerGlobals(ctx: ExecuteContext, requestedType: TStruct): IR = ???
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 

@@ -1962,7 +1962,7 @@ class MatrixVCFReader(
         .apply(globals))
   }
 
-  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params)
 
   override def toJValue: JValue = {

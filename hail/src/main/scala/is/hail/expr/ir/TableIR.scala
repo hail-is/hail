@@ -429,7 +429,7 @@ object LoweredTableReader {
                 tableStage,
                 keyType.fieldNames.map(f => SortField(f, Ascending)),
                 RTable(rowRType, globRType, FastSeq())
-              ).lower(ctx, TableType(tableStage.rowType, keyType.fieldNames, globals.typ.asInstanceOf[TStruct]), dropRows = false)
+              ).lower(ctx, TableType(tableStage.rowType, keyType.fieldNames, globals.typ.asInstanceOf[TStruct]))
             }
           }
         }
@@ -483,7 +483,7 @@ abstract class TableReader {
 
   def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
     assert(!dropRows)
-    TableExecuteIntermediate(_lower(ctx, requestedType))
+    TableExecuteIntermediate(lower(ctx, requestedType))
   }
 
   def partitionCounts: Option[IndexedSeq[Long]]
@@ -506,23 +506,9 @@ abstract class TableReader {
     StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
   }
 
-  def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
-    throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
+  def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR
 
-  final def lower(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableStage =
-    if (dropRows) {
-      val globals = lowerGlobals(ctx, requestedType.globalType)
-
-      TableStage(
-        globals,
-        RVDPartitioner.empty(ctx, requestedType.keyType),
-        TableStageDependency.none,
-        MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
-        (_: Ref) => MakeStream(FastIndexedSeq(), TStream(requestedType.rowType)))
-    } else
-      _lower(ctx, requestedType)
-
-  protected def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage
+  def lower(ctx: ExecuteContext, requestedType: TableType): TableStage
 }
 
 object TableNativeReader {
@@ -1452,7 +1438,7 @@ class TableNativeReader(
       0)
   }
 
-  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = spec.rowsSpec
     val specPart = rowsSpec.partitioner(ctx.stateManager)
@@ -1548,7 +1534,7 @@ case class TableNativeZippedReader(
       0)
   }
 
-  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = specLeft.rowsSpec
     val specPart = rowsSpec.partitioner(ctx.stateManager)
@@ -1634,8 +1620,11 @@ case class TableFromBlockMatrixNativeReader(
     TableExecuteIntermediate(TableValue(ctx, requestedType, BroadcastRow.empty(ctx), rvd))
   }
 
-  def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
       throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
+      throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
 
   override def toJValue: JValue = {
     decomposeWithName(params, "TableFromBlockMatrixNativeReader")(TableReader.formats)

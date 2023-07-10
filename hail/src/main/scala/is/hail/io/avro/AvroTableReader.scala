@@ -2,7 +2,7 @@ package is.hail.io.avro
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
@@ -44,7 +44,7 @@ class AvroTableReader(
 
   def renderShort(): String = defaultRender()
 
-  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = MakeStruct(FastIndexedSeq())
     val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
       MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
@@ -59,6 +59,9 @@ class AvroTableReader(
       }
     )
   }
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
+    throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
 }
 
 object AvroTableReader {

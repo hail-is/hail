@@ -509,7 +509,7 @@ class MatrixBGENReader(
     case _ => false
   }
 
-  override def _lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
 
     val globals = lowerGlobals(ctx, requestedType.globalType)
     variants match {

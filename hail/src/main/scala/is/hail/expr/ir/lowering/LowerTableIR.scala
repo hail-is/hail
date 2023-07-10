@@ -510,7 +510,7 @@ class TableStage(
       rightWithPartNums,
       SortField("__partNum", Ascending) +: right.key.map(k => SortField(k, Ascending)),
       rightTableRType)
-    val sorted = sortedReader.lower(ctx, sortedReader.fullType, false)
+    val sorted = sortedReader.lower(ctx, sortedReader.fullType)
     assert(sorted.kType.fieldNames.sameElements("__partNum" +: right.key))
     val newRightPartitioner = new RVDPartitioner(
       ctx.stateManager,
@@ -785,7 +785,17 @@ object LowerTableIR {
 
     val lowered: TableStage = tir match {
       case TableRead(typ, dropRows, reader) =>
-        reader.lower(ctx, typ, dropRows)
+        if (dropRows) {
+          val globals = reader.lowerGlobals(ctx, typ.globalType)
+
+          TableStage(
+            globals,
+            RVDPartitioner.empty(ctx, typ.keyType),
+            TableStageDependency.none,
+            MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
+            (_: Ref) => MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
+        } else
+          reader.lower(ctx, typ)
 
       case TableParallelize(rowsAndGlobal, nPartitions) =>
         val nPartitionsAdj = nPartitions.getOrElse(16)
