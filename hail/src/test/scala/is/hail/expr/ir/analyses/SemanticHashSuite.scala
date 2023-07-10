@@ -1,8 +1,7 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.expr.ir._
-import is.hail.io.FakeFS
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.{FS, FakeFS, FileStatus}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.TableType

@@ -1,10 +1,8 @@
-package is.hail.fs
+package is.hail.io.fs
 
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
-import is.hail.fs.azure.AzureStorageFSSuite
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.io.fs.{FS, FileStatus, Seekable}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite

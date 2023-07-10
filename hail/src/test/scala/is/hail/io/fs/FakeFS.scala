@@ -1,6 +1,4 @@
-package is.hail.io
-
-import is.hail.io.fs.{FS, FileStatus, LocalFSURL, PositionedDataOutputStream, SeekableDataInputStream}
+package is.hail.io.fs
 
 abstract class FakeFS extends FS {
   override type URL = LocalFSURL

@@ -8,6 +8,7 @@ import org.apache.hadoop.io.MD5Hash
 import java.io._
 import java.security.MessageDigest
 import java.util.Base64
+import scala.util.Try
 
 class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
   val normalizedPath = fs.getPath
@@ -83,10 +84,8 @@ case class LocalFSURL(val path: String) extends FSURL[LocalFSURL] {
 class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends FS {
   type URL = LocalFSURL
 
-  def validUrl(filename: String): Boolean = {
-    val uri = new java.net.URI(filename)
-    uri.getScheme == null || uri.getScheme == "file"
-  }
+  override def validUrl(filename: String): Boolean =
+    Try(getFileSystem(filename)).isSuccess
 
   def getConfiguration(): SerializableHadoopConfiguration = conf
 

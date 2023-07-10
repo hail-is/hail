@@ -184,14 +184,13 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   import AzureStorageFS.log
 
-  def validUrl(filename: String): Boolean = {
+  override def validUrl(filename: String): Boolean =
     try {
       AzureStorageFS.parseUrl(filename)
       true
     } catch {
       case _: IllegalArgumentException => false
     }
-  }
 
   def getConfiguration(): Unit = ()
 
