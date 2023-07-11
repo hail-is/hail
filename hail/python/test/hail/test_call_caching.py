@@ -1,22 +1,20 @@
-from glob import glob
-from os import path
-
 import hail as hl
 
-from hail.utils.misc import new_local_temp_dir
+from hail.utils.misc import new_temp_file
 from .helpers import with_flags
 
-def test_call_cache_creation():
+def test_execution_cache_creation():
     """Asserts creation of execution cache folder"""
-    tmpdir = f"{new_local_temp_dir()}/{hl.__pip_version__}"
-    assert not path.exists(tmpdir)
+    folder = new_temp_file('hail-execution-cache')
+    fs = hl.current_backend().fs
+    assert not fs.exists(folder)
 
-    @with_flags(use_fast_restarts='1', cachedir=tmpdir)
+    @with_flags(use_fast_restarts='1', cachedir=folder)
     def test():
         (hl.utils.range_table(10)
          .annotate(another_field=5)
          ._force_count())
-        assert path.exists(tmpdir)
-        assert len(glob(tmpdir)) == 1
+        assert fs.exists(folder)
+        assert len(fs.ls(folder)) == 2
 
-    return test()
+    test()
