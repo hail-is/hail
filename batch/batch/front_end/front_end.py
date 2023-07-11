@@ -634,7 +634,11 @@ async def _query_batches(request, user: str, q: str, version: int, last_batch_id
 async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
+
     last_batch_id = request.query.get('last_batch_id')
+    if last_batch_id is not None:
+        last_batch_id = int(last_batch_id)
+
     batches, last_batch_id = await _handle_api_error(_query_batches, request, user, q, 1, last_batch_id)
     body = {'batches': batches}
     if last_batch_id is not None:
@@ -649,6 +653,8 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user = {user}')
     last_batch_id = request.query.get('last_batch_id')
+    if last_batch_id is not None:
+        last_batch_id = int(last_batch_id)
     batches, last_batch_id = await _handle_api_error(_query_batches, request, user, q, 2, last_batch_id)
     body = {'batches': batches}
     if last_batch_id is not None:
