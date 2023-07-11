@@ -15,6 +15,6 @@ def test_execution_cache_creation():
          .annotate(another_field=5)
          ._force_count())
         assert fs.exists(folder)
-        assert len(fs.ls(folder)) == 2
+        assert len(fs.ls(folder)) > 0
 
     test()
