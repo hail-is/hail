@@ -485,9 +485,6 @@ class MatrixPLINKReader(
       body)
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
-    executeGeneric(ctx).toTableValue(ctx, requestedType)
-
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
     val subset = tt.globalType.valueSubsetter(requestedGlobalsType)

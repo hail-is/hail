@@ -70,11 +70,6 @@ object LowerDistributedSort {
 
     override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-    def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-      assert(!dropRows)
-      TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
-    }
-
     override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
     def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
@@ -611,11 +606,6 @@ case class DistributionSortReader(key: TStruct, keyed: Boolean, spec: TypedCodec
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
-
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    assert(!dropRows)
-    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
-  }
 
   override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
