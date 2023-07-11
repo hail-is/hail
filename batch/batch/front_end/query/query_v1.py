@@ -1,10 +1,124 @@
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
 from ...exceptions import QueryError
-from .query import state_search_term_to_states
+from .query import job_state_search_term_to_states
 
 
-def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int]):
+def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int]) -> Tuple[str, List[Any]]:
+    where_conditions = [
+        '(billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
+        'NOT deleted',
+    ]
+    where_args: List[Any] = [user]
+
+    if last_batch_id is not None:
+        where_conditions.append('(batches.id < %s)')
+        where_args.append(last_batch_id)
+
+    terms = q.split()
+    for _t in terms:
+        if _t[0] == '!':
+            negate = True
+            t = _t[1:]
+        else:
+            negate = False
+            t = _t
+
+        if '=' in t:
+            k, v = t.split('=', 1)
+            condition = '''
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` = %s AND `value` = %s))
+'''
+            args = [k, v]
+        elif t.startswith('has:'):
+            k = t[4:]
+            condition = '''
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` = %s))
+'''
+            args = [k]
+        elif t.startswith('user:'):
+            k = t[5:]
+            condition = '''
+(batches.`user` = %s)
+'''
+            args = [k]
+        elif t.startswith('billing_project:'):
+            k = t[16:]
+            condition = '''
+(billing_projects.name_cs = %s)
+'''
+            args = [k]
+        elif t == 'open':
+            condition = "(`state` = 'open')"
+            args = []
+        elif t == 'closed':
+            condition = "(`state` != 'open')"
+            args = []
+        elif t == 'complete':
+            condition = "(`state` = 'complete')"
+            args = []
+        elif t == 'running':
+            condition = "(`state` = 'running')"
+            args = []
+        elif t == 'cancelled':
+            condition = '(batches_cancelled.id IS NOT NULL)'
+            args = []
+        elif t == 'failure':
+            condition = '(n_failed > 0)'
+            args = []
+        elif t == 'success':
+            # need complete because there might be no jobs
+            condition = "(`state` = 'complete' AND n_succeeded = n_jobs)"
+            args = []
+        else:
+            raise QueryError(f'Invalid search term: {t}.')
+
+        if negate:
+            condition = f'(NOT {condition})'
+
+        where_conditions.append(condition)
+        where_args.extend(args)
+
+    sql = f'''
+WITH base_t AS (
+  SELECT batches.*,
+    batches_cancelled.id IS NOT NULL AS cancelled,
+    batches_n_jobs_in_complete_states.n_completed,
+    batches_n_jobs_in_complete_states.n_succeeded,
+    batches_n_jobs_in_complete_states.n_failed,
+    batches_n_jobs_in_complete_states.n_cancelled
+  FROM batches
+  LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
+  LEFT JOIN batches_n_jobs_in_complete_states
+    ON batches.id = batches_n_jobs_in_complete_states.id
+  LEFT JOIN batches_cancelled
+    ON batches.id = batches_cancelled.id
+  STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+  WHERE {' AND '.join(where_conditions)}
+  ORDER BY id DESC
+  LIMIT 51
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
+  GROUP BY batch_id, resource_id
+) AS usage_t ON base_t.id = usage_t.batch_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY id
+ORDER BY id DESC;
+'''
+
+    return (sql, where_args)
+
+
+def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int]) -> Tuple[str, List[Any]]:
     # batch has already been validated
     where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
     where_args: List[Any] = [batch_id]
@@ -44,8 +158,8 @@ def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int])
   WHERE `key` = %s))
 '''
             args = [k]
-        elif t in state_search_term_to_states:
-            values = state_search_term_to_states[t]
+        elif t in job_state_search_term_to_states:
+            values = job_state_search_term_to_states[t]
             condition = ' OR '.join(['(jobs.state = %s)' for _ in values])
             condition = f'({condition})'
             args = [v.value for v in values]
@@ -84,6 +198,5 @@ LEFT JOIN (
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY base_t.batch_id, base_t.job_id;
 '''
-    sql_args = where_args
 
-    return (sql, sql_args)
+    return (sql, where_args)
