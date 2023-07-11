@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Dict, Optional, Tuple, Union
+from typing import Awaitable, Callable, Dict, Optional, ParamSpec, Tuple, TypeVar, Union
 
 import aiohttp
 import aiohttp_session
@@ -113,6 +113,10 @@ BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0G
 BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
+T = TypeVar('T')
+P = ParamSpec('P')
+
+
 def rest_authenticated_developers_or_auth_only(fun):
     @auth.rest_authenticated_users_only
     @wraps(fun)
@@ -189,6 +193,12 @@ def web_billing_project_users_only(redirect=True):
     return wrap
 
 
+def cast_query_param_to_int(param: Optional[str]) -> Optional[int]:
+    if param is not None:
+        return int(param)
+    return None
+
+
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
@@ -210,7 +220,9 @@ async def rest_get_supported_regions(request, userdata):  # pylint: disable=unus
     return json_response(list(request.app['regions'].keys()))
 
 
-async def _handle_ui_error(session, f, *args, **kwargs):
+async def _handle_ui_error(
+    session: aiohttp_session.Session, f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs
+) -> T:
     try:
         return await f(*args, **kwargs)
     except KeyError as e:
@@ -227,17 +239,17 @@ async def _handle_ui_error(session, f, *args, **kwargs):
         raise
 
 
-async def _handle_api_error(f, *args, **kwargs):
+async def _handle_api_error(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> Optional[T]:
     try:
         return await f(*args, **kwargs)
     except BatchOperationAlreadyCompletedError as e:
         log.info(e.message)
-        return
+        return None
     except BatchUserError as e:
         raise e.http_response()
 
 
-async def _query_batch_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
+async def _query_batch_jobs(request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
     db: Database = request.app['db']
     if version == 1:
         sql, sql_args = parse_batch_jobs_query_v1(batch_id, q, last_job_id)
@@ -279,24 +291,22 @@ WHERE id = %s AND NOT deleted;
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def get_jobs_v1(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def get_jobs_v1(request: web.Request, userdata: dict, batch_id: int):  # pylint: disable=unused-argument
     q = request.query.get('q', '')
-    last_job_id = request.query.get('last_job_id')
-    if last_job_id is not None:
-        last_job_id = int(last_job_id)
+    last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
     resp = await _handle_api_error(_get_jobs, request, batch_id, 1, q, last_job_id)
+    assert resp is not None
     return json_response(resp)
 
 
 @routes.get('/api/v2alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def get_jobs_v2(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def get_jobs_v2(request: web.Request, userdata: dict, batch_id: int):  # pylint: disable=unused-argument
     q = request.query.get('q', '')
-    last_job_id = request.query.get('last_job_id')
-    if last_job_id is not None:
-        last_job_id = int(last_job_id)
+    last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
     resp = await _handle_api_error(_get_jobs, request, batch_id, 2, q, last_job_id)
+    assert resp is not None
     return json_response(resp)
 
 
@@ -634,12 +644,10 @@ async def _query_batches(request, user: str, q: str, version: int, last_batch_id
 async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
-
-    last_batch_id = request.query.get('last_batch_id')
-    if last_batch_id is not None:
-        last_batch_id = int(last_batch_id)
-
-    batches, last_batch_id = await _handle_api_error(_query_batches, request, user, q, 1, last_batch_id)
+    last_batch_id = cast_query_param_to_int(request.query.get('last_batch_id'))
+    result = await _handle_api_error(_query_batches, request, user, q, 1, last_batch_id)
+    assert result is not None
+    batches, last_batch_id = result
     body = {'batches': batches}
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
@@ -652,10 +660,10 @@ async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
 async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user = {user}')
-    last_batch_id = request.query.get('last_batch_id')
-    if last_batch_id is not None:
-        last_batch_id = int(last_batch_id)
-    batches, last_batch_id = await _handle_api_error(_query_batches, request, user, q, 2, last_batch_id)
+    last_batch_id = cast_query_param_to_int(request.query.get('last_batch_id'))
+    result = await _handle_api_error(_query_batches, request, user, q, 2, last_batch_id)
+    assert result is not None
+    batches, last_batch_id = result
     body = {'batches': batches}
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
@@ -1637,9 +1645,7 @@ async def ui_batch(request, userdata, batch_id):
     batch = await _get_batch(app, batch_id)
 
     q = request.query.get('q', '')
-    last_job_id = request.query.get('last_job_id')
-    if last_job_id is not None:
-        last_job_id = int(last_job_id)
+    last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
 
     try:
         jobs, last_job_id = await _query_batch_jobs(request, batch_id, CURRENT_QUERY_VERSION, q, last_job_id)
@@ -1703,17 +1709,15 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @routes.get('/batches', name='batches')
 @auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
-async def ui_batches(request, userdata):
+async def ui_batches(request: web.Request, userdata: dict):
     session = await aiohttp_session.get_session(request)
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
-    last_batch_id = request.query.get('last_batch_id')
-    if last_batch_id is not None:
-        last_batch_id = int(last_batch_id)
+    last_batch_id = cast_query_param_to_int(request.query.get('last_batch_id'))
     try:
-        batches, last_batch_id = await _handle_ui_error(
-            session, _query_batches, request, user, q, CURRENT_QUERY_VERSION, last_batch_id
-        )
+        result = await _handle_ui_error(session, _query_batches, request, user, q, CURRENT_QUERY_VERSION, last_batch_id)
+        assert result is not None
+        batches, last_batch_id = result
     except asyncio.CancelledError:
         raise
     except Exception:
