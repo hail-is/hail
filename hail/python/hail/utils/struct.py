@@ -94,7 +94,9 @@ class Struct(Mapping):
         )
 
     def __eq__(self, other):
-        return isinstance(other, Struct) and self._fields == other._fields
+        return self._fields == other._fields \
+            if isinstance(other, Struct) \
+            else NotImplemented
 
     def __hash__(self):
         return 37 + hash(tuple(sorted(self._fields.items())))

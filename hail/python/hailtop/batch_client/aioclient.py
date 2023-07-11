@@ -370,7 +370,8 @@ class Batch:
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
     async def jobs(self, q: Optional[str] = None, version: Optional[int] = None):
-        version = version or 1
+        if version is None:
+            version = 1
         last_job_id = None
         while True:
             params = {}
@@ -890,7 +891,9 @@ class BatchClient:
     def reset_billing_project(self, billing_project):
         self.billing_project = billing_project
 
-    async def list_batches(self, q=None, last_batch_id=None, limit=2 ** 64):
+    async def list_batches(self, q=None, last_batch_id=None, limit=2 ** 64, version=None):
+        if version is None:
+            version = 1
         n = 0
         while True:
             params = {}
@@ -899,7 +902,7 @@ class BatchClient:
             if last_batch_id is not None:
                 params['last_batch_id'] = last_batch_id
 
-            resp = await self._get('/api/v1alpha/batches', params=params)
+            resp = await self._get(f'/api/v{version}alpha/batches', params=params)
             body = await resp.json()
 
             for batch in body['batches']:

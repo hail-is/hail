@@ -91,3 +91,10 @@ class Tests(unittest.TestCase):
                                "Calls with greater than 2 alleles are not supported.",
                                Call,
                                [1, 1, 1, 1])
+
+def test_call_rich_comparison():
+    val = Call([0, 0])
+    expr = hl.call(0, 0)
+
+    assert hl.eval(val == expr)
+    assert hl.eval(expr == val)

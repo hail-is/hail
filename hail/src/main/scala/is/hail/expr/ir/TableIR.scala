@@ -481,7 +481,10 @@ trait TableReaderWithExtraUID extends TableReader {
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue
+  def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
+    assert(!dropRows)
+    TableExecuteIntermediate(lower(ctx, requestedType))
+  }
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
@@ -503,11 +506,9 @@ abstract class TableReader {
     StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
   }
 
-  def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
-    throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
+  def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR
 
-  def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
+  def lower(ctx: ExecuteContext, requestedType: TableType): TableStage
 }
 
 object TableNativeReader {
@@ -1409,9 +1410,6 @@ class TableNativeReader(
     VirtualTypeWithReq(tcoerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
 
-  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
-    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
-
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
     decomposeWithName(params, "TableNativeReader")
@@ -1525,9 +1523,6 @@ case class TableNativeZippedReader(
     (t, mk)
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
-    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
-
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = specLeft.globalsSpec
     val globalsPath = specLeft.globalsComponent.absolutePath(pathLeft)
@@ -1612,7 +1607,7 @@ case class TableFromBlockMatrixNativeReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalStruct.empty(required = true))
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(
       ctx.fsBc, params.path, partitionRanges, requestedType.rowType, metadata,
       maybeMaximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes)
@@ -1622,8 +1617,14 @@ case class TableFromBlockMatrixNativeReader(
 
     val rowTyp = PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct]
     val rvd = RVD(RVDType(rowTyp, fullType.key.filter(rowTyp.hasField)), partitioner, ContextRDD(rowsRDD))
-    TableValue(ctx, requestedType, BroadcastRow.empty(ctx), rvd)
+    TableExecuteIntermediate(TableValue(ctx, requestedType, BroadcastRow.empty(ctx), rvd))
   }
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+      throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
+      throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
 
   override def toJValue: JValue = {
     decomposeWithName(params, "TableFromBlockMatrixNativeReader")(TableReader.formats)
@@ -1666,7 +1667,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate =
-    new TableValueIntermediate(tr.apply(ctx, typ, dropRows))
+    tr.toExecuteIntermediate(ctx, typ, dropRows)
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {

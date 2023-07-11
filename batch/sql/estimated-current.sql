@@ -352,6 +352,7 @@ CREATE TABLE IF NOT EXISTS `batch_attributes` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
+CREATE INDEX batch_attributes_value ON `batch_attributes` (`value`(256));
 
 DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v2`;
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_v2` (

@@ -29,8 +29,8 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
     def __init__(self, subscription_id: str, resource_group: str, acr_url: str):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
-        self.acr_refresh_token = AcrRefreshToken(acr_url, AadAccessToken())
         self.azure_credentials = aioazure.AzureCredentials.default_credentials()
+        self.acr_refresh_token = AcrRefreshToken(acr_url, self.azure_credentials)
         self._blobfuse_credential_files: Dict[str, str] = {}
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
@@ -139,34 +139,18 @@ class LazyShortLivedToken(abc.ABC):
         raise NotImplementedError()
 
 
-class AadAccessToken(LazyShortLivedToken):
-    async def _fetch(self, session: httpx.ClientSession) -> Tuple[str, int]:
-        # https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/how-to-use-vm-token#get-a-token-using-http
-        params = {'api-version': '2018-02-01', 'resource': 'https://management.azure.com/'}
-        resp_json = await retry_transient_errors(
-            session.get_read_json,
-            'http://169.254.169.254/metadata/identity/oauth2/token',
-            headers={'Metadata': 'true'},
-            params=params,
-            timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        )
-        access_token: str = resp_json['access_token']
-        expiration_time_ms = int(resp_json['expires_on']) * 1000
-        return access_token, expiration_time_ms
-
-
 class AcrRefreshToken(LazyShortLivedToken):
-    def __init__(self, acr_url: str, aad_access_token: AadAccessToken):
+    def __init__(self, acr_url: str, credentials: aioazure.AzureCredentials):
         super().__init__()
         self.acr_url: str = acr_url
-        self.aad_access_token: AadAccessToken = aad_access_token
+        self.credentials = credentials
 
     async def _fetch(self, session: httpx.ClientSession) -> Tuple[str, int]:
         # https://github.com/Azure/acr/blob/main/docs/AAD-OAuth.md#calling-post-oauth2exchange-to-get-an-acr-refresh-token
         data = {
             'grant_type': 'access_token',
             'service': self.acr_url,
-            'access_token': await self.aad_access_token.token(session),
+            'access_token': (await self.credentials.access_token()).token,
         }
         resp_json = await retry_transient_errors(
             session.post_read_json,

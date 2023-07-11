@@ -3,7 +3,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToRVD}
+import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.RVDPartitioner
@@ -168,11 +168,8 @@ case class StringTableReader(
     )
   }
 
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    val ts = lower(ctx, requestedType)
-    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
-    TableValue(ctx, requestedType, broadCastRow, rvd)
-  }
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
+    throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 

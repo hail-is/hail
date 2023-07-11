@@ -421,3 +421,22 @@ def test_hadoop_ls_negated_group(glob_tests_directory):
                 glob_tests_directory + '/abc/ghi/?23']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/ghi/[!1]23')]
     assert set(actual) == set(expected)
+
+
+def test_struct_rich_comparison():
+    """Asserts comparisons between structs and struct expressions are symmetric"""
+    struct = hl.Struct(
+        locus=hl.Locus(contig=10, position=60515, reference_genome='GRCh37'),
+        alleles=['C', 'T']
+    )
+
+    expr = hl.struct(
+        locus=hl.locus(contig='10', pos=60515, reference_genome='GRCh37'),
+        alleles=['C', 'T']
+    )
+
+    assert hl.eval(struct == expr) and hl.eval(expr == struct)
+    assert hl.eval(struct >= expr) and hl.eval(expr >= struct)
+    assert hl.eval(struct <= expr) and hl.eval(expr <= struct)
+    assert not (hl.eval(struct < expr) or hl.eval(expr < struct))
+    assert not (hl.eval(struct > expr) or hl.eval(expr > struct))

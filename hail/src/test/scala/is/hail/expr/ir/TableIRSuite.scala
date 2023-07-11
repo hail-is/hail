@@ -15,7 +15,7 @@ import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll
-import org.scalatest.{Failed, Outcome, Succeeded}
+import org.scalatest.{Failed, Succeeded}
 import org.testng.annotations.{DataProvider, Test}
 
 class TableIRSuite extends HailSuite {
