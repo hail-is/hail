@@ -15,27 +15,21 @@ def partition(k, ls):
     out = []
     start = 0
     for part in parts:
-        out.append(ls[start:start + part])
+        out.append(ls[start : start + part])
         start += part
     return out
 
 
-sp.run("find src/test \\( -name \"*.scala\" -o -name \"*.java\" \\) -type f > classes",
-       shell=True,
-       check=True)
+sp.run("find src/test \\( -name \"*.scala\" -o -name \"*.java\" \\) -type f > classes", shell=True, check=True)
 
 n_splits = int(os.environ['TESTNG_SPLITS'])
 
 with open('classes', 'r') as f:
     foo = f.readlines()
-    classes = [x.replace('src/test/scala/', '')
-                .replace('.scala\n', '')
-                .replace('.java\n', '')
-                .replace('/', '.')
-               for x in foo]
-    classes = [cls for cls in classes
-               if not cls.startswith('is.hail.services')
-               if not cls.startswith('is.hail.fs')]
+    classes = [
+        x.replace('src/test/scala/', '').replace('.scala\n', '').replace('.java\n', '').replace('/', '.') for x in foo
+    ]
+    classes = [cls for cls in classes if not cls.startswith('is.hail.services') if not cls.startswith('is.hail.fs')]
 
 random.shuffle(classes, lambda: 0.0)
 

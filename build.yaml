@@ -1042,9 +1042,15 @@ steps:
 
       exit_status=0
 
-      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
-      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
-      python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
+      for SUBDIR in hail hailtop
+      do
+        DIR=$SITE_PACKAGES/$SUBDIR
+        ruff check --config pyproject.toml $DIR || exit_status=$?
+        python3 -m pylint --rcfile pylintrc $DIR || exit_status=$?
+      done
+
+      python3 -m black . --check --diff || exit_status=$?
+
       # working around this: https://github.com/python/mypy/issues/7087
       ln -s $SITE_PACKAGES/hailtop hailtop
       mypy --config-file /setup.cfg -p hailtop || exit_status=$?
@@ -1062,9 +1068,15 @@ steps:
 
       exit_status=0
 
-      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
-      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
-      python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
+      for SUBDIR in hail hailtop
+      do
+        DIR=$SITE_PACKAGES/$SUBDIR
+        ruff check --config pyproject.toml $DIR || exit_status=$?
+        python3 -m pylint --rcfile pylintrc $DIR || exit_status=$?
+      done
+
+      python3 -m black . --check --diff || exit_status=$?
+
       # working around this: https://github.com/python/mypy/issues/7087
       ln -s $SITE_PACKAGES/hailtop hailtop
       mypy --config-file /setup.cfg -p hailtop || exit_status=$?

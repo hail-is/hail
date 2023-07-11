@@ -11,12 +11,18 @@ root = sys.argv[4]
 
 random.seed(seed)
 
+
 def homRef(maf):
     return (1.0 - maf) * (1.0 - maf)
+
+
 def het(maf):
     return 2 * maf * (1.0 - maf)
+
+
 def homAlt(maf):
     return maf * maf
+
 
 def randomGen(missingRate):
     gps = []
@@ -28,6 +34,7 @@ def randomGen(missingRate):
             d2 = random.uniform(0, 1.0 - d1)
             gps += [d1, d2, 1.0 - d1 - d2]
     return gps
+
 
 def hweGen(maf, missingRate):
     bb = homAlt(maf)
@@ -49,8 +56,9 @@ def hweGen(maf, missingRate):
                 gps += [d2, d1, d3]
             else:
                 gps += [d3, d2, d1]
-    
+
     return gps
+
 
 def constantGen(triple, missingRate):
     gps = []
@@ -60,6 +68,7 @@ def constantGen(triple, missingRate):
         else:
             gps += triple
     return gps
+
 
 variants = {}
 for i in range(nVariants * 0, nVariants * 1):
@@ -83,17 +92,18 @@ for i in range(nVariants * 4, nVariants * 5):
     variants[i] = constantGen([1, 0, 0], missingRate)
 
 for i in range(nVariants * 5, nVariants * 6):
-    missingRate= random.random()
-    variants[i]= constantGen([0, 1, 0], missingRate)
+    missingRate = random.random()
+    variants[i] = constantGen([0, 1, 0], missingRate)
 
 for i in range(nVariants * 6, nVariants * 7):
-    missingRate= random.random()
-    variants[i]= constantGen([0, 0, 1], missingRate)
+    missingRate = random.random()
+    variants[i] = constantGen([0, 0, 1], missingRate)
 
 variants[i + 1] = constantGen([0, 0, 0], 0.0)
-variants[i + 2]= constantGen([1, 0, 0], 0.0)
-variants[i + 3]= constantGen([0, 1, 0], 0.0)
-variants[i + 4]= constantGen([0, 0, 1], 0.0)
+variants[i + 2] = constantGen([1, 0, 0], 0.0)
+variants[i + 3] = constantGen([0, 1, 0], 0.0)
+variants[i + 4] = constantGen([0, 0, 1], 0.0)
+
 
 def transformDosage(dx):
     w0 = dx[0]
@@ -107,9 +117,10 @@ def transformDosage(dx):
         l1 = int((w0 + w1) * 32768 / sumDx + 0.5) - l0
         l2 = 32768 - l0 - l1
     except:
-        print dx
+        print(dx)
         sys.exit()
     return [l0 / 32768.0, l1 / 32768.0, l2 / 32768.0]
+
 
 def calcInfoScore(gps):
     nIncluded = 0
@@ -119,13 +130,13 @@ def calcInfoScore(gps):
     totalDosage = 0.0
 
     for i in range(0, len(gps), 3):
-        dx = gps[i:i + 3]
+        dx = gps[i : i + 3]
         if sum(dx) != 0.0:
             dxt = transformDosage(dx)
             nIncluded += 1
             e.append(dxt[1] + 2 * dxt[2])
             f.append(dxt[1] + 4 * dxt[2])
-            altAllele += (dxt[1] + 2 *dxt[2])
+            altAllele += dxt[1] + 2 * dxt[2]
             totalDosage += sum(dxt)
 
     z = zip(e, f)
@@ -141,7 +152,7 @@ def calcInfoScore(gps):
             infoScore = 1.0
 
     return (infoScore, nIncluded)
-        
+
 
 genOutput = open(root + ".gen", 'w')
 sampleOutput = open(root + ".sample", 'w')

@@ -1,7 +1,7 @@
 [tool.black]
 line-length = 120
 skip-string-normalization = true
-force-exclude = 'hail|datasets|sql|\.mypy'
+force-exclude = 'hail/python/hail|hail/python/cluster-tests|hail/python/test|datasets|sql|\.mypy'
 
 [tool.ruff]
 line-length = 120
@@ -27,11 +27,11 @@ known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "we
 
 [tool.ruff.per-file-ignores]
 "hail/python/hail/**/*" = ["I", "PL", "RUF"]
+"dist-packages/hail/**/*" = ["I", "PL", "RUF"]
 "hail/python/hailtop/**/*" = ["I"]
+"dist-packages/hailtop/**/*" = ["I"]
 "hail/python/test/**/*" = ["ALL"]
 "hail/python/cluster-tests/**/*" = ["ALL"]
-"hail/python/setup-hailtop.py" = ["ALL"]
-"hail/python/setup.py" = ["ALL"]
 "hail/scripts/update-terra-image.py" = ["ALL"]
 "hail/src/**/*" = ["ALL"]
 "benchmark/**/*" = ["ALL"]

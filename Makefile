@@ -33,17 +33,22 @@ check-all: check-hail check-services
 
 .PHONY: check-hail-fast
 check-hail-fast:
-	ruff check hail/python/hail
-	ruff check hail/python/hailtop
+	for SUBDIR in hail hailtop cluster-tests test; do \
+		DIR=hail/python/$$SUBDIR; \
+		ruff check $$DIR; \
+	done
+	$(PYTHON) -m black hail --check --diff
 	$(PYTHON) -m mypy --config-file setup.cfg hail/python/hailtop
 
-.PHONY: pylint-hailtop
-pylint-hailtop:
+.PHONY: pylint-hail
+pylint-hail:
 	# pylint on hail is still a work in progress
-	$(PYTHON) -m pylint --rcfile pylintrc hail/python/hailtop --score=n
+	for DIR in hail hailtop cluster-tests test; do \
+		$(PYTHON) -m pylint --rcfile pylintrc hail/python/$$DIR --score=n; \
+	done
 
 .PHONY: check-hail
-check-hail: check-hail-fast pylint-hailtop
+check-hail: check-hail-fast pylint-hail pylint-hailtop
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)

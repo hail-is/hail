@@ -3,6 +3,7 @@
 # I also tried extension-pkg-allow-list, but it had no effect. https://stackoverflow.com/a/35259944/6823256
 generated-members=orjson
 ignore=sql
+ignore-paths=hail/python/hail,hail/python/cluster-tests,hail/python/test
 
 [MESSAGES CONTROL]
 # C0111 Missing docstring

@@ -26,13 +26,15 @@ with open(f'{image_name}/CHANGELOG.md') as fobj:
 
 with open(f'{image_name}/CHANGELOG.md', 'w') as fobj:
     todays_date = datetime.date.today().strftime('%Y-%m-%d')
-    fobj.write(f"""## {image_version} - {todays_date}
+    fobj.write(
+        f"""## {image_version} - {todays_date}
 - Update `hail` to `{hail_pip_version}`
   - See https://hail.is/docs/0.2/change_log.html#version-{hail_pip_version.replace('.', '-')}) for details
 
 Image URL: `us.gcr.io/broad-dsp-gcr-public/{image_name}:{image_version}`
 
-""")
+"""
+    )
     fobj.write(changelog)
 
 
@@ -46,8 +48,4 @@ with open(f'{image_name}/Dockerfile') as fobj:
     dockerfile = fobj.read()
 
 with open(f'{image_name}/Dockerfile', 'w') as fobj:
-    fobj.write(
-        '\n'.join(
-            [update_version_line(line) for line in dockerfile.split('\n')]
-        )
-    )
+    fobj.write('\n'.join([update_version_line(line) for line in dockerfile.split('\n')]))

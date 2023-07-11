@@ -9,11 +9,14 @@ from hailtop.config.user_config import configuration_of, _load_user_config
 
 
 if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS' not in os.environ:
-    print('This script will overwrite your spark-defaults.conf and hailctl settings. It is intended to be executed inside a container.')
+    print(
+        'This script will overwrite your spark-defaults.conf and hailctl settings. It is intended to be executed inside a container.'
+    )
     sys.exit(1)
 
 
 SPARK_CONF_PATH = spark_conf_path()
+
 
 async def unset_hailctl():
     await check_exec_output(
@@ -43,7 +46,6 @@ async def test_no_configuration():
     assert actual is None
 
 
-
 @pytest.mark.asyncio
 async def test_no_project_is_error():
     with open(SPARK_CONF_PATH, 'w') as f:
@@ -65,7 +67,6 @@ async def test_auto_with_project():
 
     actual = get_gcs_requester_pays_configuration()
     assert actual == 'my_project'
-
 
 
 @pytest.mark.asyncio
@@ -93,7 +94,6 @@ async def test_custom_with_buckets():
     assert actual == ('my_project', ['abc', 'def'])
 
 
-
 @pytest.mark.asyncio
 async def test_disabled():
     with open(SPARK_CONF_PATH, 'w') as f:
@@ -105,7 +105,6 @@ async def test_disabled():
 
     actual = get_gcs_requester_pays_configuration()
     assert actual is None
-
 
 
 @pytest.mark.asyncio
@@ -121,7 +120,6 @@ async def test_enabled():
     assert actual == 'my_project'
 
 
-
 @pytest.mark.asyncio
 async def test_hailctl_takes_precedence_1():
     await unset_hailctl()
@@ -131,24 +129,19 @@ async def test_hailctl_takes_precedence_1():
         f.write('spark.hadoop.fs.gs.requester.pays.mode ENABLED\n')
         f.write('spark.hadoop.fs.gs.requester.pays.buckets abc,def\n')
 
-    await check_exec_output(
-        'hailctl',
-        'config',
-        'set',
-        'gcs_requester_pays/project',
-        'hailctl_project',
-        echo=True
-    )
+    await check_exec_output('hailctl', 'config', 'set', 'gcs_requester_pays/project', 'hailctl_project', echo=True)
 
     _load_user_config()  # force reload of user config
 
     actual = get_gcs_requester_pays_configuration()
-    assert actual == 'hailctl_project', str((
-        configuration_of('gcs_requester_pays', 'project', None, None),
-        configuration_of('gcs_requester_pays', 'buckets', None, None),
-        get_spark_conf_gcs_requester_pays_configuration(),
-        open('/Users/dking/.config/hail/config.ini', 'r').readlines()
-    ))
+    assert actual == 'hailctl_project', str(
+        (
+            configuration_of('gcs_requester_pays', 'project', None, None),
+            configuration_of('gcs_requester_pays', 'buckets', None, None),
+            get_spark_conf_gcs_requester_pays_configuration(),
+            open('/Users/dking/.config/hail/config.ini', 'r').readlines(),
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -160,23 +153,9 @@ async def test_hailctl_takes_precedence_2():
         f.write('spark.hadoop.fs.gs.requester.pays.mode ENABLED\n')
         f.write('spark.hadoop.fs.gs.requester.pays.buckets abc,def\n')
 
-    await check_exec_output(
-        'hailctl',
-        'config',
-        'set',
-        'gcs_requester_pays/project',
-        'hailctl_project2',
-        echo=True
-    )
+    await check_exec_output('hailctl', 'config', 'set', 'gcs_requester_pays/project', 'hailctl_project2', echo=True)
 
-    await check_exec_output(
-        'hailctl',
-        'config',
-        'set',
-        'gcs_requester_pays/buckets',
-        'bucket1,bucket2',
-        echo=True
-    )
+    await check_exec_output('hailctl', 'config', 'set', 'gcs_requester_pays/buckets', 'bucket1,bucket2', echo=True)
 
     _load_user_config()  # force reload of user config
 
