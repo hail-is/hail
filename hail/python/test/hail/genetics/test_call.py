@@ -5,6 +5,7 @@ from ..helpers import *
 
 
 class Tests(unittest.TestCase):
+    @run_in('local')
     def test_hom_ref(self):
         c_hom_ref = Call([0, 0])
         self.assertEqual(c_hom_ref.alleles, [0, 0])
@@ -22,6 +23,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_hom_ref.is_het_ref())
         self.assertTrue(c_hom_ref.unphased_diploid_gt_index() == 0)
 
+    @run_in('local')
     def test_het(self):
         c_het_phased = Call([1, 0], phased=True)
         self.assertEqual(c_het_phased.alleles, [1, 0])
@@ -38,6 +40,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_het_phased.is_het_non_ref())
         self.assertTrue(c_het_phased.is_het_ref())
 
+    @run_in('local')
     def test_hom_var(self):
         c_hom_var = Call([1, 1])
         self.assertEqual(c_hom_var.alleles, [1, 1])
@@ -55,6 +58,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_hom_var.is_het_ref())
         self.assertTrue(c_hom_var.unphased_diploid_gt_index() == 2)
 
+    @run_in('local')
     def test_haploid(self):
         c_haploid = Call([2], phased=True)
         self.assertEqual(c_haploid.alleles, [2])
@@ -71,6 +75,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_haploid.is_het_non_ref())
         self.assertFalse(c_haploid.is_het_ref())
 
+    @run_in('local')
     def test_zeroploid(self):
         c_zeroploid = Call([])
         self.assertEqual(c_zeroploid.alleles, [])
@@ -92,6 +97,8 @@ class Tests(unittest.TestCase):
                                Call,
                                [1, 1, 1, 1])
 
+
+@run_in('local')
 def test_call_rich_comparison():
     val = Call([0, 0])
     expr = hl.call(0, 0)

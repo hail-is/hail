@@ -1,6 +1,9 @@
 import hail as hl
 
+from .helpers import run_in
 
+
+@run_in('all')
 def test_table_explode():
     hl.reset_global_randomness()
     ht = hl.utils.range_table(5)
@@ -27,6 +30,7 @@ def test_table_explode():
     assert expected == actual
 
 
+@run_in('all')
 def test_table_key_by():
     hl.reset_global_randomness()
     ht = hl.utils.range_table(5)
@@ -43,6 +47,7 @@ def test_table_key_by():
     assert expected == actual
 
 
+@run_in('all')
 def test_table_annotate():
     hl.reset_global_randomness()
     ht = hl.utils.range_table(5)
@@ -59,6 +64,7 @@ def test_table_annotate():
     assert expected == actual
 
 
+@run_in('all')
 def test_matrix_table_entries():
     hl.reset_global_randomness()
     mt = hl.utils.range_matrix_table(5, 2)
@@ -79,6 +85,7 @@ def test_matrix_table_entries():
     assert expected == actual
 
 
+@run_in('all')
 def test_table_filter():
     hl.reset_global_randomness()
     ht = hl.utils.range_table(5)
@@ -89,6 +96,7 @@ def test_table_filter():
     assert expected == actual
 
 
+@run_in('all')
 def test_table_key_by_aggregate():
     hl.reset_global_randomness()
     ht = hl.utils.range_table(5)

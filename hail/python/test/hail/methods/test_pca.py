@@ -4,11 +4,12 @@ import numpy as np
 
 import hail as hl
 from hail.methods.pca import _make_tsm
-from ..helpers import resource, fails_local_backend, skip_when_service_backend, test_timeout
+from ..helpers import resource, run_in, fails_local_backend, skip_when_service_backend, timeout_after
 
 
 @fails_local_backend()
-@test_timeout(batch=10 * 60)
+@timeout_after(batch=10 * 60)
+@run_in('all')
 def test_hwe_normalized_pca():
     mt = hl.balding_nichols_model(3, 100, 50)
     eigenvalues, scores, loadings = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=True)
@@ -23,7 +24,8 @@ def test_hwe_normalized_pca():
 
 
 @fails_local_backend()
-@test_timeout(batch=10 * 60)
+@timeout_after(batch=10 * 60)
+@run_in('all')
 def test_pca_against_numpy():
     mt = hl.import_vcf(resource('tiny_m.vcf'))
     mt = mt.annotate_rows(AC=hl.agg.sum(mt.GT.n_alt_alleles()),
@@ -66,7 +68,8 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(np.abs(hail_loadings), np.abs(np_loadings), rtol=1e-5)
 
 
-@test_timeout(batch=10 * 60)
+@timeout_after(batch=10 * 60)
+@run_in('all')
 def test_blanczos_against_numpy():
     def concatToNumpy(blocks, horizontal=True):
         if horizontal:
@@ -136,7 +139,8 @@ def matrix_table_from_numpy(np_mat):
 dim_triplets = [(20, 1000, 1000), (10, 100, 200)]
 
 
-@test_timeout(batch=5 * 60)
+@timeout_after(batch=5 * 60)
+@run_in('all')
 def test_blanczos_T():
     k, m, n = 10, 100, 200
     sigma = np.diag([spec1(i + 1, k) for i in range(m)])
@@ -214,31 +218,36 @@ def spec5(j, k):
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(5 * 60, batch=8 * 60)
+@timeout_after(5 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_1(triplet):
     spectra_helper(spec1, triplet)
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(5 * 60, batch=8 * 60)
+@timeout_after(5 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_2(triplet):
     spectra_helper(spec2, triplet)
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(5 * 60, batch=8 * 60)
+@timeout_after(5 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_3(triplet):
     spectra_helper(spec3, triplet)
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(5 * 60, batch=8 * 60)
+@timeout_after(5 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_4(triplet):
     spectra_helper(spec4, triplet)
 
 
 @pytest.mark.parametrize("triplet", dim_triplets)
-@test_timeout(5 * 60, batch=8 * 60)
+@timeout_after(5 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_5(triplet):
     spectra_helper(spec5, triplet)
 
@@ -260,32 +269,32 @@ def spectral_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60)
+@run_in('local', 'spark')  #  reason='v slow & OOms on service'
 def test_spectral_moments_1():
     spectral_moments_helper(spec1)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60)
+@run_in('local', 'spark')  #  reason='v slow & OOms on service'
 def test_spectral_moments_2():
     spectral_moments_helper(spec2)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60)
+@run_in('local', 'spark')  #  reason='v slow & OOms on service'
 def test_spectral_moments_3():
     spectral_moments_helper(spec3)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60)
+@run_in('local', 'spark')  #  reason='v slow & OOms on service'
 def test_spectral_moments_4():
     spectral_moments_helper(spec4)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60)
+@run_in('local', 'spark')  #  reason='v slow & OOms on service'
 def test_spectral_moments_5():
     spectral_moments_helper(spec5)
 
@@ -315,26 +324,31 @@ def spectra_and_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=1e-04)
 
 
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_and_moments_1():
     spectra_and_moments_helper(spec1)
 
 
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_and_moments_2():
     spectra_and_moments_helper(spec2)
 
 
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_and_moments_3():
     spectra_and_moments_helper(spec3)
 
 
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_and_moments_4():
     spectra_and_moments_helper(spec4)
 
 
-@test_timeout(4 * 60, batch=8 * 60)
+@timeout_after(4 * 60, batch=8 * 60)
+@run_in('all')
 def test_spectra_and_moments_5():
     spectra_and_moments_helper(spec5)

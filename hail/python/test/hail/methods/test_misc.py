@@ -4,7 +4,9 @@ import hail as hl
 from ..helpers import *
 
 
+
 class Tests(unittest.TestCase):
+    @run_in('all')
     def test_rename_duplicates(self):
         mt = hl.utils.range_matrix_table(5, 5)
 
@@ -25,7 +27,8 @@ class Tests(unittest.TestCase):
             'foo'
         )['foo'].dtype == hl.tstr
 
-    @test_timeout(local=3 * 60)
+    @timeout_after(local=3 * 60)
+    @run_in('all')
     def test_annotate_intervals_bed1(self):
         ds = get_dataset()
         bed1 = hl.import_bed(resource('example1.bed'), reference_genome='GRCh37')
@@ -39,7 +42,8 @@ class Tests(unittest.TestCase):
         bed = ds.annotate_rows(in_interval=bed1[ds.locus]).rows()
         assert intervallist._same(bed)
 
-    @test_timeout(local=3 * 60)
+    @timeout_after(local=3 * 60)
+    @run_in('all')
     def test_annotate_intervals_bed2(self):
         ds = get_dataset()
         bed2 = hl.import_bed(resource('example2.bed'), reference_genome='GRCh37')
@@ -61,7 +65,8 @@ class Tests(unittest.TestCase):
         bed = ds.annotate_rows(target=bed2[ds.locus].target).rows()
         assert intervallist._same(bed)
 
-    @test_timeout(local=3 * 60)
+    @timeout_after(local=3 * 60)
+    @run_in('all')
     def test_annotate_intervals_bed3(self):
         ds = get_dataset()
         bed3 = hl.import_bed(resource('example3.bed'), reference_genome='GRCh37')
@@ -72,6 +77,7 @@ class Tests(unittest.TestCase):
                 .default(ann.target == hl.missing(hl.tstr)))
         assert ann.all(expr)
 
+    @run_in('all')
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
         t = hl.utils.range_table(10)
@@ -87,6 +93,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.literal(1), hl.literal(2), True))
 
+    @run_in('all')
     def test_maximal_independent_set2(self):
         edges = [(0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6),
                  (3, 7), (4, 5), (4, 6), (5, 7), (6, 7)]
@@ -102,6 +109,7 @@ class Tests(unittest.TestCase):
         non_maximal_indep_sets = [{0, 7}, {6, 1}]
         self.assertTrue(mis in non_maximal_indep_sets or mis in maximal_indep_sets)
 
+    @run_in('all')
     def test_maximal_independent_set3(self):
         is_case = {"A", "C", "E", "G", "H"}
         edges = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
@@ -123,6 +131,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(mis.all(mis.node.is_case))
         self.assertTrue(set([row.id for row in mis.select(mis.node.id).collect()]) in expected_sets)
 
+    @run_in('all')
     def test_maximal_independent_set_types(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(i=hl.struct(a='1', b=hl.rand_norm(0, 1)),
@@ -131,12 +140,14 @@ class Tests(unittest.TestCase):
                          jj=hl.struct(id=ht.j, rank=hl.rand_norm(0, 1)))
         hl.maximal_independent_set(ht.ii, ht.jj).count()
 
+    @run_in('all')
     def test_maximal_independent_set_on_floats(self):
         t = hl.utils.range_table(1).annotate(l = hl.struct(s="a", x=3.0), r = hl.struct(s="b", x=2.82))
         expected = [hl.Struct(node=hl.Struct(s="a", x=3.0))]
         actual = hl.maximal_independent_set(t.l, t.r, keep=False, tie_breaker=lambda l,r: l.x - r.x).collect()
         assert actual == expected
 
+    @run_in('all')
     def test_matrix_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
 
@@ -159,6 +170,7 @@ class Tests(unittest.TestCase):
                      hl.eval(hl.parse_locus_interval('[20:17705793-17716416]'))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 4)
 
+    @run_in('all')
     def test_table_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20).rows()
 
@@ -181,6 +193,7 @@ class Tests(unittest.TestCase):
                      hl.eval(hl.parse_locus_interval('[20:17705793-17716416]'))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count(), 4)
 
+    @run_in('all')
     def test_filter_intervals_compound_key(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
         ds = (ds.annotate_rows(variant=hl.struct(locus=ds.locus, alleles=ds.alleles))
@@ -190,6 +203,7 @@ class Tests(unittest.TestCase):
                                  hl.Struct(locus=hl.Locus('20', 10644700), alleles=['A', 'T']))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
+    @run_in('all')
     def test_summarize_variants(self):
         mt = hl.utils.range_matrix_table(3, 3)
         variants = hl.literal({0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
@@ -202,11 +216,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.allele_types, {'SNP': 2, 'MNP': 1, 'Unknown': 1, 'Insertion': 1})
         self.assertEqual(r.allele_counts, {2: 1, 3: 2})
 
+    @run_in('all')
     def test_verify_biallelic(self):
         mt = hl.import_vcf(resource('sample2.vcf'))  # has multiallelics
         with self.assertRaises(hl.utils.HailUserError):
             hl.methods.misc.require_biallelic(mt, '')._force_count_rows()
 
+    @run_in('all')
     def test_lambda_gc(self):
         N = 5000000
         ht = hl.utils.range_table(N).annotate(x = hl.scan.count() / N, x2 = (hl.scan.count() / N) ** 1.5)
@@ -215,12 +231,14 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(lgc, 1, places=1)  # approximate, 1 place is safe
         self.assertAlmostEqual(lgc2, 1.89, places=1)  # approximate, 1 place is safe
 
+    @run_in('all')
     def test_lambda_gc_nans(self):
         N = 5000000
         ht = hl.utils.range_table(N).annotate(x = hl.scan.count() / N, is_even=hl.scan.count() % 2 == 0)
         lgc_nan = hl.lambda_gc(hl.case().when(ht.is_even, hl.float('nan')).default(ht.x))
         self.assertAlmostEqual(lgc_nan, 1, places=1)  # approximate, 1 place is safe
 
+    @run_in('all')
     def test_segment_intervals(self):
         intervals = hl.Table.parallelize(
             [

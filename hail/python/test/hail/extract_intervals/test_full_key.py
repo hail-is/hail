@@ -1,6 +1,9 @@
 import hail as hl
 
+from ..helpers import run_in
 
+
+@run_in('all')
 def test_mt_eq(mt, probe_variant):
     expr = mt.filter_rows(mt.row_key == probe_variant)
     assert expr.n_partitions() == 1
@@ -9,6 +12,7 @@ def test_mt_eq(mt, probe_variant):
     assert actual == expected
 
 
+@run_in('all')
 def test_ht_eq(ht, probe_variant):
     expr = ht.filter(ht.key == probe_variant)
     assert expr.n_partitions() == 1

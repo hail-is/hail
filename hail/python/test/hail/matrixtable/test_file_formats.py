@@ -31,6 +31,7 @@ def create_backward_compatibility_files():
 
 
 @pytest.mark.skip(reason='comment this line to generate files for new versions')
+@run_in('all')
 def test_write():
     create_backward_compatibility_files()
 
@@ -72,6 +73,7 @@ finally:
 
 
 @pytest.mark.parametrize("path", mt_paths)
+@run_in('all')
 def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
     assert len(mt_paths) == 56, str((resource_dir, ht_paths))
 
@@ -87,6 +89,7 @@ def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
 
 
 @pytest.mark.parametrize("path", ht_paths)
+@run_in('all')
 def test_backward_compatability_ht(path, all_values_table_fixture):
     assert len(ht_paths) == 52, str((resource_dir, ht_paths))
 

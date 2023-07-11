@@ -1,10 +1,11 @@
 import hail as hl
 import hail.utils as utils
 
-from ...helpers import resource, skip_when_service_backend, test_timeout, skip_when_service_backend_in_azure
+from ...helpers import resource, run_in, timeout_after
 
 
-@test_timeout(local=6 * 60, batch=14 * 60)
+@timeout_after(local=6 * 60, batch=14 * 60)
+@run_in('all')
 def test_pc_relate_against_R_truth():
     with hl.TemporaryDirectory(ensure_exists=False) as vcf_f, \
          hl.TemporaryDirectory(ensure_exists=False) as hail_kin_f:
@@ -27,6 +28,7 @@ def test_pc_relate_against_R_truth():
             assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
 
 
+@run_in('all')
 def test_pc_relate_simple_example():
     gs = hl.literal([[0, 0, 0, 0, 1, 1, 1, 1],
                      [0, 0, 1, 1, 0, 0, 1, 1],
@@ -50,8 +52,8 @@ def test_pc_relate_simple_example():
     assert ht_expected._same(pcr, tolerance=1e-12, absolute=True)
 
 
-@test_timeout(6 * 60, batch=14 * 60)
-@skip_when_service_backend_in_azure(reason='takes >14 minutes in QoB in Azure')
+@timeout_after(6 * 60, batch=14 * 60)
+@run_in('all', clouds=['gcp'])  # reason='takes >14 minutes in QoB in Azure'
 def test_pc_relate_paths_1():
     with hl.TemporaryDirectory(ensure_exists=False) as bn_f, \
          hl.TemporaryDirectory(ensure_exists=False) as scores_f, \
@@ -72,7 +74,8 @@ def test_pc_relate_paths_1():
         assert kin1.count() == 50 * 49 / 2
 
 
-@test_timeout(6 * 60, batch=14 * 60)
+@timeout_after(6 * 60, batch=14 * 60)
+@run_in('all')
 def test_pc_relate_paths_2():
     mt = hl.balding_nichols_model(3, 50, 100).cache()
 
@@ -81,7 +84,8 @@ def test_pc_relate_paths_2():
     assert kin2.filter(kin2.kin < 0.01).count() == 0
 
 
-@test_timeout(6 * 60, batch=14 * 60)
+@timeout_after(6 * 60, batch=14 * 60)
+@run_in('local')
 def test_pc_relate_paths_3():
     mt = hl.balding_nichols_model(3, 50, 100).cache()
 
@@ -90,7 +94,8 @@ def test_pc_relate_paths_3():
     assert kin3.filter(kin3.kin < 0.1).count() == 0
 
 
-@test_timeout(6 * 60, batch=14 * 60)
+@timeout_after(6 * 60, batch=14 * 60)
+@run_in('all')
 def test_self_kinship_1():
     mt = hl.balding_nichols_model(3, 10, 50).cache()
     with hl.TemporaryDirectory(ensure_exists=False) as f:
@@ -100,7 +105,8 @@ def test_self_kinship_1():
         assert with_self_self_kin_only.count() == 10, with_self_self_kin_only.collect()
 
 
-@test_timeout(6 * 60, batch=14 * 60)
+@timeout_after(6 * 60, batch=14 * 60)
+@run_in('all')
 def test_self_kinship_2():
     mt = hl.balding_nichols_model(3, 10, 50).cache()
     with hl.TemporaryDirectory(ensure_exists=False) as f:
@@ -110,7 +116,8 @@ def test_self_kinship_2():
         assert without_self_self_kin_only.count() == 0, without_self_self_kin_only.collect()
 
 
-@test_timeout(6 * 60, batch=14 * 60)
+@timeout_after(6 * 60, batch=14 * 60)
+@run_in('all')
 def test_self_kinship_3():
     mt = hl.balding_nichols_model(3, 10, 50).cache()
     with hl.TemporaryDirectory(ensure_exists=False) as with_self_f, \
@@ -122,8 +129,8 @@ def test_self_kinship_3():
         assert with_self_no_self_kin._same(without_self)
 
 
-@skip_when_service_backend(reason='intermittent tolerance failures')
-@test_timeout(local=6 * 60, batch=14 * 60)
+@timeout_after(local=6 * 60, batch=14 * 60)
+@run_in('local', 'spark')  # reason='intermittent tolerance failures on the service'
 def test_pc_relate_issue_5263():
     mt = hl.balding_nichols_model(3, 50, 100)
     expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')

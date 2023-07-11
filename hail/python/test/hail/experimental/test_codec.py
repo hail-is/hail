@@ -10,7 +10,7 @@ def assert_round_trip(exp, codec=UNBLOCKED_UNBUFFERED_SPEC):
     assert hl.eval(exp) == result
 
 
-@skip_unless_spark_backend()
+@run_in('spark')
 def test_encode_basics():
     b = hl.experimental.encode(hl.literal(1), codec='{"name":"StreamBufferSpec"}')
     assert b.hex() == '01000000'
@@ -19,7 +19,7 @@ def test_encode_basics():
     assert b.hex() == 'ffffffff'
 
 
-@skip_unless_spark_backend()
+@run_in('spark')
 def test_decode_basics():
     result = hl.experimental.decode(hl.tint32,
                                     bytes.fromhex('01000000'))
@@ -30,12 +30,12 @@ def test_decode_basics():
     assert result == -1
 
 
-@skip_unless_spark_backend()
+@run_in('spark')
 def test_round_trip_basics():
     assert_round_trip(hl.literal(1))
 
 
-@skip_unless_spark_backend()
+@run_in('spark')
 def test_complex_round_trips():
     assert_round_trip(hl.struct())
     assert_round_trip(hl.empty_array(hl.tint32))

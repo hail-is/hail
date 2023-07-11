@@ -1,14 +1,16 @@
 import hail as hl
 import scipy.stats as spst
 import pytest
-from ..helpers import resource
+from ..helpers import resource, run_in
 
 
+@run_in('local')
 def test_deprecated_binom_test():
     assert hl.eval(hl.binom_test(2, 10, 0.5, 'two.sided')) == \
         pytest.approx(spst.binom_test(2, 10, 0.5, 'two-sided'))
 
 
+@run_in('local')
 def test_binom_test():
     arglists = [[2, 10, 0.5, 'two-sided'],
                 [4, 10, 0.5, 'less'],
@@ -16,6 +18,8 @@ def test_binom_test():
     for args in arglists:
         assert hl.eval(hl.binom_test(*args)) == pytest.approx(spst.binom_test(*args)), args
 
+
+@run_in('local')
 def test_pchisqtail():
     def right_tail_from_scipy(x, df, ncp):
         if ncp:
@@ -34,10 +38,12 @@ def test_pchisqtail():
         assert hl.eval(hl.pchisqtail(*args)) == pytest.approx(right_tail_from_scipy(*args)), args
 
 
+@run_in('local')
 def test_shuffle():
     assert set(hl.eval(hl.shuffle(hl.range(5)))) == set(range(5))
 
 
+@run_in('local')
 def test_pgenchisq():
     ht = hl.import_table(
         resource('davies-genchisq-tests.tsv'),
@@ -66,6 +72,7 @@ def test_pgenchisq():
         assert test.genchisq_result.n_iterations == test.expected_n_iterations, str(test)
 
 
+@run_in('local')
 def test_array():
     actual = hl.eval((
         hl.array(hl.array([1, 2, 3, 3])),
@@ -87,6 +94,7 @@ def test_array():
         hl.eval(hl.array(hl.nd.array([[1.0], [2.0]])))
 
 
+@run_in('local')
 def test_literal_free_vars():
     "Give better error messages in response to code written by ChatGPT"
     array = hl.literal([1, 2, 3])

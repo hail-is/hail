@@ -6,7 +6,7 @@ from hail.utils.java import FatalError
 
 
 class Tests(unittest.TestCase):
-
+    @run_in('local')
     def test_trios(self):
         t1 = Trio('kid1', pat_id='dad1', is_female=True)
         t2 = Trio('kid1', pat_id='dad1', is_female=True)
@@ -32,7 +32,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(t5.is_complete(), False)
         self.assertEqual(t6.is_complete(), True)
 
-
+    @run_in('local')
     def test_pedigree(self):
         ped = Pedigree.read(resource('sample.fam'))
         ped.write('/tmp/sample_out.fam')

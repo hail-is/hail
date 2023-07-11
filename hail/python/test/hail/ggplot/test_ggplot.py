@@ -3,7 +3,10 @@ from hail.ggplot import *
 import numpy as np
 import math
 
+from ..helpers import run_in
 
+
+@run_in('local')
 def test_geom_point_line_text_col_area():
     ht = hl.utils.range_table(20)
     ht = ht.annotate(double=ht.idx * 2)
@@ -23,6 +26,7 @@ def test_geom_point_line_text_col_area():
     fig.to_plotly()
 
 
+@run_in('local')
 def test_manhattan_plot():
     mt = hl.balding_nichols_model(3, 10, 100)
     ht = mt.rows()
@@ -32,6 +36,8 @@ def test_manhattan_plot():
     expected_ticks = ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', 'X', 'Y')
     assert pfig.layout.xaxis.ticktext == expected_ticks
 
+
+@run_in('local')
 def test_histogram():
     num_rows = 101
     num_groups = 5
@@ -53,6 +59,7 @@ def test_histogram():
                 assert (bar.x == np.arange(first_bar_start, num_rows - 1, dist_between_bars_in_one_group)).all()
 
 
+@run_in('local')
 def test_separate_traces_per_group():
     ht = hl.utils.range_table(30)
     fig = (ggplot(ht, aes(x=ht.idx)) +
@@ -61,12 +68,14 @@ def test_separate_traces_per_group():
     assert len(fig.to_plotly().data) == 30
 
 
+@run_in('local')
 def test_geom_ribbon():
     ht = hl.utils.range_table(20)
     fig = ggplot(ht, aes(x=ht.idx, ymin=ht.idx * 2, ymax=ht.idx * 3)) + geom_ribbon()
     fig.to_plotly()
 
 
+@run_in('local')
 def test_default_scale_no_repeat_colors():
     num_rows = 20
     ht = hl.utils.range_table(num_rows)
@@ -78,6 +87,7 @@ def test_default_scale_no_repeat_colors():
     assert num_unique_colors == num_rows
 
 
+@run_in('local')
 def test_scale_color_manual():
     num_rows = 4
     colors = set(["red", "blue"])
@@ -88,6 +98,7 @@ def test_scale_color_manual():
     assert set([scatter.marker.color for scatter in pfig.data]) == colors
 
 
+@run_in('local')
 def test_weighted_bar():
     x = hl.array([2, 3, 3, 3, 4, 5, 2])
     w = hl.array([1, 2, 3, 4, 5, 6, 7])
@@ -100,6 +111,7 @@ def test_weighted_bar():
         assert(y == result[idx])
 
 
+@run_in('local')
 def test_faceting():
     ht = hl.utils.range_table(10)
     ht = ht.annotate(x=hl.if_else(ht.idx < 4, "less", "more"))
@@ -108,6 +120,7 @@ def test_faceting():
     assert(len(pfig.layout.annotations) == 2)
 
 
+@run_in('local')
 def test_matrix_tables():
     mt = hl.utils.range_matrix_table(3, 3)
     mt = mt.annotate_rows(row_doubled=mt.row_idx * 2)

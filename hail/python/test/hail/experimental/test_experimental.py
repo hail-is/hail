@@ -24,6 +24,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend
+    @run_in('all')
     def test_ld_score_univariate(self):
         mt = self.get_ld_score_mt()
         ht_univariate = hl.experimental.ld_score(
@@ -49,7 +50,8 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend
-    @test_timeout(local=6 * 60)
+    @timeout_after(local=6 * 60)
+    @run_in('all')
     def test_ld_score_annotated(self):
         mt = self.get_ld_score_mt()
         ht_annotated = hl.experimental.ld_score(
@@ -88,13 +90,15 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(annotated.mean_stats.binary, 0.965, places=3)
         self.assertAlmostEqual(annotated.mean_stats.continuous, 176.528, places=3)
 
-    @test_timeout(local=8 * 60, batch=8 * 60)
+    @timeout_after(local=8 * 60, batch=8 * 60)
+    @run_in('all')
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
         x = x.annotate(tp=hl.if_else(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
         ht = x.annotate(fp=hl.if_else(~x.tp, hl.rand_bool(0.2), False))
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
+    @run_in('all')
     def test_import_keyby_count_ldsc_lowered_shuffle(self):
         # integration test pulled out of test_ld_score_regression to isolate issues with lowered shuffles
         # and RDD serialization, 2021-07-06
@@ -173,7 +177,8 @@ class Tests(unittest.TestCase):
         return ht_20160
 
     @pytest.mark.unchecked_allocator
-    @test_timeout(6 * 60, local=10 * 60, batch=10 * 60)
+    @timeout_after(6 * 60, local=10 * 60, batch=10 * 60)
+    @run_in('all')
     def test_ld_score_regression_1(self):
         ht_50_irnt = self.get_ht_50_irnt()
         ht_20160 = self.get_ht_20160()
@@ -240,7 +245,8 @@ class Tests(unittest.TestCase):
             0.0416, places=4)
 
     @pytest.mark.unchecked_allocator
-    @test_timeout(6 * 60, local=10 * 60, batch=10 * 60)
+    @timeout_after(6 * 60, local=10 * 60, batch=10 * 60)
+    @run_in('all')
     def test_ld_score_regression_2(self):
         ht_50_irnt = self.get_ht_50_irnt()
         ht_20160 = self.get_ht_20160()
@@ -304,7 +310,8 @@ class Tests(unittest.TestCase):
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
 
-    @test_timeout(local=6 * 60)
+    @timeout_after(local=6 * 60)
+    @run_in('all')
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
         unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])
@@ -312,6 +319,7 @@ class Tests(unittest.TestCase):
               .drop('a_index', 'was_split').select_entries(*expected_split_mt.entry.keys()))
         assert mt._same(expected_split_mt)
 
+    @run_in('all')
     def test_define_function(self):
         f1 = hl.experimental.define_function(
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
@@ -322,7 +330,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
 
     @fails_local_backend()
-    @test_timeout(batch=8 * 60)
+    @timeout_after(batch=8 * 60)
+    @run_in('all')
     def test_pc_project(self):
         mt = hl.balding_nichols_model(3, 100, 50)
         _, _, loadings_ht = hl.hwe_normalized_pca(mt.GT, k=10, compute_loadings=True)
@@ -332,6 +341,7 @@ class Tests(unittest.TestCase):
         ht = hl.experimental.pc_project(mt_to_project.GT, loadings_ht.loadings, loadings_ht.af)
         assert ht._force_count() == 100
 
+    @run_in('all')
     def test_mt_full_outer_join(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
         mt1 = mt1.annotate_cols(c1=hl.rand_unif(0, 1))
@@ -353,6 +363,7 @@ class Tests(unittest.TestCase):
 
         assert(mtj.count() == (15, 15))
 
+    @run_in('all')
     def test_mt_full_outer_join_self(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         jmt = hl.experimental.full_outer_join_mt(mt, mt)
@@ -362,6 +373,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_block_matrices_tofiles(self):
         data = [
             np.random.rand(11*12),
@@ -385,6 +397,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_export_block_matrices(self):
         data = [
             np.random.rand(11*12),
@@ -415,9 +428,11 @@ class Tests(unittest.TestCase):
                     hl.current_backend().fs.open(f'{prefix2}/files/{custom_names[i]}'))
                 self.assertTrue(np.array_equal(a, a2))
 
+    @run_in('all')  # is this necessary in all backends?
     def test_trivial_loop(self):
         assert hl.eval(hl.experimental.loop(lambda recur: 0, hl.tint32)) == 0
 
+    @run_in('all')  # is this necessary in all backends?
     def test_loop(self):
         def triangle_with_ints(n):
             return hl.experimental.loop(
@@ -449,6 +464,7 @@ class Tests(unittest.TestCase):
         fails_typecheck("Type error",
                         lambda f, x: hl.if_else(x == 0, f("foo"), 1))
 
+    @run_in('all')  # is this necessary in all backends?
     def test_nested_loops(self):
         def triangle_loop(n, add_f):
             recur = lambda f, x, c: hl.if_else(x <= n, f(x + 1, add_f(x, c)), c)
@@ -472,6 +488,7 @@ class Tests(unittest.TestCase):
 
         assert_evals_to(calls_recur_from_nested_loop, 15 + 10 + 6 + 3 + 1)
 
+    @run_in('all')  # is this necessary in all backends?
     def test_loop_errors(self):
         with pytest.raises(TypeError, match="requested type ndarray<int32, 2> does not match inferred type ndarray<float64, 2>"):
             result = hl.experimental.loop(
@@ -479,6 +496,7 @@ class Tests(unittest.TestCase):
                 hl.if_else(my_nd[0, 0] == 1000, my_nd, f(my_nd + 1)),
                 hl.tndarray(hl.tint32, 2), hl.nd.zeros((20, 10), hl.tfloat64))
 
+    @run_in('all')  # is this necessary in all backends?
     def test_loop_with_struct_of_strings(self):
         def loop_func(recur_f, my_struct):
             return hl.if_else(hl.len(my_struct.s1) > hl.len(my_struct.s2),
@@ -488,6 +506,7 @@ class Tests(unittest.TestCase):
         initial_struct = hl.struct(s1="a", s2="gfedcb")
         assert hl.eval(hl.experimental.loop(loop_func, hl.tstruct(s1=hl.tstr, s2=hl.tstr), initial_struct)) == hl.Struct(s1="abcd", s2="gfe")
 
+    @run_in('all')  # is this necessary in all backends?
     def test_loop_memory(self):
         def foo(recur, arr, idx): return hl.if_else(idx > 10, arr, recur(arr.append(hl.str(idx)), idx+1))
 

@@ -1,6 +1,9 @@
 from hail.utils.deduplicate import deduplicate
 
+from ..helpers import run_in
 
+
+@run_in('local')
 def test_deduplicate_simple():
     mappings, new_ids = deduplicate([str(i) for i in range(5)])
     assert mappings == []
@@ -15,6 +18,7 @@ def test_deduplicate_simple():
     assert new_ids == ['0', '0_1', '0_2', '0_2_1', '0_3']
 
 
+@run_in('local')
 def test_deduplicate_max_attempts():
     try:
         deduplicate(['0', '0_1', '0'], max_attempts=1)
@@ -24,6 +28,7 @@ def test_deduplicate_max_attempts():
         assert False
 
 
+@run_in('local')
 def test_deduplicate_already_used():
     mappings, new_ids = deduplicate(['0', '0_1', '0'],
                                     already_used={'0_1', '0_2'})

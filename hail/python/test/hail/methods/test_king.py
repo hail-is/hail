@@ -1,7 +1,7 @@
 import pytest
 
 import hail as hl
-from ..helpers import resource, fails_local_backend, fails_service_backend
+from ..helpers import resource, fails_local_backend, fails_service_backend, run_in
 
 
 def assert_c_king_same_as_hail_king(c_king_path, hail_king_mt):
@@ -29,6 +29,7 @@ def assert_c_king_same_as_hail_king(c_king_path, hail_king_mt):
 
 @fails_service_backend()
 @fails_local_backend()
+@run_in('all')
 def test_king_small():
     plink_path = resource('balding-nichols-1024-variants-4-samples-3-populations')
     mt = hl.import_plink(bed=f'{plink_path}.bed',
@@ -42,6 +43,7 @@ def test_king_small():
 @pytest.mark.unchecked_allocator
 @fails_service_backend()
 @fails_local_backend()
+@run_in('all')
 def test_king_large():
     plink_path = resource('fastlmmTest')
     mt = hl.import_plink(bed=f'{plink_path}.bed',
@@ -54,6 +56,7 @@ def test_king_large():
 
 @fails_service_backend()
 @fails_local_backend()
+@run_in('all')
 def test_king_filtered_entries_no_error():
     plink_path = resource('balding-nichols-1024-variants-4-samples-3-populations')
     mt = hl.import_plink(bed=f'{plink_path}.bed',

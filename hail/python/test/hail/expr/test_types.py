@@ -44,14 +44,17 @@ class Tests(unittest.TestCase):
             ttuple(tarray(tint32), tstr, tstr, tint32, tbool),
             ttuple()]
 
+    @run_in('local')
     def test_parser_roundtrip(self):
         for t in self.types_to_test():
             self.assertEqual(t, dtype(str(t)))
 
+    @run_in('local')
     def test_eval_roundtrip(self):
         for t in self.types_to_test():
             self.assertEqual(t, eval(repr(t)))
 
+    @run_in('local')
     def test_equality(self):
         ts = self.types_to_test()
         ts2 = self.types_to_test()  # reallocates the non-primitive types
@@ -63,7 +66,7 @@ class Tests(unittest.TestCase):
                 else:
                     self.assertNotEqual(ts[i], ts2[j])
 
-    @skip_unless_spark_backend()
+    @run_in('spark')
     def test_type_jvm_roundtrip(self):
         ts = self.types_to_test()
         for t in ts:
@@ -71,6 +74,7 @@ class Tests(unittest.TestCase):
             jtyp = Env.hail().expr.ir.IRParser.parseType(rev_str)
             self.assertEqual(t, dtype(jtyp.toString()))
 
+    @run_in('local')
     def test_pretty_roundtrip(self):
         ts = self.types_to_test()
         for t in ts:
@@ -79,6 +83,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(t, dtype(p1))
             self.assertEqual(t, dtype(p2))
 
+    @run_in('local')
     def test_coercers_can_coerce(self):
         ts = self.types_to_test()
         for t in ts:
@@ -86,19 +91,20 @@ class Tests(unittest.TestCase):
             self.assertTrue(c.can_coerce(t))
             self.assertFalse(c.requires_conversion(t))
 
-    @skip_when_service_backend(reason='to_spark is nonsensical in the service')
-    @fails_local_backend()
+    @run_in('spark')  #  reason='to_spark is nonsensical in the service'
     def test_nested_type_to_spark(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(nested=hl.dict({"tup": hl.tuple([ht.idx])}))
         ht.to_spark()  # should not throw exception
 
+    @run_in('local')
     def test_rename_not_unique(self):
         with self.assertRaisesRegex(ValueError, "attempted to rename 'b' and 'c' both to 'x'"):
             hl.tstruct(a=hl.tbool, b=hl.tint32, c=hl.tint32)._rename({'b': 'x', 'c': 'x'})
         with self.assertRaisesRegex(ValueError, "attempted to rename 'a' and 'b' both to 'a'"):
             hl.tstruct(a=hl.tbool, b=hl.tint32)._rename({'b': 'a'})
 
+    @run_in('all')
     def test_get_context(self):
         tl1 = tlocus('GRCh37')
         tl2 = tlocus('GRCh38')
@@ -142,6 +148,7 @@ class Tests(unittest.TestCase):
             for t in types:
                 self.assertEqual(t.get_context().references, rgs)
 
+    @run_in('all')
     def test_tlocus_schema_from_rg_matches_scala(self):
         def locus_from_import_vcf(rg: Optional[str]) -> HailType:
             return hl.import_vcf(resource('sample2.vcf'), reference_genome=rg).locus.dtype

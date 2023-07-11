@@ -2,11 +2,11 @@ import os
 
 import hail as hl
 
-from ..helpers import skip_unless_service_backend, test_timeout
+from ..helpers import run_in, timeout_after
 from hail.backend.service_backend import ServiceBackend
 
 
-@skip_unless_service_backend()
+@run_in('batch')
 def test_tiny_driver_has_tiny_memory():
     try:
         hl.eval(hl.range(1024 * 1024).map(lambda x: hl.range(1024 * 1024)))
@@ -16,8 +16,8 @@ def test_tiny_driver_has_tiny_memory():
         assert False
 
 
-@skip_unless_service_backend()
-@test_timeout(batch=6 * 60)
+@timeout_after(batch=6 * 60)
+@run_in('batch')
 def test_big_driver_has_big_memory():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
@@ -31,7 +31,7 @@ def test_big_driver_has_big_memory():
     )
 
 
-@skip_unless_service_backend()
+@run_in('batch')
 def test_tiny_worker_has_tiny_memory():
     try:
         t = hl.utils.range_table(2, n_partitions=2).annotate(nd=hl.nd.ones((30_000, 30_000)))
@@ -43,8 +43,8 @@ def test_tiny_worker_has_tiny_memory():
         assert False
 
 
-@skip_unless_service_backend()
-@test_timeout(batch=10 * 60)
+@timeout_after(batch=10 * 60)
+@run_in('batch')
 def test_big_worker_has_big_memory():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
@@ -58,8 +58,8 @@ def test_big_worker_has_big_memory():
     )
 
 
-@skip_unless_service_backend()
-@test_timeout(batch=24 * 60)
+@timeout_after(batch=24 * 60)
+@run_in('batch')
 def test_regions():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)

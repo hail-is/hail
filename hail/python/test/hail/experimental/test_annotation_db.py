@@ -3,6 +3,8 @@ import pytest
 import hail as hl
 from hail.backend.service_backend import ServiceBackend
 
+from ..helpers import run_in
+
 
 class TestAnnotationDB:
     @pytest.fixture(scope="class")
@@ -47,6 +49,7 @@ class TestAnnotationDB:
 
         tempdir_manager.__exit__(None, None, None)
 
+    @run_in('all')
     def test_uniqueness(self, db_json):
         db = hl.experimental.DB(region='us', cloud='gcp', config=db_json)
         t = hl.utils.genomic_range_table(10)

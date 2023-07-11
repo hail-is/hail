@@ -2,8 +2,11 @@ import unittest
 
 from hail.typecheck.check import *
 
+from ..helpers import run_in
+
 
 class Tests(unittest.TestCase):
+    @run_in('local')
     def test_varargs(self):
         @typecheck(x=int, y=int)
         def f1(x, y):
@@ -104,6 +107,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_6(1, "2", ("3", 4, 5)))
         self.assertRaises(TypeError, lambda: good_signature_6(7, "hello", [(9, 5.6, 10), (4, "hello", 1)], 1, 2, 3))
 
+    @run_in('local')
     def test_helpers(self):
         # check nullable
         @typecheck(x=nullable(int))
@@ -140,6 +144,7 @@ class Tests(unittest.TestCase):
         f(u'unicode')
         self.assertRaises(TypeError, lambda: f(['abc']))
 
+    @run_in('local')
     def test_nested(self):
         @typecheck(
             x=int,
@@ -158,6 +163,7 @@ class Tests(unittest.TestCase):
         f(5, [[{'6': None, 5: {1, 2, 3, 4}}]])
         self.assertRaises(TypeError, lambda: f(2, 2))
 
+    @run_in('local')
     def test_class_methods(self):
         class Foo:
             @typecheck_method(a=int, b=str)
@@ -202,6 +208,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: f.d(2, 2, 3))
         self.assertRaises(TypeError, lambda: f.d(2, 2, z='2'))
 
+    @run_in('local')
     def test_lazy(self):
         foo_type = lazy()
 
@@ -223,6 +230,7 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(TypeError, lambda: foo.bar(2))
 
+    @run_in('local')
     def test_coercion(self):
         @typecheck(a=transformed((int, lambda x: 'int'),
                                  (str, lambda x: 'str')),
@@ -244,6 +252,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(a, 'int')
         self.assertEqual(b, [{'5': 'int', '6': 'str'}, {'10': 'int'}])
 
+    @run_in('local')
     def test_function_checker(self):
         @typecheck(f=func_spec(3, int))
         def foo(f):
@@ -271,6 +280,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(apply(lambda x, y=2, z=3: x + y + z, 5, 7), 15)
 
+    @run_in('local')
     def test_complex_signature(self):
         @typecheck(a=int, b=str, c=sequenceof(int), d=tupleof(str), e=dict)
         def f(a, b='5', c=[10], *d, **e):
@@ -283,6 +293,7 @@ class Tests(unittest.TestCase):
         with self.assertRaises(TypeError):
             f(1, '2', a=2)
 
+    @run_in('local')
     def test_extra_args(self):
         @typecheck(x=int)
         def f(x):

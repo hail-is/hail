@@ -9,7 +9,7 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, new_temp_file
 from hail.utils.java import choose_backend, Env
-from ..helpers import resource, fails_service_backend, skip_when_service_backend, test_timeout
+from ..helpers import resource, fails_service_backend, run_in, skip_when_service_backend, timeout_after
 
 import unittest
 
@@ -17,6 +17,7 @@ import unittest
 class Tests(unittest.TestCase):
     @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, reason='Skipping tests requiring plink')
     @fails_service_backend()
+    @run_in('all')
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
 
@@ -56,7 +57,8 @@ class Tests(unittest.TestCase):
     # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('all')  # this is the one test that tests linreg in all locations
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -92,6 +94,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(t1._same(t4a))
             self.assertTrue(t1._same(t4b))
 
+    @run_in('local')
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -135,7 +138,8 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
-    @test_timeout(local=3 * 60)
+    @timeout_after(local=3 * 60)
+    @run_in('local')
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -211,6 +215,7 @@ class Tests(unittest.TestCase):
             t5 = t5.annotate(**{x: t5[x][0] for x in ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']})
             assert t4._same(t5)
 
+    @run_in('local')
     def test_linear_regression_without_intercept(self):
         for linreg_function in self.linreg_functions:
             pheno = hl.import_table(resource('regressionLinear.pheno'),
@@ -236,6 +241,7 @@ class Tests(unittest.TestCase):
     # fit <- lm(y ~ x + c1 + c2, data=df)
     # summary(fit)["coefficients"]
     @pytest.mark.unchecked_allocator
+    @run_in('all')
     def test_linear_regression_with_cov(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -279,6 +285,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
+    @run_in('local')
     def test_linear_regression_pl(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -314,6 +321,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
+    @run_in('local')
     def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -348,6 +356,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
             self.assertTrue(np.isnan(results[6].standard_error))
 
+    @run_in('local')
     def test_linear_regression_equivalence_between_ds_and_gt(self):
         """Test that linear regressions on data converted from dosage to genotype returns the same results"""
         ds_mt = hl.import_vcf(resource('small-ds.vcf'))
@@ -364,6 +373,7 @@ class Tests(unittest.TestCase):
             results_t = ds_results_t.annotate(**gt_results_t[ds_results_t.locus, ds_results_t.alleles])
             self.assertTrue(all(hl.approx_equal(results_t.ds_p_value, results_t.gt_p_value, nan_same=True).collect()))
 
+    @run_in('local')
     def test_linear_regression_with_import_fam_boolean(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -394,6 +404,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
+    @run_in('local')
     def test_linear_regression_with_import_fam_quant(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -426,6 +437,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
+    @run_in('local')
     def test_linear_regression_multi_pheno_same(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -453,7 +465,7 @@ class Tests(unittest.TestCase):
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
-
+    @run_in('all')  # this is the one test that tests logistic regression in all locations
     def test_logistic_regression_rows_max_iter_zero(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -475,6 +487,7 @@ class Tests(unittest.TestCase):
     # Outside the spark backend, "logistic_regression_rows" automatically defers to the _ version.
     logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
 
+    @run_in('local')
     def test_logistic_regression_rows_max_iter_explodes(self):
         for logreg in self.logreg_functions:
             import hail as hl
@@ -492,6 +505,7 @@ class Tests(unittest.TestCase):
             assert fit.exploded
             assert not fit.converged
 
+    @run_in('all')  # this is the one test that tests firth logistic regression in all locations
     def test_firth_logistic_regression_rows_explodes_in_12_steps(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -508,6 +522,7 @@ class Tests(unittest.TestCase):
         assert fit.exploded
         assert not fit.converged
 
+    @run_in('local')
     def test_firth_logistic_regression_rows_does_not_converge_with_105_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -524,6 +539,7 @@ class Tests(unittest.TestCase):
         assert not fit.exploded
         assert not fit.converged
 
+    @run_in('local')
     def test_firth_logistic_regression_rows_does_converge_with_more_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -551,7 +567,8 @@ class Tests(unittest.TestCase):
 
         return all([both_nan_or_none(a, b) or math.isclose(a, b) for a, b in zip(arr1, arr2)])
 
-    @test_timeout(3 * 60)
+    @timeout_after(3 * 60)
+    @run_in('all')  # this is the one test that tests weighted linreg in all locations
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -612,7 +629,8 @@ class Tests(unittest.TestCase):
         assert self.equal_with_nans(multi_weight_betas_1, betas_pre_weighted_1)
         assert self.equal_with_nans(multi_weight_betas_2, betas_pre_weighted_2)
 
-    @test_timeout(3 * 60)
+    @timeout_after(3 * 60)
+    @run_in('local')
     def test_weighted_linear_regression__missing_weights_are_excluded(self):
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         pheno = hl.import_table(resource('regressionLinear.pheno'),
@@ -681,7 +699,8 @@ class Tests(unittest.TestCase):
         assert self.equal_with_nans(multi_weight_missing_se_1, se_from_agg_weight_1)
         assert self.equal_with_nans(multi_weight_missing_se_2, se_from_agg_weight_2)
 
-    @test_timeout(3 * 60)
+    @timeout_after(3 * 60)
+    @run_in('local')
     def test_errors_weighted_linear_regression(self):
         mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)
         mt = mt.annotate_cols(**{f"col_{i}": i for i in range(4)})
@@ -712,6 +731,7 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
+    @run_in('all')  # this is the one test that tests logistic regression wald test in all locations
     def test_logistic_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -750,6 +770,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
+    @run_in('local')
     def test_logistic_regression_wald_test_apply_multi_pheno(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -792,6 +813,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
+    @run_in('local')
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
         covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
                                      key='Sample',
@@ -831,7 +853,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(multi_results[1001].logistic_regression[0].p_value,single_results[1001].p_value, places=6)
             #TODO test handling of missingness
 
-
+    @run_in('local')
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -872,6 +894,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
+    @run_in('local')
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -924,6 +947,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(logfitnull, logfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
+    @run_in('local')
     def test_logistic_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -971,6 +995,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(logfitnull, logfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
+    @run_in('local')
     def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1008,6 +1033,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
+    @run_in('local')
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1038,6 +1064,7 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
+    @run_in('all')  # this is the one test that tests poisson regression wald test in all locations
     def test_poission_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1074,6 +1101,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @run_in('all')  # this is the one test that tests poisson regression in all locations
     def test_poisson_regression_max_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -1096,6 +1124,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(poisfitnull, poisfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
+    @run_in('local')
     def test_poisson_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1140,6 +1169,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(poisfitnull, poisfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
+    @run_in('local')
     def test_poisson_regression_score_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1175,6 +1205,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @run_in('local')
     def test_poisson_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1193,6 +1224,7 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
+    @run_in('all')
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
         mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
@@ -1224,6 +1256,7 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
+    @run_in('all')
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
         hl.reset_global_randomness()
@@ -1241,6 +1274,7 @@ class Tests(unittest.TestCase):
         one_sample = hl.balding_nichols_model(1, 1, 10)
         self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample.GT))
 
+    @run_in('local')
     def test_row_correlation_vs_hardcode(self):
         data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
@@ -1262,6 +1296,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(actual, expected))
 
+    @run_in('local')
     def test_row_correlation_vs_numpy(self):
         n_samples, n_variants = 11, 10
         mt = hl.balding_nichols_model(3, n_samples, n_variants, n_partitions=2)
@@ -1295,30 +1330,35 @@ class Tests(unittest.TestCase):
         ht = ht.transmute(**hl.parse_variant(ht.v))
         return ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
 
+    @run_in('all')
     def test_ld_matrix_1(self):
         mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6).to_numpy(),
             [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
 
+    @run_in('all')
     def test_ld_matrix_2(self):
         mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
+    @run_in('all')
     def test_ld_matrix_3(self):
         mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=0.5, coord_expr=mt.cm).to_numpy(),
             [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
 
+    @run_in('all')
     def test_ld_matrix_4(self):
         mt = self.get_ld_matrix_mt()
         self.assertTrue(np.allclose(
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
+    @run_in('all')
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
         ds1 = hl.split_multi_hts(ds1)
@@ -1328,6 +1368,7 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    @run_in('all')
     def test_split_multi_table(self):
         ds1 = hl.import_vcf(resource('split_test.vcf')).rows()
         ds1 = hl.split_multi(ds1)
@@ -1343,6 +1384,7 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    @run_in('all')
     def test_split_multi_shuffle(self):
         ht = hl.utils.range_table(1)
         ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
@@ -1359,13 +1401,15 @@ class Tests(unittest.TestCase):
         mt._force_count_rows()
         assert mt.alleles.collect() == [['A', 'C'], ['A', 'G'], ['A', 'T']]
 
+    @run_in('all')
     def test_issue_4527(self):
         mt = hl.utils.range_matrix_table(1, 1)
         mt = mt.key_rows_by(locus=hl.locus(hl.str(mt.row_idx+1), mt.row_idx+1), alleles=['A', 'T'])
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
-    @test_timeout(batch=6 * 60)
+    @timeout_after(batch=6 * 60)
+    @run_in('all')
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
@@ -1401,6 +1445,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
+    @run_in('all')
     def test_ld_prune_inputs(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
@@ -1408,18 +1453,21 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=-1.0))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
+    @run_in('all')
     def test_ld_prune_no_prune(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10, n_partitions=3)
         pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
         expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
         self.assertEqual(pruned_table.count(), expected_count)
 
+    @run_in('all')
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
         self.assertEqual(pruned_table.count(), 1)
 
-    @test_timeout(batch=5 * 60)
+    @timeout_after(batch=5 * 60)
+    @run_in('all')
     def test_ld_prune_maf(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
 
@@ -1434,25 +1482,29 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(kept_maf, max(ht.maf.collect()))
 
+    @run_in('all')
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
         self.assertEqual(pruned_table.count(), 1)
 
+    @run_in('all')
     def test_ld_prune_missing_entries(self):
         mt = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2).add_col_index()
         mt = mt.filter_entries(mt.col_idx > 1)
         result = hl.ld_prune(mt.GT)
         assert result.count() > 0
 
-    @test_timeout(batch=5 * 60)
+    @timeout_after(batch=5 * 60)
+    @run_in('all')
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')
         pruned_table = hl.ld_prune(ds_duplicate.GT)
         self.assertEqual(pruned_table.count(), 1)
 
+    @run_in('all')
     def test_balding_nichols_model(self):
         hl.reset_global_randomness()
         ds = hl.balding_nichols_model(2, 20, 25, 3,
@@ -1473,6 +1525,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.pop_dist), [1, 2])
         self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
 
+    @run_in('all')
     def test_balding_nichols_model_same_results(self):
         for mixture in [True, False]:
             hl.reset_global_randomness()
@@ -1489,6 +1542,7 @@ class Tests(unittest.TestCase):
                                            mixture=mixture)
             self.assertTrue(ds1._same(ds2))
 
+    @run_in('all')
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):
             hl.reset_global_randomness()
@@ -1503,7 +1557,8 @@ class Tests(unittest.TestCase):
         test_af_range(hl.rand_unif(.4, .7), .4, .7, 2)
         test_af_range(hl.rand_beta(4, 6), 0, 1, 3)
 
-    @test_timeout(batch=6 * 60)
+    @timeout_after(batch=6 * 60)
+    @run_in('all')
     def test_balding_nichols_stats(self):
         def test_stat(k, n, m, seed):
             hl.reset_global_randomness()
@@ -1540,7 +1595,7 @@ class Tests(unittest.TestCase):
         test_stat(10, 100, 100, 0)
         test_stat(40, 400, 20, 12)
 
-    @skip_when_service_backend(reason='flaky, incorrect alleles in output')
+    @run_in('local', 'spark')  #  reason='flaky, incorrect alleles in output'
     def test_balding_nichols_model_phased(self):
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
@@ -1555,6 +1610,7 @@ class Tests(unittest.TestCase):
             ]
         )
 
+    @run_in('local')
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         mt = mt.filter_rows(mt.locus.in_y_par(), keep=False)  # de_novo_finder doesn't know about y PAR
@@ -1581,6 +1637,7 @@ class Tests(unittest.TestCase):
         j = r.join(truth, how='outer')
         self.assertTrue(j.all((j.confidence == j.confidence_1) & (hl.abs(j.p_de_novo - j.p_de_novo_1) < 1e-4)))
 
+    @run_in('local')
     def test_de_novo_error(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         ped = hl.Pedigree.read(resource('denovo.fam'))
@@ -1588,12 +1645,14 @@ class Tests(unittest.TestCase):
         with pytest.raises(Exception, match='pop_frequency_prior'):
             hl.de_novo(mt, ped, pop_frequency_prior=2.0).count()
 
+    @run_in('local')
     def test_de_novo_ignore_computed_af_runs(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         ped = hl.Pedigree.read(resource('denovo.fam'))
 
         hl.de_novo(mt, ped, pop_frequency_prior=mt.info.ESP, ignore_in_sample_allele_frequency=True).count()
 
+    @run_in('local')
     def test_warn_if_no_intercept(self):
         mt = hl.balding_nichols_model(1, 1, 1).add_row_index().add_col_index()
         intercept = hl.float64(1.0)
@@ -1606,6 +1665,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
             self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
 
+    @run_in('local')
     def test_regression_field_dependence(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_cols(c1 = hl.literal([x % 2 == 0 for x in range(10)])[mt.col_idx], c2 = hl.rand_norm(0, 1))
@@ -1636,6 +1696,7 @@ def logistic_epacts_mt():
     return mt
 
 
+@run_in('local')
 def test_logistic_regression_epacts_wald(logistic_epacts_mt):
     mt = logistic_epacts_mt
     actual = hl.logistic_regression_rows(
@@ -1675,6 +1736,7 @@ def test_logistic_regression_epacts_wald(logistic_epacts_mt):
     assert actual[4].p_value == pytest.approx(0.22403, rel=1e-3)
 
 
+@run_in('local')
 def test_logistic_regression_epacts_lrt(logistic_epacts_mt):
     mt = logistic_epacts_mt
     actual = hl.logistic_regression_rows(
@@ -1700,6 +1762,7 @@ def test_logistic_regression_epacts_lrt(logistic_epacts_mt):
     assert actual[4].p_value == pytest.approx(0.21692, rel=1e-4)
 
 
+@run_in('all')  # this is the one test that tests logistic regression epacts in all locations
 def test_logistic_regression_epacts_score(logistic_epacts_mt):
     # The name of this test suggests it was originally a comparison to EPACTS. The original EPACTS
     # values were slightly different from the output of lowered logistic regression. I regenerated
@@ -1759,6 +1822,7 @@ def test_logistic_regression_epacts_score(logistic_epacts_mt):
     assert actual[4].p_value == pytest.approx(0.2184924, rel=1e-5)
 
 
+@run_in('all')  # this is the one test that tests logistic regression firth in all locations
 def test_logistic_regression_epacts_firth(logistic_epacts_mt):
     mt = logistic_epacts_mt
     actual = hl.logistic_regression_rows(

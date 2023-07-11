@@ -1,6 +1,9 @@
 import hail as hl
 
+from .helpers import run_in
 
+
+@run_in('local')
 def test_array_slice_end():
     ht = hl.utils.range_matrix_table(1, 1)
     try:
@@ -12,6 +15,7 @@ def test_array_slice_end():
         assert False
 
 
+@run_in('local')
 def test_array_slice_start():
     ht = hl.utils.range_matrix_table(1, 1)
     try:
@@ -23,6 +27,7 @@ def test_array_slice_start():
         assert False
 
 
+@run_in('local')
 def test_array_slice_step():
     ht = hl.utils.range_matrix_table(1, 1)
     try:
@@ -34,6 +39,7 @@ def test_array_slice_step():
         assert False
 
 
+@run_in('local')
 def test_matmul():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_cols(a = hl.nd.array([0]))
@@ -47,6 +53,7 @@ def test_matmul():
         assert False
 
 
+@run_in('local')
 def test_ndarray_index():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([0]))
@@ -59,6 +66,7 @@ def test_ndarray_index():
         assert False
 
 
+@run_in('local')
 def test_ndarray_index_with_slice_1():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([[0]]))
@@ -71,6 +79,7 @@ def test_ndarray_index_with_slice_1():
         assert False
 
 
+@run_in('local')
 def test_ndarray_index_with_slice_2():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([[0]]))
@@ -83,6 +92,7 @@ def test_ndarray_index_with_slice_2():
         assert False
 
 
+@run_in('local')
 def test_ndarray_index_with_None_1():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([[0]]))
@@ -95,6 +105,7 @@ def test_ndarray_index_with_None_1():
         assert False
 
 
+@run_in('local')
 def test_ndarray_index_with_None_2():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([[0]]))
@@ -107,6 +118,7 @@ def test_ndarray_index_with_None_2():
         assert False
 
 
+@run_in('local')
 def test_ndarray_reshape_1():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([[0]]))
@@ -119,6 +131,7 @@ def test_ndarray_reshape_1():
         assert False
 
 
+@run_in('local')
 def test_ndarray_reshape_2():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_rows(b = hl.nd.array([[0]]))
@@ -131,6 +144,7 @@ def test_ndarray_reshape_2():
         assert False
 
 
+@run_in('local')
 def test_ndarray_reshape_tuple():
     ht = hl.utils.range_matrix_table(1, 1)
     ht = ht.annotate_cols(a = hl.tuple((1, 1)))

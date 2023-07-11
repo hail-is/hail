@@ -6,6 +6,7 @@ import pytest
 
 from hail.utils.java import FatalError, HailUserError
 
+
 def assert_ndarrays(asserter, exprs_and_expecteds):
     exprs, expecteds = zip(*exprs_and_expecteds)
 
@@ -25,6 +26,7 @@ def assert_ndarrays_almost_eq(*expr_and_expected):
     assert_ndarrays(np.allclose, expr_and_expected)
 
 
+@run_in('local')
 def test_ndarray_ref():
 
     scalar = 5.0
@@ -56,6 +58,7 @@ def test_ndarray_ref():
     )
 
 
+@run_in('local')
 def test_ndarray_ref_bounds_check():
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2, 3])[4])
@@ -86,6 +89,7 @@ def test_ndarray_ref_bounds_check():
     assert "Index -4 is out of bounds for axis 1 with size 1" in str(exc.value)
 
 
+@run_in('local')
 def test_ndarray_slice():
     np_rect_prism = np.arange(24).reshape((2, 3, 4))
     rect_prism = hl.nd.array(np_rect_prism)
@@ -216,6 +220,7 @@ def test_ndarray_slice():
         hl.eval(rect_prism[1, 1, 1, 1])
 
 
+@run_in('local')
 def test_ndarray_transposed_slice():
     a = hl.nd.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
     np_a = np.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
@@ -227,6 +232,7 @@ def test_ndarray_transposed_slice():
     )
 
 
+@run_in('local')
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     mishapen_data_list1 = [[4], [1, 2, 3]]
@@ -283,6 +289,7 @@ def test_ndarray_eval():
         hl.eval(hl.nd.array([1, hl.missing(hl.tint32), 3]))
 
 
+@run_in('local')
 def test_ndarray_shape():
     np_e = np.array(3)
     np_row = np.array([1, 2, 3])
@@ -310,6 +317,7 @@ def test_ndarray_shape():
     )
 
 
+@run_in('local')
 def test_ndarray_reshape():
     np_single = np.array([8])
     single = hl.nd.array([8])
@@ -387,6 +395,7 @@ def test_ndarray_reshape():
         a.reshape(hl.tuple(['4', '5']))
 
 
+@run_in('local')
 def test_ndarray_map1():
     a = hl.nd.array([[2, 3, 4], [5, 6, 7]])
     b = hl.map(lambda x: -x, a)
@@ -410,6 +419,7 @@ def test_ndarray_map1():
     assert np.array_equal(hl.eval(structs.map(lambda e: e.y)), np.array([True, False]))
 
 
+@run_in('local')
 def test_ndarray_map2():
 
     a = 2.0
@@ -520,6 +530,8 @@ def test_ndarray_map2():
     assert hl.eval(missing + present) is None
     assert hl.eval(present + missing) is None
 
+
+@run_in('local')
 def test_ndarray_sum():
     np_m = np.array([[1, 2], [3, 4]])
     m = hl.nd.array(np_m)
@@ -544,6 +556,7 @@ def test_ndarray_sum():
     assert "duplicate" in str(exc.value)
 
 
+@run_in('local')
 def test_ndarray_transpose():
     np_v = np.array([1, 2, 3])
     np_m = np.array([[1, 2, 3], [4, 5, 6]])
@@ -576,6 +589,8 @@ def test_ndarray_transpose():
         cube.transpose((1, 1, 1))
     assert "Axes cannot contain duplicates" in str(exc.value)
 
+
+@run_in('local')
 def test_ndarray_matmul():
     np_v = np.array([1, 2])
     np_y = np.array([1, 1, 1])
@@ -665,6 +680,8 @@ def test_ndarray_matmul():
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
     assert "Matrix dimensions incompatible" in str(exc.value)
 
+
+@run_in('local')
 def test_ndarray_matmul_dgemv():
     np_mat_3_4 = np.arange(12, dtype=np.float64).reshape((3, 4))
     np_mat_4_3 = np.arange(12, dtype=np.float64).reshape((4, 3))
@@ -682,10 +699,13 @@ def test_ndarray_matmul_dgemv():
         (mat_3_4.T @ vec_3, np_mat_3_4.T @ np_vec_3)
     )
 
+
+@run_in('local')
 def test_ndarray_big():
     assert hl.eval(hl.nd.array(hl.range(100_000))).size == 100_000
 
 
+@run_in('local')
 def test_ndarray_full():
     assert_ndarrays_eq(
         (hl.nd.zeros(4), np.zeros(4)),
@@ -701,6 +721,7 @@ def test_ndarray_full():
     assert hl.eval(hl.nd.full((5, 6, 7), hl.int32(3), dtype=hl.tfloat64)).dtype, np.float64
 
 
+@run_in('local')
 def test_ndarray_arange():
     assert_ndarrays_eq(
         (hl.nd.arange(40), np.arange(40)),
@@ -713,6 +734,7 @@ def test_ndarray_arange():
     assert "Array range cannot have step size 0" in str(exc.value)
 
 
+@run_in('local')
 def test_ndarray_mixed():
     assert hl.eval(hl.missing(hl.tndarray(hl.tint64, 2)).map(
         lambda x: x * x).reshape((4, 5)).T) is None
@@ -723,6 +745,7 @@ def test_ndarray_mixed():
         (5, 2)).map(lambda x: x * 2)).map(lambda y: y * 2)) is None
 
 
+@run_in('local')
 def test_ndarray_show():
     hl.nd.array(3).show()
     hl.nd.arange(6).show()
@@ -730,6 +753,7 @@ def test_ndarray_show():
     hl.nd.arange(8).reshape((2, 2, 2)).show()
 
 
+@run_in('local')
 def test_ndarray_diagonal():
     assert np.array_equal(hl.eval(hl.nd.diagonal(hl.nd.array([[1, 2], [3, 4]]))), np.array([1, 4]))
     assert np.array_equal(hl.eval(hl.nd.diagonal(
@@ -742,6 +766,7 @@ def test_ndarray_diagonal():
     assert "2 dimensional" in str(exc.value)
 
 
+@run_in('local')
 def test_ndarray_solve_triangular():
     a = hl.nd.array([[1, 1], [0, 1]])
     b = hl.nd.array([2, 1])
@@ -760,6 +785,8 @@ def test_ndarray_solve_triangular():
         hl.eval(hl.nd.solve_triangular(a_sing, b_sing))
     assert "singular" in str(exc.value), str(exc.value)
 
+
+@run_in('local')
 def test_ndarray_solve():
     a = hl.nd.array([[1, 2], [3, 5]])
     b = hl.nd.array([1, 2])
@@ -774,6 +801,8 @@ def test_ndarray_solve():
     assert "singular" in str(exc.value), str(exc.value)
 
 
+
+@run_in('local')
 def test_ndarray_qr():
     def assert_raw_equivalence(hl_ndarray, np_ndarray):
         ndarray_h, ndarray_tau = hl.eval(hl.nd.qr(hl_ndarray, mode="raw"))
@@ -890,6 +919,7 @@ def test_ndarray_qr():
     assert "requires 2 dimensional" in str(exc.value)
 
 
+@run_in('local')
 def test_svd():
     def assert_evals_to_same_svd(nd_expr, np_array, full_matrices=True, compute_uv=True):
         evaled = hl.eval(hl.nd.svd(nd_expr, full_matrices, compute_uv))
@@ -942,6 +972,7 @@ def test_svd():
     assert_evals_to_same_svd(rank_2_tall_rectangle, np_rank_2_tall_rectangle, full_matrices=False)
 
 
+@run_in('local')
 def test_eigh():
     def assert_evals_to_same_eig(nd_expr, np_array, eigvals_only=True):
         evaled = hl.eval(hl.nd.eigh(nd_expr, eigvals_only))
@@ -973,6 +1004,7 @@ def test_eigh():
     assert_evals_to_same_eig(hA, A, eigvals_only=True)
 
 
+@run_in('local')
 def test_numpy_interop():
     v = [2, 3]
     w = [3, 5]
@@ -1003,6 +1035,7 @@ def test_numpy_interop():
                           np.array([[6, 9], [10, 15]]))
 
 
+@run_in('local')
 def test_ndarray_emitter_extract():
     np_mat = np.array([0, 1, 2, 1, 0])
     mat = hl.nd.array(np_mat)
@@ -1010,6 +1043,7 @@ def test_ndarray_emitter_extract():
     assert hl.eval(hl.range(5).map(lambda i: mapped_mat[i])) == [3, 4, 5, 4, 3]
 
 
+@run_in('local')
 def test_ndarrays_transmute_ops():
     u = hl.utils.range_table(10, n_partitions=10)
     u = u.annotate(x=hl.nd.array([u.idx]), y=hl.nd.array([u.idx]))
@@ -1017,6 +1051,7 @@ def test_ndarrays_transmute_ops():
     assert u.xxx.collect() == [x * x for x in range(10)]
 
 
+@run_in('local')
 def test_ndarray():
     a1 = hl.eval(hl.nd.array((1, 2, 3)))
     a2 = hl.eval(hl.nd.array([1, 2, 3]))
@@ -1044,6 +1079,7 @@ def test_ndarray():
     assert(np.array_equal(a1, an1) and np.array_equal(a2, an2))
 
 
+@run_in('local')
 def test_cast():
     def testequal(a, hdtype, ndtype):
         ah = hl.eval(hl.nd.array(a, dtype=hdtype))
@@ -1063,6 +1099,7 @@ def test_cast():
     test([[1, 2], [3, 4]])
 
 
+@run_in('local')
 def test_inv():
     c = np.random.randn(5, 5)
     d = np.linalg.inv(c)
@@ -1070,6 +1107,7 @@ def test_inv():
     assert np.allclose(dhail, d)
 
 
+@run_in('local')
 def test_concatenate():
     x = np.array([[1., 2.], [3., 4.]])
     y = np.array([[5.], [6.]])
@@ -1103,6 +1141,7 @@ def test_concatenate():
     assert np.array_equal(np_res, res)
 
 
+@run_in('local')
 def test_concatenate_differing_shapes():
     with pytest.raises(ValueError, match='hl.nd.concatenate: ndarrays must have same number of dimensions, found: 1, 2'):
         hl.nd.concatenate([
@@ -1123,6 +1162,7 @@ def test_concatenate_differing_shapes():
         ])
 
 
+@run_in('local')
 def test_vstack_1():
     ht = hl.utils.range_table(10)
 
@@ -1137,6 +1177,8 @@ def test_vstack_1():
     ht2 = ht2.annotate(stacked=hl.nd.vstack([ht2.x, ht2.y]))
     assert np.array_equal(ht2.collect()[0].stacked, np.vstack([a, b]))
 
+
+@run_in('local')
 def test_vstack_2():
     ht = hl.utils.range_table(10)
 
@@ -1151,6 +1193,7 @@ def test_vstack_2():
     assert np.array_equal(ht2.collect()[0].stacked, np.vstack([a, b]))
 
 
+@run_in('local')
 def test_hstack():
     ht = hl.utils.range_table(10)
 
@@ -1172,36 +1215,43 @@ def test_hstack():
     assert_table(a, b)
 
 
+@run_in('local')
 def test_eye():
     for i in range(13):
         assert_ndarrays_eq(*[(hl.nd.eye(i, y), np.eye(i, y)) for y in range(13)])
 
 
+@run_in('local')
 def test_identity():
     assert_ndarrays_eq(*[(hl.nd.identity(i), np.identity(i)) for i in range(13)])
 
 
+@run_in('all')
 def test_agg_ndarray_sum_empty():
     no_values = hl.utils.range_table(0).annotate(x=hl.nd.arange(5))
     assert no_values.aggregate(hl.agg.ndarray_sum(no_values.x)) is None
 
 
+@run_in('all')
 def test_agg_ndarray_sum_0_to_10():
     increasing_0d = hl.utils.range_table(10)
     increasing_0d = increasing_0d.annotate(x=hl.nd.array(increasing_0d.idx))
     assert np.array_equal(increasing_0d.aggregate(hl.agg.ndarray_sum(increasing_0d.x)), np.array(45))
 
 
+@run_in('all')
 def test_agg_ndarray_sum_ones_1d():
     just_ones_1d = hl.utils.range_table(20).annotate(x=hl.nd.ones((7,)))
     assert np.array_equal(just_ones_1d.aggregate(hl.agg.ndarray_sum(just_ones_1d.x)), np.full((7,), 20))
 
 
+@run_in('all')
 def test_agg_ndarray_sum_ones_2d():
     just_ones_2d = hl.utils.range_table(100).annotate(x=hl.nd.ones((2, 3)))
     assert np.array_equal(just_ones_2d.aggregate(hl.agg.ndarray_sum(just_ones_2d.x)), np.full((2, 3), 100))
 
 
+@run_in('all')
 def test_agg_ndarray_sum_with_transposes():
     transposes = hl.utils.range_table(4).annotate(x=hl.nd.arange(16).reshape((4, 4)))
     transposes = transposes.annotate(x = hl.if_else((transposes.idx % 2) == 0, transposes.x, transposes.x.T))
@@ -1210,6 +1260,7 @@ def test_agg_ndarray_sum_with_transposes():
     assert np.array_equal(transposes.aggregate(hl.agg.ndarray_sum(transposes.x)), transposes_result)
 
 
+@run_in('all')
 def test_agg_ndarray_mismatched_dims_raises_fatal_error():
     with pytest.raises(FatalError) as exc:
         mismatched = hl.utils.range_table(5)
@@ -1218,6 +1269,7 @@ def test_agg_ndarray_mismatched_dims_raises_fatal_error():
     assert "Can't sum" in str(exc.value)
 
 
+@run_in('local')
 def test_maximum_minimuim():
     x = np.arange(4)
     y = np.array([7, 0, 2, 4])
@@ -1257,6 +1309,7 @@ def test_maximum_minimuim():
     assert(nan_min.size == min_matches)
 
 
+@run_in('local')
 def test_ndarray_broadcasting_with_decorator():
     nd = hl.nd.array([[1, 4, 9], [16, 25, 36]])
     nd_sqrt = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
@@ -1274,6 +1327,7 @@ def test_ndarray_broadcasting_with_decorator():
     assert(np.array_equal(nd, nd_floor))
 
 
+@run_in('all')
 def test_ndarray_indices_aggregations():
     ht = hl.utils.range_table(1)
     ht = ht.annotate_globals(g = hl.nd.ones((2, 2)))
@@ -1285,9 +1339,10 @@ def test_ndarray_indices_aggregations():
     ht = ht.annotate(e = hl.nd.svd(ht.x))
     ht = ht.annotate(f = hl.nd.inv(ht.x))
     ht = ht.annotate(h = hl.nd.concatenate((ht.x, ht.g)))
-    ht = ht.annotate(i = hl.nd.concatenate((ht.g, ht.x)))
+    ht = ht.annotate(i = hl.nd.concatenate((ht.g, ht.x)))  # FIXME: is this supposed to actually evaluate?
 
 
+@run_in('local')
 def test_ndarray_log_broadcasting():
     expected = np.array([math.log(x) for x in [5, 10, 15, 20]]).reshape(2, 2)
     actual = hl.eval(hl.log(hl.nd.array([[5, 10], [15, 20]])))

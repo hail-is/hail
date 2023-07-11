@@ -1,5 +1,9 @@
 import hail as hl
 
+from ..helpers import run_in
+
+
+@run_in('local')
 def test_lgt_to_gt():
     call_0_0_f = hl.call(0, 0, phased=False)
     call_0_0_t = hl.call(0, 0, phased=True)
@@ -16,6 +20,7 @@ def test_lgt_to_gt():
     assert hl.eval(hl.vds.lgt_to_gt(call_0_0_f, hl.missing('array<int32>'))) == hl.Call([0,0], phased=False)
 
 
+@run_in('local')
 def test_lgt_to_gt_invalid():
 
     c1 = hl.call(1, 1)
@@ -25,6 +30,8 @@ def test_lgt_to_gt_invalid():
     # we cannot represent this allele index in 28 bits
     # assert hl.eval(hl.vds.lgt_to_gt(c2, [0, 17495])) == hl.Call([17495, 17495], phased=True)
 
+
+@run_in('local')
 def test_local_to_global():
     local_alleles = [0, 1, 3]
     lad = [1, 9, 10]
@@ -35,6 +42,8 @@ def test_local_to_global():
     assert hl.eval(hl.vds.local_to_global(lad, [0,1,2], 3, 0, number='R')) == lad
     assert hl.eval(hl.vds.local_to_global(lpl, [0,1,2], 3, 999, number='G')) == lpl
 
+
+@run_in('local')
 def test_local_to_global_alleles_non_increasing():
     local_alleles = [0, 3, 1]
     lad = [1, 10, 9]

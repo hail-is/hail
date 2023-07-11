@@ -3,13 +3,12 @@ import os
 
 import hail as hl
 from hailtop.utils import secret_alnum_string
-from hailtop.test_utils import skip_in_azure, run_if_azure
 from hailtop.aiocloud.aioazure import AzureAsyncFS
 
-from ..helpers import fails_local_backend, hl_stop_for_test, hl_init_for_test, test_timeout, resource
+from ..helpers import fails_local_backend, hl_stop_for_test, hl_init_for_test, timeout_after, resource, run_in
 
 
-@skip_in_azure
+@run_in('all', clouds=['gcp'])
 def test_requester_pays_no_settings():
     try:
         hl.import_table('gs://hail-test-requester-pays-fds32/hello')
@@ -19,7 +18,7 @@ def test_requester_pays_no_settings():
         assert False
 
 
-@skip_in_azure
+@run_in('all', clouds=['gcp'])
 def test_requester_pays_write_no_settings():
     random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
     try:
@@ -31,8 +30,8 @@ def test_requester_pays_write_no_settings():
         assert False
 
 
-@skip_in_azure
 @fails_local_backend()
+@run_in('all', clouds=['gcp'])
 def test_requester_pays_write_with_project():
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
@@ -43,8 +42,8 @@ def test_requester_pays_write_with_project():
         hl.current_backend().fs.rmtree(random_filename)
 
 
-@skip_in_azure
-@test_timeout(local=5 * 60, batch=5 * 60)
+@timeout_after(local=5 * 60, batch=5 * 60)
+@run_in('all', clouds=['gcp'])
 def test_requester_pays_with_project():
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
@@ -72,8 +71,8 @@ def test_requester_pays_with_project():
     assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
 
-@skip_in_azure
-@test_timeout(local=5 * 60, batch=5 * 60)
+@timeout_after(local=5 * 60, batch=5 * 60)
+@run_in('all', clouds=['gcp'])
 def test_requester_pays_with_project_more_than_one_partition():
     # NB: this test uses a file with more rows than partitions because Hadoop's Seekable input
     # streams do not permit seeking past the end of the input (ref:
@@ -123,8 +122,8 @@ def test_requester_pays_with_project_more_than_one_partition():
     assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
 
-@run_if_azure
 @fails_local_backend
+@run_in('local', 'batch', clouds=['azure'])
 def test_can_access_public_blobs():
     public_mt = 'hail-az://azureopendatastorage/gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt'
     assert hl.hadoop_exists(public_mt)
@@ -133,8 +132,9 @@ def test_can_access_public_blobs():
     mt = hl.read_matrix_table(public_mt)
     mt.describe()
 
-@run_if_azure
+
 @fails_local_backend
+@run_in('local', 'batch', clouds=['azure'])
 def test_qob_can_use_sas_tokens():
     vcf = resource('sample.vcf')
     account = AzureAsyncFS.parse_url(vcf).account

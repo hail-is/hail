@@ -5,7 +5,8 @@ from ..helpers import *
 
 
 class Tests(unittest.TestCase):
-    @test_timeout(local=3 * 60, batch=6 * 60)
+    @timeout_after(local=3 * 60, batch=6 * 60)
+    @run_in('all')
     def test_trio_matrix_1(self):
         """
         This test depends on certain properties of the trio matrix VCF and
@@ -54,7 +55,8 @@ class Tests(unittest.TestCase):
         assert et.row.dtype == tt.row.dtype
         assert et._same(tt)
 
-    @test_timeout(local=3 * 60, batch=6 * 60)
+    @timeout_after(local=3 * 60, batch=6 * 60)
+    @run_in('local')
     def test_trio_matrix_2(self):
         """
         This test depends on certain properties of the trio matrix VCF and
@@ -99,6 +101,7 @@ class Tests(unittest.TestCase):
         assert e_cols.row.dtype == t_cols.row.dtype
         assert e_cols._same(t_cols)
 
+    @run_in('local')
     def test_trio_matrix_null_keys(self):
         ped = hl.Pedigree.read(resource('triomatrix.fam'))
         ht = hl.import_fam(resource('triomatrix.fam'))
@@ -112,12 +115,14 @@ class Tests(unittest.TestCase):
         tt = hl.trio_matrix(mt, ped, complete_trios=True)
         self.assertEqual(tt.count_cols(), 0)
 
+    @run_in('local')
     def test_trio_matrix_incomplete_trios(self):
         ped = hl.Pedigree.read(resource('triomatrix.fam'))
         mt = hl.import_vcf(resource('triomatrix.vcf'))
         hl.trio_matrix(mt, ped, complete_trios=False)
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_1(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -150,7 +155,8 @@ class Tests(unittest.TestCase):
                                            alleles=hl.tarray(hl.tstr),
                                            errors=hl.tint64)
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_2(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -158,7 +164,8 @@ class Tests(unittest.TestCase):
 
         assert men.count() == 41
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_3(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -166,7 +173,8 @@ class Tests(unittest.TestCase):
 
         assert fam.count() == 2
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_4(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -174,7 +182,8 @@ class Tests(unittest.TestCase):
 
         assert ind.count() == 7
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_5(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -182,7 +191,8 @@ class Tests(unittest.TestCase):
 
         assert var.count() == mt.count_rows()
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_6(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -197,7 +207,8 @@ class Tests(unittest.TestCase):
         }
         assert actual == expected
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_7(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -215,7 +226,8 @@ class Tests(unittest.TestCase):
         }
         assert actual == expected
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_8(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -243,7 +255,8 @@ class Tests(unittest.TestCase):
         ]
         assert actual == expected
 
-    @test_timeout(4 * 60)
+    @timeout_after(4 * 60)
+    @run_in('local')
     def test_mendel_errors_9(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -254,6 +267,7 @@ class Tests(unittest.TestCase):
 
         assert men2.filter(men2.s == 'Dtr1')._same(men.filter(men.s == 'Dtr1'))
 
+    @run_in('local')
     def test_tdt(self):
         pedigree = hl.Pedigree.read(resource('tdt.fam'))
         tdt_tab = (hl.transmission_disequilibrium_test(
@@ -286,6 +300,7 @@ class Tests(unittest.TestCase):
             bad.order_by(hl.asc(bad.v)).show()
             self.fail('Found rows in violation of the predicate (see show output)')
 
+    @run_in('all')
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         mt = mt.filter_rows(mt.locus.in_y_par(), keep=False)  # de_novo_finder doesn't know about y PAR

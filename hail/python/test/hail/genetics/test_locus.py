@@ -1,6 +1,10 @@
 from hail.genetics import Locus
 import hail as hl
 
+from ..helpers import run_in
+
+
+@run_in('local')
 def test_constructor():
     l = Locus.parse('1:100')
 
@@ -9,6 +13,7 @@ def test_constructor():
     assert l.reference_genome == hl.default_reference()
 
 
+@run_in('local')
 def test_call_rich_comparison():
     val = Locus(1, 1)
     expr = hl.locus('1', 1)

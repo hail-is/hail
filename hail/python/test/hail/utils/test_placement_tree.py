@@ -4,8 +4,11 @@ import hail as hl
 
 from hail.utils.placement_tree import PlacementTree
 
+from ..helpers import run_in
+
 
 class Tests(unittest.TestCase):
+    @run_in('local')
     def test_realistic(self):
         dtype = hl.dtype('''struct{
 locus: locus<GRCh37>,

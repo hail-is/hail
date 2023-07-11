@@ -5,6 +5,8 @@ import pytest
 
 from hailtop.hailctl.dataproc import cli
 
+from ..helpers import fails_test
+
 
 runner = CliRunner(mix_stderr=False)
 

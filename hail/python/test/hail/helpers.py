@@ -121,6 +121,26 @@ def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
 
 
+def run_in(*locations, clouds=None):
+    all_possible_locations = {'local', 'spark', 'batch'}
+
+    for location in locations:
+        if location not in all_possible_locations and location != 'all':
+            raise RuntimeError(f'unknown location {location}')
+
+    if len(locations) > 1 and 'all' in locations:
+        raise RuntimeError('cannot specify all with additional locations')
+
+    if clouds is not None:
+        if 'all' not in locations and 'batch' not in locations:
+            raise RuntimeError('cannot specify clouds if not running in the service backend')
+
+    if set(locations) == all_possible_locations:
+        raise RuntimeError(f'use "all" as the alias for all cloud locations instead of specifying each location individually')
+
+    return pytest.mark.run_in(*locations, clouds=clouds)
+
+
 def skip_unless_spark_backend(reason='requires Spark'):
     from hail.backend.spark_backend import SparkBackend
     @decorator
@@ -189,7 +209,7 @@ fails_spark_backend = pytest.mark.xfail(
     strict=True)
 
 
-def test_timeout(overall=None, *, batch=None, local=None, spark=None):
+def timeout_after(overall=None, *, batch=None, local=None, spark=None):
     backend = choose_backend()
     specific_timeout = {'batch': batch, 'local': local, 'spark': spark}[backend]
     timeout = specific_timeout or overall

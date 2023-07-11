@@ -1173,10 +1173,8 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/inter_cloud \
               --timeout=120 \
-              test
+              test/hail
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1199,7 +1197,7 @@ steps:
     clouds:
       - gcp
   - kind: runImage
-    name: test_hail_python_fs
+    name: test_hailtop_intercloud_fs
     numSplits: 5
     image:
       valueFrom: hailgenetics_hailtop_image.image
@@ -1226,6 +1224,8 @@ steps:
       export HAIL_TEST_AZURE_SUBID=22cd45fe-f996-4c51-af67-ef329d977519
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
+      export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
+
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1235,7 +1235,8 @@ steps:
               --instafail \
               --durations=50 \
               --timeout=120 \
-              test/hailtop/inter_cloud
+              test/hailtop/inter_cloud \
+              test/hailtop/test_aiogoogle.py
     timeout: 1200
     inputs:
       - from: /repo/hail/python/dev/pinned-requirements.txt
@@ -1261,6 +1262,57 @@ steps:
       - build_hail_test_artifacts
     clouds:
       - gcp
+  - kind: runImage
+    name: test_hailtop_not_batch_not_intercloud_not_aiogoogle
+    numSplits: 5
+    image:
+      valueFrom: hailgenetics_hailtop_image.image
+    resources:
+      memory: standard
+      cpu: '1'
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+
+      python3 -m pip install -r test-requirements.txt
+
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --timeout=120 \
+              --ignore=test/hailtop/batch/ \
+              --ignore=test/hailtop/inter_cloud \
+              --ignore=test/hailtop/test_aiogoogle.py \
+              test/hailtop
+    timeout: 1200
+    inputs:
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/test-requirements.txt
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: test-aws-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
+    dependsOn:
+      - default_ns
+      - hailgenetics_hailtop_image
+      - build_hail_test_artifacts
   - kind: runImage
     name: test_hail_python_unchecked_allocator
     image:
@@ -1363,9 +1415,8 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              --ignore=test/hailtop/ \
               --timeout=120 \
-              test
+              test/hail
     timeout: 1800
     inputs:
       - from: /debug-wheel-container.tar
@@ -2522,7 +2573,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               --timeout=600 \
-              test
+              test/hail
     timeout: 5400
     inputs:
       - from: /wheel-container.tar

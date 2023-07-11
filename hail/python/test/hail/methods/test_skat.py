@@ -3,11 +3,12 @@ import pytest
 
 from hail.utils import FatalError, HailUserError
 
-from ..helpers import resource, test_timeout
+from ..helpers import resource, run_in, timeout_after
 
 
 @pytest.mark.parametrize("skat_model", [('hl._linear_skat', hl._linear_skat),
                                         ('hl._logistic_skat', hl._logistic_skat)])
+@run_in('all')
 def test_skat_negative_weights_errors(skat_model):
     skat_name, skat = skat_model
     genotypes = [
@@ -58,6 +59,7 @@ def test_skat_negative_weights_errors(skat_model):
         assert False
 
 
+@run_in('all')
 def test_logistic_skat_phenotypes_are_binary():
     genotypes = [
         [2, 1, 1, 1, 0, 1, 1, 2, 1, 1, 2, 1, 0, 0, 1],
@@ -107,6 +109,7 @@ def test_logistic_skat_phenotypes_are_binary():
         assert False
 
 
+@run_in('all')
 def test_logistic_skat_no_weights_R_truth():
     # library('SKAT')
     # dat <- matrix(c(2,1,0,1,
@@ -186,6 +189,7 @@ def test_logistic_skat_no_weights_R_truth():
     assert result.fault == 0
 
 
+@run_in('all')
 def test_logistic_skat_R_truth():
     # library('SKAT')
     # dat <- matrix(c(2,1,0,1,
@@ -266,6 +270,7 @@ def test_logistic_skat_R_truth():
     assert result.fault == 0
 
 
+@run_in('all')
 def test_logistic_skat_on_big_matrix():
     # dat <- as.matrix(read.csv('hail/src/test/resources/skat_genotype_matrix.csv', header=FALSE))
     # cov = read.csv('hail/src/test/resources/skat_phenotypes.csv', header=FALSE)
@@ -303,6 +308,7 @@ def test_logistic_skat_on_big_matrix():
     assert result.fault == 0
 
 
+@run_in('all')
 def test_linear_skat_no_weights_R_truth():
     # library('SKAT')
     # dat <- matrix(c(0,1,0,1,
@@ -362,6 +368,7 @@ def test_linear_skat_no_weights_R_truth():
     assert result.fault == 0
 
 
+@run_in('all')
 def test_linear_skat_R_truth():
     # library('SKAT')
     # dat <- matrix(c(0,1,0,1,
@@ -443,6 +450,7 @@ def _generate_skat_big_matrix():
             f.write(str(y) + '\n')
 
 
+@run_in('all')
 def test_linear_skat_on_big_matrix():
     # dat <- as.matrix(read.csv('hail/src/test/resources/skat_genotype_matrix.csv', header=FALSE))
     # cov = read.csv('hail/src/test/resources/skat_phenotypes.csv', header=FALSE)
@@ -510,7 +518,8 @@ def skat_dataset():
     return ds
 
 
-@test_timeout(3 * 60)
+@timeout_after(3 * 60)
+@run_in('all')
 def test_skat_1():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -521,7 +530,8 @@ def test_skat_1():
             logistic=False)._force_count()
 
 
-@test_timeout(3 * 60)
+@timeout_after(3 * 60)
+@run_in('all')
 def test_skat_2():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -531,7 +541,9 @@ def test_skat_2():
             covariates=[1.0],
             logistic=True)._force_count()
 
-@test_timeout(3 * 60)
+
+@timeout_after(3 * 60)
+@run_in('all')
 def test_skat_3():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -541,7 +553,9 @@ def test_skat_3():
             covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
             logistic=False)._force_count()
 
-@test_timeout(3 * 60)
+
+@timeout_after(3 * 60)
+@run_in('all')
 def test_skat_4():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -551,7 +565,9 @@ def test_skat_4():
             covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
             logistic=True)._force_count()
 
-@test_timeout(3 * 60)
+
+@timeout_after(3 * 60)
+@run_in('all')
 def test_skat_5():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -562,7 +578,8 @@ def test_skat_5():
             logistic=(25, 1e-6))._force_count()
 
 
-@test_timeout(local=4 * 60)
+@timeout_after(local=4 * 60)
+@run_in('all')
 def test_linear_skat_produces_same_results_as_old_scala_method():
     mt = hl.import_vcf(resource('sample2.vcf'))
     covariates_ht = hl.import_table(
@@ -612,7 +629,7 @@ def test_linear_skat_produces_same_results_as_old_scala_method():
     assert skat_results._same(old_scala_results, tolerance=5e-5)  # TSV has 5 sigfigs, so we should match within 5e-5 relative
 
 
-
+@run_in('all')
 def test_skat_max_iteration_fails_explodes_in_37_steps():
     mt = hl.utils.range_matrix_table(3, 3)
     mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
@@ -643,6 +660,7 @@ def test_skat_max_iteration_fails_explodes_in_37_steps():
         assert False
 
 
+@run_in('all')
 def test_skat_max_iterations_fails_to_converge_in_fewer_than_36_steps():
     mt = hl.utils.range_matrix_table(3, 3)
     mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])

@@ -3,6 +3,7 @@ import hail as hl
 from ..helpers import *
 
 
+@run_in('local')  # FIXME: Patrick will double check what simulate_random_mating is doing more closely
 def test_mating_simulation():
     mt = get_dataset()
 

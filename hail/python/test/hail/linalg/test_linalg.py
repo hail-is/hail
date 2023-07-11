@@ -162,6 +162,7 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
+    @run_in('all')
     def test_from_entry_expr_empty_parts(self):
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             mt = hl.balding_nichols_model(n_populations=5, n_variants=2000, n_samples=20, n_partitions=200)
@@ -170,7 +171,8 @@ class Tests(unittest.TestCase):
             nd = (bm @ bm.T).to_numpy()
             assert nd.shape == (1000, 1000)
 
-    @test_timeout(local=6 * 60, batch=6 * 60)
+    @timeout_after(local=6 * 60, batch=6 * 60)
+    @run_in('all')
     def test_from_entry_expr_options_1(self):
         a = np.array([0.0, 1.0, 2.0])
 
@@ -184,7 +186,8 @@ class Tests(unittest.TestCase):
         assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, True, True), (a - 1.0) / np.sqrt(2))
         assert np.allclose(entry_expr_to_ndarray_vec(mt.x + 1 - 1, False, False, False), a)
 
-    @test_timeout(local=6 * 60, batch=6 * 60)
+    @timeout_after(local=6 * 60, batch=6 * 60)
+    @run_in('all')
     def test_from_entry_expr_options_2(self):
         mean_imputed = np.array([0.0, 1.0, 2.0])
         actual = hl.array([0.0, hl.missing(hl.tfloat), 2.0])
@@ -200,6 +203,7 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
+    @run_in('all')
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
@@ -220,6 +224,7 @@ class Tests(unittest.TestCase):
             BlockMatrix.write_from_entry_expr(mt.x + 2, path, overwrite=True)
             self._assert_eq(BlockMatrix.read(path), bm + 2)
 
+    @run_in('all')
     def test_random_uniform(self):
         uniform = BlockMatrix.random(10, 10, gaussian=False)
 
@@ -228,11 +233,13 @@ class Tests(unittest.TestCase):
             for entry in row:
                 assert entry > 0
 
+    @run_in('all')
     def test_bm_to_numpy(self):
         bm = BlockMatrix.from_ndarray(hl.nd.arange(20).map(lambda x: hl.float64(x)).reshape((4, 5)))
         np_bm = bm.to_numpy()
         self._assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
 
+    @run_in('all')
     def test_numpy_round_trip_1(self):
         n_rows = 10
         n_cols = 11
@@ -260,6 +267,7 @@ class Tests(unittest.TestCase):
                 b.assert_eq(a4, a)
                 b.assert_eq(a5, a)
 
+    @run_in('all')
     def test_numpy_round_trip_2(self):
         n_rows = 10
         n_cols = 11
@@ -292,6 +300,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_numpy_round_trip_force_blocking(self):
         n_rows = 10
         n_cols = 11
@@ -303,6 +312,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_to_table(self):
         schema = hl.tstruct(row_idx=hl.tint64, entries=hl.tarray(hl.tfloat64))
         rows = [{'row_idx': 0, 'entries': [0.0, 1.0]},
@@ -320,6 +330,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_to_table_maximum_cache_memory_in_bytes_limits(self):
         bm = BlockMatrix._create(5, 2, [float(i) for i in range(10)], 2)
         try:
@@ -334,6 +345,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_to_matrix_table(self):
         n_partitions = 2
         rows, cols = 2, 5
@@ -351,7 +363,8 @@ class Tests(unittest.TestCase):
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
-    @test_timeout(3 * 60, local=6 * 60)
+    @timeout_after(3 * 60, local=6 * 60)
+    @run_in('all')
     def test_paired_elementwise_addition(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -417,7 +430,8 @@ class Tests(unittest.TestCase):
             b.assert_eq(m + nr, m + r)
             b.assert_eq(m + nm, m + m)
 
-    @test_timeout(3 * 60, local=6 * 60)
+    @timeout_after(3 * 60, local=6 * 60)
+    @run_in('all')
     def test_paired_elementwise_subtraction(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -475,7 +489,8 @@ class Tests(unittest.TestCase):
             b.assert_eq(m - nr, m - r)
             b.assert_eq(m - nm, m - m)
 
-    @test_timeout(3 * 60, local=6 * 60)
+    @timeout_after(3 * 60, local=6 * 60)
+    @run_in('all')
     def test_paired_elementwise_multiplication(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -533,7 +548,8 @@ class Tests(unittest.TestCase):
             b.assert_eq(m * nr, m * r)
             b.assert_eq(m * nm, m * m)
 
-    @test_timeout(3 * 60, local=6 * 60)
+    @timeout_after(3 * 60, local=6 * 60)
+    @run_in('all')
     def test_paired_elementwise_division(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -591,7 +607,7 @@ class Tests(unittest.TestCase):
             b.assert_close(m / nr, m / r)
             b.assert_close(m / nm, m / m)
 
-
+    @run_in('all')
     def test_special_elementwise_ops(self):
         nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
         m = BlockMatrix.from_ndarray(hl.nd.array(nm))
@@ -603,6 +619,7 @@ class Tests(unittest.TestCase):
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
+    @run_in('all')
     def test_matrix_ops(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
@@ -634,6 +651,7 @@ class Tests(unittest.TestCase):
             b.assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
             b.assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
 
+    @run_in('all')
     def test_matrix_sums(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
@@ -657,6 +675,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_tree_matmul(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm, block_size=2)
@@ -687,6 +706,7 @@ class Tests(unittest.TestCase):
                     b.assert_eq(bm_fifty_by_sixty.tree_matmul(bm_fifty_by_sixty.T, splits=split_size), fifty_by_sixty @ fifty_by_sixty.T)
                     b.assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, splits=split_size), fifty_by_sixty @ sixty_by_twenty_five)
 
+    @run_in('all')
     def test_fill(self):
         nd = np.ones((3, 5))
         bm = BlockMatrix.fill(3, 5, 1.0)
@@ -699,6 +719,7 @@ class Tests(unittest.TestCase):
             b.assert_eq(bm, nd)
             b.assert_eq(bm2, nd)
 
+    @run_in('all')
     def test_sum(self):
         nd = np.arange(11 * 13, dtype=np.float64).reshape((11, 13))
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -707,6 +728,7 @@ class Tests(unittest.TestCase):
 
     @fails_local_backend
     @fails_service_backend(reason='ExecuteContext.scoped requires SparkBackend')
+    @run_in('all')
     def test_sum_with_sparsify(self):
         nd = np.zeros(shape=(5, 7))
         nd[2, 4] = 1.0
@@ -729,6 +751,7 @@ class Tests(unittest.TestCase):
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
+    @run_in('all')
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -789,6 +812,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: bm[0, -11:])
         self.assertRaises(ValueError, lambda: bm[0, :-11])
 
+    @run_in('all')
     def test_diagonal_sparse(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -804,6 +828,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_slices_with_sparsify(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_numpy(nd, block_size=3)
@@ -823,6 +848,7 @@ class Tests(unittest.TestCase):
             b.assert_eq(bm2[1, :], nd2[1:2, :])
             b.assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
 
+    @run_in('all')
     def test_sparsify_row_intervals(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -870,6 +896,7 @@ class Tests(unittest.TestCase):
                         expected[i, j] = 0.0
                 b.assert_eq(actual, expected)
 
+    @run_in('all')
     def test_sparsify_band(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -902,6 +929,7 @@ class Tests(unittest.TestCase):
                 mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
                 b.assert_eq(actual, nd2 * mask)
 
+    @run_in('all')
     def test_sparsify_triangle(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -936,6 +964,7 @@ class Tests(unittest.TestCase):
                           [ 0.,  0., 11., 12.],
                           [ 0.,  0., 15., 16.]]))
 
+    @run_in('all')
     def test_sparsify_rectangles(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -956,6 +985,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_export_rectangles(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
 
@@ -980,6 +1010,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_export_rectangles_sparse(self):
         with hl.TemporaryDirectory() as rect_uri:
             nd = np.array([[1.0, 2.0, 3.0, 4.0],
@@ -1000,6 +1031,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_export_rectangles_filtered(self):
         with hl.TemporaryDirectory() as rect_uri:
             nd = np.array([[1.0, 2.0, 3.0, 4.0],
@@ -1018,6 +1050,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_export_blocks(self):
         nd = np.ones(shape=(8, 10))
         bm = BlockMatrix.from_numpy(nd, block_size=20)
@@ -1029,6 +1062,7 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
+    @run_in('all')
     def test_rectangles_to_numpy(self):
         nd = np.array([[1.0, 2.0, 3.0],
                        [4.0, 5.0, 6.0],
@@ -1046,6 +1080,7 @@ class Tests(unittest.TestCase):
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_uri))
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_uri, binary=True))
 
+    @run_in('all')
     def test_to_ndarray(self):
         np_mat = np.arange(12).reshape((4, 3)).astype(np.float64)
         mat = BlockMatrix.from_ndarray(hl.nd.array(np_mat)).to_ndarray()
@@ -1056,7 +1091,8 @@ class Tests(unittest.TestCase):
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
-    @test_timeout(batch=5 * 60)
+    @timeout_after(batch=5 * 60)
+    @run_in('all')
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
@@ -1074,11 +1110,13 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
 
+    @run_in('all')
     def test_from_entry_expr_filtered(self):
         mt = hl.utils.range_matrix_table(1, 1).filter_entries(False)
         bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx, mean_impute=True) # should run without error
         assert np.isnan(bm.entries().entry.collect()[0])
 
+    @run_in('all')
     def test_array_windows(self):
         def assert_eq(a, b):
             self.assertTrue(np.array_equal(a, np.array(b)))
@@ -1111,6 +1149,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([]), -1))
         self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array(['str']), 1))
 
+    @run_in('all')
     def test_locus_windows_per_contig(self):
         f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
         assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
@@ -1118,6 +1157,7 @@ class Tests(unittest.TestCase):
     def assert_np_arrays_eq(self, a, b):
         assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
 
+    @run_in('all')
     def test_locus_windows_1(self):
         centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
 
@@ -1128,6 +1168,7 @@ class Tests(unittest.TestCase):
         self.assert_np_arrays_eq(starts, [0, 0, 0, 1, 2])
         self.assert_np_arrays_eq(stops, [3, 4, 5, 5, 5])
 
+    @run_in('all')
     def test_locus_windows_2(self):
         centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
 
@@ -1138,6 +1179,7 @@ class Tests(unittest.TestCase):
         self.assert_np_arrays_eq(starts, [0, 1, 1, 1, 3])
         self.assert_np_arrays_eq(stops, [1, 4, 4, 5, 5])
 
+    @run_in('all')
     def test_locus_windows_3(self):
         centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
 
@@ -1148,6 +1190,7 @@ class Tests(unittest.TestCase):
         self.assert_np_arrays_eq(starts, [0, 1, 1, 1, 3])
         self.assert_np_arrays_eq(stops, [1, 4, 4, 5, 5])
 
+    @run_in('all')
     def test_locus_windows_4(self):
         rows = [{'locus': hl.Locus('1', 1), 'cm': 1.0},
                 {'locus': hl.Locus('1', 2), 'cm': 3.0},
@@ -1176,36 +1219,42 @@ class Tests(unittest.TestCase):
                                     hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
                                     key=['locus'])
 
+    @run_in('all')
     def test_locus_windows_5(self):
         ht = self.dummy_table_with_loci_and_cms()
         starts, stops = hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assert_np_arrays_eq(starts, [0, 1, 1, 3, 3, 5])
         self.assert_np_arrays_eq(stops, [1, 3, 3, 5, 5, 6])
 
+    @run_in('all')
     def test_locus_windows_6(self):
         ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
         assert 'ascending order' in str(cm.exception)
 
+    @run_in('all')
     def test_locus_windows_7(self):
         ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=hl.utils.range_table(1).idx)
         assert 'different source' in str(cm.exception)
 
+    @run_in('all')
     def test_locus_windows_8(self):
         ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(hl.locus('1', 1), 1.0)
         assert "no source" in str(cm.exception)
 
+    @run_in('all')
     def test_locus_windows_9(self):
         ht = self.dummy_table_with_loci_and_cms()
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=0.0)
         assert "no source" in str(cm.exception)
 
+    @run_in('all')
     def test_locus_windows_10(self):
         ht = self.dummy_table_with_loci_and_cms()
         ht = ht.annotate_globals(x = hl.locus('1', 1), y = 1.0)
@@ -1217,6 +1266,7 @@ class Tests(unittest.TestCase):
             hl.linalg.utils.locus_windows(ht.locus, 1.0, ht.y)
         assert "row-indexed" in str(cm.exception)
 
+    @run_in('all')
     def test_locus_windows_11(self):
         ht = hl.Table.parallelize([{'locus': hl.missing(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
@@ -1228,6 +1278,7 @@ class Tests(unittest.TestCase):
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         assert "missing value for 'locus_expr'" in str(cm.exception)
 
+    @run_in('all')
     def test_locus_windows_12(self):
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.missing(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
@@ -1235,6 +1286,7 @@ class Tests(unittest.TestCase):
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         assert "missing value for 'coord_expr'" in str(cm.exception)
 
+    @run_in('all')
     def test_write_overwrite(self):
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             bm = BlockMatrix.from_numpy(np.array([[0]]))
@@ -1245,6 +1297,7 @@ class Tests(unittest.TestCase):
             bm2.write(path, overwrite=True)
             self._assert_eq(BlockMatrix.read(path), bm2)
 
+    @run_in('all')
     def test_stage_locally(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
         with hl.TemporaryDirectory(ensure_exists=False) as bm_uri:
@@ -1253,6 +1306,7 @@ class Tests(unittest.TestCase):
             bm = BlockMatrix.read(bm_uri)
             self._assert_eq(nd, bm)
 
+    @run_in('all')
     def test_svd(self):
         def assert_same_columns_up_to_sign(a, b):
             for j in range(a.shape[1]):
@@ -1310,6 +1364,7 @@ class Tests(unittest.TestCase):
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
 
+    @run_in('all')
     def test_filtering(self):
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
         bm = BlockMatrix.from_numpy(np_square)
@@ -1328,6 +1383,7 @@ class Tests(unittest.TestCase):
         assert "index" in str(exc.value)
 
     @fails_service_backend()
+    @run_in('all')
     def test_is_sparse(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1341,6 +1397,7 @@ class Tests(unittest.TestCase):
                       [8,  9,  0, 0],
                       [12, 13, 0, 0]]))
 
+    @run_in('all')
     def test_sparsify_blocks(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1364,6 +1421,7 @@ class Tests(unittest.TestCase):
         sparse_numpy = sparsify_numpy(np_square, block_size, block_list)
         assert np.array_equal(bm.to_numpy(), sparse_numpy)
 
+    @run_in('all')
     def test_sparse_transposition(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1397,6 +1455,7 @@ class Tests(unittest.TestCase):
         sparse_np = sparsify_numpy(np_square, block_size, block_list).T
         assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
 
+    @run_in('all')
     def test_row_blockmatrix_sum(self):
 
         row = BlockMatrix.from_numpy(np.arange(10))
@@ -1419,6 +1478,7 @@ class Tests(unittest.TestCase):
         assert f.to_numpy().shape == (10, 1)
 
     @fails_spark_backend()
+    @run_in('all')
     def test_map(self):
         np_mat = np.arange(20, dtype=np.float64).reshape((4, 5))
         bm = BlockMatrix.from_ndarray(hl.nd.array(np_mat))
@@ -1431,6 +1491,7 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm_mapped_if, np_if)
 
 
+@run_in('all')
 def test_from_entry_expr_simple_gt_n_alt_alleles():
     mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
@@ -1440,6 +1501,7 @@ def test_from_entry_expr_simple_gt_n_alt_alleles():
     assert np.array_equal(expected, actual)
 
 
+@run_in('all')
 def test_from_entry_expr_simple_direct_from_field():
     mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
@@ -1449,6 +1511,7 @@ def test_from_entry_expr_simple_direct_from_field():
     assert np.array_equal(expected, actual)
 
 
+@run_in('all')
 def test_from_entry_expr_simple_with_float_conversion():
     mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)
@@ -1458,6 +1521,7 @@ def test_from_entry_expr_simple_with_float_conversion():
     assert np.array_equal(expected, actual)
 
 
+@run_in('all')
 def test_write_from_entry_expr_simple():
     mt = hl.utils.range_matrix_table(346, 100)
     mt = mt.annotate_entries(x=(mt.row_idx * mt.col_idx) % 3)

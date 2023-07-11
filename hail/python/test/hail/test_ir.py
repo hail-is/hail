@@ -142,12 +142,13 @@ class ValueIRTests(unittest.TestCase):
 
         return value_irs
 
-    @skip_unless_spark_backend()
+    @run_in('spark')
     def test_parses(self):
         env = self.value_irs_env()
         for x in self.value_irs():
             Env.spark_backend('ValueIRTests.test_parses')._parse_value_ir(str(x), env)
 
+    @run_in('local')
     def test_copies(self):
         for x in self.value_irs():
             cp = x.copy(*x.children)
@@ -232,7 +233,7 @@ class TableIRTests(unittest.TestCase):
 
         return table_irs
 
-    @skip_unless_spark_backend()
+    @run_in('spark')
     def test_parses(self):
         for x in self.table_irs():
             Env.spark_backend('TableIRTests.test_parses')._parse_table_ir(str(x))
@@ -289,7 +290,7 @@ class MatrixIRTests(unittest.TestCase):
 
         return matrix_irs
 
-    @skip_unless_spark_backend()
+    @run_in('spark')
     def test_parses(self):
         for x in self.matrix_irs():
             try:
@@ -297,6 +298,7 @@ class MatrixIRTests(unittest.TestCase):
             except Exception as e:
                 raise ValueError(str(x)) from e
 
+    @run_in('local')
     def test_highly_nested_ir(self):
         N = 10
         M = 250
@@ -363,7 +365,7 @@ class BlockMatrixIRTests(unittest.TestCase):
             slice_bm
         ]
 
-    @skip_unless_spark_backend()
+    @run_in('spark')
     def test_parses(self):
         backend = Env.spark_backend('BlockMatrixIRTests.test_parses')
 
@@ -395,6 +397,7 @@ class ValueTests(unittest.TestCase):
         ]
         return values
 
+    @run_in('local')
     def test_value_same_after_parsing(self):
         test_exprs = []
         expecteds = []
@@ -417,6 +420,7 @@ class ValueTests(unittest.TestCase):
 
 
 class CSETests(unittest.TestCase):
+    @run_in('local')
     def test_cse(self):
         x = ir.I32(5)
         x = ir.ApplyBinaryPrimOp('+', x, x)
@@ -427,12 +431,14 @@ class CSETests(unittest.TestCase):
                 ' (Ref __cse_1)))')
         assert expected == CSERenderer()(x)
 
+    @run_in('local')
     def test_cse_debug(self):
         x = hl.nd.array([0, 1])
         y = hl.tuple((x, x))
         dlen = y[0]
         hl.eval(hl.tuple([hl.if_else(dlen[0] > 1, 1, 1), hl.if_else(dlen[0] > 1, hl.nd.array([0]), dlen)]))
 
+    @run_in('local')
     def test_cse_complex_lifting(self):
         x = ir.I32(5)
         sum = ir.ApplyBinaryPrimOp('+', x, x)
@@ -448,6 +454,7 @@ class CSETests(unittest.TestCase):
         )
         assert expected == CSERenderer()(cond)
 
+    @run_in('local')
     def test_stream_cse(self):
         x = ir.StreamRange(ir.I32(0), ir.I32(10), ir.I32(1))
         a1 = ir.ToArray(x)
@@ -464,6 +471,7 @@ class CSETests(unittest.TestCase):
         expected_re = expected_re.replace('(', '\\(').replace(')', '\\)')
         assert re.match(expected_re, CSERenderer()(t))
 
+    @run_in('local')
     def test_cse2(self):
         x = ir.I32(5)
         y = ir.I32(4)
@@ -480,6 +488,7 @@ class CSETests(unittest.TestCase):
                 ' (Ref __cse_2))))')
         assert expected == CSERenderer()(div)
 
+    @run_in('local')
     def test_cse_ifs(self):
         outer_repeated = ir.I32(5)
         inner_repeated = ir.I32(1)
@@ -496,6 +505,7 @@ class CSETests(unittest.TestCase):
         )
         assert expected == CSERenderer()(cond)
 
+    @run_in('local')
     def test_shadowing(self):
         x = ir.ApplyBinaryPrimOp('*', ir.Ref('row', tint32), ir.I32(2))
         sum = ir.ApplyBinaryPrimOp('+', x, x)
@@ -510,6 +520,7 @@ class CSETests(unittest.TestCase):
             ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))))))')
         assert expected == CSERenderer()(outer)
 
+    @run_in('local')
     def test_agg_cse(self):
         table = ir.TableRange(5, 1)
         x = ir.GetField(ir.Ref('row', table.typ.row_type), 'idx')
@@ -530,6 +541,7 @@ class CSETests(unittest.TestCase):
                         ' (ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))))')
         assert expected == CSERenderer()(table_agg)
 
+    @run_in('local')
     def test_init_op(self):
         x = ir.I32(5)
         sum = ir.ApplyBinaryPrimOp('+', x, x)
@@ -546,6 +558,7 @@ class CSETests(unittest.TestCase):
                     ' ((ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))))))')
         assert expected == CSERenderer()(top)
 
+    @run_in('local')
     def test_agg_let(self):
         agg = ir.ApplyAggOp('AggOp', [], [ir.Ref('foo', tint32)])
         sum = ir.ApplyBinaryPrimOp('+', agg, agg)
@@ -557,6 +570,7 @@ class CSETests(unittest.TestCase):
         )
         assert expected == CSERenderer()(agglet)
 
+    @run_in('local')
     def test_refs(self):
         table = ir.TableRange(10, 1)
         ref = ir.Ref('row', table.typ.row_type)

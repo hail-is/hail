@@ -1,18 +1,23 @@
 import hail as hl
 
+from ..helpers import run_in
 
+
+@run_in('all')
 def test_mt_lt(mt, probe_locus):
     expr = mt.filter_rows(mt.locus < probe_locus)
     assert expr.n_partitions() == 15
     assert expr.count() == (245, 100)
 
 
+@run_in('all')
 def test_mt_le(mt, probe_locus):
     expr = mt.filter_rows(mt.locus <= probe_locus)
     assert expr.n_partitions() == 15
     assert expr.count() == (246, 100)
 
 
+@run_in('all')
 def test_mt_eq(mt, probe_locus):
     expr = mt.filter_rows(mt.locus == probe_locus)
     assert expr.n_partitions() == 1
@@ -21,30 +26,35 @@ def test_mt_eq(mt, probe_locus):
     assert actual == expected
 
 
+@run_in('all')
 def test_mt_ge(mt, probe_locus):
     expr = mt.filter_rows(mt.locus >= probe_locus)
     assert expr.n_partitions() == 6
     assert expr.count() == (101, 100)
 
 
+@run_in('all')
 def test_mt_gt(mt, probe_locus):
     expr = mt.filter_rows(mt.locus > probe_locus)
     assert expr.n_partitions() == 6
     assert expr.count() == (100, 100)
 
 
+@run_in('all')
 def test_ht_lt(ht, probe_locus):
     expr = ht.filter(ht.locus < probe_locus)
     assert expr.n_partitions() == 15
     assert expr.count() == 245
 
 
+@run_in('all')
 def test_ht_le(ht, probe_locus):
     expr = ht.filter(ht.locus <= probe_locus)
     assert expr.n_partitions() == 15
     assert expr.count() == 246
 
 
+@run_in('all')
 def test_ht_eq(ht, probe_locus):
     expr = ht.filter(ht.locus == probe_locus)
     assert expr.n_partitions() == 1
@@ -89,12 +99,14 @@ def test_ht_eq(ht, probe_locus):
     assert actual == expected
 
 
+@run_in('all')
 def test_ht_ge(ht, probe_locus):
     expr = ht.filter(ht.locus >= probe_locus)
     assert expr.n_partitions() == 6
     assert expr.count() == 101
 
 
+@run_in('all')
 def test_ht_gt(ht, probe_locus):
     expr = ht.filter(ht.locus > probe_locus)
     assert expr.n_partitions() == 6

@@ -5,8 +5,10 @@ import os
 import pytest
 import pytest_timeout
 
-from hail import current_backend, init, reset_global_randomness
+
+from hail import current_backend, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
+from hail.utils.java import choose_backend
 from .helpers import hl_init_for_test, hl_stop_for_test
 
 
@@ -22,7 +24,37 @@ def pytest_collection_modifyitems(config, items):
     def digest(s):
         return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
 
+    backend_name = choose_backend()
+
     for item in items:
+        run_in_marker = [marker for marker in item.own_markers if marker.name == 'run_in']
+        if not run_in_marker:
+            raise RuntimeError(f'test {item.name} does not have run_in marker')
+        run_in = run_in_marker[0]
+
+        locations = run_in.args
+        clouds = run_in.kwargs['clouds']
+        current_cloud = os.environ.get('HAIL_CLOUD')
+
+        def check_cloud(backend_name):
+            if clouds and current_cloud not in clouds:
+                item.add_marker(pytest.mark.skip(
+                    reason=f'test is not configured to run with the {backend_name} in cloud {current_cloud}'))
+
+        if backend_name == 'spark':
+            if 'spark' not in locations and 'all' not in locations:
+                item.add_marker(pytest.mark.skip(reason='test is not configured to run with the SparkBackend'))
+            check_cloud('SparkBackend')
+        elif backend_name == 'batch':
+            if 'batch' not in locations and 'all' not in locations:
+                item.add_marker(pytest.mark.skip(reason='test is not configured to run with the ServiceBackend'))
+            check_cloud('ServiceBackend')
+        else:
+            assert backend_name == 'local'
+            if 'local' not in locations and 'all' not in locations:
+                item.add_marker(pytest.mark.skip(reason='test is not configured to run with the LocalBackend'))
+            check_cloud('LocalBackend')
+
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
 
