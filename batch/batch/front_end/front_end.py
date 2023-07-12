@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Awaitable, Callable, Dict, Optional, ParamSpec, Tuple, TypeVar, Union
+from typing import Awaitable, Callable, Dict, Optional, Tuple, TypeVar, Union
 
 import aiohttp
 import aiohttp_session
@@ -25,6 +25,7 @@ import uvloop
 from aiohttp import web
 from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats  # type: ignore
+from typing_extensions import ParamSpec
 
 from gear import (
     AuthClient,
