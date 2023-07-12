@@ -1403,7 +1403,14 @@ INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE `usage` = %s
 ''',
-            (target['billing_project'], target['user'], target['resource_id'], 0, original_usage, original_usage),
+            (
+                target['billing_project'],
+                target['user'],
+                target['resource_id'],
+                0,
+                original_usage['usage'],
+                original_usage['usage'],
+            ),
         )
 
         await tx.just_execute(
@@ -1473,8 +1480,8 @@ ON DUPLICATE KEY UPDATE `usage` = %s
                 target['user'],
                 target['resource_id'],
                 0,
-                original_usage,
-                original_usage,
+                original_usage['usage'],
+                original_usage['usage'],
             ),
         )
 
