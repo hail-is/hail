@@ -8,7 +8,7 @@ from aiohttp import web
 from typing import Optional
 
 
-from hailtop.config import get_deploy_config
+from hailtop.config import DeployConfig, get_deploy_config
 from hailtop.auth import get_tokens, hail_credentials
 from hailtop.httpx import client_session
 
@@ -92,8 +92,8 @@ Opening in your browser.
         print(f'Logged into namespace {default_ns} as {username}.')
 
 
-async def async_login(namespace: Optional[str]):
-    deploy_config = get_deploy_config()
+async def async_login(namespace: Optional[str], deploy_config: Optional[DeployConfig] = None):
+    deploy_config = deploy_config or get_deploy_config()
     if namespace:
         deploy_config = deploy_config.with_default_namespace(namespace)
     namespace = namespace or deploy_config.default_namespace()

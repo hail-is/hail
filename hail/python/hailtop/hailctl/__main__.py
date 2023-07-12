@@ -8,6 +8,7 @@ from .describe import describe
 from .dataproc import cli as dataproc_cli
 from .dev import cli as dev_cli
 from .hdinsight import cli as hdinsight_cli
+from .initialize import initialize
 
 
 app = typer.Typer(
@@ -53,6 +54,8 @@ def curl(
 
 
 app.command(help='Describe Hail Matrix Table and Table files.')(describe)
+
+app.command('init', help='Initialize a Hail environment.')(initialize)
 
 
 def main():
