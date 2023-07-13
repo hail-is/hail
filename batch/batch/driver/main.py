@@ -1370,22 +1370,7 @@ async def monitor_system(app):
 
 async def compact_agg_billing_project_users_table(db: Database):
     @transaction(db)
-    async def compact(tx: Transaction):
-        target = await tx.execute_and_fetchone(
-            '''
-SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
-FROM aggregated_billing_project_user_resources_v3
-WHERE token != 0
-GROUP BY billing_project, `user`, resource_id
-ORDER BY n_tokens DESC
-LIMIT 1;
-''',
-            query_name='find_agg_billing_project_user_resource_to_compact',
-        )
-
-        if target is None:
-            return
-
+    async def compact(tx: Transaction, target: dict):
         original_usage = await tx.execute_and_fetchone(
             '''
 SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1396,7 +1381,14 @@ FOR UPDATE;
             (target['billing_project'], target['user'], target['resource_id']),
         )
 
-        # overwriting the value for token = 0 here is intentional because we've computed the total usage above
+        await tx.just_execute(
+            '''
+DELETE FROM aggregated_billing_project_user_resources_v3
+WHERE billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
+''',
+            (target['billing_project'], target['user'], target['resource_id']),
+        )
+
         await tx.execute_update(
             '''
 INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user`, resource_id, token, `usage`)
@@ -1411,14 +1403,6 @@ ON DUPLICATE KEY UPDATE `usage` = %s
                 original_usage['usage'],
                 original_usage['usage'],
             ),
-        )
-
-        await tx.just_execute(
-            '''
-DELETE FROM aggregated_billing_project_user_resources_v3
-WHERE billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
-''',
-            (target['billing_project'], target['user'], target['resource_id']),
         )
 
         new_usage = await tx.execute_and_fetchone(
@@ -1436,27 +1420,25 @@ GROUP BY billing_project, `user`, resource_id;
                 f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
             )
 
-    await compact()  # pylint: disable=no-value-for-parameter
+    targets = db.execute_and_fetchall(
+        '''
+SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
+FROM aggregated_billing_project_user_resources_v3
+WHERE token != 0
+GROUP BY billing_project, `user`, resource_id
+ORDER BY n_tokens DESC
+LIMIT 10000;
+''',
+            query_name='find_agg_billing_project_user_resource_to_compact',
+        )
+
+    async for target in targets:
+        await compact(target)  # pylint: disable=no-value-for-parameter
 
 
 async def compact_agg_billing_project_users_by_date_table(db: Database):
     @transaction(db)
-    async def compact(tx: Transaction):
-        target = await tx.execute_and_fetchone(
-            '''
-SELECT billing_date, billing_project, `user`, resource_id, COUNT(*) AS n_tokens
-FROM aggregated_billing_project_user_resources_by_date_v3
-WHERE token != 0
-GROUP BY billing_date, billing_project, `user`, resource_id
-ORDER BY n_tokens DESC
-LIMIT 1;
-''',
-            query_name='find_agg_billing_project_user_resource_by_date_to_compact',
-        )
-
-        if target is None:
-            return
-
+    async def compact(tx: Transaction, target: dict):
         original_usage = await tx.execute_and_fetchone(
             '''
 SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1467,7 +1449,14 @@ FOR UPDATE;
             (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
         )
 
-        # overwriting the value for token = 0 here is intentional because we've computed the total usage above
+        await tx.just_execute(
+            '''
+DELETE FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
+''',
+            (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
+        )
+
         await tx.execute_update(
             '''
 INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, `user`, resource_id, token, `usage`)
@@ -1485,14 +1474,6 @@ ON DUPLICATE KEY UPDATE `usage` = %s
             ),
         )
 
-        await tx.just_execute(
-            '''
-DELETE FROM aggregated_billing_project_user_resources_by_date_v3
-WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
-''',
-            (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
-        )
-
         new_usage = await tx.execute_and_fetchone(
             '''
 SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1508,7 +1489,20 @@ GROUP BY billing_date, billing_project, `user`, resource_id;
                 f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
             )
 
-    await compact()  # pylint: disable=no-value-for-parameter
+    targets = db.execute_and_fetchall(
+        '''
+SELECT billing_date, billing_project, `user`, resource_id, COUNT(*) AS n_tokens
+FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE token != 0
+GROUP BY billing_date, billing_project, `user`, resource_id
+ORDER BY n_tokens DESC
+LIMIT 10000;
+''',
+        query_name='find_agg_billing_project_user_resource_by_date_to_compact',
+    )
+
+    async for target in targets:
+        await compact(target)  # pylint: disable=no-value-for-parameter
 
 
 async def scheduling_cancelling_bump(app):
@@ -1616,10 +1610,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
-
-    # 3 seconds was chosen for the initial compaction time to get through all existing records in a reasonable amount of time
-    task_manager.ensure_future(periodically_call(1, compact_agg_billing_project_users_table, db))
-    task_manager.ensure_future(periodically_call(1, compact_agg_billing_project_users_by_date_table, db))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, db))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, db))
 
 
 async def on_cleanup(app):
