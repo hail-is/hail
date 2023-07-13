@@ -481,24 +481,50 @@ tag={tag}
 
         assert_batch_ids(
             {b1.id, b2.id},
-            '''
+            f'''
 start_time >= 2023-02-24T17:15:25Z
 end_time < 3000-02-24T17:15:25Z
+tag = {tag}
 ''',
         )
 
         assert_batch_ids(
             set(),
-            '''
+            f'''
 start_time >= 2023-02-24T17:15:25Z
 end_time == 2023-02-24T17:15:25Z
+tag = {tag}
 ''',
         )
 
-        assert_batch_ids(set(), 'duration > 50000')
-        assert_batch_ids(set(), 'cost > 1000')
-        assert_batch_ids({b1.id}, f'batch_id = {b1.id}')
-        assert_batch_ids({b1.id}, f'batch_id == {b1.id}')
+        assert_batch_ids(
+            set(),
+            f'''
+duration > 50000
+tag = {tag}
+''',
+        )
+        assert_batch_ids(
+            set(),
+            f'''
+cost > 1000
+tag = {tag}
+''',
+        )
+        assert_batch_ids(
+            {b1.id},
+            f'''
+batch_id = {b1.id}
+tag = {tag}
+''',
+        )
+        assert_batch_ids(
+            {b1.id},
+            f'''
+batch_id == {b1.id}
+tag = {tag}
+''',
+        )
 
         with pytest.raises(httpx.ClientResponseError, match='could not parse term'):
             assert_batch_ids(batch_id_test_universe, 'batch_id >= 1 abcde')
