@@ -1429,8 +1429,8 @@ GROUP BY billing_project, `user`, resource_id
 ORDER BY n_tokens DESC
 LIMIT 10000;
 ''',
-            query_name='find_agg_billing_project_user_resource_to_compact',
-        )
+        query_name='find_agg_billing_project_user_resource_to_compact',
+    )
 
     async for target in targets:
         await compact(target)  # pylint: disable=no-value-for-parameter
