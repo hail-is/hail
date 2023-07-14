@@ -163,6 +163,9 @@ case object SemanticHash extends Logging {
         case MatrixWrite(_, writer) =>
           Hash(writer.path)
 
+        case NDArrayReindex(_, indices) =>
+          indices.foldLeft(Hash(classOf[NDArrayReindex]))(_ <> Hash(_))
+
         case ReadPartition(_, _, reader) =>
           Hash(reader.toJValue)
 
@@ -280,6 +283,7 @@ case object SemanticHash extends Logging {
              _: MatrixDistinctByRow |
              _: NDArrayShape |
              _: NDArraySlice |
+             _: NDArrayReshape |
              _: NDArrayWrite |
              _: RelationalLet |
              _: RNGSplit |
