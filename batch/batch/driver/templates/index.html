@@ -53,7 +53,7 @@
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['inactive'] }}</td>
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['deleted'] }}</td>
       <td class="numeric-cell">{{ pool.all_versions_provisioned_cores_mcpu / 1000 }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.live_free_cores_mcpu / 1000 }} / {{ pool.all_versions_provisioned_cores_mcpu / 1000 }} </td>
+      <td class="numeric-cell">{{ pool.current_worker_version_stats.live_schedulable_free_cores_mcpu / 1000 }} / {{ pool.all_versions_provisioned_cores_mcpu / 1000 }} </td>
     </tr>
     {% endfor %}
     </tbody>
