@@ -1,5 +1,6 @@
 package is.hail.expr.ir.analyses
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
 import is.hail.expr.ir.{MatrixRangeReader, _}
 import is.hail.io.fs.FS
@@ -39,14 +40,23 @@ case object SemanticHash extends Logging {
     @inline def <>(b: Type): Type = Hash.combine(a, b)
   }
 
-  def getFileHash(fs: FS)(path: String): Type =
-    Hash(fs.fileChecksum(path))
+  def apply(ctx: ExecuteContext)(root: BaseIR): Option[Type] =
+    ctx.timer.time("SemanticHash") {
+      val normalized = ctx.timer.time("NormalizeNames") {
+        new NormalizeNames(_.toString, allowFreeVariables = true)(root)
+      }
 
-  def apply(fs: FS)(root: BaseIR): Option[Type] = {
-    log.info(s"Computing semantic hash of initial IR: $root")
-    val normalized = new NormalizeNames(_.toString, allowFreeVariables = true)(root)
-    val semhash = IRTraversal.levelOrder(normalized).foldLeft(Hash.init) { (semhash, ir) =>
-      val thishash = semhash <> Hash(ir.getClass) <> (ir match {
+      val semhash = ctx.timer.time("Hash") {
+        go(ctx.fs, normalized)
+      }
+
+      log.info(s"IR Semantic Hash: $semhash")
+      semhash
+    }
+
+  private def go(fs: FS, root: BaseIR): Option[Type] =
+    Some(IRTraversal.levelOrder(root).foldLeft(Hash.init) { (semhash, ir) =>
+      semhash <> Hash(ir.getClass) <> (ir match {
         case a: AggExplode =>
           Hash(a.isScan)
 
@@ -182,16 +192,19 @@ case object SemanticHash extends Logging {
         case TableRange(count, numPartitions) =>
           Hash(count) <> Hash(numPartitions)
 
-        case TableRead(_, dropRows, reader)  =>
+        case TableRead(_, dropRows, reader) =>
           Hash(dropRows) <> Hash(reader.getClass) <> (reader match {
             case StringTableReader(_, fileStatuses) =>
-              fileStatuses.map(s => getFileHash(fs)(s.getPath)).reduce(_ <> _)
+              fileStatuses.foldLeft(Hash(classOf[StringTableReader])) { (h, s) =>
+                h <> getFileHash(fs)(s.getPath)
+              }
 
-            case _: TableNativeReader | _: TableNativeZippedReader =>
+            case reader@(_: TableNativeReader | _: TableNativeZippedReader) =>
               reader.pathsUsed
                 .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
-                .map(g => getFileHash(fs)(g.getPath))
-                .reduce(_ <> _)
+                .foldLeft(Hash(reader.getClass)) { (h, g) =>
+                  h <> getFileHash(fs)(g.getPath)
+                }
 
             case _ =>
               log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
@@ -319,14 +332,11 @@ case object SemanticHash extends Logging {
           log.warn(s"SemanticHash unknown: ${ir.getClass.getName}")
           return None
       })
+    })
 
-      log.debug(s"[$thishash]: $ir")
-      thishash
-    }
+  def getFileHash(fs: FS)(path: String): Type =
+    Hash(fs.fileChecksum(path))
 
-    log.info(s"IR Semantic Hash: $semhash")
-    Some(semhash)
-  }
 }
 
 case object SemanticTypeName {

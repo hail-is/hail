@@ -1,11 +1,14 @@
 package is.hail.expr.ir.analyses
 
+import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.io.fs.{FS, FakeFS, FileStatus}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.TableType
 import is.hail.types.virtual._
+import is.hail.utils.using
 import org.json4s.JValue
 import org.scalatest.Assertions.assertResult
 import org.testng.annotations.{DataProvider, Test}
@@ -232,7 +235,21 @@ class SemanticHashSuite {
 
 
   val semhash: BaseIR => Option[SemanticHash.Type] =
-    ir => SemanticHash(fakeFs)(ir)
+    ir => ExecuteContext.scoped() { ctx =>
+      using(new ExecuteContext(
+        ctx.tmpdir,
+        ctx.localTmpdir,
+        ctx.backend,
+        fakeFs,
+        ctx.r,
+        ctx.timer,
+        ctx.tempFileManager,
+        ctx.theHailClassLoader,
+        ctx.referenceGenomes,
+        ctx.flags,
+        ctx.irMetadata
+      ))(SemanticHash(_)(ir))
+    }
 
 
   val fakeFs: FS =

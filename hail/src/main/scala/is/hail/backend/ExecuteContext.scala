@@ -101,6 +101,7 @@ object ExecuteContext {
   }
 }
 
+// todo: refactor this to use smart constructors and a case class
 class ExecuteContext(
   val tmpdir: String,
   val localTmpdir: String,
@@ -110,8 +111,8 @@ class ExecuteContext(
   val timer: ExecutionTimer,
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
-  private[this] val referenceGenomes: Map[String, ReferenceGenome],
-  private[this] val flags: HailFeatureFlags,
+  val referenceGenomes: Map[String, ReferenceGenome],
+  val flags: HailFeatureFlags,
   var irMetadata: IrMetadata
 ) extends Closeable {
   var backendContext: BackendContext = _
@@ -125,10 +126,8 @@ class ExecuteContext(
 
   val stateManager = HailStateManager(referenceGenomes)
 
-  private val tempFileManager: TempFileManager = if (_tempFileManager != null)
-    _tempFileManager
-  else
-    new OwningTempFileManager(fs)
+  val tempFileManager: TempFileManager =
+    if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
 
   def fsBc: BroadcastValue[FS] = fs.broadcast
 

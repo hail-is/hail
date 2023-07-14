@@ -338,7 +338,7 @@ class ServiceBackend(
   ): Array[Byte] = {
     log.info(s"executing: ${token} ${ctx.fs.getConfiguration()}")
     val ir = IRParser.parse_value_ir(ctx, code)
-    ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx.fs)(ir))
+    ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
     execute(ctx, ir, bufferSpecString)
   }
 
