@@ -1392,15 +1392,13 @@ WHERE billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
         await tx.execute_update(
             '''
 INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user`, resource_id, token, `usage`)
-VALUES (%s, %s, %s, %s, %s)
-ON DUPLICATE KEY UPDATE `usage` = %s
+VALUES (%s, %s, %s, %s, %s);
 ''',
             (
                 target['billing_project'],
                 target['user'],
                 target['resource_id'],
                 0,
-                original_usage['usage'],
                 original_usage['usage'],
             ),
         )
@@ -1432,7 +1430,9 @@ LIMIT 10000;
         query_name='find_agg_billing_project_user_resource_to_compact',
     )
 
-    async for target in targets:
+    targets = [target async for target in targets]
+
+    for target in targets:
         await compact(target)  # pylint: disable=no-value-for-parameter
 
 
@@ -1460,8 +1460,7 @@ WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id
         await tx.execute_update(
             '''
 INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, `user`, resource_id, token, `usage`)
-VALUES (%s, %s, %s, %s, %s, %s)
-ON DUPLICATE KEY UPDATE `usage` = %s
+VALUES (%s, %s, %s, %s, %s, %s);
 ''',
             (
                 target['billing_date'],
@@ -1469,7 +1468,6 @@ ON DUPLICATE KEY UPDATE `usage` = %s
                 target['user'],
                 target['resource_id'],
                 0,
-                original_usage['usage'],
                 original_usage['usage'],
             ),
         )
@@ -1501,7 +1499,9 @@ LIMIT 10000;
         query_name='find_agg_billing_project_user_resource_by_date_to_compact',
     )
 
-    async for target in targets:
+    targets = [target async for target in targets]
+
+    for target in targets:
         await compact(target)  # pylint: disable=no-value-for-parameter
 
 
