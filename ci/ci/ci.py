@@ -151,6 +151,13 @@ def wb_and_pr_from_request(request):
     return wb, wb.prs[pr_number]
 
 
+def filter_jobs(jobs):
+    filtered: Dict[str, list] = {"running": [], "failed": [], "pending": [], "jobs": []}
+    for job in jobs:
+        filtered.get(job["state"].lower(), filtered["jobs"]).append(job)
+    return {"completed" if k == "jobs" else k: v if len(v) > 0 else None for k, v in filtered.items()}
+
+
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
 @auth.web_authenticated_developers_only()
 async def get_pr(request, userdata):  # pylint: disable=unused-argument
@@ -169,7 +176,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
-            page_context['jobs'] = jobs
+            page_context.update(filter_jobs(jobs))
             artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
             page_context['artifacts_uri'] = artifacts_uri
             page_context['artifacts_url'] = storage_uri_to_url(artifacts_uri)
@@ -244,7 +251,8 @@ async def get_batch(request, userdata):
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
     wb = get_maybe_wb_for_batch(b)
-    page_context = {'batch': status, 'jobs': jobs, 'wb': wb}
+    page_context = {'batch': status, 'wb': wb}
+    page_context.update(filter_jobs(jobs))
     return await render_template('ci', request, userdata, 'batch.html', page_context)
 
 
