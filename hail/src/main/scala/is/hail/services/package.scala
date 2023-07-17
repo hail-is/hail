@@ -84,7 +84,7 @@ package object services {
           if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
         true
       case e: HttpResponseException
-          if (e.getStatusCode() == 401 &&
+          if (e.getStatusCode() == 410 &&
             e.getMessage != null &&
             e.getMessage.contains("\"code\": 503,") &&
             e.getMessage.contains("\"message\": \"Backend Error\",")
