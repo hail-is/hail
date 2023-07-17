@@ -109,7 +109,7 @@ def test_move_load_combiner_plan():
 
 
 @test_timeout(10 * 60)
-@skip_when_service_backend
+@skip_when_service_backend(reason='Combiner makes extensive use of the Backend API which are serviced by starting a Hail Batch job to execute them. This test will be too slow until we change the combiner to use many fewer executes.')
 def test_combiner_run():
     tmpdir = new_temp_file()
     samples = all_samples[:5]
