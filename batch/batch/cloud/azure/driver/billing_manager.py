@@ -44,6 +44,11 @@ class AzureBillingManager(CloudBillingManager):
         self.vm_price_cache: Dict[AzureVMIdentifier, AzureVMPrice] = {}
         self.spot_percent_increase = spot_percent_increase
 
+    async def configure_spot_percent_increase(self, spot_percent_increase: Optional[float]):
+        await self.db.execute_update('UPDATE globals SET spot_percent_increase = %s;', (spot_percent_increase,))
+        self.spot_percent_increase = spot_percent_increase
+        await self.refresh_resources_from_retail_prices()
+
     async def get_spot_billing_price(self, machine_type: str, location: str) -> float:
         vm_identifier = AzureVMIdentifier(machine_type=machine_type, preemptible=True, region=location)
         return self.vm_price_cache[vm_identifier].cost_per_hour

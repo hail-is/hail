@@ -576,15 +576,21 @@ async def globals_config_update(request, userdata):  # pylint: disable=unused-ar
     if post['spot_percent_increase'] in ('', 'None'):
         spot_percent_increase = None
     else:
-        spot_percent_increase = validate_float(
+        _spot_percent_increase = validate_float(
             session,
             'Spot percent increase',
             post['spot_percent_increase'],
             lambda v: v >= 1,
             'a positive number greater than 1',
         )
-        spot_percent_increase = round(spot_percent_increase, 4)
-    await driver.billing_manager.configure_spot_percent_increase(spot_percent_increase)
+        spot_percent_increase = round(_spot_percent_increase, 4)
+
+    try:
+        await driver.billing_manager.configure(spot_percent_increase)
+    except NotImplementedError:
+        set_message(session, f'Spot instance percent increase not supported in {CLOUD}.', 'error')
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
 @routes.post('/config-update/pool/{pool}')

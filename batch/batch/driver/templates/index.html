@@ -6,7 +6,9 @@
     <form action="{{ base_path }}/config-update/globals" method="POST">
       <div>Instance ID: {{ instance_id }}</div>
       <div>Ready Cores: {{ ready_cores_mcpu / 1000 }}</div>
+      {% if cloud == 'azure' %}
       <div>Spot Percent Increase (Example: 1.25): <input name="spot_percent_increase" value="{{ spot_percent_increase }}" /></div>
+      {% endif %}
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <button>
         Update

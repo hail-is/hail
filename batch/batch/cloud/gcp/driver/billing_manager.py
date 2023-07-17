@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from gear import Database
 from hailtop.aiocloud import aiogoogle
@@ -33,6 +33,10 @@ class GCPBillingManager(CloudBillingManager):
         self.regions = regions
         self.currency_code = 'USD'
         self.spot_percent_increase = None
+
+    async def configure(self, spot_percent_increase: Optional[float]):
+        if spot_percent_increase is not None:
+            raise NotImplementedError
 
     async def refresh_resources_from_retail_prices(self):
         prices = [price async for price in fetch_prices(self.billing_client, self.regions, self.currency_code)]
