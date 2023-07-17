@@ -1384,7 +1384,7 @@ FOR UPDATE;
         await tx.just_execute(
             '''
 DELETE FROM aggregated_billing_project_user_resources_v3
-WHERE billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
+WHERE billing_project = %s AND `user` = %s AND resource_id = %s;
 ''',
             (target['billing_project'], target['user'], target['resource_id']),
         )
@@ -1452,7 +1452,7 @@ FOR UPDATE;
         await tx.just_execute(
             '''
 DELETE FROM aggregated_billing_project_user_resources_by_date_v3
-WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s AND token != 0;
+WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s;
 ''',
             (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
         )
