@@ -35,7 +35,7 @@ with open('classes', 'r') as f:
                for x in foo]
     classes = [cls for cls in classes
                if not cls.startswith('is.hail.services')
-               if not cls.startswith('is.hail.fs')]
+               if not cls.startswith('is.hail.io.fs')]
 
 random.shuffle(classes, lambda: 0.0)
 
