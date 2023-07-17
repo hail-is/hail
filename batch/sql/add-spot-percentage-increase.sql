@@ -1,0 +1,1 @@
+ALTER TABLE `globals` ADD COLUMN `spot_percent_increase` DOUBLE DEFAULT NULL, ALGORITHM=INSTANT;

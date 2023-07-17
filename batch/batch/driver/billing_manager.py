@@ -49,6 +49,11 @@ class CloudBillingManager(abc.ABC):
     db: Database
     product_versions: ProductVersions
     resource_rates: Dict[str, float]
+    spot_percent_increase: Optional[float]
+
+    async def configure_spot_percent_increase(self, spot_percent_increase: Optional[float]):
+        await self.db.execute_update('UPDATE globals SET spot_percent_increase = %s;', (spot_percent_increase,))
+        self.spot_percent_increase = spot_percent_increase
 
     async def _refresh_resources_from_retail_prices(self, prices: List[Price]):
         log.info('refreshing resources from retail prices')

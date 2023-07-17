@@ -16,7 +16,7 @@ class Price(abc.ABC):
 
     @property
     def version(self) -> str:
-        return str(self.effective_start_date)
+        raise NotImplementedError
 
     @property
     def product(self):

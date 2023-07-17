@@ -2282,6 +2282,9 @@ steps:
       - name: add-list-batches-index
         script: /io/sql/add-list-batches-index.sql
         online: true
+      - name: add-spot-percentage-increase
+        script: /io/sql/add-spot-percentage-increase.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

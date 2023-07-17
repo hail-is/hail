@@ -54,6 +54,9 @@ class AzureResourceManager(CloudResourceManager):
         self.compute_client = compute_client
         self.billing_manager = billing_manager
 
+    async def configure_spot_percent_increase(self, spot_percent_increase: float):
+        await self.billing_manager.configure_spot_percent_increase(spot_percent_increase)
+
     async def get_spot_billing_price(self, machine_type: str, location: str) -> Optional[float]:
         return await self.billing_manager.get_spot_billing_price(machine_type, location)
 

@@ -7,7 +7,7 @@ import re
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -63,7 +63,7 @@ from ..utils import (
     query_billing_projects_with_cost,
 )
 from .canceller import Canceller
-from .driver import CloudDriver
+from .driver import CloudBillingManager, CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
 
@@ -440,6 +440,7 @@ async def get_index(request, userdata):
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
+    billing_manager: CloudBillingManager = app['driver'].billing_manager
 
     ready_cores = await db.select_and_fetchone(
         '''
@@ -459,6 +460,7 @@ FROM user_inst_coll_resources;
         'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
         'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
         'frozen': app['frozen'],
+        'spot_percent_increase': billing_manager.spot_percent_increase,
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
@@ -550,6 +552,39 @@ def validate_int(session, name, value, predicate, description):
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
         raise ConfigError() from e
     return validate(session, name, i, predicate, description)
+
+
+def validate_float(session, name, value, predicate, description):
+    try:
+        i = float(value)
+    except ValueError as e:
+        set_message(session, f'{name} invalid: {value}.  Must be an float.', 'error')
+        raise ConfigError() from e
+    return validate(session, name, i, predicate, description)
+
+
+@routes.post('/config-update/globals')
+@check_csrf_token
+@auth.web_authenticated_developers_only()
+async def globals_config_update(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    driver: CloudDriver = app['driver']
+    session = await aiohttp_session.get_session(request)
+    post = await request.post()
+
+    spot_percent_increase: Optional[float]
+    if post['spot_percent_increase'] in ('', 'None'):
+        spot_percent_increase = None
+    else:
+        spot_percent_increase = validate_float(
+            session,
+            'Spot percent increase',
+            post['spot_percent_increase'],
+            lambda v: v >= 1,
+            'a positive number greater than 1',
+        )
+        spot_percent_increase = round(spot_percent_increase, 4)
+    await driver.billing_manager.configure_spot_percent_increase(spot_percent_increase)
 
 
 @routes.post('/config-update/pool/{pool}')

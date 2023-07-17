@@ -24,21 +24,36 @@ class AzureVMPrice(Price):
         cost_per_hour: float,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
+        spot_percent_increase: Optional[float] = None,
     ):
+        if spot_percent_increase is not None:
+            assert spot_percent_increase >= 1
+
         self.machine_type = machine_type
         self.preemptible = preemptible
         self.region = region
         self.cost_per_hour = cost_per_hour
         self.effective_start_date = effective_start_date
         self.effective_end_date = effective_end_date
+        self.spot_percent_increase = spot_percent_increase
 
     @property
     def product(self):
         return AzureVMResource.product_name(self.machine_type, self.preemptible, self.region)
 
     @property
+    def version(self) -> str:
+        if self.spot_percent_increase:
+            return f'{self.effective_start_date}-{self.spot_percent_increase}'
+        return str(self.effective_start_date)
+
+    @property
     def rate(self):
-        return rate_instance_hour_to_fraction_msec(self.cost_per_hour, 1024)
+        if self.preemptible and self.spot_percent_increase is not None:
+            cost_per_hour = self.cost_per_hour * self.spot_percent_increase
+        else:
+            cost_per_hour = self.cost_per_hour
+        return rate_instance_hour_to_fraction_msec(cost_per_hour, 1024)
 
 
 class AzureDiskPrice(Price):
@@ -69,6 +84,10 @@ class AzureDiskPrice(Price):
         return AzureStaticSizedDiskResource.product_name(self.disk_name, self.redundancy_type, self.region)
 
     @property
+    def version(self) -> str:
+        return str(self.effective_start_date)
+
+    @property
     def rate(self):
         return rate_gib_month_to_mib_msec(self.cost_per_gib_month)
 
@@ -77,7 +96,11 @@ async def vm_prices_by_region(
     pricing_client: aioazure.AzurePricingClient,
     region: str,
     machine_types: List[str],
+    spot_percent_increase: Optional[float],
 ) -> List[AzureVMPrice]:
+    if spot_percent_increase is not None:
+        assert spot_percent_increase >= 1
+
     prices: List[AzureVMPrice] = []
     seen_vm_names: Dict[str, str] = {}
 
@@ -111,7 +134,9 @@ async def vm_prices_by_region(
             raise ValueError(f'already seen pricing for vm {sku_name}; {seen_data} vs {data}; aborting')
         seen_vm_names[sku_name] = data
 
-        vm_price = AzureVMPrice(machine_type, preemptible, region, vm_cost_per_hour, start_date, end_date)
+        vm_price = AzureVMPrice(
+            machine_type, preemptible, region, vm_cost_per_hour, start_date, end_date, spot_percent_increase
+        )
         prices.append(vm_price)
 
     return prices
@@ -149,10 +174,12 @@ async def managed_disk_prices_by_region(
     return prices
 
 
-async def fetch_prices(pricing_client: aioazure.AzurePricingClient, regions: List[str]) -> List[Price]:
+async def fetch_prices(
+    pricing_client: aioazure.AzurePricingClient, regions: List[str], spot_percent_increase: Optional[float]
+) -> List[Price]:
     # Azure seems to have a limit on how long the OData filter request can be so we split the query into smaller groups
     vm_coros = [
-        vm_prices_by_region(pricing_client, region, machine_types)
+        vm_prices_by_region(pricing_client, region, machine_types, spot_percent_increase)
         for region in regions
         for machine_types in grouped(8, azure_valid_machine_types)
     ]

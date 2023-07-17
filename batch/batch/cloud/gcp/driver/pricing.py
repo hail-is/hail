@@ -39,6 +39,10 @@ class GCPComputePrice(Price):
         return GCPComputeResource.product_name(self.instance_family, self.preemptible, self.region)
 
     @property
+    def version(self) -> str:
+        return str(self.effective_start_date)
+
+    @property
     def rate(self):
         return rate_cpu_hour_to_mcpu_msec(self.cost_per_hour)
 
@@ -63,6 +67,10 @@ class GCPMemoryPrice(Price):
     @property
     def product(self):
         return GCPMemoryResource.product_name(self.instance_family, self.preemptible, self.region)
+
+    @property
+    def version(self) -> str:
+        return str(self.effective_start_date)
 
     @property
     def rate(self):
@@ -93,6 +101,10 @@ class GCPLocalSSDDiskPrice(Price):
         return GCPLocalSSDStaticSizedDiskResource.product_name(self.preemptible, self.region)
 
     @property
+    def version(self) -> str:
+        return str(self.effective_start_date)
+
+    @property
     def rate(self):
         return rate_gib_month_to_mib_msec(self.cost_per_gib_month)
 
@@ -119,6 +131,10 @@ class GCPDiskPrice(Price):
     @property
     def product(self):
         return GCPStaticSizedDiskResource.product_name(self.disk_type, self.region)
+
+    @property
+    def version(self) -> str:
+        return str(self.effective_start_date)
 
     @property
     def rate(self):

@@ -52,6 +52,8 @@ ON DUPLICATE KEY UPDATE region = region;
         assert max(db_regions.values()) < 64, str(db_regions)
         app['regions'] = db_regions
 
+        spot_percent_increase = await db.execute_and_fetchone('SELECT spot_percent_increase FROM globals')
+
         with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()
 
@@ -64,7 +66,9 @@ ON DUPLICATE KEY UPDATE region = region;
         pricing_client = aioazure.AzurePricingClient()
 
         region_monitor = await RegionMonitor.create(region)
-        billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
+        billing_manager = await AzureBillingManager.create(
+            db, pricing_client, regions, spot_percent_increase['spot_percent_increase']
+        )
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region, regions)
         resource_manager = AzureResourceManager(
             subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager

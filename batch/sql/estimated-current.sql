@@ -2,7 +2,8 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `instance_id` VARCHAR(100) NOT NULL,
   `internal_token` VARCHAR(100) NOT NULL,
   `n_tokens` INT NOT NULL,
-  `frozen` BOOLEAN NOT NULL DEFAULT FALSE
+  `frozen` BOOLEAN NOT NULL DEFAULT FALSE,
+  `spot_percent_increase` DOUBLE DEFAULT NULL
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `resources` (

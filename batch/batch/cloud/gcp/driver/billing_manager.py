@@ -32,6 +32,7 @@ class GCPBillingManager(CloudBillingManager):
         self.billing_client = billing_client
         self.regions = regions
         self.currency_code = 'USD'
+        self.spot_percent_increase = None
 
     async def refresh_resources_from_retail_prices(self):
         prices = [price async for price in fetch_prices(self.billing_client, self.regions, self.currency_code)]
