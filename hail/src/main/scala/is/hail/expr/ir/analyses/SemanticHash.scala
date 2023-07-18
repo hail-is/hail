@@ -7,8 +7,10 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.Logging
+import is.hail.utils.{HailException, Logging}
 import org.apache.commons.codec.digest.MurmurHash3
+
+import scala.util.control.NonFatal
 
 case object SemanticHash extends Logging {
 
@@ -339,7 +341,12 @@ case object SemanticHash extends Logging {
     })
 
   def getFileHash(fs: FS)(path: String): Type =
-    Hash(fs.fileChecksum(path))
+    try {
+      Hash(fs.fileChecksum(path))
+    } catch {
+      case NonFatal(t) =>
+        throw new HailException(s"While computing the semantic hash of '$path'", None, t)
+    }
 
 }
 
