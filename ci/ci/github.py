@@ -228,7 +228,18 @@ fi
 
 class PR(Code):
     def __init__(
-        self, number, title, body, source_branch, source_sha, target_branch, author, assignees, reviewers, labels
+        self,
+        number,
+        title,
+        body,
+        source_branch,
+        source_sha,
+        target_branch,
+        author,
+        assignees,
+        reviewers,
+        labels,
+        developers,
     ):
         self.number: int = number
         self.title: str = title
@@ -257,6 +268,8 @@ class PR(Code):
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
         self.target_branch.state_changed = True
+
+        self.developers = developers
 
     def set_build_state(self, build_state):
         log.info(f'{self.short_str()}: Build state changing from {self.build_state} => {build_state}')
@@ -355,6 +368,7 @@ class PR(Code):
             {user['login'] for user in gh_json['assignees']},
             {user['login'] for user in gh_json['requested_reviewers']},
             {label['name'] for label in gh_json['labels']},
+            target_branch.developers,
         )
         pr.increment_pr_metric()
         return pr
@@ -368,6 +382,7 @@ class PR(Code):
         target_repo = self.target_branch.branch.repo
         return {
             'checkout_script': self.checkout_script(),
+            'developers': self.developers,
             'number': self.number,
             'source_repo': source_repo.short_str(),
             'source_repo_url': source_repo.url,
