@@ -461,6 +461,7 @@ FROM user_inst_coll_resources;
         'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
         'frozen': app['frozen'],
         'spot_percent_increase': billing_manager.spot_percent_increase,
+        'cloud': CLOUD,
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
