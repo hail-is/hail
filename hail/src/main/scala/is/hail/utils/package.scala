@@ -947,7 +947,10 @@ package object utils extends Logging
    */
   def merge[A](as: IndexedSeq[A], bs: IndexedSeq[A], lt: (A, A) => Boolean): IndexedSeq[A] = {
     val n = as.length
+    if (n == 0) return bs
+
     val m = bs.length
+    if (m == 0) return as
 
     val res = new ArrayBuffer[A](n + m)
 
