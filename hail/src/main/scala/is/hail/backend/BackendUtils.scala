@@ -10,6 +10,8 @@ import is.hail.io.fs._
 import is.hail.utils._
 
 import javax.annotation.Nullable
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
 
 object BackendUtils {
@@ -95,15 +97,17 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
               (failureOpt, successes)
           }
 
-        log.info(s"[collectDArray|$stageName]: executed ${remainingContexts.length} tasks in ${formatTime(System.nanoTime() - t)}")
+        log.info(s"[collectDArray|$stageName]: executed ${remainingContexts.length} tasks " +
+          s"in ${formatTime(System.nanoTime() - t)}"
+        )
 
-        // todo: merge join these
-        val results = (cachedResults ++ successes).sortBy(_._2)
+        val results = merge[(Array[Byte], Int)](cachedResults, successes.sortBy(_._2), _._2 < _._2)
         Option(semhash).foreach(s => backendContext.executionCache.put(s, results))
         failureOpt.foreach(throw _)
 
         results
       }
+
       results.map(_._1).toArray
   }
 }

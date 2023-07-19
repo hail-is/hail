@@ -942,6 +942,44 @@ package object utils extends Logging
     offset
   }
 
+  /**
+   * Merge sorted `as` and `bs` using the comparison function `lt`.
+   */
+  def merge[A](as: IndexedSeq[A], bs: IndexedSeq[A], lt: (A, A) => Boolean): IndexedSeq[A] = {
+    val n = as.length
+    val m = bs.length
+
+    val res = new ArrayBuffer[A](n + m)
+
+    var i = 0
+    var j = 0
+    while (i < n && j < m) {
+      if (lt(as(i), bs(j))) {
+        res += as(i)
+        i += 1
+      } else {
+        res += bs(j)
+        j += 1
+      }
+    }
+
+    for (k <- i until n) {
+      res += as(k)
+    }
+
+    for (k <- j until m) {
+      res += bs(k)
+    }
+
+    res
+  }
+
+
+  /**
+   * Run (task, key) pairs on the `executor`, returning some `F` of the
+   * failures and an `IndexedSeq` of the successes with their corresponding
+   * key. No guarantees are made for the order of the successes.
+   */
   def runAll[F[_], A](executor: Executor)
                      (accum: (F[Throwable], (Throwable, Int)) => F[Throwable])
                      (init: F[Throwable])
