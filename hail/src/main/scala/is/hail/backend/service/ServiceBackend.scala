@@ -353,8 +353,9 @@ class ServiceBackend(
     ctx: ExecuteContext,
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable
-  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt)
+    rt: RTable,
+    nPartitions: Option[Int]
+  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, nPartitions)
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
 

@@ -680,7 +680,8 @@ class SparkBackend(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable
+    rt: RTable,
+    nPartitions: Option[Int]
   ): TableReader = {
     if (getFlag("use_new_shuffle") != null)
       return LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
@@ -705,7 +706,7 @@ class SparkBackend(
     val act = implicitly[ClassTag[Annotation]]
 
     val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
-    val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
+    val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1, numPartitions = nPartitions.getOrElse(rvd.getNumPartitions))(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
     RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
   }
