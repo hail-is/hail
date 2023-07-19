@@ -1363,12 +1363,12 @@ async def monitor_system(app):
     monitor_instances(app)
 
 
-async def compact_agg_billing_project_users_table(app, db: Database):
+async def compact_agg_billing_project_users_table(app):
     if not app['feature_flags']['compact_billing_tables']:
         return
 
 
-async def compact_agg_billing_project_users_by_date_table(app, db: Database):
+async def compact_agg_billing_project_users_by_date_table(app):
     if not app['feature_flags']['compact_billing_tables']:
         return
 
@@ -1478,8 +1478,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
-    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app, db))
-    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app, db))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app))
 
 
 async def on_cleanup(app):
