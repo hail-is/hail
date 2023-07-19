@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `frozen` BOOLEAN NOT NULL DEFAULT FALSE
 ) ENGINE = InnoDB;
 
-CREATE TABLE IF NOT EXISTS `feature_switches` (
+CREATE TABLE IF NOT EXISTS `feature_flags` (
   `compact_billing_tables` BOOLEAN NOT NULL
 ) ENGINE = InnoDB;
 

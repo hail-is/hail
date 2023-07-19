@@ -466,6 +466,7 @@ FROM user_inst_coll_resources;
         'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
         'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
         'frozen': app['frozen'],
+        'feature_flags': app['feature_flags'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
@@ -559,10 +560,10 @@ def validate_int(session, name, value, predicate, description):
     return validate(session, name, i, predicate, description)
 
 
-@routes.post('/configure-feature-switches')
+@routes.post('/configure-feature-flags')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def configure_feature_switches(request, userdata):  # pylint: disable=unused-argument
+async def configure_feature_flags(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
     post = await request.post()
@@ -571,13 +572,13 @@ async def configure_feature_switches(request, userdata):  # pylint: disable=unus
 
     await db.execute_update(
         '''
-UPDATE feature_switches SET compact_billing_tables = %s;
+UPDATE feature_flags SET compact_billing_tables = %s;
 ''',
         (compact_billing_tables,),
     )
 
-    row = await db.select_and_fetchone('SELECT * FROM feature_switches')
-    app['feature_switches'] = row
+    row = await db.select_and_fetchone('SELECT * FROM feature_flags')
+    app['feature_flags'] = row
 
 
 @routes.post('/config-update/pool/{pool}')
@@ -1450,8 +1451,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
     app['frozen'] = row['frozen']
 
-    row = await db.select_and_fetchone('SELECT * FROM feature_switches')
-    app['feature_switches'] = row
+    row = await db.select_and_fetchone('SELECT * FROM feature_flags')
+    app['feature_flags'] = row
 
     await refresh_globals_from_db(app, db)
 

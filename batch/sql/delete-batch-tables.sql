@@ -80,4 +80,4 @@ DROP TABLE IF EXISTS `inst_colls`;
 DROP TABLE IF EXISTS `latest_product_versions`;
 DROP TABLE IF EXISTS `resources`;
 DROP TABLE IF EXISTS `regions`;
-DROP TABLE IF EXISTS `feature_switches`;
+DROP TABLE IF EXISTS `feature_flags`;
