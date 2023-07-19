@@ -419,9 +419,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     fileStatus(AzureStorageFS.parseUrl(filename))
   }
 
-  override def fileChecksum(filename: String): Array[Byte] =
+  override def eTag(filename: String): Some[String] =
     handlePublicAccessError(filename) {
-      getBlobClient(AzureStorageFS.parseUrl(filename)).getProperties.getContentMd5
+      Some(getBlobClient(AzureStorageFS.parseUrl(filename)).getProperties.getETag)
     }
 
 

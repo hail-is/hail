@@ -9,7 +9,7 @@ abstract class FakeFS extends FS {
   override def listStatus(filename: String): Array[FileStatus] = ???
   override def glob(filename: String): Array[FileStatus] = ???
   override def fileStatus(filename: String): FileStatus = ???
-  override def fileChecksum(filename: String): Array[Byte] = ???
+  override def eTag(filename: String): Option[String] = ???
   override def makeQualified(path: String): String = ???
   override def getConfiguration(): Any = ???
   override def setConfiguration(config: Any): Unit = ???

@@ -503,12 +503,12 @@ class GoogleStorageFS(
     throw new FileNotFoundException(url.toString())
   }
 
-  override def fileChecksum(filename: String): Array[Byte] = {
+  override def eTag(filename: String): Some[String] = {
     val GoogleStorageFSURL(bucket, blob) = parseUrl(filename)
     handleRequesterPays(
       (options: Seq[BlobGetOption]) =>
         retryTransientErrors {
-          storage.get(bucket, blob, options:_*).getMd5.getBytes
+          Some(storage.get(bucket, blob, options:_*).getEtag)
         },
       BlobGetOption.userProject,
       bucket

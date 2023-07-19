@@ -400,8 +400,8 @@ trait FS extends Serializable {
 
   def fileStatus(filename: String): FileStatus
 
-  /** Return a base64-encoded checksum of the contexts of filename */
-  def fileChecksum(filename: String): Array[Byte]
+  /** Return the file's HTTP etag, if the underlying file system supports etags. */
+  def eTag(filename: String): Option[String]
 
   def fileStatus(url: URL): FileStatus = fileStatus(url.toString)
 

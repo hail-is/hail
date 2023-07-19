@@ -7,10 +7,8 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.{HailException, Logging}
+import is.hail.utils.Logging
 import org.apache.commons.codec.digest.MurmurHash3
-
-import scala.util.control.NonFatal
 
 case object SemanticHash extends Logging {
 
@@ -27,6 +25,12 @@ case object SemanticHash extends Logging {
 
     def apply(s: String): Type =
       apply(s.getBytes)
+
+    def apply(x: Long): Type =
+      MurmurHash3.hash32(x)
+
+    def apply(x: Int): Type =
+      MurmurHash3.hash32(x)
 
     def apply(bytes: Array[Byte]): Type =
       MurmurHash3.hash32x86(bytes)
@@ -341,13 +345,11 @@ case object SemanticHash extends Logging {
     })
 
   def getFileHash(fs: FS)(path: String): Type =
-    try {
-      Hash(fs.fileChecksum(path))
-    } catch {
-      case NonFatal(t) =>
-        throw new HailException(s"While computing the semantic hash of '$path'", None, t)
+    fs.eTag(path) match {
+      case Some(etag) => Hash(etag)
+      case None =>
+        Hash(path) <> Hash(fs.fileStatus(path).getModificationTime)
     }
-
 }
 
 case object SemanticTypeName {

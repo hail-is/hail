@@ -52,4 +52,9 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
     }
     assert(false)
   }
+
+  @Test def testETag(): Unit = {
+    val etag = fs.eTag(s"$fsResourcesRoot/a")
+    assert(etag.nonEmpty)
+  }
 }

@@ -81,4 +81,9 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
       assert(is.read() == 1.toByte)
     }
   }
+
+  @Test def testETag(): Unit = {
+    val etag = fs.eTag(s"$fsResourcesRoot/a")
+    assert(etag.nonEmpty)
+  }
 }

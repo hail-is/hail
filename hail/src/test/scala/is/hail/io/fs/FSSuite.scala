@@ -397,11 +397,6 @@ trait FSSuite extends TestNGSuite {
       }
     }
   }
-
-  @Test def testFileChecksum(): Unit = {
-    val digest = fs.fileChecksum(s"$fsResourcesRoot/a")
-    assert(new String(digest, StandardCharsets.UTF_8) == "yR+pThTPL6VHS+zv94jA3A==")
-  }
 }
 
 class HadoopFSSuite extends HailSuite with FSSuite {
@@ -410,4 +405,9 @@ class HadoopFSSuite extends HailSuite with FSSuite {
   lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
 
   lazy val tmpdir: String = ctx.tmpdir
+
+  @Test def testETag(): Unit = {
+    val etag = fs.eTag(s"$fsResourcesRoot/a")
+    assert(etag.isEmpty)
+  }
 }

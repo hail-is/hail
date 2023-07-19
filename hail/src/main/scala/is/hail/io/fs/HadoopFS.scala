@@ -2,7 +2,7 @@ package is.hail.io.fs
 
 import is.hail.utils._
 import org.apache.hadoop
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.fs.{EtagSource, FSDataInputStream, FSDataOutputStream}
 import org.apache.hadoop.io.MD5Hash
 
 import java.io._
@@ -190,15 +190,13 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new HadoopFileStatus(p.getFileSystem(conf.value).getFileStatus(p))
   }
 
-  override def fileChecksum(filename: String): Array[Byte] = {
+  override def eTag(filename: String): Option[String] = {
     val p = new hadoop.fs.Path(filename)
     val fs = p.getFileSystem(conf.value)
-    val checksum = fs.getFileChecksum(p)
-    if (checksum != null) checksum.getBytes
-    else {
-      val digest = using(fs.open(p))(MD5Hash.digest).getDigest
-      Base64.getEncoder.encode(digest)
-    }
+    if (fs.hasPathCapability(p, "fs.capability.etags.available"))
+      Some(fs.getFileStatus(p).asInstanceOf[EtagSource].getEtag)
+    else
+      None
   }
 
   def makeQualified(path: String): String = {

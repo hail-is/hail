@@ -254,8 +254,8 @@ class SemanticHashSuite {
 
   val fakeFs: FS =
     new FakeFS {
-      override def fileChecksum(filename: String): Array[Byte] =
-        filename.getBytes
+      override def eTag(filename: String): Option[String] =
+        Some(filename)
 
       override def glob(filename: String): Array[FileStatus] =
         Array(new FileStatus {
