@@ -1,2 +1,9 @@
-Edit `hail/generate_splits.py` if you refactor/move any class (or test) in this package to another,
-otherwise you'll likely get ci failures from `SKIPPED` `hail_test_java_#` tests!
+If you refactor/move any class (or test) in this package to another, be sure to
+edit the following files accordingly, or the tests won't run or you'll get ci
+failures from `SKIPPED` `hail_test_java_#` tests!
+
+```
+hail/generate_splits.py
+hail/testng-fs.xml
+hail/testng.xml
+```
