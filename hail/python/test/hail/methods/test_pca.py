@@ -261,31 +261,31 @@ def spectral_moments_helper(spec_func):
 
 
 @skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(local=3 * 60)
+@test_timeout(local=3 * 60, batch=8 * 60)
 def test_spectral_moments_1():
     spectral_moments_helper(spec1)
 
 
 @skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(local=3 * 60)
+@test_timeout(local=3 * 60, batch=8 * 60)
 def test_spectral_moments_2():
     spectral_moments_helper(spec2)
 
 
 @skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(local=3 * 60)
+@test_timeout(local=3 * 60, batch=8 * 60)
 def test_spectral_moments_3():
     spectral_moments_helper(spec3)
 
 
 @skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(local=3 * 60)
+@test_timeout(local=3 * 60, batch=8 * 60)
 def test_spectral_moments_4():
     spectral_moments_helper(spec4)
 
 
 @skip_when_service_backend(reason='v slow & OOms')
-@test_timeout(local=3 * 60)
+@test_timeout(local=3 * 60, batch=8 * 60)
 def test_spectral_moments_5():
     spectral_moments_helper(spec5)
 
