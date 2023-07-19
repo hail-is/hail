@@ -322,7 +322,7 @@ s3transfer==0.6.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   boto3
-scipy==1.9.3
+scipy==1.11.2
     # via -r hail/hail/python/requirements.txt
 six==1.16.0
     # via
