@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=hail/gear/pinned-requirements.txt hail/gear/requirements.txt
 #
-aiohttp==3.8.4
+aiohttp==3.8.5
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
