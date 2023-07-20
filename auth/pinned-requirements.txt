@@ -15,14 +15,14 @@ certifi==2023.5.7
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   requests
-charset-normalizer==3.1.0
+charset-normalizer==3.2.0
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   -c hail/auth/../web_common/pinned-requirements.txt
     #   requests
-google-auth==2.19.1
+google-auth==2.22.0
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
