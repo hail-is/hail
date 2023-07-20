@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import random
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from typing import Dict, List, Tuple
 
 import prometheus_client as pc
@@ -59,6 +59,9 @@ AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES = pc.Gauge(
     'Number of ready cores per control loop execution calculated from the head of the job queue',
     ['pool_name', 'region'],
 )
+
+
+UserBatchJobRecordCutoff = namedtuple('UserBatchJobRecordCutoff', ['batch_id', 'job_id'])
 
 
 class Pool(InstanceCollection):
@@ -141,6 +144,9 @@ WHERE removed = 0 AND inst_coll = %s;
         self.min_instances = config.min_instances
 
         self.all_supported_regions = self.inst_coll_manager.regions
+
+        self.user_batch_id_job_id_always_run_cutoffs: Dict[str, UserBatchJobRecordCutoff] = {}
+        self.user_batch_id_job_id_cancellable_cutoffs: Dict[str, UserBatchJobRecordCutoff] = {}
 
     @property
     def local_ssd_data_disk(self) -> bool:
@@ -319,7 +325,56 @@ WHERE removed = 0 AND inst_coll = %s;
         jobs_query = []
         jobs_query_args = []
 
+        self.user_batch_id_job_id_always_run_cutoffs.clear()
+        self.user_batch_id_job_id_cancellable_cutoffs.clear()
+
         for user_idx, (user, share) in enumerate(user_share.items(), start=1):
+            always_run_last_job_record = await self.db.select_and_fetchone(
+                f'''
+WITH tmp AS (
+  SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep
+  FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+  LEFT JOIN batches ON jobs.batch_id = batches.id
+  WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run AND inst_coll = %s
+  ORDER BY jobs.batch_id ASC, jobs.job_id ASC
+  LIMIT {share * self.job_queue_scheduling_window_secs}
+)
+SELECT batch_id, job_id FROM tmp
+ORDER BY batch_id DESC, job_id DESC
+LIMIT 1;
+''',
+                (user, self.name),
+                query_name='get_last_user_job_record_in_autoscaler_head_queue',
+            )
+
+            cancellable_last_job_record = await self.db.select_and_fetchone(
+                f'''
+WITH tmp AS (
+  SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep
+  FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+  LEFT JOIN batches ON jobs.batch_id = batches.id
+  LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+  WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND batches_cancelled.id IS NULL AND inst_coll = %s
+  ORDER BY jobs.batch_id ASC, jobs.job_id ASC
+  LIMIT {share * self.job_queue_scheduling_window_secs}
+)
+SELECT batch_id, job_id FROM tmp
+ORDER BY batch_id DESC, job_id DESC
+LIMIT 1;
+''',
+                (user, self.name),
+                query_name='get_last_user_job_record_in_autoscaler_head_queue',
+            )
+
+            if always_run_last_job_record is not None:
+                self.user_batch_id_job_id_always_run_cutoffs[user] = UserBatchJobRecordCutoff(
+                    always_run_last_job_record['batch_id'], always_run_last_job_record['job_id']
+                )
+            if cancellable_last_job_record is not None:
+                self.user_batch_id_job_id_cancellable_cutoffs[user] = UserBatchJobRecordCutoff(
+                    cancellable_last_job_record['batch_id'], cancellable_last_job_record['job_id']
+                )
+
             user_job_query = f'''
 (
   SELECT scheduling_iteration, user_idx, n_regions, regions_bits_rep, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
@@ -611,21 +666,34 @@ SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled, userdata, user
 FROM batches
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
-WHERE user = %s AND `state` = 'running';
+WHERE user = %s AND `state` = 'running'
+ORDER BY id ASC;
 ''',
                 (user,),
                 "user_runnable_jobs__select_running_batches",
             ):
+                args = [batch['id'], self.pool.name]
+                last_always_run_job_id = self.pool.user_batch_id_job_id_always_run_cutoffs[user]
+                if last_always_run_job_id is not None:
+                    bounds = 'AND (jobs.batch_id < %s OR (jobs.batch_id = %s AND jobs.job_id <= %s))'
+                    args += [
+                        last_always_run_job_id.batch_id,
+                        last_always_run_job_id.batch_id,
+                        last_always_run_job_id.job_id,
+                    ]
+                else:
+                    bounds = ''
+
                 async for record in self.db.select_and_fetchall(
-                    '''
+                    f'''
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
-WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
+WHERE jobs.batch_id = %s AND inst_coll = %s {bounds} AND jobs.state = 'Ready' AND always_run = 1
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
 ''',
-                    (batch['id'], self.pool.name),
+                    args,
                     "user_runnable_jobs__select_ready_always_run_jobs",
                 ):
                     record['batch_id'] = batch['id']
@@ -634,16 +702,28 @@ LIMIT 300;
                     record['format_version'] = batch['format_version']
                     yield record
                 if not batch['cancelled']:
+                    args = [batch['id'], self.pool.name]
+                    last_cancellable_job_id = self.pool.user_batch_id_job_id_cancellable_cutoffs[user]
+                    if last_cancellable_job_id is not None:
+                        bounds = 'AND (jobs.batch_id <= %s OR (jobs.batch_id = %s AND jobs.job_id <= %s))'
+                        args += [
+                            last_cancellable_job_id.batch_id,
+                            last_cancellable_job_id.batch_id,
+                            last_cancellable_job_id.job_id,
+                        ]
+                    else:
+                        bounds = ''
+
                     async for record in self.db.select_and_fetchall(
-                        '''
+                        f'''
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
-WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
+WHERE jobs.batch_id = %s AND inst_coll = %s {bounds} AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
 ''',
-                        (batch['id'], self.pool.name),
+                        args,
                         "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
                     ):
                         record['batch_id'] = batch['id']
