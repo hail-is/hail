@@ -86,7 +86,7 @@ spec:
           configMap:
             name: gateway-xds-config
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: gateway

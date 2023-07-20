@@ -491,7 +491,7 @@ spec:
            secretName: ssl-config-batch
 {% if deploy %}
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: batch

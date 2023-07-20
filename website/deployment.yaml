@@ -99,7 +99,7 @@ spec:
            optional: false
            secretName: ssl-config-website
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: www

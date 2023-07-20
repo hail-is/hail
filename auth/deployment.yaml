@@ -251,7 +251,7 @@ spec:
            secretName: ssl-config-auth
 {% if deploy %}
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: auth
