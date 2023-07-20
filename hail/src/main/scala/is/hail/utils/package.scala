@@ -943,12 +943,12 @@ package object utils extends Logging
   }
 
   /**
-   * Merge sorted `as` and `bs` using the comparison function `lt`.
+   * Merge the sorted `IndexedSeq`s `xs` and `ys` using comparison function `lt`.
    */
-  def merge[A](as: IndexedSeq[A], bs: IndexedSeq[A], lt: (A, A) => Boolean): IndexedSeq[A] =
-    (as.length, bs.length) match {
-      case (0, _) => bs
-      case (_, 0) => as
+  def merge[A](xs: IndexedSeq[A], ys: IndexedSeq[A], lt: (A, A) => Boolean): IndexedSeq[A] =
+    (xs.length, ys.length) match {
+      case (0, _) => ys
+      case (_, 0) => xs
       case (n, m) =>
 
         val res = new ArrayBuffer[A](n + m)
@@ -956,21 +956,21 @@ package object utils extends Logging
         var i = 0
         var j = 0
         while (i < n && j < m) {
-          if (lt(as(i), bs(j))) {
-            res += as(i)
+          if (lt(xs(i), ys(j))) {
+            res += xs(i)
             i += 1
           } else {
-            res += bs(j)
+            res += ys(j)
             j += 1
           }
         }
 
         for (k <- i until n) {
-          res += as(k)
+          res += xs(k)
         }
 
         for (k <- j until m) {
-          res += bs(k)
+          res += ys(k)
         }
 
         res
