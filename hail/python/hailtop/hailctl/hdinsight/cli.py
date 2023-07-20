@@ -1,7 +1,6 @@
 import subprocess
 
-from typing import Optional, List
-from typing_extensions import Annotated as Ann
+from typing import Optional, List, Annotated as Ann
 
 import typer
 from typer import Option as Opt, Argument as Arg

@@ -2,13 +2,11 @@ import json
 from enum import Enum
 import yaml
 import csv
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Annotated as Ann
 import tabulate
 import io
 
 from typer import Option as Opt
-
-from typing_extensions import Annotated as Ann
 
 TableData = List[Dict[str, str]]
 TABLE_FORMAT_OPTIONS = ['json', 'yaml', 'csv', *tabulate.tabulate_formats]

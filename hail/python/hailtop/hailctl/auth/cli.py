@@ -4,8 +4,7 @@ import typer
 from typer import Option as Opt, Argument as Arg
 import json
 
-from typing import Optional
-from typing_extensions import Annotated as Ann
+from typing import Optional, Annotated as Ann
 
 
 app = typer.Typer(

@@ -3,8 +3,7 @@ import sys
 import re
 import warnings
 
-from typing import Optional, Tuple
-from typing_extensions import Annotated as Ann
+from typing import Optional, Tuple, Annotated as Ann
 
 import typer
 from typer import Argument as Arg

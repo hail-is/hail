@@ -1,7 +1,6 @@
 import asyncio
 import orjson
-from typing import List, Optional
-from typing_extensions import Annotated as Ann
+from typing import List, Optional, Annotated as Ann
 from os import path
 from zlib import decompress, MAX_WBITS
 from statistics import median, mean, stdev

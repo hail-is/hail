@@ -3,8 +3,7 @@ import sys
 import typer
 from typer import Option as Opt, Argument as Arg
 
-from typing import List, Optional
-from typing_extensions import Annotated as Ann
+from typing import List, Optional, Annotated as Ann
 
 from .connect import connect as dataproc_connect, DataprocConnectService
 from .submit import submit as dataproc_submit

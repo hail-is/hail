@@ -371,7 +371,7 @@ class AzureAsyncFS(AsyncFS):
     @staticmethod
     def valid_url(url: str) -> bool:
         if url.startswith('https://'):
-            stripped_scheme = url[len('https://'):]
+            stripped_scheme = url.removeprefix('https://')
             authority = stripped_scheme.split('/', maxsplit=1)[0]
             if '.' not in authority:
                 return False

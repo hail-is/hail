@@ -3,11 +3,10 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict
 
 import jinja2
 import yaml
-from typing_extensions import TypedDict
 
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
@@ -415,8 +414,8 @@ cat /home/user/trace
 
         if CLOUD == 'azure':
             image = 'mcr.microsoft.com/azure-cli'
-            assert self.image.startswith(DOCKER_PREFIX)
-            image_name = self.image[len(f'{DOCKER_PREFIX}/') :]
+            assert self.image.startswith(DOCKER_PREFIX + '/')
+            image_name = self.image.removeprefix(DOCKER_PREFIX + '/')
             script = f'''
 set -x
 date

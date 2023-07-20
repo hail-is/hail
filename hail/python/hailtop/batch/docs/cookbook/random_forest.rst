@@ -120,7 +120,7 @@ Build Python Image
 In order to run a :class:`.PythonJob`, Batch needs an image that has the
 same version of Python as the version of Python running on your computer
 and the Python package `dill` installed. Batch will automatically
-choose a suitable image for you if your Python version is 3.8 or newer.
+choose a suitable image for you if your Python version is 3.9 or newer.
 You can supply your own image that meets the requirements listed above to the
 method :meth:`.PythonJob.image` or as the argument `default_python_image` when
 constructing a Batch . We also provide a convenience function :func:`.docker.build_python_image`

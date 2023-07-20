@@ -1,6 +1,6 @@
 from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict, Iterable, Tuple,
                     Generic, cast)
-from typing_extensions import Literal
+from typing import Literal
 from types import TracebackType
 import concurrent
 import contextlib
