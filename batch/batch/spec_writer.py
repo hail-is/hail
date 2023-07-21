@@ -1,6 +1,6 @@
 import collections
 import logging
-from typing import Dict, Tuple, Literal
+from typing import Dict, Literal, Tuple
 
 import sortedcontainers
 
