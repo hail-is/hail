@@ -2479,6 +2479,7 @@ steps:
       {% endif %}
       export HAIL_BATCH_BILLING_PROJECT=test
       export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
+      export HAIL_BATCH_MAX_POLLING_DELAY=1
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
