@@ -161,7 +161,7 @@ spec:
            optional: false
            secretName: ssl-config-notebook-python
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: notebook
@@ -183,9 +183,11 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 2500
+       target:
+         type: Utilization
+         averageUtilization: 2500
 ---
-apiVersion: policy/v1beta1
+apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: notebook
