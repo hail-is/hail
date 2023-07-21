@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator, Callable, Dict, List
+from typing import Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator, Callable, Dict, List, ClassVar
 from types import TracebackType
 import os
 import os.path
@@ -217,7 +217,7 @@ class TruncatedReadableBinaryIO(BinaryIO):
 
 
 class LocalAsyncFS(AsyncFS):
-    schemes: Set[str] = {'file'}
+    schemes: ClassVar[Set[str]] = {'file'}
 
     def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None):
         if not thread_pool:

@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Optional, ClassVar, List
 
 from ..session import AzureSession
 from .base_client import AzureBaseClient
 
 
 class AzureGraphClient(AzureBaseClient):
-    required_scopes = ['https://graph.microsoft.com/.default']
+    required_scopes: ClassVar[List[str]] = ['https://graph.microsoft.com/.default']
 
     def __init__(self, session: Optional[AzureSession] = None, **kwargs):
         if 'scopes' in kwargs:

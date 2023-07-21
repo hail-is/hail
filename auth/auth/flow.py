@@ -1,3 +1,4 @@
+from typing import List, ClassVar
 import abc
 import json
 import urllib.parse
@@ -36,7 +37,7 @@ class Flow(abc.ABC):
 
 
 class GoogleFlow(Flow):
-    scopes = [
+    scopes: ClassVar[List[str]] = [
         'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/userinfo.email',
         'openid',

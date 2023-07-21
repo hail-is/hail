@@ -65,10 +65,10 @@ operations are allowed for a given expression.
 When evaluated in a Python interpreter, we can see ``mt.locus`` is a
 :class:`.LocusExpression` with type ``locus<GRCh37>``.
 
-    >>> mt  # doctest: +SKIP_OUTPUT_CHECK
+    >>> mt  # doctest: +SKIP
     <hail.matrixtable.MatrixTable at 0x1107e54a8>
 
-    >>> mt.locus  # doctest: +SKIP_OUTPUT_CHECK
+    >>> mt.locus  # doctest: +SKIP
     <LocusExpression of type locus<GRCh37>>
 
 Likewise, ``mt.DP`` is an :class:`.Int32Expression` with type ``int32``
@@ -80,7 +80,7 @@ expression, if any. For example, ``mt.DP.describe()`` tells us that ``mt.DP``
 has type ``int32`` and is an entry field of ``mt``, since it is indexed
 by both rows and columns:
 
-    >>> mt.DP.describe()  # doctest: +SKIP_OUTPUT_CHECK
+    >>> mt.DP.describe()  # doctest: +SKIP
     --------------------------------------------------------
     Type:
         int32
@@ -104,7 +104,7 @@ variety of file formats: :func:`.import_vcf`, :func:`.import_plink`,
 The :meth:`.MatrixTable.describe` method prints all fields in the table and
 their types, as well as the keys.
 
-    >>> mt.describe()  # doctest: +SKIP_OUTPUT_CHECK
+    >>> mt.describe()  # doctest: +SKIP
     ----------------------------------------
     Global fields:
         None
@@ -263,7 +263,7 @@ One use case of explode is to duplicate rows:
     >>> mt_new.count_rows()
     692
 
-    >>> mt_new.replicate_num.show() # doctest: +SKIP_OUTPUT_CHECK
+    >>> mt_new.replicate_num.show() # doctest: +SKIP
     +---------------+------------+---------------+
     | locus         | alleles    | replicate_num |
     +---------------+------------+---------------+
@@ -296,7 +296,7 @@ a Python value.
 
 An example of querying entries is to compute the global mean of field `GQ`:
 
-    >>> mt.aggregate_entries(hl.agg.mean(mt.GQ))  # doctest: +SKIP_OUTPUT_CHECK
+    >>> mt.aggregate_entries(hl.agg.mean(mt.GQ))  # doctest: +SKIP
     67.73196915777027
 
 It is possible to compute multiple values simultaneously by
@@ -304,7 +304,7 @@ creating a tuple or struct. This is encouraged, because grouping two
 computations together is far more efficient by traversing the dataset only once
 rather than twice.
 
-    >>> mt.aggregate_entries((hl.agg.stats(mt.DP), hl.agg.stats(mt.GQ)))  # doctest: +SKIP_OUTPUT_CHECK
+    >>> mt.aggregate_entries((hl.agg.stats(mt.DP), hl.agg.stats(mt.GQ)))  # doctest: +SKIP
     (Struct(mean=41.83915800445897, stdev=41.93057654787303, min=0.0, max=450.0, n=34537, sum=1444998.9999999995),
     Struct(mean=67.73196915777027, stdev=29.80840934057741, min=0.0, max=99.0, n=33720, sum=2283922.0000000135))
 

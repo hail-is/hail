@@ -1,3 +1,4 @@
+from typing import Set, ClassVar
 import abc
 
 from ...exceptions import QueryError
@@ -10,11 +11,11 @@ class Operator(abc.ABC):
 
 
 class ComparisonOperator(Operator, abc.ABC):
-    symbols = {'>=', '>', '<', '<=', '==', '=', '!='}
+    symbols: ClassVar[Set[str]] = {'>=', '>', '<', '<=', '==', '=', '!='}
 
 
 class MatchOperator(Operator, abc.ABC):
-    symbols = {'=', '!=', '!~', '=~'}
+    symbols: ClassVar[Set[str]] = {'=', '!=', '!~', '=~'}
 
 
 class PartialMatchOperator(MatchOperator, abc.ABC):

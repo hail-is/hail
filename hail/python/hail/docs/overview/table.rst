@@ -60,7 +60,7 @@ but the value ``5`` is only stored once for the entire dataset and NOT once per
 row of the table. The output of :meth:`.Table.describe` lists what all of the row
 fields and global fields are.
 
-    >>> ht.describe()  # doctest: +SKIP_OUTPUT_CHECK
+    >>> ht.describe()  # doctest: +SKIP
     ----------------------------------------
     Global fields:
         None
@@ -99,10 +99,10 @@ special characters in it. The Python type of each attribute is an
 :class:`.Expression` that also contains context about its type and source, in
 this case a row field of table `ht`.
 
-    >>> ht  # doctest: +SKIP_OUTPUT_CHECK
+    >>> ht  # doctest: +SKIP
     <hail.table.Table at 0x110791a20>
 
-    >>> ht.ID  # doctest: +SKIP_OUTPUT_CHECK
+    >>> ht.ID  # doctest: +SKIP
     <Int32Expression of type int32>
 
 
@@ -242,4 +242,3 @@ table and their types. The types themselves can be accessed using the fields
 ``ht.row.dtype`` and ``ht.globals.dtype``. The row fields that are part of the
 key can be accessed with :attr:`.Table.key`. The :meth:`.Table.count` method
 returns the number of rows.
-

@@ -1,4 +1,4 @@
-from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union, ClassVar
 from types import TracebackType
 
 import abc
@@ -348,7 +348,7 @@ def handle_public_access_error(fun):
 
 
 class AzureAsyncFS(AsyncFS):
-    schemes: Set[str] = {'hail-az', 'https'}
+    schemes: ClassVar[Set[str]] = {'hail-az', 'https'}
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
     def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
