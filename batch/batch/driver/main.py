@@ -38,7 +38,14 @@ from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, flatten, periodically_call, time_msecs
+from hailtop.utils import (
+    AsyncWorkerPool,
+    Notice,
+    dump_all_stacktraces,
+    flatten,
+    periodically_call,
+    time_msecs,
+)
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import cancel_batch_in_db
@@ -459,6 +466,7 @@ FROM user_inst_coll_resources;
         'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
         'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
         'frozen': app['frozen'],
+        'feature_flags': app['feature_flags'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
@@ -550,6 +558,27 @@ def validate_int(session, name, value, predicate, description):
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
         raise ConfigError() from e
     return validate(session, name, i, predicate, description)
+
+
+@routes.post('/configure-feature-flags')
+@check_csrf_token
+@auth.web_authenticated_developers_only()
+async def configure_feature_flags(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    post = await request.post()
+
+    compact_billing_tables = 'compact_billing_tables' in post
+
+    await db.execute_update(
+        '''
+UPDATE feature_flags SET compact_billing_tables = %s;
+''',
+        (compact_billing_tables,),
+    )
+
+    row = await db.select_and_fetchone('SELECT * FROM feature_flags')
+    app['feature_flags'] = row
 
 
 @routes.post('/config-update/pool/{pool}')
@@ -1335,6 +1364,16 @@ async def monitor_system(app):
     monitor_instances(app)
 
 
+async def compact_agg_billing_project_users_table(app):
+    if not app['feature_flags']['compact_billing_tables']:
+        return
+
+
+async def compact_agg_billing_project_users_by_date_table(app):
+    if not app['feature_flags']['compact_billing_tables']:
+        return
+
+
 async def scheduling_cancelling_bump(app):
     log.info('scheduling cancelling bump loop')
     app['scheduler_state_changed'].notify()
@@ -1412,6 +1451,9 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
     app['frozen'] = row['frozen']
 
+    row = await db.select_and_fetchone('SELECT * FROM feature_flags')
+    app['feature_flags'] = row
+
     await refresh_globals_from_db(app, db)
 
     app['scheduler_state_changed'] = Notice()
@@ -1437,6 +1479,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app))
 
 
 async def on_cleanup(app):
