@@ -251,7 +251,7 @@ spec:
            secretName: ssl-config-auth
 {% if deploy %}
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: auth
@@ -266,7 +266,9 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 2500
+       target:
+         type: Utilization
+         averageUtilization: 2500
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

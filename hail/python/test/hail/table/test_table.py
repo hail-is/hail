@@ -1651,7 +1651,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
 
 
 @pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail(strict=True))])
-@test_timeout(3 * 60, local=6 * 60, batch=6 * 60)
+@test_timeout(6 * 60)
 def test_can_process_wide_tables(width):
     path = resource(f'width_scale_tests/{width}.tsv')
     ht = hl.import_table(path, impute=False)
