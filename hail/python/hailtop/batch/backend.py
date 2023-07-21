@@ -16,7 +16,7 @@ import warnings
 from rich.progress import track
 
 from hailtop import pip_version
-from hailtop.config import configuration_of, get_deploy_config, get_user_config, get_remote_tmpdir
+from hailtop.config import configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
@@ -482,8 +482,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project, _token=token)
 
-        user_config = get_user_config()
-        self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
+        self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir)
 
         gcs_kwargs: Dict[str, Any]
         if google_project is not None:
@@ -502,7 +501,7 @@ class ServiceBackend(Backend[bc.Batch]):
         self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:
-            regions_from_conf = user_config.get('batch', 'regions', fallback=None)
+            regions_from_conf = configuration_of('batch', 'regions', None, None)
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
