@@ -69,7 +69,8 @@ object LowerAndExecuteShuffles {
         val partiallyAggregatedReader = ctx.backend.lowerDistributedSort(ctx,
           preShuffleStage,
           newKeyType.fieldNames.map(k => SortField(k, Ascending)),
-          rt)
+          rt,
+          nPartitions)
 
         val takeVirtualSig = TakeStateSig(VirtualTypeWithReq(newKeyType, rt.rowType.select(newKeyType.fieldNames)))
         val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)
