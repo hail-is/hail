@@ -1368,7 +1368,10 @@ async def monitor_system(app):
     monitor_instances(app)
 
 
-async def compact_agg_billing_project_users_table(db: Database):
+async def compact_agg_billing_project_users_table(app, db: Database):
+    if not app['feature_flags']['compact_billing_tables']:
+        return
+
     @transaction(db)
     async def compact(tx: Transaction, target: dict):
         original_usage = await tx.execute_and_fetchone(
@@ -1436,7 +1439,10 @@ LIMIT 10000;
         await compact(target)  # pylint: disable=no-value-for-parameter
 
 
-async def compact_agg_billing_project_users_by_date_table(db: Database):
+async def compact_agg_billing_project_users_by_date_table(app, db: Database):
+    if not app['feature_flags']['compact_billing_tables']:
+        return
+
     @transaction(db)
     async def compact(tx: Transaction, target: dict):
         original_usage = await tx.execute_and_fetchone(
@@ -1610,8 +1616,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
-    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, db))
-    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, db))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app, db))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app, db))
 
 
 async def on_cleanup(app):
