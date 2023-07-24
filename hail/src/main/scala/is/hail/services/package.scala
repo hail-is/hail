@@ -83,6 +83,28 @@ package object services {
       case e: HttpResponseException
           if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
         true
+      case e: HttpResponseException
+          if (e.getStatusCode() == 410 &&
+            e.getMessage != null &&
+            e.getMessage.contains("\"code\": 503,") &&
+            e.getMessage.contains("\"message\": \"Backend Error\",")
+          ) =>
+        // hail.utils.java.FatalError: HttpResponseException: 410 Gone
+        // PUT https://storage.googleapis.com/upload/storage/v1/b/hail-test-ezlis/o?name=tmp/hail/nBHPQsrxGvJ4T7Ybdp1IjQ/persist_TableObF6TwC6hv/rows/metadata.json.gz&uploadType=resumable&upload_id=ADPycdsFEtq65NC-ahk6tt6qdD3bKC3asqVSJELnirlpLG_ZDV_637Nn7NourXYTgMRKlX3bQVe9BfD_QfIP_kupTxVQyrJWQJrj
+        // {
+        //   "error": {
+        //     "code": 503,
+        //     "message": "Backend Error",
+        //     "errors": [
+        //       {
+        //         "message": "Backend Error",
+        //         "domain": "global",
+        //         "reason": "backendError"
+        //       }
+        //     ]
+        //   }
+        // }
+        true
       case e: ClientResponseException
           if RETRYABLE_HTTP_STATUS_CODES.contains(e.status) =>
         true

@@ -7,8 +7,7 @@ from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from hail.vds.combiner import combine_variant_datasets, new_combiner, load_combiner, transform_gvcf
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, fails_local_backend, fails_service_backend, test_timeout
-
+from ..helpers import resource, skip_when_service_backend, test_timeout
 
 all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
                'NA18530', 'HG03805', 'HG02223', 'HG00637', 'NA12249',
@@ -110,6 +109,7 @@ def test_move_load_combiner_plan():
 
 
 @test_timeout(10 * 60)
+@skip_when_service_backend(reason='Combiner makes extensive use of the Backend API which are serviced by starting a Hail Batch job to execute them. This test will be too slow until we change the combiner to use many fewer executes.')
 def test_combiner_run():
     tmpdir = new_temp_file()
     samples = all_samples[:5]

@@ -86,7 +86,7 @@ spec:
           configMap:
             name: gateway-xds-config
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: gateway
@@ -101,7 +101,9 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 2500
+       target:
+         type: Utilization
+         averageUtilization: 2500
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

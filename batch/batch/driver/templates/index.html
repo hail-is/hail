@@ -25,6 +25,19 @@
     {% endif %}
   </div>
 
+<h1>Feature Flags</h1>
+  <div>
+    <form action="{{ base_path }}/configure-feature-flags" method="POST">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <input type="checkbox"
+             id="compact_billing_tables"
+             name="compact_billing_tables"
+             {% if feature_flags['compact_billing_tables'] %}checked{% endif %}
+      value="true" />
+      <button>Update</button>
+    </form>
+  </div>
+
   <h1>Instance Collections</h1>
 
   <h2>Pools</h2>
@@ -53,7 +66,7 @@
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['inactive'] }}</td>
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['deleted'] }}</td>
       <td class="numeric-cell">{{ pool.all_versions_provisioned_cores_mcpu / 1000 }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.live_free_cores_mcpu / 1000 }} / {{ pool.all_versions_provisioned_cores_mcpu / 1000 }} </td>
+      <td class="numeric-cell">{{ pool.current_worker_version_stats.live_schedulable_free_cores_mcpu / 1000 }} / {{ pool.all_versions_provisioned_cores_mcpu / 1000 }} </td>
     </tr>
     {% endfor %}
     </tbody>

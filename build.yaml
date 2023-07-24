@@ -1155,6 +1155,12 @@ steps:
       mv /test-gsa-key/key.json /gsa-key/key.json
 
       export HAIL_QUERY_N_CORES=2
+      export OMP_NUM_THREADS=2
+      export OPENBLAS_NUM_THREADS=2
+      export MKL_NUM_THREADS=2
+      export VECLIB_MAXIMUM_THREADS=2
+      export NUMEXPR_NUM_THREADS=2
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
@@ -1334,6 +1340,13 @@ steps:
       sed -i 's/gsa-key/test-gsa-key/g' ${SPARK_HOME}/conf/core-site.xml
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
+      export HAIL_QUERY_N_CORES=2
+      export OMP_NUM_THREADS=2
+      export OPENBLAS_NUM_THREADS=2
+      export MKL_NUM_THREADS=2
+      export VECLIB_MAXIMUM_THREADS=2
+      export NUMEXPR_NUM_THREADS=2
+
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_TEST_STORAGE_URI=/io/tmp/
       export HAIL_TEST_RESOURCES_DIR=./resources
@@ -1353,7 +1366,7 @@ steps:
               --ignore=test/hailtop/ \
               --timeout=120 \
               test
-    timeout: 1200
+    timeout: 1800
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1386,6 +1399,12 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
       export HAIL_QUERY_N_CORES=2
+      export OMP_NUM_THREADS=2
+      export OPENBLAS_NUM_THREADS=2
+      export MKL_NUM_THREADS=2
+      export VECLIB_MAXIMUM_THREADS=2
+      export NUMEXPR_NUM_THREADS=2
+
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export HAIL_LOCATION=$(dirname $(python3 -c 'import hail; print(hail.__file__)'))
 
@@ -2281,6 +2300,9 @@ steps:
         online: true
       - name: add-list-batches-index
         script: /io/sql/add-list-batches-index.sql
+        online: true
+      - name: add-feature-flags
+        script: /io/sql/add-feature-flags.sql
         online: true
     inputs:
       - from: /repo/batch/sql

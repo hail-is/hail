@@ -318,7 +318,9 @@ def test_list_batches_v1(client: BatchClient):
 
 
 def test_list_batches_v2(client: BatchClient):
-    tag = secrets.token_urlsafe(64)
+    # replace any occurrences of the substring "b2" in the tag to avoid collisions with the batch name for the partial
+    # match test
+    tag = secrets.token_urlsafe(64).replace("b2", "00")
     bb1 = create_batch(client, attributes={'tag': tag, 'name': 'b1'})
     bb1.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
     b1 = bb1.submit()

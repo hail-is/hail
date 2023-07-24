@@ -329,10 +329,10 @@ class LocalBackend(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable
-  ): TableReader = {
-    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
-  }
+    rt: RTable,
+    nPartitions: Option[Int]
+  ): TableReader =
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, nPartitions)
 
   def pyLoadReferencesFromDataset(path: String): String = {
     val rgs = ReferenceGenome.fromHailDataset(fs, path)
