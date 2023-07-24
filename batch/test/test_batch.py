@@ -604,6 +604,12 @@ def test_list_jobs_v2(client: BatchClient):
         j_failure.wait()
         j_error.wait()
 
+        delay = 0.1
+        while True:
+            if j_running.status()['state'] == 'Running' or j_running.is_complete():
+                break
+            delay = sync_sleep_and_backoff(delay)
+
         assert_job_ids({j_success.job_id}, 'state = success')
         assert_job_ids({j_success.job_id}, 'state == success')
         assert_job_ids({j_success.job_id}, 'state=success')
