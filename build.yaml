@@ -2314,6 +2314,9 @@ steps:
       - name: turn_off_oms_agent_test_dev
         script: /io/sql/turn_off_oms_agent_test_dev.py
         online: true
+      - name: add-billing-index-token
+        script: /io/sql/add-billing-index-token.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
