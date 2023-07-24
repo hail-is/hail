@@ -29,6 +29,7 @@
   <div>
     <form action="{{ base_path }}/configure-feature-flags" method="POST">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <label for="compact_billing_tables">compact_billing_tables: </label>
       <input type="checkbox"
              id="compact_billing_tables"
              name="compact_billing_tables"
