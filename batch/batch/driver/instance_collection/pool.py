@@ -622,8 +622,7 @@ SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
-ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
-LIMIT 300;
+LIMIT 10000;
 ''',
                     (batch['id'], self.pool.name),
                     "user_runnable_jobs__select_ready_always_run_jobs",
@@ -640,8 +639,7 @@ SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
-ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
-LIMIT 300;
+LIMIT 10000;
 ''',
                         (batch['id'], self.pool.name),
                         "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
@@ -663,7 +661,10 @@ LIMIT 300;
             scheduled_cores_mcpu = 0
             share = user_share[user]
 
-            async for record in user_runnable_jobs(user):
+            runnable_jobs = [record async for record in user_runnable_jobs(user)]
+            random.shuffle(runnable_jobs)
+
+            for record in runnable_jobs:
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
