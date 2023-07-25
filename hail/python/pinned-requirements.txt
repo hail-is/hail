@@ -71,7 +71,7 @@ cachetools==5.3.1
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   google-auth
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   msrest
