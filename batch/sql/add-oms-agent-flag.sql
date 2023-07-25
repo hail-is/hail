@@ -1,0 +1,1 @@
+ALTER TABLE `feature_flags` ADD COLUMN `oms_agent` BOOLEAN NOT NULL DEFAULT TRUE;

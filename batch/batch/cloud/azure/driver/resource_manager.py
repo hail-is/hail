@@ -40,6 +40,7 @@ def parse_azure_timestamp(timestamp: Optional[str]) -> Optional[int]:
 class AzureResourceManager(CloudResourceManager):
     def __init__(
         self,
+        app,
         subscription_id: str,
         resource_group: str,
         ssh_public_key: str,
@@ -47,6 +48,7 @@ class AzureResourceManager(CloudResourceManager):
         compute_client: aioazure.AzureComputeClient,  # BORROWED
         billing_manager: AzureBillingManager,
     ):
+        self.app = app
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.ssh_public_key = ssh_public_key
@@ -177,6 +179,7 @@ class AzureResourceManager(CloudResourceManager):
             self.ssh_public_key,
             max_price,
             instance_config,
+            self.app['feature_flags'],
         )
 
         memory_mib = azure_worker_memory_per_core_mib(worker_type) * cores

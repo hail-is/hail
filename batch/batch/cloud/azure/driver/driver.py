@@ -67,7 +67,7 @@ ON DUPLICATE KEY UPDATE region = region;
         billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region, regions)
         resource_manager = AzureResourceManager(
-            subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
+            app, subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
         )
 
         create_pools_coros = [

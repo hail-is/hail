@@ -41,6 +41,7 @@ def create_vm_config(
     ssh_public_key: str,
     max_price: Optional[float],
     instance_config: InstanceConfig,
+    feature_flags: dict,
 ) -> dict:
     _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
 
@@ -317,6 +318,33 @@ done
 
     tags = {'namespace': DEFAULT_NAMESPACE, 'batch-worker': '1'}
 
+    vm_resources = []
+
+    if feature_flags['oms_agent']:
+        vm_resources.append(
+            {
+                'apiVersion': '2018-06-01',
+                'type': 'extensions',
+                'name': 'OMSExtension',
+                'location': "[parameters('location')]",
+                'tags': tags,
+                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
+                'properties': {
+                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
+                    'type': 'OmsAgentForLinux',
+                    'typeHandlerVersion': '1.13',
+                    'autoUpgradeMinorVersion': False,
+                    'enableAutomaticUpgrade': False,
+                    'settings': {
+                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
+                    },
+                    'protectedSettings': {
+                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
+                    },
+                },
+            },
+        )
+
     vm_config: Dict[str, Any] = {
         'apiVersion': '2021-03-01',
         'type': 'Microsoft.Compute/virtualMachines',
@@ -369,29 +397,7 @@ done
             },
             'userData': "[parameters('userData')]",
         },
-        'resources': [
-            {
-                'apiVersion': '2018-06-01',
-                'type': 'extensions',
-                'name': 'OMSExtension',
-                'location': "[parameters('location')]",
-                'tags': tags,
-                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
-                'properties': {
-                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
-                    'type': 'OmsAgentForLinux',
-                    'typeHandlerVersion': '1.13',
-                    'autoUpgradeMinorVersion': False,
-                    'enableAutomaticUpgrade': False,
-                    'settings': {
-                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
-                    },
-                    'protectedSettings': {
-                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
-                    },
-                },
-            },
-        ],
+        'resources': vm_resources,
     }
 
     properties = vm_config['properties']
