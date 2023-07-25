@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import List, Optional, Tuple
 
@@ -68,6 +69,8 @@ class AzureResourceManager(CloudResourceManager):
     async def get_vm_state(self, instance: Instance) -> VMState:
         try:
             spec = await self.compute_client.get(f'/virtualMachines/{instance.name}/instanceView')
+
+            log.info(json.dumps(spec["statuses"]))
 
             # https://docs.microsoft.com/en-us/azure/virtual-machines/states-billing
             for status in spec['statuses']:
