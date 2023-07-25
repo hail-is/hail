@@ -4,9 +4,9 @@
 Advanced Search Help
 ====================
 
-Queries consist of one statement per line where all statements are evaluated with ``AND``
-operators. A statement can either be one of an exact match expression, partial match
-expression, keyword expression, or a predefined keyword expression that is enumerated below.
+A query has one statement per line. A statement is one of the expressions (exact match,
+partial match, keyword, or predefined keyword) listed below. When the query is run, each
+statement will be joined to the next with the ``AND`` operator.
 
 Exact Match Expression
 ----------------------
@@ -161,14 +161,14 @@ Combining Multiple Statements
     cost > 5.00
     user = johndoe
 
-**Example:** Search for failed batches where the batch name contains pca
+**Example:** Searching for failed batches where the batch name contains pca
 
 .. code-block::
 
     state = failed
     name =~ pca
 
-**Example:** Search for jobs within a given range of ids
+**Example:** Searching for jobs within a given range of ids
 
 .. code-block::
 
