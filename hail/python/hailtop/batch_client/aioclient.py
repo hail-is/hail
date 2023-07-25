@@ -1,3 +1,5 @@
+import time
+
 from typing import Optional, Dict, Any, List, Tuple, Union
 import math
 import random
@@ -13,13 +15,20 @@ from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
-from hailtop.utils import bounded_gather
+from hailtop.utils import bounded_gather, sleep_and_backoff
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
+
+
+class WaitJobStatus:
+    def __init__(self, status: dict, prev_completed: bool = False, timed_out: bool = False):
+        self.status = status
+        self.prev_completed = prev_completed
+        self.timed_out = timed_out
 
 
 class Job:
@@ -220,6 +229,9 @@ class Job:
     async def wait(self):
         return await self._job.wait()
 
+    async def _wait_for_states(self, *states: str, timeout: Optional[float] = None) -> WaitJobStatus:
+        return await self._job._wait_for_states(*states, timeout=timeout)
+
     async def container_log(self, container_name: str):
         return await self._job.container_log(container_name)
 
@@ -275,6 +287,9 @@ class UnsubmittedJob:
     async def wait(self):
         raise ValueError("cannot wait on an unsubmitted job")
 
+    async def _wait_for_states(self, *states: str, timeout: Optional[float] = None) -> WaitJobStatus:
+        raise ValueError("cannot _wait_for_states on an unsubmitted job")
+
     async def container_log(self, container_name: str):
         raise ValueError("cannot get the log of an unsubmitted job")
 
@@ -321,15 +336,21 @@ class SubmittedJob:
         return self._status
 
     async def wait(self):
-        i = 0
+        wait_status = await self._wait_for_states(*complete_states)
+        return wait_status.status
+
+    async def _wait_for_states(self, *states: str, timeout: Optional[float] = None) -> WaitJobStatus:
+        delay = 0.1
+        start = time.time()
         while True:
+            now = time.time()
+            if now - start > timeout:
+                return WaitJobStatus(self._status, timed_out=True)
+            if await self._is_job_in_state(states):
+                return WaitJobStatus(self._status)
             if await self.is_complete():
-                return self._status
-            j = random.randrange(math.floor(1.1 ** i))
-            await asyncio.sleep(0.100 * j)
-            # max 44.5s
-            if i < 64:
-                i = i + 1
+                return WaitJobStatus(self._status, prev_completed=True)
+            delay = await sleep_and_backoff(delay)
 
     async def container_log(self, container_name: str) -> bytes:
         async with await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}') as resp:
