@@ -70,7 +70,7 @@ class AzureResourceManager(CloudResourceManager):
         try:
             spec = await self.compute_client.get(f'/virtualMachines/{instance.name}/instanceView')
 
-            log.info(json.dumps(spec["statuses"]))
+            log.info(f'get_vm_state {instance.name} {json.dumps(spec)}')
 
             # https://docs.microsoft.com/en-us/azure/virtual-machines/states-billing
             for status in spec['statuses']:
