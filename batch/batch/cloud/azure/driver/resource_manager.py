@@ -40,21 +40,21 @@ def parse_azure_timestamp(timestamp: Optional[str]) -> Optional[int]:
 class AzureResourceManager(CloudResourceManager):
     def __init__(
         self,
+        app,
         subscription_id: str,
         resource_group: str,
         ssh_public_key: str,
         arm_client: aioazure.AzureResourceManagerClient,  # BORROWED
         compute_client: aioazure.AzureComputeClient,  # BORROWED
         billing_manager: AzureBillingManager,
-        feature_flags: dict,
     ):
+        self.app = app
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.ssh_public_key = ssh_public_key
         self.arm_client = arm_client
         self.compute_client = compute_client
         self.billing_manager = billing_manager
-        self.feature_flags = feature_flags
 
     async def get_spot_billing_price(self, machine_type: str, location: str) -> Optional[float]:
         return await self.billing_manager.get_spot_billing_price(machine_type, location)
@@ -179,7 +179,7 @@ class AzureResourceManager(CloudResourceManager):
             self.ssh_public_key,
             max_price,
             instance_config,
-            self.feature_flags,
+            self.app['feature_flags'],
         )
 
         memory_mib = azure_worker_memory_per_core_mib(worker_type) * cores
