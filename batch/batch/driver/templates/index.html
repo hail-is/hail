@@ -35,6 +35,12 @@
              name="compact_billing_tables"
              {% if feature_flags['compact_billing_tables'] %}checked{% endif %}
       value="true" />
+      <label for="oms_agent">oms_agent: </label>
+      <input type="checkbox"
+             id="oms_agent"
+             name="oms_agent"
+             {% if feature_flags['oms_agent'] %}checked{% endif %}
+      value="true" />
       <div>
         <button>Update</button>
       </div>

@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS `globals` (
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `feature_flags` (
-  `compact_billing_tables` BOOLEAN NOT NULL
+  `compact_billing_tables` BOOLEAN NOT NULL,
+  `oms_agent` BOOLEAN NOT NULL DEFAULT TRUE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `resources` (

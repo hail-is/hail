@@ -569,12 +569,13 @@ async def configure_feature_flags(request, userdata):  # pylint: disable=unused-
     post = await request.post()
 
     compact_billing_tables = 'compact_billing_tables' in post
+    oms_agent = 'oms_agent' in post
 
     await db.execute_update(
         '''
-UPDATE feature_flags SET compact_billing_tables = %s;
+UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
 ''',
-        (compact_billing_tables,),
+        (compact_billing_tables, oms_agent),
     )
 
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')

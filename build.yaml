@@ -2304,6 +2304,9 @@ steps:
       - name: add-feature-flags
         script: /io/sql/add-feature-flags.sql
         online: true
+      - name: add-oms-agent-flag
+        script: /io/sql/add-oms-agent-flag.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
