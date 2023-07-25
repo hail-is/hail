@@ -580,6 +580,8 @@ UPDATE feature_flags SET compact_billing_tables = %s;
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
     app['feature_flags'] = row
 
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
 
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
