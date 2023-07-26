@@ -1172,11 +1172,6 @@ VALUES (%s, %s, %s);
 
     await write_and_insert()
 
-    def foo(x):
-        return x
-
-    foo()
-
     return web.Response()
 
 
