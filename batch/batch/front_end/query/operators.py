@@ -1,5 +1,5 @@
-from typing import Set, ClassVar
 import abc
+from typing import ClassVar, Set
 
 from ...exceptions import QueryError
 
