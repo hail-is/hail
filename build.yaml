@@ -2307,6 +2307,9 @@ steps:
       - name: add-oms-agent-flag
         script: /io/sql/add-oms-agent-flag.sql
         online: true
+      - name: increase-test-max-idle-time
+        script: /io/sql/increase_test_max_idle_time.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
