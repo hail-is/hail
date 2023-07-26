@@ -2,12 +2,14 @@ import importlib
 import os
 
 import aiohttp
+from aiohttp import web
 import aiohttp_jinja2
 import aiohttp_session
 import jinja2
 import sass
+from typing import Optional
 
-from gear import new_csrf_token
+from gear import UserData, new_csrf_token
 from hailtop.config import get_deploy_config
 
 deploy_config = get_deploy_config()
@@ -74,7 +76,7 @@ def base_context(session, userdata, service):
     return context
 
 
-async def render_template(service, request, userdata, file, page_context):
+async def render_template(service: str, request: web.Request, userdata: Optional[UserData], file: str, page_context):
     if '_csrf' in request.cookies:
         csrf_token = request.cookies['_csrf']
     else:

@@ -7,7 +7,7 @@ import re
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -33,6 +33,7 @@ from gear import (
     setup_aiohttp_session,
     transaction,
 )
+from gear.auth import AiohttpHandler
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
@@ -71,6 +72,7 @@ from ..utils import (
 )
 from .canceller import Canceller
 from .driver import CloudDriver
+from .instance import Instance
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
 
@@ -107,7 +109,7 @@ def instance_token(request):
     return request.headers.get('X-Hail-Instance-Token') or authorization_token(request)
 
 
-def activating_instances_only(fun):
+def activating_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.StreamResponse]]) -> AiohttpHandler:
     @wraps(fun)
     async def wrapped(request):
         instance = instance_from_request(request)
@@ -133,14 +135,12 @@ def activating_instances_only(fun):
             log.info(f'instance {instance.name}, activation token not found in database')
             raise web.HTTPUnauthorized()
 
-        resp = await fun(request, instance)
-
-        return resp
+        return await fun(request, instance)
 
     return wrapped
 
 
-def active_instances_only(fun):
+def active_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.StreamResponse]]) -> AiohttpHandler:
     @wraps(fun)
     async def wrapped(request):
         instance = instance_from_request(request)
@@ -172,13 +172,13 @@ def active_instances_only(fun):
 
 
 @routes.get('/healthcheck')
-async def get_healthcheck(request):  # pylint: disable=W0613
+async def get_healthcheck(_):
     return web.Response()
 
 
 @routes.get('/check_invariants')
 @auth.rest_authenticated_developers_only
-async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
+async def get_check_invariants(request, _):
     db: Database = request.app['db']
     incremental_result, resource_agg_result = await asyncio.gather(
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
@@ -265,14 +265,14 @@ async def activate_instance_1(request, instance):
 # deprecated
 @routes.get('/api/v1alpha/instances/gsa_key')
 @activating_instances_only
-async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
+async def get_gsa_key(_, instance):
     return await asyncio.shield(get_gsa_key_1(instance))
 
 
 # deprecated
 @routes.get('/api/v1alpha/instances/credentials')
 @activating_instances_only
-async def get_credentials(request, instance):  # pylint: disable=unused-argument
+async def get_credentials(_, instance):
     return await asyncio.shield(get_credentials_1(instance))
 
 
@@ -292,7 +292,7 @@ async def deactivate_instance_1(instance):
 @routes.post('/api/v1alpha/instances/deactivate')
 @active_instances_only
 @add_metadata_to_request
-async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
+async def deactivate_instance(_, instance):
     await asyncio.shield(deactivate_instance_1(instance))
     return web.Response()
 
@@ -300,7 +300,7 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 @routes.post('/instances/{instance_name}/kill')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def kill_instance(request, userdata):  # pylint: disable=unused-argument
+async def kill_instance(request, _):
     instance_name = request.match_info['instance_name']
 
     inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
@@ -563,7 +563,7 @@ def validate_int(session, name, value, predicate, description):
 @routes.post('/configure-feature-flags')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def configure_feature_flags(request, userdata):  # pylint: disable=unused-argument
+async def configure_feature_flags(request: web.Request, _):
     app = request.app
     db: Database = app['db']
     post = await request.post()
@@ -586,7 +586,7 @@ UPDATE feature_flags SET compact_billing_tables = %s;
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
+async def pool_config_update(request: web.Request, _):
     app = request.app
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -759,7 +759,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             job_queue_scheduling_window_secs=job_queue_scheduling_window_secs,
         )
 
-        current_client_pool_config = json.loads(post['_pool_config_json'])
+        current_client_pool_config = json.loads(str(post['_pool_config_json']))
         current_server_pool_config = pool.config()
 
         client_items = current_client_pool_config.items()
@@ -792,7 +792,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 @routes.post('/config-update/jpim')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
+async def job_private_config_update(request: web.Request, _):
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
@@ -937,7 +937,7 @@ async def get_job_private_inst_manager(request, userdata):
 @routes.post('/freeze')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
+async def freeze_batch(request: web.Request, _):
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
@@ -962,7 +962,7 @@ UPDATE globals SET frozen = 1;
 @routes.post('/unfreeze')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
+async def unfreeze_batch(request: web.Request, _):
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)

@@ -2,7 +2,7 @@ import asyncio
 import logging
 import urllib.parse
 from functools import wraps
-from typing import Optional, Tuple
+from typing import Awaitable, Callable, Optional, Tuple, TypedDict
 
 import aiohttp
 import aiohttp_session
@@ -23,10 +23,22 @@ BEARER = 'Bearer '
 TEN_SECONDS_IN_NANOSECONDS = int(1e10)
 
 
+class UserData(TypedDict):
+    username: str
+    is_developer: bool
+    is_service_account: bool
+    hail_credentials_secret_name: str
+    tokens_secret_name: str
+    session_id: str
+
+
 def maybe_parse_bearer_header(value: str) -> Optional[str]:
     if value.startswith(BEARER):
         return value[len(BEARER) :]
     return None
+
+
+AiohttpHandler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 
 
 class AuthClient:
@@ -35,35 +47,39 @@ class AuthClient:
             self._load_userdata, TEN_SECONDS_IN_NANOSECONDS, 100, 'session_userdata_cache'
         )
 
-    def rest_authenticated_users_only(self, fun):
-        async def wrapped(request, *args, **kwargs):
+    def rest_authenticated_users_only(
+        self, fun: Callable[[web.Request, UserData], Awaitable[web.StreamResponse]]
+    ) -> AiohttpHandler:
+        async def wrapped(request: web.Request):
             userdata = await self._userdata_from_rest_request(request)
             if not userdata:
                 web_userdata = await self._userdata_from_web_request(request)
                 if web_userdata:
                     return web.HTTPUnauthorized(reason="provided web auth to REST endpoint")
                 raise web.HTTPUnauthorized()
-            return await fun(request, userdata, *args, **kwargs)
+            return await fun(request, userdata)
 
         return wrapped
 
     def web_authenticated_users_only(self, redirect=True):
-        def wrap(fun):
+        def wrap(fun: Callable[[web.Request, UserData], Awaitable[web.StreamResponse]]):
             @wraps(fun)
-            async def wrapped(request, *args, **kwargs):
+            async def wrapped(request: web.Request):
                 userdata = await self._userdata_from_web_request(request)
                 if not userdata:
                     rest_userdata = await self._userdata_from_rest_request(request)
                     if rest_userdata:
                         return web.HTTPUnauthorized(reason="provided REST auth to web endpoint")
                     raise _web_unauthenticated(request, redirect)
-                return await fun(request, userdata, *args, **kwargs)
+                return await fun(request, userdata)
 
             return wrapped
 
         return wrap
 
-    def web_maybe_authenticated_user(self, fun):
+    def web_maybe_authenticated_user(
+        self, fun: Callable[[web.Request, Optional[UserData]], Awaitable[web.StreamResponse]]
+    ) -> AiohttpHandler:
         @wraps(fun)
         async def wrapped(request, *args, **kwargs):
             return await fun(request, await self._userdata_from_web_request(request), *args, **kwargs)
@@ -100,7 +116,7 @@ class AuthClient:
 
         return await self._userdata_cache.lookup((session['session_id'], request.app['client_session']))
 
-    async def _userdata_from_rest_request(self, request):
+    async def _userdata_from_rest_request(self, request) -> Optional[UserData]:
         if 'Authorization' not in request.headers:
             return None
         auth_header = request.headers['Authorization']
