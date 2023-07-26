@@ -115,8 +115,8 @@ class Job:
     def wait(self):
         return async_to_blocking(self._async_job.wait())
 
-    def _wait_for_states(self, *states: str, timeout: Optional[float] = None) -> aioclient.WaitJobStatus:
-        return async_to_blocking(self._async_job._wait_for_states(*states, timeout=timeout))
+    def _wait_for_states(self, *states: str):
+        return async_to_blocking(self._async_job._wait_for_states(*states))
 
     def container_log(self, container_name):
         return async_to_blocking(self._async_job.container_log(container_name))

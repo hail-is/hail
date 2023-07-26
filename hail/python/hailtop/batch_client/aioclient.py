@@ -24,13 +24,6 @@ from .globals import tasks, complete_states
 log = logging.getLogger('batch_client.aioclient')
 
 
-class WaitJobStatus:
-    def __init__(self, status: dict, prev_completed: bool = False, timed_out: bool = False):
-        self.status = status
-        self.prev_completed = prev_completed
-        self.timed_out = timed_out
-
-
 class Job:
     @staticmethod
     def _get_error(job_status, task):
@@ -229,8 +222,8 @@ class Job:
     async def wait(self):
         return await self._job.wait()
 
-    async def _wait_for_states(self, *states: str, timeout: Optional[float] = None) -> WaitJobStatus:
-        return await self._job._wait_for_states(*states, timeout=timeout)
+    async def _wait_for_states(self, *states: str):
+        return await self._job._wait_for_states(*states)
 
     async def container_log(self, container_name: str):
         return await self._job.container_log(container_name)
@@ -287,7 +280,7 @@ class UnsubmittedJob:
     async def wait(self):
         raise ValueError("cannot wait on an unsubmitted job")
 
-    async def _wait_for_states(self, *states: str, timeout: Optional[float] = None) -> WaitJobStatus:
+    async def _wait_for_states(self, *states: str):
         raise ValueError("cannot _wait_for_states on an unsubmitted job")
 
     async def container_log(self, container_name: str):
@@ -339,17 +332,11 @@ class SubmittedJob:
         wait_status = await self._wait_for_states(*complete_states)
         return wait_status.status
 
-    async def _wait_for_states(self, *states: str, timeout: Optional[float] = None) -> WaitJobStatus:
+    async def _wait_for_states(self, *states: str):
         delay = 0.1
-        start = time.time()
         while True:
-            now = time.time()
-            if now - start > timeout:
-                return WaitJobStatus(self._status, timed_out=True)
-            if await self._is_job_in_state(states):
-                return WaitJobStatus(self._status)
-            if await self.is_complete():
-                return WaitJobStatus(self._status, prev_completed=True)
+            if await self._is_job_in_state(states) or await self.is_complete():
+                return self._status
             delay = await sleep_and_backoff(delay)
 
     async def container_log(self, container_name: str) -> bytes:
