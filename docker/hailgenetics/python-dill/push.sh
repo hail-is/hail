@@ -8,7 +8,7 @@ do
 
     DOCKER_BUILDKIT=1 docker build \
         --build-arg PYTHON_VERSION=$version \
-        --file Dockerfile.out \
+        --file Dockerfile \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --tag ${public} \
         .
