@@ -380,7 +380,7 @@ class LocalBackend(Backend[None]):
 
 
 class ServiceBackend(Backend[bc.Batch]):
-    ANY_REGION = ClassVar[['any_region']]
+    ANY_REGION: ClassVar[List[str]] = ['any_region']
 
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
