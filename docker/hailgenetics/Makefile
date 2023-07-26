@@ -1,6 +1,6 @@
 include ../../config.mk
 
-.PHONY: publish-python-dill
+.PHONY: publish-python-dill mirror-dockerhub-images
 
 publish-python-dill:
 	DOCKER_PREFIX=$(DOCKER_PREFIX) bash python-dill/push.sh
