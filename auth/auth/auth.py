@@ -162,7 +162,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
             ),
         )
 
-    await _insert()  # pylint: disable=no-value-for-parameter
+    await _insert()
     return True
 
 
@@ -696,7 +696,7 @@ WHERE copy_paste_tokens.id = %s
         await tx.just_execute("DELETE FROM copy_paste_tokens WHERE id = %s;", copy_paste_token)
         return session
 
-    session = await maybe_pop_token()  # pylint: disable=no-value-for-parameter
+    session = await maybe_pop_token()
     return json_response({'token': session['session_id'], 'username': session['username']})
 
 

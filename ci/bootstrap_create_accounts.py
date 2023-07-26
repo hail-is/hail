@@ -62,7 +62,7 @@ async def insert_user_if_not_exists(app, username, login_id, is_developer, is_se
             ),
         )
 
-    return await insert()  # pylint: disable=no-value-for-parameter
+    return await insert()
 
 
 async def main():

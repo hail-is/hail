@@ -1076,7 +1076,7 @@ LOCK IN SHARE MODE;
         if len(failures) > 0:
             raise ValueError(json.dumps(failures))
 
-    await check()  # pylint: disable=no-value-for-parameter
+    await check()
 
 
 async def check_resource_aggregation(db):
@@ -1217,7 +1217,7 @@ LOCK IN SHARE MODE;
             agg_billing_project_resources,
         )
 
-    await check()  # pylint: disable=no-value-for-parameter
+    await check()
 
 
 async def _cancel_batch(app, batch_id):

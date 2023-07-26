@@ -95,7 +95,7 @@ VALUES (%s, %s);
                 ),
             )
 
-        await insert()  # pylint: disable=no-value-for-parameter
+        await insert()
 
         return Instance(
             app,
