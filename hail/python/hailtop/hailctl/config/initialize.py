@@ -14,6 +14,8 @@ from hailtop.aiogoogle import GoogleStorageClient
 from hailtop.utils import CalledProcessError, check_shell, check_shell_output
 from hailtop.fs.router_fs import RouterAsyncFS
 
+from .utils import *
+
 
 def get_domain_namespace() -> (str, str):
     domain = Prompt.ask('What domain is the Hail service running in?', default='hail.is')
@@ -27,6 +29,7 @@ async def get_cloud(client: BatchClient) -> str:
 
 
 async def get_gcp_default_project() -> str:
+
     try:
         project, _ = await check_shell_output("gcloud config list --format 'value(core.project)'")
         project = project.strip().decode('utf-8')
@@ -271,6 +274,36 @@ gcloud artifacts repositories add-iam-policy-binding {repo_name} \
             print(f'stdout: {e.stdout}')
             print(f'stderr: {e.stderr}')
             return
+
+
+async def basic_initialize(overwrite: bool):
+    from hailtop.auth.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
+    from hailtop.config import DeployConfig  # pylint: disable=import-outside-toplevel
+    from ..auth.login import async_login  # pylint: disable=import-outside-toplevel
+
+    domain = Prompt.ask('What domain is the Hail service running in?', default='hail.is')
+    namespace = 'default'
+
+    deploy_config = DeployConfig('external', namespace, domain)
+    deploy_config.dump_to_file()
+
+    already_logged_in = await already_logged_into_service()
+    if not already_logged_in:
+        await async_login(namespace)
+
+    user_info = await async_get_userinfo()
+    hail_identity = user_info['hail_identity']
+    trial_bp_name = user_info['trial_bp_name']
+
+    batch_client = await BatchClient.create(trial_bp_name, deploy_config=deploy_config)
+
+    async with batch_client:
+        cloud = await batch_client.cloud()
+        regions, default_region = get_regions_with_default(batch_client, cloud)
+        region = Prompt.ask('Which region should jobs run in?', default=default_region, choices=regions)
+
+    async with router_fs:
+    billing_project = Prompt.ask('Enter a Batch billing project to use', default=user_info['trial_bp_name'])
 
 
 async def async_initialize():

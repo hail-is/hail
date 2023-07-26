@@ -4,11 +4,11 @@ import os
 from .auth import cli as auth_cli
 from .batch import cli as batch_cli
 from .config import cli as config_cli
+from .config.initialize import initialize
 from .describe import describe
 from .dataproc import cli as dataproc_cli
 from .dev import cli as dev_cli
 from .hdinsight import cli as hdinsight_cli
-from .initialize import initialize
 
 
 app = typer.Typer(
