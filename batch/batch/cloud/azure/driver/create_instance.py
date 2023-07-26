@@ -7,8 +7,9 @@ from typing import Any, Dict, List, Optional
 
 from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
+from hailtop.aiocloud.aioazure import AzureAsyncFS
 
-from ....batch_configuration import DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROOT_IMAGE, INTERNAL_GATEWAY_IP
+from ....batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROOT_IMAGE, INTERNAL_GATEWAY_IP
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
@@ -45,6 +46,13 @@ def create_vm_config(
     _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
 
     region = instance_config.region_for(location)
+
+    fs = file_store.fs
+    assert isinstance(fs, AzureAsyncFS)
+
+    url = fs.parse_url(BATCH_STORAGE_URI)
+    storage_account = url.account
+    storage_container = url.container
 
     if max_price is not None and not preemptible:
         raise ValueError(f'max price given for a nonpreemptible machine {max_price}')
@@ -292,6 +300,9 @@ $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 
 [ $? -eq 0 ] || tail -n 1000 worker.log
+
+az storage azcopy blob upload -c {storage_container} --account-name {storage_account} -s "/run.log" -d "{DEFAULT_NAMESPACE}/{machine_name}/run.log"
+az storage azcopy blob upload -c {storage_container} --account-name {storage_account} -s "/worker.log" -d "{DEFAULT_NAMESPACE}/{machine_name}/worker.log"
 
 while true; do
 az vm delete -g $RESOURCE_GROUP -n $NAME --yes
