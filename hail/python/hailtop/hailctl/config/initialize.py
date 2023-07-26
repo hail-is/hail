@@ -28,22 +28,22 @@ async def get_cloud(client: BatchClient) -> str:
     return cloud
 
 
-async def get_gcp_default_project() -> str:
-
-    try:
-        project, _ = await check_shell_output("gcloud config list --format 'value(core.project)'")
-        project = project.strip().decode('utf-8')
-        if project:
-            use_default_project = Confirm(f'Found default GCP project is {project}. Do you want to use this project?')
-            if not use_default_project:
-                project = Prompt.ask('Enter GCP project to use')
-        else:
-            project = Prompt.ask('Enter GCP project to use')
-    except CalledProcessError:
-        project = Prompt.ask('Enter GCP project to use')
-
-    print(f'Using GCP project {project}')
-    return project
+# async def get_gcp_default_project() -> str:
+#
+#     try:
+#         project, _ = await check_shell_output("gcloud config list --format 'value(core.project)'")
+#         project = project.strip().decode('utf-8')
+#         if project:
+#             use_default_project = Confirm(f'Found default GCP project is {project}. Do you want to use this project?')
+#             if not use_default_project:
+#                 project = Prompt.ask('Enter GCP project to use')
+#         else:
+#             project = Prompt.ask('Enter GCP project to use')
+#     except CalledProcessError:
+#         project = Prompt.ask('Enter GCP project to use')
+#
+#     print(f'Using GCP project {project}')
+#     return project
 
 
 def get_gcp_requester_pays_project(default_gcp_project: str) -> Optional[str]:
@@ -208,13 +208,12 @@ async def get_regions(client: BatchClient, cloud: str) -> Optional[List[str]]:
     return selected_regions
 
 
-async def check_for_gcloud():
-    try:
-        await check_shell("gcloud version")
-    except CalledProcessError:
-        print('gcloud is not installed or on the path. Install gcloud before retrying `hailctl init`.\n'
-              'For directions see https://cloud.google.com/sdk/docs/install')
-        Abort()
+# async def check_for_gcloud() -> bool:
+#     try:
+#         await check_shell("gcloud version")
+#         return True
+#     except Exception:
+#         return False
 
 
 async def check_artifact_registry_existence(gcp_project: str) -> bool:
@@ -299,11 +298,23 @@ async def basic_initialize(overwrite: bool):
 
     async with batch_client:
         cloud = await batch_client.cloud()
-        regions, default_region = get_regions_with_default(batch_client, cloud)
-        region = Prompt.ask('Which region should jobs run in?', default=default_region, choices=regions)
+        if cloud == 'gcp':
+            gcloud_installed = await check_for_gcloud()
+            if not gcloud_installed:
+                print('gcloud is not installed or on the path. Install gcloud before retrying `hailctl init`.\n'
+                      'For directions see https://cloud.google.com/sdk/docs/install')
+                Abort()
 
-    async with router_fs:
-    billing_project = Prompt.ask('Enter a Batch billing project to use', default=user_info['trial_bp_name'])
+            default_project = await get_gcp_default_project()
+            project = Prompt.ask('Which google project should resources be created in?', default=default_project)
+
+            regions, default_region = get_regions_with_default(batch_client, cloud)
+            region = Prompt.ask('Which region should resources be created in?', default=default_region, choices=regions)
+
+            create_remote_tmpdir = Prompt.ask(f'Do you want to create a new remote temporary directory in project {project}?', default=True)
+            if create_remote_tmpdir:
+                async with GoogleStorageClient() as storage_client:
+                    pass
 
 
 async def async_initialize():
