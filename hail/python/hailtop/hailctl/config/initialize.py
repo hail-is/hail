@@ -276,9 +276,13 @@ gcloud artifacts repositories add-iam-policy-binding {repo_name} \
 
 
 async def basic_initialize(overwrite: bool):
+    from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS  # pylint: disable=import-outside-toplevel
     from hailtop.auth.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
     from hailtop.config import DeployConfig  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_user_config_path  # pylint: disable=import-outside-toplevel
+
     from ..auth.login import async_login  # pylint: disable=import-outside-toplevel
+    from ..config.cli import set as set_config, list as list_config
 
     domain = Prompt.ask('What domain is the Hail service running in?', default='hail.is')
     namespace = 'default'
@@ -291,6 +295,7 @@ async def basic_initialize(overwrite: bool):
         await async_login(namespace)
 
     user_info = await async_get_userinfo()
+    username = user_info['username']
     hail_identity = user_info['hail_identity']
     trial_bp_name = user_info['trial_bp_name']
 
@@ -311,10 +316,46 @@ async def basic_initialize(overwrite: bool):
             regions, default_region = get_regions_with_default(batch_client, cloud)
             region = Prompt.ask('Which region should resources be created in?', default=default_region, choices=regions)
 
-            create_remote_tmpdir = Prompt.ask(f'Do you want to create a new remote temporary directory in project {project}?', default=True)
+            maybe_bucket_name = f'hail-batch-{username}'
+
+            create_remote_tmpdir = Prompt.ask(f'Do you want to create a new bucket "{maybe_bucket_name}" in project "{project}"?', default=True)
             if create_remote_tmpdir:
+                retention_days = IntPrompt.ask(f'How many days should files be retained in bucket {maybe_bucket_name}?', default=30)
+                if retention_days <= 0:
+                    print(f'invalid value for retention policy in days {retention_days}')
+
+                bucket_info = BucketInfo(maybe_bucket_name, region, 'region', project, retention_days)
+
                 async with GoogleStorageClient() as storage_client:
-                    pass
+                    await create_gcp_bucket(storage_client, bucket_info)
+                    await grant_service_account_bucket_read_access(storage_client, bucket_info, hail_identity)
+                    await grant_service_account_bucket_write_access(storage_client, bucket_info, hail_identity)
+
+                print(f'Created bucket {maybe_bucket_name} in project {project} with retention policy set to {retention_days} days.')
+                print(f'Also granted service account {hail_identity} read and write access to this bucket.')
+
+                remote_tmpdir = f'{maybe_bucket_name}/batch/tmp'
+            else:
+                remote_tmpdir = Prompt.ask(f'Enter a path to an existing remote temporary directory (ex: gs://my-bucket/batch/tmp)')
+
+                async with GoogleStorageAsyncFS() as fs:
+                    bucket, _ = fs.get_bucket_and_name(remote_tmpdir)
+                    bucket_info = await get_gcp_bucket_information(fs._storage_client, bucket)
+                    if bucket_info.location != region or bucket_info.is_multi_regional():
+                        print(f'WARNING: given remote temporary directory {remote_tmpdir} is not located in {region} or is multi-regional.')
+
+    config_file = get_user_config_path()
+
+    if os.path.isfile(config_file):
+        os.remove(config_file)
+
+    set_config('domain', domain)
+    set_config('batch/billing_project', trial_bp_name)
+    set_config('batch/remote_tmpdir', remote_tmpdir)
+    set_config('batch/regions', region)
+    set_config('batch/backend', 'service')
+    set_config('query/backend', 'batch')
+
 
 
 async def async_initialize():
