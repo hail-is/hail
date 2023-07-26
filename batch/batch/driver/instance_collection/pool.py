@@ -136,7 +136,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.max_new_instances_per_autoscaler_loop = config.max_new_instances_per_autoscaler_loop
         self.autoscaler_loop_period_secs = config.autoscaler_loop_period_secs
         self.standing_worker_max_idle_time_secs = config.standing_worker_max_idle_time_secs
-        self.worker_max_idle_time_secs = config.worker_max_idle_time_secs
+        self.worker_max_idle_time_secs = 120  # config.worker_max_idle_time_secs
         self.job_queue_scheduling_window_secs = config.job_queue_scheduling_window_secs
         self.min_instances = config.min_instances
 
