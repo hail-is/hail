@@ -9,7 +9,7 @@ cachetools==5.3.1
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/pinned-requirements.txt
     #   google-auth
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   -c hail/auth/../gear/pinned-requirements.txt
     #   -c hail/auth/../hail/python/dev/pinned-requirements.txt

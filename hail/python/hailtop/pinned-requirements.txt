@@ -30,16 +30,16 @@ azure-mgmt-storage==20.1.0
     # via -r hail/hail/python/hailtop/requirements.txt
 azure-storage-blob==12.17.0
     # via -r hail/hail/python/hailtop/requirements.txt
-boto3==1.28.7
+boto3==1.28.11
     # via -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.7
+botocore==1.31.11
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
 cachetools==5.3.1
     # via google-auth
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   msrest
     #   requests
@@ -61,7 +61,7 @@ cryptography==41.0.2
     #   azure-storage-blob
     #   msal
     #   pyjwt
-dill==0.3.6
+dill==0.3.7
     # via -r hail/hail/python/hailtop/requirements.txt
 frozenlist==1.4.0
     # via
@@ -106,7 +106,7 @@ jmespath==1.0.1
     #   botocore
 jproperties==2.1.1
     # via -r hail/hail/python/hailtop/requirements.txt
-msal==1.22.0
+msal==1.23.0
     # via
     #   azure-identity
     #   msal-extensions

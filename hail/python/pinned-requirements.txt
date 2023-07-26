@@ -57,11 +57,11 @@ azure-storage-blob==12.17.0
     #   -r hail/hail/python/hailtop/requirements.txt
 bokeh==3.1.1
     # via -r hail/hail/python/requirements.txt
-boto3==1.28.7
+boto3==1.28.11
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.7
+botocore==1.31.11
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -71,7 +71,7 @@ cachetools==5.3.1
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   google-auth
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   msrest
@@ -107,7 +107,7 @@ decorator==4.4.2
     # via -r hail/hail/python/requirements.txt
 deprecated==1.2.14
     # via -r hail/hail/python/requirements.txt
-dill==0.3.6
+dill==0.3.7
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -184,7 +184,7 @@ jproperties==2.1.1
     #   -r hail/hail/python/hailtop/requirements.txt
 markupsafe==2.1.3
     # via jinja2
-msal==1.22.0
+msal==1.23.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   azure-identity

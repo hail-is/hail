@@ -38,7 +38,7 @@ black==22.12.0
     # via -r hail/hail/python/dev/requirements.txt
 bleach==6.0.0
     # via nbconvert
-certifi==2023.5.7
+certifi==2023.7.22
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   requests
@@ -74,7 +74,7 @@ decorator==4.4.2
     #   ipython
 defusedxml==0.7.1
     # via nbconvert
-dill==0.3.6
+dill==0.3.7
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   pylint
@@ -91,9 +91,9 @@ execnet==2.0.2
     # via pytest-xdist
 executing==1.2.0
     # via stack-data
-fastjsonschema==2.17.1
+fastjsonschema==2.18.0
     # via nbformat
-fonttools==4.41.0
+fonttools==4.41.1
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema
@@ -124,7 +124,7 @@ importlib-resources==6.0.0
     #   notebook
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.24.0
+ipykernel==6.25.0
     # via
     #   ipywidgets
     #   jupyter
@@ -205,7 +205,7 @@ jupyterlab==4.0.3
     # via notebook
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-server==2.23.0
+jupyterlab-server==2.24.0
     # via
     #   jupyterlab
     #   notebook
@@ -238,7 +238,7 @@ mypy-extensions==1.0.0
     #   mypy
 nbclient==0.8.0
     # via nbconvert
-nbconvert==7.7.2
+nbconvert==7.7.3
     # via
     #   jupyter
     #   jupyter-server
@@ -336,7 +336,7 @@ pygments==2.15.1
     #   nbconvert
     #   qtconsole
     #   sphinx
-pylint==2.17.4
+pylint==2.17.5
     # via -r hail/hail/python/dev/requirements.txt
 pyparsing==3.0.9
     # via matplotlib
@@ -415,7 +415,7 @@ rpds-py==0.9.2
     # via
     #   jsonschema
     #   referencing
-ruff==0.0.278
+ruff==0.0.280
     # via -r hail/hail/python/dev/requirements.txt
 send2trash==1.8.2
     # via jupyter-server
