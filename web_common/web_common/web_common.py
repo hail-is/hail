@@ -1,13 +1,13 @@
 import importlib
 import os
+from typing import Optional
 
 import aiohttp
-from aiohttp import web
 import aiohttp_jinja2
 import aiohttp_session
 import jinja2
 import sass
-from typing import Optional
+from aiohttp import web
 
 from gear import UserData, new_csrf_token
 from hailtop.config import get_deploy_config
