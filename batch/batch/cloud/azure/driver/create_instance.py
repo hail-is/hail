@@ -301,7 +301,7 @@ python3 -u -m batch.worker.worker >worker.log 2>&1
 
 [ $? -eq 0 ] || tail -n 1000 worker.log
 
-az extension add -n storage-preview
+az extension add -y -n storage-preview
 az storage azcopy blob upload -c {storage_container} --account-name {storage_account} -s "/run.log" -d "{DEFAULT_NAMESPACE}/{machine_name}/run.log"
 az storage azcopy blob upload -c {storage_container} --account-name {storage_account} -s "/worker.log" -d "{DEFAULT_NAMESPACE}/{machine_name}/worker.log"
 
