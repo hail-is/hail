@@ -45,6 +45,9 @@ Released 2023-07-20
   Query-on-Spark to read a VCF which is sorted by locus, with split multi-allelics, in which the
   records sharing a single locus do not appear in the dictionary ordering of their alternate
   alleles.
+- (hail#13264) Fix bug which ignored the `partition_hint` of a Table group-by-and-aggregate.
+- (hail#13239) Fix bug which ignored the `HAIL_BATCH_REGIONS` argument when determining in which
+  regions to schedule jobs when using Query-on-Batch.
 - (hail#13253) Improve `hadoop_ls` and `hfs.ls` to quickly list globbed files in a directory. The
   speed improvement is proportional to the number of files in the directory.
 - (hail#13226) Fix the comparison of an `hl.Struct` to an `hl.struct` or field of type
