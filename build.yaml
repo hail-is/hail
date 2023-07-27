@@ -1404,6 +1404,7 @@ steps:
               --doctest-glob='*.rst' \
               --ignore=$HAIL_LOCATION/docs/conf.py \
               --ignore=$HAIL_LOCATION/docs/doctest_write_data.py \
+              --rootdir $HAIL_LOCATION \
               $HAIL_LOCATION/docs
     inputs:
       - from: /repo/hail/python/hail/docs
