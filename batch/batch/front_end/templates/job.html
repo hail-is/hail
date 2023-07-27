@@ -137,7 +137,14 @@
 {% if 'input' in job_log or 'input' in step_errors %}
 <h3>Input</h3>
 {% if 'input' in job_log %}
-<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/input" download="batch-{{ batch_id }}-{{ job_id }}-input.log"><i class="fa fa-download" aria-hidden="true"></i></a></h4>
+<h4>Log
+    <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/input" download="batch-{{ batch_id }}-{{ job_id }}-input.log">
+        <i class="fa fa-download" aria-hidden="true"></i>
+    </a>
+</h4>
+{% if 'input' in possibly_truncated_logs %}
+<b>To see the full log, click the download button above</b>
+{% endif %}
 <pre>{{ job_log['input'] }}</pre>
 {% endif %}
 {% if 'input' in step_errors and step_errors['input'] is not none %}
@@ -149,7 +156,14 @@
 {% if 'main' in job_log or 'main' in step_errors %}
 <h3>Main</h3>
 {% if 'main' in job_log %}
-<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/main" download="batch-{{ batch_id }}-{{ job_id }}-main.log"><i class="fa fa-download" aria-hidden="true"></i></a></h4>
+<h4>Log
+    <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/main" download="batch-{{ batch_id }}-{{ job_id }}-main.log">
+        <i class="fa fa-download" aria-hidden="true"></i>
+    </a>
+</h4>
+{% if 'main' in possibly_truncated_logs %}
+<b>To see the full log, click the download button above</b>
+{% endif %}
 <pre>{{ job_log['main'] }}</pre>
 {% endif %}
 {% if 'main' in step_errors and step_errors['main'] is not none %}
@@ -161,7 +175,14 @@
 {% if 'output' in job_log or 'output' in step_errors %}
 <h3>Output</h3>
 {% if 'output' in job_log %}
-<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/output" download="batch-{{ batch_id }}-{{ job_id }}-output.log"><i class="fa fa-download" aria-hidden="true"></i></a></h4>
+<h4>Log
+    <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/output" download="batch-{{ batch_id }}-{{ job_id }}-output.log">
+        <i class="fa fa-download" aria-hidden="true"></i>
+    </a>
+</h4>
+{% if 'output' in possibly_truncated_logs %}
+<b>To see the full log, click the download button above</b>
+{% endif %}
 <pre>{{ job_log['output'] }}</pre>
 {% endif %}
 {% if 'output' in step_errors and step_errors['output'] is not none %}
