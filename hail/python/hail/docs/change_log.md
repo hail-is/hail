@@ -41,6 +41,10 @@ Released 2023-07-20
 - (hail#13206) The VDS Combiner now works in Query-on-Batch.
 
 ### Bug Fixes
+- (hail#13313) Fix bug introduced in 0.2.119 which causes a serialization error when using
+  Query-on-Spark to read a VCF which is sorted by locus, with split multi-allelics, in which the
+  records sharing a single locus do not appear in the dictionary ordering of their alternate
+  alleles.
 - (hail#13253) Improve `hadoop_ls` and `hfs.ls` to quickly list globbed files in a directory. The
   speed improvement is proportional to the number of files in the directory.
 - (hail#13226) Fix the comparison of an `hl.Struct` to an `hl.struct` or field of type
