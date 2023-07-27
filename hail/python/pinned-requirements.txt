@@ -231,7 +231,7 @@ pandas==2.0.2
     #   bokeh
 parsimonious==0.10.0
     # via -r hail/hail/python/requirements.txt
-pillow==9.5.0
+pillow==10.0.0
     # via bokeh
 plotly==5.15.0
     # via -r hail/hail/python/requirements.txt
