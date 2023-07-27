@@ -46,10 +46,11 @@ class RotationState(Enum):
 
 
 class GSAKeySecret:
-    def __init__(self, raw_secret):
+    def __init__(self, raw_secret, key_file_name: str):
         self.name = raw_secret.metadata.name
         self.namespace = raw_secret.metadata.namespace
-        self.key_data = json.loads(base64.b64decode(raw_secret.data['key.json']))
+        self.key_data = json.loads(base64.b64decode(raw_secret.data[key_file_name]))
+        self.key_file_name = key_file_name
 
     def service_account_email(self):
         return self.key_data['client_email']
@@ -60,6 +61,9 @@ class GSAKeySecret:
     def matches_iam_key(self, k: 'IAMKey'):
         return self.private_key_id() == k.id
 
+    def to_data_dict(self, key_data: str) -> Dict[str, str]:
+        return {self.key_file_name: key_data}
+
     def __str__(self):
         return f'{self.name} ({self.namespace})'
 
@@ -67,10 +71,6 @@ class GSAKeySecret:
 class KubeSecretManager:
     def __init__(self, kube_client):
         self.kube_client = kube_client
-
-    async def get_gsa_key_secrets(self) -> List[GSAKeySecret]:
-        secrets = (await retry_transient_errors(self.kube_client.list_secret_for_all_namespaces)).items
-        return [GSAKeySecret(s) for s in secrets if s.data is not None and 'key.json' in s.data]
 
     async def get_secrets(self) -> Tuple[Any, List[GSAKeySecret]]:
         secrets = (await retry_transient_errors(self.kube_client.list_secret_for_all_namespaces)).items
@@ -86,14 +86,20 @@ class KubeSecretManager:
                 and not s.metadata.namespace == 'kube-system'
                 and not s.type == 'kubernetes.io/service-account-token'
             ],
-            [GSAKeySecret(s) for s in secrets if s.data is not None and 'key.json' in s.data],
+            [GSAKeySecret(s, 'key.json') for s in secrets if s.data is not None and 'key.json' in s.data]
+            + [
+                GSAKeySecret(s, 'test-dataproc-service-account-key.json')
+                for s in secrets
+                if s.metadata.name == 'test-dataproc-service-account-key'
+            ]
+            + [GSAKeySecret(s, 'credentials.json') for s in secrets if s.metadata.name == 'registry-push-credentials'],
         )
 
     async def update_gsa_key_secret(self, secret: GSAKeySecret, key_data: str) -> GSAKeySecret:
-        data = {'key.json': key_data}
+        data = secret.to_data_dict(key_data)
         await self.update_secret(secret.name, secret.namespace, data)
         print(f'Updated secret {secret}')
-        return GSAKeySecret(await self.get_secret(secret.name, secret.namespace))
+        return GSAKeySecret(await self.get_secret(secret.name, secret.namespace), secret.key_file_name)
 
     async def update_secret(self, name, namespace, data):
         await retry_transient_errors(
@@ -129,7 +135,7 @@ class IAMKey:
         return self.older_than(60)
 
     def recently_created(self) -> bool:
-        return not self.older_than(30)
+        return not self.older_than(5)
 
     def older_than(self, days: int) -> bool:
         return self.created < datetime.now(pytz.utc) - timedelta(days=days)
@@ -263,7 +269,7 @@ class IAMManager:
 
     async def get_sa_keys(self, sa_email: str) -> List[IAMKey]:
         keys_json = (await self.iam_client.get(f'/serviceAccounts/{sa_email}/keys'))['keys']
-        keys = [IAMKey(k) for k in keys_json]
+        keys = [IAMKey(k) for k in keys_json if k['keyType'] != 'SYSTEM_MANAGED']
         keys.sort(key=lambda k: k.created)
         keys.reverse()
         return keys
