@@ -31,23 +31,15 @@ async def get_gcp_default_project() -> Optional[str]:
         return None
 
 
-async def get_regions_with_default(batch_client, cloud: str) -> Tuple[List[str], Optional[str]]:
-    supported_regions = await batch_client.supported_regions()
-
+def get_default_region(supported_regions: List[str], cloud: str) -> Optional[str]:
     if cloud == 'gcp':
         if 'us-central1' in supported_regions:
-            default = 'us-central1'
-        else:
-            default = None
+            return 'us-central1'
     elif cloud == 'azure':
         if 'eastus' in supported_regions:
-            default = 'eastus'
-        else:
-            default = None
-    else:
-        default = None
+            return 'eastus'
 
-    return (supported_regions, default)
+    return None
 
 
 class BucketInfo:
@@ -82,11 +74,12 @@ async def get_gcp_bucket_information(storage_client, bucket: str) -> Optional[Bu
 
 async def create_gcp_bucket(storage_client, bucket_info: BucketInfo):
     body = {
+        'name': bucket_info.name,
         'location': bucket_info.location,
         'locationType': bucket_info.location_type,
-        'lifecycle': {'rule': [{'action': {'type': 'Delete', 'condition': {'age': bucket_info.retention_policy_days}}}]}
+        'lifecycle': {'rule': [{'action': {'type': 'Delete'}, 'condition': {'age': bucket_info.retention_policy_days}}]}
     }
-    await storage_client.insert_bucket(bucket_info.name, bucket_info.project, body=body)
+    await storage_client.insert_bucket(bucket_info.project, body=body)
 
 
 async def check_service_account_has_bucket_read_access(storage_client, bucket_info: BucketInfo, service_account: str) -> bool:

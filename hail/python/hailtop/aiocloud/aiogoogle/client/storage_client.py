@@ -315,8 +315,8 @@ class GoogleStorageClient(GoogleBaseClient):
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
 
-    async def insert_bucket(self, bucket: str, project: str, body: dict, *args, **kwargs):
-        await self.post('/b', data={'name': bucket}, params={'project': project}, body=body)
+    async def insert_bucket(self, project: str, body: dict):
+        await self.post('/b', params={'project': project}, json=body)
 
     async def get_bucket(self, bucket: str):
         return await self.get(f'/b/{bucket}')
