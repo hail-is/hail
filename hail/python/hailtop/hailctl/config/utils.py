@@ -26,9 +26,7 @@ async def get_gcp_default_project() -> Optional[str]:
     try:
         project, _ = await check_shell_output("gcloud config list --format 'value(core.project)'")
         project = project.strip().decode('utf-8')
-        if project:
-            return project
-        return None
+        return project
     except Exception:
         return None
 
@@ -82,22 +80,7 @@ async def get_gcp_bucket_information(storage_client, bucket: str) -> Optional[Bu
         raise
 
 
-async def create_gcp_bucket(storage_client, bucket: str):
-    from hailtop.utils import check_shell  # pylint: disable=import-outside-toplevel
-
-    {
-        "rule":
-            [
-                {
-                    "action": {"type": "Delete"},
-                    "condition": {"age": 365}
-                }
-            ]
-    }
-    await check_shell(f"gcloud storage buckets add-iam-policy-binding gs://{bucket} \
-    --member={service_account_member} \
-    --role=roles/storage.objectViewer")
-
+async def create_gcp_bucket(storage_client, bucket_info: BucketInfo):
     body = {
         'location': bucket_info.location,
         'locationType': bucket_info.location_type,
@@ -106,17 +89,51 @@ async def create_gcp_bucket(storage_client, bucket: str):
     await storage_client.insert_bucket(bucket_info.name, bucket_info.project, body=body)
 
 
-async def grant_service_account_bucket_read_access(bucket: str, service_account: str):
-    from hailtop.utils import check_shell  # pylint: disable=import-outside-toplevel
+async def check_service_account_has_bucket_read_access(storage_client, bucket_info: BucketInfo, service_account: str) -> bool:
     service_account_member = f'serviceAccount:{service_account}'
-    await check_shell(f"gcloud storage buckets add-iam-policy-binding gs://{bucket} \
-    --member={service_account_member} \
-    --role=roles/storage.objectViewer", echo=True)
+    read_roles = (
+        'roles/storage.legacyBucketOwner',
+        'roles/storage.legacyBucketReader',
+        'roles/storage.objectAdmin',
+        'roles/storage.objectViewer',
+    )
+
+    iam_policy = await storage_client.get_bucket_iam_policy(bucket_info.name)
+    bindings = iam_policy['bindings']
+    for binding in bindings:
+        role = binding['role']
+        if role in read_roles:
+            if service_account_member in binding['members']:
+                return True
+
+    return False
 
 
-async def grant_service_account_bucket_write_access(bucket: str, service_account: str):
-    from hailtop.utils import check_shell  # pylint: disable=import-outside-toplevel
+async def grant_service_account_bucket_read_access(storage_client, bucket_info: BucketInfo, service_account: str):
     service_account_member = f'serviceAccount:{service_account}'
-    await check_shell(f"gcloud storage buckets add-iam-policy-binding gs://{bucket} \
-    --member={service_account_member} \
-    --role=roles/storage.objectCreator", echo=True)
+    await storage_client.grant_bucket_read_access(bucket_info.name, service_account_member)
+
+
+async def check_service_account_has_bucket_write_access(storage_client, bucket_info: BucketInfo, service_account: str) -> bool:
+    service_account_member = f'serviceAccount:{service_account}'
+    write_roles = (
+        'roles/storage.legacyBucketOwner',
+        'roles/storage.legacyBucketWriter',
+        'roles/storage.objectAdmin',
+        'roles/storage.objectCreator',
+    )
+
+    iam_policy = await storage_client.get_bucket_iam_policy(bucket_info.name)
+    bindings = iam_policy['bindings']
+    for binding in bindings:
+        role = binding['role']
+        if role in write_roles:
+            if service_account_member in binding['members']:
+                return True
+
+    return False
+
+
+async def grant_service_account_bucket_write_access(storage_client, bucket_info: BucketInfo, service_account: str):
+    service_account_member = f'serviceAccount:{service_account}'
+    await storage_client.grant_bucket_write_access(bucket_info.name, service_account_member)
