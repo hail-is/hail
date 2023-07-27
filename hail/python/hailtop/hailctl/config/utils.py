@@ -103,7 +103,7 @@ async def create_gcp_bucket(storage_client, bucket_info: BucketInfo):
     await storage_client.insert_bucket(bucket_info.name, bucket_info.project, body=body)
 
 
-async def grant_service_account_bucket_read_access(storage_client, bucket_info: BucketInfo, service_account: str):
+async def check_service_account_has_bucket_read_access(storage_client, bucket_info: BucketInfo, service_account: str) -> bool:
     service_account_member = f'serviceAccount:{service_account}'
     read_roles = (
         'roles/storage.legacyBucketOwner',
@@ -118,12 +118,17 @@ async def grant_service_account_bucket_read_access(storage_client, bucket_info: 
         role = binding['role']
         if role in read_roles:
             if service_account_member in binding['members']:
-                return
+                return True
 
+    return False
+
+
+async def grant_service_account_bucket_read_access(storage_client, bucket_info: BucketInfo, service_account: str):
+    service_account_member = f'serviceAccount:{service_account}'
     await storage_client.grant_bucket_read_access(bucket_info.name, service_account_member)
 
 
-async def grant_service_account_bucket_write_access(storage_client, bucket_info: BucketInfo, service_account: str):
+async def check_service_account_has_bucket_write_access(storage_client, bucket_info: BucketInfo, service_account: str) -> bool:
     service_account_member = f'serviceAccount:{service_account}'
     write_roles = (
         'roles/storage.legacyBucketOwner',
@@ -138,8 +143,11 @@ async def grant_service_account_bucket_write_access(storage_client, bucket_info:
         role = binding['role']
         if role in write_roles:
             if service_account_member in binding['members']:
-                return
+                return True
 
+    return False
+
+
+async def grant_service_account_bucket_write_access(storage_client, bucket_info: BucketInfo, service_account: str):
+    service_account_member = f'serviceAccount:{service_account}'
     await storage_client.grant_bucket_write_access(bucket_info.name, service_account_member)
-
-
