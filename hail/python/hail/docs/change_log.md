@@ -33,6 +33,28 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.120
+
+Released 2023-07-20
+
+### New Features
+- (hail#13206) The VDS Combiner now works in Query-on-Batch.
+
+### Bug Fixes
+- (hail#13313) Fix bug introduced in 0.2.119 which causes a serialization error when using
+  Query-on-Spark to read a VCF which is sorted by locus, with split multi-allelics, in which the
+  records sharing a single locus do not appear in the dictionary ordering of their alternate
+  alleles.
+- (hail#13264) Fix bug which ignored the `partition_hint` of a Table group-by-and-aggregate.
+- (hail#13239) Fix bug which ignored the `HAIL_BATCH_REGIONS` argument when determining in which
+  regions to schedule jobs when using Query-on-Batch.
+- (hail#13253) Improve `hadoop_ls` and `hfs.ls` to quickly list globbed files in a directory. The
+  speed improvement is proportional to the number of files in the directory.
+- (hail#13226) Fix the comparison of an `hl.Struct` to an `hl.struct` or field of type
+  `tstruct`. Resolves (hail#13045) and (Hail#13046).
+- (hail#12995) Fixed bug causing poor performance and memory leaks for `MatrixTable.annotate_rows`
+  aggregations.
+
 ## Version 0.2.119
 
 Released 2023-06-28
