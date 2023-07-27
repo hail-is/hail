@@ -120,7 +120,7 @@ async def async_describe(
         j = orjson.loads(decompress(await fs.read(path.join(file, 'metadata.json.gz')), 16 + MAX_WBITS))
 
         # Get the file schema
-        file_schema = parse_schema(j[[k for k in j.keys() if k.endswith('type')][0]])
+        file_schema = parse_schema(j[next(k for k in j.keys() if k.endswith('type'))])
 
         # Print file information
         print(SECTION_SEPARATOR)
