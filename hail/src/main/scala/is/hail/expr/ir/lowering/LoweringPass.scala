@@ -10,7 +10,7 @@ final case class IrMetadata(semhash: Option[SemanticHash.Type]) {
   private[this] var hashCounter: Int = 0
   def nextHash: Option[SemanticHash.Type] = {
     hashCounter += 1
-    semhash.map(_ <> SemanticHash.Type(hashCounter))
+    semhash.map(SemanticHash.extend(_, SemanticHash.Bytes.fromInt(hashCounter)))
   }
 
 }

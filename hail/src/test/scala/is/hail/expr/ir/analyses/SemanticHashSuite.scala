@@ -1,6 +1,6 @@
 package is.hail.expr.ir.analyses
 
-import is.hail.HailContext
+import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.io.fs.{FS, FakeFS, FileStatus}
@@ -10,13 +10,12 @@ import is.hail.types.TableType
 import is.hail.types.virtual._
 import is.hail.utils.using
 import org.json4s.JValue
-import org.scalatest.Assertions.assertResult
 import org.testng.annotations.{DataProvider, Test}
 
 import java.lang
 import scala.util.control.NonFatal
 
-class SemanticHashSuite {
+class SemanticHashSuite extends HailSuite {
 
   def isTriviallySemanticallyEquivalent: Array[Array[Any]] =
     Array(

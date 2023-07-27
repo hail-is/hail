@@ -7,20 +7,20 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.{Logging, TreeTraversal}
+import is.hail.utils.{Logging, toRichBoolean}
 import org.apache.commons.codec.digest.MurmurHash3
-import org.apache.spark.unsafe.types.ByteArray
-import sun.jvm.hotspot.runtime.Bytes
 
 import java.nio.ByteBuffer
-import scala.collection.mutable.ArrayBuffer
-import scala.compat.Platform
 
 case object SemanticHash extends Logging {
   type Type = Int
   type NullableType = Integer
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
+  def extend(x: Type, bytes: Array[Byte], len: Option[Int] = None): Type =
+    MurmurHash3.hash32x86(bytes, 0, len.fold(bytes.length)(identity), x)
+
+
   def apply(ctx: ExecuteContext)(root: BaseIR): Option[Type] =
     ctx.timer.time("SemanticHash") {
       val normalized = ctx.timer.time("NormalizeNames") {
@@ -29,18 +29,18 @@ case object SemanticHash extends Logging {
 
       val semhash = ctx.timer.time("Hash") {
         encode(ctx.fs, normalized).map { bytestream =>
-
           val buffSize = 256 * 4
           val buff = Array.ofDim[Byte](buffSize)
 
           val it = bytestream.iterator
           var hash = MurmurHash3.DEFAULT_SEED
           while (it.hasNext) {
-            val k = 0
+            var k = 0
             while (it.hasNext && k < buffSize) {
-             buff(k) = it.next()
+              buff(k) = it.next()
+              k += 1
             }
-            hash = MurmurHash3.hash32x86(buff, 0, k, hash)
+            hash = extend(hash, buff, Some(k))
           }
           hash
         }
@@ -51,322 +51,343 @@ case object SemanticHash extends Logging {
     }
 
   private def encode(fs: FS, root: BaseIR): Option[Stream[Byte]] =
-    Some(
-      TreeTraversal
-        .levelOrder((_: BaseIR, children: Iterable[BaseIR]) => children.map(c => (c, c.children) )(root)
-        .foldLeft(Stream.empty[Byte]) { case (bstream, ir) =>
-        (bstream += ir.getClass.getName.getBytes) += (ir match {
-        case a: AggExplode =>
-           a.getClass.getName.getBytes +
+    Some {
+      IRTraversal.levelOrder(root).toStream.flatMap { ir =>
+        val buffer = Array.newBuilder[Byte] ++= Bytes.fromClass(ir.getClass)
 
-        case a: AggFilter =>
-          Type(a.isScan)
+        ir match {
+          case a: AggExplode =>
+            buffer += a.isScan.toByte
 
-        case a: AggFold =>
-          Type(a.isScan)
+          case a: AggFilter =>
+            buffer += a.isScan.toByte
 
-        case a: AggGroupBy =>
-          Type(a.isScan)
+          case a: AggFold =>
+            buffer += a.isScan.toByte
 
-        case a: AggLet =>
-          Type(a.isScan)
+          case a: AggGroupBy =>
+            buffer += a.isScan.toByte
 
-        case a: AggArrayPerElement =>
-          Type(a.isScan)
+          case a: AggLet =>
+            buffer += a.isScan.toByte
 
-        case Apply(fname, _, _, _, _) =>
-          Type(fname)
+          case a: AggArrayPerElement =>
+            buffer += a.isScan.toByte
 
-        case ApplyAggOp(_, _, AggSignature(op, _, _)) =>
-          Type(op.getClass)
+          case Apply(fname, _, _, _, _) =>
+            buffer ++= fname.getBytes()
 
-        case ApplyBinaryPrimOp(op, _, _) =>
-          Type(op.getClass)
+          case ApplyAggOp(_, _, AggSignature(op, _, _)) =>
+            buffer ++= Bytes.fromClass(op.getClass)
 
-        case ApplyComparisonOp(op, _, _) =>
-          Type(op.getClass)
+          case ApplyBinaryPrimOp(op, _, _) =>
+            buffer ++= Bytes.fromClass(op.getClass)
 
-        case ApplyIR(fname, _, _, _) =>
-          Type(fname)
+          case ApplyComparisonOp(op, _, _) =>
+            buffer ++= Bytes.fromClass(op.getClass)
 
-        case ApplySeeded(fname, _, _, _, _) =>
-          Type(fname)
+          case ApplyIR(fname, _, _, _) =>
+            buffer ++= fname.getBytes()
 
-        case ApplySpecial(fname, _, _, _, _) =>
-          Type(fname)
+          case ApplySeeded(fname, _, _, _, _) =>
+            buffer ++= fname.getBytes()
 
-        case ApplyUnaryPrimOp(op, _) =>
-          Type(op.getClass)
+          case ApplySpecial(fname, _, _, _, _) =>
+            buffer ++= fname.getBytes()
 
-        case BlockMatrixToTableApply(_, _, function) =>
-          function match {
-            case PCRelate(maf, blockSize, kinship, stats) =>
-              Type(classOf[PCRelate]) <> Type(maf) <> Type(blockSize) <> Type(kinship) <> Type(stats)
-          }
+          case ApplyUnaryPrimOp(op, _) =>
+            buffer ++= Bytes.fromClass(op.getClass)
 
-        case BlockMatrixRead(reader) =>
-          Type(reader.getClass) <> (reader match {
-            case _: BlockMatrixNativeReader =>
-              reader.pathsUsed
-                .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
-                .map(g => getFileHash(fs)(g.getPath))
-                .reduce(_ <> _)
+          case BlockMatrixToTableApply(_, _, function) =>
+            function match {
+              case PCRelate(maf, blockSize, kinship, stats) =>
+                buffer ++=
+                  Bytes.fromClass(classOf[PCRelate]) ++=
+                  Bytes.fromDouble(maf) ++=
+                  Bytes.fromInt(blockSize) ++=
+                  kinship.fold(Array.empty[Byte])(Bytes.fromDouble) ++=
+                  Bytes.fromInt(stats)
+            }
 
-            case BlockMatrixBinaryReader(path, _, _) =>
-              getFileHash(fs)(path)
+          case BlockMatrixRead(reader) =>
+            buffer ++= Bytes.fromClass(reader.getClass)
+            reader match {
+              case _: BlockMatrixNativeReader =>
+                reader
+                  .pathsUsed
+                  .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+                  .foreach(g => buffer ++= getFileHash(fs)(g.getPath))
 
-            case _ =>
-              log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
-              return None
-          })
+              case BlockMatrixBinaryReader(path, _, _) =>
+                buffer ++= getFileHash(fs)(path)
+
+              case _ =>
+                log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
+                return None
+            }
+
+          case Cast(_, typ) =>
+            buffer ++= SemanticTypeName(typ)
+
+          case EncodedLiteral(_, bytes) =>
+            bytes.ba.foreach(buffer ++= _)
+
+          case GetField(struct, name) =>
+            buffer ++= Bytes.fromInt(struct.typ.asInstanceOf[TStruct].fieldIdx(name))
+
+          case GetTupleElement(_, idx) =>
+            buffer ++= Bytes.fromInt(idx)
+
+          case Literal(typ, value) =>
+            buffer ++= typ.toJSON(value).toString.getBytes
+
+          case MakeTuple(fields) =>
+            fields.foreach { case (index, _) => buffer ++= Bytes.fromInt(index) }
+
+          case MatrixRead(_, _, _, reader) =>
+            buffer ++= Bytes.fromClass(reader.getClass)
+            reader match {
+              case MatrixRangeReader(params, nPartitionsAdj) =>
+                buffer ++=
+                  Bytes.fromInt(params.nRows) ++=
+                  Bytes.fromInt(params.nCols) ++=
+                  params.nPartitions.fold(Array.empty[Byte])(Bytes.fromInt) ++=
+                  Bytes.fromInt(nPartitionsAdj)
 
 
-        case Cast(_, typ) =>
-          Type(SemanticTypeName(typ))
+              case _: MatrixNativeReader =>
+                reader
+                  .pathsUsed
+                  .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+                  .foreach(g => buffer ++= getFileHash(fs)(g.getPath))
 
-        case EncodedLiteral(_, bytes) =>
-          bytes.ba.foldLeft(Type.init)(_ <> Type(_))
+              case _: MatrixVCFReader =>
+                reader.pathsUsed.foreach(buffer ++= getFileHash(fs)(_))
 
-        case GetField(struct, name) =>
-          Type(struct.typ.asInstanceOf[TStruct].fieldIdx(name))
+              case _ =>
+                log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
+                return None
+            }
 
-        case GetTupleElement(_, idx) =>
-          Type(idx)
+          case MatrixWrite(_, writer) =>
+            buffer ++= writer.path.getBytes()
 
-        case Literal(typ, value) =>
-          Type(typ.toJSON(value))
+          case NDArrayReindex(_, indices) =>
+            indices.foreach(buffer ++= Bytes.fromInt(_))
 
-        case MakeTuple(fields) =>
-          fields.foldLeft(Type.init)({ case (hash, (index, _)) => hash <> Type(index) })
+          case Ref(name, _) =>
+            buffer ++= name.getBytes
 
-        case MatrixRead(_, _, _, reader) =>
-          Type(reader.getClass) <> (reader match {
-            case MatrixRangeReader(params, nPartitionsAdj) =>
-              Type(params.nRows) <> Type(params.nCols) <> params.nPartitions.foldLeft(Type(nPartitionsAdj))(_ <> Type(_))
+          case RelationalRef(name, _) =>
+            buffer ++= name.getBytes()
 
-            case _: MatrixNativeReader =>
-              reader
-                .pathsUsed
-                .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
-                .map(g => getFileHash(fs)(g.getPath))
-                .reduce(_ <> _)
+          case SelectFields(struct, names) =>
+            val getFieldIndex = struct.typ.asInstanceOf[TStruct].fieldIdx
+            names.map(getFieldIndex).foreach(buffer ++= Bytes.fromInt(_))
 
-            case _: MatrixVCFReader =>
-              reader.pathsUsed.map(getFileHash(fs)).reduce(_ <> _)
+          case StreamZip(_, _, _, behaviour, _) =>
+            buffer ++= Bytes.fromInt(behaviour.id)
 
-            case _ =>
-              log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
-              return None
-          })
+          case TableKeyBy(table, keys, _) =>
+            val getFieldIndex = table.typ.rowType.fieldIdx
+            keys.map(getFieldIndex).foreach(buffer ++= Bytes.fromInt(_))
 
-        case MatrixWrite(_, writer) =>
-          Type(writer.path)
+          case TableJoin(_, _, joinop, key) =>
+            buffer ++= joinop.getBytes ++= Bytes.fromInt(key)
 
-        case NDArrayReindex(_, indices) =>
-          indices.foldLeft(Type(classOf[NDArrayReindex]))(_ <> Type(_))
+          case TableParallelize(_, nPartitions) =>
+            nPartitions.foreach(buffer ++= Bytes.fromInt(_))
 
-        case ReadPartition(_, _, reader) =>
-          Type(reader.toJValue)
+          case TableRange(count, numPartitions) =>
+            buffer ++= Bytes.fromInt(count) ++= Bytes.fromInt(numPartitions)
 
-        case Ref(name, _) =>
-          Type(name)
+          case TableRead(_, dropRows, reader) =>
+            buffer += dropRows.toByte ++= Bytes.fromClass(reader.getClass)
 
-        case RelationalRef(name, _) =>
-          Type(name)
+            reader match {
+              case StringTableReader(_, fileStatuses) =>
+                fileStatuses.foreach(s => buffer ++= getFileHash(fs)(s.getPath))
 
-        case SelectFields(struct, names) =>
-          val getFieldIndex = struct.typ.asInstanceOf[TStruct].fieldIdx
-          names.map(getFieldIndex).foldLeft(Type.init)(_ <> Type(_))
+              case reader@(_: TableNativeReader | _: TableNativeZippedReader) =>
+                reader
+                  .pathsUsed
+                  .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
+                  .foreach(g => buffer ++= getFileHash(fs)(g.getPath))
 
-        case StreamZip(_, _, _, behaviour, _) =>
-          Type(behaviour)
+              case _ =>
+                log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
+                return None
+            }
 
-        case TableKeyBy(table, keys, _) =>
-          val getFieldIndex = table.typ.rowType.fieldIdx
-          keys.map(getFieldIndex).foldLeft(Type.init)(_ <> Type(_))
+          case TableToValueApply(_, op) =>
+            buffer ++= Bytes.fromClass(op.getClass)
+            op match {
+              case TableCalculateNewPartitions(nPartitions) =>
+                buffer ++= Bytes.fromInt(nPartitions)
 
-        case TableJoin(_, _, joinop, key) =>
-          Type(joinop) <> Type(key)
+              case WrappedMatrixToValueFunction(op, _, _, _) =>
+                op match {
+                  case _: ForceCountMatrixTable | _: NPartitionsMatrixTable =>
+                    buffer ++= Bytes.fromClass(op.getClass)
 
-        case TableParallelize(_, nPartitions) =>
-          nPartitions.foldLeft(Type.init)(_ <> Type(_))
-
-        case TableRange(count, numPartitions) =>
-          Type(count) <> Type(numPartitions)
-
-        case TableRead(_, dropRows, reader) =>
-          Type(dropRows) <> Type(reader.getClass) <> (reader match {
-            case StringTableReader(_, fileStatuses) =>
-              fileStatuses.foldLeft(Type(classOf[StringTableReader])) { (h, s) =>
-                h <> getFileHash(fs)(s.getPath)
-              }
-
-            case reader@(_: TableNativeReader | _: TableNativeZippedReader) =>
-              reader.pathsUsed
-                .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
-                .foldLeft(Type(reader.getClass)) { (h, g) =>
-                  h <> getFileHash(fs)(g.getPath)
+                  case _: MatrixExportEntriesByCol =>
+                    log.warn("SemanticHash unknown: MatrixExportEntriesByCol")
+                    return None
                 }
 
-            case _ =>
-              log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
-              return None
-          })
+              case _: ForceCountTable | _: NPartitionsTable =>
+                buffer ++= Bytes.fromClass(op.getClass)
+            }
 
-        case TableToValueApply(_, op) =>
-          op match {
-            case TableCalculateNewPartitions(nPartitions) =>
-              Type(classOf[TableCalculateNewPartitions]) <> Type(nPartitions)
+          case TableWrite(_, writer) =>
+            buffer ++= writer.path.getBytes
 
-            case WrappedMatrixToValueFunction(op, _, _, _) =>
-              Type(classOf[WrappedMatrixToValueFunction]) <> (op match {
-                case _: ForceCountMatrixTable | _: NPartitionsMatrixTable =>
-                  Type(op.getClass)
 
-                case _: MatrixExportEntriesByCol =>
-                  log.warn("SemanticHash unknown: MatrixExportEntriesByCol")
-                  return None
-              })
+          // The following are parameterized entirely by the operation's input and the operation itself
+          case _: ArrayLen |
+               _: ArrayRef |
+               _: ArraySlice |
+               _: ArraySort |
+               _: ArrayZeros |
+               _: Begin |
+               _: BlockMatrixCollect |
+               _: CastToArray |
+               _: Coalesce |
+               _: CollectDistributedArray |
+               _: ConsoleLog |
+               _: Consume |
+               _: Die |
+               _: GroupByKey |
+               _: If |
+               _: InsertFields |
+               _: IsNA |
+               _: Let |
+               _: LiftMeOut |
+               _: MakeArray |
+               _: MakeNDArray |
+               _: MakeStream |
+               _: MakeStruct |
+               _: MatrixAggregate |
+               _: MatrixColsTable |
+               _: MatrixCount |
+               _: MatrixMapGlobals |
+               _: MatrixLiteral |
+               _: MatrixMapRows |
+               _: MatrixFilterRows |
+               _: MatrixMapCols |
+               _: MatrixFilterCols |
+               _: MatrixMapEntries |
+               _: MatrixFilterEntries |
+               _: MatrixDistinctByRow |
+               _: NDArrayShape |
+               _: NDArraySlice |
+               _: NDArrayReshape |
+               _: NDArrayWrite |
+               _: RelationalLet |
+               _: RNGSplit |
+               _: RNGStateLiteral |
+               _: StreamAgg |
+               _: StreamDrop |
+               _: StreamDropWhile |
+               _: StreamFilter |
+               _: StreamFlatMap |
+               _: StreamFold |
+               _: StreamFold2 |
+               _: StreamFor |
+               _: StreamIota |
+               _: StreamLen |
+               _: StreamMap |
+               _: StreamRange |
+               _: StreamTake |
+               _: StreamTakeWhile |
+               _: TableGetGlobals |
+               _: TableAggregate |
+               _: TableCollect |
+               _: TableCount |
+               _: TableDistinct |
+               _: TableFilter |
+               _: TableMapGlobals |
+               _: TableMapRows |
+               _: TableRename |
+               _: ToArray |
+               _: ToDict |
+               _: ToSet |
+               _: ToStream |
+               _: Trap =>
+            ()
 
-            case _: ForceCountTable | _: NPartitionsTable =>
-              Type(op.getClass)
-          }
+          // Discrete values
+          case _: Void | _: True | _: False =>
+            ()
 
-        case TableWrite(_, writer) =>
-          Type(writer.path)
+          // integral constants
+          case I32(x) => buffer ++= Bytes.fromInt(x)
+          case I64(x) => buffer ++= Bytes.fromLong(x)
+          case F32(x) => buffer ++= Bytes.fromFloat(x)
+          case F64(x) => buffer ++= Bytes.fromDouble(x)
+          case NA(typ) => buffer ++= SemanticTypeName(typ)
+          case Str(x) => buffer ++= x.getBytes()
 
-        case WritePartition(_, _, writer) =>
-          Type(writer.toJValue)
+          // In these cases, just return None meaning that two
+          // invocations will never return the same thing.
+          case _ =>
+            log.warn(s"SemanticHash unknown: ${ir.getClass.getName}")
+            return None
+        }
 
-        case WriteMetadata(_, writer) =>
-          Type(writer.toJValue)
-
-        case WriteValue(_, _, writer, _) =>
-          Type(writer.toJValue)
-
-        // The following are parameterized entirely by the operation's input and the operation itself
-        case _: ArrayLen |
-             _: ArrayRef |
-             _: ArraySlice |
-             _: ArraySort |
-             _: ArrayZeros |
-             _: Begin |
-             _: BlockMatrixCollect |
-             _: CastToArray |
-             _: Coalesce |
-             _: CollectDistributedArray |
-             _: ConsoleLog |
-             _: Consume |
-             _: Die |
-             _: GroupByKey |
-             _: If |
-             _: InsertFields |
-             _: IsNA |
-             _: Let |
-             _: LiftMeOut |
-             _: MakeArray |
-             _: MakeNDArray |
-             _: MakeStream |
-             _: MakeStruct |
-             _: MatrixAggregate |
-             _: MatrixColsTable |
-             _: MatrixCount |
-             _: MatrixMapGlobals |
-             _: MatrixLiteral |
-             _: MatrixMapRows |
-             _: MatrixFilterRows |
-             _: MatrixMapCols |
-             _: MatrixFilterCols |
-             _: MatrixMapEntries |
-             _: MatrixFilterEntries |
-             _: MatrixDistinctByRow |
-             _: NDArrayShape |
-             _: NDArraySlice |
-             _: NDArrayReshape |
-             _: NDArrayWrite |
-             _: RelationalLet |
-             _: RNGSplit |
-             _: RNGStateLiteral |
-             _: StreamAgg |
-             _: StreamDrop |
-             _: StreamDropWhile |
-             _: StreamFilter |
-             _: StreamFlatMap |
-             _: StreamFold |
-             _: StreamFold2 |
-             _: StreamFor |
-             _: StreamIota |
-             _: StreamLen |
-             _: StreamMap |
-             _: StreamRange |
-             _: StreamTake |
-             _: StreamTakeWhile |
-             _: TableGetGlobals |
-             _: TableAggregate |
-             _: TableCollect |
-             _: TableCount |
-             _: TableDistinct |
-             _: TableFilter |
-             _: TableMapGlobals |
-             _: TableMapRows |
-             _: TableRename |
-             _: ToArray |
-             _: ToDict |
-             _: ToSet |
-             _: ToStream |
-             _: Trap =>
-          Type.init
-
-        // Discrete values
-        case _: Void | _: True | _: False =>
-          Type.init
-
-        // integral constants
-        case I32(x) => Type(x)
-        case I64(x) => Type(x)
-        case F32(x) => Type(x)
-        case F64(x) => Type(x)
-        case NA(typ) => Type(SemanticTypeName(typ))
-        case Str(x) => Type(x)
-
-        // In these cases, just return None meaning that two
-        // invocations will never return the same thing.
-        case _ =>
-          log.warn(s"SemanticHash unknown: ${ir.getClass.getName}")
-          return None
+        buffer.result().toStream
       }
-    })
-
-  def getFileHash(fs: FS)(path: String): Type =
-    fs.eTag(path) match {
-      case Some(etag) => Type(etag)
-      case None =>
-        Type(path) <> Type(fs.fileStatus(path).getModificationTime)
     }
+
+  def getFileHash(fs: FS)(path: String): Array[Byte] =
+    fs.eTag(path) match {
+      case Some(etag) =>
+        etag.getBytes
+      case None =>
+        path.getBytes ++ Bytes.fromLong(fs.fileStatus(path).getModificationTime)
+    }
+
+  object Bytes {
+    def fromInt(x: Int): Array[Byte] =
+      ByteBuffer.allocate(4).putInt(x).array()
+
+    def fromLong(x: Long): Array[Byte] =
+      ByteBuffer.allocate(8).putLong(x).array()
+
+    def fromFloat(x: Float): Array[Byte] =
+      ByteBuffer.allocate(4).putFloat(x).array()
+
+    def fromDouble(x: Double): Array[Byte] =
+      ByteBuffer.allocate(8).putDouble(x).array()
+
+    def fromClass(clz: Class[_]): Array[Byte] =
+      fromInt(clz.hashCode())
+  }
+
 }
 
 case object SemanticTypeName {
-  def apply(t: Type): String = {
-    val sb = StringBuilder.newBuilder
+  def apply(t: Type): Array[Byte] = {
+    val builder = Array.newBuilder[Byte]
 
     def go(typ: Type): Unit = {
-      sb.append(typ.getClass.getSimpleName)
+      builder ++= typ.getClass.getSimpleName.getBytes
       val children = typ.children
       if (children.nonEmpty) {
-        sb.append('[')
+        builder += '['
         go(children.head)
 
         children.tail.foreach { t =>
-          sb.append(',')
+          builder += ','
           go(t)
         }
 
-        sb.append(']')
+        builder += ']'
       }
     }
 
     go(t)
 
-    sb.toString()
+    builder.result()
   }
 }

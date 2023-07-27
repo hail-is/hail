@@ -2503,50 +2503,44 @@ class Emit[C](
           cb.assign(stageName, staticID)
 
           val semhash = cb.newLocal[Integer]("semhash")
-          val nextHash = ctx.executeContext.irMetadata.nextHash
 
           emitI(dynamicID).consume(cb,
-            nextHash.foreach { hash =>
-              cb.assign(semhash,
+            ctx.executeContext.irMetadata.nextHash.foreach { hash =>
+              val boxed =
                 Code.invokeScalaObject[Integer](
                   Int.getClass,
                   "box",
                   Array(classOf[Int]),
-                  Array(hash.toInt)
+                  Array(hash)
                 )
-              )
+
+              cb.assign(semhash, boxed)
             },
             { dynamicID =>
               val dynV = dynamicID.asString.loadString(cb)
               cb.assign(stageName, stageName.concat("|").concat(dynV))
-              nextHash.foreach { staticHash =>
-                val dynamicHash =
-                  Code.invokeScalaObject[SemanticHash.Type](
-                    SemanticHash.Type.getClass,
-                    "apply",
-                    Array(classOf[String]),
-                    Array(dynV)
-                  )
+              ctx.executeContext.irMetadata.nextHash.foreach { staticHash =>
+
+                val dynamicHash: Code[Array[Byte]] =
+                  dynV.invoke("getBytes")
 
                 val combined =
-                  Code.invokeScalaObject[SemanticHash.Type](
-                    SemanticHash.Type.getClass,
-                    "combine",
-                    Array.fill(2)(classOf[SemanticHash.Type]),
+                  Code.invokeScalaObject[Int](
+                    SemanticHash.getClass,
+                    "extend",
+                    Array(classOf[Int], classOf[Array[Byte]]),
                     Array(staticHash, dynamicHash)
                   )
 
-                val asInt =
-                  Code.
-
-                cb.assign(semhash,
+                val boxed =
                   Code.invokeScalaObject[Integer](
                     Int.getClass,
                     "box",
                     Array(classOf[Int]),
                     Array(combined)
                   )
-                )
+
+                cb.assign(semhash, boxed)
               }
             }
           )
