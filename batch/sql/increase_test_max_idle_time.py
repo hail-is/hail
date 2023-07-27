@@ -16,13 +16,6 @@ UPDATE inst_colls
 SET worker_max_idle_time_secs = 120
 ''')
 
-    await db.execute_update(
-        '''
-UPDATE pools
-SET standing_worker_cores = 16, min_instances = 4
-WHERE name = "standard-np" OR name = "standard";
-''')
-
     await db.async_close()
 
 
