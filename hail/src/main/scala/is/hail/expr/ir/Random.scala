@@ -269,6 +269,40 @@ object Threefry {
   }
 }
 
+class PMacHash() {
+  val sum = Array.ofDim[Long](4)
+  var i = 0
+  val buffer = Array.ofDim[Long](4)
+  var curOffset = 0
+
+  def extend(a: IndexedSeq[Long]): PMacHash = {
+    val n = a.length
+    var j = 0
+    while (4 - curOffset < n - j) {
+      Array.copy(a, j, buffer, curOffset, 4 - curOffset)
+      Threefry.encrypt(Threefry.defaultKey, Array(i.toLong, 0L), buffer)
+      sum(0) ^= buffer(0)
+      sum(1) ^= buffer(1)
+      sum(2) ^= buffer(2)
+      sum(3) ^= buffer(3)
+      curOffset = 0
+      j += 4
+      i += 1
+    }
+    Array.copy(a, j, buffer, curOffset, n - j)
+    curOffset = n - j
+    this
+  }
+
+  def hash: Array[Long] = {
+    assert(i == 0 || curOffset > 0)
+    val finalTweak = if (curOffset < 4) Threefry.finalBlockPaddedTweak else Threefry.finalBlockNoPadTweak
+    java.util.Arrays.fill(buffer, curOffset, 4, 0)
+    Threefry.encrypt(Threefry.defaultKey, Array(finalTweak, 0L), buffer)
+    buffer
+  }
+}
+
 object ThreefryRandomEngine {
   def apply(): ThreefryRandomEngine = {
     val key = Threefry.defaultKey
