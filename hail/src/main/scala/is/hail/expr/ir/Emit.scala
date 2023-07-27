@@ -2502,13 +2502,18 @@ class Emit[C](
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[SemanticHash.NullableType]("semhash")
+          val semhash = cb.newLocal[Integer]("semhash")
           val nextHash = ctx.executeContext.irMetadata.nextHash
 
           emitI(dynamicID).consume(cb,
             nextHash.foreach { hash =>
               cb.assign(semhash,
-                Code.newInstance[SemanticHash.NullableType, SemanticHash.Type](hash)
+                Code.invokeScalaObject[Integer](
+                  Int.getClass,
+                  "box",
+                  Array(classOf[Int]),
+                  Array(hash.toInt)
+                )
               )
             },
             { dynamicID =>
@@ -2517,23 +2522,31 @@ class Emit[C](
               nextHash.foreach { staticHash =>
                 val dynamicHash =
                   Code.invokeScalaObject[SemanticHash.Type](
-                    SemanticHash.Hash.getClass,
+                    SemanticHash.Type.getClass,
                     "apply",
                     Array(classOf[String]),
                     Array(dynV)
                   )
 
                 val combined =
-                  Code.newInstance[SemanticHash.NullableType, SemanticHash.Type](
-                    Code.invokeScalaObject[SemanticHash.Type](
-                      SemanticHash.Hash.getClass,
-                      "combine",
-                      Array.fill(2)(classOf[SemanticHash.Type]),
-                      Array(staticHash, dynamicHash)
-                    )
+                  Code.invokeScalaObject[SemanticHash.Type](
+                    SemanticHash.Type.getClass,
+                    "combine",
+                    Array.fill(2)(classOf[SemanticHash.Type]),
+                    Array(staticHash, dynamicHash)
                   )
 
-                cb.assign(semhash, combined)
+                val asInt =
+                  Code.
+
+                cb.assign(semhash,
+                  Code.invokeScalaObject[Integer](
+                    Int.getClass,
+                    "box",
+                    Array(classOf[Int]),
+                    Array(combined)
+                  )
+                )
               }
             }
           )

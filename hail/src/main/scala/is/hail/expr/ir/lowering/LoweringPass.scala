@@ -4,14 +4,13 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.analyses.SemanticHash.MagmaInstanceForSemanticHash
 import is.hail.utils._
 
 final case class IrMetadata(semhash: Option[SemanticHash.Type]) {
   private[this] var hashCounter: Int = 0
   def nextHash: Option[SemanticHash.Type] = {
     hashCounter += 1
-    semhash.map(_ <> SemanticHash.Hash(hashCounter))
+    semhash.map(_ <> SemanticHash.Type(hashCounter))
   }
 
 }

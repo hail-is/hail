@@ -7,45 +7,20 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.Logging
+import is.hail.utils.{Logging, TreeTraversal}
 import org.apache.commons.codec.digest.MurmurHash3
+import org.apache.spark.unsafe.types.ByteArray
+import sun.jvm.hotspot.runtime.Bytes
+
+import java.nio.ByteBuffer
+import scala.collection.mutable.ArrayBuffer
+import scala.compat.Platform
 
 case object SemanticHash extends Logging {
-
   type Type = Int
   type NullableType = Integer
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
-  object Hash {
-    def apply(c: Class[_]): Type =
-      apply(c.getName)
-
-    def apply(a: Any): Type =
-      apply(a.toString)
-
-    def apply(s: String): Type =
-      apply(s.getBytes)
-
-    def apply(x: Long): Type =
-      MurmurHash3.hash32(x)
-
-    def apply(x: Int): Type =
-      MurmurHash3.hash32(x)
-
-    def apply(bytes: Array[Byte]): Type =
-      MurmurHash3.hash32x86(bytes)
-
-    val init: Type =
-      0
-
-    @inline def combine(a: SemanticHash.Type, b: SemanticHash.Type): SemanticHash.Type =
-      MurmurHash3.hash32(a, b, MurmurHash3.DEFAULT_SEED)
-  }
-
-  implicit class MagmaInstanceForSemanticHash(val a: SemanticHash.Type) extends AnyVal {
-    @inline def <>(b: Type): Type = Hash.combine(a, b)
-  }
-
   def apply(ctx: ExecuteContext)(root: BaseIR): Option[Type] =
     ctx.timer.time("SemanticHash") {
       val normalized = ctx.timer.time("NormalizeNames") {
@@ -53,66 +28,84 @@ case object SemanticHash extends Logging {
       }
 
       val semhash = ctx.timer.time("Hash") {
-        go(ctx.fs, normalized)
+        encode(ctx.fs, normalized).map { bytestream =>
+
+          val buffSize = 256 * 4
+          val buff = Array.ofDim[Byte](buffSize)
+
+          val it = bytestream.iterator
+          var hash = MurmurHash3.DEFAULT_SEED
+          while (it.hasNext) {
+            val k = 0
+            while (it.hasNext && k < buffSize) {
+             buff(k) = it.next()
+            }
+            hash = MurmurHash3.hash32x86(buff, 0, k, hash)
+          }
+          hash
+        }
       }
 
       log.info(s"IR Semantic Hash: $semhash")
       semhash
     }
 
-  private def go(fs: FS, root: BaseIR): Option[Type] =
-    Some(IRTraversal.levelOrder(root).foldLeft(Hash.init) { (semhash, ir) =>
-      semhash <> Hash(ir.getClass) <> (ir match {
+  private def encode(fs: FS, root: BaseIR): Option[Stream[Byte]] =
+    Some(
+      TreeTraversal
+        .levelOrder((_: BaseIR, children: Iterable[BaseIR]) => children.map(c => (c, c.children) )(root)
+        .foldLeft(Stream.empty[Byte]) { case (bstream, ir) =>
+        (bstream += ir.getClass.getName.getBytes) += (ir match {
         case a: AggExplode =>
-          Hash(a.isScan)
+           a.getClass.getName.getBytes +
 
         case a: AggFilter =>
-          Hash(a.isScan)
+          Type(a.isScan)
 
         case a: AggFold =>
-          Hash(a.isScan)
+          Type(a.isScan)
 
         case a: AggGroupBy =>
-          Hash(a.isScan)
+          Type(a.isScan)
 
         case a: AggLet =>
-          Hash(a.isScan)
+          Type(a.isScan)
 
         case a: AggArrayPerElement =>
-          Hash(a.isScan)
+          Type(a.isScan)
 
         case Apply(fname, _, _, _, _) =>
-          Hash(fname)
+          Type(fname)
 
         case ApplyAggOp(_, _, AggSignature(op, _, _)) =>
-          Hash(op.getClass)
+          Type(op.getClass)
 
         case ApplyBinaryPrimOp(op, _, _) =>
-          Hash(op.getClass)
+          Type(op.getClass)
 
         case ApplyComparisonOp(op, _, _) =>
-          Hash(op.getClass)
+          Type(op.getClass)
 
         case ApplyIR(fname, _, _, _) =>
-          Hash(fname)
+          Type(fname)
 
         case ApplySeeded(fname, _, _, _, _) =>
-          Hash(fname)
+          Type(fname)
 
         case ApplySpecial(fname, _, _, _, _) =>
-          Hash(fname)
+          Type(fname)
 
         case ApplyUnaryPrimOp(op, _) =>
-          Hash(op.getClass)
+          Type(op.getClass)
 
         case BlockMatrixToTableApply(_, _, function) =>
           function match {
             case PCRelate(maf, blockSize, kinship, stats) =>
-              Hash(classOf[PCRelate]) <> Hash(maf) <> Hash(blockSize) <> Hash(kinship) <> Hash(stats)
+              Type(classOf[PCRelate]) <> Type(maf) <> Type(blockSize) <> Type(kinship) <> Type(stats)
           }
 
         case BlockMatrixRead(reader) =>
-          Hash(reader.getClass) <> (reader match {
+          Type(reader.getClass) <> (reader match {
             case _: BlockMatrixNativeReader =>
               reader.pathsUsed
                 .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
@@ -129,27 +122,27 @@ case object SemanticHash extends Logging {
 
 
         case Cast(_, typ) =>
-          Hash(SemanticTypeName(typ))
+          Type(SemanticTypeName(typ))
 
         case EncodedLiteral(_, bytes) =>
-          bytes.ba.foldLeft(Hash.init)(_ <> Hash(_))
+          bytes.ba.foldLeft(Type.init)(_ <> Type(_))
 
         case GetField(struct, name) =>
-          Hash(struct.typ.asInstanceOf[TStruct].fieldIdx(name))
+          Type(struct.typ.asInstanceOf[TStruct].fieldIdx(name))
 
         case GetTupleElement(_, idx) =>
-          Hash(idx)
+          Type(idx)
 
         case Literal(typ, value) =>
-          Hash(typ.toJSON(value))
+          Type(typ.toJSON(value))
 
         case MakeTuple(fields) =>
-          fields.foldLeft(Hash.init)({ case (hash, (index, _)) => hash <> Hash(index) })
+          fields.foldLeft(Type.init)({ case (hash, (index, _)) => hash <> Type(index) })
 
         case MatrixRead(_, _, _, reader) =>
-          Hash(reader.getClass) <> (reader match {
+          Type(reader.getClass) <> (reader match {
             case MatrixRangeReader(params, nPartitionsAdj) =>
-              Hash(params.nRows) <> Hash(params.nCols) <> params.nPartitions.foldLeft(Hash(nPartitionsAdj))(_ <> Hash(_))
+              Type(params.nRows) <> Type(params.nCols) <> params.nPartitions.foldLeft(Type(nPartitionsAdj))(_ <> Type(_))
 
             case _: MatrixNativeReader =>
               reader
@@ -167,51 +160,51 @@ case object SemanticHash extends Logging {
           })
 
         case MatrixWrite(_, writer) =>
-          Hash(writer.path)
+          Type(writer.path)
 
         case NDArrayReindex(_, indices) =>
-          indices.foldLeft(Hash(classOf[NDArrayReindex]))(_ <> Hash(_))
+          indices.foldLeft(Type(classOf[NDArrayReindex]))(_ <> Type(_))
 
         case ReadPartition(_, _, reader) =>
-          Hash(reader.toJValue)
+          Type(reader.toJValue)
 
         case Ref(name, _) =>
-          Hash(name)
+          Type(name)
 
         case RelationalRef(name, _) =>
-          Hash(name)
+          Type(name)
 
         case SelectFields(struct, names) =>
           val getFieldIndex = struct.typ.asInstanceOf[TStruct].fieldIdx
-          names.map(getFieldIndex).foldLeft(Hash.init)(_ <> Hash(_))
+          names.map(getFieldIndex).foldLeft(Type.init)(_ <> Type(_))
 
         case StreamZip(_, _, _, behaviour, _) =>
-          Hash(behaviour)
+          Type(behaviour)
 
         case TableKeyBy(table, keys, _) =>
           val getFieldIndex = table.typ.rowType.fieldIdx
-          keys.map(getFieldIndex).foldLeft(Hash.init)(_ <> Hash(_))
+          keys.map(getFieldIndex).foldLeft(Type.init)(_ <> Type(_))
 
         case TableJoin(_, _, joinop, key) =>
-          Hash(joinop) <> Hash(key)
+          Type(joinop) <> Type(key)
 
         case TableParallelize(_, nPartitions) =>
-          nPartitions.foldLeft(Hash.init)(_ <> Hash(_))
+          nPartitions.foldLeft(Type.init)(_ <> Type(_))
 
         case TableRange(count, numPartitions) =>
-          Hash(count) <> Hash(numPartitions)
+          Type(count) <> Type(numPartitions)
 
         case TableRead(_, dropRows, reader) =>
-          Hash(dropRows) <> Hash(reader.getClass) <> (reader match {
+          Type(dropRows) <> Type(reader.getClass) <> (reader match {
             case StringTableReader(_, fileStatuses) =>
-              fileStatuses.foldLeft(Hash(classOf[StringTableReader])) { (h, s) =>
+              fileStatuses.foldLeft(Type(classOf[StringTableReader])) { (h, s) =>
                 h <> getFileHash(fs)(s.getPath)
               }
 
             case reader@(_: TableNativeReader | _: TableNativeZippedReader) =>
               reader.pathsUsed
                 .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
-                .foldLeft(Hash(reader.getClass)) { (h, g) =>
+                .foldLeft(Type(reader.getClass)) { (h, g) =>
                   h <> getFileHash(fs)(g.getPath)
                 }
 
@@ -223,12 +216,12 @@ case object SemanticHash extends Logging {
         case TableToValueApply(_, op) =>
           op match {
             case TableCalculateNewPartitions(nPartitions) =>
-              Hash(classOf[TableCalculateNewPartitions]) <> Hash(nPartitions)
+              Type(classOf[TableCalculateNewPartitions]) <> Type(nPartitions)
 
             case WrappedMatrixToValueFunction(op, _, _, _) =>
-              Hash(classOf[WrappedMatrixToValueFunction]) <> (op match {
+              Type(classOf[WrappedMatrixToValueFunction]) <> (op match {
                 case _: ForceCountMatrixTable | _: NPartitionsMatrixTable =>
-                  Hash(op.getClass)
+                  Type(op.getClass)
 
                 case _: MatrixExportEntriesByCol =>
                   log.warn("SemanticHash unknown: MatrixExportEntriesByCol")
@@ -236,20 +229,20 @@ case object SemanticHash extends Logging {
               })
 
             case _: ForceCountTable | _: NPartitionsTable =>
-              Hash(op.getClass)
+              Type(op.getClass)
           }
 
         case TableWrite(_, writer) =>
-          Hash(writer.path)
+          Type(writer.path)
 
         case WritePartition(_, _, writer) =>
-          Hash(writer.toJValue)
+          Type(writer.toJValue)
 
         case WriteMetadata(_, writer) =>
-          Hash(writer.toJValue)
+          Type(writer.toJValue)
 
         case WriteValue(_, _, writer, _) =>
-          Hash(writer.toJValue)
+          Type(writer.toJValue)
 
         // The following are parameterized entirely by the operation's input and the operation itself
         case _: ArrayLen |
@@ -322,33 +315,33 @@ case object SemanticHash extends Logging {
              _: ToSet |
              _: ToStream |
              _: Trap =>
-          Hash.init
+          Type.init
 
         // Discrete values
         case _: Void | _: True | _: False =>
-          Hash.init
+          Type.init
 
         // integral constants
-        case I32(x) => Hash(x)
-        case I64(x) => Hash(x)
-        case F32(x) => Hash(x)
-        case F64(x) => Hash(x)
-        case NA(typ) => Hash(SemanticTypeName(typ))
-        case Str(x) => Hash(x)
+        case I32(x) => Type(x)
+        case I64(x) => Type(x)
+        case F32(x) => Type(x)
+        case F64(x) => Type(x)
+        case NA(typ) => Type(SemanticTypeName(typ))
+        case Str(x) => Type(x)
 
         // In these cases, just return None meaning that two
         // invocations will never return the same thing.
         case _ =>
           log.warn(s"SemanticHash unknown: ${ir.getClass.getName}")
           return None
-      })
+      }
     })
 
   def getFileHash(fs: FS)(path: String): Type =
     fs.eTag(path) match {
-      case Some(etag) => Hash(etag)
+      case Some(etag) => Type(etag)
       case None =>
-        Hash(path) <> Hash(fs.fileStatus(path).getModificationTime)
+        Type(path) <> Type(fs.fileStatus(path).getModificationTime)
     }
 }
 
