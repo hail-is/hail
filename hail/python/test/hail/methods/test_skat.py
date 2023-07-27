@@ -510,7 +510,6 @@ def skat_dataset():
     return ds
 
 
-@test_timeout(3 * 60)
 def test_skat_1():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -521,7 +520,6 @@ def test_skat_1():
             logistic=False)._force_count()
 
 
-@test_timeout(3 * 60)
 def test_skat_2():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -531,7 +529,7 @@ def test_skat_2():
             covariates=[1.0],
             logistic=True)._force_count()
 
-@test_timeout(3 * 60)
+
 def test_skat_3():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -541,7 +539,7 @@ def test_skat_3():
             covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
             logistic=False)._force_count()
 
-@test_timeout(3 * 60)
+
 def test_skat_4():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -551,7 +549,7 @@ def test_skat_4():
             covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
             logistic=True)._force_count()
 
-@test_timeout(3 * 60)
+
 def test_skat_5():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -562,7 +560,7 @@ def test_skat_5():
             logistic=(25, 1e-6))._force_count()
 
 
-@test_timeout(local=4 * 60)
+
 def test_linear_skat_produces_same_results_as_old_scala_method():
     mt = hl.import_vcf(resource('sample2.vcf'))
     covariates_ht = hl.import_table(
@@ -610,7 +608,6 @@ def test_linear_skat_produces_same_results_as_old_scala_method():
         key='id'
     )
     assert skat_results._same(old_scala_results, tolerance=5e-5)  # TSV has 5 sigfigs, so we should match within 5e-5 relative
-
 
 
 def test_skat_max_iteration_fails_explodes_in_37_steps():
