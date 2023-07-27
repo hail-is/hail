@@ -510,7 +510,7 @@ def skat_dataset():
     return ds
 
 
-@test_timeout(3 * 60)
+@test_timeout(local=3 * 60, spark=3 * 60)
 def test_skat_1():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -521,7 +521,7 @@ def test_skat_1():
             logistic=False)._force_count()
 
 
-@test_timeout(3 * 60)
+@test_timeout(local=3 * 60, spark=3 * 60)
 def test_skat_2():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -531,7 +531,7 @@ def test_skat_2():
             covariates=[1.0],
             logistic=True)._force_count()
 
-@test_timeout(3 * 60)
+@test_timeout(local=3 * 60, spark=3 * 60)
 def test_skat_3():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -541,7 +541,7 @@ def test_skat_3():
             covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
             logistic=False)._force_count()
 
-@test_timeout(3 * 60)
+@test_timeout(local=3 * 60, spark=3 * 60)
 def test_skat_4():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
@@ -551,7 +551,7 @@ def test_skat_4():
             covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
             logistic=True)._force_count()
 
-@test_timeout(3 * 60)
+@test_timeout(local=3 * 60, spark=3 * 60)
 def test_skat_5():
     ds = skat_dataset()
     hl.skat(key_expr=ds.gene,
