@@ -220,13 +220,30 @@ object Threefry {
     cb.println(s"[$info]=\n\t", x(0).toString, "  ", x(1).toString, "  ", x(2).toString, "  ", x(3).toString)
   }
 
-  def pmac(nonce: Long, staticID: Long, message: IndexedSeq[Long]): Array[Long] = {
-    val (hash, finalTweak) = pmacHash(nonce, staticID, message)
+  def pmac(sum: Array[Long], message: IndexedSeq[Long]): Array[Long] = {
+    val (hash, finalTweak) = pmacHashFromState(sum, message)
     encrypt(Threefry.defaultKey, Array(finalTweak, 0L), hash)
     hash
   }
 
-  def pmacHash(nonce: Long, staticID: Long, _message: IndexedSeq[Long]): (Array[Long], Long) = {
+  def pmac(nonce: Long, staticID: Long, message: IndexedSeq[Long]): Array[Long] = {
+    val sum = Array(nonce, staticID, 0L, 0L)
+    encrypt(Threefry.defaultKey, Array(Threefry.staticTweak, 0L), sum)
+    pmac(sum, message)
+  }
+
+  def pmac(message: IndexedSeq[Long]): Array[Long] = {
+    val sum = Array.ofDim[Long](4)
+    pmac(sum, message)
+  }
+
+  def pmacHash(nonce: Long, staticID: Long, message: IndexedSeq[Long]): (Array[Long], Long) = {
+    val sum = Array(nonce, staticID, 0L, 0L)
+    encrypt(Threefry.defaultKey, Array(Threefry.staticTweak, 0L), sum)
+    pmacHashFromState(sum, message)
+  }
+
+  def pmacHashFromState(sum: Array[Long], _message: IndexedSeq[Long]): (Array[Long], Long) = {
     val length = _message.length
     val paddedLength = Math.max((length + 3) & (~3), 4)
     val padded = (paddedLength != length)
@@ -234,8 +251,6 @@ object Threefry {
     _message.copyToArray(message)
     if (padded) message(length) = 1L
 
-    val sum = Array(nonce, staticID, 0L, 0L)
-    encrypt(Threefry.defaultKey, Array(Threefry.staticTweak, 0L), sum)
     var i = 0
     while (i + 4 < paddedLength) {
       val x = message.slice(i, i + 4)
