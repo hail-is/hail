@@ -321,30 +321,28 @@ class GoogleStorageClient(GoogleBaseClient):
     async def get_bucket(self, bucket: str):
         return await self.get(f'/b/{bucket}')
 
-    async def get_bucket_iam_policy(self, bucket: str, *args, **kwargs):
-        return cast(Dict[str, str], await self.get(f'/b/{bucket}/iam', **kwargs))
+    async def get_bucket_iam_policy(self, bucket: str, **kwargs):
+        return await self.get(f'/b/{bucket}/iam', **kwargs)
 
     async def grant_bucket_write_access(self, bucket: str, identity: str):
-        data = {
-            'bindings': [
-                {
-                    'members': [identity],
-                    'role': 'roles/storage.objectCreator',
-                }
-            ]
-        }
-        await self.put(f'/b/{bucket}/iam', data=data)
+        existing_policy = await self.get_bucket_iam_policy(bucket)
+        existing_policy['bindings'].append(
+            {
+                'members': [identity],
+                'role': 'roles/storage.objectCreator',
+            }
+        )
+        await self.put(f'/b/{bucket}/iam', json=existing_policy)
 
     async def grant_bucket_read_access(self, bucket: str, identity: str):
-        data = {
-            'bindings': [
-                {
-                    'members': [identity],
-                    'role': 'roles/storage.objectViewer',
-                }
-            ]
-        }
-        await self.put(f'/b/{bucket}/iam', data=data)
+        existing_policy = await self.get_bucket_iam_policy(bucket)
+        existing_policy['bindings'].append(
+            {
+                'members': [identity],
+                'role': 'roles/storage.objectViewer',
+            }
+        )
+        await self.put(f'/b/{bucket}/iam', json=existing_policy)
 
     async def insert_object(self, bucket: str, name: str, **kwargs) -> WritableStream:
         assert name

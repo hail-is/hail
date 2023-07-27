@@ -105,6 +105,11 @@ def get_config_variable(incomplete: str):
             yield (name, help_msg)
 
 
+# @app.command()
+# def set(parameter: str, value: str):
+#     _set(parameter, value)
+
+
 @app.command()
 def unset(parameter: Ann[str, Arg(help="Configuration variable to unset", autocompletion=get_config_variable)]):
     '''Unset a Hail configuration parameter (restore to default behavior).'''

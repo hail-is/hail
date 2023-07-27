@@ -21,11 +21,6 @@ async def check_for_gcloud() -> bool:
         return False
 
 
-async def get_cloud(batch_client) -> str:
-    cloud = await batch_client.cloud()
-    return cloud
-
-
 async def get_gcp_default_project() -> Optional[str]:
     from hailtop.utils import check_shell_output  # pylint: disable=import-outside-toplevel
     try:
@@ -34,15 +29,6 @@ async def get_gcp_default_project() -> Optional[str]:
         return project
     except Exception:
         return None
-
-
-async def check_artifact_registry_existence(gcp_project: str) -> bool:
-    from hailtop.utils import check_shell  # pylint: disable=import-outside-toplevel
-    try:
-        await check_shell(f'gcloud --project {gcp_project} artifacts repositories list')
-        return True
-    except Exception:
-        return False
 
 
 async def get_regions_with_default(batch_client, cloud: str) -> Tuple[List[str], Optional[str]]:
@@ -69,7 +55,7 @@ class BucketInfo:
                  name: str,
                  location: str,
                  location_type: str,
-                 project: str,
+                 project: Optional[str],
                  retention_policy_days: Optional[int] = None):
         self.name = name
         self.location = location
@@ -84,9 +70,9 @@ class BucketInfo:
 async def get_gcp_bucket_information(storage_client, bucket: str) -> Optional[BucketInfo]:
     try:
         bucket_info = await storage_client.get_bucket(bucket)
-        bucket_region = bucket_info['location']
-        bucket_location_type = bucket_info['locationType']
-        project = bucket_info['project']   # FIXME
+        bucket_region = bucket_info['location'].lower()
+        bucket_location_type = bucket_info['locationType'].lower()
+        project = None
         return BucketInfo(bucket, bucket_region, bucket_location_type, project)
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
