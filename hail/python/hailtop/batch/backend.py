@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
+from typing import Optional, Dict, Any, TypeVar, Generic, List, Union, ClassVar
 import sys
 import abc
 import asyncio
@@ -380,7 +380,7 @@ class LocalBackend(Backend[None]):
 
 
 class ServiceBackend(Backend[bc.Batch]):
-    ANY_REGION = ['any_region']
+    ANY_REGION: ClassVar[List[str]] = ['any_region']
 
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 

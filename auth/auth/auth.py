@@ -211,7 +211,7 @@ async def creating_account(request, userdata):
 
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
 
-        if user['state'] == 'deleting' or user['state'] == 'deleted':
+        if user['state'] in ('deleting', 'deleted'):
             return await render_template('auth', request, userdata, 'account-error.html', page_context)
 
         if user['state'] == 'active':

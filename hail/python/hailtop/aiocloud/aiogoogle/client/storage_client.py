@@ -1,6 +1,6 @@
 import os
 from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
-                    List, Coroutine)
+                    List, Coroutine, ClassVar)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -584,7 +584,7 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
-    schemes: Set[str] = {'gs'}
+    schemes: ClassVar[Set[str]] = {'gs'}
 
     def __init__(self, *,
                  storage_client: Optional[GoogleStorageClient] = None,
