@@ -58,11 +58,3 @@ def set_query_name(init_hail, request):
         backend._batch = None
     else:
         yield
-
-
-def pytest_timeout_cancel_timer(item):
-    backend = current_backend()
-    if backend._batch:
-        asyncio.run(backend._batch.cancel())
-        backend._batch = None
-    pytest_timeout.pytest_timeout_cancel_timer(item)
