@@ -18,14 +18,6 @@ from .batch import Batch
 from .backend import ServiceBackend
 
 
-if sys.version_info < (3, 7):
-    def create_task(coro, *, name=None):  # pylint: disable=unused-argument
-        return asyncio.ensure_future(coro)
-else:
-    def create_task(*args, **kwargs):
-        return asyncio.create_task(*args, **kwargs)  # pylint: disable=no-member
-
-
 def cpu_spec_to_float(spec: Union[int, str]) -> float:
     if isinstance(spec, str):
         mcpu = parse_cpu_in_mcpu(spec)
@@ -144,9 +136,8 @@ class BatchPoolExecutor:
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
-        version = sys.version_info
         if image is None:
-            self.image = hailgenetics_python_dill_image_for_current_python_version
+            self.image = hailgenetics_python_dill_image_for_current_python_version()
         else:
             self.image = image
         self.cpus_per_job = cpus_per_job
