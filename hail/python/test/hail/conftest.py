@@ -63,6 +63,6 @@ def set_query_name(init_hail, request):
 def pytest_timeout_cancel_timer(item):
     backend = current_backend()
     if backend._batch:
-        asyncio.get_event_loop().run_until_complete(backend._batch.cancel())
+        asyncio.run(backend._batch.cancel())
         backend._batch = None
     pytest_timeout.pytest_timeout_cancel_timer(item)
