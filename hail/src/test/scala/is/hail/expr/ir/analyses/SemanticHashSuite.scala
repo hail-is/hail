@@ -129,11 +129,28 @@ class SemanticHashSuite extends HailSuite {
       }
     )
 
+  def isHandednessSemanticallyEquivalent: Array[Array[Any]] =
+    Array(
+      Array(
+        MakeArray(
+          MakeArray(MakeArray(I32(0))),
+          MakeArray(I32(0))
+        ),
+        MakeArray(
+          MakeArray(I32(0)),
+          MakeArray(MakeArray(I32(0)))
+        ),
+        false,
+        "Trace contributes to semantics"
+      )
+    )
+
   def isValueIRSemanticallyEquivalent: Array[Array[Any]] =
     Array.concat(
       isTriviallySemanticallyEquivalent,
       isLetSemanticallyEquivalent,
-      isBaseStructSemanticallyEquivalent
+      isBaseStructSemanticallyEquivalent,
+      isHandednessSemanticallyEquivalent
     )
 
   def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {

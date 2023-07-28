@@ -7,10 +7,11 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.{Logging, toRichBoolean}
+import is.hail.utils.{Logging, TreeTraversal, toRichBoolean, toRichVal}
 import org.apache.commons.codec.digest.MurmurHash3
 
 import java.nio.ByteBuffer
+import scala.language.implicitConversions
 
 case object SemanticHash extends Logging {
   type Type = Int
@@ -23,15 +24,31 @@ case object SemanticHash extends Logging {
 
   def apply(ctx: ExecuteContext)(root: BaseIR): Option[Type] =
     ctx.timer.time("SemanticHash") {
+
+      // Running the algorithm on the name-normalised IR
+      // removes sensitivity to compiler-generated names
       val normalized = ctx.timer.time("NormalizeNames") {
         new NormalizeNames(_.toString, allowFreeVariables = true)(root)
       }
 
       val semhash = ctx.timer.time("Hash") {
+
+        // We need to distinguish cases when the flattened IR is identical,
+        // but nodes appear in different branches of the tree.
+        // Encoding the path to the IR node from the root as a product of primes
+        // achieves this.
+        def primes: Stream[Int] =
+          2 #:: (Stream.from(3, 2) & {
+            case x #:: tail => x #:: tail.filter(_ % x != 0)
+          })
+
+        def adj(n: (BaseIR, Int)): Iterator[(BaseIR, Int)] =
+          n._1.children.zipWithIndex.map { case (child, k) => (child, n._2 * primes(k)) }.iterator
+
         def go: Option[Int] = {
           var hash = MurmurHash3.DEFAULT_SEED
-          for (ir <- IRTraversal.levelOrder(normalized)) {
-            encode(ctx.fs, ir) match {
+          for ((ir, trace) <- TreeTraversal.levelOrder(adj)((normalized, primes.head))) {
+            encode(ctx.fs, ir, trace) match {
               case Some(bytes) => hash = extend(hash, bytes)
               case None => return None
             }
@@ -46,8 +63,11 @@ case object SemanticHash extends Logging {
       semhash
     }
 
-  private def encode(fs: FS, ir: BaseIR): Option[Array[Byte]] = {
-    val buffer = Array.newBuilder[Byte] ++= Bytes.fromClass(ir.getClass)
+  private def encode(fs: FS, ir: BaseIR, trace: Int): Option[Array[Byte]] = {
+    val buffer =
+      Array.newBuilder[Byte] ++=
+        Bytes.fromClass(ir.getClass) ++=
+        Bytes.fromInt(trace)
 
     ir match {
       case a: AggExplode =>
