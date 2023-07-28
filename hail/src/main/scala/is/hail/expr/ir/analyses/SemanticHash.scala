@@ -357,7 +357,7 @@ case object SemanticHash extends Logging {
 
     // Streams use memoization under the hood - avoid recomputing
     // TODO use `LazyList` from Scala 2.13
-    val primes: Stream[Long] =
+    val primes: Stream[Int] =
       2 #:: (Stream.from(3, 2) & {
         case x #:: tail => x #:: tail.filter(_ % x != 0)
       })
@@ -367,7 +367,7 @@ case object SemanticHash extends Logging {
         ir.children.zipWithIndex.map { case (child, k) => (child, trace * primes(k)) }.iterator
       }
 
-    TreeTraversal.levelOrder(adj)(root, primes.head)
+    TreeTraversal.levelOrder(adj)((root, primes.head))
   }
 
   object Bytes {
