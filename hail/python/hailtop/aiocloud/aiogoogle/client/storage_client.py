@@ -315,35 +315,6 @@ class GoogleStorageClient(GoogleBaseClient):
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
 
-    async def insert_bucket(self, project: str, body: dict):
-        await self.post('/b', params={'project': project}, json=body)
-
-    async def get_bucket(self, bucket: str):
-        return await self.get(f'/b/{bucket}')
-
-    async def get_bucket_iam_policy(self, bucket: str, **kwargs):
-        return await self.get(f'/b/{bucket}/iam', **kwargs)
-
-    async def grant_bucket_write_access(self, bucket: str, identity: str):
-        existing_policy = await self.get_bucket_iam_policy(bucket)
-        existing_policy['bindings'].append(
-            {
-                'members': [identity],
-                'role': 'roles/storage.objectCreator',
-            }
-        )
-        await self.put(f'/b/{bucket}/iam', json=existing_policy)
-
-    async def grant_bucket_read_access(self, bucket: str, identity: str):
-        existing_policy = await self.get_bucket_iam_policy(bucket)
-        existing_policy['bindings'].append(
-            {
-                'members': [identity],
-                'role': 'roles/storage.objectViewer',
-            }
-        )
-        await self.put(f'/b/{bucket}/iam', json=existing_policy)
-
     async def insert_object(self, bucket: str, name: str, **kwargs) -> WritableStream:
         assert name
         # Insert an object.  See:
