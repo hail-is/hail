@@ -2311,6 +2311,9 @@ steps:
       - name: increase-test-max-idle-time
         script: /io/sql/increase_test_max_idle_time.py
         online: true
+      - name: turn_off_oms_agent_test_dev
+        script: /io/sql/turn_off_oms_agent_test_dev.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2467,7 +2470,7 @@ steps:
       - create_certs
   - kind: runImage
     name: test_hail_python_service_backend
-    numSplits: 32
+    numSplits: 16
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -2520,7 +2523,7 @@ steps:
               --ignore=test/hailtop/ \
               --timeout=600 \
               test
-    timeout: 2700
+    timeout: 5400
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar

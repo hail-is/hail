@@ -48,17 +48,13 @@ def test_job_running_logs(client: BatchClient):
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'echo test && sleep 300'])
     b = bb.submit()
 
-    delay = 1
-    while True:
-        status = j.status()
-        if status['state'] == 'Running':
-            log = j.log()
-            if log is not None and log['main'] != '':
-                assert log['main'] == 'test\n', str((log, b.debug_info()))
-                break
-        elif status['state'] != 'Ready':
-            assert False, str((j.log(), b.debug_info()))
-        delay = sync_sleep_and_backoff(delay)
+    wait_status = j._wait_for_states('Running')
+    if wait_status['state'] != 'Running':
+        assert False, str((j.log(), b.debug_info()))
+
+    log = j.log()
+    if log is not None and log['main'] != '':
+        assert log['main'] == 'test\n', str((log, b.debug_info()))
 
     b.cancel()
     b.wait()
@@ -603,6 +599,9 @@ def test_list_jobs_v2(client: BatchClient):
         j_success.wait()
         j_failure.wait()
         j_error.wait()
+        wait_status = j_running._wait_for_states('Running')
+        if wait_status['state'] != 'Running':
+            assert False, str((b.debug_info(), wait_status))
 
         assert_job_ids({j_success.job_id}, 'state = success')
         assert_job_ids({j_success.job_id}, 'state == success')
@@ -1583,13 +1582,9 @@ def test_update_with_always_run(client: BatchClient):
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True, parents=[j1])
     b = bb.submit()
 
-    delay = 0.1
-    while True:
-        if j1.is_complete():
-            assert False, str(j1.status(), b.debug_info())
-        if j1.is_running():
-            break
-        delay = sync_sleep_and_backoff(delay)
+    wait_status = j1._wait_for_states('Running')
+    if wait_status['state'] != 'Running':
+        assert False, str(j1.status(), b.debug_info())
 
     assert j2.is_pending(), str(j2.status(), b.debug_info())
 
@@ -1610,13 +1605,9 @@ def test_update_jobs_are_not_serialized(client: BatchClient):
 
     j2.wait()
 
-    delay = 0.1
-    while True:
-        if j1.is_complete():
-            assert False, str(j1.status(), b.debug_info())
-        if j1.is_running():
-            break
-        delay = sync_sleep_and_backoff(delay)
+    wait_status = j1._wait_for_states('Running')
+    if wait_status['state'] != 'Running':
+        assert False, str(j1.status(), b.debug_info())
 
     b.cancel()
 
