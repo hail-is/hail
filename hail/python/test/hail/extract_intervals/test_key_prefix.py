@@ -99,3 +99,11 @@ def test_ht_gt(ht, probe_locus):
     expr = ht.filter(ht.locus > probe_locus)
     assert expr.n_partitions() == 6
     assert expr.count() == 100
+
+
+def test_ht_ge_with_bindings(ht, probe_locus):
+    row = ht.row
+    locus = row.locus
+    expr = ht.filter((locus >= probe_locus) & hl.is_defined(locus))
+    assert expr.n_partitions() == 6
+    assert expr.count() == 101
