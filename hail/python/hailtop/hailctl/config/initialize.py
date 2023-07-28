@@ -5,10 +5,11 @@ from typing_extensions import Annotated as Ann
 import typer
 
 from typer import Abort, Exit, Option as Opt
+# from rich import print
 from rich.prompt import Confirm, IntPrompt, Prompt
 
 
-async def setup_existing_remote_tmpdir(expected_region: str, service_account: str, verbose: bool) -> Tuple[Optional[str], bool, bool]:
+async def setup_existing_remote_tmpdir(expected_region: str, service_account: str, verbose: bool) -> Tuple[Optional[str], bool]:
     from hailtop.aiogoogle import GoogleStorageAsyncFS  # pylint: disable=import-outside-toplevel
 
     from .utils import (
@@ -18,7 +19,6 @@ async def setup_existing_remote_tmpdir(expected_region: str, service_account: st
         grant_service_account_bucket_write_access,
     )  # pylint: disable=import-outside-toplevel
 
-    errors = False
     warnings = False
 
     remote_tmpdir = Prompt.ask(f'Enter a path to an existing remote temporary directory (ex: gs://my-bucket/batch/tmp)')
@@ -28,18 +28,20 @@ async def setup_existing_remote_tmpdir(expected_region: str, service_account: st
     try:
         bucket_info = await get_gcp_bucket_information(bucket, verbose)
     except InsufficientPermissions as e:
-        print(e.message)
-        errors = True
-        raise Exit()
+        typer.secho(e.message, fg=typer.colors.RED)
+        raise Abort()
 
     location = bucket_info['location'].lower()
     if location != expected_region or bucket_info['locationType'] != 'region':
-        print(f'WARNING: remote temporary directory {remote_tmpdir} is not located in {expected_region} or is multi-regional. Found {bucket_info.location} with type {bucket_info.location_type}.')
+        typer.secho(f'WARNING: remote temporary directory {remote_tmpdir} is not located in {expected_region} or is multi-regional. '
+                    f'Found {location} with location type {bucket_info["locationType"]}.',
+                    fg=typer.colors.MAGENTA)
         warnings = True
 
     storage_class = bucket_info['storageClass']
     if storage_class.upper() != 'STANDARD':
-        print(f'WARNING: remote temporary directory {remote_tmpdir} does not have storage class "STANDARD". Excess data charges will occur.')
+        typer.secho(f'WARNING: remote temporary directory {remote_tmpdir} does not have storage class "STANDARD". Excess data charges will occur.',
+                    fg=typer.colors.MAGENTA)
         warnings = True
 
     give_access_to_remote_tmpdir = Confirm.ask(
@@ -50,12 +52,12 @@ async def setup_existing_remote_tmpdir(expected_region: str, service_account: st
             await grant_service_account_bucket_read_access(project=None, bucket=bucket, service_account=service_account, verbose=verbose)
             await grant_service_account_bucket_write_access(project=None, bucket=bucket, service_account=service_account, verbose=verbose)
         except InsufficientPermissions as e:
-            print(e.message)
-            errors = True
+            typer.secho(e.message, fg=typer.colors.RED)
+            raise Abort()
         else:
-            print(f'Granted service account {service_account} read and write access to {bucket}.')
+            typer.secho(f'Granted service account {service_account} read and write access to {bucket}.', fg=typer.colors.GREEN)
 
-    return (remote_tmpdir, errors, warnings)
+    return (remote_tmpdir, warnings)
 
 
 async def setup_new_remote_tmpdir(*,
@@ -64,7 +66,7 @@ async def setup_new_remote_tmpdir(*,
                                   project: str,
                                   username: str,
                                   service_account: str,
-                                  verbose: bool) -> Tuple[Optional[str], bool, bool]:
+                                  verbose: bool) -> Tuple[Optional[str], bool]:
     from .utils import (
         InsufficientPermissions,
         create_gcp_bucket,
@@ -72,17 +74,15 @@ async def setup_new_remote_tmpdir(*,
         grant_service_account_bucket_write_access,
     )  # pylint: disable=import-outside-toplevel
 
-    remote_tmpdir = f'{bucket_name}/batch/tmp'
-    errors = False
+    remote_tmpdir = f'gs://{bucket_name}/batch/tmp'
     warnings = False
 
     set_lifecycle = Confirm.ask(f'Do you want to set a lifecycle policy (automatically delete files after a time period) on the bucket {bucket_name}?', default=True)
     if set_lifecycle:
         lifecycle_days = IntPrompt.ask(f'After how many days should files be automatically deleted from bucket {bucket_name}?', default=30)
         if lifecycle_days <= 0:
-            print(f'invalid value for lifecycle rule in days {lifecycle_days}')
-            errors = True
-            return (None, errors, warnings)
+            typer.secho(f'invalid value for lifecycle rule in days {lifecycle_days}', fg=typer.colors.RED)
+            raise Abort()
 
         try:
             labels = {
@@ -98,38 +98,39 @@ async def setup_new_remote_tmpdir(*,
                 labels=labels,
                 verbose=verbose,
             )
-            print(f'Created bucket {bucket_name} in project {project} with lifecycle rule set to {lifecycle_days} days.')
+            typer.secho(f'Created bucket {bucket_name} in project {project} with lifecycle rule set to {lifecycle_days} days.', fg=typer.colors.GREEN)
         except InsufficientPermissions as e:
-            print(e.message)
-            remote_tmpdir = None
-            errors = True
+            typer.secho(e.message, fg=typer.colors.RED)
+            raise Abort()
         else:
             try:
                 await grant_service_account_bucket_read_access(project, bucket_name, service_account, verbose=verbose)
                 await grant_service_account_bucket_write_access(project, bucket_name, service_account, verbose=verbose)
             except InsufficientPermissions as e:
-                print(e.message)
-                errors = True
+                typer.secho(e.message, fg=typer.colors.RED)
+                raise Abort()
             else:
-                print(f'Granted service account {service_account} read and write access to {bucket_name} in project {project}.')
+                typer.secho(f'Granted service account {service_account} read and write access to {bucket_name} in project {project}.',
+                            fg=typer.colors.GREEN)
 
-    return (remote_tmpdir, errors, warnings)
+    return (remote_tmpdir, warnings)
 
 
 async def initialize_gcp(username: str,
                          hail_identity: str,
                          supported_regions: List[str],
                          default_region: str,
-                         verbose: bool) -> Tuple[Optional[str], str, bool, bool]:
+                         verbose: bool) -> Tuple[Optional[str], str, bool]:
     from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
 
     from .utils import check_for_gcloud, get_gcp_default_project, get_default_region  # pylint: disable=import-outside-toplevel
 
     gcloud_installed = await check_for_gcloud()
     if not gcloud_installed:
-        print(f'Have you installed gcloud? For directions see https://cloud.google.com/sdk/docs/install '
-              f'Are you logged into your google account by running `gcloud auth login`?')
-        raise Exit()
+        typer.secho(f'Have you installed gcloud? For directions see https://cloud.google.com/sdk/docs/install '
+                    f'Are you logged into your google account by running `gcloud auth login`?',
+                    fg=typer.colors.RED)
+        raise Abort()
 
     default_project = await get_gcp_default_project(verbose=verbose)
     project = Prompt.ask('Which google project should resources be created in?', default=default_project)
@@ -139,10 +140,10 @@ async def initialize_gcp(username: str,
     token = secret_alnum_string(5).lower()
     maybe_bucket_name = f'hail-batch-{username}-{token}'
 
-    create_remote_tmpdir = Confirm.ask(f'Do you want to create a new bucket "{maybe_bucket_name}" in project "{project}"?',
+    create_remote_tmpdir = Confirm.ask(f'Do you want to create a new bucket "{maybe_bucket_name}" in project "{project}" for temporary files generated by Hail?',
                                        default=True)
     if create_remote_tmpdir:
-        remote_tmpdir, errors, warnings = await setup_new_remote_tmpdir(
+        remote_tmpdir, warnings = await setup_new_remote_tmpdir(
             bucket_name=maybe_bucket_name,
             region=region,
             project=project,
@@ -151,9 +152,9 @@ async def initialize_gcp(username: str,
             verbose=verbose
         )
     else:
-        remote_tmpdir, errors, warnings = await setup_existing_remote_tmpdir(region, hail_identity, verbose)
+        remote_tmpdir, warnings = await setup_existing_remote_tmpdir(region, hail_identity, verbose)
 
-    return (remote_tmpdir, region, errors, warnings)
+    return (remote_tmpdir, region, warnings)
 
 
 async def async_basic_initialize(incremental: bool = False, verbose: bool = False):
@@ -189,18 +190,14 @@ async def async_basic_initialize(incremental: bool = False, verbose: bool = Fals
         default_region = get_default_region(supported_regions, 'gcp')
 
         if cloud == 'gcp':
-            remote_tmpdir, region, errors, warnings = await initialize_gcp(username, hail_identity, supported_regions, default_region, verbose)
+            remote_tmpdir, region, warnings = await initialize_gcp(username, hail_identity, supported_regions, default_region, verbose)
         else:
             region = Prompt.ask('Which region should resources be created in?', default=default_region,
                                 choices=supported_regions)
 
             remote_tmpdir = Prompt.ask(f'Enter a path to an existing remote temporary directory (ex: gs://my-bucket/batch/tmp)')
-            print(f'WARNING: You will need to grant read/write access to {remote_tmpdir} for account {hail_identity}')
-            errors = False
+            typer.secho(f'WARNING: You will need to grant read/write access to {remote_tmpdir} for account {hail_identity}', fg=typer.colors.MAGENTA)
             warnings = True
-
-    if errors:
-        raise Abort()
 
     config_file = get_user_config_path()
 
@@ -220,11 +217,14 @@ async def async_basic_initialize(incremental: bool = False, verbose: bool = Fals
     set_config('batch/backend', 'service')
     set_config('query/backend', 'batch')
 
-    print('FINAL CONFIGURATION:')
+    typer.secho('--------------------', fg=typer.colors.BLUE)
+    typer.secho('FINAL CONFIGURATION:', fg=typer.colors.BLUE)
+    typer.secho('--------------------', fg=typer.colors.BLUE)
     list_config()
 
     if warnings:
-        print('WARNING: Initialized Hail with warnings! The currently specified configuration causes excess costs when using Hail Batch.')
+        typer.secho('WARNING: Initialized Hail with warnings! The currently specified configuration causes excess costs when using Hail Batch.',
+                    fg=typer.colors.MAGENTA)
         raise Exit()
 
 

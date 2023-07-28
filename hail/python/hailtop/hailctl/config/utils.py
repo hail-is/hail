@@ -53,8 +53,8 @@ async def get_gcp_bucket_information(bucket: str, verbose: bool) -> Optional[dic
         return json.loads(info.decode('utf-8'))
     except CalledProcessError as e:
         if 'does not have storage.buckets.get access to the Google Cloud Storage bucket' in e.stderr.decode('utf-8'):
-            msg = f'ERROR: Bucket {bucket} does not exist. If the bucket exists, ask a project administrator ' \
-                  f'to assign you the StorageAdmin role in Google Cloud Storage.'
+            msg = f'ERROR: You do not have sufficient permissions to get information about bucket {bucket} or it does not exist. ' \
+                  f'If the bucket exists, ask a project administrator to assign you the StorageAdmin role in Google Cloud Storage.'
             raise InsufficientPermissions(msg) from e
         raise
 
@@ -92,12 +92,13 @@ async def create_gcp_bucket(*,
                 ]
             }
 
-            with tempfile.TemporaryFile(mode='w') as f:
+            with tempfile.NamedTemporaryFile(mode='w') as f:
                 f.write(json.dumps(lifecycle_policy))
-                await check_shell(f'gcloud --project {project} storage buckets update --lifecycle-file={f.name} gs://{bucket}', echo=verbose)
+                f.flush()
+                await check_shell(f'gcloud --project {project} storage buckets update --lifecycle-file="{f.name}" gs://{bucket}', echo=verbose)
 
         if labels_str:
-            await check_shell(f'gcloud --project {project} storage buckets update --update-labels={labels_str}', echo=verbose)
+            await check_shell(f'gcloud --project {project} storage buckets update --update-labels={labels_str} gs://{bucket}', echo=verbose)
     except CalledProcessError as e:
         if 'does not have storage.buckets.get access to the Google Cloud Storage bucket' in e.stderr.decode('utf-8'):
             msg = f'ERROR: You do not have the necessary permissions to update bucket {bucket} in project {project}. Ask a project administrator ' \
@@ -113,7 +114,7 @@ async def create_gcp_bucket(*,
 async def grant_service_account_bucket_read_access(project: Optional[str], bucket: str, service_account: str, verbose: bool):
     from hailtop.utils import CalledProcessError, check_shell  # pylint: disable=import-outside-toplevel
     if project:
-        project = f'-- project {project}'
+        project = f'--project {project}'
     else:
         project = ''
     try:
@@ -132,7 +133,7 @@ async def grant_service_account_bucket_read_access(project: Optional[str], bucke
 async def grant_service_account_bucket_write_access(project: Optional[str], bucket: str, service_account: str, verbose: bool):
     from hailtop.utils import CalledProcessError, check_shell  # pylint: disable=import-outside-toplevel
     if project:
-        project = f'-- project {project}'
+        project = f'--project {project}'
     else:
         project = ''
     try:
