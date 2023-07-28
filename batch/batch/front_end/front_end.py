@@ -2187,7 +2187,7 @@ async def ui_get_job(request, userdata, batch_id):
 
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''
-    job_log_strings_or_bytes = {}
+    job_log_strings_or_bytes: Dict[str, Union[str, bytes, None]] = {}
     possibly_truncated_logs = set()
     for container, log_stream in job_log_streams.items():
         if log_stream is None:
