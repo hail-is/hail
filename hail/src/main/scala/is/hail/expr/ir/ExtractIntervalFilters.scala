@@ -7,11 +7,28 @@ import is.hail.utils.{FastSeq, Interval, IntervalEndpoint, _}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 
+import scala.Option.option2Iterable
+
 object ExtractIntervalFilters {
 
   val MAX_LITERAL_SIZE = 4096
 
-  case class ExtractionState(ctx: ExecuteContext, rowRef: Ref, keyFields: IndexedSeq[String]) {
+  object ExtractionState {
+    def apply(
+      ctx: ExecuteContext,
+      rowRef: Ref,
+      keyFields: IndexedSeq[String]
+    ): ExtractionState = {
+      new ExtractionState(ctx, Env.empty[IR], rowRef, keyFields)
+    }
+  }
+
+  class ExtractionState(
+    val ctx: ExecuteContext,
+    env: Env[IR],
+    rowRef: Ref,
+    keyFields: IndexedSeq[String]
+  ) {
     val rowType: TStruct = rowRef.typ.asInstanceOf[TStruct]
     val rowKeyType: TStruct = rowType.select(keyFields)._1
     val firstKeyType: Type = rowKeyType.types.head
@@ -19,15 +36,40 @@ object ExtractIntervalFilters {
 
     def getReferenceGenome(rg: String): ReferenceGenome = ctx.stateManager.referenceGenomes(rg)
 
-    def isFirstKey(ir: IR): Boolean = ir == GetField(rowRef, rowKeyType.fieldNames.head)
+    def bind(name: String, v: IR): ExtractionState =
+      new ExtractionState(ctx, env.bind(name, v), rowRef, keyFields)
+
+    private def isRowRef(ir: IR): Boolean = ir match {
+      case ref: Ref =>
+        ref == rowRef || env.lookupOption(ref.name).exists(isRowRef)
+      case _ => false
+    }
+
+    private def isKeyField(ir: IR, keyFieldName: String): Boolean = ir match {
+      case GetField(struct, name) => fieldIsKeyField(struct, name, keyFieldName)
+      case Ref(name, _) => env.lookupOption(name).exists(isKeyField(_, keyFieldName))
+      case _ => false
+    }
+
+    private def fieldIsKeyField(struct: IR, fieldName: String, keyFieldName: String): Boolean = struct match {
+      case MakeStruct(fields) => fields.exists { case (n, f) =>
+        n == fieldName && isKeyField(f, keyFieldName)
+      }
+      case SelectFields(o, fields) => fields.exists { f =>
+        f == fieldName && fieldIsKeyField(o, fieldName, keyFieldName)
+      }
+      case _ => isRowRef(struct) && fieldName == keyFieldName
+    }
+
+    def isFirstKey(ir: IR): Boolean = isKeyField(ir, rowKeyType.fieldNames.head)
 
     def isKeyStructPrefix(ir: IR): Boolean = ir match {
-      case MakeStruct(fields) => fields
-        .iterator
-        .map(_._2)
-        .zipWithIndex
-        .forall { case (fd, idx) => idx < rowKeyType.size && fd == GetField(rowRef, rowKeyType.fieldNames(idx)) }
-      case SelectFields(`rowRef`, fields) => keyFields.startsWith(fields)
+      case MakeStruct(fields) => fields.view.zipWithIndex.forall { case ((_, fd), idx) =>
+        idx < rowKeyType.size && isKeyField(fd, rowKeyType.fieldNames(idx))
+      }
+      case SelectFields(old, fields) => fields.view.zipWithIndex.forall { case (fd, idx) =>
+        idx < rowKeyType.size && fieldIsKeyField(old, fd, rowKeyType.fieldNames(idx))
+      }
       case _ => false
     }
   }
@@ -152,6 +194,7 @@ object ExtractIntervalFilters {
         val rr = extractAndRewrite(r, es)
         (ll, rr) match {
           case (Some((ir1, i1)), Some((ir2, i2))) =>
+            println(s"left: ${i1.mkString("(", ", ", ")")}, right: ${i2.mkString("(", ", ", ")")}")
             log.info(s"intersecting list of ${ i1.length } intervals with list of ${ i2.length } intervals")
             val intersection = Interval.intersection(i1, i2, es.iOrd)
             log.info(s"intersect generated ${ intersection.length } intersected intervals")
@@ -267,10 +310,10 @@ object ExtractIntervalFilters {
             case _ => None
           }
         }
-      case Let(name, value, body) if name != es.rowRef.name =>
+      case Let(name, value, body) =>
         // TODO: thread key identity through values, since this will break when CSE arrives
         // TODO: thread predicates in `value` through `body` as a ref
-        extractAndRewrite(body, es)
+        extractAndRewrite(body, es.bind(name, value))
           .map { case (ir, intervals) => (Let(name, value, ir), intervals) }
       case _ => None
     }
