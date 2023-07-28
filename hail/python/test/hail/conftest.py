@@ -54,6 +54,8 @@ def set_query_name(init_hail, request):
         backend.batch_attributes = dict(name=request.node.name)
         yield
         backend.batch_attributes = dict()
+        if backend._batch:
+            asyncio.get_event_loop().run_until_complete(backend._batch.cancel())
         backend._batch = None
     else:
         yield
