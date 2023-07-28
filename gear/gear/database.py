@@ -4,7 +4,7 @@ import logging
 import os
 import ssl
 import traceback
-from typing import Optional
+from typing import Awaitable, Callable, Optional, TypeVar
 
 import aiomysql
 import kubernetes_asyncio.client
@@ -59,13 +59,16 @@ def retry_transient_mysql_errors(f):
     return wrapper
 
 
-def transaction(db, **transaction_kwargs):
-    def transformer(fun):
+T = TypeVar("T")
+
+
+def transaction(db: 'Database', read_only: bool = False):
+    def transformer(fun: Callable[['Transaction'], Awaitable[T]]) -> Callable[[], Awaitable[T]]:
         @functools.wraps(fun)
         @retry_transient_mysql_errors
-        async def wrapper(*args, **kwargs):
-            async with db.start(**transaction_kwargs) as tx:
-                return await fun(tx, *args, **kwargs)
+        async def wrapper():
+            async with db.start(read_only=read_only) as tx:
+                return await fun(tx)
 
         return wrapper
 

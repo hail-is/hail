@@ -1170,7 +1170,7 @@ VALUES (%s, %s, %s);
         # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
         await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
 
-    await write_and_insert()  # pylint: disable=no-value-for-parameter
+    await write_and_insert()
 
     return web.Response()
 
@@ -1330,7 +1330,7 @@ VALUES (%s, %s, %s)
             )
         return id
 
-    return await insert()  # pylint: disable=no-value-for-parameter
+    return await insert()
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/update-fast')
@@ -1456,7 +1456,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 
         return (update_id, update_start_job_id)
 
-    return await update()  # pylint: disable=no-value-for-parameter
+    return await update()
 
 
 async def _get_batch(app, batch_id):
@@ -2241,7 +2241,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
             (limit, billing_project),
         )
 
-    await insert()  # pylint: disable=no-value-for-parameter
+    await insert()
 
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
@@ -2478,7 +2478,7 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
             (billing_project, user),
         )
 
-    await delete()  # pylint: disable=no-value-for-parameter
+    await delete()
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
@@ -2548,7 +2548,7 @@ VALUES (%s, %s, %s);
             (billing_project, user, user),
         )
 
-    await insert()  # pylint: disable=no-value-for-parameter
+    await insert()
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
@@ -2606,7 +2606,7 @@ VALUES (%s, %s);
             (billing_project, billing_project),
         )
 
-    await insert()  # pylint: disable=no-value-for-parameter
+    await insert()
 
 
 @routes.post('/billing_projects/create')
@@ -2667,7 +2667,7 @@ FOR UPDATE;
             "UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (billing_project,)
         )
 
-    await close_project()  # pylint: disable=no-value-for-parameter
+    await close_project()
 
 
 @routes.post('/billing_projects/{billing_project}/close')
@@ -2712,7 +2712,7 @@ async def _reopen_billing_project(db, billing_project):
 
         await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (billing_project,))
 
-    await open_project()  # pylint: disable=no-value-for-parameter
+    await open_project()
 
 
 @routes.post('/billing_projects/{billing_project}/reopen')
@@ -2758,7 +2758,7 @@ async def _delete_billing_project(db, billing_project):
             "UPDATE billing_projects SET `status` = 'deleted' WHERE name_cs = %s;", (billing_project,)
         )
 
-    await delete_project()  # pylint: disable=no-value-for-parameter
+    await delete_project()
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')

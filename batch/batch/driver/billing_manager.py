@@ -149,7 +149,7 @@ ON DUPLICATE KEY UPDATE version = VALUES(version)
                     product_version_updates,
                 )
 
-        await insert_or_update()  # pylint: disable=no-value-for-parameter
+        await insert_or_update()
 
         if resource_updates or product_version_updates:
             await self.refresh_resources()
@@ -164,7 +164,7 @@ ON DUPLICATE KEY UPDATE version = VALUES(version)
             self.product_versions.update(latest_product_versions)
             log.info('refreshed product versions')
 
-        await refresh()  # pylint: disable=no-value-for-parameter
+        await refresh()
 
 
 async def refresh_product_versions_from_db(db: Database) -> Dict[str, str]:

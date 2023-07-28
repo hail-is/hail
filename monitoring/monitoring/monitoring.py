@@ -231,7 +231,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
                 records,
             )
 
-        await insert()  # pylint: disable=no-value-for-parameter
+        await insert()
 
     log.info('updating billing information')
     now = datetime.datetime.now()
