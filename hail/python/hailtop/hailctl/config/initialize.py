@@ -77,41 +77,46 @@ async def setup_new_remote_tmpdir(*,
     remote_tmpdir = f'gs://{bucket_name}/batch/tmp'
     warnings = False
 
-    set_lifecycle = Confirm.ask(f'Do you want to set a lifecycle policy (automatically delete files after a time period) on the bucket {bucket_name}?', default=True)
-    if set_lifecycle:
-        lifecycle_days = IntPrompt.ask(f'After how many days should files be automatically deleted from bucket {bucket_name}?', default=30)
-        if lifecycle_days <= 0:
-            typer.secho(f'invalid value for lifecycle rule in days {lifecycle_days}', fg=typer.colors.RED)
-            raise Abort()
+    try:
+        set_lifecycle = Confirm.ask(
+            f'Do you want to set a lifecycle policy (automatically delete files after a time period) on the bucket {bucket_name}?',
+            default=True)
+        if set_lifecycle:
+            lifecycle_days = IntPrompt.ask(
+                f'After how many days should files be automatically deleted from bucket {bucket_name}?', default=30)
+            if lifecycle_days <= 0:
+                typer.secho(f'invalid value for lifecycle rule in days {lifecycle_days}', fg=typer.colors.RED)
+                raise Abort()
+        else:
+            lifecycle_days = None
 
+        labels = {
+            'bucket': bucket_name,
+            'owner': username,
+            'data_type': 'temporary',
+        }
+        await create_gcp_bucket(
+            project=project,
+            bucket=bucket_name,
+            location=region,
+            lifecycle_days=lifecycle_days,
+            labels=labels,
+            verbose=verbose,
+        )
+        typer.secho(f'Created bucket {bucket_name} in project {project} with lifecycle rule set to {lifecycle_days} days.', fg=typer.colors.GREEN)
+    except InsufficientPermissions as e:
+        typer.secho(e.message, fg=typer.colors.RED)
+        raise Abort()
+    else:
         try:
-            labels = {
-                'bucket': bucket_name,
-                'owner': username,
-                'data_type': 'temporary',
-            }
-            await create_gcp_bucket(
-                project=project,
-                bucket=bucket_name,
-                location=region,
-                lifecycle_days=lifecycle_days,
-                labels=labels,
-                verbose=verbose,
-            )
-            typer.secho(f'Created bucket {bucket_name} in project {project} with lifecycle rule set to {lifecycle_days} days.', fg=typer.colors.GREEN)
+            await grant_service_account_bucket_read_access(project, bucket_name, service_account, verbose=verbose)
+            await grant_service_account_bucket_write_access(project, bucket_name, service_account, verbose=verbose)
         except InsufficientPermissions as e:
             typer.secho(e.message, fg=typer.colors.RED)
             raise Abort()
         else:
-            try:
-                await grant_service_account_bucket_read_access(project, bucket_name, service_account, verbose=verbose)
-                await grant_service_account_bucket_write_access(project, bucket_name, service_account, verbose=verbose)
-            except InsufficientPermissions as e:
-                typer.secho(e.message, fg=typer.colors.RED)
-                raise Abort()
-            else:
-                typer.secho(f'Granted service account {service_account} read and write access to {bucket_name} in project {project}.',
-                            fg=typer.colors.GREEN)
+            typer.secho(f'Granted service account {service_account} read and write access to {bucket_name} in project {project}.',
+                        fg=typer.colors.GREEN)
 
     return (remote_tmpdir, warnings)
 
