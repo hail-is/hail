@@ -33,6 +33,14 @@ def test_mt_gt(mt, probe_locus):
     assert expr.count() == (100, 100)
 
 
+def test_mt_ge_with_bindings(mt, probe_locus):
+    row = mt.row
+    locus = row.locus
+    expr = mt.filter_rows((locus >= probe_locus) & hl.is_defined(locus))
+    assert expr.n_partitions() == 6
+    assert expr.count() == (101, 100)
+
+
 def test_ht_lt(ht, probe_locus):
     expr = ht.filter(ht.locus < probe_locus)
     assert expr.n_partitions() == 15
