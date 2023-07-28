@@ -56,3 +56,5 @@ docker run -i -v /vep_data/:/opt/vep/.vep/:ro ${VEP_DOCKER_IMAGE} \
   /opt/vep/src/ensembl-vep/vep "\$@"
 EOF
 chmod +x /vep.sh
+
+sudo service docker restart
