@@ -27,32 +27,23 @@ case object SemanticHash extends Logging {
 
       // Running the algorithm on the name-normalised IR
       // removes sensitivity to compiler-generated names
-      val normalized = ctx.timer.time("NormalizeNames") {
+      val nameNormalizedIR = ctx.timer.time("NormalizeNames") {
         new NormalizeNames(_.toString, allowFreeVariables = true)(root)
       }
 
       val semhash = ctx.timer.time("Hash") {
-
-        // We need to distinguish cases when the flattened IR is identical,
-        // but nodes appear in different branches of the tree.
-        // Encoding the path to the IR node from the root as a product of primes
-        // achieves this.
-        def primes: Stream[Int] =
-          2 #:: (Stream.from(3, 2) & {
-            case x #:: tail => x #:: tail.filter(_ % x != 0)
-          })
-
-        def adj(n: (BaseIR, Int)): Iterator[(BaseIR, Int)] =
-          n._1.children.zipWithIndex.map { case (child, k) => (child, n._2 * primes(k)) }.iterator
-
         def go: Option[Int] = {
           var hash = MurmurHash3.DEFAULT_SEED
-          for ((ir, trace) <- TreeTraversal.levelOrder(adj)((normalized, primes.head))) {
+
+          // Include an encoding of a node's trace to differentiate between
+          // IR trees that look identical when flattened
+          for ((ir, trace) <- levelOrder(nameNormalizedIR)) {
             encode(ctx.fs, ir, trace) match {
               case Some(bytes) => hash = extend(hash, bytes)
               case None => return None
             }
           }
+
           Some(hash)
         }
 
@@ -63,11 +54,11 @@ case object SemanticHash extends Logging {
       semhash
     }
 
-  private def encode(fs: FS, ir: BaseIR, trace: Int): Option[Array[Byte]] = {
+  private def encode(fs: FS, ir: BaseIR, trace: Long): Option[Array[Byte]] = {
     val buffer =
       Array.newBuilder[Byte] ++=
         Bytes.fromClass(ir.getClass) ++=
-        Bytes.fromInt(trace)
+        Bytes.fromLong(trace)
 
     ir match {
       case a: AggExplode =>
@@ -359,6 +350,25 @@ case object SemanticHash extends Logging {
       case None =>
         path.getBytes ++ Bytes.fromLong(fs.fileStatus(path).getModificationTime)
     }
+
+  def levelOrder(root: BaseIR): Iterator[(BaseIR, Long)] = {
+    // Encode a node's trace as a product of the parent's encoding and the ith prime,
+    // where i is the index of the node in its parent's children array.
+
+    // Streams use memoization under the hood - avoid recomputing
+    // TODO use `LazyList` from Scala 2.13
+    val primes: Stream[Long] =
+      2 #:: (Stream.from(3, 2) & {
+        case x #:: tail => x #:: tail.filter(_ % x != 0)
+      })
+
+    val adj: ((BaseIR, Long)) => Iterator[(BaseIR, Long)] =
+      Function.tupled { (ir, trace) =>
+        ir.children.zipWithIndex.map { case (child, k) => (child, trace * primes(k)) }.iterator
+      }
+
+    TreeTraversal.levelOrder(adj)(root, primes.head)
+  }
 
   object Bytes {
     def fromInt(x: Int): Array[Byte] =
