@@ -1,5 +1,3 @@
-import time
-
 from typing import Optional, Dict, Any, List, Tuple, Union
 import math
 import random
@@ -329,8 +327,7 @@ class SubmittedJob:
         return self._status
 
     async def wait(self):
-        wait_status = await self._wait_for_states(*complete_states)
-        return wait_status.status
+        return await self._wait_for_states(*complete_states)
 
     async def _wait_for_states(self, *states: str):
         delay = 0.1
