@@ -9,6 +9,7 @@ import functools
 import sys
 
 from hailtop.utils import secret_alnum_string, partition
+from hailtop.batch.hail_genetics_images import hailgenetics_python_dill_image_for_current_python_version
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -145,10 +146,7 @@ class BatchPoolExecutor:
         self._shutdown = False
         version = sys.version_info
         if image is None:
-            if version.major != 3 or version.minor not in (9, 10, 11):
-                raise ValueError(
-                    f'You must specify an image if you are using a Python version other than 3.9 or 3.10 (you are using {version})')
-            self.image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+            self.image = hailgenetics_python_dill_image_for_current_python_version
         else:
             self.image = image
         self.cpus_per_job = cpus_per_job
