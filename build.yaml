@@ -2467,7 +2467,7 @@ steps:
       - create_certs
   - kind: runImage
     name: test_hail_python_service_backend
-    numSplits: 32
+    numSplits: 16
     image:
       valueFrom: hail_run_image.image
     resources:
