@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.annotations.IntervalEndpointOrdering
+import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval, IntervalEndpoint, _}
 import is.hail.variant.{Locus, ReferenceGenome}
@@ -32,7 +33,7 @@ object ExtractIntervalFilters {
     val rowType: TStruct = rowRef.typ.asInstanceOf[TStruct]
     val rowKeyType: TStruct = rowType.select(keyFields)._1
     val firstKeyType: Type = rowKeyType.types.head
-    val iOrd: IntervalEndpointOrdering = rowKeyType.ordering(ctx.stateManager).intervalEndpointOrdering
+    val iOrd: IntervalEndpointOrdering = PartitionBoundOrdering(ctx, rowKeyType).intervalEndpointOrdering
 
     def getReferenceGenome(rg: String): ReferenceGenome = ctx.stateManager.referenceGenomes(rg)
 
@@ -194,7 +195,6 @@ object ExtractIntervalFilters {
         val rr = extractAndRewrite(r, es)
         (ll, rr) match {
           case (Some((ir1, i1)), Some((ir2, i2))) =>
-            println(s"left: ${i1.mkString("(", ", ", ")")}, right: ${i2.mkString("(", ", ", ")")}")
             log.info(s"intersecting list of ${ i1.length } intervals with list of ${ i2.length } intervals")
             val intersection = Interval.intersection(i1, i2, es.iOrd)
             log.info(s"intersect generated ${ intersection.length } intersected intervals")
