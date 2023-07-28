@@ -115,3 +115,9 @@ def test_ht_ge_with_bindings(ht, probe_locus):
     expr = ht.filter((locus >= probe_locus) & hl.is_defined(locus))
     assert expr.n_partitions() == 6
     assert expr.count() == 101
+
+
+def test_GRCh38():
+    mt = hl.balding_nichols_model(1, 10, 100, n_partitions=10, reference_genome='GRCh38')
+    mt = mt.filter_rows(hl.all(mt.locus.contig == 'chr1', mt.locus.position < 5))
+    assert mt.n_partitions() == 1
