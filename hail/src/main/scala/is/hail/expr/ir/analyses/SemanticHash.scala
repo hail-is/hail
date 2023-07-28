@@ -7,7 +7,7 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.{Logging, TreeTraversal, toRichBoolean, toRichVal}
+import is.hail.utils.{Logging, TreeTraversal, toRichBoolean}
 import org.apache.commons.codec.digest.MurmurHash3
 
 import java.nio.ByteBuffer
@@ -54,11 +54,11 @@ case object SemanticHash extends Logging {
       semhash
     }
 
-  private def encode(fs: FS, ir: BaseIR, trace: Long): Option[Array[Byte]] = {
+  private def encode(fs: FS, ir: BaseIR, trace: BigInt): Option[Array[Byte]] = {
     val buffer =
       Array.newBuilder[Byte] ++=
         Bytes.fromClass(ir.getClass) ++=
-        Bytes.fromLong(trace)
+        trace.toByteArray
 
     ir match {
       case a: AggExplode =>
@@ -351,23 +351,16 @@ case object SemanticHash extends Logging {
         path.getBytes ++ Bytes.fromLong(fs.fileStatus(path).getModificationTime)
     }
 
-  def levelOrder(root: BaseIR): Iterator[(BaseIR, Long)] = {
-    // Encode a node's trace as a product of the parent's encoding and the ith prime,
-    // where i is the index of the node in its parent's children array.
-
-    // Streams use memoization under the hood - avoid recomputing
-    // TODO use `LazyList` from Scala 2.13
-    val primes: Stream[Int] =
-      2 #:: (Stream.from(3, 2) & {
-        case x #:: tail => x #:: tail.filter(_ % x != 0)
-      })
-
-    val adj: ((BaseIR, Long)) => Iterator[(BaseIR, Long)] =
+  def levelOrder(root: BaseIR): Iterator[(BaseIR, Int)] = {
+    val adj: ((BaseIR, Int)) => Iterator[(BaseIR, Int)] =
       Function.tupled { (ir, trace) =>
-        ir.children.zipWithIndex.map { case (child, k) => (child, trace * primes(k)) }.iterator
+        ir.children
+          .zipWithIndex
+          .map { case (child, k) => (child, extend(trace, Bytes.fromInt(k))) }
+          .iterator
       }
 
-    TreeTraversal.levelOrder(adj)((root, primes.head))
+    TreeTraversal.levelOrder(adj)((root, 0))
   }
 
   object Bytes {
