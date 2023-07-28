@@ -616,19 +616,19 @@ object Simplify {
         AggLet(uid, newRow, Subst(query, BindingEnv(agg = Some(Env("row" -> Ref(uid, newRow.typ))))), isScan = false))
 
     // NOTE: The below rule should be reintroduced when it is possible to put an ArrayAgg inside a TableAggregate
-    // case TableAggregate(TableParallelize(rowsAndGlobal, _), query) =>
-    //   rowsAndGlobal match {
-    //     // match because we currently don't optimize MakeStruct through Let, and this is a common pattern
-    //     case MakeStruct(Seq((_, rows), (_, global))) =>
-    //       Let("global", global, ArrayAgg(rows, "row", query))
-    //     case other =>
-    //       val uid = genUID()
-    //       Let(uid,
-    //         rowsAndGlobal,
-    //         Let("global",
-    //           GetField(Ref(uid, rowsAndGlobal.typ), "global"),
-    //           ArrayAgg(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", query)))
-    //   }
+    case TableAggregate(TableParallelize(rowsAndGlobal, _), query) =>
+      rowsAndGlobal match {
+        // match because we currently don't optimize MakeStruct through Let, and this is a common pattern
+        case MakeStruct(Seq((_, rows), (_, global))) =>
+          Let("global", global, StreamAgg(ToStream(rows), "row", query))
+        case other =>
+          val uid = genUID()
+          Let(uid,
+            rowsAndGlobal,
+            Let("global",
+              GetField(Ref(uid, rowsAndGlobal.typ), "global"),
+              StreamAgg(ToStream(GetField(Ref(uid, rowsAndGlobal.typ), "rows")), "row", query)))
+      }
 
     case ApplyIR("annotate", _, Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)
