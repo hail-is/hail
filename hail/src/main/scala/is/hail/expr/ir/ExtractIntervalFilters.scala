@@ -311,8 +311,7 @@ object ExtractIntervalFilters {
           }
         }
       case Let(name, value, body) =>
-        // TODO: thread key identity through values, since this will break when CSE arrives
-        // TODO: thread predicates in `value` through `body` as a ref
+        // FIXME: ignores predicates in value
         extractAndRewrite(body, es.bind(name, value))
           .map { case (ir, intervals) => (Let(name, value, ir), intervals) }
       case _ => None
