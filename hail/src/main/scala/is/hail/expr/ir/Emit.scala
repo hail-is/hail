@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash}
-import is.hail.expr.ir.lowering.{IrMetadata, TableStageDependency}
+import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.fs.FS
@@ -2507,9 +2507,9 @@ class Emit[C](
           emitI(dynamicID).consume(cb,
             ctx.executeContext.irMetadata.nextHash.foreach { hash =>
               val boxed =
-                Code.invokeScalaObject[Integer](
-                  Int.getClass,
-                  "box",
+                Code.invokeStatic[Integer](
+                  classOf[Integer],
+                  "valueOf",
                   Array(classOf[Int]),
                   Array(hash)
                 )
@@ -2521,8 +2521,8 @@ class Emit[C](
               cb.assign(stageName, stageName.concat("|").concat(dynV))
               ctx.executeContext.irMetadata.nextHash.foreach { staticHash =>
 
-                val dynamicHash: Code[Array[Byte]] =
-                  dynV.invoke("getBytes")
+                val dynamicHash =
+                  dynV.invoke[Array[Byte]]("getBytes")
 
                 val combined =
                   Code.invokeScalaObject[Int](
@@ -2533,9 +2533,9 @@ class Emit[C](
                   )
 
                 val boxed =
-                  Code.invokeScalaObject[Integer](
-                    Int.getClass,
-                    "box",
+                  Code.invokeStatic[Integer](
+                    classOf[Integer],
+                    "valueOf",
                     Array(classOf[Int]),
                     Array(combined)
                   )
