@@ -65,12 +65,14 @@ object ExtractIntervalFilters {
     def isFirstKey(ir: IR): Boolean = isKeyField(ir, rowKeyType.fieldNames.head)
 
     def isKeyStructPrefix(ir: IR): Boolean = ir match {
-      case MakeStruct(fields) => fields.view.zipWithIndex.forall { case ((_, fd), idx) =>
-        idx < rowKeyType.size && isKeyField(fd, rowKeyType.fieldNames(idx))
-      }
-      case SelectFields(old, fields) => fields.view.zipWithIndex.forall { case (fd, idx) =>
-        idx < rowKeyType.size && fieldIsKeyField(old, fd, rowKeyType.fieldNames(idx))
-      }
+      case MakeStruct(fields) =>
+        fields.size <= rowKeyType.size && fields.view.zipWithIndex.forall { case ((_, fd), idx) =>
+          isKeyField(fd, rowKeyType.fieldNames(idx))
+        }
+      case SelectFields(old, fields) =>
+        fields.size <= rowKeyType.size && fields.view.zipWithIndex.forall { case (fd, idx) =>
+          fieldIsKeyField(old, fd, rowKeyType.fieldNames(idx))
+        }
       case _ => false
     }
   }
