@@ -54,11 +54,11 @@ case object SemanticHash extends Logging {
       semhash
     }
 
-  private def encode(fs: FS, ir: BaseIR, trace: BigInt): Option[Array[Byte]] = {
+  private def encode(fs: FS, ir: BaseIR, trace: Int): Option[Array[Byte]] = {
     val buffer =
       Array.newBuilder[Byte] ++=
         Bytes.fromClass(ir.getClass) ++=
-        trace.toByteArray
+        Bytes.fromInt(trace)
 
     ir match {
       case a: AggExplode =>
@@ -360,7 +360,7 @@ case object SemanticHash extends Logging {
           .iterator
       }
 
-    TreeTraversal.levelOrder(adj)((root, 0))
+    TreeTraversal.levelOrder(adj)((root, MurmurHash3.DEFAULT_SEED))
   }
 
   object Bytes {
