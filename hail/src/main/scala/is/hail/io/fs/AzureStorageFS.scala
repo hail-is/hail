@@ -6,7 +6,7 @@ import is.hail.shadedazure.com.azure.storage.blob.models.{BlobProperties, BlobRa
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 import is.hail.shadedazure.com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
 import is.hail.shadedazure.com.azure.core.http.netty.NettyAsyncHttpClientBuilder
-import is.hail.shadedazure.reactor.netty.http.client.HttpClient
+import is.hail.shadedazure.com.azure.core.http.HttpClient
 import is.hail.services.retryTransientErrors
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import org.apache.log4j.Logger
@@ -148,7 +148,7 @@ object AzureStorageFileStatus {
   }
 }
 
-class AzureBlobServiceClientCache(credential: TokenCredential) {
+class AzureBlobServiceClientCache(credential: TokenCredential, val httpClient: HttpClient) {
   private[this] lazy val clients = mutable.Map[(String, String, Option[String]), BlobServiceClient]()
 
   def getServiceClient(url: AzureStorageFSURL): BlobServiceClient = {
@@ -164,6 +164,7 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
 
         val blobServiceClient = clientBuilder
           .endpoint(s"https://${url.account}.blob.core.windows.net")
+          .httpClient(httpClient)
           .buildClient()
         clients += (k -> blobServiceClient)
         blobServiceClient
@@ -173,6 +174,7 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
   def setPublicAccessServiceClient(url: AzureStorageFSURL): Unit = {
     val blobServiceClient = new BlobServiceClientBuilder()
       .endpoint(s"https://${url.account}.blob.core.windows.net")
+      .httpClient(httpClient)
       .buildClient()
     clients += ((url.account, url.container, url.sasToken) -> blobServiceClient)
   }
@@ -212,10 +214,12 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
+  private lazy val httpClient = new NettyAsyncHttpClientBuilder().connectTimeout(Duration.ofSeconds(5)).build()
+
   private lazy val serviceClientCache = credentialsJSON match {
     case None =>
       val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
-      new AzureBlobServiceClientCache(credential)
+      new AzureBlobServiceClientCache(credential, httpClient)
     case Some(keyData) =>
       implicit val formats: Formats = defaultJSONFormats
       val kvs = JsonMethods.parse(keyData)
@@ -227,8 +231,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         .clientId(appId)
         .clientSecret(password)
         .tenantId(tenant)
+        .httpClient(httpClient)
         .build()
-      new AzureBlobServiceClientCache(clientSecretCredential)
+      new AzureBlobServiceClientCache(clientSecretCredential, httpClient)
   }
 
   // Set to max timeout for blob storage of 30 seconds
