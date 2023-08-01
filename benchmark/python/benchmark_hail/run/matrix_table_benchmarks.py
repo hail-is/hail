@@ -321,7 +321,7 @@ def large_range_matrix_table_sum():
 @benchmark(args=profile_25.handle('mt'))
 def kyle_sex_specific_qc(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    mt = mt.annotate_cols(sex=hl.cond(hl.rand_bool(0.5), 'Male', 'Female'))
+    mt = mt.annotate_cols(sex=hl.if_else(hl.rand_bool(0.5), 'Male', 'Female'))
     (num_males, num_females) = mt.aggregate_cols((hl.agg.count_where(mt.sex == 'Male'),
                                                   hl.agg.count_where(mt.sex == 'Female')))
     mt = mt.annotate_rows(

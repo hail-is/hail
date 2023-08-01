@@ -434,7 +434,7 @@ def segment_intervals(ht, points):
     lower = hl.if_else((lower < n_points) & (points[lower] == interval.start), lower + 1, lower)
     higher = hl.if_else((higher < n_points) & (points[higher] == interval.end), higher - 1, higher)
     interval_results = hl.rbind(lower, higher,
-                                lambda lower, higher: hl.cond(
+                                lambda lower, higher: hl.if_else(
                                     lower >= higher,
                                     [interval],
                                     hl.flatten([
