@@ -1473,9 +1473,10 @@ def test_job_private_instance_cancel(client: BatchClient):
         now = time.time()
 
         tries += 1
-        delay = delay_ms_for_try(tries)
-        if now + delay - start > 60:
+        cumulative_delay = now - start
+        if cumulative_delay > 60:
             assert False, str((status, b.debug_info()))
+        delay = min(delay_ms_for_try(tries), 60 - cumulative_delay)
         time.sleep(delay)
     b.cancel()
     status = j.wait()
