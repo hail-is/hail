@@ -13,7 +13,7 @@ from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
-from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
+from hailtop.utils import delay_ms_for_try, external_requests_client_session, retry_response_returning_functions
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from .failure_injecting_client_session import FailureInjectingClientSession
@@ -1464,16 +1464,20 @@ def test_job_private_instance_cancel(client: BatchClient):
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = bb.submit()
 
-    delay = 0.1
+    tries = 0
     start = time.time()
     while True:
         status = j.status()
         if status['state'] == 'Creating':
             break
         now = time.time()
-        if now + delay - start > 60:
+
+        tries += 1
+        cumulative_delay = now - start
+        if cumulative_delay > 60:
             assert False, str((status, b.debug_info()))
-        delay = sync_sleep_and_backoff(delay)
+        delay = min(delay_ms_for_try(tries), 60 - cumulative_delay)
+        time.sleep(delay)
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
