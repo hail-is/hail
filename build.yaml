@@ -953,6 +953,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: buildImage2
@@ -1165,6 +1166,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
     clouds:
@@ -1229,6 +1231,7 @@ steps:
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
+      - create_test_gsa_keys
       - build_hail_test_artifacts
     clouds:
       - gcp
@@ -1355,6 +1358,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: runImage
