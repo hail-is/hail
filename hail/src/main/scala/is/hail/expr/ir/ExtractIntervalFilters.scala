@@ -87,48 +87,39 @@ object ExtractIntervalFilters {
 
   final case object OtherValue extends AbstractValue
 
-  def intervalsFromLiteral(lit: Any, wrapped: Boolean): Array[Interval] = {
+  private def intervalsFromLiteral(lit: Any, wrapped: Boolean): Array[Interval] = {
     (lit: @unchecked) match {
       case x: Map[_, _] => intervalsFromCollection(x.keys, wrapped)
       case x: Traversable[_] => intervalsFromCollection(x, wrapped)
     }
   }
-  def intervalsFromCollection(lit: Traversable[Any], wrapped: Boolean): Array[Interval] = {
+  private def intervalsFromCollection(lit: Traversable[Any], wrapped: Boolean): Array[Interval] = {
     lit.map { elt =>
       Interval(endpoint(elt, -1, wrapped), endpoint(elt, 1, wrapped))
     }.toArray
   }
-  def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): Array[Interval] = {
+  private def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): Array[Interval] = {
     (contigs: @unchecked) match {
       case x: Map[_, _] => x.keys.flatMap(c => getIntervalFromContig(c.asInstanceOf[String], rg)).toArray
       case x: Traversable[_] => x.flatMap(c => getIntervalFromContig(c.asInstanceOf[String], rg)).toArray
     }
   }
 
-  def literalSizeOkay(lit: Any): Boolean = lit.asInstanceOf[Iterable[_]].size <= MAX_LITERAL_SIZE
+  private def literalSizeOkay(lit: Any): Boolean = lit.asInstanceOf[Iterable[_]].size <= MAX_LITERAL_SIZE
 
-  def wrapInRow(intervals: Array[Interval]): Array[Interval] = {
+  private def wrapInRow(intervals: Array[Interval]): Array[Interval] = {
     intervals.map { interval =>
       Interval(IntervalEndpoint(Row(interval.left.point), interval.left.sign),
         IntervalEndpoint(Row(interval.right.point), interval.right.sign))
     }
   }
 
-  def constValue(x: IR): Any = (x: @unchecked) match {
-    case I32(v) => v
-    case I64(v) => v
-    case F32(v) => v
-    case F64(v) => v
-    case Str(v) => v
-    case Literal(_, v) => v
-  }
-
   def endpoint(value: Any, sign: Int, wrapped: Boolean = true): IntervalEndpoint = {
     IntervalEndpoint(if (wrapped) Row(value) else value, sign)
   }
 
-  def posInf: IntervalEndpoint = IntervalEndpoint(Row(), 1)
-  def negInf: IntervalEndpoint = IntervalEndpoint(Row(), -1)
+  private def posInf: IntervalEndpoint = IntervalEndpoint(Row(), 1)
+  private def negInf: IntervalEndpoint = IntervalEndpoint(Row(), -1)
 
   private def getIntervalFromContig(c: String, rg: ReferenceGenome): Option[Interval] = {
     if (rg.contigsSet.contains(c)) {
