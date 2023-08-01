@@ -15,7 +15,7 @@ from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool
                     unpack_comma_delimited_inputs, unpack_key_value_inputs,
                     retry_all_errors_n_times, Timings, is_limited_retries_error, am_i_interactive,
                     is_delayed_warning_error, retry_transient_errors_with_delayed_warnings,
-                    periodically_call_with_dynamic_sleep)
+                    periodically_call_with_dynamic_sleep, delay_ms_for_try)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output, sync_check_exec)
@@ -49,6 +49,7 @@ __all__ = [
     'is_delayed_warning_error',
     'sync_sleep_before_try',
     'sleep_before_try',
+    'delay_ms_for_try',
     'retry_all_errors',
     'retry_transient_errors',
     'retry_transient_errors_with_debug_string',
