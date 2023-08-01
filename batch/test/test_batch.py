@@ -314,14 +314,17 @@ def test_list_batches_v1(client: BatchClient):
 
 
 def test_list_batches_v2(client: BatchClient):
-    # replace any occurrences of the substring "b2" in the tag to avoid collisions with the batch name for the partial
-    # match test
-    tag = secrets.token_urlsafe(64).replace("b2", "00")
-    bb1 = create_batch(client, attributes={'tag': tag, 'name': 'b1'})
+    tag = secrets.token_urlsafe(64)
+    partial_match_prefix = secrets.token_urlsafe(5)
+    bb1 = create_batch(
+        client, attributes={'tag': tag, 'name': 'b1', 'partial_match_name': f'{partial_match_prefix}-b1'}
+    )
     bb1.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
     b1 = bb1.submit()
 
-    bb2 = create_batch(client, attributes={'tag': tag, 'name': 'b2'})
+    bb2 = create_batch(
+        client, attributes={'tag': tag, 'name': 'b2', 'partial_match_name': f'{partial_match_prefix}-b2'}
+    )
     bb2.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b2 = bb2.submit()
 
@@ -367,7 +370,7 @@ tag={tag}
         assert_batch_ids(
             {b2.id},
             f'''
-b2
+{partial_match_prefix}-b2
 tag={tag}
 ''',
         )
