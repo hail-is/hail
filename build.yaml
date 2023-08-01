@@ -176,8 +176,7 @@ steps:
           web_common \
           auth \
           batch \
-          ci \
-          memory
+          ci
     inputs:
       - from: /repo
         to: /io/repo
