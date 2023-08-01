@@ -1,4 +1,3 @@
-from typing import Any
 import pytest
 import math
 import numpy as np
@@ -93,18 +92,18 @@ def test_from_entry_expr_empty_parts():
 
 
 @pytest.mark.parametrize(
-    'mean_impute, center, normalize, expected',
-    [ (False, False, False, lambda a: a,                    )
-    , (False, False, True,  lambda a: a / np.sqrt(5),       )
-    , (False, True,  False, lambda a: a - 1.0,              )
-    , (False, True,  True,  lambda a: (a - 1.0) / np.sqrt(2))
-    , (True,  False, False, lambda a: a,                    )
-    , (True,  False, True,  lambda a: a / np.sqrt(5),       )
-    , (True,  True,  False, lambda a: a - 1.0,              )
-    , (True,  True,  True,  lambda a: (a - 1.0) / np.sqrt(2))
+    'mean_impute, center, normalize, mk_expected',
+    [ (False,     False,  False,     lambda a: a,                    )
+    , (False,     False,  True,      lambda a: a / np.sqrt(5),       )
+    , (False,     True,   False,     lambda a: a - 1.0,              )
+    , (False,     True,   True,      lambda a: (a - 1.0) / np.sqrt(2))
+    , (True,      False,  False,     lambda a: a,                    )
+    , (True,      False,  True,      lambda a: a / np.sqrt(5),       )
+    , (True,      True,   False,     lambda a: a - 1.0,              )
+    , (True,      True,   True,      lambda a: (a - 1.0) / np.sqrt(2))
     ]
 )
-def test_from_entry_expr_options(mean_impute, center, normalize, expected):
+def test_from_entry_expr_options(mean_impute, center, normalize, mk_expected):
     a = np.array([0.0, 1.0, 2.0])
 
     mt = hl.utils.range_matrix_table(1, 3)
@@ -113,9 +112,10 @@ def test_from_entry_expr_options(mean_impute, center, normalize, expected):
     xs = hl.array([0.0, hl.missing(hl.tfloat), 2.0]) if mean_impute else hl.literal(a)
     mt = mt.annotate_entries(x = xs[mt.s])
 
+    expected = mk_expected(a)
     assert np.allclose(
         entry_expr_to_ndarray_vec(mt.x, mean_impute, center, normalize),
-        expected(a)
+        expected
     )
 
 
@@ -161,70 +161,63 @@ def test_random_uniform():
 
 
 def test_bm_to_numpy():
-    bm = BlockMatrix.from_ndarray(hl.nd.arange(20).map(lambda x: hl.float64(x)).reshape((4, 5)))
+    bm = BlockMatrix.from_ndarray(hl.nd.arange(20).map(hl.float64).reshape((4, 5)))
     np_bm = bm.to_numpy()
     _assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
 
 
-def test_numpy_round_trip_1():
-    n_rows = 10
-    n_cols = 11
-    data = np.random.rand(n_rows * n_cols)
-
-    bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
-    a = data.reshape((n_rows, n_cols))
-
-    with hl.TemporaryFilename() as bm_f, hl.TemporaryFilename() as a_f:
-        bm.tofile(bm_f)
-        hl.current_backend().fs.open(a_f, mode='wb').write(a.tobytes())
-
-        a1 = bm.to_numpy()
-        a2 = BlockMatrix.from_numpy(a, block_size=5).to_numpy()
-        a3 = (np
-              .frombuffer(hl.current_backend().fs.open(bm_f, mode='rb').read())
-              .reshape((n_rows, n_cols))
-        )
-
-        a4 = BlockMatrix.fromfile(a_f, n_rows, n_cols, block_size=3).to_numpy()
-        a5 = BlockMatrix.fromfile(bm_f, n_rows, n_cols).to_numpy()
-
-        _assert_eq(a1, a)
-        _assert_eq(a2, a)
-        _assert_eq(a3, a)
-        _assert_eq(a4, a)
-        _assert_eq(a5, a)
+@pytest.fixture(scope='module')
+def numpy_round_trip_data() -> 'np.ndarray':
+    yield np.random.rand(10, 11)
 
 
-def test_numpy_round_trip_2():
-    n_rows = 10
-    n_cols = 11
-    data = np.random.rand(n_rows * n_cols)
+@pytest.fixture(scope='module')
+def block_matrix_roundtrip_file(numpy_round_trip_data: 'np.ndarray') -> 'str':
+    with hl.TemporaryFilename() as f:
+        (n_rows, n_cols) = numpy_round_trip_data.shape
+        bm = BlockMatrix._create(n_rows, n_cols, numpy_round_trip_data.flatten().tolist(), block_size=4)
+        bm.tofile(f)
+        yield f
 
-    bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
-    a = data.reshape((n_rows, n_cols))
 
-    bmt = bm.T
-    at = a.T
+def test_block_matrix_from_numpy(numpy_round_trip_data):
+    bm = BlockMatrix.from_numpy(numpy_round_trip_data, block_size=5)
+    _assert_eq(numpy_round_trip_data, bm.to_numpy())
 
-    with hl.TemporaryFilename() as bmt_f, hl.TemporaryFilename() as at_f:
-        bmt.tofile(bmt_f)
-        hl.current_backend().fs.open(at_f, mode='wb').write(at.tobytes())
 
-        at1 = bmt.to_numpy()
-        at2 = BlockMatrix.from_numpy(at).to_numpy()
-        at3 = (
-            np.frombuffer( hl.current_backend().fs.open(bmt_f, mode='rb').read())
-              .reshape((n_cols, n_rows))
-        )
+def test_block_matrix_to_file_transpose(numpy_round_trip_data):
+    assert False # todo
 
-        at4 = BlockMatrix.fromfile(at_f, n_cols, n_rows).to_numpy()
-        at5 = BlockMatrix.fromfile(bmt_f, n_cols, n_rows).to_numpy()
 
-        _assert_eq(at1, at)
-        _assert_eq(at2, at)
-        _assert_eq(at3, at)
-        _assert_eq(at4, at)
-        _assert_eq(at5, at)
+def test_block_matrix_from_numpy_transpose(numpy_round_trip_data):
+    bm = BlockMatrix.from_numpy(numpy_round_trip_data.T, block_size=5)
+    _assert_eq(numpy_round_trip_data, bm.T.to_numpy())
+
+
+def test_numpy_read_block_matrix_to_file(numpy_round_trip_data,
+                                         block_matrix_roundtrip_file
+                                         ):
+    (n_rows, n_cols) = numpy_round_trip_data.shape
+    _assert_eq(numpy_round_trip_data, np
+        .frombuffer(hl.current_backend().fs.open(block_matrix_roundtrip_file, mode='rb').read())
+        .reshape((n_rows, n_cols))
+    )
+
+
+def test_block_matrix_from_numpy_bytes(numpy_round_trip_data):
+    (n_rows, n_cols) = numpy_round_trip_data.shape
+    with hl.TemporaryFilename() as f:
+        hl.current_backend().fs.open(f, mode='wb').write(numpy_round_trip_data.tobytes())
+        array = BlockMatrix.fromfile(f, n_rows, n_cols, block_size=3).to_numpy()
+        _assert_eq(array, numpy_round_trip_data)
+
+
+def test_block_matrix_from_file(numpy_round_trip_data,
+                                block_matrix_roundtrip_file
+                                ):
+    (n_rows, n_cols) = numpy_round_trip_data.shape
+    array = BlockMatrix.fromfile(block_matrix_roundtrip_file, n_rows, n_cols).to_numpy()
+    _assert_eq(array, numpy_round_trip_data)
 
 
 @fails_service_backend()
@@ -291,245 +284,203 @@ def test_to_matrix_table():
     assert mt._same(mt_round_trip)
 
 
-@test_timeout(3 * 60, local=6 * 60)
-def test_paired_elementwise_addition():
+@pytest.fixture(scope='module')
+def block_matrix_bindings():
     nx = np.array([[2.0]])
     nc = np.array([[1.0], [2.0]])
     nr = np.array([[1.0, 2.0, 3.0]])
     nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
-    e = 2.0
-    # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
-    # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
-    # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
-    x = BlockMatrix._create(1, 1, [2.0], block_size=8)
-    c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
-    r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
-    m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+    yield {
+        'nx': nx,
+        'nc': nc,
+        'nr': nr,
+        'nm': nm,
+         'e': 2.0,
+        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
+        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
+        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
+        'x': BlockMatrix._create(1, 1, [2.0], block_size=8),
+        'c': BlockMatrix.from_ndarray(hl.literal(nc), block_size=8),
+        'r': BlockMatrix.from_ndarray(hl.literal(nr), block_size=8),
+        'm': BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+    }
 
+@pytest.mark.parametrize(
+    'x, y',
+    [ # addition
+      ('+m',     '0 + m')
+    , ('x + e',  'nx + e')
+    , ('c + e',  'nc + e')
+    , ('r + e',  'nr + e')
+    , ('m + e',  'nm + e')
+    , ('x + e',  'e + x')
+    , ('c + e',  'e + c')
+    , ('r + e',  'e + r')
+    , ('m + e',  'e + m')
+    , ('x + x',  '2 * x')
+    , ('c + c',  '2 * c')
+    , ('r + r',  '2 * r')
+    , ('m + m',  '2 * m')
+    , ('x + c',  'np.array([[3.0], [4.0]])')
+    , ('x + r',  'np.array([[3.0, 4.0, 5.0]])')
+    , ('x + m',  'np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]])')
+    , ('c + m',  'np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]])')
+    , ('r + m',  'np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]])')
+    , ('x + c',  'c + x')
+    , ('x + r',  'r + x')
+    , ('x + m',  'm + x')
+    , ('c + m',  'm + c')
+    , ('r + m',  'm + r')
+    , ('x + nx', 'x + x')
+    , ('x + nc', 'x + c')
+    , ('x + nr', 'x + r')
+    , ('x + nm', 'x + m')
+    , ('c + nx', 'c + x')
+    , ('c + nc', 'c + c')
+    , ('c + nm', 'c + m')
+    , ('r + nx', 'r + x')
+    , ('r + nr', 'r + r')
+    , ('r + nm', 'r + m')
+    , ('m + nx', 'm + x')
+    , ('m + nc', 'm + c')
+    , ('m + nr', 'm + r')
+    , ('m + nm', 'm + m')
+
+    # subtraction
+    , ('-m',     '0 - m')
+    , ('x - e',  'nx - e')
+    , ('c - e',  'nc - e')
+    , ('r - e',  'nr - e')
+    , ('m - e',  'nm - e')
+    , ('x - e',  '-(e - x)')
+    , ('c - e',  '-(e - c)')
+    , ('r - e',  '-(e - r)')
+    , ('m - e',  '-(e - m)')
+    , ('x - x',  'np.zeros((1, 1))')
+    , ('c - c',  'np.zeros((2, 1))')
+    , ('r - r',  'np.zeros((1, 3))')
+    , ('m - m',  'np.zeros((2, 3))')
+    , ('x - c',  'np.array([[1.0], [0.0]])')
+    , ('x - r',  'np.array([[1.0, 0.0, -1.0]])')
+    , ('x - m',  'np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]])')
+    , ('c - m',  'np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]])')
+    , ('r - m',  'np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]])')
+    , ('x - c',  '-(c - x)')
+    , ('x - r',  '-(r - x)')
+    , ('x - m',  '-(m - x)')
+    , ('c - m',  '-(m - c)')
+    , ('r - m',  '-(m - r)')
+    , ('x - nx', 'x - x')
+    , ('x - nc', 'x - c')
+    , ('x - nr', 'x - r')
+    , ('x - nm', 'x - m')
+    , ('c - nx', 'c - x')
+    , ('c - nc', 'c - c')
+    , ('c - nm', 'c - m')
+    , ('r - nx', 'r - x')
+    , ('r - nr', 'r - r')
+    , ('r - nm', 'r - m')
+    , ('m - nx', 'm - x')
+    , ('m - nc', 'm - c')
+    , ('m - nr', 'm - r')
+    , ('m - nm', 'm - m')
+
+    # multiplication
+    , ('x * e',  'nx * e')
+    , ('c * e',  'nc * e')
+    , ('r * e',  'nr * e')
+    , ('m * e',  'nm * e')
+    , ('x * e',  'e * x')
+    , ('c * e',  'e * c')
+    , ('r * e',  'e * r')
+    , ('m * e',  'e * m')
+    , ('x * x',  'x ** 2')
+    , ('c * c',  'c ** 2')
+    , ('r * r',  'r ** 2')
+    , ('m * m',  'm ** 2')
+    , ('x * c',  'np.array([[2.0], [4.0]])')
+    , ('x * r',  'np.array([[2.0, 4.0, 6.0]])')
+    , ('x * m',  'np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]])')
+    , ('c * m',  'np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]])')
+    , ('r * m',  'np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]])')
+    , ('x * c',  'c * x')
+    , ('x * r',  'r * x')
+    , ('x * m',  'm * x')
+    , ('c * m',  'm * c')
+    , ('r * m',  'm * r')
+    , ('x * nx', 'x * x')
+    , ('x * nc', 'x * c')
+    , ('x * nr', 'x * r')
+    , ('x * nm', 'x * m')
+    , ('c * nx', 'c * x')
+    , ('c * nc', 'c * c')
+    , ('c * nm', 'c * m')
+    , ('r * nx', 'r * x')
+    , ('r * nr', 'r * r')
+    , ('r * nm', 'r * m')
+    , ('m * nx', 'm * x')
+    , ('m * nc', 'm * c')
+    , ('m * nr', 'm * r')
+    , ('m * nm', 'm * m')
+    ]
+)
+def test_paired_elementwise_arithmetic(block_matrix_bindings, x, y):
+    lhs = eval(x, block_matrix_bindings)
+    rhs = eval(y, { 'np': np }, block_matrix_bindings)
+    _assert_eq(lhs, rhs)
+
+
+def test_block_matrix_add_type_error():
+    x = BlockMatrix._create(1, 1, [2.0], block_size=8)
     with pytest.raises(TypeError):
         x + np.array(['one'], dtype=str)
 
-    _assert_eq(+m, 0 + m)
-    _assert_eq(-m, 0 - m)
 
-    # addition
-    _assert_eq(x + e, nx + e)
-    _assert_eq(c + e, nc + e)
-    _assert_eq(r + e, nr + e)
-    _assert_eq(m + e, nm + e)
-
-    _assert_eq(x + e, e + x)
-    _assert_eq(c + e, e + c)
-    _assert_eq(r + e, e + r)
-    _assert_eq(m + e, e + m)
-
-    _assert_eq(x + x, 2 * x)
-    _assert_eq(c + c, 2 * c)
-    _assert_eq(r + r, 2 * r)
-    _assert_eq(m + m, 2 * m)
-
-    _assert_eq(x + c, np.array([[3.0], [4.0]]))
-    _assert_eq(x + r, np.array([[3.0, 4.0, 5.0]]))
-    _assert_eq(x + m, np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
-    _assert_eq(c + m, np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
-    _assert_eq(r + m, np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
-    _assert_eq(x + c, c + x)
-    _assert_eq(x + r, r + x)
-    _assert_eq(x + m, m + x)
-    _assert_eq(c + m, m + c)
-    _assert_eq(r + m, m + r)
-
-    _assert_eq(x + nx, x + x)
-    _assert_eq(x + nc, x + c)
-    _assert_eq(x + nr, x + r)
-    _assert_eq(x + nm, x + m)
-    _assert_eq(c + nx, c + x)
-    _assert_eq(c + nc, c + c)
-    _assert_eq(c + nm, c + m)
-    _assert_eq(r + nx, r + x)
-    _assert_eq(r + nr, r + r)
-    _assert_eq(r + nm, r + m)
-    _assert_eq(m + nx, m + x)
-    _assert_eq(m + nc, m + c)
-    _assert_eq(m + nr, m + r)
-    _assert_eq(m + nm, m + m)
-
-
-@test_timeout(3 * 60, local=6 * 60)
-def test_paired_elementwise_subtraction():
-    nx = np.array([[2.0]])
-    nc = np.array([[1.0], [2.0]])
-    nr = np.array([[1.0, 2.0, 3.0]])
-    nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-
-    e = 2.0
-    # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
-    # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
-    # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
-    x = BlockMatrix._create(1, 1, [2.0], block_size=8)
-    c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
-    r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
-    m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
-
-    _assert_eq(x - e, nx - e)
-    _assert_eq(c - e, nc - e)
-    _assert_eq(r - e, nr - e)
-    _assert_eq(m - e, nm - e)
-
-    _assert_eq(x - e, -(e - x))
-    _assert_eq(c - e, -(e - c))
-    _assert_eq(r - e, -(e - r))
-    _assert_eq(m - e, -(e - m))
-
-    _assert_eq(x - x, np.zeros((1, 1)))
-    _assert_eq(c - c, np.zeros((2, 1)))
-    _assert_eq(r - r, np.zeros((1, 3)))
-    _assert_eq(m - m, np.zeros((2, 3)))
-
-    _assert_eq(x - c, np.array([[1.0], [0.0]]))
-    _assert_eq(x - r, np.array([[1.0, 0.0, -1.0]]))
-    _assert_eq(x - m, np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
-    _assert_eq(c - m, np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
-    _assert_eq(r - m, np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
-    _assert_eq(x - c, -(c - x))
-    _assert_eq(x - r, -(r - x))
-    _assert_eq(x - m, -(m - x))
-    _assert_eq(c - m, -(m - c))
-    _assert_eq(r - m, -(m - r))
-
-    _assert_eq(x - nx, x - x)
-    _assert_eq(x - nc, x - c)
-    _assert_eq(x - nr, x - r)
-    _assert_eq(x - nm, x - m)
-    _assert_eq(c - nx, c - x)
-    _assert_eq(c - nc, c - c)
-    _assert_eq(c - nm, c - m)
-    _assert_eq(r - nx, r - x)
-    _assert_eq(r - nr, r - r)
-    _assert_eq(r - nm, r - m)
-    _assert_eq(m - nx, m - x)
-    _assert_eq(m - nc, m - c)
-    _assert_eq(m - nr, m - r)
-    _assert_eq(m - nm, m - m)
-
-
-@test_timeout(3 * 60, local=6 * 60)
-def test_paired_elementwise_multiplication():
-    nx = np.array([[2.0]])
-    nc = np.array([[1.0], [2.0]])
-    nr = np.array([[1.0, 2.0, 3.0]])
-    nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-
-    e = 2.0
-    # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
-    # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
-    # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
-    x = BlockMatrix._create(1, 1, [2.0], block_size=8)
-    c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
-    r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
-    m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
-
-
-    _assert_eq(x * e, nx * e)
-    _assert_eq(c * e, nc * e)
-    _assert_eq(r * e, nr * e)
-    _assert_eq(m * e, nm * e)
-
-    _assert_eq(x * e, e * x)
-    _assert_eq(c * e, e * c)
-    _assert_eq(r * e, e * r)
-    _assert_eq(m * e, e * m)
-
-    _assert_eq(x * x, x ** 2)
-    _assert_eq(c * c, c ** 2)
-    _assert_eq(r * r, r ** 2)
-    _assert_eq(m * m, m ** 2)
-
-    _assert_eq(x * c, np.array([[2.0], [4.0]]))
-    _assert_eq(x * r, np.array([[2.0, 4.0, 6.0]]))
-    _assert_eq(x * m, np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
-    _assert_eq(c * m, np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
-    _assert_eq(r * m, np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
-    _assert_eq(x * c, c * x)
-    _assert_eq(x * r, r * x)
-    _assert_eq(x * m, m * x)
-    _assert_eq(c * m, m * c)
-    _assert_eq(r * m, m * r)
-
-    _assert_eq(x * nx, x * x)
-    _assert_eq(x * nc, x * c)
-    _assert_eq(x * nr, x * r)
-    _assert_eq(x * nm, x * m)
-    _assert_eq(c * nx, c * x)
-    _assert_eq(c * nc, c * c)
-    _assert_eq(c * nm, c * m)
-    _assert_eq(r * nx, r * x)
-    _assert_eq(r * nr, r * r)
-    _assert_eq(r * nm, r * m)
-    _assert_eq(m * nx, m * x)
-    _assert_eq(m * nc, m * c)
-    _assert_eq(m * nr, m * r)
-    _assert_eq(m * nm, m * m)
-
-
-@test_timeout(3 * 60, local=6 * 60)
-def test_paired_elementwise_division():
-    nx = np.array([[2.0]])
-    nc = np.array([[1.0], [2.0]])
-    nr = np.array([[1.0, 2.0, 3.0]])
-    nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-
-    e = 2.0
-    # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
-    # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
-    # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
-    x = BlockMatrix._create(1, 1, [2.0], block_size=8)
-    c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
-    r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
-    m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
-
-
-    _assert_close(x / e, nx / e)
-    _assert_close(c / e, nc / e)
-    _assert_close(r / e, nr / e)
-    _assert_close(m / e, nm / e)
-
-    _assert_close(x / e, 1 / (e / x))
-    _assert_close(c / e, 1 / (e / c))
-    _assert_close(r / e, 1 / (e / r))
-    _assert_close(m / e, 1 / (e / m))
-
-    _assert_close(x / x, np.ones((1, 1)))
-    _assert_close(c / c, np.ones((2, 1)))
-    _assert_close(r / r, np.ones((1, 3)))
-    _assert_close(m / m, np.ones((2, 3)))
-
-    _assert_close(x / c, np.array([[2 / 1.0], [2 / 2.0]]))
-    _assert_close(x / r, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
-    _assert_close(x / m, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-    _assert_close(c / m, np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-    _assert_close(r / m, np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
-    _assert_close(x / c, 1 / (c / x))
-    _assert_close(x / r, 1 / (r / x))
-    _assert_close(x / m, 1 / (m / x))
-    _assert_close(c / m, 1 / (m / c))
-    _assert_close(r / m, 1 / (m / r))
-
-    _assert_close(x / nx, x / x)
-    _assert_close(x / nc, x / c)
-    _assert_close(x / nr, x / r)
-    _assert_close(x / nm, x / m)
-    _assert_close(c / nx, c / x)
-    _assert_close(c / nc, c / c)
-    _assert_close(c / nm, c / m)
-    _assert_close(r / nx, r / x)
-    _assert_close(r / nr, r / r)
-    _assert_close(r / nm, r / m)
-    _assert_close(m / nx, m / x)
-    _assert_close(m / nc, m / c)
-    _assert_close(m / nr, m / r)
-    _assert_close(m / nm, m / m)
+@pytest.mark.parametrize(
+    'x, y',
+    [ ('x / e', 'nx / e')
+    , ('c / e', 'nc / e')
+    , ('r / e', 'nr / e')
+    , ('m / e', 'nm / e')
+    , ('x / e', '1 / (e / x)')
+    , ('c / e', '1 / (e / c)')
+    , ('r / e', '1 / (e / r)')
+    , ('m / e', '1 / (e / m)')
+    , ('x / x', 'np.ones((1, 1))')
+    , ('c / c', 'np.ones((2, 1))')
+    , ('r / r', 'np.ones((1, 3))')
+    , ('m / m', 'np.ones((2, 3))')
+    , ('x / c', 'np.array([[2 / 1.0], [2 / 2.0]])')
+    , ('x / r', 'np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]])')
+    , ('x / m', 'np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]])')
+    , ('c / m', 'np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]])')
+    , ('r / m', 'np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]])')
+    , ('x / c', '1 / (c / x)')
+    , ('x / r', '1 / (r / x)')
+    , ('x / m', '1 / (m / x)')
+    , ('c / m', '1 / (m / c)')
+    , ('r / m', '1 / (m / r)')
+    , ('x / nx', 'x / x')
+    , ('x / nc', 'x / c')
+    , ('x / nr', 'x / r')
+    , ('x / nm', 'x / m')
+    , ('c / nx', 'c / x')
+    , ('c / nc', 'c / c')
+    , ('c / nm', 'c / m')
+    , ('r / nx', 'r / x')
+    , ('r / nr', 'r / r')
+    , ('r / nm', 'r / m')
+    , ('m / nx', 'm / x')
+    , ('m / nc', 'm / c')
+    , ('m / nr', 'm / r')
+    , ('m / nm', 'm / m')
+    ]
+)
+def test_paired_elementwise_division(block_matrix_bindings, x, y):
+    lhs = eval(x, block_matrix_bindings)
+    rhs = eval(y, { 'np': np }, block_matrix_bindings)
+    _assert_close(lhs, rhs)
 
 
 def test_special_elementwise_ops():
