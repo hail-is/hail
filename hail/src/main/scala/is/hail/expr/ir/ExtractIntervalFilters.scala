@@ -24,6 +24,25 @@ object ExtractIntervalFilters {
       case KeyFieldValue(i) => i == 0
       case _ => false
     }
+
+    def merge(other: AbstractValue, iord: IntervalEndpointOrdering): AbstractValue = (this, other) match {
+      case (StructValue(l), StructValue(r)) =>
+        val fields = l.keySet.intersect(r.keySet).view.map { f =>
+          f -> l(f).merge(r(f), iord)
+        }.toMap
+        StructValue(fields)
+      case (l: BoolValue, r: BoolValue) =>
+        l.union(r, iord)
+      case (ConstantValue(l), ConstantValue(r)) =>
+        if (l == r) ConstantValue(l) else OtherValue
+      case (KeyFieldValue(l), KeyFieldValue(r)) =>
+        if (l == r) KeyFieldValue(l) else OtherValue
+      case (ContigValue(l), ContigValue(r)) =>
+        if (l == r) ContigValue(l) else OtherValue
+      case (PositionValue(l), PositionValue(r)) =>
+        if (l == r) PositionValue(l) else OtherValue
+      case _ => OtherValue
+    }
   }
 
   final case class StructValue(keyFields: Map[String, AbstractValue]) extends AbstractValue {
@@ -94,6 +113,7 @@ object ExtractIntervalFilters {
         IntervalEndpoint(Row(interval.right.point), interval.right.sign))
     }
   }
+
   def constValue(x: IR): Any = (x: @unchecked) match {
     case I32(v) => v
     case I64(v) => v
@@ -252,6 +272,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       case Str(v) => ConstantValue(v)
       case Literal(_, value) => ConstantValue(value)
       case GetField(o, name) => recur(o).asStruct(name)
+      // TODO: when we support negation, if result is Boolean, handle like (cond & cnsq) | (~cond & altr)
+      case If(cond, cnsq, altr) => recur(cnsq).merge(recur(altr), iord)
       case ToStream(a, _) => recur(a)
       case Apply("contig", _, Seq(k), _, _) =>
         if (recur(k).isFirstKey) ContigValue(k.typ.asInstanceOf[TLocus].rg) else OtherValue
