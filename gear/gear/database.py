@@ -15,7 +15,7 @@ from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusS
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.config import get_deploy_config
-from hailtop.utils import sleep_and_backoff
+from hailtop.utils import sleep_before_try
 
 log = logging.getLogger('gear.database')
 
@@ -32,7 +32,7 @@ internal_error_retry_codes = (1205,)
 def retry_transient_mysql_errors(f):
     @functools.wraps(f)
     async def wrapper(*args, **kwargs):
-        delay = 0.1
+        tries = 0
         while True:
             try:
                 return await f(*args, **kwargs)
@@ -54,7 +54,8 @@ def retry_transient_mysql_errors(f):
                     )
                 else:
                     raise
-            delay = await sleep_and_backoff(delay)
+            tries += 1
+            await sleep_before_try(tries)
 
     return wrapper
 

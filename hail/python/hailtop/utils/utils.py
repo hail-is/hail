@@ -721,24 +721,41 @@ def is_delayed_warning_error(e):
     return False
 
 
-async def sleep_and_backoff(delay, max_delay=30.0):
-    # exponentially back off, up to (expected) max_delay
-    t = delay * random.uniform(0.9, 1.1)
-    await asyncio.sleep(t)
-    return min(delay * 2, max_delay)
+LOG_2_MAX_MULTIPLIER = 30  # do not set larger than 30 to avoid BigInt arithmetic
+DEFAULT_MAX_DELAY_MS = 60_000
+DEFAULT_BASE_DELAY_MS = 1_000
 
 
-def sync_sleep_and_backoff(delay):
-    # exponentially back off, up to (expected) max of 30s
-    t = delay * random.uniform(0.9, 1.1)
-    time.sleep(t)
-    return min(delay * 2, 30.0)
+def delay_ms_for_try(
+    tries: int,
+    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
+    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+) -> int:
+    multiplier = 1 << min(tries, LOG_2_MAX_MULTIPLIER)
+    ceiling_for_delay_ms = base_delay_ms * multiplier
+    proposed_delay_ms = ceiling_for_delay_ms // 2 + random.randrange(ceiling_for_delay_ms // 2 + 1)
+    return min(proposed_delay_ms, max_delay_ms)
+
+
+async def sleep_before_try(
+    tries: int,
+    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
+    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+):
+    await asyncio.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
+
+
+def sync_sleep_before_try(
+    tries: int,
+    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
+    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+):
+    time.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
 
 
 def retry_all_errors(msg=None, error_logging_interval=10):
     async def _wrapper(f, *args, **kwargs):
-        delay = 0.1
-        errors = 0
+        tries = 0
         while True:
             try:
                 return await f(*args, **kwargs)
@@ -747,17 +764,16 @@ def retry_all_errors(msg=None, error_logging_interval=10):
             except KeyboardInterrupt:
                 raise
             except Exception:
-                errors += 1
-                if msg and errors % error_logging_interval == 0:
+                tries += 1
+                if msg and tries % error_logging_interval == 0:
                     log.exception(msg, stack_info=True)
-            delay = await sleep_and_backoff(delay)
+            await sleep_before_try(tries)
     return _wrapper
 
 
 def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10):
     async def _wrapper(f, *args, **kwargs):
-        delay = 0.1
-        errors = 0
+        tries = 0
         while True:
             try:
                 return await f(*args, **kwargs)
@@ -766,12 +782,12 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
             except KeyboardInterrupt:
                 raise
             except Exception:
-                errors += 1
-                if msg and errors % error_logging_interval == 0:
+                tries += 1
+                if msg and tries % error_logging_interval == 0:
                     log.exception(msg, stack_info=True)
-                if errors >= max_errors:
+                if tries >= max_errors:
                     raise
-            delay = await sleep_and_backoff(delay)
+            await sleep_before_try(tries)
     return _wrapper
 
 
@@ -785,70 +801,68 @@ async def retry_transient_errors_with_delayed_warnings(warning_delay_msecs: int,
 
 async def retry_transient_errors_with_debug_string(debug_string: str, warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     start_time = time_msecs()
-    delay = 0.1
-    errors = 0
+    tries = 0
     while True:
         try:
             return await f(*args, **kwargs)
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            errors += 1
-            if errors <= 5 and is_limited_retries_error(e):
+            tries += 1
+            delay = delay_ms_for_try(tries) / 1000.0
+            if tries <= 5 and is_limited_retries_error(e):
                 log.warning(
                     f'A limited retry error has occured. We will automatically retry '
-                    f'{5 - errors} more times. Do not be alarmed. (current delay: '
-                    f'{delay}). The most recent error was {type(e)} {e}. {debug_string}'
+                    f'{5 - tries} more times. Do not be alarmed. (next delay: '
+                    f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}'
                 )
             elif not is_transient_error(e):
                 raise
             else:
                 log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
-                if log_warnings and errors == 2:
+                if log_warnings and tries == 2:
                     log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
-                                f'We have thus far seen {errors} transient errors (current delay: '
-                                f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
-                elif log_warnings and errors % 10 == 0:
+                                f'We have thus far seen {tries} transient errors (next delay: '
+                                f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}')
+                elif log_warnings and tries % 10 == 0:
                     st = ''.join(traceback.format_stack())
                     log.warning(f'A transient error occured. We will automatically retry. '
-                                f'We have thus far seen {errors} transient errors (current delay: '
-                                f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
-        delay = await sleep_and_backoff(delay)
+                                f'We have thus far seen {tries} transient errors (next delay: '
+                                f'{delay}s). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
+        await asyncio.sleep(delay)
 
 
 def sync_retry_transient_errors(f, *args, **kwargs):
-    delay = 0.1
-    errors = 0
+    tries = 0
     while True:
         try:
             return f(*args, **kwargs)
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            errors += 1
-            if errors % 10 == 0:
+            tries += 1
+            if tries % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'Encountered {tries} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
             if is_transient_error(e):
                 pass
             else:
                 raise
-        delay = sync_sleep_and_backoff(delay)
+        sync_sleep_before_try(tries)
 
 
 def retry_response_returning_functions(fun, *args, **kwargs):
-    delay = 0.1
-    errors = 0
+    tries = 0
     response = sync_retry_transient_errors(
         fun, *args, **kwargs)
     while response.status_code in RETRYABLE_HTTP_STATUS_CODES:
-        errors += 1
-        if errors % 10 == 0:
-            log.warning(f'encountered {errors} bad status codes, most recent '
+        tries += 1
+        if tries % 10 == 0:
+            log.warning(f'encountered {tries} bad status codes, most recent '
                         f'one was {response.status_code}')
         response = sync_retry_transient_errors(
             fun, *args, **kwargs)
-        delay = sync_sleep_and_backoff(delay)
+        sync_sleep_before_try(tries)
     return response
 
 

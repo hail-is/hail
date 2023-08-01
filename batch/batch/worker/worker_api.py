@@ -5,7 +5,7 @@ from typing_extensions import TypedDict
 
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
-from hailtop.utils import CalledProcessError, sleep_and_backoff
+from hailtop.utils import CalledProcessError, sleep_before_try
 
 from ..instance_config import InstanceConfig
 from .credentials import CloudUserCredentials
@@ -63,17 +63,16 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
         mount_base_path_tmp: str,
         config: dict,
     ) -> None:
-        delay = 0.1
-        error = 0
+        tries = 0
         while True:
             try:
                 return await self._mount_cloudfuse(credentials, mount_base_path_data, mount_base_path_tmp, config)
             except CalledProcessError:
-                error += 1
-                if error == 5:
+                tries += 1
+                if tries == 5:
                     raise
 
-            delay = await sleep_and_backoff(delay)
+            await sleep_before_try(tries)
 
     @abc.abstractmethod
     async def unmount_cloudfuse(self, mount_base_path_data: str) -> None:
