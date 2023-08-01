@@ -1,3 +1,4 @@
+from typing import Any
 import pytest
 import math
 import numpy as np
@@ -91,35 +92,39 @@ def test_from_entry_expr_empty_parts():
         assert nd.shape == (1000, 1000)
 
 
-@test_timeout(local=6 * 60, batch=6 * 60)
-def test_from_entry_expr_options_1():
+@pytest.mark.parametrize(
+    'mean_impute, center, normalize, expected',
+    [ (False, False, False, lambda a: a,                    )
+    , (False, False, True,  lambda a: a / np.sqrt(5),       )
+    , (False, True,  False, lambda a: a - 1.0,              )
+    , (False, True,  True,  lambda a: (a - 1.0) / np.sqrt(2))
+    , (True,  False, False, lambda a: a,                    )
+    , (True,  False, True,  lambda a: a / np.sqrt(5),       )
+    , (True,  True,  False, lambda a: a - 1.0,              )
+    , (True,  True,  True,  lambda a: (a - 1.0) / np.sqrt(2))
+    ]
+)
+def test_from_entry_expr_options(mean_impute, center, normalize, expected):
     a = np.array([0.0, 1.0, 2.0])
 
     mt = hl.utils.range_matrix_table(1, 3)
     mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
-    mt = mt.annotate_entries(x = hl.literal(a)[mt.s])
 
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, False, False), a)
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, True, False), a - 1.0)
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, False, True), a / np.sqrt(5))
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x, False, True, True), (a - 1.0) / np.sqrt(2))
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x + 1 - 1, False, False, False), a)
+    xs = hl.array([0.0, hl.missing(hl.tfloat), 2.0]) if mean_impute else hl.literal(a)
+    mt = mt.annotate_entries(x = xs[mt.s])
+
+    assert np.allclose(
+        entry_expr_to_ndarray_vec(mt.x, mean_impute, center, normalize),
+        expected(a)
+    )
 
 
-@test_timeout(local=6 * 60, batch=6 * 60)
-def test_from_entry_expr_options_2():
-    mean_imputed = np.array([0.0, 1.0, 2.0])
-    actual = hl.array([0.0, hl.missing(hl.tfloat), 2.0])
-
+def test_from_entry_expr_raises_when_values_missing():
     mt = hl.utils.range_matrix_table(1, 3)
     mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
+    actual = hl.array([0.0, hl.missing(hl.tfloat), 2.0])
     mt = mt.annotate_entries(x = actual[mt.s])
-
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, False, False), mean_imputed)
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, True, False), mean_imputed - 1.0)
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, False, True), mean_imputed / np.sqrt(5))
-    assert np.allclose(entry_expr_to_ndarray_vec(mt.x, True, True, True), (mean_imputed - 1.0) / np.sqrt(2))
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match='Cannot construct an ndarray with missing values'):
         BlockMatrix.from_entry_expr(mt.x)
 
 
