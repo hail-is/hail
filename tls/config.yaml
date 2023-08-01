@@ -56,10 +56,6 @@ principals:
     - internal-gateway
   unmanged: True
   kind: nginx
-- name: memory
-  domains:
-    - memory
-  kind: json
 - name: monitoring
   domains:
     - monitoring

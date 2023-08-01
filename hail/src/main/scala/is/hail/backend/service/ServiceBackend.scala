@@ -435,7 +435,7 @@ object ServiceBackendSocketAPI2 {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
+    val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
@@ -666,7 +666,7 @@ class ServiceBackendSocketAPI2(
       ): () => Array[Byte] = {
         val flags = HailFeatureFlags.fromMap(flagsMap)
         val shouldProfile = flags.get("profile") != null
-        val fs = FS.cloudSpecificCacheableFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
+        val fs = FS.cloudSpecificFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
 
         { () =>
           ExecutionTimer.logTime(methodName) { timer =>
