@@ -341,7 +341,11 @@ def handle_public_access_error(fun):
             return await fun(self, url, *args, **kwargs)
         except azure.core.exceptions.ClientAuthenticationError:
             fs_url = self.parse_url(url)
-            anon_client = BlobServiceClient(f'https://{fs_url.account}.blob.core.windows.net', credential=None)
+            #  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob#other-client--per-operation-configuration
+            anon_client = BlobServiceClient(f'https://{fs_url.account}.blob.core.windows.net',
+                                            credential=None,
+                                            connection_timeout=5,
+                                            read_timeout=5)
             self._blob_service_clients[(fs_url.account, fs_url.container, fs_url.query)] = anon_client
             return await fun(self, url, *args, **kwargs)
     return wrapped
@@ -451,7 +455,11 @@ class AzureAsyncFS(AsyncFS):
         credential = token if token else self._credential
         k = account, container, token
         if k not in self._blob_service_clients:
-            self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=credential)
+            #  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob#other-client--per-operation-configuration
+            self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net',
+                                                              credential=credential,
+                                                              connection_timeout=5,
+                                                              read_timeout=5)
         return self._blob_service_clients[k]
 
     def get_blob_client(self, url: AzureAsyncFSURL) -> BlobClient:
