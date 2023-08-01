@@ -15,197 +15,78 @@ object ExtractIntervalFilters {
 
   val MAX_LITERAL_SIZE = 4096
 
-  abstract class AbstractValue {
+  sealed abstract class AbstractValue {
     def asBool: BoolValue = this.asInstanceOf[BoolValue]
+
     def asStruct: StructValue = this.asInstanceOf[StructValue]
+
     def isFirstKey: Boolean = this match {
       case KeyFieldValue(i) => i == 0
       case _ => false
     }
   }
-  final case class StructValue(keyFields: SortedMap[String, AbstractValue]) extends AbstractValue {
+
+  final case class StructValue(keyFields: Map[String, AbstractValue]) extends AbstractValue {
     def apply(name: String): AbstractValue = keyFields.getOrElse(name, OtherValue)
+
     def isKeyPrefix: Boolean = keyFields.values.view.zipWithIndex.forall {
       case (KeyFieldValue(i1), i2) => i1 == i2
       case _ => false
     }
   }
+
+  object StructValue {
+    val top: StructValue = StructValue(Map.empty)
+  }
+
   // approximates runtime bool p by intervals, such that if p is true, then key is in intervals
   // equivalently p iff (p and key in intervals)
   final case class BoolValue(intervals: Array[Interval]) extends AbstractValue {
     override def toString: String = s"BoolValue(${intervals.toFastIndexedSeq})"
+    def union(other: BoolValue, iord: IntervalEndpointOrdering): BoolValue =
+      BoolValue(Interval.union(intervals ++ other.intervals, iord))
+    def intersection(other: BoolValue, iord: IntervalEndpointOrdering): BoolValue = {
+      log.info(s"intersecting list of ${intervals.length} intervals with list of ${other.intervals.length} intervals")
+      val intersection = Interval.intersection(intervals, other.intervals, iord)
+      log.info(s"intersect generated ${intersection.length} intersected intervals")
+      BoolValue(intersection)
+    }
   }
+
   object BoolValue {
     // interval containing all keys
     val top: BoolValue = BoolValue(Array(Interval(Row(), Row(), true, true)))
+    val bottom: BoolValue = BoolValue(Array())
   }
+  final case class ConstantValue(value: Any) extends AbstractValue
+
   final case class KeyFieldValue(idx: Int) extends AbstractValue
+
   final case class ContigValue(rg: String) extends AbstractValue
+
   final case class PositionValue(rg: String) extends AbstractValue
+
   final case object OtherValue extends AbstractValue
 
-  def intervalsFromLiteral(lit: Literal, wrapped: Boolean): Array[Interval] = {
-    (lit.value: @unchecked) match {
-      case x: Map[_, _] => intervalsFromLiteral(x.keys, wrapped)
-      case x: Traversable[_] => intervalsFromLiteral(x, wrapped)
+  def intervalsFromLiteral(lit: Any, wrapped: Boolean): Array[Interval] = {
+    (lit: @unchecked) match {
+      case x: Map[_, _] => intervalsFromCollection(x.keys, wrapped)
+      case x: Traversable[_] => intervalsFromCollection(x, wrapped)
     }
   }
-  def intervalsFromLiteral(lit: Traversable[Any], wrapped: Boolean): Array[Interval] = {
+  def intervalsFromCollection(lit: Traversable[Any], wrapped: Boolean): Array[Interval] = {
     lit.map { elt =>
       Interval(endpoint(elt, -1, wrapped), endpoint(elt, 1, wrapped))
     }.toArray
   }
-  def intervalsFromLiteralContigs(contigs: Literal, rg: ReferenceGenome): Array[Interval] = {
-    (contigs.value: @unchecked) match {
+  def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): Array[Interval] = {
+    (contigs: @unchecked) match {
       case x: Map[_, _] => x.keys.flatMap(c => getIntervalFromContig(c.asInstanceOf[String], rg)).toArray
       case x: Traversable[_] => x.flatMap(c => getIntervalFromContig(c.asInstanceOf[String], rg)).toArray
     }
   }
 
-  def analyze(x: IR, env: Env[AbstractValue], ctx: ExecuteContext, iord: IntervalEndpointOrdering): AbstractValue = {
-    def recur(x: IR, env: Env[AbstractValue] = env): AbstractValue = analyze(x, env, ctx, iord)
-
-//    println(s"visiting:\n${Pretty(ctx, x)}")
-//    println(s"env: ${env}")
-    val res = x match {
-      case Let(name, value, body) =>
-        recur(body, env.bind(name -> recur(value)))
-      case Ref(name, _) => env.lookupOption(name).getOrElse(OtherValue)
-      case False() =>
-        BoolValue(Array())
-      case True() =>
-        // the interval containing all keys
-        BoolValue(Array(Interval(Row(), Row(), true, true)))
-      case GetField(o, name) =>
-        recur(o).asStruct(name)
-      case Apply("contig", _, Seq(k), _, _) =>
-        if (recur(k).isFirstKey) ContigValue(k.typ.asInstanceOf[TLocus].rg) else OtherValue
-      case Apply("position", _, Seq(k), _, _) =>
-        if (recur(k).isFirstKey) PositionValue(k.typ.asInstanceOf[TLocus].rg) else OtherValue
-      case ApplySpecial("lor", _, Seq(l, r), t, _) =>
-        val ll = recur(l).asBool.intervals
-        val rr = recur(r).asBool.intervals
-        val union = Interval.union(ll ++ rr, iord)
-        BoolValue(union)
-      case ApplySpecial("land", _, Seq(l, r), t, _) =>
-        val ll = recur(l).asBool.intervals
-        val rr = recur(r).asBool.intervals
-        log.info(s"intersecting list of ${ll.length} intervals with list of ${rr.length} intervals")
-        val intersection = Interval.intersection(ll, rr, iord)
-        log.info(s"intersect generated ${intersection.length} intersected intervals")
-        BoolValue(intersection)
-      case StreamFold(
-        ToStream(lit: Literal, _), False(), acc, value,
-          ApplySpecial(
-            "lor", _,
-            Seq(
-              Ref(acc2, _),
-              ApplySpecial("contains", _, Seq(Ref(value2, _), k), _, _)
-            ),
-            _, _)) =>
-        assert(lit.typ.asInstanceOf[TContainer].elementType.isInstanceOf[TInterval])
-        if (acc == acc2 && value == value2 && recur(k).isFirstKey) {
-          val intervals = Interval.union(
-            constValue(lit).asInstanceOf[Iterable[_]]
-              .filter(_ != null)
-              .map { v =>
-                val i = v.asInstanceOf[Interval]
-                Interval(
-                  IntervalEndpoint(Row(i.left.point), i.left.sign),
-                  IntervalEndpoint(Row(i.right.point), i.right.sign))
-              }.toArray,
-            iord)
-          BoolValue(intervals)
-        } else BoolValue(Array.empty)
-      case Coalesce(bools) =>
-        // if Coalesce is true, then one of the bools must be true, so can conservatively treat like an Or
-        val intervals = Interval.union(Array.concat(bools.view.map(recur(_).asBool.intervals): _*), iord)
-        BoolValue(intervals)
-      // collection contains
-      case ApplyIR("contains", _, Seq(lit: Literal, query), _) =>
-        val queryVal = recur(query)
-        if (literalSizeOkay(lit)) {
-          queryVal match {
-            case ContigValue(rgStr) =>
-              val rg = ctx.stateManager.referenceGenomes(rgStr)
-              BoolValue(intervalsFromLiteralContigs(lit, rg))
-            case KeyFieldValue(0) =>
-              BoolValue(intervalsFromLiteral(lit, true))
-            case struct: StructValue if struct.isKeyPrefix =>
-              BoolValue(intervalsFromLiteral(lit, false))
-          }
-        } else {
-          BoolValue.top
-        }
-      // interval contains
-      case ApplySpecial("contains", _, Seq(lit: Literal, query), _, _) =>
-        val queryVal = recur(query)
-        (lit.value: @unchecked) match {
-          case null => BoolValue(Array())
-          case i: Interval =>
-            queryVal match {
-              case KeyFieldValue(0) =>
-                BoolValue(wrapInRow(Array(i)))
-              case struct: StructValue if struct.isKeyPrefix =>
-                BoolValue(Array(i))
-              case _ =>
-                BoolValue.top
-            }
-        }
-      case ApplyComparisonOp(op, l, r) if opIsSupported(op) =>
-        if (!IsConstant(l) && !IsConstant(r)) {
-          BoolValue.top
-        } else {
-          val (const, k, flipped) = if (IsConstant(l)) (l, r, false) else (r, l, true)
-          recur(k) match {
-            case KeyFieldValue(0) =>
-              // simple key comparison
-              BoolValue(Array(intervalFromComparison(constValue(const), const.typ, op, ctx, flipped)))
-            case struct: StructValue if struct.isKeyPrefix =>
-              assert(op.isInstanceOf[EQ])
-              val c = constValue(const)
-              BoolValue(Array(Interval(endpoint(c, -1, wrapped = false), endpoint(c, 1, wrapped = false))))
-            case ContigValue(rgStr) =>
-              // locus contig comparison
-              val intervals = (constValue(const): @unchecked) match {
-                case s: String =>
-                  Array(getIntervalFromContig(s, ctx.getReference(rgStr))).flatten
-              }
-              BoolValue(intervals)
-            case PositionValue(rgStr) =>
-              // locus position comparison
-              val pos = constValue(const).asInstanceOf[Int]
-              val rg = ctx.getReference(rgStr)
-              val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
-              val intervals = rg.contigs.indices
-                .flatMap { i =>
-                  intervalFromComparison(pos, TInt32, op, ctx, flipped)
-                    .intersect(
-                      ord,
-                      Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
-                    .map { interval =>
-                      Interval(
-                        endpoint(Locus(rg.contigs(i), interval.left.point.asInstanceOf[Row].getAs[Int](0)), interval.left.sign),
-                        endpoint(Locus(rg.contigs(i), interval.right.point.asInstanceOf[Row].getAs[Int](0)), interval.right.sign))
-                    }
-                }.toArray
-
-              BoolValue(intervals)
-            case _ => BoolValue.top
-          }
-        }
-      case x if x.typ == TBoolean =>
-        BoolValue.top
-      case x if x.typ.isInstanceOf[TStruct] =>
-        StructValue(SortedMap.empty)
-      case _ =>
-        OtherValue
-    }
-//    println(s"result: $res")
-    res
-  }
-
-  def literalSizeOkay(lit: Literal): Boolean = lit.value.asInstanceOf[Iterable[_]].size <= MAX_LITERAL_SIZE
+  def literalSizeOkay(lit: Any): Boolean = lit.asInstanceOf[Iterable[_]].size <= MAX_LITERAL_SIZE
 
   def wrapInRow(intervals: Array[Interval]): Array[Interval] = {
     intervals.map { interval =>
@@ -213,7 +94,6 @@ object ExtractIntervalFilters {
         IntervalEndpoint(Row(interval.right.point), interval.right.sign))
     }
   }
-
   def constValue(x: IR): Any = (x: @unchecked) match {
     case I32(v) => v
     case I64(v) => v
@@ -241,30 +121,18 @@ object ExtractIntervalFilters {
     }
   }
 
-  private def intervalFromComparison(v: Any, typ: Type, op: ComparisonOp[_], ctx: ExecuteContext, flipped: Boolean = false): Interval = {
+  private def intervalFromComparison(v: Any, op: ComparisonOp[_]): Interval = {
     (op: @unchecked) match {
       case _: EQ =>
         Interval(endpoint(v, -1), endpoint(v, 1))
       case GT(_, _) =>
-        if (flipped)
-          Interval(endpoint(v, 1), posInf) // key > value
-        else
-          Interval(negInf, endpoint(v, -1)) // value > key
+        Interval(negInf, endpoint(v, -1)) // value > key
       case GTEQ(_, _) =>
-        if (flipped)
-          Interval(endpoint(v, -1), posInf) // key >= value
-        else
-          Interval(negInf, endpoint(v, 1)) // value >= key
+        Interval(negInf, endpoint(v, 1)) // value >= key
       case LT(_, _) =>
-        if (flipped)
-          Interval(negInf, endpoint(v, -1)) // key < value
-        else
-          Interval(endpoint(v, 1), posInf) // value < key
+        Interval(endpoint(v, 1), posInf) // value < key
       case LTEQ(_, _) =>
-        if (flipped)
-          Interval(negInf, endpoint(v, 1)) // key <= value
-        else
-          Interval(endpoint(v, -1), posInf) // value <= key
+        Interval(endpoint(v, -1), posInf) // value <= key
     }
   }
 
@@ -275,30 +143,12 @@ object ExtractIntervalFilters {
     }
   }
 
-  def extractAndRewrite(cond1: IR, env: Env[AbstractValue], ctx: ExecuteContext, iord: IntervalEndpointOrdering): Option[(IR, Array[Interval])] = {
-    println("===========================")
-    val BoolValue(intervals) = analyze(cond1, env, ctx, iord)
-    println(s"extracted intervals: ${intervals.toFastIndexedSeq}")
-    println()
-    if (intervals.length == 1 && intervals(0) == Interval(Row(), Row(), true, true))
-      None
-    else {
-      Some((cond1, intervals))
-    }
-  }
-
   def extractPartitionFilters(ctx: ExecuteContext, cond: IR, ref: Ref, key: IndexedSeq[String]): Option[(IR, Array[Interval])] = {
     if (key.isEmpty)
       None
     else {
-      val env = Env.empty[AbstractValue].bind(
-        ref.name,
-        StructValue(SortedMap(key.zipWithIndex.map(t => t._1 -> KeyFieldValue(t._2)): _*))
-        )
-      val rowType: TStruct = ref.typ.asInstanceOf[TStruct]
-      val rowKeyType: TStruct = rowType.select(key)._1
-      val iord: IntervalEndpointOrdering = PartitionBoundOrdering(ctx, rowKeyType).intervalEndpointOrdering
-      extractAndRewrite(cond, env, ctx, iord)
+      val extract = new ExtractIntervalFilters(ctx, ref.typ.asInstanceOf[TStruct])
+      extract.analyze(cond, ref.name).map((cond, _))
     }
   }
 
@@ -331,5 +181,148 @@ object ExtractIntervalFilters {
         case _ => None
       }).getOrElse(ir)
     })
+  }
+}
+
+class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
+  import ExtractIntervalFilters._
+
+  val iord: IntervalEndpointOrdering = PartitionBoundOrdering(ctx, keyType).intervalEndpointOrdering
+
+  def compareWithConstant(l: Any, r: AbstractValue, op: ComparisonOp[_]): BoolValue = {
+    r match {
+      case KeyFieldValue(0) =>
+        // simple key comparison
+        BoolValue(Array(intervalFromComparison(l, op)))
+      case struct: StructValue if struct.isKeyPrefix =>
+        assert(op.isInstanceOf[EQ])
+        BoolValue(Array(Interval(endpoint(l, -1, wrapped = false), endpoint(l, 1, wrapped = false))))
+      case ContigValue(rgStr) =>
+        // locus contig comparison
+        val intervals = Array(getIntervalFromContig(l.asInstanceOf[String], ctx.getReference(rgStr))).flatten
+        BoolValue(intervals)
+      case PositionValue(rgStr) =>
+        // locus position comparison
+        val rg = ctx.getReference(rgStr)
+        val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
+        val intervals = rg.contigs.indices
+          .flatMap { i =>
+            intervalFromComparison(l, op)
+              .intersect(
+                ord,
+                Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
+              .map { interval =>
+                Interval(
+                  endpoint(Locus(rg.contigs(i), interval.left.point.asInstanceOf[Row].getAs[Int](0)), interval.left.sign),
+                  endpoint(Locus(rg.contigs(i), interval.right.point.asInstanceOf[Row].getAs[Int](0)), interval.right.sign))
+              }
+          }.toArray
+
+        BoolValue(intervals)
+      case _ => BoolValue.top
+    }
+  }
+
+  def analyze(x: IR, rowName: String): Option[Array[Interval]] = {
+    val env = Env.empty[AbstractValue].bind(
+      rowName,
+      StructValue(Map(keyType.fieldNames.zipWithIndex.map(t => t._1 -> KeyFieldValue(t._2)): _*)))
+    val BoolValue(intervals) = _analyze(x, env)
+    if (intervals.length == 1 && intervals(0) == Interval(Row(), Row(), true, true))
+      None
+    else {
+      Some(intervals)
+    }
+  }
+
+  private def _analyze(x: IR, env: Env[AbstractValue]): AbstractValue = {
+    def recur(x: IR, env: Env[AbstractValue] = env): AbstractValue = _analyze(x, env)
+
+//    println(s"visiting:\n${Pretty(ctx, x)}")
+//    println(s"env: ${env}")
+    val res = x match {
+      case Let(name, value, body) => recur(body, env.bind(name -> recur(value)))
+      case Ref(name, _) => env.lookupOption(name).getOrElse(OtherValue)
+      case False() => BoolValue.bottom
+      case True() => BoolValue.top
+      case I32(v) => ConstantValue(v)
+      case I64(v) => ConstantValue(v)
+      case F32(v) => ConstantValue(v)
+      case F64(v) => ConstantValue(v)
+      case Str(v) => ConstantValue(v)
+      case Literal(_, value) => ConstantValue(value)
+      case GetField(o, name) => recur(o).asStruct(name)
+      case ToStream(a, _) => recur(a)
+      case Apply("contig", _, Seq(k), _, _) =>
+        if (recur(k).isFirstKey) ContigValue(k.typ.asInstanceOf[TLocus].rg) else OtherValue
+      case Apply("position", _, Seq(k), _, _) =>
+        if (recur(k).isFirstKey) PositionValue(k.typ.asInstanceOf[TLocus].rg) else OtherValue
+      case ApplySpecial("lor", _, Seq(l, r), t, _) =>
+        recur(l).asBool.union(recur(r).asBool, iord)
+      case ApplySpecial("land", _, Seq(l, r), t, _) =>
+        recur(l).asBool.intersection(recur(r).asBool, iord)
+      case StreamFold(a, zero, accumName, valueName, body) =>
+        recur(a) match {
+          case ConstantValue(array) =>
+            array.asInstanceOf[Iterable[Any]].foldLeft(recur(zero)) { (accum, value) =>
+              recur(body, env.bind(accumName -> accum, valueName -> ConstantValue(value)))
+            }
+          case _ => OtherValue
+        }
+      case Coalesce(bools) =>
+        // if Coalesce is true, then one of the bools must be true, so can conservatively treat like an Or
+        val intervals = Interval.union(Array.concat(bools.view.map(recur(_).asBool.intervals): _*), iord)
+        BoolValue(intervals)
+      // collection contains
+      case ApplyIR("contains", _, Seq(collection, query), _) =>
+        recur(collection) match {
+          case ConstantValue(collectionVal) =>
+            val queryVal = recur(query)
+            if (literalSizeOkay(collectionVal)) {
+              queryVal match {
+                case ContigValue(rgStr) =>
+                  val rg = ctx.stateManager.referenceGenomes(rgStr)
+                  BoolValue(intervalsFromLiteralContigs(collectionVal, rg))
+                case KeyFieldValue(0) =>
+                  BoolValue(intervalsFromLiteral(collectionVal, true))
+                case struct: StructValue if struct.isKeyPrefix =>
+                  BoolValue(intervalsFromLiteral(collectionVal, false))
+              }
+            } else {
+              BoolValue.top
+            }
+          case _ => OtherValue
+        }
+      // interval contains
+      case ApplySpecial("contains", _, Seq(interval, query), _, _) =>
+        recur(interval) match {
+          case ConstantValue(intervalVal) =>
+            val queryVal = recur(query)
+            (intervalVal: @unchecked) match {
+              case null => BoolValue.bottom
+              case i: Interval =>
+                queryVal match {
+                  case KeyFieldValue(0) =>
+                    BoolValue(wrapInRow(Array(i)))
+                  case struct: StructValue if struct.isKeyPrefix =>
+                    BoolValue(Array(i))
+                  case _ =>
+                    BoolValue.top
+                }
+            }
+          case _ => OtherValue
+        }
+      case ApplyComparisonOp(op, l, r) if opIsSupported(op) =>
+        (recur(l), recur(r)) match {
+          case (ConstantValue(l), r) => compareWithConstant(l, r, op)
+          case (l, ConstantValue(r)) => compareWithConstant(r, l, ComparisonOp.swap(op.asInstanceOf[ComparisonOp[Boolean]]))
+          case _ => BoolValue.top
+        }
+      case x if x.typ == TBoolean => BoolValue.top
+      case x if x.typ.isInstanceOf[TStruct] => StructValue.top
+      case _ => OtherValue
+    }
+//    println(s"result: $res")
+    res
   }
 }
