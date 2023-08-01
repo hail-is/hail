@@ -2469,7 +2469,7 @@ steps:
       - deploy_memory_sa
       - create_certs
   - kind: runImage
-    name: test_hail_python_service_backend
+    name: test_hail_python_service_backend_gcp
     numSplits: 16
     image:
       valueFrom: hail_run_image.image
@@ -2554,6 +2554,99 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_hail_python_service_backend_azure
+    numSplits: 16
+    image:
+      valueFrom: hail_run_image.image
+    resources:
+      cpu: '0.25'
+      preemptible: False
+    script: |
+      set -ex
+      tar xvf /io/wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      cd /io/repo/hail/python
+
+      export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
+      export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      {% if global.cloud == "gcp" %}
+      export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
+      {% elif global.cloud == "azure" %}
+      export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
+      export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
+      {% endif %}
+
+      export HAIL_SHUFFLE_MAX_BRANCH=4
+      export HAIL_SHUFFLE_CUTOFF=1000000
+      export HAIL_QUERY_BACKEND=batch
+      {% if global.cloud == "azure" %}
+      export HAIL_BATCH_REGIONS={{ global.azure_location }}
+      {% elif global.cloud == "gcp" %}
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
+      {% else %}
+      echo "unknown cloud {{ global.cloud }}"
+      exit 1
+      {% endif %}
+      export HAIL_BATCH_BILLING_PROJECT=test
+      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
+
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --ignore=test/hailtop/ \
+              --timeout=600 \
+              test
+    timeout: 5400
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /repo/hail/python/test
+        to: /io/repo/hail/python/test
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: worker-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+    dependsOn:
+      - default_ns
+      - merge_code
+      - deploy_batch
+      - deploy_memory
+      - create_deploy_config
+      - create_accounts
+      - hail_run_image
+      - upload_query_jar
+      - upload_test_resources_to_blob_storage
+      - build_hail_jar_and_wheel
+      - hailgenetics_vep_grch37_85_image
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - azure
   - kind: runImage
     name: test_hail_spark_conf_requester_pays_parsing
     image:
@@ -3710,7 +3803,8 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
-      - test_hail_python_service_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
       - test_hail_services_java
       - test_batch_docs
       - test_hailctl_batch
@@ -3759,7 +3853,8 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
-      - test_hail_python_service_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_gcp_batch_instances
@@ -3805,7 +3900,8 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
-      - test_hail_python_service_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_azure_batch_instances
