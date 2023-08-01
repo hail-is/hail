@@ -3950,4 +3950,6 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
