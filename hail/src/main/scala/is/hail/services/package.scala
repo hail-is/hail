@@ -39,6 +39,9 @@ package object services {
     baseDelayMs: Int = DEFAULT_BASE_DELAY_MS,
     maxDelayMs: Int = DEFAULT_MAX_DELAY_MS
   ): Int = {
+    // Based on AWS' recommendations:
+    // - https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+    // - https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java
     val multiplier = 1 << math.min(tries, LOG_2_MAX_MULTIPLIER)
     val ceilingForDelayMs = baseDelayMs * multiplier
     val proposedDelayMs = ceilingForDelayMs / 2 + Random.nextInt(ceilingForDelayMs / 2 + 1)

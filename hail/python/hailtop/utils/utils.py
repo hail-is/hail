@@ -731,6 +731,9 @@ def delay_ms_for_try(
     base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
     max_delay_ms: int = DEFAULT_MAX_DELAY_MS
 ) -> int:
+    # Based on AWS' recommendations:
+    # - https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+    # - https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java
     multiplier = 1 << min(tries, LOG_2_MAX_MULTIPLIER)
     ceiling_for_delay_ms = base_delay_ms * multiplier
     proposed_delay_ms = ceiling_for_delay_ms // 2 + random.randrange(ceiling_for_delay_ms // 2 + 1)
