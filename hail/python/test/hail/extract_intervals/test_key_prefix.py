@@ -121,3 +121,12 @@ def test_GRCh38():
     mt = hl.balding_nichols_model(1, 10, 100, n_partitions=10, reference_genome='GRCh38')
     mt = mt.filter_rows(hl.all(mt.locus.contig == 'chr1', mt.locus.position < 5))
     assert mt.n_partitions() == 1
+
+
+def test_interval_filter(ht):
+    # expr = ht.filter((ht.locus >= hl.locus('20', 1)) & (ht.locus < hl.locus('20', 10200000)))
+
+    ht.tail(20).show()
+    subcond = ht.locus.contig == '20'
+    expr = ht.filter((subcond & (ht.locus.position < 10200000)) | (subcond & (ht.locus.position > 17900000)))
+    assert expr.n_partitions() == 2

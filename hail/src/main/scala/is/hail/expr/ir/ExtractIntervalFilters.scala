@@ -17,12 +17,14 @@ object ExtractIntervalFilters {
 
   abstract class AbstractValue {
     def asBool: BoolValue = this.asInstanceOf[BoolValue]
+    def asStruct: StructValue = this.asInstanceOf[StructValue]
     def isFirstKey: Boolean = this match {
       case KeyFieldValue(i) => i == 0
       case _ => false
     }
   }
   final case class StructValue(keyFields: SortedMap[String, AbstractValue]) extends AbstractValue {
+    def apply(name: String): AbstractValue = keyFields.getOrElse(name, OtherValue)
     def isKeyPrefix: Boolean = keyFields.values.view.zipWithIndex.forall {
       case (KeyFieldValue(i1), i2) => i1 == i2
       case _ => false
@@ -30,7 +32,9 @@ object ExtractIntervalFilters {
   }
   // approximates runtime bool p by intervals, such that if p is true, then key is in intervals
   // equivalently p iff (p and key in intervals)
-  final case class BoolValue(intervals: Array[Interval]) extends AbstractValue
+  final case class BoolValue(intervals: Array[Interval]) extends AbstractValue {
+    override def toString: String = s"BoolValue(${intervals.toFastIndexedSeq})"
+  }
   object BoolValue {
     // interval containing all keys
     val top: BoolValue = BoolValue(Array(Interval(Row(), Row(), true, true)))
@@ -61,12 +65,19 @@ object ExtractIntervalFilters {
   def analyze(x: IR, env: Env[AbstractValue], ctx: ExecuteContext, iord: IntervalEndpointOrdering): AbstractValue = {
     def recur(x: IR, env: Env[AbstractValue] = env): AbstractValue = analyze(x, env, ctx, iord)
 
-    x match {
+//    println(s"visiting:\n${Pretty(ctx, x)}")
+//    println(s"env: ${env}")
+    val res = x match {
+      case Let(name, value, body) =>
+        recur(body, env.bind(name -> recur(value)))
+      case Ref(name, _) => env.lookupOption(name).getOrElse(OtherValue)
       case False() =>
         BoolValue(Array())
       case True() =>
         // the interval containing all keys
         BoolValue(Array(Interval(Row(), Row(), true, true)))
+      case GetField(o, name) =>
+        recur(o).asStruct(name)
       case Apply("contig", _, Seq(k), _, _) =>
         if (recur(k).isFirstKey) ContigValue(k.typ.asInstanceOf[TLocus].rg) else OtherValue
       case Apply("position", _, Seq(k), _, _) =>
@@ -183,8 +194,6 @@ object ExtractIntervalFilters {
             case _ => BoolValue.top
           }
         }
-      case Let(name, value, body) =>
-        recur(body, env.bind(name -> recur(value)))
       case x if x.typ == TBoolean =>
         BoolValue.top
       case x if x.typ.isInstanceOf[TStruct] =>
@@ -192,6 +201,8 @@ object ExtractIntervalFilters {
       case _ =>
         OtherValue
     }
+//    println(s"result: $res")
+    res
   }
 
   object ExtractionState {
@@ -364,16 +375,18 @@ object ExtractIntervalFilters {
     val env = Env.empty[AbstractValue].bind(
       es.rowRef.name,
       StructValue(SortedMap(es.keyFields.zipWithIndex.map(t => t._1 -> KeyFieldValue(t._2)): _*)))
-    println(env)
+    println("===========================")
     val BoolValue(intervals) = analyze(cond1, env, es.ctx, es.iOrd)
+    println(s"extracted intervals: ${intervals.toFastIndexedSeq}")
+    println()
     if (intervals.length == 1 && intervals(0) == Interval(Row(), Row(), true, true))
       None
-    else
+    else {
       Some((cond1, intervals))
+    }
   }
 
   def extractPartitionFilters(ctx: ExecuteContext, cond: IR, ref: Ref, key: IndexedSeq[String]): Option[(IR, Array[Interval])] = {
-    println("in extract")
     if (key.isEmpty)
       None
     else
