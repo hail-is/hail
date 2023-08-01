@@ -205,67 +205,6 @@ object ExtractIntervalFilters {
     res
   }
 
-  object ExtractionState {
-    def apply(
-      ctx: ExecuteContext,
-      rowRef: Ref,
-      keyFields: IndexedSeq[String]
-    ): ExtractionState = {
-      new ExtractionState(ctx, Env.empty[IR], rowRef, keyFields)
-    }
-  }
-
-  class ExtractionState(
-    val ctx: ExecuteContext,
-    env: Env[IR],
-    val rowRef: Ref,
-    val keyFields: IndexedSeq[String]
-  ) {
-    val rowType: TStruct = rowRef.typ.asInstanceOf[TStruct]
-    val rowKeyType: TStruct = rowType.select(keyFields)._1
-    val firstKeyType: Type = rowKeyType.types.head
-    val iOrd: IntervalEndpointOrdering = PartitionBoundOrdering(ctx, rowKeyType).intervalEndpointOrdering
-
-    def getReferenceGenome(rg: String): ReferenceGenome = ctx.stateManager.referenceGenomes(rg)
-
-    def bind(name: String, v: IR): ExtractionState =
-      new ExtractionState(ctx, env.bind(name, v), rowRef, keyFields)
-
-    private def isRowRef(ir: IR): Boolean = ir match {
-      case ref: Ref =>
-        ref == rowRef || env.lookupOption(ref.name).exists(isRowRef)
-      case _ => false
-    }
-
-    private def isKeyField(ir: IR, keyFieldName: String): Boolean = ir match {
-      case GetField(struct, name) => fieldIsKeyField(struct, name, keyFieldName)
-      case Ref(name, _) => env.lookupOption(name).exists(isKeyField(_, keyFieldName))
-      case _ => false
-    }
-
-    private def fieldIsKeyField(struct: IR, fieldName: String, keyFieldName: String): Boolean = struct match {
-      case MakeStruct(fields) => fields.exists { case (n, f) =>
-        n == fieldName && isKeyField(f, keyFieldName)
-      }
-      case SelectFields(o, fields) => fields.exists { f =>
-        f == fieldName && fieldIsKeyField(o, fieldName, keyFieldName)
-      }
-      case _ => isRowRef(struct) && fieldName == keyFieldName
-    }
-
-    def isFirstKey(ir: IR): Boolean = isKeyField(ir, rowKeyType.fieldNames.head)
-
-    def isKeyStructPrefix(ir: IR): Boolean = ir match {
-      case MakeStruct(fields) => fields.view.zipWithIndex.forall { case ((_, fd), idx) =>
-        idx < rowKeyType.size && isKeyField(fd, rowKeyType.fieldNames(idx))
-      }
-      case SelectFields(old, fields) => fields.view.zipWithIndex.forall { case (fd, idx) =>
-        idx < rowKeyType.size && fieldIsKeyField(old, fd, rowKeyType.fieldNames(idx))
-      }
-      case _ => false
-    }
-  }
-
   def literalSizeOkay(lit: Literal): Boolean = lit.value.asInstanceOf[Iterable[_]].size <= MAX_LITERAL_SIZE
 
   def wrapInRow(intervals: Array[Interval]): Array[Interval] = {
@@ -336,12 +275,9 @@ object ExtractIntervalFilters {
     }
   }
 
-  def extractAndRewrite(cond1: IR, es: ExtractionState): Option[(IR, Array[Interval])] = {
-    val env = Env.empty[AbstractValue].bind(
-      es.rowRef.name,
-      StructValue(SortedMap(es.keyFields.zipWithIndex.map(t => t._1 -> KeyFieldValue(t._2)): _*)))
+  def extractAndRewrite(cond1: IR, env: Env[AbstractValue], ctx: ExecuteContext, iord: IntervalEndpointOrdering): Option[(IR, Array[Interval])] = {
     println("===========================")
-    val BoolValue(intervals) = analyze(cond1, env, es.ctx, es.iOrd)
+    val BoolValue(intervals) = analyze(cond1, env, ctx, iord)
     println(s"extracted intervals: ${intervals.toFastIndexedSeq}")
     println()
     if (intervals.length == 1 && intervals(0) == Interval(Row(), Row(), true, true))
@@ -354,8 +290,16 @@ object ExtractIntervalFilters {
   def extractPartitionFilters(ctx: ExecuteContext, cond: IR, ref: Ref, key: IndexedSeq[String]): Option[(IR, Array[Interval])] = {
     if (key.isEmpty)
       None
-    else
-      extractAndRewrite(cond, ExtractionState(ctx, ref, key))
+    else {
+      val env = Env.empty[AbstractValue].bind(
+        ref.name,
+        StructValue(SortedMap(key.zipWithIndex.map(t => t._1 -> KeyFieldValue(t._2)): _*))
+        )
+      val rowType: TStruct = ref.typ.asInstanceOf[TStruct]
+      val rowKeyType: TStruct = rowType.select(key)._1
+      val iord: IntervalEndpointOrdering = PartitionBoundOrdering(ctx, rowKeyType).intervalEndpointOrdering
+      extractAndRewrite(cond, env, ctx, iord)
+    }
   }
 
   def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR = {
