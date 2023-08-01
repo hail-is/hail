@@ -160,7 +160,7 @@ object ExtractIntervalFilters {
           recur(k) match {
             case KeyFieldValue(0) =>
               // simple key comparison
-              BoolValue(Array(openInterval(constValue(const), const.typ, op, ctx, flipped)))
+              BoolValue(Array(intervalFromComparison(constValue(const), const.typ, op, ctx, flipped)))
             case struct: StructValue if struct.isKeyPrefix =>
               assert(op.isInstanceOf[EQ])
               val c = constValue(const)
@@ -176,10 +176,10 @@ object ExtractIntervalFilters {
               // locus position comparison
               val pos = constValue(const).asInstanceOf[Int]
               val rg = ctx.getReference(rgStr)
-              val ord = TTuple(TInt32).ordering(ctx.stateManager)
+              val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
               val intervals = rg.contigs.indices
                 .flatMap { i =>
-                  openInterval(pos, TInt32, op, ctx, flipped)
+                  intervalFromComparison(pos, TInt32, op, ctx, flipped)
                     .intersect(
                       ord,
                       Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
@@ -275,35 +275,6 @@ object ExtractIntervalFilters {
     }
   }
 
-  def minimumValueByType(t: Type, ctx: ExecuteContext): Any = {
-    t match {
-      case TInt32 => Int.MinValue
-      case TInt64 => Long.MinValue
-      case TFloat32 => Float.NegativeInfinity
-      case TFloat64 => Double.PositiveInfinity
-      case TBoolean => false
-      case t: TLocus =>
-        val rg = ctx.getReference(t.rg)
-        Locus(rg.contigs.head, 1)
-      case tbs: TBaseStruct => Row.fromSeq(tbs.types.map(minimumValueByType(_, ctx)))
-    }
-  }
-
-  def maximumValueByType(t: Type, ctx: ExecuteContext): Any = {
-    t match {
-      case TInt32 => Int.MaxValue
-      case TInt64 => Long.MaxValue
-      case TFloat32 => Float.PositiveInfinity
-      case TFloat64 => Double.PositiveInfinity
-      case TBoolean => false
-      case t: TLocus =>
-        val rg = ctx.getReference(t.rg)
-        val contig = rg.contigs.last
-        Locus(contig, rg.contigLength(contig) - 1)
-      case tbs: TBaseStruct => Row.fromSeq(tbs.types.map(maximumValueByType(_, ctx)))
-    }
-  }
-
   def constValue(x: IR): Any = (x: @unchecked) match {
     case I32(v) => v
     case I64(v) => v
@@ -313,11 +284,14 @@ object ExtractIntervalFilters {
     case Literal(_, v) => v
   }
 
-  def endpoint(value: Any, inclusivity: Int, wrapped: Boolean = true): IntervalEndpoint = {
-    IntervalEndpoint(if (wrapped) Row(value) else value, inclusivity)
+  def endpoint(value: Any, sign: Int, wrapped: Boolean = true): IntervalEndpoint = {
+    IntervalEndpoint(if (wrapped) Row(value) else value, sign)
   }
 
-  def getIntervalFromContig(c: String, rg: ReferenceGenome): Option[Interval] = {
+  def posInf: IntervalEndpoint = IntervalEndpoint(Row(), 1)
+  def negInf: IntervalEndpoint = IntervalEndpoint(Row(), -1)
+
+  private def getIntervalFromContig(c: String, rg: ReferenceGenome): Option[Interval] = {
     if (rg.contigsSet.contains(c)) {
       Some(Interval(
         endpoint(Locus(c, 1), -1),
@@ -328,45 +302,36 @@ object ExtractIntervalFilters {
     }
   }
 
-  def openInterval(v: Any, typ: Type, op: ComparisonOp[_], ctx: ExecuteContext, flipped: Boolean = false): Interval = {
+  private def intervalFromComparison(v: Any, typ: Type, op: ComparisonOp[_], ctx: ExecuteContext, flipped: Boolean = false): Interval = {
     (op: @unchecked) match {
       case _: EQ =>
         Interval(endpoint(v, -1), endpoint(v, 1))
       case GT(_, _) =>
         if (flipped)
-          Interval(endpoint(v, 1), endpoint(maximumValueByType(typ, ctx), 1)) // key > value
+          Interval(endpoint(v, 1), posInf) // key > value
         else
-          Interval(endpoint(minimumValueByType(typ, ctx), -1), endpoint(v, -1)) // value > key
+          Interval(negInf, endpoint(v, -1)) // value > key
       case GTEQ(_, _) =>
         if (flipped)
-          Interval(endpoint(v, -1), endpoint(maximumValueByType(typ, ctx), 1)) // key >= value
+          Interval(endpoint(v, -1), posInf) // key >= value
         else
-          Interval(endpoint(minimumValueByType(typ, ctx), -1), endpoint(v, 1)) // value >= key
+          Interval(negInf, endpoint(v, 1)) // value >= key
       case LT(_, _) =>
         if (flipped)
-          Interval(endpoint(minimumValueByType(typ, ctx), -1), endpoint(v, -1)) // key < value
+          Interval(negInf, endpoint(v, -1)) // key < value
         else
-          Interval(endpoint(v, 1), endpoint(maximumValueByType(typ, ctx), 1)) // value < key
+          Interval(endpoint(v, 1), posInf) // value < key
       case LTEQ(_, _) =>
         if (flipped)
-          Interval(endpoint(minimumValueByType(typ, ctx), -1), endpoint(v, 1)) // key <= value
+          Interval(negInf, endpoint(v, 1)) // key <= value
         else
-          Interval(endpoint(v, -1), endpoint(maximumValueByType(typ, ctx), 1)) // value <= key
+          Interval(endpoint(v, -1), posInf) // value <= key
     }
   }
 
-  def canGenerateOpenInterval(t: Type): Boolean = t match {
-    case _: TNumeric => true
-    case TBoolean => true
-    case _: TLocus => true
-    case ts: TBaseStruct => ts.fields.forall(f => canGenerateOpenInterval(f.typ))
-    case _ => false
-  }
-
-  def opIsSupported(op: ComparisonOp[_]): Boolean = {
+  private def opIsSupported(op: ComparisonOp[_]): Boolean = {
     op match {
-      case EQ(_, _) => true
-      case _: LTEQ | _: LT | _: GTEQ | _: GT => canGenerateOpenInterval(op.t1)
+      case _: EQ | _: LTEQ | _: LT | _: GTEQ | _: GT => true
       case _ => false
     }
   }
