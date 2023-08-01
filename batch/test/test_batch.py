@@ -13,7 +13,7 @@ from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
-from hailtop.utils import external_requests_client_session, retry_response_returning_functions, delay_ms_for_try
+from hailtop.utils import delay_ms_for_try, external_requests_client_session, retry_response_returning_functions
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from .failure_injecting_client_session import FailureInjectingClientSession
