@@ -2,7 +2,7 @@
 
 include config.mk
 
-SERVICES := auth batch ci memory notebook monitoring website
+SERVICES := auth batch ci notebook monitoring website
 SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_MODULES := $(SERVICES) gear web_common
@@ -78,8 +78,7 @@ check-pip-requirements:
 		web_common \
 		auth \
 		batch \
-		ci \
-		memory
+		ci
 
 .PHONY: check-linux-pip-requirements
 check-linux-pip-requirements:
@@ -91,8 +90,7 @@ check-linux-pip-requirements:
 		web_common \
 		auth \
 		batch \
-		ci \
-		memory
+		ci
 
 .PHONY: install-dev-requirements
 install-dev-requirements:
@@ -103,8 +101,7 @@ install-dev-requirements:
 		-r web_common/pinned-requirements.txt \
 		-r auth/pinned-requirements.txt \
 		-r batch/pinned-requirements.txt \
-		-r ci/pinned-requirements.txt \
-		-r memory/pinned-requirements.txt \
+		-r ci/pinned-requirements.txt
 
 hail/python/hailtop/pinned-requirements.txt: hail/python/hailtop/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/hailtop
@@ -130,9 +127,6 @@ batch/pinned-requirements.txt: web_common/pinned-requirements.txt batch/requirem
 ci/pinned-requirements.txt: web_common/pinned-requirements.txt ci/requirements.txt
 	./generate-linux-pip-lockfile.sh ci
 
-memory/pinned-requirements.txt: gear/pinned-requirements.txt memory/requirements.txt
-	./generate-linux-pip-lockfile.sh memory
-
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles: hail/python/hailtop/pinned-requirements.txt
 generate-pip-lockfiles: hail/python/pinned-requirements.txt
@@ -142,7 +136,6 @@ generate-pip-lockfiles: web_common/pinned-requirements.txt
 generate-pip-lockfiles: auth/pinned-requirements.txt
 generate-pip-lockfiles: batch/pinned-requirements.txt
 generate-pip-lockfiles: ci/pinned-requirements.txt
-generate-pip-lockfiles: memory/pinned-requirements.txt
 
 $(HAILTOP_VERSION):
 	$(MAKE) -C hail python/hailtop/hail_version

@@ -213,10 +213,6 @@ class GoogleStorageFS(
     }
   }
 
-  def asCacheable(): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, requesterPaysConfiguration, null)
-
-  def asCacheable(sessionID: String): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, requesterPaysConfiguration, sessionID)
-
   def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = retryTransientErrors {
     assert(!_debug)
     val url = parseUrl(filename)
@@ -511,11 +507,4 @@ class GoogleStorageFS(
       throw new IllegalArgumentException(s"Invalid path, expected gs://bucket/path $filename")
     filename
   }
-}
-
-class CacheableGoogleStorageFS(
-  serviceAccountKey: Option[String],
-  requesterPaysConfiguration: Option[RequesterPaysConfiguration] = None,
-  @transient val sessionID: String
-) extends GoogleStorageFS(serviceAccountKey, requesterPaysConfiguration) with ServiceCacheableFS {
 }

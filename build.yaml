@@ -176,8 +176,7 @@ steps:
           web_common \
           auth \
           batch \
-          ci \
-          memory
+          ci
     inputs:
       - from: /repo
         to: /io/repo
@@ -890,34 +889,6 @@ steps:
       - merge_code
       - hail_ubuntu_image
       - jvm_entryway_jar
-  - kind: buildImage2
-    name: memory_image
-    dockerFile: /io/repo/memory/Dockerfile
-    contextPath: /io/repo
-    publishAs: memory
-    inputs:
-      - from: /repo/memory
-        to: /io/repo/memory
-      - from: /repo/hail/python/setup-hailtop.py
-        to: /io/repo/hail/python/setup-hailtop.py
-      - from: /repo/hail/python/MANIFEST.in
-        to: /io/repo/hail/python/MANIFEST.in
-      - from: /repo/hail/python/hailtop
-        to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
-      - from: /repo/gear
-        to: /io/repo/gear
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: deploy
-    name: deploy_memory_sa
-    namespace:
-      valueFrom: default_ns.name
-    config: memory/service-account.yaml
-    dependsOn:
-      - default_ns
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
@@ -982,6 +953,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: buildImage2
@@ -1194,6 +1166,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
     clouds:
@@ -1258,6 +1231,7 @@ steps:
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
+      - create_test_gsa_keys
       - build_hail_test_artifacts
     clouds:
       - gcp
@@ -1384,6 +1358,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: runImage
@@ -2454,20 +2429,6 @@ steps:
       - build_hail_jar_and_wheel
       - merge_code
       - create_test_gsa_keys
-  - kind: deploy
-    name: deploy_memory
-    namespace:
-      valueFrom: default_ns.name
-    config: memory/deployment.yaml
-    wait:
-      - kind: Service
-        name: memory
-        for: alive
-    dependsOn:
-      - default_ns
-      - memory_image
-      - deploy_memory_sa
-      - create_certs
   - kind: runImage
     name: test_hail_python_service_backend_gcp
     numSplits: 16
@@ -2546,7 +2507,6 @@ steps:
       - default_ns
       - merge_code
       - deploy_batch
-      - deploy_memory
       - create_deploy_config
       - create_accounts
       - hail_run_image
@@ -2718,56 +2678,6 @@ steps:
         RUN hail-apt-get-install curl
     dependsOn:
       - hail_ubuntu_image
-  - kind: runImage
-    name: test_memory
-    resources:
-      memory: standard
-      cpu: '0.25'
-    image:
-      valueFrom: hail_dev_image.image
-    resources:
-      memory: 3.75Gi
-      cpu: '1'
-    script: |
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_memory/{{ token }}/
-
-      cd /io/memory
-      python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
-              --log-cli-level=INFO \
-              -s \
-              -r A \
-              -vv \
-              --instafail \
-              --durations=50 \
-              --timeout=120 \
-              test
-    timeout: 600
-    secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: test-gsa-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-gsa-key
-    inputs:
-      - from: /repo/memory
-        to: /io/memory
-    dependsOn:
-      - create_deploy_config
-      - create_accounts
-      - default_ns
-      - merge_code
-      - hail_dev_image
-      - deploy_memory
   - kind: runImage
     name: test_batch
     numSplits: 5

@@ -433,12 +433,4 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     AzureStorageFS.parseUrl(filename)
     filename
   }
-
-  def asCacheable(): CacheableAzureStorageFS = new CacheableAzureStorageFS(credentialsJSON, null)
-}
-
-class CacheableAzureStorageFS(
-  credentialsJSON: Option[String],
-  @transient val sessionID: String
-) extends AzureStorageFS(credentialsJSON) with ServiceCacheableFS {
 }
