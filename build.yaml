@@ -2470,10 +2470,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-tokens
         namespace:
           valueFrom: default_ns.name
