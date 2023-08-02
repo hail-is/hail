@@ -18,7 +18,7 @@ astroid==2.15.6
     # via pylint
 asttokens==2.2.1
     # via stack-data
-async-lru==2.0.3
+async-lru==2.0.4
     # via jupyterlab
 attrs==23.1.0
     # via
@@ -57,7 +57,9 @@ click==8.1.6
     #   black
     #   curlylint
 comm==0.1.3
-    # via ipykernel
+    # via
+    #   ipykernel
+    #   ipywidgets
 contourpy==1.1.0
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
@@ -126,7 +128,6 @@ iniconfig==2.0.0
     # via pytest
 ipykernel==6.25.0
     # via
-    #   ipywidgets
     #   jupyter
     #   jupyter-console
     #   jupyterlab
@@ -138,13 +139,13 @@ ipython==8.12.2
     #   jupyter-console
 ipython-genutils==0.2.0
     # via qtconsole
-ipywidgets==8.0.7
+ipywidgets==8.1.0
     # via jupyter
 isoduration==20.11.0
     # via jsonschema
 isort==5.12.0
     # via pylint
-jedi==0.18.2
+jedi==0.19.0
     # via ipython
 jinja2==3.1.2
     # via
@@ -188,7 +189,7 @@ jupyter-core==5.3.1
     #   nbconvert
     #   nbformat
     #   qtconsole
-jupyter-events==0.6.3
+jupyter-events==0.7.0
     # via jupyter-server
 jupyter-lsp==2.2.0
     # via jupyterlab
@@ -243,7 +244,7 @@ nbconvert==7.7.3
     #   jupyter
     #   jupyter-server
     #   nbsphinx
-nbformat==5.9.1
+nbformat==5.9.2
     # via
     #   jupyter-server
     #   nbclient
@@ -255,7 +256,7 @@ nest-asyncio==1.5.6
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   ipykernel
-notebook==7.0.0
+notebook==7.0.1
     # via jupyter
 notebook-shim==0.2.3
     # via
@@ -287,7 +288,7 @@ parso==0.8.3
     # via jedi
 parsy==1.1.0
     # via curlylint
-pathspec==0.11.1
+pathspec==0.11.2
     # via
     #   black
     #   curlylint
@@ -301,7 +302,7 @@ pillow==10.0.0
     #   matplotlib
 pkgutil-resolve-name==1.3.10
     # via jsonschema
-platformdirs==3.9.1
+platformdirs==3.10.0
     # via
     #   black
     #   jupyter-core
@@ -398,6 +399,7 @@ referencing==0.30.0
     # via
     #   jsonschema
     #   jsonschema-specifications
+    #   jupyter-events
 requests==2.31.0
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
@@ -415,7 +417,7 @@ rpds-py==0.9.2
     # via
     #   jsonschema
     #   referencing
-ruff==0.0.280
+ruff==0.0.282
     # via -r hail/hail/python/dev/requirements.txt
 send2trash==1.8.2
     # via jupyter-server
@@ -477,7 +479,7 @@ tomli==2.0.1
     #   mypy
     #   pylint
     #   pytest
-tomlkit==0.11.8
+tomlkit==0.12.1
     # via pylint
 tornado==6.3.2
     # via
