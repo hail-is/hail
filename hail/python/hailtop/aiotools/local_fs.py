@@ -374,10 +374,7 @@ class LocalAsyncFS(AsyncFS):
             listener(1)
             if contents_tasks:
                 await pool.wait(contents_tasks)
-            try:
-                await self.rmdir(path)
-                listener(-1)
-            finally:
+
                 def raise_them_all(exceptions: List[BaseException]):
                     if exceptions:
                         try:
@@ -389,6 +386,8 @@ class LocalAsyncFS(AsyncFS):
                         for exc in [t.exception()]
                         if exc is not None]
                 raise_them_all(excs)
+            await self.rmdir(path)
+            listener(-1)
 
         async with OnlineBoundedGather2(sema) as pool:
             contents_tasks_by_dir: Dict[str, List[asyncio.Task]] = {}
