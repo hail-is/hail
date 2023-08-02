@@ -2605,6 +2605,7 @@ steps:
     scopes:
       - deploy
       - dev
+      - test
     clouds:
       - azure
   - kind: runImage
