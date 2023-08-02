@@ -6,7 +6,6 @@ import asyncio
 import concurrent
 import dill
 import functools
-import sys
 
 from hailtop.utils import secret_alnum_string, partition
 from hailtop.batch.hail_genetics_images import hailgenetics_python_dill_image_for_current_python_version
