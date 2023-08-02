@@ -36,25 +36,33 @@ class TabixReadVCFIterator(fs: FS, file: String, contigMapping: Map[String, Stri
 
         def next(): GenericLine = {
           assert(l != null)
-          val n = l
-          val idx = curIdx
-          l = lines.next()
-          curIdx = lines.getCurIdx()
-          if (l == null)
-            lines.close()
-          val bytes = n.getBytes
-          new GenericLine(file, 0, idx, bytes, bytes.length)
+          try {
+            val n = l
+            val idx = curIdx
+            l = lines.next()
+            curIdx = lines.getCurIdx()
+            if (l == null)
+              lines.close()
+            val bytes = n.getBytes
+            new GenericLine(file, 0, idx, bytes, bytes.length)
+          } catch {
+            case e: Exception => fatal(s"error reading file: $file at ${ lines.getCurIdx() }", e)
+          }
         }
       }.filter { gl =>
         val s = gl.toString
         val t1 = s.indexOf('\t')
         val t2 = s.indexOf('\t', t1 + 1)
 
+        if (t1 == -1 || t2 == -1) {
+          fatal(s"invalid line in file ${ gl.file } no CHROM or POS column at offset ${ gl.offset }.\n$s")
+        }
+
         val chr = s.substring(0, t1)
         val pos = s.substring(t1 + 1, t2).toInt
 
         if (chr != chrom) {
-          throw new RuntimeException(s"bad chromosome! ${ chrom }, $s")
+          fatal(s"in file ${ gl.file } at offset ${ gl.offset }, bad chromosome! ${ chrom }, $s")
         }
         start <= pos && pos <= end
       }
@@ -112,4 +120,3 @@ class TabixReadVCFIterator(fs: FS, file: String, contigMapping: Map[String, Stri
     linesIter.close()
   }
 }
-
