@@ -139,13 +139,6 @@ class DeployConfig:
         log.info(f'serving paths at {base_path}')
         return root_app
 
-    def dump_to_file(self, config_file: Optional[str] = None):
-        if config_file is None:
-            config_file = os.environ.get('HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
-        config = self.get_config()
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f)
-
 
 deploy_config = None
 
