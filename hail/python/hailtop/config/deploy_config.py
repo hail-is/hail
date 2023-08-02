@@ -2,7 +2,6 @@ from typing import Dict
 import os
 import json
 import logging
-from typing import Optional
 
 from ..utils import first_extant_file
 
