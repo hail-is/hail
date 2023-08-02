@@ -1682,9 +1682,9 @@ async def ui_batch(request, userdata, batch_id):
 async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
     post = await request.post()
     q = post.get('q')
-    params = {}
+    params: Dict[str, str] = {}
     if q is not None:
-        params['q'] = q
+        params['q'] = str(q)
     session = await aiohttp_session.get_session(request)
     try:
         await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
@@ -1701,9 +1701,9 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFou
 async def ui_delete_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
     post = await request.post()
     q = post.get('q')
-    params = {}
+    params: Dict[str, str] = {}
     if q is not None:
-        params['q'] = q
+        params['q'] = str(q)
     await _delete_batch(request.app, batch_id)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
@@ -2271,7 +2271,7 @@ async def post_edit_billing_limits_ui(request: web.Request, _) -> web.HTTPFound:
     session = await aiohttp_session.get_session(request)
     try:
         await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
-        set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')
+        set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')  # type: ignore
     finally:
         return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
 
@@ -2313,7 +2313,7 @@ async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tu
         "billing_projects.`status` != 'deleted'",
         "billing_date >= %s",
     ]
-    where_args = [start]
+    where_args: List[Any] = [start]
 
     if end is not None:
         where_conditions.append("billing_date <= %s")
@@ -2569,7 +2569,7 @@ async def post_billing_projects_add_user(request: web.Request, _) -> web.HTTPFou
 
     try:
         await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
-        set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
+        set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
     finally:
         return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
@@ -2625,7 +2625,7 @@ async def post_create_billing_projects(request: web.Request, _) -> web.HTTPFound
     session = await aiohttp_session.get_session(request)
     try:
         await _handle_ui_error(session, _create_billing_project, db, billing_project)
-        set_message(session, f'Added billing project {billing_project}.', 'info')
+        set_message(session, f'Added billing project {billing_project}.', 'info')  # type: ignore
     finally:
         return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
