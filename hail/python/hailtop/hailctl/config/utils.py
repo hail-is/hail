@@ -18,18 +18,18 @@ async def already_logged_into_service() -> bool:
 
 
 async def check_for_gcloud() -> bool:
-    from hailtop.utils import check_shell  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import check_exec_output  # pylint: disable=import-outside-toplevel
     try:
-        await check_shell("gcloud version")
+        await check_exec_output('gcloud', 'version')
         return True
     except Exception:
         return False
 
 
 async def get_gcp_default_project(verbose: bool) -> Optional[str]:
-    from hailtop.utils import check_shell_output  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import check_exec_output  # pylint: disable=import-outside-toplevel
     try:
-        project, _ = await check_shell_output("gcloud config get-value project", echo=verbose)
+        project, _ = await check_exec_output('gcloud', 'config', 'get-value', 'project', echo=verbose)
         project = project.strip().decode('utf-8')
         return project
     except Exception:
@@ -37,9 +37,9 @@ async def get_gcp_default_project(verbose: bool) -> Optional[str]:
 
 
 async def get_gcp_bucket_information(bucket: str, verbose: bool) -> Optional[dict]:
-    from hailtop.utils import CalledProcessError, check_shell_output  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import CalledProcessError, check_exec_output  # pylint: disable=import-outside-toplevel
     try:
-        info, _ = await check_shell_output(f'gcloud storage buckets describe gs://{bucket} --format="json"', echo=verbose)
+        info, _ = await check_exec_output('gcloud', 'storage', 'buckets', 'describe', f'gs://{bucket}', '--format="json"', echo=verbose)
         return json.loads(info.decode('utf-8'))
     except CalledProcessError as e:
         if 'does not have storage.buckets.get access to the Google Cloud Storage bucket' in e.stderr.decode('utf-8'):
@@ -57,14 +57,14 @@ async def create_gcp_bucket(*,
                             lifecycle_days: Optional[int],
                             labels: Optional[Dict[str, str]],
                             verbose: bool):
-    from hailtop.utils import CalledProcessError, check_shell  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import CalledProcessError, check_exec_output  # pylint: disable=import-outside-toplevel
     if labels:
         labels_str = ','.join(f'{k}={v}' for k, v in labels.items())
     else:
         labels_str = None
 
     try:
-        await check_shell(f'gcloud --project {project} storage buckets create gs://{bucket} --location={location}', echo=verbose)
+        await check_exec_output('gcloud', '--project', project, 'storage', 'buckets', 'create', f'gs://{bucket}', '--location={location}', echo=verbose)
     except CalledProcessError as e:
         if 'does not have storage.buckets.create access to the Google Cloud project' in e.stderr.decode('utf-8'):
             msg = f'ERROR: You do not have the necessary permissions to create buckets in project {project}. Ask a project administrator ' \
@@ -86,10 +86,10 @@ async def create_gcp_bucket(*,
             with tempfile.NamedTemporaryFile(mode='w') as f:
                 f.write(json.dumps(lifecycle_policy))
                 f.flush()
-                await check_shell(f'gcloud --project {project} storage buckets update --lifecycle-file="{f.name}" gs://{bucket}', echo=verbose)
+                await check_exec_output('gcloud', '--project', project, 'storage', 'buckets', 'update', f'--lifecycle-file="{f.name}"', f'gs://{bucket}', echo=verbose)
 
         if labels_str:
-            await check_shell(f'gcloud --project {project} storage buckets update --update-labels={labels_str} gs://{bucket}', echo=verbose)
+            await check_exec_output('gcloud', '--project', project, 'storage', 'buckets', 'update', f'--update-labels={labels_str}', f'gs://{bucket}', echo=verbose)
     except CalledProcessError as e:
         if 'does not have storage.buckets.get access to the Google Cloud Storage bucket' in e.stderr.decode('utf-8'):
             msg = f'ERROR: You do not have the necessary permissions to update bucket {bucket} in project {project}. Ask a project administrator ' \
@@ -103,14 +103,7 @@ async def create_gcp_bucket(*,
 
 
 async def grant_service_account_bucket_access_with_role(project: Optional[str], bucket: str, service_account: str, role: str, verbose: bool):
-    from hailtop.utils import CalledProcessError, check_shell  # pylint: disable=import-outside-toplevel
-
-    with tempfile.NamedTemporaryFile(mode='w') as f:
-        f.write('test\n')
-        f.flush()
-        await check_shell(
-            f'gcloud --project {project} storage buckets update --lifecycle-file="{f.name}" gs://{bucket}',
-            echo=verbose)
+    from hailtop.utils import CalledProcessError, check_exec_output  # pylint: disable=import-outside-toplevel
 
     if project:
         project = f'--project {project}'
@@ -118,8 +111,8 @@ async def grant_service_account_bucket_access_with_role(project: Optional[str], 
         project = ''
     try:
         service_account_member = f'serviceAccount:{service_account}'
-        await check_shell(f'gcloud {project} storage buckets add-iam-policy-binding gs://{bucket} --member {service_account_member} --role "{role}"',
-                          echo=verbose)
+        await check_exec_output('gcloud', project, 'storage', 'buckets', 'add-iam-policy-binding', f'gs://{bucket}', '--member', service_account_member, '--role', role,
+                                echo=verbose)
     except CalledProcessError as e:
         if 'does not have storage.buckets.getIamPolicy access to the Google Cloud Storage bucket' in e.stderr.decode('utf-8'):
             msg = f'ERROR: You do not have the necessary permissions to set permissions for bucket {bucket} in project {project}. Ask a project administrator ' \
