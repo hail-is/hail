@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import traceback
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import aiohttp_session  # type: ignore
 import kubernetes_asyncio
@@ -135,13 +135,13 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 @routes.get('')
 @routes.get('/')
 @auth.web_authenticated_developers_only()
-async def index(request: web.Request, userdata: UserData):
+async def index(request: web.Request, userdata: UserData) -> web.Response:
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
     page_context = {'watched_branches': wb_configs, 'frozen_merge_deploy': request.app['frozen_merge_deploy']}
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
-def wb_and_pr_from_request(request: web.Request):
+def wb_and_pr_from_request(request: web.Request) -> Tuple[WatchedBranch, PR]:
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
 
@@ -163,7 +163,7 @@ def filter_jobs(jobs):
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
 @auth.web_authenticated_developers_only()
-async def get_pr(request: web.Request, userdata: UserData):
+async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     wb, pr = wb_and_pr_from_request(request)
 
     page_context = {}
@@ -226,7 +226,7 @@ async def retry_pr(wb, pr, request):
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
-async def post_retry_pr(request, _):
+async def post_retry_pr(request: web.Request, _) -> web.HTTPFound:
     wb, pr = wb_and_pr_from_request(request)
 
     await asyncio.shield(retry_pr(wb, pr, request))
@@ -312,7 +312,7 @@ def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
 
 @routes.get('/me')
 @auth.web_authenticated_developers_only()
-async def get_user(request: web.Request, userdata: UserData):
+async def get_user(request: web.Request, userdata: UserData) -> web.Response:
     for authorized_user in AUTHORIZED_USERS:
         if authorized_user.hail_username == userdata['username']:
             user = authorized_user
@@ -346,7 +346,7 @@ async def get_user(request: web.Request, userdata: UserData):
 @routes.post('/authorize_source_sha')
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
-async def post_authorized_source_sha(request: web.Request, _):
+async def post_authorized_source_sha(request: web.Request, _) -> web.HTTPFound:
     app = request.app
     db: Database = app['db']
     post = await request.post()
@@ -359,7 +359,7 @@ async def post_authorized_source_sha(request: web.Request, _):
 
 
 @routes.get('/healthcheck')
-async def healthcheck(_):
+async def healthcheck(_) -> web.Response:
     return web.Response(status=200)
 
 
@@ -442,7 +442,7 @@ async def batch_callback_handler(request):
 
 @routes.get('/api/v1alpha/deploy_status')
 @auth.rest_authenticated_developers_only
-async def deploy_status(request: web.Request, _):
+async def deploy_status(request: web.Request, _) -> web.Response:
     batch_client = request.app['batch_client']
 
     async def get_failure_information(batch):
@@ -476,7 +476,7 @@ async def deploy_status(request: web.Request, _):
 
 @routes.post('/api/v1alpha/update')
 @auth.rest_authenticated_developers_only
-async def post_update(request: web.Request, _):
+async def post_update(request: web.Request, _) -> web.Response:
     log.info('developer triggered update')
 
     async def update_all():
@@ -489,7 +489,7 @@ async def post_update(request: web.Request, _):
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
 @auth.rest_authenticated_developers_only
-async def dev_deploy_branch(request: web.Request, userdata: UserData):
+async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     try:
         params = await json_request(request)
@@ -548,7 +548,7 @@ async def batch_callback(request):
 @routes.post('/freeze_merge_deploy')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def freeze_deploys(request: web.Request, _):
+async def freeze_deploys(request: web.Request, _) -> web.HTTPFound:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
@@ -573,7 +573,7 @@ UPDATE globals SET frozen_merge_deploy = 1;
 @routes.post('/unfreeze_merge_deploy')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def unfreeze_deploys(request: web.Request, _):
+async def unfreeze_deploys(request: web.Request, _) -> web.HTTPFound:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
@@ -597,7 +597,7 @@ UPDATE globals SET frozen_merge_deploy = 0;
 
 @routes.get('/namespaces')
 @auth.web_authenticated_developers_only()
-async def get_active_namespaces(request: web.Request, userdata: UserData):
+async def get_active_namespaces(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     namespaces = [
         r
@@ -621,7 +621,7 @@ GROUP BY active_namespaces.namespace'''
 @routes.post('/namespaces/{namespace}/services/add')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def add_namespaced_service(request: web.Request, _):
+async def add_namespaced_service(request: web.Request, _) -> web.HTTPFound:
     db: Database = request.app['db']
     post = await request.post()
     service = post['service']
@@ -650,7 +650,7 @@ WHERE namespace = %s AND service = %s
 @routes.post('/namespaces/add')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def add_namespace(request: web.Request, _):
+async def add_namespace(request: web.Request, _) -> web.HTTPFound:
     db: Database = request.app['db']
     post = await request.post()
     namespace = post['namespace']

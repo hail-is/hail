@@ -180,20 +180,20 @@ def cleanup_session(session):
 
 
 @routes.get('/healthcheck')
-async def get_healthcheck(_):
+async def get_healthcheck(_) -> web.Response:
     return web.Response()
 
 
 @routes.get('')
 @routes.get('/')
 @auth.web_maybe_authenticated_user
-async def get_index(request: web.Request, userdata: Optional[UserData]):
+async def get_index(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     return await render_template('auth', request, userdata, 'index.html', {})
 
 
 @routes.get('/creating')
 @auth.web_maybe_authenticated_user
-async def creating_account(request: web.Request, userdata: Optional[UserData]):
+async def creating_account(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     db = request.app['db']
     session = await aiohttp_session.get_session(request)
     if 'pending' in session:
@@ -226,7 +226,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]):
         session['next'] = next_page
         return await render_template('auth', request, userdata, 'account-creating.html', page_context)
 
-    return web.HTTPUnauthorized()
+    raise web.HTTPUnauthorized()
 
 
 @routes.get('/creating/wait')
@@ -380,7 +380,7 @@ async def callback(request):
 
 @routes.post('/api/v1alpha/users/{user}/create')
 @auth.rest_authenticated_developers_only
-async def create_user(request: web.Request, _):
+async def create_user(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     username = request.match_info['user']
 
@@ -420,7 +420,7 @@ async def create_user(request: web.Request, _):
 
 @routes.get('/user')
 @auth.web_authenticated_users_only()
-async def user_page(request: web.Request, userdata: UserData):
+async def user_page(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
 
 
@@ -436,7 +436,7 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
 @routes.post('/copy-paste-token')
 @check_csrf_token
 @auth.web_authenticated_users_only()
-async def get_copy_paste_token(request: web.Request, userdata: UserData):
+async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
     session_id = session['session_id']
     db = request.app['db']
@@ -447,7 +447,7 @@ async def get_copy_paste_token(request: web.Request, userdata: UserData):
 
 @routes.post('/api/v1alpha/copy-paste-token')
 @auth.rest_authenticated_users_only
-async def get_copy_paste_token_api(request: web.Request, userdata: UserData):
+async def get_copy_paste_token_api(request: web.Request, userdata: UserData) -> web.Response:
     session_id = userdata['session_id']
     db = request.app['db']
     copy_paste_token = await create_copy_paste_token(db, session_id)
@@ -457,7 +457,7 @@ async def get_copy_paste_token_api(request: web.Request, userdata: UserData):
 @routes.post('/logout')
 @check_csrf_token
 @auth.web_maybe_authenticated_user
-async def logout(request: web.Request, userdata: Optional[UserData]):
+async def logout(request: web.Request, userdata: Optional[UserData]) -> web.HTTPFound:
     if not userdata:
         return web.HTTPFound(deploy_config.external_url('auth', ''))
 
@@ -472,7 +472,7 @@ async def logout(request: web.Request, userdata: Optional[UserData]):
 
 
 @routes.get('/api/v1alpha/login')
-async def rest_login(request: web.Request):
+async def rest_login(request: web.Request) -> web.Response:
     callback_port = request.query['callback_port']
     callback_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
     flow_data = request.app['flow_client'].initiate_flow(callback_uri)
@@ -486,7 +486,7 @@ async def rest_login(request: web.Request):
 
 @routes.get('/roles')
 @auth.web_authenticated_developers_only()
-async def get_roles(request: web.Request, userdata: UserData):
+async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app['db']
     roles = [x async for x in db.select_and_fetchall('SELECT * FROM roles;')]
     page_context = {'roles': roles}
@@ -496,7 +496,7 @@ async def get_roles(request: web.Request, userdata: UserData):
 @routes.post('/roles')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def post_create_role(request: web.Request, _):
+async def post_create_role(request: web.Request, _) -> web.HTTPFound:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -517,7 +517,7 @@ VALUES (%s);
 
 @routes.get('/users')
 @auth.web_authenticated_developers_only()
-async def get_users(request: web.Request, userdata: UserData):
+async def get_users(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app['db']
     users = [x async for x in db.select_and_fetchall('SELECT * FROM users;')]
     page_context = {'users': users}
@@ -527,7 +527,7 @@ async def get_users(request: web.Request, userdata: UserData):
 @routes.post('/users')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def post_create_user(request: web.Request, _):
+async def post_create_user(request: web.Request, _) -> web.HTTPFound:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -552,7 +552,7 @@ async def post_create_user(request: web.Request, _):
 
 @routes.get('/api/v1alpha/users')
 @auth.rest_authenticated_developers_only
-async def rest_get_users(request: web.Request, _):
+async def rest_get_users(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     _query = '''
 SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity
@@ -564,7 +564,7 @@ FROM users;
 
 @routes.get('/api/v1alpha/users/{user}')
 @auth.rest_authenticated_developers_only
-async def rest_get_user(request: web.Request, _):
+async def rest_get_user(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     username = request.match_info['user']
 
@@ -604,7 +604,7 @@ WHERE {' AND '.join(where_conditions)};
 @routes.post('/users/delete')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def delete_user(request: web.Request, _):
+async def delete_user(request: web.Request, _) -> web.HTTPFound:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -622,14 +622,14 @@ async def delete_user(request: web.Request, _):
 
 @routes.delete('/api/v1alpha/users/{user}')
 @auth.rest_authenticated_developers_only
-async def rest_delete_user(request: web.Request, _):
+async def rest_delete_user(request: web.Request, _) -> web.Response:
     db = request.app['db']
     username = request.match_info['user']
 
     try:
         await _delete_user(db, username, None)
     except UnknownUser as e:
-        return e.http_response()
+        raise e.http_response()
 
     return web.json_response()
 
@@ -700,7 +700,7 @@ WHERE copy_paste_tokens.id = %s
 
 @routes.post('/api/v1alpha/logout')
 @auth.rest_authenticated_users_only
-async def rest_logout(request: web.Request, userdata: UserData):
+async def rest_logout(request: web.Request, userdata: UserData) -> web.Response:
     session_id = userdata['session_id']
     db = request.app['db']
     await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)

@@ -1,8 +1,7 @@
 import importlib
 import os
-from typing import Optional
+from typing import Any, Dict, Optional
 
-import aiohttp
 import aiohttp_jinja2
 import aiohttp_session
 import jinja2
@@ -31,7 +30,7 @@ def sass_compile(module_name):
     sass.compile(dirname=(scss_path, css_path), output_style='compressed', include_paths=[f'{WEB_COMMON_ROOT}/styles'])
 
 
-def setup_aiohttp_jinja2(app: aiohttp.web.Application, module: str, *extra_loaders: jinja2.BaseLoader):
+def setup_aiohttp_jinja2(app: web.Application, module: str, *extra_loaders: jinja2.BaseLoader):
     aiohttp_jinja2.setup(
         app,
         loader=jinja2.ChoiceLoader([jinja2.PackageLoader('web_common'), jinja2.PackageLoader(module), *extra_loaders]),
@@ -76,7 +75,9 @@ def base_context(session, userdata, service):
     return context
 
 
-async def render_template(service: str, request: web.Request, userdata: Optional[UserData], file: str, page_context):
+async def render_template(
+    service: str, request: web.Request, userdata: Optional[UserData], file: str, page_context: Dict[str, Any]
+) -> web.Response:
     if '_csrf' in request.cookies:
         csrf_token = request.cookies['_csrf']
     else:
