@@ -69,7 +69,7 @@ routes = web.RouteTableDef()
 
 def authenticated_users_only(fun: AuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
     @wraps(fun)
-    async def wrapped(request: web.Request):
+    async def wrapped(request: web.Request) -> web.StreamResponse:
         session_id = await get_session_id(request)
         if not session_id:
             raise web.HTTPUnauthorized()
@@ -82,7 +82,7 @@ def authenticated_users_only(fun: AuthenticatedAIOHTTPHandler) -> AIOHTTPHandler
 def authenticated_devs_only(fun: AuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
     @authenticated_users_only
     @wraps(fun)
-    async def wrapped(request: web.Request, userdata: UserData):
+    async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
         if userdata['is_developer'] != 1:
             raise web.HTTPUnauthorized()
         return await fun(request, userdata)
@@ -92,7 +92,7 @@ def authenticated_devs_only(fun: AuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
 
 def maybe_authenticated_user(fun: MaybeAuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
     @wraps(fun)
-    async def wrapped(request: web.Request):
+    async def wrapped(request: web.Request) -> web.StreamResponse:
         session_id = await get_session_id(request)
         if not session_id:
             return await fun(request, None)
@@ -770,7 +770,7 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
 
 @routes.get('/api/v1alpha/userinfo')
 @authenticated_users_only
-async def userinfo(_, userdata: UserData):
+async def userinfo(_, userdata: UserData) -> web.Response:
     return json_response(userdata)
 
 
@@ -787,7 +787,7 @@ async def get_session_id(request: web.Request) -> Optional[str]:
 
 @routes.route('*', '/api/v1alpha/verify_dev_credentials')
 @authenticated_users_only
-async def verify_dev_credentials(_, userdata: UserData):
+async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1:
         raise web.HTTPUnauthorized()
     return web.Response(status=200)
@@ -795,7 +795,7 @@ async def verify_dev_credentials(_, userdata: UserData):
 
 @routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials')
 @authenticated_users_only
-async def verify_dev_or_sa_credentials(_, userdata: UserData):
+async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1 or userdata['is_service_account'] != 1:
         raise web.HTTPUnauthorized()
     return web.Response(status=200)
