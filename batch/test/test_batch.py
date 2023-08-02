@@ -315,7 +315,7 @@ def test_list_batches_v1(client: BatchClient):
 
 def test_list_batches_v2(client: BatchClient):
     tag = secrets.token_urlsafe(64)
-    partial_match_prefix = secrets.token_urlsafe(5)
+    partial_match_prefix = secrets.token_urlsafe(10)
     bb1 = create_batch(
         client, attributes={'tag': tag, 'name': 'b1', 'partial_match_name': f'{partial_match_prefix}-b1'}
     )
@@ -370,7 +370,7 @@ tag={tag}
         assert_batch_ids(
             {b2.id},
             f'''
-{partial_match_prefix}-b2
+{partial_match_prefix[3:]}-b2
 tag={tag}
 ''',
         )
