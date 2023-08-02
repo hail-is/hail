@@ -41,7 +41,7 @@ def test_combiner_works():
         comb = hl.vds.read_vds(out)
 
         # see https://github.com/hail-is/hail/issues/13367 for why these assertions are here
-        assert 'LPGT' in comb.variant_data
+        assert 'LPGT' in comb.variant_data.entry
         assert comb.variant_data.LPGT == hl.tcall
 
         assert len(parts) == comb.variant_data.n_partitions()
