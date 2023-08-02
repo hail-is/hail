@@ -24,7 +24,7 @@ ConfigVariable = namedtuple('ConfigVariable', ['name', 'help_msg', 'validation']
 
 def config_variables():
     from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
-    from hailtop.batch_client.parse import CPU_REGEXPAT, MEMORY_REGEXPAT
+    from hailtop.batch_client.parse import CPU_REGEXPAT, MEMORY_REGEXPAT  # pylint: disable=import-outside-toplevel
 
     variables = [
         ConfigVariable(
@@ -192,7 +192,7 @@ def get_config_variable(incomplete: str):
 
     config_items = {config.name: config.help_msg for config in config_variables()}
 
-    for name, current_value in elements:
+    for name, _ in elements:
         if name.startswith(incomplete):
             help_msg = config_items.get(name)
             yield (name, help_msg)
