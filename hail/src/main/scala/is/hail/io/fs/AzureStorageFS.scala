@@ -149,12 +149,12 @@ object AzureStorageFileStatus {
     }
   }
 
-  def apply(blobItem: BlobItem): BlobStorageFileStatus = {
-    val properties = blobItem.getProperties
+  def apply(blobPath: AzureStorageFSURL, blobItem: BlobItem): BlobStorageFileStatus = {
     if (blobItem.isPrefix) {
-      new BlobStorageFileStatus(blobItem.getName, null, 0, true)
+      new BlobStorageFileStatus(blobPath.getPath, null, 0, true)
     } else {
-      new BlobStorageFileStatus(blobItem.getName, properties.getLastModified.toEpochSecond, properties.getContentLength, true)
+      val properties = blobItem.getProperties
+      new BlobStorageFileStatus(blobPath.getPath, properties.getLastModified.toEpochSecond, properties.getContentLength, true)
     }
   }
 }
@@ -399,7 +399,8 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val prefixMatches = blobContainerClient.listBlobsByHierarchy(prefix)
 
     prefixMatches.forEach(blobItem => {
-      statList += AzureStorageFileStatus(blobItem)
+      val blobPath = url.withPath(blobItem.getName)
+      statList += AzureStorageFileStatus(blobPath, blobItem)
     })
 
     statList.toArray
@@ -434,7 +435,6 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
             throw new FileNotFoundException(s"File not found: $filename")
           else
             throw e
-      }
     } else null
 
     AzureStorageFileStatus(filename, isDir, blobProperties)
