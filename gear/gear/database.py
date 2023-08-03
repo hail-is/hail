@@ -4,12 +4,13 @@ import logging
 import os
 import ssl
 import traceback
-from typing import Awaitable, Callable, Concatenate, Optional, ParamSpec, TypeVar
+from typing import Awaitable, Callable, Optional, TypeVar
 
 import aiomysql
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import pymysql
+from typing_extensions import Concatenate, ParamSpec
 
 from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
 from hailtop.aiotools import BackgroundTaskManager
