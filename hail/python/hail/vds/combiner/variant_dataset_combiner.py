@@ -432,7 +432,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         largest_vds = max(files_to_merge, key=lambda vds: vds.n_samples)
         vds = hl.vds.read_vds(largest_vds.path,
                               _assert_reference_type=self._dataset_type.reference_type,
-                              _assert_variant_type=self._dataset_type.variant_type)
+                              _assert_variant_type=self._dataset_type.variant_type,
+                              _warn_no_ref_block_max_length=False)
 
         interval_bin = floor(log(new_n_samples, self._branch_factor))
         intervals = self.__intervals_cache.get(interval_bin)
@@ -569,7 +570,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         variant_type = self._dataset_type.variant_type
         return [hl.vds.read_vds(path, intervals=intervals,
                                 _assert_reference_type=reference_type,
-                                _assert_variant_type=variant_type)
+                                _assert_variant_type=variant_type,
+                                _warn_no_ref_block_max_length=False)
                 for path in inputs]
 
 
@@ -692,7 +694,7 @@ def new_combiner(*,
     vds = None
     gvcf_type = None
     if vds_paths:
-        vds = hl.vds.read_vds(vds_paths[0])
+        vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False)
         ref_entry_tmp = set(vds.reference_data.entry) - {'END'}
         if gvcf_reference_entry_fields_to_keep is not None and ref_entry_tmp != gvcf_reference_entry_fields_to_keep:
             warning("Mismatch between 'gvcf_reference_entry_fields' to keep and VDS reference data "
@@ -757,7 +759,8 @@ def new_combiner(*,
         vdses = []
         for path in vds_paths:
             vds = hl.vds.read_vds(path, _assert_reference_type=dataset_type.reference_type,
-                                  _assert_variant_type=dataset_type.variant_type)
+                                  _assert_variant_type=dataset_type.variant_type,
+                                  _warn_no_ref_block_max_length=False)
             n_samples = vds.n_samples()
             vdses.append(VDSMetadata(path, n_samples))
 
