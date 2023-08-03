@@ -223,11 +223,15 @@ class GoogleStorageFS(
 
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] var reader: ReadChannel = null
+      private[this] var requesterPaysOptions: Seq[BlobSourceOption] = Seq()
 
       private[this] def retryingRead(): Int = {
         retryTransientErrors(
           { reader.read(bb) },
-          reset = Some({ () => reader.seek(getPosition) })
+          reset = Some({ () =>
+            reader = retryTransientErrors { storage.reader(url.bucket, url.path, requesterPaysOptions:_*) }
+            reader.seek(physicalPos)
+          })
         )
       }
 
@@ -237,6 +241,7 @@ class GoogleStorageFS(
         } else {
           handleRequesterPays(
             { (options: Seq[BlobSourceOption]) =>
+              requesterPaysOptions = options
               reader = retryTransientErrors { storage.reader(url.bucket, url.path, options:_*) }
               reader.seek(getPosition)
               retryingRead()
@@ -275,7 +280,7 @@ class GoogleStorageFS(
 
       override def physicalSeek(newPos: Long): Unit = {
         if (reader != null) {
-          reader.seek(newPos)
+          reader.seek(getPosition)
         }
       }
     }
