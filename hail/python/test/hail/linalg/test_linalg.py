@@ -286,24 +286,32 @@ def test_to_matrix_table():
 
 @pytest.fixture(scope='module')
 def block_matrix_bindings():
-    nx = np.array([[2.0]])
     nc = np.array([[1.0], [2.0]])
     nr = np.array([[1.0, 2.0, 3.0]])
     nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    nrow = np.array([[7.0, 8.0, 9.0]])
+    nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+
 
     yield {
-        'nx': nx,
-        'nc': nc,
-        'nr': nr,
-        'nm': nm,
-         'e': 2.0,
+             'nx': np.array([[2.0]]),
+             'nc': nc,
+             'nr': nr,
+             'nm': nm,
+           'nrow': nrow,
+        'nsquare': nsquare,
+
+              'e': 2.0,
+
         # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
         # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
         # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
-        'x': BlockMatrix._create(1, 1, [2.0], block_size=8),
-        'c': BlockMatrix.from_ndarray(hl.literal(nc), block_size=8),
-        'r': BlockMatrix.from_ndarray(hl.literal(nr), block_size=8),
-        'm': BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
+             'x': BlockMatrix._create(1, 1, [2.0], block_size=8),
+             'c': BlockMatrix.from_ndarray(hl.literal(nc), block_size=8),
+             'r': BlockMatrix.from_ndarray(hl.literal(nr), block_size=8),
+             'm': BlockMatrix.from_ndarray(hl.literal(nm), block_size=8),
+           'row': BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=8),
+        'square': BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=8)
     }
 
 @pytest.mark.parametrize(
@@ -423,23 +431,30 @@ def block_matrix_bindings():
     , ('m * nc', 'm * c')
     , ('m * nr', 'm * r')
     , ('m * nm', 'm * m')
+
+    , ('m.T', 'nm.T')
+    , ('m.T', 'nm.T')
+    , ('row.T', 'nrow.T')
+    , ('m @ m.T', 'nm @ nm.T')
+    , ('m @ nm.T', 'nm @ nm.T')
+    , ('row @ row.T', 'nrow @ nrow.T')
+    , ('row @ nrow.T', 'nrow @ nrow.T')
+    , ('m.T @ m', 'nm.T @ nm')
+    , ('m.T @ nm', 'nm.T @ nm')
+    , ('row.T @ row', 'nrow.T @ nrow')
+    , ('row.T @ nrow', 'nrow.T @ nrow')
     ]
 )
-def test_paired_elementwise_arithmetic(block_matrix_bindings, x, y):
+def test_block_matrix_elementwise_arithmetic(block_matrix_bindings, x, y):
     lhs = eval(x, block_matrix_bindings)
     rhs = eval(y, { 'np': np }, block_matrix_bindings)
     _assert_eq(lhs, rhs)
 
 
-def test_block_matrix_add_type_error():
-    x = BlockMatrix._create(1, 1, [2.0], block_size=8)
-    with pytest.raises(TypeError):
-        x + np.array(['one'], dtype=str)
-
-
 @pytest.mark.parametrize(
     'x, y',
-    [ ('x / e', 'nx / e')
+    [ # division
+      ('x / e', 'nx / e')
     , ('c / e', 'nc / e')
     , ('r / e', 'nr / e')
     , ('m / e', 'nm / e')
@@ -475,107 +490,94 @@ def test_block_matrix_add_type_error():
     , ('m / nc', 'm / c')
     , ('m / nr', 'm / r')
     , ('m / nm', 'm / m')
+
+    # other ops
+    , ('m ** 3'       , 'nm ** 3')
+    , ('m.sqrt()'     , 'np.sqrt(nm)')
+    , ('m.ceil()'     , 'np.ceil(nm)')
+    , ('m.floor()'    , 'np.floor(nm)')
+    , ('m.log()'      , 'np.log(nm)')
+    , ('(m - 4).abs()', 'np.abs(nm - 4)')
     ]
 )
-def test_paired_elementwise_division(block_matrix_bindings, x, y):
+def test_block_matrix_elementwise_close_arithmetic(block_matrix_bindings, x, y):
     lhs = eval(x, block_matrix_bindings)
     rhs = eval(y, { 'np': np }, block_matrix_bindings)
     _assert_close(lhs, rhs)
 
 
-def test_special_elementwise_ops():
-    nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
-    m = BlockMatrix.from_ndarray(hl.nd.array(nm))
-
-    _assert_close(m ** 3, nm ** 3)
-    _assert_close(m.sqrt(), np.sqrt(nm))
-    _assert_close(m.ceil(), np.ceil(nm))
-    _assert_close(m.floor(), np.floor(nm))
-    _assert_close(m.log(), np.log(nm))
-    _assert_close((m - 4).abs(), np.abs(nm - 4))
-
-
-def test_matrix_ops():
-    nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-    m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
-
-    nrow = np.array([[7.0, 8.0, 9.0]])
-    row = BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2)
-
-    _assert_eq(m.T, nm.T)
-    _assert_eq(m.T, nm.T)
-    _assert_eq(row.T, nrow.T)
-
-    _assert_eq(m @ m.T, nm @ nm.T)
-    _assert_eq(m @ nm.T, nm @ nm.T)
-    _assert_eq(row @ row.T, nrow @ nrow.T)
-    _assert_eq(row @ nrow.T, nrow @ nrow.T)
-
-    _assert_eq(m.T @ m, nm.T @ nm)
-    _assert_eq(m.T @ nm, nm.T @ nm)
-    _assert_eq(row.T @ row, nrow.T @ nrow)
-    _assert_eq(row.T @ nrow, nrow.T @ nrow)
-
-    with pytest.raises(ValueError):
-        m @ m
-
-    with pytest.raises(ValueError):
-        m @ nm
-
-    _assert_eq(m.diagonal(), np.array([[1.0, 5.0]]))
-    _assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
-    _assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
+@pytest.mark.parametrize(
+    'expr, expectation',
+    [ ('x + np.array([\'one\'], dtype=str)', pytest.raises(TypeError))
+    , ('m @ m ', pytest.raises(ValueError))
+    , ('m @ nm', pytest.raises(ValueError))
+    ]
+)
+def test_block_matrix_raises(block_matrix_bindings, expr, expectation):
+    with expectation:
+        eval(expr, { 'np': np }, block_matrix_bindings)
 
 
-def test_matrix_sums():
-    nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-    m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
-    nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
-    square = BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=2)
-
-    nrow = np.array([[7.0, 8.0, 9.0]])
-    row = BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2)
-
-    _assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
-    _assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
-    _assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
-                                                [14.0, 15.0, 16.0],
-                                                [16.0, 17.0, 18.0]]))
-    _assert_eq(m.sum(axis=0) + row.T, np.array([[12.0, 14.0, 16.0],
-                                                [13.0, 15.0, 17.0],
-                                                [14.0, 16.0, 18.0]]))
-    _assert_eq(square.sum(axis=0).T + square.sum(axis=1), np.array([[18.0], [30.0], [42.0]]))
+@pytest.mark.parametrize(
+    'x, y',
+    [ ( 'm.sum(axis=0).T'
+      , 'np.array([[5.0], [7.0], [9.0]])'
+      )
+    , ( 'm.sum(axis=1).T'
+      , 'np.array([[6.0, 15.0]])'
+      )
+    , ( 'm.sum(axis=0).T + row'
+      , 'np.array([[12.0, 13.0, 14.0],[14.0, 15.0, 16.0],[16.0, 17.0, 18.0]])'
+      )
+    , ( 'm.sum(axis=0) + row.T'
+      , 'np.array([[12.0, 14.0, 16.0],[13.0, 15.0, 17.0],[14.0, 16.0, 18.0]])'
+      )
+    , ( 'square.sum(axis=0).T + square.sum(axis=1)'
+      , 'np.array([[18.0], [30.0], [42.0]])'
+      )
+    ]
+)
+def test_matrix_sums(block_matrix_bindings, x, y):
+    lhs = eval(x, block_matrix_bindings)
+    rhs = eval(y, { 'np': np }, block_matrix_bindings)
+    _assert_eq(lhs, rhs)
 
 
 @fails_service_backend()
 @fails_local_backend()
-def test_tree_matmul():
-    nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-    m = BlockMatrix.from_numpy(nm, block_size=2)
-    nrow = np.array([[7.0, 8.0, 9.0]])
-    row = BlockMatrix.from_numpy(nrow, block_size=2)
+@pytest.mark.parametrize(
+    'x, y',
+    [ ('m.tree_matmul(m.T, splits=2)',      'nm @ nm.T')
+    , ('m.tree_matmul(nm.T, splits=2)',     'nm @ nm.T')
+    , ('row.tree_matmul(row.T, splits=2)',  'nrow @ nrow.T')
+    , ('row.tree_matmul(nrow.T, splits=2)', 'nrow @ nrow.T')
+    , ('m.T.tree_matmul(m, splits=2)',      'nm.T @ nm')
+    , ('m.T.tree_matmul(nm, splits=2)',     'nm.T @ nm')
+    , ('row.T.tree_matmul(row, splits=2)',  'nrow.T @ nrow')
+    , ('row.T.tree_matmul(nrow, splits=2)', 'nrow.T @ nrow')
+    ]
+)
+def test_tree_matmul(block_matrix_bindings, x, y):
+    lhs = eval(x, block_matrix_bindings)
+    rhs = eval(y, block_matrix_bindings)
+    _assert_eq(lhs, rhs)
 
-    _assert_eq(m.tree_matmul(m.T, splits=2), nm @ nm.T)
-    _assert_eq(m.tree_matmul(nm.T, splits=2), nm @ nm.T)
-    _assert_eq(row.tree_matmul(row.T, splits=2), nrow @ nrow.T)
-    _assert_eq(row.tree_matmul(nrow.T, splits=2), nrow @ nrow.T)
 
-    _assert_eq(m.T.tree_matmul(m, splits=2), nm.T @ nm)
-    _assert_eq(m.T.tree_matmul(nm, splits=2), nm.T @ nm)
-    _assert_eq(row.T.tree_matmul(row, splits=2), nrow.T @ nrow)
-    _assert_eq(row.T.tree_matmul(nrow, splits=2), nrow.T @ nrow)
-
+@fails_service_backend()
+@fails_local_backend()
+@pytest.mark.parametrize(
+    'nrows,ncols,block_size,split_size',
+    [ (nrows,ncols,block_size,split_size)
+      for (nrows, ncols) in [(50, 60), (60, 25)]
+      for block_size in [7, 10]
+      for split_size in [2, 9]
+    ]
+)
+def test_tree_matmul_splits(block_size, split_size, nrows, ncols):
     # Variety of block sizes and splits
-    fifty_by_sixty = np.arange(50 * 60).reshape((50, 60))
-    sixty_by_twenty_five = np.arange(60 * 25).reshape((60, 25))
-    block_sizes = [7, 10]
-    split_sizes = [2, 9]
-    for block_size in block_sizes:
-        bm_fifty_by_sixty = BlockMatrix.from_numpy(fifty_by_sixty, block_size)
-        bm_sixty_by_twenty_five = BlockMatrix.from_numpy(sixty_by_twenty_five, block_size)
-        for split_size in split_sizes:
-            _assert_eq(bm_fifty_by_sixty.tree_matmul(bm_fifty_by_sixty.T, splits=split_size), fifty_by_sixty @ fifty_by_sixty.T)
-            _assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, splits=split_size), fifty_by_sixty @ sixty_by_twenty_five)
+    ndarray = np.arange(nrows * ncols).reshape((nrows, ncols))
+    bm = BlockMatrix.from_numpy(ndarray, block_size)
+    _assert_eq(bm.tree_matmul(bm.T, splits=split_size), ndarray @ ndarray.T)
 
 
 def test_fill():
@@ -592,7 +594,6 @@ def test_fill():
 def test_sum():
     nd = np.arange(11 * 13, dtype=np.float64).reshape((11, 13))
     bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
-
     assert_sums_agree(bm, nd)
 
 
@@ -621,88 +622,75 @@ def test_sum_with_sparsify():
     assert_sums_agree(bm4, nd4)
 
 
-def test_slicing():
+@pytest.mark.parametrize('indices', [(0, 0), (5, 7), (-3, 9), (-8, -10)])
+def test_slicing_0(indices):
     nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
     bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
-
-    for indices in [(0, 0), (5, 7), (-3, 9), (-8, -10)]:
-        _assert_eq(bm[indices], nd[indices])
-
-        for indices in [(0, slice(3, 4)),
-                        (1, slice(3, 4)),
-                        (-8, slice(3, 4)),
-                        (-1, slice(3, 4))]:
-            _assert_eq(bm[indices], np.expand_dims(nd[indices], 0))
-            _assert_eq(bm[indices] - bm, nd[indices] - nd)
-            _assert_eq(bm - bm[indices], nd - nd[indices])
-
-        for indices in [(slice(3, 4), 0),
-                        (slice(3, 4), 1),
-                        (slice(3, 4), -8),
-                        (slice(3, 4), -1)]:
-            _assert_eq(bm[indices], np.expand_dims(nd[indices], 1))
-            _assert_eq(bm[indices] - bm, nd[indices] - nd)
-            _assert_eq(bm - bm[indices], nd - nd[indices])
-
-        for indices in [
-            (slice(0, 8), slice(0, 10)),
-            (slice(0, 8, 2), slice(0, 10, 2)),
-            (slice(2, 4), slice(5, 7)),
-            (slice(-8, -1), slice(-10, -1)),
-            (slice(-8, -1, 2), slice(-10, -1, 2)),
-            (slice(None, 4, 1), slice(None, 4, 1)),
-            (slice(4, None), slice(4, None)),
-            (slice(None, None), slice(None, None))
-        ]:
-            _assert_eq(bm[indices], nd[indices])
-            _assert_eq(bm[indices][:, :2], nd[indices][:, :2])
-            _assert_eq(bm[indices][:2, :], nd[indices][:2, :])
+    _assert_eq(bm[indices], nd[indices])
 
 
+@pytest.mark.parametrize(
+    'indices, axis',
+    [ ((0, slice(3, 4)) , 0)
+    , ((1, slice(3, 4)) , 0)
+    , ((-8, slice(3, 4)), 0)
+    , ((-1, slice(3, 4)), 0)
+    , ((slice(3, 4), 0),  1)
+    , ((slice(3, 4), 1),  1)
+    , ((slice(3, 4), -8), 1)
+    , ((slice(3, 4), -1), 1)
+    ]
+)
+def test_slicing_expand_dims(indices, axis):
+    nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
+    bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
+    _assert_eq(bm[indices], np.expand_dims(nd[indices], axis))
+    _assert_eq(bm[indices] - bm, nd[indices] - nd)
+    _assert_eq(bm - bm[indices], nd - nd[indices])
+
+
+@pytest.mark.parametrize(
+    'indices',
+    [ (slice(0, 8), slice(0, 10))
+    , (slice(0, 8, 2), slice(0, 10, 2))
+    , (slice(2, 4), slice(5, 7))
+    , (slice(-8, -1), slice(-10, -1))
+    , (slice(-8, -1, 2), slice(-10, -1, 2))
+    , (slice(None, 4, 1), slice(None, 4, 1))
+    , (slice(4, None), slice(4, None))
+    , (slice(None, None), slice(None, None))
+    ]
+)
+def test_slicing_1(indices):
+    nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
+    bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
+    _assert_eq(bm[indices], nd[indices])
+    _assert_eq(bm[indices][:, :2], nd[indices][:, :2])
+    _assert_eq(bm[indices][:2, :], nd[indices][:2, :])
+
+
+@pytest.mark.parametrize(
+    'expr'
+    , [ 'square[0, ]'
+      , 'square[9, 0]'
+      , 'square[-9, 0]'
+      , 'square[0, 11]'
+      , 'square[0, -11]'
+      , 'square[::-1, 0]'
+      , 'square[0, ::-1]'
+      , 'square[:0, 0]'
+      , 'square[0, :0]'
+      , 'square[0:9, 0]'
+      , 'square[-9:, 0]'
+      , 'square[:-9, 0]'
+      , 'square[0, :11]'
+      , 'square[0, -11:]'
+      , 'square[0, :-11] '
+      ]
+)
+def test_block_matrix_illegal_indexing(block_matrix_bindings, expr):
     with pytest.raises(ValueError):
-        bm[0, ]
-
-    with pytest.raises(ValueError):
-        bm[9, 0]
-
-    with pytest.raises(ValueError):
-        bm[-9, 0]
-
-    with pytest.raises(ValueError):
-        bm[0, 11]
-
-    with pytest.raises(ValueError):
-        bm[0, -11]
-
-    with pytest.raises(ValueError):
-        bm[::-1, 0]
-
-    with pytest.raises(ValueError):
-        bm[0, ::-1]
-
-    with pytest.raises(ValueError):
-        bm[:0, 0]
-
-    with pytest.raises(ValueError):
-        bm[0, :0]
-
-    with pytest.raises(ValueError):
-        bm[0:9, 0]
-
-    with pytest.raises(ValueError):
-        bm[-9:, 0]
-
-    with pytest.raises(ValueError):
-        bm[:-9, 0]
-
-    with pytest.raises(ValueError):
-        bm[0, :11]
-
-    with pytest.raises(ValueError):
-        bm[0, -11:]
-
-    with pytest.raises(ValueError):
-        bm[0, :-11]
+        eval(expr, block_matrix_bindings)
 
 
 def test_diagonal_sparse():
@@ -733,7 +721,6 @@ def test_slices_with_sparsify():
     nd2[0, 1] = 1.0
 
     _assert_eq(bm2[:, :], nd2)
-
     _assert_eq(bm2[:, 1], nd2[:, 1:2])
     _assert_eq(bm2[1, :], nd2[1:2, :])
     _assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
