@@ -73,7 +73,7 @@ def set_query_name(init_hail, request):
     if isinstance(backend, ServiceBackend):
         backend.batch_attributes = dict(name=request.node.name)
         yield
-        report = request.node.stash[test_results_key]
+        report: Dict[str, CollectReport] = request.node.stash[test_results_key]
         backend.batch_attributes = dict()
         if backend._batch:
             if any(r.failed for r in report.values()):
