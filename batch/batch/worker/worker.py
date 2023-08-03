@@ -72,6 +72,7 @@ from hailtop.utils import (
 
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.azure.worker.worker_api import AzureWorkerAPI
+from ..cloud.gcp.resource_utils import machine_type_to_gpu
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
 from ..cloud.resource_utils import (
     is_valid_storage_request,
@@ -1132,6 +1133,23 @@ class Container:
             'CAP_KILL',
             'CAP_AUDIT_WRITE',
         ]
+
+        nvidia_runtime_hook = []
+        # if 'g2' in INSTANCE_CONFIG["machine_type"]:
+        accelerator_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
+        if machine_type_to_gpu(accelerator_family):
+            nvidia_runtime_hook = [
+                {
+                    "path": "/usr/bin/nvidia-container-runtime-hook",
+                    "args": ["nvidia-container-runtime-hook", "prestart"],
+                    "env": [
+                        "LANG=C.UTF-8",
+                        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin",
+                        "NOTIFY_SOCKET=/run/systemd/notify",
+                        "TMPDIR=/var/lib/docker/tmp",
+                    ],
+                }
+            ]
         config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
@@ -1155,6 +1173,7 @@ class Container:
                     'permitted': default_docker_capabilities,
                 },
             },
+            "hooks": {"prestart": nvidia_runtime_hook},
             'linux': {
                 'rootfsPropagation': 'slave',
                 'namespaces': [
@@ -1171,6 +1190,7 @@ class Container:
                 'uidMappings': [],
                 'gidMappings': [],
                 'resources': {
+                    "devices": [{"allow": True, "type": "c", "major": 195, "minor": 0, "access": "rwm"}],
                     'cpu': {'shares': weight},
                     'memory': {
                         'limit': self.memory_in_bytes,
@@ -1334,6 +1354,10 @@ class Container:
         env = (
             self.image.image_config['Config']['Env'] + self.env + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
         )
+        gpu_env = ["NVIDIA_VISIBLE_DEVICES=all"]
+        accelerator_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
+        if machine_type_to_gpu(accelerator_family):
+            env += gpu_env
         if self.port is not None:
             assert self.host_port is not None
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')

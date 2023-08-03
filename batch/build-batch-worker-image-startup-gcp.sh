@@ -41,11 +41,34 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
   | tar xz --to-stdout ./docker-credential-gcr \
 	> /usr/bin/docker-credential-gcr && chmod +x /usr/bin/docker-credential-gcr
 
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+     | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/ubuntu22.04/libnvidia-container.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+apt-get update
+apt-get install -y build-essential
+apt-get install -y gcc-12
+apt-get install -y g++-12
+
+update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 50
+update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 50
+
+wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/530.30.02/NVIDIA-Linux-x86_64-530.30.02.run
+chmod +x NVIDIA-Linux-x86_64-530.30.02.run
+./NVIDIA-Linux-x86_64-530.30.02.run --silent
+
+apt-get --yes install nvidia-container-toolkit
+nvidia-ctk runtime configure --runtime=docker
+
 # avoid "unable to get current user home directory: os/user lookup failed"
 export HOME=/root
 
 docker-credential-gcr configure-docker --include-artifact-registry
 docker pull {{ global.docker_root_image }}
+
+systemctl restart docker
 
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
