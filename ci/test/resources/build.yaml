@@ -280,7 +280,6 @@ steps:
       valueFrom: ci_utils_image.image
     script: |
       set -ex
-      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
       hailctl curl {{ default_ns.name }} \
           hello /healthcheck \
           -fsSL \
@@ -292,10 +291,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
     dependsOn:
       - ci_utils_image
       - default_ns

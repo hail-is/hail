@@ -155,8 +155,6 @@ humanize==1.1.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-hurry-filesize==0.9
-    # via -r hail/hail/python/requirements.txt
 idna==3.4
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
@@ -374,6 +372,3 @@ yarl==1.9.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
-
-# The following packages are considered to be unsafe in a requirements file:
-# setuptools

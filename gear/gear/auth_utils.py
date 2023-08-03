@@ -1,6 +1,9 @@
 import secrets
+from typing import Optional
 
 from hailtop.auth import session_id_encode_to_str
+
+from .database import Database
 
 
 async def insert_user(db, spec):
@@ -16,7 +19,7 @@ VALUES ({', '.join([f'%({k})s' for k in spec.keys()])})
 
 
 # 2592000s = 30d
-async def create_session(db, user_id, max_age_secs=2592000):
+async def create_session(db: Database, user_id: str, max_age_secs: Optional[int] = 2592000) -> str:
     session_id = session_id_encode_to_str(secrets.token_bytes(32))
     await db.just_execute(
         'INSERT INTO sessions (session_id, user_id, max_age_secs) VALUES (%s, %s, %s);',

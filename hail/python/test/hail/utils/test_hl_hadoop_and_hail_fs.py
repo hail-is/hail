@@ -6,7 +6,7 @@ import os
 import hail as hl
 import hailtop.fs as fs
 from hail.context import _get_local_tmpdir
-from hail.utils import hadoop_open, hadoop_copy
+from hail.utils import hadoop_open, hadoop_copy, hadoop_ls
 from hailtop.utils import secret_alnum_string
 from hail.utils.java import FatalError
 
@@ -76,6 +76,8 @@ def test_hadoop_methods_3(tmpdir: str):
 
     assert data == data4
 
+    print(f'contents of my tmpdir, {tmpdir}:')
+    print(repr(hadoop_ls(tmpdir)))
 
 def test_read_overwrite(tmpdir):
     with fs.open(os.path.join(tmpdir, 'randomBytes'), 'wb') as f:

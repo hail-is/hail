@@ -13,7 +13,7 @@ from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
-from hailtop.utils import bounded_gather, sleep_and_backoff
+from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
@@ -330,11 +330,12 @@ class SubmittedJob:
         return await self._wait_for_states(*complete_states)
 
     async def _wait_for_states(self, *states: str):
-        delay = 0.1
+        tries = 0
         while True:
             if await self._is_job_in_state(states) or await self.is_complete():
                 return self._status
-            delay = await sleep_and_backoff(delay)
+            tries += 1
+            await sleep_before_try(tries)
 
     async def container_log(self, container_name: str) -> bytes:
         async with await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}') as resp:

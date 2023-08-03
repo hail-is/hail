@@ -287,12 +287,12 @@ def copy_log(path: str) -> None:
     ----------
     path: :class:`str`
     """
-    log = Env.hc()._log
+    log = os.path.realpath(Env.hc()._log)
     try:
         if hadoop_is_dir(path):
             _, tail = os.path.split(log)
             path = os.path.join(path, tail)
         info(f"copying log to {repr(path)}...")
-        hadoop_copy(local_path_uri(Env.hc()._log), path)
+        hadoop_copy(local_path_uri(log), path)
     except Exception as e:
         sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
