@@ -272,7 +272,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       case F64(v) => ConstantValue(v)
       case Str(v) => ConstantValue(v)
       case Literal(_, value) => ConstantValue(value)
-      case GetField(o, name) => recur(o).asStruct(name)
+      case GetField(o, name) => recur(o) match {
+        case s: StructValue => s(name)
+        case _ => OtherValue
+      }
       // TODO: when we support negation, if result is Boolean, handle like (cond & cnsq) | (~cond & altr)
       case If(cond, cnsq, altr) => recur(cnsq).merge(recur(altr), iord)
       case ToStream(a, _) => recur(a)
