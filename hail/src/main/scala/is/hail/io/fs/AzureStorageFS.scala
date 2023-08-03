@@ -154,7 +154,7 @@ object AzureStorageFileStatus {
       new BlobStorageFileStatus(blobPath.getPath, null, 0, true)
     } else {
       val properties = blobItem.getProperties
-      new BlobStorageFileStatus(blobPath.getPath, properties.getLastModified.toEpochSecond, properties.getContentLength, true)
+      new BlobStorageFileStatus(blobPath.getPath, properties.getLastModified.toEpochSecond, properties.getContentLength, false)
     }
   }
 }
@@ -435,7 +435,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
             throw new FileNotFoundException(s"File not found: $filename")
           else
             throw e
-    } else null
+      }
+    } else
+      null
 
     AzureStorageFileStatus(filename, isDir, blobProperties)
   }
