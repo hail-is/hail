@@ -60,10 +60,7 @@ test_results_key = StashKey[Dict[str, CollectReport]]()
 def pytest_runtest_makereport(item, call):
     # from: https://docs.pytest.org/en/latest/example/simple.html#making-test-result-information-available-in-fixtures
     report = yield
-
-    # store test results for each phase of a call, which can be "setup", "call", "teardown"
     item.stash.setdefault(test_results_key, {})[report.when] = report
-
     return report
 
 
