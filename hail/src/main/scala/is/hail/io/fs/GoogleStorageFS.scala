@@ -229,7 +229,6 @@ class GoogleStorageFS(
         retryTransientErrors(
           { reader.read(bb) },
           reset = Some({ () =>
-            bb.clear()
             reader = retryTransientErrors { storage.reader(url.bucket, url.path, requesterPaysOptions:_*) }
             reader.seek(getPosition)
           })
