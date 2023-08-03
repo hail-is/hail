@@ -10,6 +10,7 @@ import aiomysql
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import pymysql
+from typing_extensions import Concatenate, ParamSpec
 
 from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
 from hailtop.aiotools import BackgroundTaskManager
@@ -61,15 +62,16 @@ def retry_transient_mysql_errors(f):
 
 
 T = TypeVar("T")
+P = ParamSpec('P')
 
 
 def transaction(db: 'Database', read_only: bool = False):
-    def transformer(fun: Callable[['Transaction'], Awaitable[T]]) -> Callable[[], Awaitable[T]]:
+    def transformer(fun: Callable[Concatenate['Transaction', P], Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         @functools.wraps(fun)
         @retry_transient_mysql_errors
-        async def wrapper():
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             async with db.start(read_only=read_only) as tx:
-                return await fun(tx)
+                return await fun(tx, *args, **kwargs)
 
         return wrapper
 
