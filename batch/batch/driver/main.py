@@ -1436,7 +1436,7 @@ LIMIT 10000;
     targets = [target async for target in targets]
 
     for target in targets:
-        await compact(target)  # pylint: disable=no-value-for-parameter
+        await compact(target)
 
 
 async def compact_agg_billing_project_users_by_date_table(app, db: Database):
@@ -1508,7 +1508,7 @@ LIMIT 10000;
     targets = [target async for target in targets]
 
     for target in targets:
-        await compact(target)  # pylint: disable=no-value-for-parameter
+        await compact(target)
 
 
 async def scheduling_cancelling_bump(app):
