@@ -4,7 +4,7 @@ import logging
 import os
 import ssl
 import traceback
-from typing import Awaitable, Callable, Concatenate, Optional, TypeVar, ParamSpec
+from typing import Awaitable, Callable, Concatenate, Optional, ParamSpec, TypeVar
 
 import aiomysql
 import kubernetes_asyncio.client
