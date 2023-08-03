@@ -42,7 +42,7 @@ def test_combiner_works():
 
         # see https://github.com/hail-is/hail/issues/13367 for why these assertions are here
         assert 'LPGT' in comb.variant_data.entry
-        assert comb.variant_data.LPGT == hl.tcall
+        assert comb.variant_data.LPGT.dtype == hl.tcall
 
         assert len(parts) == comb.variant_data.n_partitions()
         comb.variant_data._force_count_rows()
