@@ -72,11 +72,11 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         return hl.if_else(hl.is_defined(var),
                           var.select(*shared_fields, *var_fields),
                           ref.annotate(**{call_field: hl.call(0, 0)})
-                          .select(*shared_fields, **{f: hl.null(var[f].dtype) for f in var_fields}))
+                          .select(*shared_fields, **{f: hl.missing(var[f].dtype) for f in var_fields}))
 
     dr = dr.annotate(
         _dense=hl.rbind(dr._ref_entries,
-                        lambda refs_at_this_row: hl.zip_with_index(hl.zip(dr._var_entries, dr.dense_ref)).map(
+                        lambda refs_at_this_row: hl.enumerate(hl.zip(dr._var_entries, dr.dense_ref)).map(
                             lambda tup: coalesce_join(hl.coalesce(refs_at_this_row[tup[0]],
                                                                   hl.or_missing(tup[1][1]._END_GLOBAL >= dr.locus.global_position(),
                                                                                 tup[1][1])), tup[1][0])
@@ -1125,7 +1125,7 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
                           t2)
 
     # approximate a scan that merges before result
-    ht = ht.annotate(prev_block=hl.zip(hl.scan.array_agg(lambda elt: hl.scan.fold((hl.null(rd.entry.dtype), False),
+    ht = ht.annotate(prev_block=hl.zip(hl.scan.array_agg(lambda elt: hl.scan.fold((hl.missing(rd.entry.dtype), False),
                                                                                   lambda acc: keep_last(acc, (
                                                                                       elt, False)),
                                                                                   keep_last), ht.entries), ht.entries)

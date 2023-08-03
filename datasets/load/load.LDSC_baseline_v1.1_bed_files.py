@@ -95,7 +95,7 @@ for i, a in enumerate(annotations):
     ht = ht.annotate(interval=hl.locus_interval(
         contig=ht.f0.replace('chr', ''),
         start=ht.f1 + 1,
-        end=hl.cond(end > length, length, end)),
+        end=hl.if_else(end > length, length, end)),
         includes_start=True,
         includes_end=True,
         reference_genome='GRCh37'))
