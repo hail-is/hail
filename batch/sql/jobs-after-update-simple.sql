@@ -1,3 +1,5 @@
+DELIMITER $$
+
 DROP TRIGGER IF EXISTS jobs_after_update $$
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW
@@ -111,3 +113,5 @@ ON DUPLICATE KEY UPDATE
   n_cancelled_running_jobs = n_cancelled_running_jobs + delta_n_cancelled_running_jobs,
   n_cancelled_creating_jobs = n_cancelled_creating_jobs + delta_n_cancelled_creating_jobs;
 END $$
+
+DELIMITER ;
