@@ -151,10 +151,10 @@ object AzureStorageFileStatus {
 
   def apply(blobPath: AzureStorageFSURL, blobItem: BlobItem): BlobStorageFileStatus = {
     if (blobItem.isPrefix) {
-      new BlobStorageFileStatus(blobPath.getPath, null, 0, true)
+      new BlobStorageFileStatus(blobPath.toString(), null, 0, true)
     } else {
       val properties = blobItem.getProperties
-      new BlobStorageFileStatus(blobPath.getPath, properties.getLastModified.toEpochSecond, properties.getContentLength, false)
+      new BlobStorageFileStatus(blobPath.toString(), properties.getLastModified.toEpochSecond, properties.getContentLength, false)
     }
   }
 }
