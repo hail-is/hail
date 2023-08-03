@@ -3,6 +3,8 @@ import math
 import numpy as np
 import hail as hl
 
+from contextlib import contextmanager
+
 from hail.expr.expressions import ExpressionException
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, HailUserError
@@ -163,58 +165,68 @@ def test_bm_to_numpy():
     _assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
 
 
-@pytest.fixture(scope='module')
-def numpy_round_trip_data() -> 'np.ndarray':
-    yield np.random.rand(10, 11)
+def test_bm_transpose_to_numpy():
+    bm = BlockMatrix.from_ndarray(hl.nd.arange(20).map(hl.float64).reshape((4, 5)))
+    np_bm = bm.T.to_numpy()
+    _assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)).T)
 
 
-@pytest.fixture(scope='module')
-def block_matrix_roundtrip_file(numpy_round_trip_data: 'np.ndarray') -> 'str':
+@contextmanager
+def block_matrix_to_tmp_file(data: 'np.ndarray', transpose=False) -> 'str':
     with hl.TemporaryFilename() as f:
-        (n_rows, n_cols) = numpy_round_trip_data.shape
-        bm = BlockMatrix._create(n_rows, n_cols, numpy_round_trip_data.flatten().tolist(), block_size=4)
+        (n_rows, n_cols) = data.shape
+        bm = BlockMatrix._create(n_rows, n_cols, data.flatten().tolist(), block_size=4)
+
+        if transpose:
+            bm = bm.T
+
         bm.tofile(f)
         yield f
 
 
-def test_block_matrix_from_numpy(numpy_round_trip_data):
-    bm = BlockMatrix.from_numpy(numpy_round_trip_data, block_size=5)
-    _assert_eq(numpy_round_trip_data, bm.to_numpy())
+def test_block_matrix_from_numpy():
+    data = np.random.rand(10, 11)
+    bm = BlockMatrix.from_numpy(data, block_size=5)
+    _assert_eq(data, bm.to_numpy())
 
 
-def test_block_matrix_to_file_transpose(numpy_round_trip_data):
-    assert False # todo
+def test_block_matrix_from_numpy_transpose():
+    data = np.random.rand(10, 11)
+    bm = BlockMatrix.from_numpy(data.T, block_size=5)
+    _assert_eq(data, bm.T.to_numpy())
 
 
-def test_block_matrix_from_numpy_transpose(numpy_round_trip_data):
-    bm = BlockMatrix.from_numpy(numpy_round_trip_data.T, block_size=5)
-    _assert_eq(numpy_round_trip_data, bm.T.to_numpy())
+def test_block_matrix_to_file_transpose():
+    data = np.random.rand(10, 11)
+    with block_matrix_to_tmp_file(data, transpose=True) as f:
+         _assert_eq(data.T, np
+            .frombuffer(hl.current_backend().fs.open(f, mode='rb').read())
+            .reshape((11, 10))
+        )
 
 
-def test_numpy_read_block_matrix_to_file(numpy_round_trip_data,
-                                         block_matrix_roundtrip_file
-                                         ):
-    (n_rows, n_cols) = numpy_round_trip_data.shape
-    _assert_eq(numpy_round_trip_data, np
-        .frombuffer(hl.current_backend().fs.open(block_matrix_roundtrip_file, mode='rb').read())
-        .reshape((n_rows, n_cols))
-    )
+def test_numpy_read_block_matrix_to_file():
+    data = np.random.rand(10, 11)
+    with block_matrix_to_tmp_file(data) as f:
+        _assert_eq(data, np
+            .frombuffer(hl.current_backend().fs.open(f, mode='rb').read())
+            .reshape((10, 11))
+        )
 
 
-def test_block_matrix_from_numpy_bytes(numpy_round_trip_data):
-    (n_rows, n_cols) = numpy_round_trip_data.shape
+def test_block_matrix_from_numpy_bytes(data):
+    data = np.random.rand(10, 11)
     with hl.TemporaryFilename() as f:
-        hl.current_backend().fs.open(f, mode='wb').write(numpy_round_trip_data.tobytes())
-        array = BlockMatrix.fromfile(f, n_rows, n_cols, block_size=3).to_numpy()
-        _assert_eq(array, numpy_round_trip_data)
+        hl.current_backend().fs.open(f, mode='wb').write(data.tobytes())
+        array = BlockMatrix.fromfile(f, 10, 11, block_size=3).to_numpy()
+        _assert_eq(array, data)
 
 
-def test_block_matrix_from_file(numpy_round_trip_data,
-                                block_matrix_roundtrip_file
-                                ):
-    (n_rows, n_cols) = numpy_round_trip_data.shape
-    array = BlockMatrix.fromfile(block_matrix_roundtrip_file, n_rows, n_cols).to_numpy()
-    _assert_eq(array, numpy_round_trip_data)
+def test_block_matrix_from_file():
+    data = np.random.rand(10, 11)
+    with block_matrix_to_tmp_file(data) as f:
+        array = BlockMatrix.fromfile(f, 10, 11).to_numpy()
+        _assert_eq(array, data)
 
 
 @fails_service_backend()
