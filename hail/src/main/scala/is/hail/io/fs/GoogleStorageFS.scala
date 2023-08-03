@@ -225,7 +225,7 @@ class GoogleStorageFS(
       private[this] var reader: ReadChannel = null
       private[this] var requesterPaysOptions: Seq[BlobSourceOption] = Seq()
 
-      private[this] def retryingRead(bb: ByteBuffer): Int = {
+      private[this] def retryingRead(): Int = {
         retryTransientErrors(
           { reader.read(bb) },
           reset = Some({ () =>
@@ -235,16 +235,16 @@ class GoogleStorageFS(
         )
       }
 
-      private[this] def readHandlingRequesterPays(bb: ByteBuffer): Int = {
+      private[this] def readHandlingRequesterPays(): Int = {
         if (reader != null) {
-          retryingRead(bb)
+          retryingRead()
         } else {
           handleRequesterPays(
             { (options: Seq[BlobSourceOption]) =>
               requesterPaysOptions = options
               reader = retryTransientErrors { storage.reader(url.bucket, url.path, options:_*) }
               reader.seek(getPosition)
-              retryingRead(bb)
+              retryingRead()
             },
             BlobSourceOption.userProject _,
             url.bucket
@@ -267,7 +267,7 @@ class GoogleStorageFS(
         // read some bytes
         var n = 0
         while (n == 0) {
-          n = readHandlingRequesterPays(bb)
+          n = readHandlingRequesterPays()
           if (n == -1) {
             return -1
           }
