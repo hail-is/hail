@@ -33,6 +33,14 @@ def test_mt_gt(mt, probe_locus):
     assert expr.count() == (100, 100)
 
 
+def test_mt_ge_with_bindings(mt, probe_locus):
+    row = mt.row
+    locus = row.locus
+    expr = mt.filter_rows((locus >= probe_locus) & hl.is_defined(locus))
+    assert expr.n_partitions() == 6
+    assert expr.count() == (101, 100)
+
+
 def test_ht_lt(ht, probe_locus):
     expr = ht.filter(ht.locus < probe_locus)
     assert expr.n_partitions() == 15
@@ -99,3 +107,17 @@ def test_ht_gt(ht, probe_locus):
     expr = ht.filter(ht.locus > probe_locus)
     assert expr.n_partitions() == 6
     assert expr.count() == 100
+
+
+def test_ht_ge_with_bindings(ht, probe_locus):
+    row = ht.row
+    locus = row.locus
+    expr = ht.filter((locus >= probe_locus) & hl.is_defined(locus))
+    assert expr.n_partitions() == 6
+    assert expr.count() == 101
+
+
+def test_GRCh38():
+    mt = hl.balding_nichols_model(1, 10, 100, n_partitions=10, reference_genome='GRCh38')
+    mt = mt.filter_rows(hl.all(mt.locus.contig == 'chr1', mt.locus.position < 5))
+    assert mt.n_partitions() == 1
