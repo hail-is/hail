@@ -214,7 +214,7 @@ def test_numpy_read_block_matrix_to_file():
         )
 
 
-def test_block_matrix_from_numpy_bytes(data):
+def test_block_matrix_from_numpy_bytes():
     data = np.random.rand(10, 11)
     with hl.TemporaryFilename() as f:
         hl.current_backend().fs.open(f, mode='wb').write(data.tobytes())
