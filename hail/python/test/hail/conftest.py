@@ -73,9 +73,9 @@ def set_query_name(init_hail, request):
     if isinstance(backend, ServiceBackend):
         backend.batch_attributes = dict(name=request.node.name)
         yield
-        report: Dict[str, CollectReport] = request.node.stash[test_results_key]
         backend.batch_attributes = dict()
         if backend._batch:
+            report: Dict[str, CollectReport] = request.node.stash[test_results_key]
             if any(r.failed for r in report.values()):
                 log.info(f'cancelling failed test batch {backend._batch.id}')
                 asyncio.get_event_loop().run_until_complete(backend._batch.cancel())
