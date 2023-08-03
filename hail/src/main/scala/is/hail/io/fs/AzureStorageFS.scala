@@ -149,12 +149,12 @@ object AzureStorageFileStatus {
     }
   }
 
-  def apply(blobPath: AzureStorageFSURL, blobItem: BlobItem): BlobStorageFileStatus = {
+  def apply(blobPath: String, blobItem: BlobItem): BlobStorageFileStatus = {
     if (blobItem.isPrefix) {
-      new BlobStorageFileStatus(blobPath.toString(), null, 0, true)
+      new BlobStorageFileStatus(blobPath, null, 0, true)
     } else {
       val properties = blobItem.getProperties
-      new BlobStorageFileStatus(blobPath.toString(), properties.getLastModified.toEpochSecond, properties.getContentLength, false)
+      new BlobStorageFileStatus(blobPath, properties.getLastModified.toEpochSecond, properties.getContentLength, false)
     }
   }
 }
@@ -399,7 +399,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val prefixMatches = blobContainerClient.listBlobsByHierarchy(prefix)
 
     prefixMatches.forEach(blobItem => {
-      val blobPath = url.withPath(blobItem.getName)
+      val blobPath = dropTrailingSlash(url.withPath(blobItem.getName).toString())
       statList += AzureStorageFileStatus(blobPath, blobItem)
     })
 
