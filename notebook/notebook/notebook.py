@@ -84,7 +84,7 @@ def web_authenticated_workshop_guest_only(redirect=True):
         async def wrapped(request, userdata, *args, **kwargs):
             if not userdata:
                 if redirect:
-                    return web.HTTPFound(deploy_config.external_url('workshop', '/login'))
+                    raise web.HTTPFound(deploy_config.external_url('workshop', '/login'))
                 raise web.HTTPUnauthorized()
             return await fun(request, userdata, *args, **kwargs)
 
@@ -328,7 +328,7 @@ INSERT INTO notebooks (user_id, notebook_token, pod_name, state, pod_ip, jupyter
                 (user_id, user_id, notebook_token, pod.metadata.name, state, pod.status.pod_ip, jupyter_token),
             )
 
-    return web.HTTPFound(location=deploy_config.external_url(service, '/notebook'))
+    raise web.HTTPFound(location=deploy_config.external_url(service, '/notebook'))
 
 
 async def _delete_notebook(service, request, userdata):
@@ -343,7 +343,7 @@ async def _delete_notebook(service, request, userdata):
             async with conn.cursor() as cursor:
                 await cursor.execute('DELETE FROM notebooks WHERE user_id = %s;', user_id)
 
-    return web.HTTPFound(location=deploy_config.external_url(service, '/notebook'))
+    raise web.HTTPFound(location=deploy_config.external_url(service, '/notebook'))
 
 
 async def _wait_websocket(service, request, userdata):
@@ -396,7 +396,7 @@ async def _wait_websocket(service, request, userdata):
 
 async def _get_error(service, request, userdata):
     if not userdata:
-        return web.HTTPFound(deploy_config.external_url(service, '/login'))
+        raise web.HTTPFound(deploy_config.external_url(service, '/login'))
 
     app = request.app
     k8s = app['k8s_client']
@@ -412,7 +412,7 @@ async def _get_error(service, request, userdata):
     session = await aiohttp_session.get_session(request)
     if notebook:
         if new_status['state'] == 'Ready':
-            return web.HTTPFound(
+            raise web.HTTPFound(
                 deploy_config.external_url(
                     service, f'/instance/{notebook["notebook_token"]}/?token={notebook["jupyter_token"]}'
                 )
@@ -424,7 +424,7 @@ async def _get_error(service, request, userdata):
         )
     else:
         set_message(session, 'Jupyter instance not found.  Please launch a new instance.', 'error')
-    return web.HTTPFound(deploy_config.external_url(service, '/notebook'))
+    raise web.HTTPFound(deploy_config.external_url(service, '/notebook'))
 
 
 async def _get_auth(request, userdata):
@@ -538,7 +538,7 @@ INSERT INTO workshops (name, image, cpu, memory, password, active, token) VALUES
                 else:
                     raise
 
-    return web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
+    raise web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
 
 
 @routes.post('/workshop-admin-update')
@@ -571,7 +571,7 @@ UPDATE workshops SET name = %s, image = %s, cpu = %s, memory = %s, password = %s
             else:
                 set_message(session, f'Updated workshop {name}.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
+    raise web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
 
 
 @routes.post('/workshop-admin-delete')
@@ -598,7 +598,7 @@ DELETE FROM workshops WHERE name = %s;
     else:
         set_message(session, f'Workshop {name} not found.', 'error')
 
-    return web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
+    raise web.HTTPFound(deploy_config.external_url('notebook', '/workshop-admin'))
 
 
 workshop_routes = web.RouteTableDef()
@@ -616,7 +616,7 @@ async def workshop_get_index(request, userdata):
 @web_maybe_authenticated_workshop_guest
 async def workshop_get_login(request, userdata):
     if userdata:
-        return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+        raise web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
 
     page_context = {'notebook_service': 'workshop'}
     return await render_template('workshop', request, userdata, 'workshop/login.html', page_context)
@@ -646,7 +646,7 @@ WHERE name = %s AND password = %s AND active = 1;
             if len(workshops) != 1:
                 assert len(workshops) == 0
                 set_message(session, 'Workshop Inactive!', 'error')
-                return web.HTTPFound(location=deploy_config.external_url('workshop', '/login'))
+                raise web.HTTPFound(location=deploy_config.external_url('workshop', '/login'))
             workshop = workshops[0]
 
     # use hex since K8s labels can't start or end with _ or -
@@ -655,7 +655,7 @@ WHERE name = %s AND password = %s AND active = 1;
 
     set_message(session, f'Welcome to the {name} workshop!', 'info')
 
-    return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+    raise web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
 
 
 @workshop_routes.post('/logout')
@@ -679,7 +679,7 @@ async def workshop_post_logout(request, userdata):
     if 'workshop_session' in session:
         del session['workshop_session']
 
-    return web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
+    raise web.HTTPFound(location=deploy_config.external_url('workshop', '/notebook'))
 
 
 @workshop_routes.get('/resources')

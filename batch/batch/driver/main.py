@@ -8,7 +8,7 @@ import signal
 import warnings
 from collections import defaultdict, namedtuple
 from functools import wraps
-from typing import Any, Awaitable, Callable, Dict, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, NoReturn, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -308,7 +308,7 @@ async def deactivate_instance(_, instance: Instance) -> web.Response:
 @routes.post('/instances/{instance_name}/kill')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def kill_instance(request: web.Request, _) -> web.HTTPFound:
+async def kill_instance(request: web.Request, _) -> NoReturn:
     instance_name = request.match_info['instance_name']
 
     inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
@@ -326,7 +326,7 @@ async def kill_instance(request: web.Request, _) -> web.HTTPFound:
 
     pool_name = instance.inst_coll.name
     pool_url_path = f'/inst_coll/pool/{pool_name}'
-    return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+    raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
 async def job_complete_1(request, instance):
@@ -571,7 +571,7 @@ def validate_int(session, name, value, predicate, description):
 @routes.post('/configure-feature-flags')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def configure_feature_flags(request: web.Request, _) -> web.HTTPFound:
+async def configure_feature_flags(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     post = await request.post()
@@ -589,13 +589,13 @@ UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
     app['feature_flags'] = row
 
-    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+    raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def pool_config_update(request: web.Request, _) -> web.HTTPFound:
+async def pool_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -795,13 +795,13 @@ async def pool_config_update(request: web.Request, _) -> web.HTTPFound:
         log.exception(f'error while updating pool configuration for {pool}')
         raise
 
-    return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+    raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
 @routes.post('/config-update/jpim')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def job_private_config_update(request: web.Request, _) -> web.HTTPFound:
+async def job_private_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
@@ -874,7 +874,7 @@ async def job_private_config_update(request: web.Request, _) -> web.HTTPFound:
         log.exception(f'error while updating pool configuration for {jpim}')
         raise
 
-    return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+    raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
 
 @routes.get('/inst_coll/pool/{pool}')
@@ -890,7 +890,7 @@ async def get_pool(request, userdata):
 
     if not isinstance(pool, Pool):
         set_message(session, f'Unknown pool {pool_name}.', 'error')
-        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     user_resources = await pool.scheduler.compute_fair_share()
     user_resources = sorted(
@@ -946,14 +946,14 @@ async def get_job_private_inst_manager(request, userdata):
 @routes.post('/freeze')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def freeze_batch(request: web.Request, _) -> web.HTTPFound:
+async def freeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
     if app['frozen']:
         set_message(session, 'Batch is already frozen.', 'info')
-        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     await db.execute_update(
         '''
@@ -965,20 +965,20 @@ UPDATE globals SET frozen = 1;
 
     set_message(session, 'Froze all instance collections and batch submissions.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+    raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
 @routes.post('/unfreeze')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def unfreeze_batch(request: web.Request, _) -> web.HTTPFound:
+async def unfreeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
     if not app['frozen']:
         set_message(session, 'Batch is already unfrozen.', 'info')
-        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     await db.execute_update(
         '''
@@ -990,7 +990,7 @@ UPDATE globals SET frozen = 0;
 
     set_message(session, 'Unfroze all instance collections and batch submissions.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+    raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
 @routes.get('/user_resources')

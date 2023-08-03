@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import traceback
-from typing import Callable, Dict, List, Optional, Set, Tuple, TypedDict
+from typing import Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
 import kubernetes_asyncio
@@ -222,11 +222,11 @@ async def retry_pr(wb, pr, request):
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
-async def post_retry_pr(request: web.Request, _) -> web.HTTPFound:
+async def post_retry_pr(request: web.Request, _) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
 
     await asyncio.shield(retry_pr(wb, pr, request))
-    return web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
+    raise web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
 @routes.get('/batches')
@@ -325,7 +325,7 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
 @routes.post('/authorize_source_sha')
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
-async def post_authorized_source_sha(request: web.Request, _) -> web.HTTPFound:
+async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     post = await request.post()
@@ -334,7 +334,7 @@ async def post_authorized_source_sha(request: web.Request, _) -> web.HTTPFound:
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/healthcheck')
@@ -527,14 +527,14 @@ async def batch_callback(request):
 @routes.post('/freeze_merge_deploy')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def freeze_deploys(request: web.Request, _) -> web.HTTPFound:
+async def freeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
     if app['frozen_merge_deploy']:
         set_message(session, 'CI is already frozen.', 'info')
-        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
         '''
@@ -546,20 +546,20 @@ UPDATE globals SET frozen_merge_deploy = 1;
 
     set_message(session, 'Froze all merges and deploys.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.post('/unfreeze_merge_deploy')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def unfreeze_deploys(request: web.Request, _) -> web.HTTPFound:
+async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
     if not app['frozen_merge_deploy']:
         set_message(session, 'CI is already unfrozen.', 'info')
-        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
         '''
@@ -571,7 +571,7 @@ UPDATE globals SET frozen_merge_deploy = 0;
 
     set_message(session, 'Unfroze all merges and deploys.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/namespaces')
@@ -600,7 +600,7 @@ GROUP BY active_namespaces.namespace'''
 @routes.post('/namespaces/{namespace}/services/add')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def add_namespaced_service(request: web.Request, _) -> web.HTTPFound:
+async def add_namespaced_service(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     service = post['service']
@@ -623,13 +623,13 @@ WHERE namespace = %s AND service = %s
             (namespace, service),
         )
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
 @routes.post('/namespaces/add')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def add_namespace(request: web.Request, _) -> web.HTTPFound:
+async def add_namespace(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     namespace = post['namespace']
@@ -648,7 +648,7 @@ async def add_namespace(request: web.Request, _) -> web.HTTPFound:
             (namespace,),
         )
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
 async def cleanup_expired_namespaces(db: Database):

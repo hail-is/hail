@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from functools import wraps
-from typing import List, Optional
+from typing import List, NoReturn, Optional
 
 import aiohttp_session
 import kubernetes_asyncio.client
@@ -241,7 +241,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]) -
 
         if user is None:
             set_message(session, f'Account does not exist for login id {login_id}.', 'error')
-            return web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
 
@@ -252,7 +252,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]) -
             session_id = await create_session(db, user['id'])
             session['session_id'] = session_id
             set_message(session, f'Account has been created for {user["username"]}.', 'info')
-            return web.HTTPFound(next_page)
+            raise web.HTTPFound(next_page)
 
         assert user['state'] == 'creating'
         session['pending'] = True
@@ -277,7 +277,7 @@ async def _wait_websocket(request, login_id):
 
     user = await user_from_login_id(db, login_id)
     if not user:
-        return web.HTTPNotFound()
+        raise web.HTTPNotFound()
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -310,7 +310,7 @@ async def _wait_websocket(request, login_id):
 
 
 @routes.get('/signup')
-async def signup(request):
+async def signup(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
@@ -321,11 +321,11 @@ async def signup(request):
     session['caller'] = 'signup'
     session['flow'] = flow_data
 
-    return web.HTTPFound(flow_data['authorization_url'])
+    raise web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/login')
-async def login(request):
+async def login(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
@@ -336,11 +336,11 @@ async def login(request):
     session['caller'] = 'login'
     session['flow'] = flow_data
 
-    return web.HTTPFound(flow_data['authorization_url'])
+    raise web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/oauth2callback')
-async def callback(request):
+async def callback(request) -> web.Response:
     session = await aiohttp_session.get_session(request)
     if 'flow' not in session:
         raise web.HTTPUnauthorized()
@@ -370,7 +370,7 @@ async def callback(request):
     if user is None:
         if caller == 'login':
             set_message(session, f'Account does not exist for login id {login_id}', 'error')
-            return web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         assert caller == 'signup'
 
@@ -384,12 +384,12 @@ async def callback(request):
             await insert_new_user(db, username, login_id, is_developer=False, is_service_account=False)
         except AuthUserError as e:
             set_message(session, e.message, 'error')
-            return web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         session['pending'] = True
         session['login_id'] = login_id
 
-        return web.HTTPFound(creating_url)
+        raise web.HTTPFound(creating_url)
 
     if user['state'] in ('deleting', 'deleted'):
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
@@ -402,14 +402,14 @@ async def callback(request):
             set_message(session, f'Account for login id {login_id} is still being created.', 'error')
         session['pending'] = True
         session['login_id'] = user['login_id']
-        return web.HTTPFound(creating_url)
+        raise web.HTTPFound(creating_url)
 
     assert user['state'] == 'active'
     if caller == 'signup':
         set_message(session, f'Account has already been created for {user["username"]}.', 'info')
     session_id = await create_session(db, user['id'])
     session['session_id'] = session_id
-    return web.HTTPFound(next_page)
+    raise web.HTTPFound(next_page)
 
 
 @routes.post('/api/v1alpha/users/{user}/create')
@@ -483,9 +483,9 @@ async def get_copy_paste_token_api(request: web.Request, userdata: UserData) -> 
 @routes.post('/logout')
 @check_csrf_token
 @maybe_authenticated_user
-async def logout(request: web.Request, userdata: Optional[UserData]) -> web.HTTPFound:
+async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn:
     if not userdata:
-        return web.HTTPFound(deploy_config.external_url('auth', ''))
+        raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
     db = request.app['db']
     session_id = userdata['session_id']
@@ -494,7 +494,7 @@ async def logout(request: web.Request, userdata: Optional[UserData]) -> web.HTTP
     session = await aiohttp_session.get_session(request)
     cleanup_session(session)
 
-    return web.HTTPFound(deploy_config.external_url('auth', ''))
+    raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
 
 @routes.get('/api/v1alpha/login')
@@ -522,7 +522,7 @@ async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
 @routes.post('/roles')
 @check_csrf_token
 @authenticated_devs_only
-async def post_create_role(request: web.Request, _) -> web.HTTPFound:
+async def post_create_role(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -538,7 +538,7 @@ VALUES (%s);
 
     set_message(session, f'Created role {role_id} {name}.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/roles'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/roles'))
 
 
 @routes.get('/users')
@@ -553,7 +553,7 @@ async def get_users(request: web.Request, userdata: UserData) -> web.Response:
 @routes.post('/users')
 @check_csrf_token
 @authenticated_devs_only
-async def post_create_user(request: web.Request, _) -> web.HTTPFound:
+async def post_create_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -566,14 +566,14 @@ async def post_create_user(request: web.Request, _) -> web.HTTPFound:
         created_user = await insert_new_user(db, username, login_id, is_developer, is_service_account)
     except AuthUserError as e:
         set_message(session, e.message, 'error')
-        return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+        raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
     if created_user:
         set_message(session, f'Created user {username} {login_id}.', 'info')
     else:
         set_message(session, f'User {username} {login_id} already exists.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
 
 @routes.get('/api/v1alpha/users')
@@ -633,7 +633,7 @@ WHERE {' AND '.join(where_conditions)};
 @routes.post('/users/delete')
 @check_csrf_token
 @authenticated_devs_only
-async def delete_user(request: web.Request, _) -> web.HTTPFound:
+async def delete_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -646,7 +646,7 @@ async def delete_user(request: web.Request, _) -> web.HTTPFound:
     except UnknownUser:
         set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
 
 @routes.delete('/api/v1alpha/users/{user}')
