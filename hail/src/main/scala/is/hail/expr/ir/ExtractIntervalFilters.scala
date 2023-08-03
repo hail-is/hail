@@ -11,81 +11,91 @@ import org.apache.spark.sql.Row
 import scala.collection.immutable.SortedMap
 import scala.Option.option2Iterable
 
+sealed abstract class AbstractValue {
+  def asBool: BoolValue = this match {
+    case x: BoolValue => x
+    case _ => BoolValue.top
+  }
+
+  def asStruct: StructValue = this.asInstanceOf[StructValue]
+
+  def isFirstKey: Boolean = this match {
+    case KeyFieldValue(i) => i == 0
+    case _ => false
+  }
+
+  def merge(other: AbstractValue, iord: IntervalEndpointOrdering): AbstractValue = (this, other) match {
+    case (StructValue(l), StructValue(r)) =>
+      val fields = l.keySet.intersect(r.keySet).view.map { f =>
+        f -> l(f).merge(r(f), iord)
+      }.toMap
+      StructValue(fields)
+    case (l: BoolValue, r: BoolValue) =>
+      l.union(r, iord)
+    case (ConstantValue(l), ConstantValue(r)) =>
+      if (l == r) ConstantValue(l) else OtherValue
+    case (KeyFieldValue(l), KeyFieldValue(r)) =>
+      if (l == r) KeyFieldValue(l) else OtherValue
+    case (ContigValue(l), ContigValue(r)) =>
+      if (l == r) ContigValue(l) else OtherValue
+    case (PositionValue(l), PositionValue(r)) =>
+      if (l == r) PositionValue(l) else OtherValue
+    case (BottomValue, x) => x
+    case (x, BottomValue) => x
+    case _ => OtherValue
+  }
+}
+
+final case class StructValue(keyFields: Map[String, AbstractValue]) extends AbstractValue {
+  def apply(name: String): AbstractValue = keyFields.getOrElse(name, OtherValue)
+
+  def isKeyPrefix: Boolean = keyFields.values.view.zipWithIndex.forall {
+    case (KeyFieldValue(i1), i2) => i1 == i2
+    case _ => false
+  }
+}
+
+object StructValue {
+  val top: StructValue = StructValue(Map.empty)
+}
+
+// approximates runtime bool p by intervals, such that if p is true, then key is in intervals
+// equivalently p iff (p and key in intervals)
+final case class BoolValue(intervals: Array[Interval]) extends AbstractValue {
+  override def toString: String = s"BoolValue(${intervals.toFastIndexedSeq})"
+
+  def union(other: BoolValue, iord: IntervalEndpointOrdering): BoolValue =
+    BoolValue(Interval.union(intervals ++ other.intervals, iord))
+
+  def intersection(other: BoolValue, iord: IntervalEndpointOrdering): BoolValue = {
+    log.info(s"intersecting list of ${intervals.length} intervals with list of ${other.intervals.length} intervals")
+    val intersection = Interval.intersection(intervals, other.intervals, iord)
+    log.info(s"intersect generated ${intersection.length} intersected intervals")
+    BoolValue(intersection)
+  }
+}
+
+object BoolValue {
+  // interval containing all keys
+  val top: BoolValue = BoolValue(Array(Interval(Row(), Row(), true, true)))
+  val bottom: BoolValue = BoolValue(Array())
+}
+
+final case class ConstantValue(value: Any) extends AbstractValue
+
+final case class KeyFieldValue(idx: Int) extends AbstractValue
+
+final case class ContigValue(rg: String) extends AbstractValue
+
+final case class PositionValue(rg: String) extends AbstractValue
+
+final case object OtherValue extends AbstractValue
+
+final case object BottomValue extends AbstractValue
+
 object ExtractIntervalFilters {
 
   val MAX_LITERAL_SIZE = 4096
-
-  sealed abstract class AbstractValue {
-    def asBool: BoolValue = this.asInstanceOf[BoolValue]
-
-    def asStruct: StructValue = this.asInstanceOf[StructValue]
-
-    def isFirstKey: Boolean = this match {
-      case KeyFieldValue(i) => i == 0
-      case _ => false
-    }
-
-    def merge(other: AbstractValue, iord: IntervalEndpointOrdering): AbstractValue = (this, other) match {
-      case (StructValue(l), StructValue(r)) =>
-        val fields = l.keySet.intersect(r.keySet).view.map { f =>
-          f -> l(f).merge(r(f), iord)
-        }.toMap
-        StructValue(fields)
-      case (l: BoolValue, r: BoolValue) =>
-        l.union(r, iord)
-      case (ConstantValue(l), ConstantValue(r)) =>
-        if (l == r) ConstantValue(l) else OtherValue
-      case (KeyFieldValue(l), KeyFieldValue(r)) =>
-        if (l == r) KeyFieldValue(l) else OtherValue
-      case (ContigValue(l), ContigValue(r)) =>
-        if (l == r) ContigValue(l) else OtherValue
-      case (PositionValue(l), PositionValue(r)) =>
-        if (l == r) PositionValue(l) else OtherValue
-      case _ => OtherValue
-    }
-  }
-
-  final case class StructValue(keyFields: Map[String, AbstractValue]) extends AbstractValue {
-    def apply(name: String): AbstractValue = keyFields.getOrElse(name, OtherValue)
-
-    def isKeyPrefix: Boolean = keyFields.values.view.zipWithIndex.forall {
-      case (KeyFieldValue(i1), i2) => i1 == i2
-      case _ => false
-    }
-  }
-
-  object StructValue {
-    val top: StructValue = StructValue(Map.empty)
-  }
-
-  // approximates runtime bool p by intervals, such that if p is true, then key is in intervals
-  // equivalently p iff (p and key in intervals)
-  final case class BoolValue(intervals: Array[Interval]) extends AbstractValue {
-    override def toString: String = s"BoolValue(${intervals.toFastIndexedSeq})"
-    def union(other: BoolValue, iord: IntervalEndpointOrdering): BoolValue =
-      BoolValue(Interval.union(intervals ++ other.intervals, iord))
-    def intersection(other: BoolValue, iord: IntervalEndpointOrdering): BoolValue = {
-      log.info(s"intersecting list of ${intervals.length} intervals with list of ${other.intervals.length} intervals")
-      val intersection = Interval.intersection(intervals, other.intervals, iord)
-      log.info(s"intersect generated ${intersection.length} intersected intervals")
-      BoolValue(intersection)
-    }
-  }
-
-  object BoolValue {
-    // interval containing all keys
-    val top: BoolValue = BoolValue(Array(Interval(Row(), Row(), true, true)))
-    val bottom: BoolValue = BoolValue(Array())
-  }
-  final case class ConstantValue(value: Any) extends AbstractValue
-
-  final case class KeyFieldValue(idx: Int) extends AbstractValue
-
-  final case class ContigValue(rg: String) extends AbstractValue
-
-  final case class PositionValue(rg: String) extends AbstractValue
-
-  final case object OtherValue extends AbstractValue
 
   private def intervalsFromLiteral(lit: Any, wrapped: Boolean): Array[Interval] = {
     (lit: @unchecked) match {
@@ -282,10 +292,13 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
             }
           case _ => OtherValue
         }
-      case Coalesce(bools) =>
-        // if Coalesce is true, then one of the bools must be true, so can conservatively treat like an Or
-        val intervals = Interval.union(Array.concat(bools.view.map(recur(_).asBool.intervals): _*), iord)
-        BoolValue(intervals)
+      case Coalesce(values) =>
+        if (values.head.typ == TBoolean) {
+          // if Coalesce is true, then one of the bools must be true, so can conservatively treat like an Or
+          val intervals = Interval.union(Array.concat(values.view.map(recur(_).asBool.intervals): _*), iord)
+          BoolValue(intervals)
+        } else
+          values.foldLeft[AbstractValue](BottomValue)((acc, value) => acc.merge(recur(value), iord))
       // collection contains
       case ApplyIR("contains", _, Seq(collection, query), _) =>
         recur(collection) match {
