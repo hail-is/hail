@@ -456,11 +456,27 @@ async def _get_job_container_log(app, batch_id, job_id, container, job_record) -
     )
 
 
-async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[ReadableStream]]:
+PossiblyTruncatedLog = Tuple[bytes, bool]
+
+
+async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[PossiblyTruncatedLog]]:
     record = await _get_job_record(app, batch_id, job_id)
     containers = job_tasks_from_spec(record)
-    logs: List[ReadableStream] = await asyncio.gather(
-        *(_get_job_container_log(app, batch_id, job_id, c, record) for c in containers)
+
+    async def load_up_to_fifty_kib(app, batch_id, job_id, c, record) -> Optional[PossiblyTruncatedLog]:
+        s = await _get_job_container_log(app, batch_id, job_id, c, record)
+        if s is None:
+            return None
+        fifty_kib = 50 * 1024
+        async with s:
+            log = await s.read(fifty_kib + 1)
+        if len(log) == fifty_kib + 1:
+            return (log[:fifty_kib], True)
+
+        return (log, False)
+
+    logs: List[Optional[PossiblyTruncatedLog]] = await asyncio.gather(
+        *(load_up_to_fifty_kib(app, batch_id, job_id, c, record) for c in containers)
     )
     return dict(zip(containers, logs))
 
@@ -628,15 +644,14 @@ async def _get_full_job_status(app, record):
 @add_metadata_to_request
 async def get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
-    job_log_streams = await _get_job_log(request.app, batch_id, job_id)
+    job_logs = await _get_job_log(request.app, batch_id, job_id)
     job_log_strings: Dict[str, Optional[str]] = {}
-    for container, log in job_log_streams.items():
+    for container, log in job_logs.items():
         try:
             if log is None:
                 job_log_strings[container] = None
             else:
-                async with log:
-                    job_log_strings[container] = (await log.read(50 * 1024)).decode('utf-8')
+                job_log_strings[container] = log[0].decode('utf-8')
         except UnicodeDecodeError as e:
             raise web.HTTPBadRequest(
                 reason=f'log for container {container} is not valid UTF-8, upgrade your hail version to download the log'
@@ -2113,7 +2128,7 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
-    job, attempts, job_log_streams, resource_usage = await asyncio.gather(
+    job, attempts, job_logs, resource_usage = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
         _get_job_log(app, batch_id, job_id),
@@ -2194,19 +2209,17 @@ async def ui_get_job(request, userdata, batch_id):
     # str or else Jinja will present them surrounded by b''
     job_log_strings_or_bytes: Dict[str, Union[str, bytes, None]] = {}
     possibly_truncated_logs = set()
-    for container, log_stream in job_log_streams.items():
-        if log_stream is None:
+    for container, log in job_logs.items():
+        if log is None:
             job_log_strings_or_bytes[container] = None
         else:
-            fifty_kib = 50 * 1024
-            async with log_stream:
-                log = await log_stream.read(fifty_kib)
-            if len(log) == fifty_kib:
+            log_content, is_truncated = log
+            if is_truncated:
                 possibly_truncated_logs.add(container)
             try:
-                job_log_strings_or_bytes[container] = log.decode('utf-8')
+                job_log_strings_or_bytes[container] = log_content.decode('utf-8')
             except UnicodeDecodeError:
-                job_log_strings_or_bytes[container] = log
+                job_log_strings_or_bytes[container] = log_content
 
     page_context = {
         'batch_id': batch_id,

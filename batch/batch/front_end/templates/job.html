@@ -143,7 +143,7 @@
     </a>
 </h4>
 {% if 'input' in possibly_truncated_logs %}
-<b>To see the full log, click the download button above</b>
+<b>Log too long to display. <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/input" download="batch-{{ batch_id }}-{{ job_id }}-input.log">Download the full log</a></b>
 {% endif %}
 <pre>{{ job_log['input'] }}</pre>
 {% endif %}
@@ -162,7 +162,7 @@
     </a>
 </h4>
 {% if 'main' in possibly_truncated_logs %}
-<b>To see the full log, click the download button above</b>
+<b>Log too long to display. <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/main" download="batch-{{ batch_id }}-{{ job_id }}-main.log">Download the full log</a></b>
 {% endif %}
 <pre>{{ job_log['main'] }}</pre>
 {% endif %}
@@ -181,7 +181,7 @@
     </a>
 </h4>
 {% if 'output' in possibly_truncated_logs %}
-<b>To see the full log, click the download button above</b>
+<b>Log too long to display. <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/output" download="batch-{{ batch_id }}-{{ job_id }}-output.log">Download the full log</a></b>
 {% endif %}
 <pre>{{ job_log['output'] }}</pre>
 {% endif %}
