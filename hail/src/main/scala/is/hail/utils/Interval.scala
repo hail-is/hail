@@ -220,7 +220,7 @@ object Interval {
     }
   }
 
-  def union(xs: Array[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
+  def union(xs: IndexedSeq[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
 
     val sorted = xs.sortBy(_.left: Any)(ord.toOrdering)
 
