@@ -654,9 +654,10 @@ async def get_job_container_log(request, batch_id):
 
     resp = web.StreamResponse()
     await resp.prepare(request)
-    if isinstance(container_log, ReadableStream):
+    if container_log is not None:
         async with container_log:
-            await resp.write(await container_log.read(1024))
+            while b := await container_log.read(1024):
+                await resp.write(b)
     await resp.write_eof()
     return resp
 
