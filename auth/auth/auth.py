@@ -796,7 +796,7 @@ async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
 @routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials')
 @authenticated_users_only
 async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
-    if userdata['is_developer'] != 1 or userdata['is_service_account'] != 1:
+    if userdata['is_developer'] != 1 and userdata['is_service_account'] != 1:
         raise web.HTTPUnauthorized()
     return web.Response(status=200)
 
