@@ -3,6 +3,7 @@ import hashlib
 import os
 
 import pytest
+import pytest_timeout
 
 from hail import current_backend, init, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend

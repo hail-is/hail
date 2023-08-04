@@ -300,8 +300,8 @@ def transform_gvcf(mt: MatrixTable,
 
     Returns
     -------
-    :obj:`.Table`
-        A localized matrix table that can be used as part of the input to `combine_gvcfs`
+    :obj:`.VariantDataset`
+        A single sample variant dataset
 
     Notes
     -----

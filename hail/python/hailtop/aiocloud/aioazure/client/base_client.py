@@ -1,7 +1,7 @@
 from typing import Optional, AsyncGenerator, Any
 
 import aiohttp
-from hailtop.utils import RateLimit, sleep_and_backoff, url_and_params
+from hailtop.utils import RateLimit, sleep_before_try, url_and_params
 
 from ...common import CloudBaseClient
 from ..session import AzureSession
@@ -36,9 +36,10 @@ class AzureBaseClient(CloudBaseClient):
             return resp
 
     async def delete_and_wait(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
-        delay = 5
+        tries = 1
         while True:
             resp = await self.delete(path, url=url, **kwargs)
             if resp.status == 204:
                 return resp
-            delay = await sleep_and_backoff(delay)
+            tries += 1
+            await sleep_before_try(tries, base_delay_ms=5_000)

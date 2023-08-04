@@ -12,9 +12,10 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Awaitable, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
 import aiohttp
+import aiohttp.web_exceptions
 import aiohttp_session
 import humanize
 import pandas as pd
@@ -32,6 +33,7 @@ from gear import (
     AuthClient,
     Database,
     Transaction,
+    UserData,
     check_csrf_token,
     json_request,
     json_response,
@@ -120,12 +122,12 @@ T = TypeVar('T')
 P = ParamSpec('P')
 
 
-def rest_authenticated_developers_or_auth_only(fun):
+def rest_authenticated_developers_or_auth_only(fun: Callable[[web.Request], Awaitable[web.StreamResponse]]):
     @auth.rest_authenticated_users_only
     @wraps(fun)
-    async def wrapped(request, userdata, *args, **kwargs):
+    async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
         if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
-            return await fun(request, userdata, *args, **kwargs)
+            return await fun(request)
         raise web.HTTPUnauthorized()
 
     return wrapped
@@ -163,33 +165,33 @@ WHERE id = %s AND billing_project_users.`user_cs` = %s;
     return record is not None
 
 
-def rest_billing_project_users_only(fun):
+def rest_billing_project_users_only(fun: Callable[[web.Request, UserData, int], Awaitable[web.StreamResponse]]):
     @auth.rest_authenticated_users_only
     @wraps(fun)
-    async def wrapped(request, userdata, *args, **kwargs):
+    async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
         db = request.app['db']
         batch_id = int(request.match_info['batch_id'])
         user = userdata['username']
         permitted_user = await _user_can_access(db, batch_id, user)
         if not permitted_user:
             raise web.HTTPNotFound()
-        return await fun(request, userdata, batch_id, *args, **kwargs)
+        return await fun(request, userdata, batch_id)
 
     return wrapped
 
 
 def web_billing_project_users_only(redirect=True):
-    def wrap(fun):
+    def wrap(fun: Callable[[web.Request, UserData, int], Awaitable[web.StreamResponse]]):
         @auth.web_authenticated_users_only(redirect)
         @wraps(fun)
-        async def wrapped(request, userdata, *args, **kwargs):
+        async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
             db = request.app['db']
             batch_id = int(request.match_info['batch_id'])
             user = userdata['username']
             permitted_user = await _user_can_access(db, batch_id, user)
             if not permitted_user:
                 raise web.HTTPNotFound()
-            return await fun(request, userdata, batch_id, *args, **kwargs)
+            return await fun(request, userdata, batch_id)
 
         return wrapped
 
@@ -203,23 +205,23 @@ def cast_query_param_to_int(param: Optional[str]) -> Optional[int]:
 
 
 @routes.get('/healthcheck')
-async def get_healthcheck(request):  # pylint: disable=W0613
+async def get_healthcheck(_) -> web.Response:
     return web.Response()
 
 
 @routes.get('/api/v1alpha/version')
-async def rest_get_version(request):  # pylint: disable=W0613
+async def rest_get_version(_) -> web.Response:
     return web.Response(text=version())
 
 
 @routes.get('/api/v1alpha/cloud')
-async def rest_cloud(request):  # pylint: disable=W0613
+async def rest_cloud(_) -> web.Response:
     return web.Response(text=CLOUD)
 
 
 @routes.get('/api/v1alpha/supported_regions')
 @auth.rest_authenticated_users_only
-async def rest_get_supported_regions(request, userdata):  # pylint: disable=unused-argument
+async def rest_get_supported_regions(request: web.Request, _) -> web.Response:
     return json_response(list(request.app['regions'].keys()))
 
 
@@ -294,7 +296,7 @@ WHERE id = %s AND NOT deleted;
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def get_jobs_v1(request: web.Request, userdata: dict, batch_id: int):  # pylint: disable=unused-argument
+async def get_jobs_v1(request: web.Request, _, batch_id: int) -> web.Response:
     q = request.query.get('q', '')
     last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
     resp = await _handle_api_error(_get_jobs, request, batch_id, 1, q, last_job_id)
@@ -305,7 +307,7 @@ async def get_jobs_v1(request: web.Request, userdata: dict, batch_id: int):  # p
 @routes.get('/api/v2alpha/batches/{batch_id}/jobs')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def get_jobs_v2(request: web.Request, userdata: dict, batch_id: int):  # pylint: disable=unused-argument
+async def get_jobs_v2(request: web.Request, _, batch_id: int) -> web.Response:
     q = request.query.get('q', '')
     last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
     resp = await _handle_api_error(_get_jobs, request, batch_id, 2, q, last_job_id)
@@ -624,7 +626,7 @@ async def _get_full_job_status(app, record):
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     job_log_streams = await _get_job_log(request.app, batch_id, job_id)
     job_log_strings: Dict[str, Optional[str]] = {}
@@ -665,7 +667,7 @@ async def get_job_container_log(request, batch_id):
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def rest_get_job_container_log(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def rest_get_job_container_log(request, _, batch_id) -> web.Response:
     return await get_job_container_log(request, batch_id)
 
 
@@ -736,7 +738,7 @@ def check_service_account_permissions(user, sa):
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @auth.rest_authenticated_users_only
 @add_metadata_to_request
-async def create_jobs(request: aiohttp.web.Request, userdata: dict):
+async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
@@ -746,7 +748,7 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
 @auth.rest_authenticated_users_only
 @add_metadata_to_request
-async def create_jobs_for_update(request: aiohttp.web.Request, userdata: dict):
+async def create_jobs_for_update(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
 
     if app['frozen']:
@@ -767,7 +769,9 @@ def assert_is_sha_1_hex_string(revision: str):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
 
 
-async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id: int, app: aiohttp.web.Application):
+async def _create_jobs(
+    userdata, job_specs: List[Dict[str, Any]], batch_id: int, update_id: int, app: web.Application
+) -> web.Response:
     db: Database = app['db']
     file_store: FileStore = app['file_store']
     user = userdata['username']
@@ -1204,7 +1208,7 @@ VALUES (%s, %s, %s);
                 )
         except asyncio.CancelledError:
             raise
-        except aiohttp.web.HTTPException:
+        except web.HTTPException:
             raise
         except Exception as err:
             raise ValueError(
@@ -1268,7 +1272,7 @@ async def create_batch(request, userdata):
     return json_response({'id': id, 'update_id': update_id})
 
 
-async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
+async def _create_batch(batch_spec: dict, userdata, db: Database) -> int:
     try:
         validate_batch(batch_spec)
     except ValidationError as e:
@@ -1575,14 +1579,14 @@ WHERE id = %s AND NOT deleted;
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def get_batch(request: web.Request, _, batch_id: int) -> web.Response:
     return json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def cancel_batch(request: web.Request, _, batch_id: int) -> web.Response:
     await _handle_api_error(_cancel_batch, request.app, batch_id)
     return web.Response()
 
@@ -1682,7 +1686,7 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
 @routes.delete('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
     await _delete_batch(request.app, batch_id)
     return web.Response()
 
@@ -1724,12 +1728,12 @@ async def ui_batch(request, userdata, batch_id):
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
-async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
     post = await request.post()
     q = post.get('q')
-    params = {}
+    params: Dict[str, str] = {}
     if q is not None:
-        params['q'] = q
+        params['q'] = str(q)
     session = await aiohttp_session.get_session(request)
     try:
         await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
@@ -1743,12 +1747,12 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
-async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def ui_delete_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
     post = await request.post()
     q = post.get('q')
-    params = {}
+    params: Dict[str, str] = {}
     if q is not None:
-        params['q'] = q
+        params['q'] = str(q)
     await _delete_batch(request.app, batch_id)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
@@ -1759,7 +1763,7 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @routes.get('/batches', name='batches')
 @auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
-async def ui_batches(request: web.Request, userdata: dict):
+async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
@@ -1886,7 +1890,7 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
 @rest_billing_project_users_only
-async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def get_attempts(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     attempts = await _get_attempts(request.app, batch_id, job_id)
     return json_response(attempts)
@@ -1895,7 +1899,7 @@ async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-a
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def get_job(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
     return json_response(status)
@@ -2064,11 +2068,11 @@ def plot_resource_usage(
 
         limit_props = {'color': 'black', 'width': 2}
         if memory_limit_bytes is not None:
-            fig.add_hline(memory_limit_bytes, row=1, col=2, line=limit_props)
+            fig.add_hline(memory_limit_bytes, row=1, col=2, line=limit_props)  # type: ignore
         if non_io_storage_limit_bytes is not None:
-            fig.add_hline(non_io_storage_limit_bytes, row=3, col=1, line=limit_props)
+            fig.add_hline(non_io_storage_limit_bytes, row=3, col=1, line=limit_props)  # type: ignore
         if io_storage_limit_bytes is not None:
-            fig.add_hline(io_storage_limit_bytes, row=3, col=2, line=limit_props)
+            fig.add_hline(io_storage_limit_bytes, row=3, col=2, line=limit_props)  # type: ignore
 
     fig.update_layout(
         showlegend=True,
@@ -2093,7 +2097,7 @@ def plot_resource_usage(
 @routes.get('/batches/{batch_id}/jobs/{job_id}/jvm_profile')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
-async def ui_get_jvm_profile(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Response:
     app = request.app
     job_id = int(request.match_info['job_id'])
     profile = await _get_jvm_profile(app, batch_id, job_id)
@@ -2230,7 +2234,7 @@ async def ui_get_job(request, userdata, batch_id):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
-async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
     return await get_job_container_log(request, batch_id)
 
 
@@ -2305,7 +2309,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
 @rest_authenticated_developers_or_auth_only
-async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
+async def post_edit_billing_limits(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     data = await json_request(request)
@@ -2318,7 +2322,7 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
+async def post_edit_billing_limits_ui(request: web.Request, _) -> web.HTTPFound:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     post = await request.post()
@@ -2326,12 +2330,12 @@ async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unu
     session = await aiohttp_session.get_session(request)
     try:
         await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
-        set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')
+        set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')  # type: ignore
     finally:
         return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
 
 
-async def _query_billing(request, user=None):
+async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tuple[list, str, Optional[str]]:
     db: Database = request.app['db']
 
     date_format = '%m/%d/%Y'
@@ -2341,7 +2345,7 @@ async def _query_billing(request, user=None):
 
     default_end = None
 
-    async def parse_error(msg):
+    async def parse_error(msg: str) -> Tuple[list, str, None]:
         session = await aiohttp_session.get_session(request)
         set_message(session, msg, 'error')
         return ([], default_start_str, default_end)
@@ -2368,7 +2372,7 @@ async def _query_billing(request, user=None):
         "billing_projects.`status` != 'deleted'",
         "billing_date >= %s",
     ]
-    where_args = [start]
+    where_args: List[Any] = [start]
 
     if end is not None:
         where_conditions.append("billing_date <= %s")
@@ -2544,7 +2548,7 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
+async def post_billing_projects_remove_user(request: web.Request, _) -> web.HTTPFound:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
@@ -2559,7 +2563,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
 @rest_authenticated_developers_or_auth_only
-async def api_get_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
+async def api_get_billing_projects_remove_user(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
@@ -2614,7 +2618,7 @@ VALUES (%s, %s, %s);
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
+async def post_billing_projects_add_user(request: web.Request, _) -> web.HTTPFound:
     db: Database = request.app['db']
     post = await request.post()
     user = post['user']
@@ -2624,14 +2628,14 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
     try:
         await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
-        set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')
+        set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
     finally:
         return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
 @rest_authenticated_developers_or_auth_only
-async def api_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
+async def api_billing_projects_add_user(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
@@ -2672,7 +2676,7 @@ VALUES (%s, %s);
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def post_create_billing_projects(request: web.Request, _) -> web.HTTPFound:
     db: Database = request.app['db']
     post = await request.post()
     billing_project = post['billing_project']
@@ -2680,14 +2684,14 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     session = await aiohttp_session.get_session(request)
     try:
         await _handle_ui_error(session, _create_billing_project, db, billing_project)
-        set_message(session, f'Added billing project {billing_project}.', 'info')
+        set_message(session, f'Added billing project {billing_project}.', 'info')  # type: ignore
     finally:
         return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
 @rest_authenticated_developers_or_auth_only
-async def api_get_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def api_get_create_billing_projects(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_create_billing_project, db, billing_project)
@@ -2733,7 +2737,7 @@ FOR UPDATE;
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def post_close_billing_projects(request: web.Request, _) -> web.HTTPFound:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -2747,7 +2751,7 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
 @rest_authenticated_developers_or_auth_only
-async def api_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def api_close_billing_projects(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -2792,7 +2796,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
 @rest_authenticated_developers_or_auth_only
-async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def api_reopen_billing_projects(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_reopen_billing_project, db, billing_project)
@@ -2822,7 +2826,7 @@ async def _delete_billing_project(db, billing_project):
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
 @rest_authenticated_developers_or_auth_only
-async def api_delete_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def api_delete_billing_projects(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -2852,7 +2856,7 @@ SELECT frozen FROM globals;
 @routes.get('/')
 @auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
-async def index(request, userdata):  # pylint: disable=unused-argument
+async def index(request: web.Request, _) -> web.HTTPFound:
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 

@@ -39,6 +39,11 @@ def test_combiner_works():
         out = os.path.join(tmpdir, 'out.vds')
         hl.vds.new_combiner(temp_path=tmpdir, output_path=out, gvcf_paths=paths, intervals=parts, reference_genome='GRCh38').run()
         comb = hl.vds.read_vds(out)
+
+        # see https://github.com/hail-is/hail/issues/13367 for why these assertions are here
+        assert 'LPGT' in comb.variant_data.entry
+        assert comb.variant_data.LPGT.dtype == hl.tcall
+
         assert len(parts) == comb.variant_data.n_partitions()
         comb.variant_data._force_count_rows()
         comb.reference_data._force_count_rows()

@@ -13,7 +13,7 @@ def submit(
 ):
     import requests  # pylint: disable=import-outside-toplevel
     import requests.auth  # pylint: disable=import-outside-toplevel
-    from ...utils import sync_sleep_and_backoff  # pylint: disable=import-outside-toplevel
+    from ...utils import sync_sleep_before_try  # pylint: disable=import-outside-toplevel
 
     print("Submitting to cluster '{}'...".format(name))
 
@@ -47,7 +47,7 @@ def submit(
     resp.raise_for_status()
     batch_id = batch['id']
 
-    delay = 0.01
+    tries = 1
     while True:
         resp = requests.get(
             f'https://{name}.azurehdinsight.net/livy/batches/{batch_id}',
@@ -61,4 +61,5 @@ def submit(
                 f'Job submitted. View logs at: https://{name}.azurehdinsight.net/yarnui/hn/cluster/app/{batch["appId"]}'
             )
             break
-        delay = sync_sleep_and_backoff(delay)
+        tries += 1
+        sync_sleep_before_try(tries, base_delay_ms = 10)

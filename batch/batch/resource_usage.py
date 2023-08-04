@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from hailtop.aiotools.fs import AsyncFS
-from hailtop.utils import check_shell_output, sleep_and_backoff, time_msecs, time_ns
+from hailtop.utils import check_shell_output, sleep_before_try, time_msecs, time_ns
 
 log = logging.getLogger('resource_usage')
 
@@ -233,7 +233,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
     async def __aenter__(self):
         async def periodically_measure():
             cancelled = False
-            delay = 0.1
+            tries = 0
             while True:
                 try:
                     await self.measure()
@@ -249,7 +249,8 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
                     log.exception(f'while monitoring {self.container_name}')
                 finally:
                     if not cancelled:
-                        delay = await sleep_and_backoff(delay, 5)
+                        tries += 1
+                        await sleep_before_try(tries, max_delay_ms=5_000)
 
         os.makedirs(os.path.dirname(self.output_file_path), exist_ok=True)
         self.out = open(self.output_file_path, 'wb')  # pylint: disable=consider-using-with

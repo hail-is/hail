@@ -798,7 +798,7 @@ object LowerTableIR {
           reader.lower(ctx, typ)
 
       case TableParallelize(rowsAndGlobal, nPartitions) =>
-        val nPartitionsAdj = nPartitions.getOrElse(16)
+        val nPartitionsAdj = nPartitions.getOrElse(ctx.backend.defaultParallelism)
 
         val loweredRowsAndGlobal = lowerIR(rowsAndGlobal)
         val loweredRowsAndGlobalRef = Ref(genUID(), loweredRowsAndGlobal.typ)

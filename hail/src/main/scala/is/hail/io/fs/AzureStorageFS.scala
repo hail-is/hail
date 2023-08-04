@@ -2,13 +2,14 @@ package is.hail.io.fs
 
 import is.hail.shadedazure.com.azure.core.credential.{AzureSasCredential, TokenCredential}
 import is.hail.shadedazure.com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder, ManagedIdentityCredentialBuilder}
-import is.hail.shadedazure.com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions, BlobStorageException}
+import is.hail.shadedazure.com.azure.storage.blob.models.{BlobProperties, BlobRange, BlobStorageException, ListBlobsOptions}
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 import is.hail.shadedazure.com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
-import is.hail.shadedazure.com.azure.core.http.netty.NettyAsyncHttpClientBuilder
-import is.hail.shadedazure.reactor.netty.http.client.HttpClient
+import is.hail.shadedazure.com.azure.core.http.HttpClient
+import is.hail.shadedazure.com.azure.core.util.HttpClientOptions
 import is.hail.services.retryTransientErrors
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
+import is.hail.services.Requester.httpClient
 import org.apache.log4j.Logger
 import org.apache.commons.io.IOUtils
 
@@ -148,7 +149,7 @@ object AzureStorageFileStatus {
   }
 }
 
-class AzureBlobServiceClientCache(credential: TokenCredential) {
+class AzureBlobServiceClientCache(credential: TokenCredential, val httpClientOptions: HttpClientOptions) {
   private[this] lazy val clients = mutable.Map[(String, String, Option[String]), BlobServiceClient]()
 
   def getServiceClient(url: AzureStorageFSURL): BlobServiceClient = {
@@ -164,6 +165,7 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
 
         val blobServiceClient = clientBuilder
           .endpoint(s"https://${url.account}.blob.core.windows.net")
+          .clientOptions(httpClientOptions)
           .buildClient()
         clients += (k -> blobServiceClient)
         blobServiceClient
@@ -173,6 +175,7 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
   def setPublicAccessServiceClient(url: AzureStorageFSURL): Unit = {
     val blobServiceClient = new BlobServiceClientBuilder()
       .endpoint(s"https://${url.account}.blob.core.windows.net")
+      .clientOptions(httpClientOptions)
       .buildClient()
     clients += ((url.account, url.container, url.sasToken) -> blobServiceClient)
   }
@@ -212,10 +215,16 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
+  private lazy val httpClientOptions = new HttpClientOptions()
+    .setReadTimeout(Duration.ofSeconds(5))
+    .setConnectTimeout(Duration.ofSeconds(5))
+    .setConnectionIdleTimeout(Duration.ofSeconds(5))
+    .setWriteTimeout(Duration.ofSeconds(5))
+
   private lazy val serviceClientCache = credentialsJSON match {
     case None =>
       val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
-      new AzureBlobServiceClientCache(credential)
+      new AzureBlobServiceClientCache(credential, httpClientOptions)
     case Some(keyData) =>
       implicit val formats: Formats = defaultJSONFormats
       val kvs = JsonMethods.parse(keyData)
@@ -228,7 +237,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         .clientSecret(password)
         .tenantId(tenant)
         .build()
-      new AzureBlobServiceClientCache(clientSecretCredential)
+      new AzureBlobServiceClientCache(clientSecretCredential, httpClientOptions)
   }
 
   // Set to max timeout for blob storage of 30 seconds
@@ -424,12 +433,4 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     AzureStorageFS.parseUrl(filename)
     filename
   }
-
-  def asCacheable(): CacheableAzureStorageFS = new CacheableAzureStorageFS(credentialsJSON, null)
-}
-
-class CacheableAzureStorageFS(
-  credentialsJSON: Option[String],
-  @transient val sessionID: String
-) extends AzureStorageFS(credentialsJSON) with ServiceCacheableFS {
 }

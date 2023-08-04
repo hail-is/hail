@@ -13,7 +13,7 @@ from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
-from hailtop.utils import bounded_gather
+from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
@@ -220,6 +220,9 @@ class Job:
     async def wait(self):
         return await self._job.wait()
 
+    async def _wait_for_states(self, *states: str):
+        return await self._job._wait_for_states(*states)
+
     async def container_log(self, container_name: str):
         return await self._job.container_log(container_name)
 
@@ -275,6 +278,9 @@ class UnsubmittedJob:
     async def wait(self):
         raise ValueError("cannot wait on an unsubmitted job")
 
+    async def _wait_for_states(self, *states: str):
+        raise ValueError("cannot _wait_for_states on an unsubmitted job")
+
     async def container_log(self, container_name: str):
         raise ValueError("cannot get the log of an unsubmitted job")
 
@@ -321,15 +327,15 @@ class SubmittedJob:
         return self._status
 
     async def wait(self):
-        i = 0
+        return await self._wait_for_states(*complete_states)
+
+    async def _wait_for_states(self, *states: str):
+        tries = 0
         while True:
-            if await self.is_complete():
+            if await self._is_job_in_state(states) or await self.is_complete():
                 return self._status
-            j = random.randrange(math.floor(1.1 ** i))
-            await asyncio.sleep(0.100 * j)
-            # max 44.5s
-            if i < 64:
-                i = i + 1
+            tries += 1
+            await sleep_before_try(tries)
 
     async def container_log(self, container_name: str) -> bytes:
         async with await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}') as resp:

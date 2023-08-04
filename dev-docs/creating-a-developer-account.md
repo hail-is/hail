@@ -31,3 +31,46 @@ Client IDs even though all they did was provide a very limited API:
 The `gcloud alpha iap oauth-clients list` command does not list our OAuth 2.0
 Client ID. Presumably the type of client id that supports redirect URIs is
 special and completely unsupported by this API.
+
+# Google IAM and Kubernetes Roles
+
+In order to access the Kubernetes cluster, the extant developer should do the
+following:
+
+- Navigate in the GCP Console to IAM and grant the IAM `Kubernetes Engine Cluster Viewer` role.
+  This will allow the new developer's google account to authenticate with the
+  cluster using `kubectl` but it will not grant the new developer access to k8s resources.
+- To grant the new developer access to their developer namespace, the extant
+  developer should apply the following configuration through `kubectl apply`.
+
+```yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-admin
+  namespace: <DEV_USERNAME>
+rules:
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["apps"]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: <DEV_USERNAME>-dev-admin-binding
+  namespace: <DEV_USERNAME>
+subjects:
+- kind: User
+  name: <DEV_EMAIL>
+  namespace: <DEV_USERNAME>
+roleRef:
+  kind: Role
+  name: dev-admin
+  apiGroup: ""
+```

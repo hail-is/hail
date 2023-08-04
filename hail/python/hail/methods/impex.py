@@ -2837,7 +2837,7 @@ def import_vcf(path,
            filter=nullable(str),
            find=nullable(str),
            replace=nullable(str))
-def import_gvcf_interval(path, file_num, contig, start, end, header_info, call_fields=[], entry_float_type='float64',
+def import_gvcf_interval(path, file_num, contig, start, end, header_info, call_fields=['PGT'], entry_float_type='float64',
                          array_elements_required=True, reference_genome='default', contig_recoding=None,
                          skip_invalid_loci=False, filter=None, find=None, replace=None):
     indices, aggs = hl.expr.unify_all(path, file_num, contig, start, end)
