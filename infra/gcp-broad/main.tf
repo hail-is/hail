@@ -860,6 +860,37 @@ resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
   }
 }
 
+resource "kubernetes_pod_disruption_budget" "kube_dns_autoscaler_pdb" {
+  metadata {
+    name = "kube-dns-autoscaler"
+    namespace = "kube-system"
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+        k8s-app = "kube-dns-autoscaler"
+      }
+    }
+  }
+}
+
+resource "kubernetes_pod_disruption_budget" "event_exporter_pdb" {
+  metadata {
+    name = "event-exporter"
+    namespace = "kube-system"
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+	# nb: pods are called event-exporter-gke-...
+        k8s-app = "event-exporter"
+      }
+    }
+  }
+}
+
 data "sops_file" "ci_config_sops" {
   count = fileexists("${var.github_organization}/ci_config.enc.json") ? 1 : 0
   source_file = "${var.github_organization}/ci_config.enc.json"
