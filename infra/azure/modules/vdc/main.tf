@@ -172,3 +172,18 @@ resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
     }
   }
 }
+
+resource "kubernetes_pod_disruption_budget" "kube_dns_autoscaler_pdb" {
+  metadata {
+    name = "kube-dns-autoscaler"
+    namespace = "kube-system"
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+        k8s-app = "kube-dns-autoscaler"
+      }
+    }
+  }
+}
