@@ -720,21 +720,23 @@ BEGIN
   set was_creating = old.state = 'Creating';
   set now_creating = new.state = 'Creating';
 
-  set delta_n_ready_cancellable_jobs              =  (-1      * was_ready    *  was_cancellable  )     + (now_ready    *  now_cancellable  )               ;
-  set delta_ready_cancellable_cores_mcpu          = ((-1      * was_ready    *  was_cancellable  )     + (now_ready    *  now_cancellable  ))  * cores_mcpu;
-  set delta_n_ready_jobs                          =  (-1      * was_ready    * (not was_cancelled))    + (now_ready    * (not now_cancelled))              ;
-  set delta_ready_cores_mcpu                      = ((-1      * was_ready    * (not was_cancelled))    + (now_ready    * (not now_cancelled))) * cores_mcpu;
-  set delta_n_cancelled_ready_jobs                =  (-1      * was_ready    *  was_cancelled    )     + (now_ready    *  now_cancelled    )               ;
+  set delta_n_ready_cancellable_jobs        = (-1 * was_ready    *  was_cancellable  )     + (now_ready    *  now_cancellable  ) ;
+  set delta_n_ready_jobs                    = (-1 * was_ready    * (not was_cancelled))    + (now_ready    * (not now_cancelled));
+  set delta_n_cancelled_ready_jobs          = (-1 * was_ready    *  was_cancelled    )     + (now_ready    *  now_cancelled    ) ;
 
-  set delta_n_running_cancellable_jobs            =  (-1      * was_running  *  was_cancellable  )     + (now_running  *  now_cancellable  )               ;
-  set delta_running_cancellable_cores_mcpu        = ((-1      * was_running  *  was_cancellable  )     + (now_running  *  now_cancellable  ))  * cores_mcpu;
-  set delta_n_running_jobs                        =  (-1      * was_running  * (not was_cancelled))    + (now_running  * (not now_cancelled))              ;
-  set delta_running_cores_mcpu                    = ((-1      * was_running  * (not was_cancelled))    + (now_running  * (not now_cancelled))) * cores_mcpu;
-  set delta_n_cancelled_running_jobs              =  (-1      * was_running  *  was_cancelled    )     + (now_running  *  now_cancelled    )               ;
+  set delta_n_running_cancellable_jobs      = (-1 * was_running  *  was_cancellable  )     + (now_running  *  now_cancellable  ) ;
+  set delta_n_running_jobs                  = (-1 * was_running  * (not was_cancelled))    + (now_running  * (not now_cancelled));
+  set delta_n_cancelled_running_jobs        = (-1 * was_running  *  was_cancelled    )     + (now_running  *  now_cancelled    ) ;
 
-  set delta_n_creating_cancellable_jobs           =  (-1      * was_creating *  was_cancellable  )     + (now_creating *  now_cancellable  )               ;
-  set delta_n_creating_jobs                       =  (-1      * was_creating * (not was_cancelled))    + (now_creating * (not now_cancelled))              ;
-  set delta_n_cancelled_creating_jobs             =  (-1      * was_creating *  was_cancelled    )     + (now_creating *  now_cancelled    )               ;
+  set delta_n_creating_cancellable_jobs     = (-1 * was_creating *  was_cancellable  )     + (now_creating *  now_cancellable  ) ;
+  set delta_n_creating_jobs                 = (-1 * was_creating * (not was_cancelled))    + (now_creating * (not now_cancelled));
+  set delta_n_cancelled_creating_jobs       = (-1 * was_creating *  was_cancelled    )     + (now_creating *  now_cancelled    ) ;
+
+  set delta_ready_cancellable_cores_mcpu    = delta_n_ready_cancellable_jobs * cores_mcpu;
+  set delta_ready_cores_mcpu                = delta_n_ready_jobs * cores_mcpu;
+
+  set delta_running_cancellable_cores_mcpu  = delta_n_running_cancellable_jobs * cores_mcpu;
+  set delta_running_cores_mcpu              = delta_n_running_jobs * cores_mcpu;
 
   INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token,
     n_ready_cancellable_jobs,
