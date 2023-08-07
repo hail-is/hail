@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import traceback
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
 import kubernetes_asyncio
@@ -17,7 +17,6 @@ from gidgethub import aiohttp as gh_aiohttp
 from gidgethub import routing as gh_routing
 from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
-from typing_extensions import TypedDict
 
 from gear import (
     AuthClient,
@@ -199,8 +198,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
 
 def storage_uri_to_url(uri: str) -> str:
     if uri.startswith('gs://'):
-        protocol = 'gs://'
-        path = uri[len(protocol) :]
+        path = uri.removeprefix('gs://')
         return f'https://console.cloud.google.com/storage/browser/{path}'
     return uri
 
@@ -381,7 +379,7 @@ async def push_callback(event):
     data = event.data
     ref = data['ref']
     if ref.startswith('refs/heads/'):
-        branch_name = ref[len('refs/heads/') :]
+        branch_name = ref.removeprefix('refs/heads/')
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
             if wb.branch == branch:

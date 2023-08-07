@@ -6,23 +6,15 @@ import asyncio
 import concurrent
 import dill
 import functools
-import sys
 
 from hailtop.utils import secret_alnum_string, partition
+from hailtop.batch.hail_genetics_images import hailgenetics_python_dill_image_for_current_python_version
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from .batch import Batch
 from .backend import ServiceBackend
-
-
-if sys.version_info < (3, 7):
-    def create_task(coro, *, name=None):  # pylint: disable=unused-argument
-        return asyncio.ensure_future(coro)
-else:
-    def create_task(*args, **kwargs):
-        return asyncio.create_task(*args, **kwargs)  # pylint: disable=no-member
 
 
 def cpu_spec_to_float(spec: Union[int, str]) -> float:
@@ -94,7 +86,7 @@ class BatchPoolExecutor:
         Backend used to execute the jobs. Must be a :class:`.ServiceBackend`.
     image:
         The name of a Docker image used for each submitted job. The image must
-        include Python 3.8 or later and must have the ``dill`` Python package
+        include Python 3.9 or later and must have the ``dill`` Python package
         installed. If you intend to use ``numpy``, ensure that OpenBLAS is also
         installed. If unspecified, an image with a matching Python verison and
         ``numpy``, ``scipy``, and ``sklearn`` installed is used.
@@ -143,12 +135,8 @@ class BatchPoolExecutor:
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
-        version = sys.version_info
         if image is None:
-            if version.major != 3 or version.minor not in (8, 9, 10):
-                raise ValueError(
-                    f'You must specify an image if you are using a Python version other than 3.8, 3.9 or 3.10 (you are using {version})')
-            self.image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+            self.image = hailgenetics_python_dill_image_for_current_python_version()
         else:
             self.image = image
         self.cpus_per_job = cpus_per_job

@@ -24,7 +24,7 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     entry_points={
         'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
     },

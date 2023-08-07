@@ -1,7 +1,5 @@
 import abc
-from typing import Dict, Generic, TypeVar
-
-from typing_extensions import TypedDict
+from typing import Dict, Generic, TypedDict, TypeVar
 
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS

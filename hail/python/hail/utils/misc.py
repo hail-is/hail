@@ -11,10 +11,8 @@ import tempfile
 from collections import defaultdict, Counter
 from contextlib import contextmanager
 from io import StringIO
-from typing import Optional
+from typing import Optional, Literal
 from urllib.parse import urlparse
-
-from typing_extensions import Literal
 
 import hail
 import hail as hl

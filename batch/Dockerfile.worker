@@ -9,7 +9,7 @@ RUN hail-apt-get-install \
     xfsprogs \
     libyajl-dev
 
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
 
 {% if global.cloud == "gcp" %}
 RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
@@ -40,7 +40,7 @@ RUN hail-pip-install \
     -r batch-requirements.txt \
     pyspark==3.3.0
 
-ENV SPARK_HOME /usr/local/lib/python3.8/dist-packages/pyspark
+ENV SPARK_HOME /usr/local/lib/python3.9/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 
