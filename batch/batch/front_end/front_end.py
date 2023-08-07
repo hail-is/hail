@@ -673,7 +673,7 @@ async def get_job_container_log(request, batch_id):
     await resp.prepare(request)
     if container_log is not None:
         async with container_log:
-            while b := await container_log.read(1024):
+            while b := await container_log.read(1024**2):
                 await resp.write(b)
     await resp.write_eof()
     return resp
@@ -682,7 +682,7 @@ async def get_job_container_log(request, batch_id):
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def rest_get_job_container_log(request, _, batch_id) -> web.Response:
+async def rest_get_job_container_log(request, _, batch_id) -> web.StreamResponse:
     return await get_job_container_log(request, batch_id)
 
 
@@ -2208,14 +2208,14 @@ async def ui_get_job(request, userdata, batch_id):
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''
     job_log_strings_or_bytes: Dict[str, Union[str, bytes, None]] = {}
-    possibly_truncated_logs = set()
+    truncated_logs = set()
     for container, log in job_logs.items():
         if log is None:
             job_log_strings_or_bytes[container] = None
         else:
             log_content, is_truncated = log
             if is_truncated:
-                possibly_truncated_logs.add(container)
+                truncated_logs.add(container)
             try:
                 job_log_strings_or_bytes[container] = log_content.decode('utf-8')
             except UnicodeDecodeError:
@@ -2237,7 +2237,7 @@ async def ui_get_job(request, userdata, batch_id):
             resource_usage, memory_limit_bytes, io_storage_limit_bytes, non_io_storage_limit_bytes
         ),
         'has_jvm_profile': has_jvm_profile,
-        'possibly_truncated_logs': possibly_truncated_logs,
+        'truncated_logs': truncated_logs,
     }
 
     return await render_template('batch', request, userdata, 'job.html', page_context)
