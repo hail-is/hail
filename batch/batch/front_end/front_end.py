@@ -2,6 +2,7 @@ import asyncio
 import base64
 import collections
 import datetime
+import io
 import json
 import logging
 import os
@@ -44,6 +45,7 @@ from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, version
+from hailtop.aiotools.fs import ReadableStream
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -343,7 +345,7 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     return record
 
 
-def job_tasks_from_spec(record):
+def job_tasks_from_spec(record) -> List[str]:
     batch_format_version = BatchFormatVersion(record['format_version'])
     spec = json.loads(record['spec'])
     tasks = []
@@ -377,29 +379,62 @@ def attempt_id_from_spec(record) -> Optional[str]:
     return record['attempt_id'] or record['last_cancelled_attempt_id']
 
 
-async def _get_job_container_log_from_worker(client_session, batch_id, job_id, container, ip_address) -> bytes:
+class ReadableStreamFromBytes(ReadableStream):
+    def __init__(self, data: bytes):
+        super().__init__()
+        self.strm = io.BytesIO(data)
+
+    async def read(self, n: int = -1) -> bytes:
+        return self.strm.read(n)
+
+    async def readexactly(self, n: int) -> bytes:
+        raise NotImplementedError
+
+    async def _wait_closed(self):
+        self.strm.close()
+
+
+class ReadableStreamFromAiohttpClientResponse(ReadableStream):
+    def __init__(self, resp: aiohttp.ClientResponse):
+        super().__init__()
+        self.resp = resp
+
+    async def read(self, n: int = -1) -> bytes:
+        return await self.resp.content.read(n)
+
+    async def readexactly(self, n: int) -> bytes:
+        return await self.resp.content.readexactly(n)
+
+    async def _wait_closed(self):
+        await self.resp.release()
+
+
+async def _get_job_container_log_from_worker(
+    client_session: httpx.ClientSession, batch_id: int, job_id: int, container: str, ip_address: str
+) -> ReadableStream:
     try:
-        return await retry_transient_errors(
-            client_session.get_read,
+        resp = await retry_transient_errors(
+            client_session.get,
             f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
         )
+        return ReadableStreamFromAiohttpClientResponse(resp)
     except aiohttp.ClientResponseError:
         log.exception(f'while getting log for {(batch_id, job_id)}')
-        return b'ERROR: encountered a problem while fetching the log'
+        return ReadableStreamFromBytes(b'ERROR: encountered a problem while fetching the log')
 
 
 async def _read_job_container_log_from_cloud_storage(
     file_store: FileStore, batch_format_version: BatchFormatVersion, batch_id, job_id, container, attempt_id
-) -> bytes:
+) -> ReadableStream:
     try:
-        return await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, container)
+        return await file_store.open_log_file(batch_format_version, batch_id, job_id, attempt_id, container)
     except FileNotFoundError:
         id = (batch_id, job_id)
         log.exception(f'missing log file for {id} and container {container}')
-        return b'ERROR: could not find log file'
+        return ReadableStreamFromBytes(b'ERROR: could not find log file')
 
 
-async def _get_job_container_log(app, batch_id, job_id, container, job_record) -> Optional[bytes]:
+async def _get_job_container_log(app, batch_id, job_id, container, job_record) -> Optional[ReadableStream]:
     if not has_resource_available(job_record):
         return None
 
@@ -421,10 +456,28 @@ async def _get_job_container_log(app, batch_id, job_id, container, job_record) -
     )
 
 
-async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
+PossiblyTruncatedLog = Tuple[bytes, bool]
+
+
+async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[PossiblyTruncatedLog]]:
     record = await _get_job_record(app, batch_id, job_id)
     containers = job_tasks_from_spec(record)
-    logs = await asyncio.gather(*[_get_job_container_log(app, batch_id, job_id, c, record) for c in containers])
+
+    async def load_up_to_fifty_kib(app, batch_id, job_id, c, record) -> Optional[PossiblyTruncatedLog]:
+        s = await _get_job_container_log(app, batch_id, job_id, c, record)
+        if s is None:
+            return None
+        fifty_kib = 50 * 1024
+        async with s:
+            log = await s.read(fifty_kib + 1)
+        if len(log) == fifty_kib + 1:
+            return (log[:fifty_kib], True)
+
+        return (log, False)
+
+    logs: List[Optional[PossiblyTruncatedLog]] = await asyncio.gather(
+        *(load_up_to_fifty_kib(app, batch_id, job_id, c, record) for c in containers)
+    )
     return dict(zip(containers, logs))
 
 
@@ -591,11 +644,14 @@ async def _get_full_job_status(app, record):
 @add_metadata_to_request
 async def get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
-    job_log_bytes = await _get_job_log(request.app, batch_id, job_id)
+    job_logs = await _get_job_log(request.app, batch_id, job_id)
     job_log_strings: Dict[str, Optional[str]] = {}
-    for container, log in job_log_bytes.items():
+    for container, log in job_logs.items():
         try:
-            job_log_strings[container] = log.decode('utf-8') if log is not None else None
+            if log is None:
+                job_log_strings[container] = None
+            else:
+                job_log_strings[container] = log[0].decode('utf-8')
         except UnicodeDecodeError as e:
             raise web.HTTPBadRequest(
                 reason=f'log for container {container} is not valid UTF-8, upgrade your hail version to download the log'
@@ -611,14 +667,22 @@ async def get_job_container_log(request, batch_id):
     containers = job_tasks_from_spec(record)
     if container not in containers:
         raise web.HTTPBadRequest(reason=f'unknown container {container}')
-    job_log = await _get_job_container_log(app, batch_id, job_id, container, record)
-    return web.Response(body=job_log)
+    container_log = await _get_job_container_log(app, batch_id, job_id, container, record)
+
+    resp = web.StreamResponse()
+    await resp.prepare(request)
+    if container_log is not None:
+        async with container_log:
+            while b := await container_log.read(1024**2):
+                await resp.write(b)
+    await resp.write_eof()
+    return resp
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @rest_billing_project_users_only
 @add_metadata_to_request
-async def rest_get_job_container_log(request, _, batch_id) -> web.Response:
+async def rest_get_job_container_log(request, _, batch_id) -> web.StreamResponse:
     return await get_job_container_log(request, batch_id)
 
 
@@ -2064,7 +2128,7 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
-    job, attempts, job_log_bytes, resource_usage = await asyncio.gather(
+    job, attempts, job_logs, resource_usage = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
         _get_job_log(app, batch_id, job_id),
@@ -2143,12 +2207,19 @@ async def ui_get_job(request, userdata, batch_id):
 
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''
-    job_log_strings_or_bytes = {}
-    for container, log in job_log_bytes.items():
-        try:
-            job_log_strings_or_bytes[container] = log.decode('utf-8') if log is not None else None
-        except UnicodeDecodeError:
-            job_log_strings_or_bytes[container] = log
+    job_log_strings_or_bytes: Dict[str, Union[str, bytes, None]] = {}
+    truncated_logs = set()
+    for container, log in job_logs.items():
+        if log is None:
+            job_log_strings_or_bytes[container] = None
+        else:
+            log_content, is_truncated = log
+            if is_truncated:
+                truncated_logs.add(container)
+            try:
+                job_log_strings_or_bytes[container] = log_content.decode('utf-8')
+            except UnicodeDecodeError:
+                job_log_strings_or_bytes[container] = log_content
 
     page_context = {
         'batch_id': batch_id,
@@ -2166,6 +2237,7 @@ async def ui_get_job(request, userdata, batch_id):
             resource_usage, memory_limit_bytes, io_storage_limit_bytes, non_io_storage_limit_bytes
         ),
         'has_jvm_profile': has_jvm_profile,
+        'truncated_logs': truncated_logs,
     }
 
     return await render_template('batch', request, userdata, 'job.html', page_context)
