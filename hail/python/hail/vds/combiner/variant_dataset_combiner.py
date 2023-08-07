@@ -4,6 +4,7 @@ import json
 import os
 import sys
 import uuid
+from itertools import chain
 from math import floor, log
 from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
@@ -156,7 +157,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         for all GVCF files. Finer partitioning yields more parallelism but less work per task.
     gvcf_info_to_keep : :class:`list` of :class:`str` or :obj:`None`
         GVCF ``INFO`` fields to keep in the ``gvcf_info`` entry field. By default, all fields are
-        kept except ``END`` and ``DP`` are kept.
+        except ``END`` and ``DP`` are kept.
     gvcf_reference_entry_fields_to_keep : :class:`list` of :class:`str` or :obj:`None`
         Genotype fields to keep in the reference table. If empty, the first 10,000 reference block
         rows of ``mt`` will be sampled and all fields found to be defined other than ``GT``, ``AD``,
@@ -196,6 +197,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_gvcf_import_intervals',
         '_gvcf_info_to_keep',
         '_gvcf_reference_entry_fields_to_keep',
+        '_call_fields',
     ]
 
     __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id', '__intervals_cache'])
@@ -212,6 +214,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  target_records: int = _default_target_records,
                  gvcf_batch_size: int = _default_gvcf_batch_size,
                  contig_recoding: Optional[Dict[str, str]] = None,
+                 call_fields: Collection[str],
                  vdses: List[VDSMetadata],
                  gvcfs: List[str],
                  gvcf_sample_names: Optional[List[str]] = None,
@@ -248,6 +251,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self._branch_factor = branch_factor
         self._target_records = target_records
         self._contig_recoding = contig_recoding
+        self._call_fields = list(call_fields)
         self._vdses = collections.defaultdict(list)
         for vds in vdses:
             self._vdses[max(1, floor(log(vds.n_samples, self._branch_factor)))].append(vds)
@@ -367,6 +371,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'gvcf_reference_entry_fields_to_keep': None
                 if self._gvcf_reference_entry_fields_to_keep is None
                 else list(self._gvcf_reference_entry_fields_to_keep),
+                'call_fields': self._call_fields,
                 'vdses': [md for i in sorted(self._vdses, reverse=True) for md in self._vdses[i]],
                 'gvcfs': self._gvcfs,
                 'gvcf_sample_names': self._gvcf_sample_names,
@@ -513,6 +518,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                                                                              idx_and_path[1], idx_and_path[0],
                                                                              interval.contig,
                                                                              interval.start, interval.end, header_info,
+                                                                             call_fields=self._call_fields,
                                                                              array_elements_required=False,
                                                                              reference_genome=self._reference_genome,
                                                                              contig_recoding=self._contig_recoding),
@@ -532,6 +538,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                                                                            idx_and_path[1], idx_and_path[0],
                                                                            interval.contig,
                                                                            interval.start, interval.end, header_info,
+                                                                           call_fields=self._call_fields,
                                                                            array_elements_required=False,
                                                                            reference_genome=self._reference_genome,
                                                                            contig_recoding=self._contig_recoding),
@@ -590,6 +597,7 @@ def new_combiner(*,
                  gvcf_sample_names: Optional[List[str]] = None,
                  gvcf_info_to_keep: Optional[Collection[str]] = None,
                  gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
+                 call_fields: Collection[str] = ['PGT'],
                  branch_factor: int = VariantDatasetCombiner._default_branch_factor,
                  target_records: int = VariantDatasetCombiner._default_target_records,
                  gvcf_batch_size: Optional[int] = None,
@@ -701,6 +709,16 @@ def new_combiner(*,
                     "entry types. Overwriting with types from supplied VDS.")
         gvcf_reference_entry_fields_to_keep = ref_entry_tmp
 
+        all_entry_types = chain(vds.reference_data._type.entry.items(),
+                                vds.variant_data._type.entry.items())
+        call_fields_tmp = {name for name, typ in all_entry_types if typ == hl.tcall} - {'LGT', 'GT'}
+        if 'LPGT' in call_fields_tmp:
+            call_fields_tmp = (call_fields_tmp - {'LPGT'}) | {'PGT'}
+        if set(call_fields) != call_fields_tmp:
+            warning("Mismatch between 'call_fields' and VDS call fields. "
+                    "Overwriting with types from supplied VDS")
+        call_fields = call_fields_tmp
+
     if gvcf_paths:
         mt = hl.import_vcf(gvcf_paths[0], header_file=gvcf_external_header, force_bgz=True,
                            array_elements_required=False, reference_genome=reference_genome,
@@ -739,6 +757,8 @@ def new_combiner(*,
         if gvcf_reference_entry_fields_to_keep is not None:
             for field in sorted(gvcf_reference_entry_fields_to_keep):
                 sha.update(field.encode())
+        for call_field in sorted(call_fields):
+            sha.update(call_field.encode())
         if contig_recoding is not None:
             for key, value in sorted(contig_recoding.items()):
                 sha.update(key.encode())
@@ -775,6 +795,7 @@ def new_combiner(*,
                                   target_records=target_records,
                                   gvcf_batch_size=gvcf_batch_size,
                                   contig_recoding=contig_recoding,
+                                  call_fields=call_fields,
                                   vdses=vdses,
                                   gvcfs=gvcf_paths,
                                   gvcf_import_intervals=intervals,
