@@ -427,14 +427,6 @@ async def create_user(request: web.Request, _) -> web.Response:
     hail_credentials_secret_name = body.get('hail_credentials_secret_name')
     if (hail_identity or hail_credentials_secret_name) and not is_test_deployment:
         raise web.HTTPBadRequest(text='Cannot specify an existing hail identity for a new user')
-    if hail_credentials_secret_name:
-        try:
-            k8s_cache: K8sCache = request.app['k8s_cache']
-            await k8s_cache.read_secret(hail_credentials_secret_name, DEFAULT_NAMESPACE)
-        except kubernetes_asyncio.client.rest.ApiException as e:
-            raise web.HTTPBadRequest(
-                text=f'hail credentials secret name specified but was not found in namespace {DEFAULT_NAMESPACE}: {hail_credentials_secret_name}'
-            ) from e
 
     try:
         await insert_new_user(
@@ -585,8 +577,11 @@ async def post_create_user(request: web.Request, _) -> web.HTTPFound:
 
 
 @routes.get('/api/v1alpha/users')
-@authenticated_devs_only
-async def rest_get_users(request: web.Request, _) -> web.Response:
+@authenticated_users_only
+async def rest_get_users(request: web.Request, userdata: UserData) -> web.Response:
+    if userdata['is_developer'] != 1 and userdata['username'] != 'ci':
+        raise web.HTTPUnauthorized()
+
     db: Database = request.app['db']
     _query = '''
 SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity

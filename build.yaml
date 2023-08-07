@@ -2224,6 +2224,33 @@ steps:
       - deploy_auth
       - create_certs
   - kind: runImage
+    name: add_developers
+    image:
+      valueFrom: hailgenetics_hailtop_image.image
+    script: |
+      set -ex
+      {% for user in code.get("developers", []) %}
+      {% if user['username'] != 'test-dev' %}
+      hailctl auth create-user \
+        --developer \
+        --hail-identity {{ user["hail_identity"] }} \
+        --hail-credentials-secret-name {{ user["username"] }}-gsa-key \
+        {{ user["username"] }} {{ user["login_id"] }}
+      {% endif %}
+      {% endfor %}
+    secrets:
+      - name: test-dev-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+    scopes:
+      - dev
+      - test
+    dependsOn:
+      - default_ns
+      - hailgenetics_hailtop_image
+      - deploy_batch
+  - kind: runImage
     name: create_billing_projects
     resources:
       memory: standard
