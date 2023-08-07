@@ -156,7 +156,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         A list of intervals defining how to partition the GVCF files. The same partitioning is used
         for all GVCF files. Finer partitioning yields more parallelism but less work per task.
     gvcf_info_to_keep : :class:`list` of :class:`str` or :obj:`None`
-        GVCF ``INFO`` fields to keep in the ``gvcf_info`` entry field. By default, all fields are
+        GVCF ``INFO`` fields to keep in the ``gvcf_info`` entry field. By default, all fields
         except ``END`` and ``DP`` are kept.
     gvcf_reference_entry_fields_to_keep : :class:`list` of :class:`str` or :obj:`None`
         Genotype fields to keep in the reference table. If empty, the first 10,000 reference block
