@@ -2327,10 +2327,6 @@ steps:
       {% endif %}
       {% endfor %}
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
