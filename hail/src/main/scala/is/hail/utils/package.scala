@@ -22,7 +22,7 @@ import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
-import java.util.concurrent.{Executor, ExecutorCompletionService}
+import java.util.concurrent.ExecutorService
 import java.util.{Base64, Date}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
@@ -980,36 +980,34 @@ package object utils extends Logging
   /**
    * Run (task, key) pairs on the `executor`, returning some `F` of the
    * failures and an `IndexedSeq` of the successes with their corresponding
-   * key. No guarantees are made for the order of the successes.
+   * key.
    */
-  def runAll[F[_], A](executor: Executor)
+  def runAll[F[_], A](executor: ExecutorService)
                      (accum: (F[Throwable], (Throwable, Int)) => F[Throwable])
                      (init: F[Throwable])
                      (tasks: IndexedSeq[(() => A, Int)])
   : (F[Throwable], IndexedSeq[(A, Int)]) = {
-    val completionService = new ExecutorCompletionService[(Try[A], Int)](executor)
-
-    for ((task, k) <- tasks) {
-      completionService.submit(() => (Try(task()), k))
-    }
 
     var err = init
     val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
 
-    for (_ <- tasks.indices) {
-      completionService.take.get match {
-        case (Success(v), k) =>
-          buffer += ((v, k))
+    tasks
+      .map { case (t, k) => (executor.submit(() => Try(t())), k) }
+      .foreach { case (f, k) =>
+        f.get() match {
+          case Success(v) =>
+            buffer += ((v, k))
 
-        case (Failure(t), k) =>
-          err = accum(err, (t, k))
+          case Failure(t) =>
+            err = accum(err, (t, k))
+        }
       }
-    }
 
     (err, buffer)
   }
 
-  def runAllKeepFirstError[A](executor: Executor): IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
+  def runAllKeepFirstError[A](executor: ExecutorService)
+  : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
     runAll[Option, A](executor) { case (opt, (e, _)) => opt.orElse(Some(e)) } (None)
 }
 

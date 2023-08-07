@@ -105,15 +105,11 @@ class LocalBackend(
 
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
-  def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T =
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags) {
-      ctx =>
-        ctx.backendContext = new BackendContext {
-          override def executionCache: ExecutionCache =
-            ExecutionCache.fromFlags(flags, fs, tmpdir)
-        }
-      f(ctx)
-    }
+  def withExecuteContext[T](timer: ExecutionTimer): (ExecuteContext => T) => T =
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags, new BackendContext {
+      override val executionCache: ExecutionCache =
+        ExecutionCache.fromFlags(flags, fs, tmpdir)
+    })
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 

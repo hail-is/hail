@@ -671,7 +671,10 @@ class ServiceBackendSocketAPI2(
               null,
               backend.theHailClassLoader,
               backend.references,
-              flags
+              flags,
+              new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig, shouldProfile,
+                ExecutionCache.fromFlags(flags, fs, remoteTmpDir)
+              )
             ) { ctx =>
               liftovers.foreach { case (sourceGenome, liftoversForSource) =>
                 liftoversForSource.foreach { case (destGenome, chainFile) =>
@@ -681,9 +684,7 @@ class ServiceBackendSocketAPI2(
               addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
                 ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
               }
-              ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig, shouldProfile,
-                ExecutionCache.fromFlags(flags, fs, remoteTmpDir)
-              )
+
               method(ctx)
             }
           }

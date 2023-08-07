@@ -15,7 +15,6 @@ import scala.language.implicitConversions
 
 case object SemanticHash extends Logging {
   type Type = Int
-  type NullableType = Integer
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
   def extend(x: Type, bytes: Array[Byte]): Type =
@@ -79,11 +78,15 @@ case object SemanticHash extends Logging {
       case a: AggArrayPerElement =>
         buffer += a.isScan.toByte
 
-      case Apply(fname, _, _, _, _) =>
+      case Apply(fname, tyArgs, _, retTy, _) =>
         buffer ++= fname.getBytes()
+        tyArgs.foreach(buffer ++= EncodeTypename(_))
+        buffer ++= EncodeTypename(retTy)
 
-      case ApplyAggOp(_, _, AggSignature(op, _, _)) =>
+      case ApplyAggOp(_, _, AggSignature(op, initOpTys, seqOpTys)) =>
         buffer ++= Bytes.fromClass(op.getClass)
+        initOpTys.foreach(buffer ++= EncodeTypename(_))
+        seqOpTys.foreach(buffer ++= EncodeTypename(_))
 
       case ApplyBinaryPrimOp(op, _, _) =>
         buffer ++= Bytes.fromClass(op.getClass)
@@ -91,14 +94,20 @@ case object SemanticHash extends Logging {
       case ApplyComparisonOp(op, _, _) =>
         buffer ++= Bytes.fromClass(op.getClass)
 
-      case ApplyIR(fname, _, _, _) =>
+      case ApplyIR(fname, tyArgs, _, _) =>
         buffer ++= fname.getBytes()
+        tyArgs.foreach(buffer ++= EncodeTypename(_))
 
-      case ApplySeeded(fname, _, _, _, _) =>
-        buffer ++= fname.getBytes()
+      case ApplySeeded(fname, _, _, staticUID, retTy) =>
+        buffer ++=
+          fname.getBytes() ++=
+          Bytes.fromLong(staticUID) ++=
+          EncodeTypename(retTy)
 
-      case ApplySpecial(fname, _, _, _, _) =>
+      case ApplySpecial(fname, tyArgs, _, retTy, _) =>
         buffer ++= fname.getBytes()
+        tyArgs.foreach(buffer ++= EncodeTypename(_))
+        buffer ++= EncodeTypename(retTy)
 
       case ApplyUnaryPrimOp(op, _) =>
         buffer ++= Bytes.fromClass(op.getClass)
@@ -132,7 +141,7 @@ case object SemanticHash extends Logging {
         }
 
       case Cast(_, typ) =>
-        buffer ++= SemanticTypeName(typ)
+        buffer ++= EncodeTypename(typ)
 
       case EncodedLiteral(_, bytes) =>
         bytes.ba.foreach(buffer ++= _)
@@ -144,7 +153,9 @@ case object SemanticHash extends Logging {
         buffer ++= Bytes.fromInt(idx)
 
       case Literal(typ, value) =>
-        buffer ++= typ.toJSON(value).toString.getBytes
+        buffer ++=
+          EncodeTypename(typ) ++=
+          typ.toJSON(value).toString.getBytes
 
       case MakeTuple(fields) =>
         fields.foreach { case (index, _) => buffer ++= Bytes.fromInt(index) }
@@ -330,7 +341,7 @@ case object SemanticHash extends Logging {
       case I64(x) => buffer ++= Bytes.fromLong(x)
       case F32(x) => buffer ++= Bytes.fromFloat(x)
       case F64(x) => buffer ++= Bytes.fromDouble(x)
-      case NA(typ) => buffer ++= SemanticTypeName(typ)
+      case NA(typ) => buffer ++= EncodeTypename(typ)
       case Str(x) => buffer ++= x.getBytes()
 
       // In these cases, just return None meaning that two
@@ -382,7 +393,8 @@ case object SemanticHash extends Logging {
 
 }
 
-case object SemanticTypeName {
+case object EncodeTypename {
+  // Encode `t` as a byte array, excluding field-names
   def apply(t: Type): Array[Byte] = {
     val builder = Array.newBuilder[Byte]
 

@@ -263,6 +263,7 @@ class SemanticHashSuite extends HailSuite {
         ctx.theHailClassLoader,
         ctx.referenceGenomes,
         ctx.flags,
+        ctx.backendContext,
         ctx.irMetadata
       ))(SemanticHash(_)(ir))
     }

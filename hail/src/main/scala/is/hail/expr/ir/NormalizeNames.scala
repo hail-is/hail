@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
 import is.hail.utils.StackSafe._
 
 class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
@@ -244,7 +243,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val newName = gen()
         for {
           newValue <- normalize(value, env)
-          newBody <- normalize(body, env.bindRelational(name, newName))
+          newBody <- normalize(body, env.noAgg.noScan.bindRelational(name, newName))
         } yield RelationalLet(newName, newValue, newBody)
       case RelationalRef(name, typ) =>
         val newName = env.relational.lookupOption(name).getOrElse(

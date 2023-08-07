@@ -2464,7 +2464,7 @@ class Emit[C](
           parentCB.addModule(fID, bodyFB.resultWithIndex())
           val functionID = fID
 
-          val spark = parentCB.backend()
+          val backend = parentCB.backend()
 
           val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
           val buf = mb.genFieldThisRef[OutputBuffer]()
@@ -2502,19 +2502,13 @@ class Emit[C](
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[Integer]("semhash")
+          val semhash = cb.newLocal[Option[SemanticHash.Type]]("semhash")
 
           emitI(dynamicID).consume(cb,
             ctx.executeContext.irMetadata.nextHash.foreach { hash =>
-              val boxed =
-                Code.invokeStatic[Integer](
-                  classOf[Integer],
-                  "valueOf",
-                  Array(classOf[Int]),
-                  Array(hash)
-                )
-
-              cb.assign(semhash, boxed)
+              cb.assign(semhash,
+                Code.newInstance[Some[SemanticHash.Type], SemanticHash.Type](hash)
+              )
             },
             { dynamicID =>
               val dynV = dynamicID.asString.loadString(cb)
@@ -2525,28 +2519,22 @@ class Emit[C](
                   dynV.invoke[Array[Byte]]("getBytes")
 
                 val combined =
-                  Code.invokeScalaObject[Int](
+                  Code.invokeScalaObject[SemanticHash.Type](
                     SemanticHash.getClass,
                     "extend",
-                    Array(classOf[Int], classOf[Array[Byte]]),
+                    Array(classOf[SemanticHash.Type], classOf[Array[Byte]]),
                     Array(staticHash, dynamicHash)
                   )
 
-                val boxed =
-                  Code.invokeStatic[Integer](
-                    classOf[Integer],
-                    "valueOf",
-                    Array(classOf[Int]),
-                    Array(combined)
-                  )
-
-                cb.assign(semhash, boxed)
+                cb.assign(semhash,
+                  Code.newInstance[Some[SemanticHash.Type], SemanticHash.Type](combined)
+                )
               }
             }
           )
 
           val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
-          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, SemanticHash.NullableType, Option[TableStageDependency], Array[Array[Byte]]](
+          cb.assign(encRes, backend.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[SemanticHash.Type], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
             mb.getHailClassLoader,
