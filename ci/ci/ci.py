@@ -31,11 +31,12 @@ from gear import (
 )
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
+from hailtop.auth import hail_credentials
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import collect_agen, humanize_timedelta_msecs, periodically_call
+from hailtop.utils import collect_agen, humanize_timedelta_msecs, periodically_call, retry_transient_errors
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
@@ -52,10 +53,7 @@ uvloop.install()
 
 deploy_config = get_deploy_config()
 
-watched_branches: List[WatchedBranch] = [
-    WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable)
-    for (index, [bss, deployable, mergeable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
-]
+watched_branches: List[WatchedBranch] = []
 
 routes = web.RouteTableDef()
 
@@ -743,7 +741,8 @@ async def update_loop(app):
 
 
 async def on_startup(app):
-    app['client_session'] = httpx.client_session()
+    client_session = httpx.client_session()
+    app['client_session'] = client_session
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = await BatchClient.create('ci')
 
@@ -766,6 +765,22 @@ SELECT frozen_merge_deploy FROM globals;
         k8s_client = kubernetes_asyncio.client.CoreV1Api()
         app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
         app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db']))
+
+    headers = await hail_credentials().auth_headers()
+    users = await retry_transient_errors(
+        client_session.get_read_json,
+        deploy_config.url('auth', '/api/v1alpha/users'),
+        headers=headers,
+    )
+    app['developers'] = [u for u in users if u['is_developer'] == 1 and u['state'] == 'active']
+
+    global watched_branches
+    watched_branches = [
+        WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable, app['developers'])
+        for (index, [bss, deployable, mergeable]) in enumerate(
+            json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]'))
+        )
+    ]
 
 
 async def on_cleanup(app):

@@ -8,7 +8,7 @@ import random
 import secrets
 from enum import Enum
 from shlex import quote as shq
-from typing import Dict, Optional, Set, Union
+from typing import Dict, List, Optional, Set, Union
 
 import aiohttp
 import gidgethub
@@ -669,11 +669,12 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 
 
 class WatchedBranch(Code):
-    def __init__(self, index, branch, deployable, mergeable):
+    def __init__(self, index, branch, deployable, mergeable, developers):
         self.index: int = index
         self.branch: FQBranch = branch
         self.deployable: bool = deployable
         self.mergeable: bool = mergeable
+        self.developers: List[dict] = developers
 
         self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
@@ -713,6 +714,7 @@ class WatchedBranch(Code):
             'repo': self.branch.repo.short_str(),
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
+            'developers': self.developers,
         }
 
     async def notify_github_changed(self, app):
@@ -993,10 +995,11 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata, extra_config=None):
+    def __init__(self, branch, sha, userdata, developers, extra_config=None):
         self.branch = branch
         self.user = userdata['username']
         self.namespace = userdata['namespace_name']
+        self.developers = developers
         self.sha = sha
         self.extra_config = extra_config
 
@@ -1016,6 +1019,7 @@ class UnwatchedBranch(Code):
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
             'user': self.user,
+            'developers': self.developers,
         }
         if self.extra_config is not None:
             config.update(self.extra_config)

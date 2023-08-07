@@ -295,3 +295,15 @@ steps:
       - ci_utils_image
       - default_ns
       - deploy_hello
+  - kind: runImage
+    name: test_jinja_state_contains_developers
+    image:
+      valueFrom: hail_ubuntu_image.image
+    script: |
+      set -ex
+
+      {% for user in code['developers'] %}
+      echo {{ user['username'] }}
+      {% endfor %}
+    dependsOn:
+      - hail_ubuntu_image
