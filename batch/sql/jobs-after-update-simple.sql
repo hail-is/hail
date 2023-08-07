@@ -11,7 +11,7 @@ DECLARE cur_n_tokens INT;
 DECLARE rand_token INT;
 
 DECLARE always_run boolean;
-DECLARE cores_mcpu boolean;
+DECLARE cores_mcpu bigint;
 
 DECLARE was_marked_cancelled boolean;
 DECLARE was_cancelled        boolean;
