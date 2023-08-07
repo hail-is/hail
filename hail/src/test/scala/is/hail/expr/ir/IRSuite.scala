@@ -3177,9 +3177,14 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t = TArray(TStruct("x" -> TInt32))
-    val ir = TableAggregate(RelationalLetTable("x",
-      Literal(t, FastIndexedSeq(Row(1))),
-      TableParallelize(MakeStruct(FastSeq("rows" -> RelationalRef("x", t), "global" -> MakeStruct(FastSeq()))))),
+    val ir = TableAggregate(
+      RelationalLetTable("x",
+        Literal(t, FastIndexedSeq(Row(1))),
+        TableMapRows(
+          TableRange(1, 1),
+          InsertFields(
+            Ref("row", TStruct("idx" -> TInt32)),
+            FastSeq("x", RelationalRef("x", t))))),
       ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), FastIndexedSeq())))
     assertEvalsTo(ir, 1L)
   }
