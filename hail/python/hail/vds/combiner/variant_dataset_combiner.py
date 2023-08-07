@@ -702,22 +702,28 @@ def new_combiner(*,
     vds = None
     gvcf_type = None
     if vds_paths:
+        # sync up gvcf_reference_entry_fields_to_keep and they reference entry types from the VDS
         vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False)
-        ref_entry_tmp = set(vds.reference_data.entry) - {'END'}
-        if gvcf_reference_entry_fields_to_keep is not None and ref_entry_tmp != gvcf_reference_entry_fields_to_keep:
+        vds_ref_entry = set(vds.reference_data.entry) - {'END'}
+        if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning("Mismatch between 'gvcf_reference_entry_fields' to keep and VDS reference data "
-                    "entry types. Overwriting with types from supplied VDS.")
-        gvcf_reference_entry_fields_to_keep = ref_entry_tmp
+                    "entry types. Overwriting with reference entry fields from supplied VDS.\n"
+                    f"    VDS reference entry fields      : {sorted(vds_ref_entry)}\n"
+                    f"    requested reference entry fields: {sorted(gvcf_reference_entry_fields_to_keep)}")
+        gvcf_reference_entry_fields_to_keep = vds_ref_entry
 
-        all_entry_types = chain(vds.reference_data._type.entry.items(),
-                                vds.variant_data._type.entry.items())
-        call_fields_tmp = {name for name, typ in all_entry_types if typ == hl.tcall} - {'LGT', 'GT'}
-        if 'LPGT' in call_fields_tmp:
-            call_fields_tmp = (call_fields_tmp - {'LPGT'}) | {'PGT'}
-        if set(call_fields) != call_fields_tmp:
+        # sync up call_fields and call fields present in the VDS
+        all_entry_types = chain(vds.reference_data._type.entry_type.items(),
+                                vds.variant_data._type.entry_type.items())
+        vds_call_fields = {name for name, typ in all_entry_types if typ == hl.tcall} - {'LGT', 'GT'}
+        if 'LPGT' in vds_call_fields:
+            vds_call_fields = (vds_call_fields - {'LPGT'}) | {'PGT'}
+        if set(call_fields) != vds_call_fields:
             warning("Mismatch between 'call_fields' and VDS call fields. "
-                    "Overwriting with types from supplied VDS")
-        call_fields = call_fields_tmp
+                    "Overwriting with call fields from supplied VDS.\n"
+                    f"    VDS call fields      : {sorted(vds_call_fields)}\n"
+                    f"    requested call fields: {sorted(call_fields)}\n")
+        call_fields = vds_call_fields
 
     if gvcf_paths:
         mt = hl.import_vcf(gvcf_paths[0], header_file=gvcf_external_header, force_bgz=True,
