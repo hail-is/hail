@@ -69,10 +69,10 @@ set now_cancellable      = not always_run and not now_marked_cancelled;
 
 # NB: was_cancelled => now_cancelled b/c you cannot be uncancelled
 
-set was_ready	 = old.state = 'Ready';
-set now_ready	 = new.state = 'Ready';
-set was_running	 = old.state = 'Running';
-set now_running	 = new.state = 'Running';
+set was_ready    = old.state = 'Ready';
+set now_ready    = new.state = 'Ready';
+set was_running  = old.state = 'Running';
+set now_running  = new.state = 'Running';
 set was_creating = old.state = 'Creating';
 set now_creating = new.state = 'Creating';
 
