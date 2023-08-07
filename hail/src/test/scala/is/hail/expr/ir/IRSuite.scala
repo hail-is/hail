@@ -3184,7 +3184,7 @@ class IRSuite extends HailSuite {
           TableRange(1, 1),
           InsertFields(
             Ref("row", TStruct("idx" -> TInt32)),
-            FastSeq("x", RelationalRef("x", t))))),
+            FastSeq("x" -> RelationalRef("x", t))))),
       ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), FastIndexedSeq())))
     assertEvalsTo(ir, 1L)
   }
