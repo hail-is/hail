@@ -498,7 +498,7 @@ class GoogleStorageFS(
       throw new FileNotFoundException(url.toString)
 
     val fileStatuses = blobs.getNextPage.iterateAll().asScala.map { b =>
-        if (b.getName == path)
+        if (dropTrailingSlash(b.getName) == path)
           GoogleStorageFileStatus(b)
         else
           GoogleStorageFileStatus.applyDirectory(url.bucket, b.getName)
