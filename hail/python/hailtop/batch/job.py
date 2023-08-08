@@ -342,6 +342,32 @@ class Job:
         self._always_run = always_run
         return self
 
+    def spot(self, is_spot: bool) -> 'Job':
+        """
+        Set whether a job is run on spot instances. By default, all jobs run on spot instances.
+
+        Examples
+        --------
+
+        Ensure a job only runs on non-spot instances:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> j = j.spot(False)
+        >>> j = j.command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        is_spot:
+            If False, this job will be run on non-spot instances.
+
+        Returns
+        -------
+        Same job object.
+        """
+        self._preemptible = is_spot
+        return self
+
     def regions(self, regions: Optional[List[str]]) -> 'Job':
         """
         Set the cloud regions a job can run in.
