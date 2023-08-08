@@ -370,8 +370,8 @@ class SparkBackend(
   : (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
 
     val sparkDeps =
-      for {rvdDep <- dependency.toIndexedSeq; deps <- rvdDep.deps}
-        yield new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
+      for {rvdDep <- dependency.toIndexedSeq; dep <- rvdDep.deps}
+        yield new AnonymousDependency(dep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
 
     val rdd =
       new RDD[(Try[Array[Byte]], Int)](sc, sparkDeps) {

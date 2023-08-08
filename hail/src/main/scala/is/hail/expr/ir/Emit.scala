@@ -2502,7 +2502,14 @@ class Emit[C](
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[Option[SemanticHash.Type]]("semhash")
+          val semhash = cb.newLocal[Option[SemanticHash.Type]]("semhash",
+            Code.invokeScalaObject[Option[SemanticHash.Type]](
+              Option.getClass,
+              "empty",
+              Array(),
+              Array()
+            )
+          )
 
           emitI(dynamicID).consume(cb,
             ctx.executeContext.irMetadata.nextHash.foreach { hash =>
