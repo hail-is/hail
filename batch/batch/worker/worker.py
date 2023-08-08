@@ -556,6 +556,7 @@ class Image:
                     raise ImageCannotBePulled from e
                 if e.status == 500 and (
                     'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
+                    or 'Caller does not have permission' in e.message
                     or 'unauthorized' in e.message
                 ):
                     raise ImageCannotBePulled from e
