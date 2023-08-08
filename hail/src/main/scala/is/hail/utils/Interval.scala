@@ -240,7 +240,7 @@ object Interval {
   }
 
   // assumes that both `x1` and `x2` are both sorted, non-overlapping interval sequences.
-  def intersection(x1: Array[Interval], x2: Array[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
+  def intersection(x1: IndexedSeq[Interval], x2: IndexedSeq[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
 
     var i = 0
     var j = 0

@@ -172,7 +172,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
   object StructJoinLattice extends JoinLattice {
     object Value {
-      def apply(fields: Map[String, Lattice.Value]): Value = ConcreteValue(fields)
+      def apply(fields: Traversable[(String, Lattice.Value)]): Value =
+        ConcreteValue(fields.filter { case (_, value) => value != Lattice.top }.toMap)
     }
     abstract class Value {
       def apply(field: String): Lattice.Value
@@ -214,6 +215,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     def allFalse: Value = Value(FastIndexedSeq())
 
     def combine(l: Value, r: Value): Value = Value(Interval.union(l.trueBound ++ r.trueBound, iord))
+    def or(l: Value, r: Value): Value = Value(Interval.union(l.trueBound ++ r.trueBound, iord))
+    def and(l: Value, r: Value): Value = Value(Interval.intersection(l.trueBound, r.trueBound, iord))
   }
 
   object Lattice extends AbstractLattice {
@@ -267,7 +270,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
   object StructValue {
     def top: StructValue = StructJoinLattice.top
-    def apply(fields: Map[String, Lattice.Value]): StructValue = StructJoinLattice.Value(fields)
+    def apply(fields: Traversable[(String, Lattice.Value)]): StructValue = StructJoinLattice.Value(fields)
 
     def unapply(x: AbstractValue): Option[StructValue] = x.structLatticeValue
   }
@@ -289,36 +292,34 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
   def compareWithConstant(l: Any, r: AbstractValue, op: ComparisonOp[_]): BoolValue = {
     r match {
-      case KeyOrConstant(x) => x match {
-          case KeyField(0) =>
-            // simple key comparison
-            BoolValue(Array(intervalFromComparison(l, op)))
-          case Contig(rgStr) =>
-            // locus contig comparison
-            val intervals =
-              Array(getIntervalFromContig(l.asInstanceOf[String], ctx.getReference(rgStr))).flatten
-            BoolValue(intervals)
-          case Position(rgStr) =>
-            // locus position comparison
-            val rg = ctx.getReference(rgStr)
-            val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
-            val intervals = rg.contigs.indices.flatMap { i =>
-              intervalFromComparison(l, op)
-                .intersect(ord, Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
-                .map { interval =>
-                  Interval(
-                    endpoint(
-                      Locus(rg.contigs(i), interval.left.point.asInstanceOf[Row].getAs[Int](0)),
-                      interval.left.sign),
-                    endpoint(
-                      Locus(rg.contigs(i), interval.right.point.asInstanceOf[Row].getAs[Int](0)),
-                      interval.right.sign)
-                  )
-                }
-            }.toArray
+      case KeyOrConstant(KeyField(x)) =>
+        // simple key comparison
+        BoolValue(Array(intervalFromComparison(l, op)))
+      case KeyOrConstant(Contig(rgStr)) =>
+        // locus contig comparison
+        val intervals =
+          Array(getIntervalFromContig(l.asInstanceOf[String], ctx.getReference(rgStr))).flatten
+        BoolValue(intervals)
+      case KeyOrConstant(Position(rgStr)) =>
+        // locus position comparison
+        val rg = ctx.getReference(rgStr)
+        val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
+        val intervals = rg.contigs.indices.flatMap { i =>
+          intervalFromComparison(l, op)
+            .intersect(ord, Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
+            .map { interval =>
+              Interval(
+                endpoint(
+                  Locus(rg.contigs(i), interval.left.point.asInstanceOf[Row].getAs[Int](0)),
+                  interval.left.sign),
+                endpoint(
+                  Locus(rg.contigs(i), interval.right.point.asInstanceOf[Row].getAs[Int](0)),
+                  interval.right.sign)
+              )
+            }
+        }.toArray
 
-            BoolValue(intervals)
-        }
+        BoolValue(intervals)
       case StructValue(s) if s.isKeyPrefix =>
         assert(op.isInstanceOf[EQ])
         BoolValue(Array(Interval(endpoint(l, -1, wrapped = false), endpoint(l, 1, wrapped = false))))
@@ -365,6 +366,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   }
 
   private def computeBoolean(x: IR, children: IndexedSeq[AbstractValue]): BoolValue = (x, children) match {
+    case (False(), _) => BoolValue.allFalse
+    case (True(), _) => BoolValue.allTrue
     // collection contains
     case (ApplyIR("contains", _, _, _), Seq(KeyOrConstant(Constant(collectionVal)), queryVal)) if literalSizeOkay(collectionVal) =>
       queryVal match {
@@ -387,24 +390,34 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           case _ => BoolValue.top
         }
       }
-     case (ApplyComparisonOp(op, _, _), Seq(l, r)) if opIsSupported(op) => (l, r) match {
-       case (KeyOrConstant(KeyField(l)), r) => compareWithConstant(l, r, op)
-       case (l, KeyOrConstant(KeyField(r))) =>
-         compareWithConstant(r, l, ComparisonOp.swap(op.asInstanceOf[ComparisonOp[Boolean]]))
-       case _ => BoolValue.top
-     }
+    case (ApplyComparisonOp(op, _, _), Seq(l, r)) if opIsSupported(op) => (l, r) match {
+      case (KeyOrConstant(Constant(l)), r) => compareWithConstant(l, r, op)
+      case (l, KeyOrConstant(Constant(r))) =>
+        compareWithConstant(r, l, ComparisonOp.swap(op.asInstanceOf[ComparisonOp[Boolean]]))
+      case _ => BoolValue.top
+    }
+    case (ApplySpecial("lor", _, _, _, _), Seq(l, r)) =>
+      KeyPredicateJoinLattice.or(l.boolValue, r.boolValue)
+    case (ApplySpecial("land", _, _, _, _), Seq(l, r)) =>
+      KeyPredicateJoinLattice.and(l.boolValue, r.boolValue)
     case _ => BoolValue.top
   }
 
   private def _analyze(x: IR, env: Env[AbstractValue]): AbstractValue = {
     def recur(x: IR, env: Env[AbstractValue] = env): AbstractValue = _analyze(x, env)
 
-//    println(s"visiting:\n${Pretty(ctx, x)}")
-//    println(s"env: ${env}")
-    val res = x match {
+    println(s"visiting:\n${Pretty(ctx, x)}")
+    println(s"env: ${env}")
+    val res: Lattice.Value = x match {
       case Let(name, value, body) => recur(body, env.bind(name -> recur(value)))
       case Ref(name, _) => env.lookupOption(name).getOrElse(Lattice.top)
       case GetField(o, name) => recur(o) match { case StructValue(s) => s(name) }
+      case MakeStruct(fields) => Lattice(StructValue(fields.map { case (name, field) =>
+        name -> recur(field)
+      }))
+      case SelectFields(old, fields) =>
+        val oldVal = recur(old)
+        Lattice(StructValue(fields.map(name => name -> oldVal.structValue(name))))
       /* TODO: when we support negation, if result is Boolean, handle like (cond & cnsq) | (~cond &
        * altr) */
       case If(cond, cnsq, altr) => Lattice.combine(recur(cnsq), recur(altr))
@@ -418,10 +431,16 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         }
       case Coalesce(values) =>
         values.foldLeft[AbstractValue](Lattice.bottom)((acc, value) => Lattice.combine(acc, recur(value)))
-      case x if x.typ.isInstanceOf[TStruct] => Lattice(StructValue.top)
-      case _ => Lattice.top
+      case _ =>
+        val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
+        val boolVal = if (x.typ == TBoolean) {
+          Some(computeBoolean(x, children))
+        } else None
+        val keyOrConstVal = computeKeyOrConst(x, children.map(_.keyOrConstValue))
+        Lattice.Value(Some(keyOrConstVal), boolVal, None)
     }
-//    println(s"result: $res")
+    println(s"finished visiting:\n${Pretty(ctx, x)}")
+    println(s"result: $res")
     res
   }
 
