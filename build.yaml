@@ -3679,3 +3679,73 @@ steps:
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
+  - kind: runImage
+    name: setup_dev_namespace_autoscalers
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+      {% for user in code.get("developers", []) %}
+      {% if user['username'] != 'test-dev' %}
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: dev-namespace-scaledown-{{ user["username"] }}
+        namespace: {{ user["username"] }}
+      spec:
+        schedule: 0 22 * * 1,2,3,4,5"  # Weekdays at 8p
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 1
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                serviceAccountName: admin
+                containers:
+                - name: dev-namespace-scaledown-dking
+                  image: bitnami/kubectl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=0 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=0
+                restartPolicy: OnFailure
+      ---
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: dev-namespace-scaleup-{{ user["username"] }}
+        namespace: {{ user["username"] }}
+      spec:
+        schedule: "0 9 * * 1,2,3,4,5"  # Weekdays at 9a
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 0
+        failedJobsHistoryLimit: 1
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                serviceAccountName: admin
+                containers:
+                - name: dev-namespace-daytime-autoscaler
+                  image: bitnami/kubectl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=1 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=1
+                restartPolicy: OnFailure
+      {% endif %}
+      {% endfor %}
+    scopes:
+      - deploy
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
+    dependsOn:
+      - ci_utils_image
+    scopes:
+      - deploy
