@@ -170,17 +170,23 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   import ExtractIntervalFilters._
   import KeyFieldOrConstantJoinLattice.{ Constant, Contig, KeyField, Position }
 
-  object StructJoinLattice extends JoinLattice {
-    object Value {
-      def apply(fields: Traversable[(String, Lattice.Value)]): Value =
+  object StructOrBoolLattice extends JoinLattice {
+    abstract class Value {
+      def asStruct: StructValue = asInstanceOf[StructValue]
+      def asBool: BoolValue = asInstanceOf[BoolValue]
+    }
+
+    object StructValue {
+      def apply(fields: Traversable[(String, Lattice.Value)]): StructValue =
         ConcreteValue(fields.filter { case (_, value) => value != Lattice.top }.toMap)
     }
-    abstract class Value {
+    abstract class StructValue extends Value {
       def apply(field: String): Lattice.Value
+
       def isKeyPrefix: Boolean
     }
 
-    private case class ConcreteValue(fields: Map[String, Lattice.Value]) extends Value {
+    private case class ConcreteValue(fields: Map[String, Lattice.Value]) extends StructValue {
       def apply(field: String): Lattice.Value = fields.getOrElse(field, Lattice.top)
       def values: Iterable[Lattice.Value] = fields.values
 
@@ -190,10 +196,14 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       }
     }
 
-    private case class ConstantValue(fields: Row, typ: TStruct) extends Value {
+    private case class ConstantValue(fields: Row, typ: TStruct) extends StructValue {
       def apply(field: String): Lattice.Value = Lattice(Constant(fields(typ.field(field).index)))
       def isKeyPrefix: Boolean = false
     }
+
+    case class BoolValue(trueBound: IndexedSeq[Interval]) extends Value
+
+    private case object Top extends Value
 
     def top: Value = ConcreteValue(Map.empty)
 
@@ -203,60 +213,36 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           f => f -> Lattice.combine(l(f), r(f))
         }.toMap)
       case (ConstantValue(l, t), ConstantValue(r, _)) if l == r => ConstantValue(l, t)
+      case (BoolValue(l), BoolValue(r)) => BoolValue(Interval.union(l ++ r, iord))
       case _ => top
     }
   }
 
-  object KeyPredicateJoinLattice extends JoinLattice {
-    case class Value(trueBound: IndexedSeq[Interval])
-
-    def top: Value = Value(FastIndexedSeq(Interval(Row(), Row(), true, true)))
-    def allTrue: Value = Value(FastIndexedSeq(Interval(Row(), Row(), true, true)))
-    def allFalse: Value = Value(FastIndexedSeq())
-
-    def combine(l: Value, r: Value): Value = Value(Interval.union(l.trueBound ++ r.trueBound, iord))
-    def or(l: Value, r: Value): Value = Value(Interval.union(l.trueBound ++ r.trueBound, iord))
-    def and(l: Value, r: Value): Value = Value(Interval.intersection(l.trueBound, r.trueBound, iord))
-  }
-
   object Lattice extends AbstractLattice {
-    val keyOrConstantLattice = new LatticeFromJoin(KeyFieldOrConstantJoinLattice)
-    val keyPredicateLattice = new LatticeFromJoin(KeyPredicateJoinLattice)
-    val structLattice = new LatticeFromJoin(StructJoinLattice)
+    val keyOrConstantLattice = KeyFieldOrConstantJoinLattice
+    val structOrBoolLattice = StructOrBoolLattice
 
-    type KeyOrConstValue = Lattice.keyOrConstantLattice.joinLattice.Value
-    type StructValue = Lattice.structLattice.joinLattice.Value
-    type BoolValue = Lattice.keyPredicateLattice.joinLattice.Value
+    type KeyOrConstValue = keyOrConstantLattice.Value
+    type StructOrBoolValue = structOrBoolLattice.Value
+    type BoolValue = structOrBoolLattice.BoolValue
+    type StructValue = structOrBoolLattice.StructValue
 
-    case class Value(
-        keyOrConstLatticeValue: keyOrConstantLattice.Value,
-        boolLatticeValue: keyPredicateLattice.Value,
-        structLatticeValue: structLattice.Value) {
-      def keyOrConstValue: KeyOrConstValue = keyOrConstLatticeValue.get
+    case class Value(keyOrConstValue: KeyOrConstValue, structOrBoolValue: StructOrBoolValue)
 
-      def boolValue: BoolValue = boolLatticeValue.get
+    def apply(x: KeyOrConstValue): Value =
+      Value(x, structOrBoolLattice.top)
 
-      def structValue: StructValue = structLatticeValue.get
-    }
+    def apply(x: BoolValue, const: KeyOrConstValue = keyOrConstantLattice.top): Value =
+      Value(const, x)
 
-    def apply(x: keyOrConstantLattice.joinLattice.Value): Value =
-      Value(Some(x), keyPredicateLattice.bottom, structLattice.bottom)
+    def apply(x: StructValue): Value =
+      Value(keyOrConstantLattice.top, x)
 
-    def apply(x: keyPredicateLattice.joinLattice.Value, const: KeyOrConstValue = keyOrConstantLattice.joinLattice.top): Value =
-      Value(Some(const), Some(x), structLattice.bottom)
-
-    def apply(x: structLattice.joinLattice.Value): Value =
-      Value(keyOrConstantLattice.top, keyPredicateLattice.bottom, Some(x))
-
-    def top: Value = Value(keyOrConstantLattice.top, keyPredicateLattice.top, structLattice.top)
-
-    def bottom: Value =
-      Value(keyOrConstantLattice.bottom, keyPredicateLattice.bottom, structLattice.bottom)
+    def top: Value = Value(keyOrConstantLattice.top, structOrBoolLattice.top)
 
     def combine(l: Value, r: Value): Value = Value(
-      keyOrConstantLattice.combine(l.keyOrConstLatticeValue, r.keyOrConstLatticeValue),
-      keyPredicateLattice.combine(l.boolLatticeValue, r.boolLatticeValue),
-      structLattice.combine(l.structLatticeValue, r.structLatticeValue)
+      keyOrConstantLattice.combine(l.keyOrConstValue, r.keyOrConstValue),
+      structOrBoolLattice.combine(l.structOrBoolValue, r.structOrBoolValue)
     )
   }
 
@@ -264,15 +250,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
   val iord: IntervalEndpointOrdering = PartitionBoundOrdering(ctx, keyType).intervalEndpointOrdering
 
-  object KeyOrConstant {
-    def unapply(x: AbstractValue): Option[KeyOrConstValue] = x.keyOrConstLatticeValue
-  }
-
   object StructValue {
-    def top: StructValue = StructJoinLattice.top
-    def apply(fields: Traversable[(String, Lattice.Value)]): StructValue = StructJoinLattice.Value(fields)
-
-    def unapply(x: AbstractValue): Option[StructValue] = x.structLatticeValue
+    def apply(fields: Traversable[(String, Lattice.Value)]): StructValue =
+      StructOrBoolLattice.StructValue(fields)
   }
 
   object BoolValue {
@@ -280,7 +260,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 //      Lattice.keyOrConstantLattice.bottom,
 //      Lattice.keyPredicateLattice.top,
 //      Lattice.structLattice.bottom)
-    def top: BoolValue = KeyPredicateJoinLattice.top
+    def top: BoolValue = StructOrBoolLattice.top
     def allTrue: BoolValue = KeyPredicateJoinLattice.allTrue
     def allFalse: BoolValue = KeyPredicateJoinLattice.allFalse
 
