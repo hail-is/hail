@@ -494,17 +494,16 @@ class GoogleStorageFS(
       )
     }
 
-    if (!blobs.hasNextPage)
-      throw new FileNotFoundException(url.toString)
-
-    val fileStatuses = blobs.getNextPage.iterateAll().asScala.map { b =>
+    val fileStatuses = blobs.iterateAll().iterator().asScala.map { b =>
         if (dropTrailingSlash(b.getName) == path)
           GoogleStorageFileStatus(b)
         else
           GoogleStorageFileStatus.applyDirectory(url.bucket, b.getName)
-      }.toSeq
+      }.take(2).toSeq
 
-    if (fileStatuses.length == 1)
+    if (fileStatuses.isEmpty)
+      throw new FileNotFoundException(url.toString)
+    else if (fileStatuses.length == 1)
       fileStatuses.head
     else
       GoogleStorageFileStatus.applyDirectory(url.bucket, path)
