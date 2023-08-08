@@ -1,3 +1,9 @@
+from hailtop.hail_logging import configure_logging
+
+# configure logging before importing anything else
+configure_logging()
+
+
 import base64
 import json
 import os
