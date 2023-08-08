@@ -1596,9 +1596,9 @@ def test_update_with_always_run(client: BatchClient):
 
     wait_status = j1._wait_for_states('Running')
     if wait_status['state'] != 'Running':
-        assert False, str(j1.status(), b.debug_info())
+        assert False, str((j1.status(), b.debug_info()))
 
-    assert j2.is_pending(), str(j2.status(), b.debug_info())
+    assert j2.is_pending(), str((j2.status(), b.debug_info()))
 
     b.cancel()
     j2.wait()
@@ -1619,7 +1619,7 @@ def test_update_jobs_are_not_serialized(client: BatchClient):
 
     wait_status = j1._wait_for_states('Running')
     if wait_status['state'] != 'Running':
-        assert False, str(j1.status(), b.debug_info())
+        assert False, str((j1.status(), b.debug_info()))
 
     b.cancel()
 

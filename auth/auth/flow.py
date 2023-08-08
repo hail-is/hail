@@ -1,7 +1,7 @@
 import abc
 import json
 import urllib.parse
-from typing import ClassVar, List
+from typing import Any, ClassVar, List, Mapping
 
 import aiohttp.web
 import google.auth.transport.requests
@@ -13,7 +13,7 @@ from gear.cloud_config import get_global_config
 
 
 class FlowResult:
-    def __init__(self, login_id: str, email: str, token: dict):
+    def __init__(self, login_id: str, email: str, token: Mapping[Any, Any]):
         self.login_id = login_id
         self.email = email
         self.token = token
@@ -66,7 +66,7 @@ class GoogleFlow(Flow):
         flow.redirect_uri = flow_dict['callback_uri']
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
-            flow.credentials.id_token, google.auth.transport.requests.Request()
+            flow.credentials.id_token, google.auth.transport.requests.Request()  # type: ignore
         )
         email = token['email']
         return FlowResult(email, email, token)

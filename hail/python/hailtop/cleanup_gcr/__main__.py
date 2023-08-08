@@ -1,5 +1,6 @@
 import sys
 import time
+from typing import Awaitable, List, TypeVar
 import logging
 import asyncio
 import aiohttp
@@ -7,6 +8,9 @@ from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
 
 log = logging.getLogger(__name__)
+
+
+T = TypeVar('T')
 
 
 class AsyncIOExecutor:
@@ -31,7 +35,7 @@ class AsyncIOExecutor:
         self.task_manager.ensure_future(self._run(fut, aw))
         return fut
 
-    async def gather(self, aws):
+    async def gather(self, aws: List[Awaitable[T]]) -> List[T]:
         futs = [self.submit(aw) for aw in aws]
         return [await fut for fut in futs]
 
@@ -47,16 +51,14 @@ class CleanupImages:
     async def cleanup_digest(self, image, digest, tags):
         log.info(f'cleaning up digest {image}@{digest}')
 
-        async def delete_tag(tag):
+        async def delete_tag(tag: str):
             try:
                 await self._client.delete(f'/{image}/manifests/{tag}')
             except aiohttp.ClientResponseError as e:
                 if e.status != 404:
                     raise
 
-        await self._executor.gather([
-            delete_tag(tag)
-            for tag in tags])
+        await self._executor.gather([delete_tag(tag) for tag in tags])
 
         try:
             await self._executor.submit(self._client.delete(f'/{image}/manifests/{digest}'))

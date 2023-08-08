@@ -46,6 +46,7 @@ from . import experimental  # noqa: E402
 from . import ir  # noqa: E402
 from . import backend  # noqa: E402
 from . import nd  # noqa: E402
+from . import utils  # noqa: E402
 from . import vds  # noqa: E402
 from hail.expr import aggregators as agg  # noqa: E402
 from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
@@ -112,6 +113,7 @@ __all__ = [
     'citation',
     'cite_hail',
     'cite_hail_bibtex',
+    'utils',
     'version',
     'ANY_REGION',
 ]

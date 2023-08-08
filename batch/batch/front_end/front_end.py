@@ -285,10 +285,9 @@ WHERE id = %s AND NOT deleted;
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id, version, q, last_job_id)
 
-    resp = {'jobs': jobs}
     if last_job_id is not None:
-        resp['last_job_id'] = last_job_id
-    return resp
+        return {'jobs': jobs, 'last_job_id': last_job_id}
+    return {'jobs': jobs}
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
@@ -428,7 +427,7 @@ async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
     return dict(zip(containers, logs))
 
 
-async def _get_job_resource_usage(app, batch_id, job_id):
+async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
 
     client_session: httpx.ClientSession = app['client_session']
@@ -471,7 +470,7 @@ async def _get_job_resource_usage(app, batch_id, job_id):
     return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
 
 
-async def _get_jvm_profile(app, batch_id, job_id):
+async def _get_jvm_profile(app: web.Application, batch_id: int, job_id: int) -> Optional[str]:
     record = await _get_job_record(app, batch_id, job_id)
 
     file_store: FileStore = app['file_store']
@@ -651,10 +650,10 @@ async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
     result = await _handle_api_error(_query_batches, request, user, q, 1, last_batch_id)
     assert result is not None
     batches, last_batch_id = result
-    body = {'batches': batches}
+
     if last_batch_id is not None:
-        body['last_batch_id'] = last_batch_id
-    return json_response(body)
+        return json_response({'batches': batches, 'last_batch_id': last_batch_id})
+    return json_response({'batches': batches})
 
 
 @routes.get('/api/v2alpha/batches')
@@ -667,10 +666,10 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     result = await _handle_api_error(_query_batches, request, user, q, 2, last_batch_id)
     assert result is not None
     batches, last_batch_id = result
-    body = {'batches': batches}
+
     if last_batch_id is not None:
-        body['last_batch_id'] = last_batch_id
-    return json_response(body)
+        return json_response({'batches': batches, 'last_batch_id': last_batch_id})
+    return json_response({'batches': batches})
 
 
 def check_service_account_permissions(user, sa):
@@ -2175,7 +2174,7 @@ async def ui_get_job(request, userdata, batch_id):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
-async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
+async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.StreamResponse:
     return await get_job_container_log(request, batch_id)
 
 
@@ -2875,7 +2874,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    regions = {
+    regions: Dict[str, int] = {
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }

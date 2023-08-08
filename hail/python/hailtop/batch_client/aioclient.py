@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, List, Tuple, Union
+from typing import AsyncIterator, Optional, Dict, Any, List, Tuple, Union
 import math
 import random
 import logging
@@ -166,11 +166,11 @@ class Job:
 
             return runtime.get('duration')
 
-        durations = [_get_duration(container_status) for task, container_status in container_statuses.items()]
+        durations = [_get_duration(container_status) for container_status in container_statuses.values()]
 
         if any(d is None for d in durations):
             return None
-        return sum(durations)
+        return sum(durations)  # type: ignore
 
     @staticmethod
     def submitted_job(batch: 'Batch', job_id: int, _status: Optional[dict] = None):
@@ -355,7 +355,7 @@ class Batch:
         self._raise_if_not_created()
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def jobs(self, q: Optional[str] = None, version: Optional[int] = None):
+    async def jobs(self, q: Optional[str] = None, version: Optional[int] = None) -> AsyncIterator[Dict[str, Any]]:
         self._raise_if_not_created()
         if version is None:
             version = 1
@@ -378,7 +378,7 @@ class Batch:
         self._raise_if_not_created()
         return await self._client.get_job(self.id, job_id)
 
-    async def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
+    async def get_job_log(self, job_id: int) -> Dict[str, Any]:
         self._raise_if_not_created()
         return await self._client.get_job_log(self.id, job_id)
 
@@ -923,7 +923,7 @@ class BatchClient:
         j = await j_resp.json()
         return Job.submitted_job(b, j['job_id'], _status=j)
 
-    async def get_job_log(self, batch_id, job_id) -> Optional[Dict[str, Any]]:
+    async def get_job_log(self, batch_id, job_id) -> Dict[str, Any]:
         resp = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
         return await resp.json()
 

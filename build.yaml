@@ -152,10 +152,6 @@ steps:
     inputs:
       - from: /repo/docker/Dockerfile.base
         to: /io/repo/docker/Dockerfile.base
-      - from: /repo/pylintrc
-        to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
     dependsOn:
       - hail_ubuntu_image
       - merge_code
@@ -1403,14 +1399,54 @@ steps:
     dependsOn:
       - hailgenetics_hail_image
       - merge_code
+  - kind: buildImage2
+    name: hail_linting_image
+    contextPath: /io/repo
+    dockerFile:
+      inline: |
+        FROM {{ hail_ubuntu_image.image }}
+        RUN hail-apt-get-install make
+        COPY hail/python/pinned-requirements.txt hail-requirements.txt
+        COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
+        COPY gear/pinned-requirements.txt gear-requirements.txt
+        COPY web_common/pinned-requirements.txt web_common-requirements.txt
+        COPY auth/pinned-requirements.txt auth-requirements.txt
+        COPY batch/pinned-requirements.txt batch-requirements.txt
+        COPY ci/pinned-requirements.txt ci-requirements.txt
+        RUN python3 -m pip install \
+            -r hail-requirements.txt \
+            -r dev-requirements.txt \
+            -r gear-requirements.txt \
+            -r web_common-requirements.txt \
+            -r auth-requirements.txt \
+            -r batch-requirements.txt \
+            -r ci-requirements.txt
+    publishAs: linting
+    inputs:
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/repo/hail/python/dev/pinned-requirements.txt
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
+      - from: /repo/web_common/pinned-requirements.txt
+        to: /io/repo/web_common/pinned-requirements.txt
+      - from: /repo/auth/pinned-requirements.txt
+        to: /io/repo/auth/pinned-requirements.txt
+      - from: /repo/batch/pinned-requirements.txt
+        to: /io/repo/batch/pinned-requirements.txt
+      - from: /repo/ci/pinned-requirements.txt
+        to: /io/repo/ci/pinned-requirements.txt
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
   - kind: runImage
     name: check_services
     image:
-      valueFrom: hail_dev_image.image
+      valueFrom: hail_linting_image.image
     script: |
       set -ex
       cd /io/repo
-      make install-dev-requirements
       {% if 'target_sha' in code %}
       export HAIL_TARGET_SHA={{ code.target_sha }}
       {% endif %}
@@ -1419,12 +1455,12 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - hail_dev_image
+      - hail_linting_image
       - merge_code
   - kind: runImage
     name: check_hail
     image:
-      valueFrom: hail_dev_image.image
+      valueFrom: hail_linting_image.image
     script: |
       set -ex
       cd /io/repo
@@ -1434,8 +1470,6 @@ steps:
         to: /io/repo/Makefile
       - from: /repo/pylintrc
         to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
       - from: /repo/hail/python
@@ -1443,7 +1477,7 @@ steps:
       - from: /repo/config.mk
         to: /io/repo/config.mk
     dependsOn:
-      - hail_dev_image
+      - hail_linting_image
       - merge_code
   - kind: runImage
     name: get_pip_versioned_docs
@@ -2701,7 +2735,6 @@ steps:
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/tls/create_test_db_config.sh ./ci/test/resources/
       cp /io/repo/pylintrc ./
-      cp /io/repo/setup.cfg ./
       cp /io/repo/pyproject.toml ./
       cp -R /io/repo/docker ./
       cp -R /io/repo/gear ./

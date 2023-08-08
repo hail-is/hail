@@ -256,6 +256,8 @@ nest-asyncio==1.5.7
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   ipykernel
+nodeenv==1.8.0
+    # via pyright
 notebook==7.0.2
     # via jupyter
 notebook-shim==0.2.3
@@ -341,6 +343,8 @@ pylint==2.17.5
     # via -r hail/hail/python/dev/requirements.txt
 pyparsing==3.0.9
     # via matplotlib
+pyright==1.1.321
+    # via -r hail/hail/python/dev/requirements.txt
 pytest==7.4.0
     # via
     #   -r hail/hail/python/dev/requirements.txt
@@ -567,3 +571,6 @@ zipp==3.16.2
     # via
     #   importlib-metadata
     #   importlib-resources
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

@@ -528,7 +528,7 @@ class ServiceBackend(Backend[bc.Batch]):
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
              token: Optional[str] = None,
-             **backend_kwargs) -> bc.Batch:  # pylint: disable-msg=too-many-statements
+             **backend_kwargs) -> Optional[bc.Batch]:  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
@@ -770,7 +770,6 @@ class ServiceBackend(Backend[bc.Batch]):
                 parents=parents,
                 attributes={'name': 'remove_tmpdir'},
                 always_run=True)
-            jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
         if verbose:
@@ -800,7 +799,7 @@ class ServiceBackend(Backend[bc.Batch]):
         if wait and len(unsubmitted_jobs) > 0:
             if verbose:
                 print(f'Waiting for batch {batch_id}...')
-            starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)
+            starting_job_id: int = min(j._client_job.job_id for j in unsubmitted_jobs)
             await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
             status = await batch_handle._async_batch.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
             print(f'batch {batch_id} complete: {status["state"]}')

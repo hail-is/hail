@@ -52,7 +52,7 @@ def get(batch_id: int, output: StructuredFormatOption = StructuredFormat.YAML):
     with BatchClient('') as client:
         batch = get_batch_if_exists(client, batch_id)
         if batch:
-            print(make_formatter(output)(batch.last_known_status()))
+            print(make_formatter(output)([batch.last_known_status()]))
         else:
             print(f"Batch with id {batch_id} not found")
 
