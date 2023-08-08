@@ -9,7 +9,7 @@ import java.util.concurrent._
 import org.apache.log4j.Logger
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
-import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
+import com.google.cloud.storage.Storage.{BlobListOption, BlobSourceOption, BlobWriteOption}
 import com.google.cloud.storage.{Option => StorageOption, _}
 import com.google.cloud.http.HttpTransportOptions
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
@@ -78,6 +78,11 @@ object GoogleStorageFileStatus {
         blob.getUpdateTimeOffsetDateTime.toInstant().toEpochMilli(),
       blob.getSize,
       isDir)
+  }
+
+  def applyDirectory(bucket: String, directoryPath: String): BlobStorageFileStatus = {
+    val name = dropTrailingSlash(directoryPath)
+    new BlobStorageFileStatus(s"gs://${ bucket }/$name", null, 0, true)
   }
 }
 
@@ -483,23 +488,26 @@ class GoogleStorageFS(
 
     val blobs = retryTransientErrors {
       handleRequesterPays(
-        (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options):_*),
+        (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: BlobListOption.pageSize(2) +: options):_*),
         BlobListOption.userProject _,
         url.bucket
       )
     }
 
-    val it = blobs.getValues.iterator.asScala
-    while (it.hasNext) {
-      val b = it.next()
-      var name = b.getName
-      while (name.endsWith("/"))
-        name = name.dropRight(1)
-      if (name == path)
-        return GoogleStorageFileStatus(b)
-    }
+    if (!blobs.hasNextPage)
+      throw new FileNotFoundException(url.toString)
 
-    throw new FileNotFoundException(url.toString)
+    val fileStatuses = blobs.getNextPage.iterateAll().asScala.map { b =>
+        if (b.getName == path)
+          GoogleStorageFileStatus(b)
+        else
+          GoogleStorageFileStatus.applyDirectory(url.bucket, b.getName)
+      }.toSeq
+
+    if (fileStatuses.length == 1)
+      fileStatuses.head
+    else
+      GoogleStorageFileStatus.applyDirectory(url.bucket, path)
   }
 
   def makeQualified(filename: String): String = {
