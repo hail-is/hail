@@ -463,20 +463,20 @@ async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[PossiblyTrun
     record = await _get_job_record(app, batch_id, job_id)
     containers = job_tasks_from_spec(record)
 
-    async def load_up_to_fifty_kib(app, batch_id, job_id, c, record) -> Optional[PossiblyTruncatedLog]:
+    async def load_up_to_one_mib(app, batch_id, job_id, c, record) -> Optional[PossiblyTruncatedLog]:
         s = await _get_job_container_log(app, batch_id, job_id, c, record)
         if s is None:
             return None
-        fifty_kib = 50 * 1024
+        mib = 1024**2
         async with s:
-            log = await s.read(fifty_kib + 1)
-        if len(log) == fifty_kib + 1:
-            return (log[:fifty_kib], True)
+            log = await s.read(mib + 1)
+        if len(log) == mib + 1:
+            return (log[:mib], True)
 
         return (log, False)
 
     logs: List[Optional[PossiblyTruncatedLog]] = await asyncio.gather(
-        *(load_up_to_fifty_kib(app, batch_id, job_id, c, record) for c in containers)
+        *(load_up_to_one_mib(app, batch_id, job_id, c, record) for c in containers)
     )
     return dict(zip(containers, logs))
 
