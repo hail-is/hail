@@ -5,7 +5,7 @@ import os
 from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
 from hailtop.aiocloud.aiogoogle.user_config import spark_conf_path, get_spark_conf_gcs_requester_pays_configuration
 from hailtop.utils.process import check_exec_output
-from hailtop.config.user_config import configuration_of, _load_user_config
+from hailtop.config.user_config import configuration_of
 
 
 if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS' not in os.environ:
@@ -29,7 +29,6 @@ async def unset_hailctl():
         'unset',
         'gcs_requester_pays/buckets',
     )
-    _load_user_config()  # force reload of user config
 
 
 @pytest.mark.asyncio
@@ -140,8 +139,6 @@ async def test_hailctl_takes_precedence_1():
         echo=True
     )
 
-    _load_user_config()  # force reload of user config
-
     actual = get_gcs_requester_pays_configuration()
     assert actual == 'hailctl_project', str((
         configuration_of('gcs_requester_pays', 'project', None, None),
@@ -177,8 +174,6 @@ async def test_hailctl_takes_precedence_2():
         'bucket1,bucket2',
         echo=True
     )
-
-    _load_user_config()  # force reload of user config
 
     actual = get_gcs_requester_pays_configuration()
     assert actual == ('hailctl_project2', ['bucket1', 'bucket2'])
