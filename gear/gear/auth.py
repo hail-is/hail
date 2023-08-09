@@ -25,6 +25,7 @@ TEN_SECONDS_IN_NANOSECONDS = int(1e10)
 
 class UserData(TypedDict):
     username: str
+    namespace_name: str
     is_developer: bool
     is_service_account: bool
     hail_credentials_secret_name: str

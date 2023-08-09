@@ -2229,6 +2229,8 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       {% for user in code.get("developers", []) %}
       {% if user['username'] != 'test-dev' %}
       hailctl auth create-user \
