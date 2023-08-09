@@ -8,14 +8,14 @@ import random
 import secrets
 from enum import Enum
 from shlex import quote as shq
-from typing import Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import aiohttp
 import gidgethub
 import prometheus_client as pc  # type: ignore
 import zulip
 
-from gear import Database
+from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch
 from hailtop.config import get_deploy_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
@@ -995,7 +995,15 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata, developers, extra_config=None):
+    def __init__(
+        self,
+        branch: FQBranch,
+        sha: str,
+        userdata: UserData,
+        developers: List[UserData],
+        *,
+        extra_config: Optional[Dict[str, Any]] = None,
+    ):
         self.branch = branch
         self.user = userdata['username']
         self.namespace = userdata['namespace_name']

@@ -521,7 +521,7 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    unwatched_branch = UnwatchedBranch(branch, sha, userdata, extra_config)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata, app['developers'], extra_config=extra_config)
 
     batch_client = app['batch_client']
 
