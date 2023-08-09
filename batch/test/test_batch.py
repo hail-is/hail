@@ -1729,3 +1729,19 @@ def test_region(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert status['status']['region'] == region, str((status, b.debug_info()))
     assert region in j.log()['main'], str((status, b.debug_info()))
+
+
+@pytest.mark.timeout(10 * 60)
+def test_for_siwei_bug_13399(client: BatchClient):
+    try:
+        bb = create_batch(client)
+        bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
+        bb.submit()
+
+        j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+        b = bb.submit()
+        status = j.wait()
+
+        assert status['state'] == 'Success', str((status, b.debug_info()))
+    finally:
+        b.cancel()
