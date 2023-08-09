@@ -354,7 +354,7 @@ class Job:
         >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> j = j.spot(False)
-        >>> j = j.command(f'echo "hello"'))
+        >>> j = j.command(f'echo "hello"')
 
         Parameters
         ----------
