@@ -3741,6 +3741,7 @@ steps:
       ---
       {% endif %}
       {% endfor %}
+      EOF
       kubectl apply -f dev-namespace-scalers.yaml
     scopes:
       - deploy
