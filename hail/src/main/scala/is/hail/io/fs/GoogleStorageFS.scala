@@ -30,6 +30,12 @@ case class GoogleStorageFSURL(val bucket: String, val path: String) extends FSUR
     else
       withPath(s"$path/$c")
   }
+
+  def isChildOf(url: GoogleStorageFSURL): Boolean = {
+    val parentPath = path.split("/").dropRight(1).mkString("/")
+    url.bucket == bucket && url.path == parentPath
+  }
+
   def withPath(newPath: String): GoogleStorageFSURL = GoogleStorageFSURL(bucket, newPath)
   def fromString(s: String): GoogleStorageFSURL = GoogleStorageFS.parseUrl(s)
 
@@ -495,7 +501,15 @@ class GoogleStorageFS(
     }
 
     val fileStatuses = blobs.iterateAll().iterator().asScala
-      .map(blob => GoogleStorageFileStatus(blob))
+      .flatMap { blob =>
+        val blobUrl = url.withPath(blob.getName)
+        if (dropTrailingSlash(blob.getName) == path)
+          Some(GoogleStorageFileStatus(blob))
+        else if (blobUrl.isChildOf(url))
+          Some(GoogleStorageFileStatus.applyDirectory(url.bucket, path))
+        else
+          None
+      }
       .take(2)
       .toSeq
 
