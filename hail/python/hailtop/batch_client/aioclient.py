@@ -367,7 +367,7 @@ class Batch:
                  submission_info: Optional[BatchSubmissionInfo] = None):
         self._client = client
         self.id: int = id
-        self.attributes = attributes
+        self.attributes: Dict[str, str] = attributes or {}
         self.token = token
         self._last_known_status = last_known_status
         self.submission_info = submission_info or BatchSubmissionInfo()
