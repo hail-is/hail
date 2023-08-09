@@ -1,8 +1,5 @@
-import collections
 import logging
-from typing import Dict, Literal, Tuple
-
-import sortedcontainers
+from typing import Literal, Tuple
 
 from hailtop.utils import secret_alnum_string
 
