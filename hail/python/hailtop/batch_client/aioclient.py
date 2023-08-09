@@ -360,10 +360,10 @@ class Batch:
     def __init__(self,
                  client: 'BatchClient',
                  id: int,
-                 attributes: Dict[str, str],
+                 attributes: Optional[Dict[str, str]],
                  token: str,
                  *,
-                 last_known_status: Optional[bool] = None,
+                 last_known_status: Optional[Dict[str, Any]] = None,
                  submission_info: Optional[BatchSubmissionInfo] = None):
         self._client = client
         self.id: int = id
@@ -420,17 +420,24 @@ class Batch:
     #   msec_mcpu: int
     #   cost: float
     # }
-    async def status(self):
+    async def status(self) -> Dict[str, Any]:
         resp = await self._client._get(f'/api/v1alpha/batches/{self.id}')
-        self._last_known_status = await resp.json()
+        json_status = await resp.json()
+        assert isinstance(json_status, dict), json_status
+        self._last_known_status = json_status
         return self._last_known_status
 
-    async def last_known_status(self):
+    async def last_known_status(self) -> Dict[str, Any]:
         if self._last_known_status is None:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
-    async def _wait(self, description: str, progress: BatchProgressBar, disable_progress_bar: bool, starting_job: int):
+    async def _wait(self,
+                    description: str,
+                    progress: BatchProgressBar,
+                    disable_progress_bar: bool,
+                    starting_job: int
+                    ) -> Dict[str, Any]:
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{self.id}')
         i = 0
@@ -460,7 +467,7 @@ class Batch:
                    description: str = '',
                    progress: Optional[BatchProgressBar] = None,
                    starting_job: int = 1,
-                   ):
+                   ) -> Dict[str, Any]:
         if description:
             description += ': '
         if progress is not None:
@@ -486,12 +493,20 @@ class Batch:
 
 
 class BatchBuilder:
-    def __init__(self, client, *, attributes=None, callback=None, token=None, cancel_after_n_failures=None, batch=None):
+    def __init__(self,
+                 client: 'BatchClient',
+                 *,
+                 attributes: Optional[Dict[str, str]] = None,
+                 callback: Optional[str] = None,
+                 token: Optional[str] = None,
+                 cancel_after_n_failures: Optional[int] = None,
+                 batch: Optional[Batch] = None
+                 ):
         self._client = client
         self._job_idx = 0
         self._job_specs = []
         self._jobs = []
-        self._batch: Optional[Batch] = batch
+        self._batch = batch
         self.attributes = attributes
         self.callback = callback
 
@@ -943,9 +958,12 @@ class BatchClient:
     async def get_batch(self, id) -> Batch:
         b_resp = await self._get(f'/api/v1alpha/batches/{id}')
         b = await b_resp.json()
+        assert isinstance(b, dict), b
+        attributes = b.get('attributes')
+        assert dict is None or isinstance(attributes, dict), attributes
         return Batch(self,
                      b['id'],
-                     attributes=b.get('attributes'),
+                     attributes=attributes,
                      token=b['token'],
                      last_known_status=b)
 

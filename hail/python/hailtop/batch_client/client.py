@@ -1,34 +1,9 @@
 from typing import Any, Dict, List, Optional, Union
-import asyncio
-import contextlib
 
+from hailtop.utils import async_to_blocking, ait_to_blocking
 from ..config import DeployConfig
 from . import aioclient
 from .. import httpx
-
-
-def async_to_blocking(coro):
-    loop = asyncio.get_event_loop()
-    task = asyncio.ensure_future(coro)
-    try:
-        return loop.run_until_complete(task)
-    finally:
-        if not task.done():
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                loop.run_until_complete(task)
-
-
-def sync_anext(ait):
-    return async_to_blocking(ait.__anext__())
-
-
-def agen_to_blocking(agen):
-    while True:
-        try:
-            yield sync_anext(agen)
-        except StopAsyncIteration:
-            break
 
 
 class Job:
@@ -185,7 +160,7 @@ class Batch:
         return async_to_blocking(self._async_batch.last_known_status())
 
     def jobs(self, q=None, version=None):
-        return agen_to_blocking(self._async_batch.jobs(q=q, version=version))
+        return ait_to_blocking(self._async_batch.jobs(q=q, version=version))
 
     def get_job(self, job_id: int) -> Job:
         j = async_to_blocking(self._async_batch.get_job(job_id))
@@ -305,7 +280,7 @@ class BatchClient:
         self._async_client.reset_billing_project(billing_project)
 
     def list_batches(self, q=None, last_batch_id=None, limit=2**64, version=None):
-        for b in agen_to_blocking(self._async_client.list_batches(q=q, last_batch_id=last_batch_id, limit=limit, version=version)):
+        for b in ait_to_blocking(self._async_client.list_batches(q=q, last_batch_id=last_batch_id, limit=limit, version=version)):
             yield Batch.from_async_batch(b)
 
     def get_job(self, batch_id, job_id):

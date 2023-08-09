@@ -1,5 +1,5 @@
 from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict, Iterable, Tuple,
-                    Generic, cast)
+                    Generic, cast, AsyncIterator, Iterator)
 from typing import Literal
 from types import TracebackType
 import concurrent
@@ -153,6 +153,14 @@ def async_to_blocking(coro: Awaitable[T]) -> T:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 loop.run_until_complete(task)
+
+
+def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
+    while True:
+        try:
+            yield async_to_blocking(ait.__anext__())
+        except StopAsyncIteration:
+            break
 
 
 async def blocking_to_async(thread_pool: concurrent.futures.Executor,
