@@ -494,31 +494,30 @@ class GoogleStorageFS(
 
     val blobs = retryTransientErrors {
       handleRequesterPays(
-        (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: BlobListOption.pageSize(2) +: options):_*),
+        (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options):_*),
         BlobListOption.userProject _,
         url.bucket
       )
     }
 
     val fileStatuses = blobs.iterateAll().iterator().asScala
-      .flatMap { blob =>
+      .dropWhile { blob =>
         val blobUrl = url.withPath(blob.getName)
-        if (dropTrailingSlash(blob.getName) == path)
-          Some(GoogleStorageFileStatus(blob))
-        else if (blobUrl.isChildOf(url))
-          Some(GoogleStorageFileStatus.applyDirectory(url.bucket, path))
-        else
-          None
+        dropTrailingSlash(blob.getName) != path && !blobUrl.isChildOf(url)
       }
-      .take(2)
-      .toSeq
+      .map { blob =>
+        if (dropTrailingSlash(blob.getName) == path)
+          GoogleStorageFileStatus(blob)
+        else
+          GoogleStorageFileStatus.applyDirectory(url.bucket, path)
+      }
+      .take(1)
+      .toArray
 
     if (fileStatuses.isEmpty)
       throw new FileNotFoundException(url.toString)
-    else if (fileStatuses.length == 1)
-      fileStatuses.head
     else
-      GoogleStorageFileStatus.applyDirectory(url.bucket, path)
+      fileStatuses.head
   }
 
   def makeQualified(filename: String): String = {
