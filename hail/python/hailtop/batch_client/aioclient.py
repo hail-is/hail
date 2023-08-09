@@ -504,17 +504,17 @@ class BatchBuilder:
                  ):
         self._client = client
         self._job_idx = 0
-        self._job_specs = []
-        self._jobs = []
+        self._job_specs: List[Dict[str, Any]] = []
+        self._jobs: List[Job] = []
         self._batch = batch
         self.attributes = attributes
         self.callback = callback
 
         if token is None:
             token = secrets.token_urlsafe(32)
-        self.token = token
+        self.token: str = token
 
-        self._update_id = None
+        self._update_id: Optional[int] = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
@@ -960,7 +960,7 @@ class BatchClient:
         b = await b_resp.json()
         assert isinstance(b, dict), b
         attributes = b.get('attributes')
-        assert dict is None or isinstance(attributes, dict), attributes
+        assert attributes is None or isinstance(attributes, dict), attributes
         return Batch(self,
                      b['id'],
                      attributes=attributes,
