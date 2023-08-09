@@ -1,8 +1,10 @@
+import concurrent.futures
 import collections
 import os
 import secrets
 import time
 from typing import Set
+from contextlib import ExitStack
 
 import orjson
 import pytest
@@ -1733,15 +1735,34 @@ def test_region(client: BatchClient):
 
 @pytest.mark.timeout(10 * 60)
 def test_for_siwei_bug_13399(client: BatchClient):
-    try:
+    with ExitStack() as stack:
         bb = create_batch(client)
         bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
-        bb.submit()
+        batch = bb.submit()
+        stack.callback(batch.cancel)
 
         j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
-        b = bb.submit()
+        bb.submit()
         status = j.wait()
 
-        assert status['state'] == 'Success', str((status, b.debug_info()))
-    finally:
-        b.cancel()
+        assert status['state'] == 'Success', str((status, batch.debug_info()))
+
+
+@pytest.mark.timeout(3 * 60)
+def test_for_siwei_bug_13399_2(client: BatchClient):
+    with ExitStack() as stack:
+        bb = create_batch(client)
+
+        batch = bb.submit()  # need to create the batch, so we get an id, so we can cancel it later
+        stack.callback(batch.cancel)
+
+        def create_one_job_bunch(_: int):
+            bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+            bb.submit()
+
+        tpe = concurrent.futures.ThreadPoolExecutor(max_workers=100)
+        tpe.map(create_one_job_bunch, range(100))
+
+        status = batch.wait()
+
+        assert status['state'] == 'Success', str((status, batch.debug_info()))
