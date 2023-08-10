@@ -11,6 +11,7 @@ import is.hail.utils.{Logging, TreeTraversal, toRichBoolean}
 import org.apache.commons.codec.digest.MurmurHash3
 
 import java.nio.ByteBuffer
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 case object SemanticHash extends Logging {
@@ -36,9 +37,9 @@ case object SemanticHash extends Logging {
 
           // Include an encoding of a node's trace to differentiate between
           // IR trees that look identical when flattened
-          for ((ir, trace) <- levelOrder(nameNormalizedIR)) {
-            encode(ctx.fs, ir, trace) match {
-              case Some(bytes) => hash = extend(hash, bytes)
+          for ((ir, buffer) <- levelOrder(nameNormalizedIR)) {
+            encode(ctx.fs, ir, buffer) match {
+              case Right() => hash = extend(hash, buffer)
               case None => return None
             }
           }
@@ -53,33 +54,30 @@ case object SemanticHash extends Logging {
       semhash
     }
 
-  private def encode(fs: FS, ir: BaseIR, trace: Int): Option[Array[Byte]] = {
-    val buffer =
-      Array.newBuilder[Byte] ++=
-        Bytes.fromClass(ir.getClass) ++=
-        Bytes.fromInt(trace)
+  private def encode(fs: FS, ir: BaseIR, buffer: mutable.ArrayBuilder[Byte]): Either[String, ()] = {
+    buffer ++= Bytes.fromClass(ir.getClass)
 
     ir match {
-      case a: AggExplode =>
-        buffer += a.isScan.toByte
+      case AggExplode(_, name, _, isScan) =>
+        buffer ++= name.getBytes += isScan.toByte
 
       case a: AggFilter =>
         buffer += a.isScan.toByte
 
-      case a: AggFold =>
-        buffer += a.isScan.toByte
+      case AggFold(_, _, _, accumName, otherAccumName, isScan) =>
+        buffer ++= accumName.getBytes ++= otherAccumName.getBytes += isScan.toByte
 
       case a: AggGroupBy =>
         buffer += a.isScan.toByte
 
-      case a: AggLet =>
-        buffer += a.isScan.toByte
+      case AggLet(name, _, _, isScan) =>
+        buffer ++= name.getBytes += isScan.toByte
 
-      case a: AggArrayPerElement =>
-        buffer += a.isScan.toByte
+      case AggArrayPerElement(_, elem, index, _, _, isScan) =>
+        buffer ++= elem.getBytes ++= index.getBytes += isScan.toByte
 
       case Apply(fname, tyArgs, _, retTy, _) =>
-        buffer ++= fname.getBytes()
+        buffer ++= fname.getBytes
         tyArgs.foreach(buffer ++= EncodeTypename(_))
         buffer ++= EncodeTypename(retTy)
 
@@ -95,22 +93,25 @@ case object SemanticHash extends Logging {
         buffer ++= Bytes.fromClass(op.getClass)
 
       case ApplyIR(fname, tyArgs, _, _) =>
-        buffer ++= fname.getBytes()
+        buffer ++= fname.getBytes
         tyArgs.foreach(buffer ++= EncodeTypename(_))
 
       case ApplySeeded(fname, _, _, staticUID, retTy) =>
         buffer ++=
-          fname.getBytes() ++=
+          fname.getBytes ++=
           Bytes.fromLong(staticUID) ++=
           EncodeTypename(retTy)
 
       case ApplySpecial(fname, tyArgs, _, retTy, _) =>
-        buffer ++= fname.getBytes()
+        buffer ++= fname.getBytes
         tyArgs.foreach(buffer ++= EncodeTypename(_))
         buffer ++= EncodeTypename(retTy)
 
       case ApplyUnaryPrimOp(op, _) =>
         buffer ++= Bytes.fromClass(op.getClass)
+
+      case ArraySort(_, left, right, _) =>
+        buffer ++= left.getBytes ++= right.getBytes
 
       case BlockMatrixToTableApply(_, _, function) =>
         function match {
@@ -121,6 +122,7 @@ case object SemanticHash extends Logging {
               Bytes.fromInt(blockSize) ++=
               kinship.fold(Array.empty[Byte])(Bytes.fromDouble) ++=
               Bytes.fromInt(stats)
+            Right()
         }
 
       case BlockMatrixRead(reader) =>
@@ -131,20 +133,23 @@ case object SemanticHash extends Logging {
               .pathsUsed
               .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
               .foreach(g => buffer ++= getFileHash(fs)(g.getPath))
+            Right()
 
           case BlockMatrixBinaryReader(path, _, _) =>
             buffer ++= getFileHash(fs)(path)
+            Right()
 
           case _ =>
-            log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
-            return None
+            Left(s"SemanticHash unknown: ${reader.getClass.getName}")
         }
 
       case Cast(_, typ) =>
         buffer ++= EncodeTypename(typ)
+        Right()
 
       case EncodedLiteral(_, bytes) =>
         bytes.ba.foreach(buffer ++= _)
+        Right()
 
       case GetField(struct, name) =>
         buffer ++= Bytes.fromInt(struct.typ.asInstanceOf[TStruct].fieldIdx(name))
@@ -152,13 +157,23 @@ case object SemanticHash extends Logging {
       case GetTupleElement(_, idx) =>
         buffer ++= Bytes.fromInt(idx)
 
+      case Let(name, _, _) =>
+        buffer ++= name.getBytes
+
       case Literal(typ, value) =>
-        buffer ++=
-          EncodeTypename(typ) ++=
-          typ.toJSON(value).toString.getBytes
+        buffer ++= EncodeTypename(typ) ++= typ.toJSON(value).toString.getBytes
 
       case MakeTuple(fields) =>
         fields.foreach { case (index, _) => buffer ++= Bytes.fromInt(index) }
+
+      case MatrixLiteral(ty, tLiteral) =>
+        if (encode(fs, tLiteral, buffer))
+            buffer ++=
+              EncodeTypename(ty.globalType) ++=
+              EncodeTypename(ty.rowType) ++=
+              EncodeTypename(ty.colType) ++=
+              EncodeTypename(ty.entryType)
+        else return false
 
       case MatrixRead(_, _, _, reader) =>
         buffer ++= Bytes.fromClass(reader.getClass)
@@ -182,11 +197,11 @@ case object SemanticHash extends Logging {
 
           case _ =>
             log.warn(s"SemanticHash unknown: ${reader.getClass.getName}")
-            return None
+            return false
         }
 
       case MatrixWrite(_, writer) =>
-        buffer ++= writer.path.getBytes()
+        buffer ++= writer.path.getBytes
 
       case NDArrayReindex(_, indices) =>
         indices.foreach(buffer ++= Bytes.fromInt(_))
@@ -194,12 +209,35 @@ case object SemanticHash extends Logging {
       case Ref(name, _) =>
         buffer ++= name.getBytes
 
+      case RelationalLet(name, _, _) =>
+        buffer ++= name.getBytes
+
       case RelationalRef(name, _) =>
-        buffer ++= name.getBytes()
+        buffer ++= name.getBytes
 
       case SelectFields(struct, names) =>
         val getFieldIndex = struct.typ.asInstanceOf[TStruct].fieldIdx
         names.map(getFieldIndex).foreach(buffer ++= Bytes.fromInt(_))
+
+      case StreamAgg(_, name, _) =>
+        buffer ++= name.getBytes
+
+      case StreamDropWhile(_, name, _) =>
+        buffer ++= name.getBytes
+
+      case StreamFilter(_, name, _) =>
+        buffer ++= name.getBytes
+
+      case StreamFlatMap(_, name, _) =>
+        buffer ++= name.getBytes
+
+      case StreamFold(_, _, name, accum, _) =>
+        buffer ++= name.getBytes ++= accum.getBytes
+
+    _: StreamFold2 |
+    _: StreamFor |
+    _: StreamMap |
+    _: StreamTakeWhile |
 
       case StreamZip(_, _, _, behaviour, _) =>
         buffer ++= Bytes.fromInt(behaviour.id)
@@ -258,12 +296,10 @@ case object SemanticHash extends Logging {
       case TableWrite(_, writer) =>
         buffer ++= writer.path.getBytes
 
-
       // The following are parameterized entirely by the operation's input and the operation itself
       case _: ArrayLen |
            _: ArrayRef |
            _: ArraySlice |
-           _: ArraySort |
            _: ArrayZeros |
            _: Begin |
            _: BlockMatrixCollect |
@@ -277,7 +313,6 @@ case object SemanticHash extends Logging {
            _: If |
            _: InsertFields |
            _: IsNA |
-           _: Let |
            _: LiftMeOut |
            _: MakeArray |
            _: MakeNDArray |
@@ -287,7 +322,6 @@ case object SemanticHash extends Logging {
            _: MatrixColsTable |
            _: MatrixCount |
            _: MatrixMapGlobals |
-           _: MatrixLiteral |
            _: MatrixMapRows |
            _: MatrixFilterRows |
            _: MatrixMapCols |
@@ -299,23 +333,13 @@ case object SemanticHash extends Logging {
            _: NDArraySlice |
            _: NDArrayReshape |
            _: NDArrayWrite |
-           _: RelationalLet |
            _: RNGSplit |
            _: RNGStateLiteral |
-           _: StreamAgg |
            _: StreamDrop |
-           _: StreamDropWhile |
-           _: StreamFilter |
-           _: StreamFlatMap |
-           _: StreamFold |
-           _: StreamFold2 |
-           _: StreamFor |
            _: StreamIota |
            _: StreamLen |
-           _: StreamMap |
            _: StreamRange |
            _: StreamTake |
-           _: StreamTakeWhile |
            _: TableGetGlobals |
            _: TableAggregate |
            _: TableCollect |
@@ -342,16 +366,13 @@ case object SemanticHash extends Logging {
       case F32(x) => buffer ++= Bytes.fromFloat(x)
       case F64(x) => buffer ++= Bytes.fromDouble(x)
       case NA(typ) => buffer ++= EncodeTypename(typ)
-      case Str(x) => buffer ++= x.getBytes()
+      case Str(x) => buffer ++= x.getBytes
 
       // In these cases, just return None meaning that two
       // invocations will never return the same thing.
       case _ =>
-        log.warn(s"SemanticHash unknown: ${ir.getClass.getName}")
-        return None
+        Left(s"SemanticHash unknown: ${ir.getClass.getName}")
     }
-
-    Some(buffer.result())
   }
 
   def getFileHash(fs: FS)(path: String): Array[Byte] =
@@ -362,7 +383,7 @@ case object SemanticHash extends Logging {
         path.getBytes ++ Bytes.fromLong(fs.fileStatus(path).getModificationTime)
     }
 
-  def levelOrder(root: BaseIR): Iterator[(BaseIR, Int)] = {
+  def levelOrder(root: BaseIR): Iterator[(BaseIR, mutable.ArrayBuilder[Byte])] = {
     val adj: ((BaseIR, Int)) => Iterator[(BaseIR, Int)] =
       Function.tupled { (ir, trace) =>
         ir.children
