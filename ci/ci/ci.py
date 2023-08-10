@@ -268,23 +268,6 @@ def get_maybe_wb_for_batch(b: Batch):
     return None
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}')
-@auth.web_authenticated_developers_only()
-async def get_job(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    batch_client = request.app['batch_client']
-    job = await batch_client.get_job(batch_id, job_id)
-    page_context = {
-        'batch_id': batch_id,
-        'job_id': job_id,
-        'job_log': await job.log(),
-        'job_status': json.dumps(await job.status(), indent=2),
-        'attempts': await job.attempts(),
-    }
-    return await render_template('ci', request, userdata, 'job.html', page_context)
-
-
 def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
     return [{**wb, 'prs': [pr for pr in wb['prs'] if pred(pr)]} for wb in wbs]
 
