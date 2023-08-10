@@ -2226,10 +2226,20 @@ class MatrixTable(ExprContainer):
 
         cols_field = Env.get_uid()
         globals = base.localize_entries(columns_array_field_name=cols_field).index_globals()
+        if len(self._col_key) == 0:
+            cols = globals[cols_field]
+        else:
+            if Env.hc()._warn_cols_order:
+                warning("aggregate_cols(): Aggregates over cols ordered by 'col_key'."
+                        "\n    To preserve matrix table column order, "
+                        "first unkey columns with 'key_cols_by()'")
+                Env.hc()._warn_cols_order = False
+            cols = hl.sorted(globals[cols_field], key=lambda x: x.select(*self._col_key.keys()))
+
         agg_ir = ir.Let(
             'global',
             globals.drop(cols_field)._ir,
-            ir.StreamAgg(ir.ToStream(globals[cols_field]._ir), 'sa', expr._ir))
+            ir.StreamAgg(ir.ToStream(cols._ir), 'sa', expr._ir))
 
         if _localize:
             return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
