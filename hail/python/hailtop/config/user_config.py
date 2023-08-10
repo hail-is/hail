@@ -46,7 +46,7 @@ def configuration_of(config_variable: ConfigVariable,
     if explicit_argument is not None:
         return explicit_argument
 
-    config_variable_info = config_variables[config_variable]
+    config_variable_info = config_variables()[config_variable]
     section = config_variable_info.section
     option = config_variable_info.option
 

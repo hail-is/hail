@@ -44,34 +44,17 @@ A parameter with more than one slash is invalid, for example:
 
 
 def complete_config_variable(incomplete: str):
-    for var, var_info in config_variables.items():
+    for var, var_info in config_variables().items():
         if var.value.startswith(incomplete):
             yield (var.value, var_info.help_msg)
 
 
-@app.command()
-def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)], value: str):
+def _set(section: str, key: str, value: str):
     '''Set a Hail configuration parameter.'''
-    from hailtop.config import config_variables, get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
 
     config = get_user_config()
     config_file = get_user_config_path()
-
-    if parameter not in config_variables:
-        print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
-        sys.exit(1)
-
-    section, key, path = get_section_key_path(parameter)
-
-    validations = {var.name: var_info.validation for var, var_info in config_variables.items()}
-
-    validation_func, msg = validations.get(parameter, (lambda _: True, ''))  # type: ignore
-    if not validation_func(value):
-        print(f"Error: bad value {value!r} for parameter {parameter!r} {msg}", file=sys.stderr)
-        sys.exit(1)
-
-    if path == ('batch', 'bucket'):
-        warnings.warn("'batch/bucket' has been deprecated. Use 'batch/remote_tmpdir' instead.")
 
     if section not in config:
         config[section] = {}
@@ -84,6 +67,24 @@ def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set",
         f = open(config_file, 'w', encoding='utf-8')
     with f:
         config.write(f)
+
+
+@app.command()
+def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)], value: str):
+    if parameter not in config_variables():
+        print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
+        sys.exit(1)
+
+    section, key, path = get_section_key_path(parameter.value)
+
+    validations = {var: var_info.validation for var, var_info in config_variables().items()}
+
+    validation_func, msg = validations.get(parameter, (lambda _: True, ''))  # type: ignore
+    if not validation_func(value):
+        print(f"Error: bad value {value!r} for parameter {parameter!r} {msg}", file=sys.stderr)
+        sys.exit(1)
+
+    _set(section, key, value)
 
 
 def get_config_variable(incomplete: str):
@@ -100,7 +101,7 @@ def get_config_variable(incomplete: str):
                 path = f'{section_name}/{item_name}'
             elements.append((path, value))
 
-    config_items = {var.name: var_info.help_msg for var, var_info in config_variables.items()}
+    config_items = {var.name: var_info.help_msg for var, var_info in config_variables().items()}
 
     for name, _ in elements:
         if name.startswith(incomplete):
