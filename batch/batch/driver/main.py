@@ -1271,6 +1271,7 @@ USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'in
 ACTIVE_USER_INST_COLL_PAIRS: Set[Tuple[str, str]] = set()
 
 FREE_CORES = pc.Gauge('batch_free_cores', 'Batch total free cores', ['inst_coll'])
+FREE_SCHEDULABLE_CORES = pc.Gauge('batch_free_schedulable_cores', 'Batch total free cores', ['inst_coll'])
 TOTAL_CORES = pc.Gauge('batch_total_cores', 'Batch total cores', ['inst_coll'])
 COST_PER_HOUR = pc.Gauge('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
 INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
@@ -1339,6 +1340,7 @@ def monitor_instances(app) -> None:
     resource_rates = driver.billing_manager.resource_rates
 
     for inst_coll in inst_coll_manager.name_inst_coll.values():
+        total_free_schedulable_cores = 0.0
         total_free_cores = 0.0
         total_cores = 0.0
         total_cost_per_hour = 0.0
@@ -1346,6 +1348,8 @@ def monitor_instances(app) -> None:
         instances_by_state: Dict[str, int] = defaultdict(int)
 
         for instance in inst_coll.name_instance.values():
+            if instance.state == 'active':
+                total_free_schedulable_cores += instance.free_cores_mcpu_nonnegative / 1000
             if instance.state != 'deleted':
                 total_free_cores += instance.free_cores_mcpu_nonnegative / 1000
                 total_cores += instance.cores_mcpu / 1000
@@ -1356,6 +1360,7 @@ def monitor_instances(app) -> None:
             instances_by_state[instance.state] += 1
 
         FREE_CORES.labels(inst_coll=inst_coll.name).set(total_free_cores)
+        FREE_SCHEDULABLE_CORES.labels(inst_coll=inst_coll.name).set(total_free_schedulable_cores)
         TOTAL_CORES.labels(inst_coll=inst_coll.name).set(total_cores)
         COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='actual').set(total_cost_per_hour)
         COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='billed').set(total_revenue_per_hour)
