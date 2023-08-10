@@ -35,6 +35,11 @@ _FLOAT_INFO_FIELDS = [
 _FLOAT_ARRAY_INFO_FIELDS = ['AF', 'MLEAF']
 
 
+def _vcf_unsorted_alleles():
+    mt = hl.import_vcf(resource('sample.pksorted.vcf'), n_partitions=4)
+    mt.rows()._force_count()
+
+
 class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
@@ -208,8 +213,10 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt.entries()._same(expected))
 
     def test_vcf_unsorted_alleles(self):
-        mt = hl.import_vcf(resource('sample.pksorted.vcf'), n_partitions=4)
-        mt.rows()._force_count()
+        _vcf_unsorted_alleles()
+
+    def test_vcf_unsorted_alleles_no_codegen(self):
+        with_flags(no_whole_stage_codegen="1")(_vcf_unsorted_alleles)()
 
     def test_import_vcf_skip_invalid_loci(self):
         mt = hl.import_vcf(resource('skip_invalid_loci.vcf'), reference_genome='GRCh37',

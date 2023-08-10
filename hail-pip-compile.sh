@@ -9,7 +9,7 @@ PIP_COMPILE_IMAGE=hail-pip-compile:latest
 
 if [[ "$(docker images -q $PIP_COMPILE_IMAGE 2>/dev/null)" == "" ]]; then
     docker build -t $PIP_COMPILE_IMAGE -f - . <<EOF
-FROM python:3.8-slim
+FROM python:3.9-slim
 RUN pip install 'pip-tools==6.13.0'
 EOF
 fi

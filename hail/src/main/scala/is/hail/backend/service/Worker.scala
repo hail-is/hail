@@ -121,7 +121,7 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
+    val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
     val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
 

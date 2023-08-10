@@ -29,12 +29,21 @@
   <div>
     <form action="{{ base_path }}/configure-feature-flags" method="POST">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <label for="compact_billing_tables">compact_billing_tables: </label>
       <input type="checkbox"
              id="compact_billing_tables"
              name="compact_billing_tables"
              {% if feature_flags['compact_billing_tables'] %}checked{% endif %}
       value="true" />
-      <button>Update</button>
+      <label for="oms_agent">oms_agent: </label>
+      <input type="checkbox"
+             id="oms_agent"
+             name="oms_agent"
+             {% if feature_flags['oms_agent'] %}checked{% endif %}
+      value="true" />
+      <div>
+        <button>Update</button>
+      </div>
     </form>
   </div>
 

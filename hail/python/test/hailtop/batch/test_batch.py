@@ -24,7 +24,7 @@ from hailtop.httpx import ClientResponseError
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.8-slim'
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
 
 
@@ -525,16 +525,13 @@ class ServiceTests(unittest.TestCase):
     def sync_write(self, url, data):
         return async_to_blocking(self.router_fs.write(url, data))
 
-    def batch(self, requester_pays_project=None, default_python_image=None,
-              cancel_after_n_failures=None):
+    def batch(self, **kwargs):
         name_of_test_method = inspect.stack()[1][3]
         return Batch(name=name_of_test_method,
                      backend=self.backend,
                      default_image=DOCKER_ROOT_IMAGE,
                      attributes={'foo': 'a', 'bar': 'b'},
-                     requester_pays_project=requester_pays_project,
-                     default_python_image=default_python_image,
-                     cancel_after_n_failures=cancel_after_n_failures)
+                     **kwargs)
 
     def test_single_task_no_io(self):
         b = self.batch()
@@ -1319,3 +1316,44 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         b.run(wait=True)
         b.run(wait=True)
+
+    def test_non_spot_job(self):
+        b = self.batch()
+        j = b.new_job()
+        j.spot(False)
+        j.command('echo hello')
+        res = b.run()
+        assert res is not None
+        assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
+
+    def test_spot_unspecified_job(self):
+        b = self.batch()
+        j = b.new_job()
+        j.command('echo hello')
+        res = b.run()
+        assert res is not None
+        assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+
+    def test_spot_true_job(self):
+        b = self.batch()
+        j = b.new_job()
+        j.spot(True)
+        j.command('echo hello')
+        res = b.run()
+        assert res is not None
+        assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+
+    def test_non_spot_batch(self):
+        b = self.batch(default_spot=False)
+        j1 = b.new_job()
+        j1.command('echo hello')
+        j2 = b.new_job()
+        j2.command('echo hello')
+        j3 = b.new_job()
+        j3.spot(True)
+        j3.command('echo hello')
+        res = b.run()
+        assert res is not None
+        assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
+        assert res.get_job(2).status()['spec']['resources']['preemptible'] == False
+        assert res.get_job(3).status()['spec']['resources']['preemptible'] == True

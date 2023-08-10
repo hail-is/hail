@@ -93,7 +93,7 @@ async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneou
         async for source_status in filegenerator:
             source_url = await source_status.url()
             assert source_url.startswith(top_source)
-            suffix = source_url[len(top_source):]
+            suffix = source_url.removeprefix(top_source)
             target_url = top_target + suffix
 
             pbar.update(0, total=pbar.total() + 1)

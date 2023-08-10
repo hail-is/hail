@@ -30,7 +30,7 @@ def stress():
             if flip(0.01):
                 c._machine_type = 'n1-standard-1'
                 if flip(0.5):
-                    c._preemptible = False
+                    c.spot(False)
 
     b.run(open=False, wait=False)
 

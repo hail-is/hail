@@ -85,7 +85,11 @@ class Batch:
         any repository prefix and tags if desired (default tag is `latest`).  The image must have
         the `dill` Python package installed and have the same version of Python installed that is
         currently running. If `None`, a compatible Python image with `dill` pre-installed will
-        automatically be used if the current Python version is 3.8, 3.9, or 3.10.
+        automatically be used if the current Python version is 3.9, or 3.10.
+    default_spot:
+        If unspecified or ``True``, jobs will run by default on spot instances. If ``False``, jobs
+        will run by default on non-spot instances. Each job can override this setting with
+        :meth:`.Job.spot`.
     project:
         DEPRECATED: please specify `google_project` on the ServiceBackend instead. If specified,
         the project to use when authenticating with Google Storage. Google Storage is used to
@@ -150,6 +154,7 @@ class Batch:
                  default_timeout: Optional[Union[float, int]] = None,
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
+                 default_spot: Optional[bool] = None,
                  project: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None):
         self._jobs: List[job.Job] = []
@@ -186,6 +191,7 @@ class Batch:
         self._default_timeout = default_timeout
         self._default_shell = default_shell
         self._default_python_image = default_python_image
+        self._default_spot = default_spot
 
         if project is not None:
             warnings.warn(
@@ -310,6 +316,8 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+        if self._default_spot is not None:
+            j.spot(self._default_spot)
 
         if isinstance(self._backend, _backend.ServiceBackend):
             j.regions(self._backend.regions)
@@ -331,7 +339,7 @@ class Batch:
 
         .. code-block:: python
 
-            b = Batch(default_python_image='hailgenetics/python-dill:3.8-slim')
+            b = Batch(default_python_image='hailgenetics/python-dill:3.9-slim')
 
             def hello(name):
                 return f'hello {name}'
@@ -382,6 +390,8 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+        if self._default_spot is not None:
+            j.spot(self._default_spot)
 
         if isinstance(self._backend, _backend.ServiceBackend):
             j.regions(self._backend.regions)

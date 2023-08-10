@@ -46,10 +46,10 @@ async def auth_flow(deploy_config, default_ns, session):
     runner, port = await start_server()
 
     async with session.get(deploy_config.url('auth', '/api/v1alpha/login'), params={'callback_port': port}) as resp:
-        resp = await resp.json()
+        json_resp = await resp.json()
 
-    flow = resp['flow']
-    state = flow['state']
+    flow = json_resp['flow']
+    state = json_resp['state']
     authorization_url = flow['authorization_url']
 
     print(
@@ -75,9 +75,9 @@ Opening in your browser.
             'flow': json.dumps(flow),
         },
     ) as resp:
-        resp = await resp.json()
-    token = resp['token']
-    username = resp['username']
+        json_resp = await resp.json()
+    token = json_resp['token']
+    username = json_resp['username']
 
     tokens = get_tokens()
     tokens[default_ns] = token

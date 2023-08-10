@@ -342,6 +342,32 @@ class Job:
         self._always_run = always_run
         return self
 
+    def spot(self, is_spot: bool) -> 'Job':
+        """
+        Set whether a job is run on spot instances. By default, all jobs run on spot instances.
+
+        Examples
+        --------
+
+        Ensure a job only runs on non-spot instances:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> j = j.spot(False)
+        >>> j = j.command(f'echo "hello"')
+
+        Parameters
+        ----------
+        is_spot:
+            If False, this job will be run on non-spot instances.
+
+        Returns
+        -------
+        Same job object.
+        """
+        self._preemptible = is_spot
+        return self
+
     def regions(self, regions: Optional[List[str]]) -> 'Job':
         """
         Set the cloud regions a job can run in.
@@ -864,7 +890,7 @@ class PythonJob(Job):
 
         # Create a batch object with a default Python image
 
-        b = Batch(default_python_image='hailgenetics/python-dill:3.8-slim')
+        b = Batch(default_python_image='hailgenetics/python-dill:3.9-slim')
 
         def multiply(x, y):
             return x * y
@@ -922,11 +948,11 @@ class PythonJob(Job):
         Examples
         --------
 
-        Set the job's docker image to `hailgenetics/python-dill:3.8-slim`:
+        Set the job's docker image to `hailgenetics/python-dill:3.9-slim`:
 
         >>> b = Batch()
         >>> j = b.new_python_job()
-        >>> (j.image('hailgenetics/python-dill:3.8-slim')
+        >>> (j.image('hailgenetics/python-dill:3.9-slim')
         ...   .call(print, 'hello'))
         >>> b.run()  # doctest: +SKIP
 

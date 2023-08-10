@@ -28,7 +28,7 @@ ht_subjects = ht_subjects.annotate(is_female=ht_subjects['SEX'] == '2',
                                                                        .when(ht_subjects['DTHHRDY'] == '2', '2_fast_death_of_natural_causes')
                                                                        .when(ht_subjects['DTHHRDY'] == '3', '3_intermediate_death')
                                                                        .when(ht_subjects['DTHHRDY'] == '4', '4_slow_death')
-                                                                       .default(hl.null(hl.tstr))))
+                                                                       .default(hl.missing(hl.tstr))))
 ht_subjects = ht_subjects.select('is_female', 'age_range', 'death_classification_hardy_scale')
 ht_subjects.write('hdfs:///tmp/subjects.ht', overwrite=True)
 ht_subjects = hl.read_table('hdfs:///tmp/subjects.ht')

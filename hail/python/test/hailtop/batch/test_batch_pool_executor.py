@@ -5,10 +5,10 @@ import pytest
 
 from hailtop.batch import BatchPoolExecutor, ServiceBackend
 from hailtop.config import get_user_config
-from hailtop.utils import sync_sleep_and_backoff
+from hailtop.utils import sync_sleep_before_try
 from hailtop.batch_client.client import BatchClient
 
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.8'
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9'
 
 
 submitted_batch_ids = []
@@ -33,12 +33,13 @@ def check_for_running_batches():
     with BatchClient(billing_project=billing_project) as bc:
         for id in submitted_batch_ids:
             b = bc.get_batch(id)
-            delay = 0.1
+            tries = 1
             while True:
                 if b.status()['state'] != 'running':
                     break
                 print(f'batch {b.id} is still running')
-                delay = sync_sleep_and_backoff(delay)
+                tries += 1
+                sync_sleep_before_try(tries)
 
 
 def test_simple_map(backend):

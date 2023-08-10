@@ -150,6 +150,19 @@ class RandomSuite extends HailSuite {
     }
   }
 
+  @Test def testPMACHash() {
+    for {
+      (message, _) <- pmacTestCases
+    } {
+      val res1 = Threefry.pmac(message)
+      val res2 = new PMacHash().extend(message).hash
+      val n = message.length
+      val res3 = new PMacHash().extend(message.slice(0, n / 2)).extend(message.slice(n / 2, n)).hash
+      assert(res1 sameElements res2)
+      assert(res1 sameElements res3)
+    }
+  }
+
   @Test def testRandomEngine() {
     for {
       (message, staticID) <- pmacTestCases

@@ -106,6 +106,8 @@ spec:
         app: batch-driver
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
+      annotations:
+        kubectl.kubernetes.io/default-container: batch-driver
     spec:
       serviceAccountName: batch
 {% if deploy %}

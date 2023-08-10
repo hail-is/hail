@@ -39,6 +39,11 @@ def test_combiner_works():
         out = os.path.join(tmpdir, 'out.vds')
         hl.vds.new_combiner(temp_path=tmpdir, output_path=out, gvcf_paths=paths, intervals=parts, reference_genome='GRCh38').run()
         comb = hl.vds.read_vds(out)
+
+        # see https://github.com/hail-is/hail/issues/13367 for why these assertions are here
+        assert 'LPGT' in comb.variant_data.entry
+        assert comb.variant_data.LPGT.dtype == hl.tcall
+
         assert len(parts) == comb.variant_data.n_partitions()
         comb.variant_data._force_count_rows()
         comb.reference_data._force_count_rows()
@@ -187,3 +192,20 @@ def test_ref_block_max_len_propagates_in_combiner():
                             reference_genome='GRCh38').run()
         vds = hl.vds.read_vds(final_path)
         assert hl.vds.VariantDataset.ref_block_max_length_field in vds.reference_data.globals
+
+
+def test_custom_call_fields():
+    _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
+    paths = [resource(p) for p in _paths]
+    parts = [
+        hl.Interval(start=hl.Locus('chr20', 17821257, reference_genome='GRCh38'),
+                    end=hl.Locus('chr20', 21144633, reference_genome='GRCh38'),
+                    includes_end=True),
+    ]
+    with hl.TemporaryDirectory() as tmpdir:
+        out = os.path.join(tmpdir, 'out.vds')
+        hl.vds.new_combiner(temp_path=tmpdir, output_path=out, gvcf_paths=paths, intervals=parts, call_fields=[], reference_genome='GRCh38').run()
+        comb = hl.vds.read_vds(out)
+
+        assert 'LPGT' in comb.variant_data.entry
+        assert comb.variant_data.LPGT.dtype == hl.tstr

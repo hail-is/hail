@@ -4,18 +4,19 @@ import logging
 import os
 import ssl
 import traceback
-from typing import Optional
+from typing import Awaitable, Callable, Optional, TypeVar
 
 import aiomysql
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import pymysql
+from typing_extensions import Concatenate, ParamSpec
 
 from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.config import get_deploy_config
-from hailtop.utils import sleep_and_backoff
+from hailtop.utils import sleep_before_try
 
 log = logging.getLogger('gear.database')
 
@@ -32,7 +33,7 @@ internal_error_retry_codes = (1205,)
 def retry_transient_mysql_errors(f):
     @functools.wraps(f)
     async def wrapper(*args, **kwargs):
-        delay = 0.1
+        tries = 0
         while True:
             try:
                 return await f(*args, **kwargs)
@@ -54,17 +55,22 @@ def retry_transient_mysql_errors(f):
                     )
                 else:
                     raise
-            delay = await sleep_and_backoff(delay)
+            tries += 1
+            await sleep_before_try(tries)
 
     return wrapper
 
 
-def transaction(db, **transaction_kwargs):
-    def transformer(fun):
+T = TypeVar("T")
+P = ParamSpec('P')
+
+
+def transaction(db: 'Database', read_only: bool = False):
+    def transformer(fun: Callable[Concatenate['Transaction', P], Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         @functools.wraps(fun)
         @retry_transient_mysql_errors
-        async def wrapper(*args, **kwargs):
-            async with db.start(**transaction_kwargs) as tx:
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            async with db.start(read_only=read_only) as tx:
                 return await fun(tx, *args, **kwargs)
 
         return wrapper

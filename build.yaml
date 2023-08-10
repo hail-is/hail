@@ -176,8 +176,7 @@ steps:
           web_common \
           auth \
           batch \
-          ci \
-          memory
+          ci
     inputs:
       - from: /repo
         to: /io/repo
@@ -417,15 +416,6 @@ steps:
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
           | kubectl -n {{ default_ns.name }} apply -f -
-
-      # worker deploy config
-      cat > deploy-config.json <<EOF
-      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
-      EOF
-      kubectl -n {{ default_ns.name }} create secret generic worker-deploy-config \
-              --from-file=./deploy-config.json \
-              --save-config --dry-run=client -o yaml \
-          | kubectl -n {{ default_ns.name }} apply -f -
     serviceAccount:
       name: admin
       namespace:
@@ -560,10 +550,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /database-server-config
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: auth-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -890,34 +876,6 @@ steps:
       - merge_code
       - hail_ubuntu_image
       - jvm_entryway_jar
-  - kind: buildImage2
-    name: memory_image
-    dockerFile: /io/repo/memory/Dockerfile
-    contextPath: /io/repo
-    publishAs: memory
-    inputs:
-      - from: /repo/memory
-        to: /io/repo/memory
-      - from: /repo/hail/python/setup-hailtop.py
-        to: /io/repo/hail/python/setup-hailtop.py
-      - from: /repo/hail/python/MANIFEST.in
-        to: /io/repo/hail/python/MANIFEST.in
-      - from: /repo/hail/python/hailtop
-        to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
-      - from: /repo/gear
-        to: /io/repo/gear
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: deploy
-    name: deploy_memory_sa
-    namespace:
-      valueFrom: default_ns.name
-    config: memory/service-account.yaml
-    dependsOn:
-      - default_ns
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
@@ -982,96 +940,9 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
-  - kind: buildImage2
-    name: hail_pip_installed_python39_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python39
-    contextPath: /io/repo
-    publishAs: hail-pip-installed-python39
-    inputs:
-      - from: /repo/hail/Dockerfile.hail-pip-installed-python39
-        to: /io/repo/hail/Dockerfile.hail-pip-installed-python39
-      - from: /repo/hail/python/pinned-requirements.txt
-        to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /repo/hail/python/dev/pinned-requirements.txt
-        to: /io/repo/hail/python/dev/pinned-requirements.txt
-      - from: /repo/pylintrc
-        to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
-      - from: /repo/pyproject.toml
-        to: /io/repo/pyproject.toml
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
-    dependsOn:
-      - build_hail_jar_and_wheel
-      - hail_ubuntu_image
-      - merge_code
-  - kind: buildImage2
-    name: hail_pip_installed_python38_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python38
-    contextPath: /io/repo
-    publishAs: hail-pip-installed-python38
-    inputs:
-      - from: /repo/hail/Dockerfile.hail-pip-installed-python38
-        to: /io/repo/hail/Dockerfile.hail-pip-installed-python38
-      - from: /repo/hail/python/pinned-requirements.txt
-        to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /repo/hail/python/dev/pinned-requirements.txt
-        to: /io/repo/hail/python/dev/pinned-requirements.txt
-      - from: /repo/pylintrc
-        to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
-      - from: /repo/pyproject.toml
-        to: /io/repo/pyproject.toml
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
-    dependsOn:
-      - build_hail_jar_and_wheel
-      - hail_ubuntu_image
-      - merge_code
-  - kind: runImage
-    name: check_hail_python39
-    image:
-      valueFrom: hail_pip_installed_python39_image.image
-    script: |
-      set -x
-      SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
-
-      exit_status=0
-
-      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
-      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
-      python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
-      # working around this: https://github.com/python/mypy/issues/7087
-      ln -s $SITE_PACKAGES/hailtop hailtop
-      mypy --config-file /setup.cfg -p hailtop || exit_status=$?
-
-      exit $exit_status
-    dependsOn:
-      - hail_pip_installed_python39_image
-  - kind: runImage
-    name: check_hail_python38
-    image:
-      valueFrom: hail_pip_installed_python38_image.image
-    script: |
-      set -x
-      SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
-
-      exit_status=0
-
-      ruff check --config pyproject.toml --ignore I --ignore PL --ignore RUF $SITE_PACKAGES/hail || exit_status=$?
-      ruff check --config pyproject.toml --ignore I $SITE_PACKAGES/hailtop || exit_status=$?
-      python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
-      # working around this: https://github.com/python/mypy/issues/7087
-      ln -s $SITE_PACKAGES/hailtop hailtop
-      mypy --config-file /setup.cfg -p hailtop || exit_status=$?
-
-      exit $exit_status
-    dependsOn:
-      - hail_pip_installed_python38_image
   - kind: buildImage2
     name: notebook_image
     dockerFile: /io/repo/notebook/Dockerfile
@@ -1194,6 +1065,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
     clouds:
@@ -1258,6 +1130,7 @@ steps:
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
+      - create_test_gsa_keys
       - build_hail_test_artifacts
     clouds:
       - gcp
@@ -1384,6 +1257,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_image
+      - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
   - kind: runImage
@@ -1423,6 +1297,7 @@ steps:
               --doctest-glob='*.rst' \
               --ignore=$HAIL_LOCATION/docs/conf.py \
               --ignore=$HAIL_LOCATION/docs/doctest_write_data.py \
+              --rootdir $HAIL_LOCATION \
               $HAIL_LOCATION/docs
     inputs:
       - from: /repo/hail/python/hail/docs
@@ -1732,6 +1607,8 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+
       {% if default_ns.name == "default" %}
       hailctl auth create-user --developer {{ code.username }} {{ code.login_id }}
       {% else %}
@@ -1742,10 +1619,6 @@ steps:
         {{ code.username }} {{ code.login_id }}
       {% endif %}
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
@@ -1830,6 +1703,8 @@ steps:
       valueFrom: hail_dev_image.image
     script: |
       set -ex
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1841,10 +1716,6 @@ steps:
               --timeout=120 \
               /io/monitoring/test
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
@@ -1872,6 +1743,7 @@ steps:
     script: |
       set -ex
 
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
       COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
@@ -1914,10 +1786,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
     dependsOn:
       - default_ns
       - create_accounts
@@ -1934,6 +1802,7 @@ steps:
     script: |
       set -ex
 
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
       COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
@@ -1964,10 +1833,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
     dependsOn:
       - default_ns
       - create_accounts
@@ -2304,6 +2169,18 @@ steps:
       - name: add-feature-flags
         script: /io/sql/add-feature-flags.sql
         online: true
+      - name: add-oms-agent-flag
+        script: /io/sql/add-oms-agent-flag.sql
+        online: true
+      - name: increase-test-max-idle-time
+        script: /io/sql/increase_test_max_idle_time.py
+        online: true
+      - name: turn_off_oms_agent_test_dev
+        script: /io/sql/turn_off_oms_agent_test_dev.py
+        online: true
+      - name: add-billing-index-token
+        script: /io/sql/add-billing-index-token.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2347,68 +2224,33 @@ steps:
       - deploy_auth
       - create_certs
   - kind: runImage
-    name: create_billing_projects
-    resources:
-      memory: standard
-      cpu: '0.25'
+    name: add_developers
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
-      # create billing projects and add users to them
-      cat > create-billing-projects.py <<EOF
-      import sys
-      import json
-      import asyncio
-      import aiohttp
-      from hailtop import httpx
-      from hailtop.utils import async_to_blocking
-      from hailtop.batch_client.aioclient import BatchClient
-      async def create(billing_project, user, limit=None):
-          bc = await BatchClient.create(None)
-          try:
-              try:
-                  await bc.create_billing_project(billing_project)
-              except httpx.ClientResponseError as e:
-                  if e.status != 403 or 'already exists' not in e.body:
-                       raise
 
-              try:
-                  await bc.add_user(user, billing_project)
-              except aiohttp.ClientResponseError as e:
-                  if e.status != 403 or 'already member of billing project' not in e.body:
-                       raise
-
-              await bc.edit_billing_limit(billing_project, limit)
-          finally:
-              await bc.close()
-      async def main():
-          {% if deploy %}
-          benchmark_limit = 25
-          {% else %}
-          benchmark_limit = 5
-          {% endif %}
-
-          await asyncio.gather(*[
-              create(billing_project="benchmark", user="benchmark", limit=benchmark_limit)
-          ])
-      async_to_blocking(main())
-      EOF
-      python3 create-billing-projects.py
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      {% for user in code.get("developers", []) %}
+      {% if user['username'] != 'test-dev' %}
+      hailctl auth create-user \
+        --developer \
+        --hail-identity {{ user["hail_identity"] }} \
+        --hail-credentials-secret-name {{ user["username"] }}-gsa-key \
+        {{ user["username"] }} {{ user["login_id"] }}
+      {% endif %}
+      {% endfor %}
     secrets:
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
+    scopes:
+      - dev
+      - test
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
-      - create_deploy_config
-      - create_accounts
       - deploy_batch
   - kind: runImage
     name: upload_query_jar
@@ -2444,23 +2286,9 @@ steps:
       - build_hail_jar_and_wheel
       - merge_code
       - create_test_gsa_keys
-  - kind: deploy
-    name: deploy_memory
-    namespace:
-      valueFrom: default_ns.name
-    config: memory/deployment.yaml
-    wait:
-      - kind: Service
-        name: memory
-        for: alive
-    dependsOn:
-      - default_ns
-      - memory_image
-      - deploy_memory_sa
-      - create_certs
   - kind: runImage
-    name: test_hail_python_service_backend
-    numSplits: 32
+    name: test_hail_python_service_backend_gcp
+    numSplits: 16
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -2474,6 +2302,7 @@ steps:
       cd /io/repo/hail/python
 
       export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -2511,9 +2340,9 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
-              --timeout=300 \
+              --timeout=600 \
               test
-    timeout: 2700
+    timeout: 5400
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -2524,10 +2353,90 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: worker-deploy-config
+      - name: test-tokens
         namespace:
           valueFrom: default_ns.name
-        mountPath: /deploy-config
+        mountPath: /user-tokens
+    dependsOn:
+      - default_ns
+      - merge_code
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - hail_run_image
+      - upload_query_jar
+      - upload_test_resources_to_blob_storage
+      - build_hail_jar_and_wheel
+      - hailgenetics_vep_grch37_85_image
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_hail_python_service_backend_azure
+    numSplits: 16
+    image:
+      valueFrom: hail_run_image.image
+    resources:
+      cpu: '0.25'
+      preemptible: False
+    script: |
+      set -ex
+      tar xvf /io/wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      cd /io/repo/hail/python
+
+      export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
+      export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      {% if global.cloud == "gcp" %}
+      export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
+      {% elif global.cloud == "azure" %}
+      export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
+      export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
+      {% endif %}
+
+      export HAIL_SHUFFLE_MAX_BRANCH=4
+      export HAIL_SHUFFLE_CUTOFF=1000000
+      export HAIL_QUERY_BACKEND=batch
+      {% if global.cloud == "azure" %}
+      export HAIL_BATCH_REGIONS={{ global.azure_location }}
+      {% elif global.cloud == "gcp" %}
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
+      {% else %}
+      echo "unknown cloud {{ global.cloud }}"
+      exit 1
+      {% endif %}
+      export HAIL_BATCH_BILLING_PROJECT=test
+      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
+
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --ignore=test/hailtop/ \
+              --timeout=600 \
+              test
+    timeout: 5400
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /repo/hail/python/test
+        to: /io/repo/hail/python/test
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
       - name: test-tokens
         namespace:
           valueFrom: default_ns.name
@@ -2544,6 +2453,11 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - azure
   - kind: runImage
     name: test_hail_spark_conf_requester_pays_parsing
     image:
@@ -2616,56 +2530,6 @@ steps:
     dependsOn:
       - hail_ubuntu_image
   - kind: runImage
-    name: test_memory
-    resources:
-      memory: standard
-      cpu: '0.25'
-    image:
-      valueFrom: hail_dev_image.image
-    resources:
-      memory: 3.75Gi
-      cpu: '1'
-    script: |
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_memory/{{ token }}/
-
-      cd /io/memory
-      python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
-              --log-cli-level=INFO \
-              -s \
-              -r A \
-              -vv \
-              --instafail \
-              --durations=50 \
-              --timeout=120 \
-              test
-    timeout: 600
-    secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: test-gsa-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-gsa-key
-    inputs:
-      - from: /repo/memory
-        to: /io/memory
-    dependsOn:
-      - create_deploy_config
-      - create_accounts
-      - default_ns
-      - merge_code
-      - hail_dev_image
-      - deploy_memory
-  - kind: runImage
     name: test_batch
     numSplits: 5
     image:
@@ -2713,10 +2577,6 @@ steps:
     port: 5000
     timeout: 1500
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-tokens
         namespace:
           valueFrom: default_ns.name
@@ -2752,6 +2612,7 @@ steps:
       valueFrom: batch_image.image
     script: |
       set -ex
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ test_batch.token }}"
@@ -2765,10 +2626,6 @@ steps:
       - from: /repo/batch/test
         to: /io/test
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
@@ -2905,6 +2762,7 @@ steps:
     script: |
       set -ex
       export ORGANIZATION=hail-ci-test
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
       python3 -m pytest \
@@ -2917,10 +2775,6 @@ steps:
               --durations=50 \
               /io/ci/test
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
@@ -2953,6 +2807,7 @@ steps:
       cd /io/hailtop
       set -ex
       export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
@@ -2978,10 +2833,6 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-tokens
         namespace:
           valueFrom: default_ns.name
@@ -3009,6 +2860,7 @@ steps:
     script: |
       set -ex
 
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
@@ -3095,10 +2947,6 @@ steps:
           exit 1;
       fi
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-tokens
         namespace:
           valueFrom: default_ns.name
@@ -3121,6 +2969,7 @@ steps:
       valueFrom: hail_dev_image.image
     script: |
       set -ex
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       cd /io/hailtop/batch
       hailctl config set batch/billing_project test
@@ -3139,10 +2988,6 @@ steps:
               --timeout=120 \
               --ignore=docs/conf.py
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-tokens
         namespace:
           valueFrom: default_ns.name
@@ -3541,10 +3386,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
     dependsOn:
       - default_ns
       - create_accounts
@@ -3566,6 +3407,7 @@ steps:
       tar xzf resources.tar.gz -C src/test
 
       export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export HAIL_FS_TEST_CLOUD_RESOURCES_URI={{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/fs
@@ -3598,10 +3440,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -3624,6 +3462,8 @@ steps:
       cpu: '2'
     script: |
       set -ex
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+
       cd /io
       mkdir -p src/test
       tar xzf resources.tar.gz -C src/test
@@ -3644,10 +3484,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
     timeout: 1200
     dependsOn:
       - default_ns
@@ -3661,6 +3497,8 @@ steps:
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+
       cat >cancel_all_running_test_batches.py <<'EOF'
       from hailtop.batch_client.aioclient import BatchClient
       import asyncio
@@ -3681,10 +3519,6 @@ steps:
 
       python3 cancel_all_running_test_batches.py
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
@@ -3700,7 +3534,8 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
-      - test_hail_python_service_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
       - test_hail_services_java
       - test_batch_docs
       - test_hailctl_batch
@@ -3709,6 +3544,7 @@ steps:
     image:
       valueFrom: hail_dev_image.image
     script: |
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       python3 -m pytest \
@@ -3728,10 +3564,6 @@ steps:
         to: /io/test
     timeout: 300
     secrets:
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
@@ -3749,7 +3581,8 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
-      - test_hail_python_service_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_gcp_batch_instances
@@ -3795,7 +3628,8 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
-      - test_hail_python_service_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_azure_batch_instances
@@ -3844,4 +3678,81 @@ steps:
       - test_batch
       - test_ci
       - test_hailtop_batch
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
+  - kind: runImage
+    name: setup_dev_namespace_autoscalers
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+      cat > dev-namespace-scalers.yaml <<'EOF'
+      {% for user in code.get("developers", []) %}
+      {% if user['username'] != 'test-dev' %}
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: dev-namespace-scaledown-{{ user["username"] }}
+        namespace: {{ user["username"] }}
+      spec:
+        schedule: 0 20 * * 1,2,3,4,5"  # Weekdays at 8p
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 1
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                serviceAccountName: admin
+                containers:
+                - name: dev-namespace-scaledown-dking
+                  image: bitnami/kubectl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=0 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=0
+                restartPolicy: OnFailure
+      ---
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: dev-namespace-scaleup-{{ user["username"] }}
+        namespace: {{ user["username"] }}
+      spec:
+        schedule: "0 9 * * 1,2,3,4,5"  # Weekdays at 9a
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 0
+        failedJobsHistoryLimit: 1
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                serviceAccountName: admin
+                containers:
+                - name: dev-namespace-daytime-autoscaler
+                  image: bitnami/kubectl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=1 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=1
+                restartPolicy: OnFailure
+      ---
+      {% endif %}
+      {% endfor %}
+      EOF
+      kubectl apply -f dev-namespace-scalers.yaml
+    scopes:
+      - deploy
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+    scopes:
+      - deploy

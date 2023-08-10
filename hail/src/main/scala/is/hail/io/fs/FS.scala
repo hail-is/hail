@@ -235,7 +235,7 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
 }
 
 object FS {
-  def cloudSpecificCacheableFS(
+  def cloudSpecificFS(
     credentialsPath: String,
     flags: Option[HailFeatureFlags]
   ): FS = retryTransientErrors {
@@ -248,9 +248,9 @@ object FS {
               flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
             )
           }
-          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
+          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration)
         case Some("azure") =>
-          new AzureStorageFS(credentialsStr).asCacheable()
+          new AzureStorageFS(credentialsStr)
         case Some(cloud) =>
           throw new IllegalArgumentException(s"Bad cloud: $cloud")
         case None =>

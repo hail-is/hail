@@ -7,7 +7,7 @@ import re
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -26,6 +26,7 @@ from gear import (
     AuthClient,
     Database,
     K8sCache,
+    Transaction,
     check_csrf_token,
     json_request,
     json_response,
@@ -33,6 +34,7 @@ from gear import (
     setup_aiohttp_session,
     transaction,
 )
+from gear.auth import AIOHTTPHandler
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
@@ -71,6 +73,7 @@ from ..utils import (
 )
 from .canceller import Canceller
 from .driver import CloudDriver
+from .instance import Instance
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
 
@@ -107,7 +110,7 @@ def instance_token(request):
     return request.headers.get('X-Hail-Instance-Token') or authorization_token(request)
 
 
-def activating_instances_only(fun):
+def activating_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.StreamResponse]]) -> AIOHTTPHandler:
     @wraps(fun)
     async def wrapped(request):
         instance = instance_from_request(request)
@@ -133,14 +136,12 @@ def activating_instances_only(fun):
             log.info(f'instance {instance.name}, activation token not found in database')
             raise web.HTTPUnauthorized()
 
-        resp = await fun(request, instance)
-
-        return resp
+        return await fun(request, instance)
 
     return wrapped
 
 
-def active_instances_only(fun):
+def active_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.StreamResponse]]) -> AIOHTTPHandler:
     @wraps(fun)
     async def wrapped(request):
         instance = instance_from_request(request)
@@ -172,13 +173,13 @@ def active_instances_only(fun):
 
 
 @routes.get('/healthcheck')
-async def get_healthcheck(request):  # pylint: disable=W0613
+async def get_healthcheck(_) -> web.Response:
     return web.Response()
 
 
 @routes.get('/check_invariants')
 @auth.rest_authenticated_developers_only
-async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
+async def get_check_invariants(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     incremental_result, resource_agg_result = await asyncio.gather(
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
@@ -265,14 +266,14 @@ async def activate_instance_1(request, instance):
 # deprecated
 @routes.get('/api/v1alpha/instances/gsa_key')
 @activating_instances_only
-async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
+async def get_gsa_key(_, instance: Instance) -> web.Response:
     return await asyncio.shield(get_gsa_key_1(instance))
 
 
 # deprecated
 @routes.get('/api/v1alpha/instances/credentials')
 @activating_instances_only
-async def get_credentials(request, instance):  # pylint: disable=unused-argument
+async def get_credentials(_, instance: Instance) -> web.Response:
     return await asyncio.shield(get_credentials_1(instance))
 
 
@@ -292,7 +293,7 @@ async def deactivate_instance_1(instance):
 @routes.post('/api/v1alpha/instances/deactivate')
 @active_instances_only
 @add_metadata_to_request
-async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
+async def deactivate_instance(_, instance: Instance) -> web.Response:
     await asyncio.shield(deactivate_instance_1(instance))
     return web.Response()
 
@@ -300,14 +301,14 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 @routes.post('/instances/{instance_name}/kill')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def kill_instance(request, userdata):  # pylint: disable=unused-argument
+async def kill_instance(request: web.Request, _) -> web.HTTPFound:
     instance_name = request.match_info['instance_name']
 
     inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
     instance = inst_coll_manager.get_instance(instance_name)
 
     if instance is None:
-        return web.HTTPNotFound()
+        raise web.HTTPNotFound()
 
     session = await aiohttp_session.get_session(request)
     if instance.state == 'active':
@@ -563,28 +564,31 @@ def validate_int(session, name, value, predicate, description):
 @routes.post('/configure-feature-flags')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def configure_feature_flags(request, userdata):  # pylint: disable=unused-argument
+async def configure_feature_flags(request: web.Request, _) -> web.HTTPFound:
     app = request.app
     db: Database = app['db']
     post = await request.post()
 
     compact_billing_tables = 'compact_billing_tables' in post
+    oms_agent = 'oms_agent' in post
 
     await db.execute_update(
         '''
-UPDATE feature_flags SET compact_billing_tables = %s;
+UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
 ''',
-        (compact_billing_tables,),
+        (compact_billing_tables, oms_agent),
     )
 
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
     app['feature_flags'] = row
 
+    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
 
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
+async def pool_config_update(request: web.Request, _) -> web.HTTPFound:
     app = request.app
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -757,7 +761,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             job_queue_scheduling_window_secs=job_queue_scheduling_window_secs,
         )
 
-        current_client_pool_config = json.loads(post['_pool_config_json'])
+        current_client_pool_config = json.loads(str(post['_pool_config_json']))
         current_server_pool_config = pool.config()
 
         client_items = current_client_pool_config.items()
@@ -790,7 +794,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 @routes.post('/config-update/jpim')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
+async def job_private_config_update(request: web.Request, _) -> web.HTTPFound:
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
@@ -935,7 +939,7 @@ async def get_job_private_inst_manager(request, userdata):
 @routes.post('/freeze')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
+async def freeze_batch(request: web.Request, _) -> web.HTTPFound:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
@@ -960,7 +964,7 @@ UPDATE globals SET frozen = 1;
 @routes.post('/unfreeze')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
+async def unfreeze_batch(request: web.Request, _) -> web.HTTPFound:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
@@ -1073,7 +1077,7 @@ LOCK IN SHARE MODE;
         if len(failures) > 0:
             raise ValueError(json.dumps(failures))
 
-    await check()  # pylint: disable=no-value-for-parameter
+    await check()
 
 
 async def check_resource_aggregation(db):
@@ -1214,7 +1218,7 @@ LOCK IN SHARE MODE;
             agg_billing_project_resources,
         )
 
-    await check()  # pylint: disable=no-value-for-parameter
+    await check()
 
 
 async def _cancel_batch(app, batch_id):
@@ -1364,14 +1368,147 @@ async def monitor_system(app):
     monitor_instances(app)
 
 
-async def compact_agg_billing_project_users_table(app):
+async def compact_agg_billing_project_users_table(app, db: Database):
     if not app['feature_flags']['compact_billing_tables']:
         return
 
+    @transaction(db)
+    async def compact(tx: Transaction, target: dict):
+        original_usage = await tx.execute_and_fetchone(
+            '''
+SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM aggregated_billing_project_user_resources_v3
+WHERE billing_project = %s AND `user` = %s AND resource_id = %s
+FOR UPDATE;
+''',
+            (target['billing_project'], target['user'], target['resource_id']),
+        )
 
-async def compact_agg_billing_project_users_by_date_table(app):
+        await tx.just_execute(
+            '''
+DELETE FROM aggregated_billing_project_user_resources_v3
+WHERE billing_project = %s AND `user` = %s AND resource_id = %s;
+''',
+            (target['billing_project'], target['user'], target['resource_id']),
+        )
+
+        await tx.execute_update(
+            '''
+INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user`, resource_id, token, `usage`)
+VALUES (%s, %s, %s, %s, %s);
+''',
+            (
+                target['billing_project'],
+                target['user'],
+                target['resource_id'],
+                0,
+                original_usage['usage'],
+            ),
+        )
+
+        new_usage = await tx.execute_and_fetchone(
+            '''
+SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM aggregated_billing_project_user_resources_v3
+WHERE billing_project = %s AND `user` = %s AND resource_id = %s
+GROUP BY billing_project, `user`, resource_id;
+''',
+            (target['billing_project'], target['user'], target['resource_id']),
+        )
+
+        if new_usage['usage'] != original_usage['usage']:
+            raise ValueError(
+                f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
+            )
+
+    targets = db.execute_and_fetchall(
+        '''
+SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
+FROM aggregated_billing_project_user_resources_v3
+WHERE token != 0
+GROUP BY billing_project, `user`, resource_id
+ORDER BY n_tokens DESC
+LIMIT 10000;
+''',
+        query_name='find_agg_billing_project_user_resource_to_compact',
+    )
+
+    targets = [target async for target in targets]
+
+    for target in targets:
+        await compact(target)
+
+
+async def compact_agg_billing_project_users_by_date_table(app, db: Database):
     if not app['feature_flags']['compact_billing_tables']:
         return
+
+    @transaction(db)
+    async def compact(tx: Transaction, target: dict):
+        original_usage = await tx.execute_and_fetchone(
+            '''
+SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s
+FOR UPDATE;
+''',
+            (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
+        )
+
+        await tx.just_execute(
+            '''
+DELETE FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s;
+''',
+            (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
+        )
+
+        await tx.execute_update(
+            '''
+INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, `user`, resource_id, token, `usage`)
+VALUES (%s, %s, %s, %s, %s, %s);
+''',
+            (
+                target['billing_date'],
+                target['billing_project'],
+                target['user'],
+                target['resource_id'],
+                0,
+                original_usage['usage'],
+            ),
+        )
+
+        new_usage = await tx.execute_and_fetchone(
+            '''
+SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s
+GROUP BY billing_date, billing_project, `user`, resource_id;
+''',
+            (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
+        )
+
+        if new_usage['usage'] != original_usage['usage']:
+            raise ValueError(
+                f'problem in audit for {target}. original usage = {original_usage} but new usage is {new_usage}. aborting'
+            )
+
+    targets = db.execute_and_fetchall(
+        '''
+SELECT billing_date, billing_project, `user`, resource_id, COUNT(*) AS n_tokens
+FROM aggregated_billing_project_user_resources_by_date_v3
+WHERE token != 0
+GROUP BY billing_date, billing_project, `user`, resource_id
+ORDER BY n_tokens DESC
+LIMIT 10000;
+''',
+        query_name='find_agg_billing_project_user_resource_by_date_to_compact',
+    )
+
+    targets = [target async for target in targets]
+
+    for target in targets:
+        await compact(target)
 
 
 async def scheduling_cancelling_bump(app):
@@ -1479,8 +1616,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
-    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app))
-    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app, db))
+    task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app, db))
 
 
 async def on_cleanup(app):

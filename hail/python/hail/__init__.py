@@ -2,8 +2,8 @@ from typing import Optional
 import pkg_resources
 import sys
 
-if sys.version_info < (3, 6):
-    raise EnvironmentError('Hail requires Python 3.6 or later, found {}.{}'.format(
+if sys.version_info < (3, 9):
+    raise EnvironmentError('Hail requires Python 3.9 or later, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
 
 

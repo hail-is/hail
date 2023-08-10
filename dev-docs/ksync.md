@@ -79,7 +79,7 @@ ksync watch
 3. Create a spec in ~/.ksync/ksync.yaml using the create operation
 
 ```
-ksync create --local-read-only -l app=auth --name <NAMESPACE>-<APP> -n jigold $(pwd)/<APP>/ /usr/local/lib/python3.8/dist-packages/<APP>/
+ksync create --local-read-only -l app=auth --name <NAMESPACE>-<APP> -n jigold $(pwd)/<APP>/ /usr/local/lib/python3.9/dist-packages/<APP>/
 ```
 
 4. Use ksync get to make sure the pods are being watched

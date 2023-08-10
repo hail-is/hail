@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS `globals` (
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `feature_flags` (
-  `compact_billing_tables` BOOLEAN NOT NULL
+  `compact_billing_tables` BOOLEAN NOT NULL,
+  `oms_agent` BOOLEAN NOT NULL DEFAULT TRUE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `resources` (
@@ -423,6 +424,7 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_v3` (
   FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX aggregated_billing_project_user_resources_v3 ON `aggregated_billing_project_user_resources_v3` (`user`);
+CREATE INDEX aggregated_billing_project_user_resources_v3_token ON `aggregated_billing_project_user_resources_v3` (`token`);
 
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date_v3` (
   `billing_date` DATE NOT NULL,
@@ -436,6 +438,7 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date_v3
   FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX aggregated_billing_project_user_resources_by_date_v3_user ON `aggregated_billing_project_user_resources_by_date_v3` (`billing_date`, `user`);
+CREATE INDEX aggregated_billing_project_user_resources_by_date_v3_token ON `aggregated_billing_project_user_resources_by_date_v3` (`token`);
 
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_v3` (
   `batch_id` BIGINT NOT NULL,

@@ -52,18 +52,26 @@ object DeployConfig {
         fromConfig(JsonMethods.parse(in))
       }
     } else
-      new DeployConfig(
-        "external",
-        "default",
-        "hail.is")
+      fromConfig("external", "default", "hail.is")
   }
 
   def fromConfig(config: JValue): DeployConfig = {
     implicit val formats: Formats = DefaultFormats
-    new DeployConfig(
+    fromConfig(
       (config \ "location").extract[String],
       (config \ "default_namespace").extract[String],
       (config \ "domain").extract[Option[String]].getOrElse("hail.is"))
+  }
+
+  def fromConfig(location: String, defaultNamespace: String, domain: String): DeployConfig = {
+    new DeployConfig(
+      sys.env.getOrElse(toEnvVarName("location"), location),
+      sys.env.getOrElse(toEnvVarName("default_namespace"), defaultNamespace),
+      sys.env.getOrElse(toEnvVarName("domain"), domain))
+  }
+
+  private[this] def toEnvVarName(s: String): String = {
+    "HAIL_" + s.toUpperCase
   }
 }
 

@@ -30,10 +30,30 @@ package object services {
       s
   }
 
-  def sleepAndBackoff(delay: Double): Double = {
-    val t = delay * Random.nextDouble()
-    Thread.sleep((t * 1000).toInt)  // in ms
-    math.min(delay * 2, 60.0)
+  private[this] val LOG_2_MAX_MULTIPLIER = 30  // do not set larger than 30 due to integer overflow calculating multiplier
+  private[this] val DEFAULT_MAX_DELAY_MS = 60000
+  private[this] val DEFAULT_BASE_DELAY_MS = 1000
+
+  def delayMsForTry(
+    tries: Int,
+    baseDelayMs: Int = DEFAULT_BASE_DELAY_MS,
+    maxDelayMs: Int = DEFAULT_MAX_DELAY_MS
+  ): Int = {
+    // Based on AWS' recommendations:
+    // - https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+    // - https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java
+    val multiplier = 1 << math.min(tries, LOG_2_MAX_MULTIPLIER)
+    val ceilingForDelayMs = baseDelayMs * multiplier
+    val proposedDelayMs = ceilingForDelayMs / 2 + Random.nextInt(ceilingForDelayMs / 2 + 1)
+    return math.min(proposedDelayMs, maxDelayMs)
+  }
+
+  def sleepBeforTry(
+    tries: Int,
+    baseDelayMs: Int = DEFAULT_BASE_DELAY_MS,
+    maxDelayMs: Int = DEFAULT_MAX_DELAY_MS
+  ) = {
+    Thread.sleep(delayMsForTry(tries, baseDelayMs, maxDelayMs))
   }
 
   def isLimitedRetriesError(_e: Throwable): Boolean = {
@@ -156,26 +176,26 @@ package object services {
   }
 
   def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T = {
-    var delay = 0.1
-    var errors = 0
+    var tries = 0
     while (true) {
       try {
         return f
       } catch {
         case e: Exception =>
-          errors += 1
-          if (errors <= 5 && isLimitedRetriesError(e)) {
+          tries += 1
+          val delay = delayMsForTry(tries)
+          if (tries <= 5 && isLimitedRetriesError(e)) {
             log.warn(
               s"A limited retry error has occured. We will automatically retry " +
-                s"${5 - errors} more times. Do not be alarmed. (current delay: " +
+                s"${5 - tries} more times. Do not be alarmed. (next delay: " +
                 s"$delay). The most recent error was $e.")
           } else if (!isTransientError(e)) {
             throw e
-          } else if (errors % 10 == 0) {
-            log.warn(s"Encountered $errors transient errors, most recent one was $e.")
+          } else if (tries % 10 == 0) {
+            log.warn(s"Encountered $tries transient errors, most recent one was $e.")
           }
+          Thread.sleep(delay)
       }
-      delay = sleepAndBackoff(delay)
       reset.foreach(_())
     }
 

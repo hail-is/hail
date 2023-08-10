@@ -1,6 +1,7 @@
 import abc
 import json
 import urllib.parse
+from typing import ClassVar, List
 
 import aiohttp.web
 import google.auth.transport.requests
@@ -36,7 +37,7 @@ class Flow(abc.ABC):
 
 
 class GoogleFlow(Flow):
-    scopes = [
+    scopes: ClassVar[List[str]] = [
         'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/userinfo.email',
         'openid',

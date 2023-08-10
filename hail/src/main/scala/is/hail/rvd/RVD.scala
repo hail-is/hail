@@ -392,8 +392,9 @@ class RVD(
     require(partitioner.satisfiesAllowedOverlap(typ.key.length - 1))
 
     val localTyp = typ
+    val localSm = partitioner.sm
     val sortedRDD = crdd.toCRDDRegionValue.cmapPartitions { (consumerCtx, it) =>
-      OrderedRVIterator(localTyp, it, consumerCtx, partitioner.sm).localKeySort(newKey)
+      OrderedRVIterator(localTyp, it, consumerCtx, localSm).localKeySort(newKey)
     }.toCRDDPtr
 
     val newType = typ.copy(key = newKey)
