@@ -700,43 +700,43 @@ BEGIN
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
-  set always_run = old.always_run; # always_run is immutable
-  set cores_mcpu = old.cores_mcpu; # cores_mcpu is immutable
+  SET always_run = old.always_run; # always_run is immutable
+  SET cores_mcpu = old.cores_mcpu; # cores_mcpu is immutable
 
-  set was_marked_cancelled = old.cancelled or cur_batch_cancelled;
-  set was_cancelled        = not always_run and was_marked_cancelled;
-  set was_cancellable      = not always_run and not was_marked_cancelled;
+  SET was_marked_cancelled = old.cancelled OR cur_batch_cancelled;
+  SET was_cancelled        = NOT always_run AND was_marked_cancelled;
+  SET was_cancellable      = NOT always_run AND NOT was_marked_cancelled;
 
-  set now_marked_cancelled = new.cancelled or cur_batch_cancelled;
-  set now_cancelled        = not always_run and now_marked_cancelled;
-  set now_cancellable      = not always_run and not now_marked_cancelled;
+  SET now_marked_cancelled = new.cancelled or cur_batch_cancelled;
+  SET now_cancelled        = NOT always_run AND now_marked_cancelled;
+  SET now_cancellable      = NOT always_run AND NOT now_marked_cancelled;
 
   # NB: was_cancelled => now_cancelled b/c you cannot be uncancelled
 
-  set was_ready    = old.state = 'Ready';
-  set now_ready    = new.state = 'Ready';
-  set was_running  = old.state = 'Running';
-  set now_running  = new.state = 'Running';
-  set was_creating = old.state = 'Creating';
-  set now_creating = new.state = 'Creating';
+  SET was_ready    = old.state = 'Ready';
+  SET now_ready    = new.state = 'Ready';
+  SET was_running  = old.state = 'Running';
+  SET now_running  = new.state = 'Running';
+  SET was_creating = old.state = 'Creating';
+  SET now_creating = new.state = 'Creating';
 
-  set delta_n_ready_cancellable_jobs        = (-1 * was_ready    *  was_cancellable  )     + (now_ready    *  now_cancellable  ) ;
-  set delta_n_ready_jobs                    = (-1 * was_ready    * (not was_cancelled))    + (now_ready    * (not now_cancelled));
-  set delta_n_cancelled_ready_jobs          = (-1 * was_ready    *  was_cancelled    )     + (now_ready    *  now_cancelled    ) ;
+  SET delta_n_ready_cancellable_jobs        = (-1 * was_ready    *  was_cancellable  )     + (now_ready    *  now_cancellable  ) ;
+  SET delta_n_ready_jobs                    = (-1 * was_ready    * (NOT was_cancelled))    + (now_ready    * (NOT now_cancelled));
+  SET delta_n_cancelled_ready_jobs          = (-1 * was_ready    *  was_cancelled    )     + (now_ready    *  now_cancelled    ) ;
 
-  set delta_n_running_cancellable_jobs      = (-1 * was_running  *  was_cancellable  )     + (now_running  *  now_cancellable  ) ;
-  set delta_n_running_jobs                  = (-1 * was_running  * (not was_cancelled))    + (now_running  * (not now_cancelled));
-  set delta_n_cancelled_running_jobs        = (-1 * was_running  *  was_cancelled    )     + (now_running  *  now_cancelled    ) ;
+  SET delta_n_running_cancellable_jobs      = (-1 * was_running  *  was_cancellable  )     + (now_running  *  now_cancellable  ) ;
+  SET delta_n_running_jobs                  = (-1 * was_running  * (NOT was_cancelled))    + (now_running  * (NOT now_cancelled));
+  SET delta_n_cancelled_running_jobs        = (-1 * was_running  *  was_cancelled    )     + (now_running  *  now_cancelled    ) ;
 
-  set delta_n_creating_cancellable_jobs     = (-1 * was_creating *  was_cancellable  )     + (now_creating *  now_cancellable  ) ;
-  set delta_n_creating_jobs                 = (-1 * was_creating * (not was_cancelled))    + (now_creating * (not now_cancelled));
-  set delta_n_cancelled_creating_jobs       = (-1 * was_creating *  was_cancelled    )     + (now_creating *  now_cancelled    ) ;
+  SET delta_n_creating_cancellable_jobs     = (-1 * was_creating *  was_cancellable  )     + (now_creating *  now_cancellable  ) ;
+  SET delta_n_creating_jobs                 = (-1 * was_creating * (NOT was_cancelled))    + (now_creating * (NOT now_cancelled));
+  SET delta_n_cancelled_creating_jobs       = (-1 * was_creating *  was_cancelled    )     + (now_creating *  now_cancelled    ) ;
 
-  set delta_ready_cancellable_cores_mcpu    = delta_n_ready_cancellable_jobs * cores_mcpu;
-  set delta_ready_cores_mcpu                = delta_n_ready_jobs * cores_mcpu;
+  SET delta_ready_cancellable_cores_mcpu    = delta_n_ready_cancellable_jobs * cores_mcpu;
+  SET delta_ready_cores_mcpu                = delta_n_ready_jobs * cores_mcpu;
 
-  set delta_running_cancellable_cores_mcpu  = delta_n_running_cancellable_jobs * cores_mcpu;
-  set delta_running_cores_mcpu              = delta_n_running_jobs * cores_mcpu;
+  SET delta_running_cancellable_cores_mcpu  = delta_n_running_cancellable_jobs * cores_mcpu;
+  SET delta_running_cores_mcpu              = delta_n_running_jobs * cores_mcpu;
 
   INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token,
     n_ready_cancellable_jobs,
