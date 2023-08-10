@@ -18,7 +18,7 @@
       {% for job in jobs %}
       <tr>
         <td class="numeric-cell">
-          <a rel="noopener" href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+          <a rel="noopener" href="{{ batch_base_url }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
         </td>
         <td>{{ job['name'] }}</td>
         <td>{{ job['state'] }}</td>
