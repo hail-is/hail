@@ -19,7 +19,7 @@ from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
-from hailtop.config import (configuration_of, get_remote_tmpdir)
+from hailtop.config import (ConfigVariable, configuration_of, get_remote_tmpdir)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
@@ -206,7 +206,7 @@ class ServiceBackend(Backend):
                      token: Optional[str] = None,
                      regions: Optional[List[str]] = None,
                      gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None):
-        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
+        billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
         if billing_project is None:
             raise ValueError(
                 "No billing project.  Call 'init_batch' with the billing "
@@ -224,17 +224,17 @@ class ServiceBackend(Backend):
         batch_attributes: Dict[str, str] = dict()
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
-        jar_url = configuration_of('query', 'jar_url', jar_url, None)
+        jar_url = configuration_of(ConfigVariable.QUERY_JAR_URL, jar_url, None)
         jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
 
-        driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
-        driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
-        worker_cores = configuration_of('query', 'batch_worker_cores', worker_cores, None)
-        worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
-        name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
+        driver_cores = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_CORES, driver_cores, None)
+        driver_memory = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_MEMORY, driver_memory, None)
+        worker_cores = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, None)
+        worker_memory = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None)
+        name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
 
         if regions is None:
-            regions_from_conf = configuration_of('batch', 'regions', regions, None)
+            regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, None)
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
@@ -245,7 +245,7 @@ class ServiceBackend(Backend):
         assert len(regions) > 0, regions
 
         if disable_progress_bar is None:
-            disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, None)
+            disable_progress_bar_str = configuration_of(ConfigVariable.QUERY_DISABLE_PROGRESS_BAR, None, None)
             if disable_progress_bar_str is None:
                 disable_progress_bar = not am_i_interactive()
             else:

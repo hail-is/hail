@@ -15,7 +15,7 @@ import warnings
 from rich.progress import track
 
 from hailtop import pip_version
-from hailtop.config import configuration_of, get_deploy_config, get_remote_tmpdir
+from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_python_dill_image_for_current_python_version
@@ -474,7 +474,7 @@ class ServiceBackend(Backend[bc.Batch]):
             warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
             bucket = args[1]
 
-        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
+        billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
         if billing_project is None:
             raise ValueError(
                 'the billing_project parameter of ServiceBackend must be set '
@@ -501,7 +501,7 @@ class ServiceBackend(Backend[bc.Batch]):
         self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:
-            regions_from_conf = configuration_of('batch', 'regions', None, None)
+            regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, None, None)
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')

@@ -2,11 +2,11 @@ from typing import Optional, Union
 import sys
 import re
 
-from hailtop.config import configuration_of
+from hailtop.config import ConfigVariable, configuration_of
 
 
 def choose_backend(backend: Optional[str] = None) -> str:
-    return configuration_of('query', 'backend', backend, 'spark')
+    return configuration_of(ConfigVariable.QUERY_BACKEND, backend, 'spark')
 
 
 class HailUserError(Exception):

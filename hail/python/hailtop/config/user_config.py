@@ -38,17 +38,14 @@ VALID_SECTION_AND_OPTION_RE = re.compile('[a-z0-9_]+')
 T = TypeVar('T')
 
 
-def configuration_of(config_variable: ConfigVariable,
-                     explicit_argument: Optional[T],
-                     fallback: T,
-                     *,
-                     deprecated_envvar: Optional[str] = None) -> Union[str, T]:
+def unchecked_configuration_of(section: str,
+                               option: str,
+                               explicit_argument: Optional[T],
+                               fallback: T,
+                               *,
+                               deprecated_envvar: Optional[str] = None) -> Union[str, T]:
     if explicit_argument is not None:
         return explicit_argument
-
-    config_variable_info = config_variables()[config_variable]
-    section = config_variable_info.section
-    option = config_variable_info.option
 
     envvar = 'HAIL_' + section.upper() + '_' + option.upper()
     envval = os.environ.get(envvar, None)
@@ -71,6 +68,17 @@ def configuration_of(config_variable: ConfigVariable,
     return fallback
 
 
+def configuration_of(config_variable: ConfigVariable,
+                     explicit_argument: Optional[T],
+                     fallback: T,
+                     *,
+                     deprecated_envvar: Optional[str] = None) -> Union[str, T]:
+    config_variable_info = config_variables()[config_variable]
+    section = config_variable_info.section
+    option = config_variable_info.option
+    return unchecked_configuration_of(section, option, explicit_argument, fallback, deprecated_envvar=deprecated_envvar)
+
+
 def get_remote_tmpdir(caller_name: str,
                       *,
                       bucket: Optional[str] = None,
@@ -89,7 +97,7 @@ def get_remote_tmpdir(caller_name: str,
         raise ValueError(f'Cannot specify both \'remote_tmpdir\' and \'bucket\' in {caller_name}(...). Specify \'remote_tmpdir\' as a keyword argument instead.')
 
     if bucket is None and remote_tmpdir is None:
-        remote_tmpdir = configuration_of('batch', 'remote_tmpdir', None, None)
+        remote_tmpdir = configuration_of(ConfigVariable.BATCH_REMOTE_TMPDIR, None, None)
 
     if remote_tmpdir is None:
         if bucket is None:

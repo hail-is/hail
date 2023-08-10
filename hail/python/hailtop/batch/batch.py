@@ -10,7 +10,7 @@ from hailtop.aiotools import AsyncFS
 from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch_client.client as _bc
-from hailtop.config import configuration_of
+from hailtop.config import ConfigVariable, configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -167,7 +167,7 @@ class Batch:
         if backend:
             self._backend = backend
         else:
-            backend_config = configuration_of('batch', 'backend', None, 'local')
+            backend_config = configuration_of(ConfigVariable.BATCH_BACKEND, None, 'local')
             if backend_config == 'service':
                 self._backend = _backend.ServiceBackend()
             else:
