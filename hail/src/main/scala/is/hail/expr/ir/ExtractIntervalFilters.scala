@@ -205,6 +205,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
     object BoolValue {
       def top: BoolValue = BoolValue(Array(Interval(Row(), Row(), true, true)))
+      def allTrue: BoolValue = BoolValue(FastIndexedSeq(Interval(Row(), Row(), true, true)))
+      def allFalse: BoolValue = BoolValue(FastIndexedSeq())
     }
 
     case class BoolValue(trueBound: IndexedSeq[Interval]) extends Value
@@ -300,7 +302,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       rowName,
       Lattice(StructValue(
         Map(keyType.fieldNames.zipWithIndex.map(t => t._1 -> Lattice(KeyField(t._2))): _*))))
-    val BoolValue(bool) = _analyze(x, env)
+    val bool = _analyze(x, env).asBool
     if (bool.trueBound.length == 1 && bool.trueBound(0) == Interval(Row(), Row(), true, true)) None
     else Some(bool.trueBound)
   }
