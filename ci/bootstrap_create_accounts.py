@@ -1,4 +1,4 @@
-from hailtop.hail_logging import configure_logging  # noqa: I001
+from hailtop.hail_logging import configure_logging
 
 configure_logging()
 
