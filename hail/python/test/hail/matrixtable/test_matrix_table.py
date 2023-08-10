@@ -215,9 +215,9 @@ class Tests(unittest.TestCase):
         mt = hl.utils.range_matrix_table(3, 3)
         mt = mt.choose_cols([2, 1, 0])
         mt = mt.checkpoint(path)
-        assert(mt.aggregate_cols(hl.agg.collect(mt.col_idx)) == [0, 1, 2])
+        assert mt.aggregate_cols(hl.agg.collect(mt.col_idx)) == [0, 1, 2]
         mt = mt.key_cols_by()
-        assert(mt.aggregate_cols(hl.agg.collect(mt.col_idx)) == [2, 1, 0])
+        assert mt.aggregate_cols(hl.agg.collect(mt.col_idx)) == [2, 1, 0]
 
     def test_aggregate_entries(self):
         mt = self.get_mt()
