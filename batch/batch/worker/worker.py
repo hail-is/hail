@@ -1026,11 +1026,12 @@ class Container:
     async def _setup_network_namespace(self):
         assert network_allocator
         assert port_allocator
-        if self.network == 'private':
-            self.netns = await network_allocator.allocate_private()
-        else:
-            assert self.network is None or self.network == 'public'
-            self.netns = await network_allocator.allocate_public()
+        async with async_timeout.timeout(10):
+            if self.network == 'private':
+                self.netns = await network_allocator.allocate_private()
+            else:
+                assert self.network is None or self.network == 'public'
+                self.netns = await network_allocator.allocate_public()
 
         if self.port is not None:
             self.host_port = await port_allocator.allocate()
