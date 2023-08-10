@@ -3751,5 +3751,6 @@ steps:
         valueFrom: default_ns.name
     dependsOn:
       - ci_utils_image
+      - default_ns
     scopes:
       - deploy
