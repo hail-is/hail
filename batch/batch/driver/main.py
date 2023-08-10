@@ -1069,6 +1069,14 @@ WHERE actual_n_ready_jobs != expected_n_ready_jobs
    OR actual_n_cancelled_ready_jobs != expected_n_cancelled_ready_jobs
    OR actual_n_cancelled_running_jobs != expected_n_cancelled_running_jobs
    OR actual_n_cancelled_creating_jobs != expected_n_cancelled_creating_jobs
+   OR expected_n_ready_jobs != 0
+   OR expected_ready_cores_mcpu != 0
+   OR expected_n_running_jobs != 0
+   OR expected_running_cores_mcpu != 0
+   OR expected_n_creating_jobs != 0
+   OR expected_n_cancelled_ready_jobs != 0
+   OR expected_n_cancelled_running_jobs != 0
+   OR expected_n_cancelled_creating_jobs != 0
 LOCK IN SHARE MODE;
 '''
         )
