@@ -3748,7 +3748,7 @@ steps:
     scopes:
       - deploy
     serviceAccount:
-      name: admin
+      name: ci-admin
       namespace:
         valueFrom: default_ns.name
     dependsOn:
