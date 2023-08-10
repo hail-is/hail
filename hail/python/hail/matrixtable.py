@@ -2225,8 +2225,11 @@ class MatrixTable(ExprContainer):
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
 
         cols_field = Env.get_uid()
-        cols = base.localize_entries(columns_array_field_name=cols_field).index_globals()[cols_field]
-        agg_ir = ir.StreamAgg(ir.ToStream(cols._ir), 'sa', expr._ir)
+        globals = base.localize_entries(columns_array_field_name=cols_field).index_globals()
+        agg_ir = ir.Let(
+            'global',
+            globals.drop(cols_field)._ir,
+            ir.StreamAgg(ir.ToStream(globals[cols_field]._ir), 'sa', expr._ir))
 
         if _localize:
             return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
