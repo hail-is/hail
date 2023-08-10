@@ -2223,14 +2223,15 @@ class MatrixTable(ExprContainer):
         """
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
-        cols_table = ir.MatrixColsTable(base._mir)
-        subst_query = ir.subst(expr._ir, {}, {'sa': ir.Ref('row', cols_table.typ.row_type)})
 
-        agg_ir = ir.TableAggregate(cols_table, subst_query)
+        cols_field = Env.get_uid()
+        cols = base.localize_entries(columns_array_field_name=cols_field).index_globals()[cols_field]
+        agg_ir = ir.StreamAgg(ir.ToStream(cols._ir), 'sa', expr._ir)
+
         if _localize:
             return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
-            return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
+            return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(expr=expr_any, _localize=bool)
     def aggregate_entries(self, expr, _localize=True):
