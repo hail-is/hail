@@ -8,6 +8,8 @@ from rich import print
 import typer
 from typer import Argument as Arg
 
+from hailtop.config.variables import ConfigVariable, config_variables
+
 
 app = typer.Typer(
     name='config',
@@ -42,15 +44,13 @@ A parameter with more than one slash is invalid, for example:
 
 
 def complete_config_variable(incomplete: str):
-    from hailtop.config import config_variables  # pylint: disable=import-outside-toplevel
-
     for var, var_info in config_variables.items():
         if var.value.startswith(incomplete):
             yield (var.value, var_info.help_msg)
 
 
 @app.command()
-def set(parameter: Ann[str, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)], value: str):
+def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)], value: str):
     '''Set a Hail configuration parameter.'''
     from hailtop.config import config_variables, get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
 
