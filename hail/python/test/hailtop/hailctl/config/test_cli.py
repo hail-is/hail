@@ -37,7 +37,7 @@ def test_config_list_empty_config(runner: CliRunner):
         ('query/disable_progress_bar', '1'),
     ],
 )
-def test_config_set(name: str, value: str, runner: CliRunner):
+def test_config_set_get_list_unset(name: str, value: str, runner: CliRunner):
     runner.invoke(cli.app, ['set', name, value], catch_exceptions=False)
 
     res = runner.invoke(cli.app, 'list', catch_exceptions=False)
@@ -49,6 +49,13 @@ def test_config_set(name: str, value: str, runner: CliRunner):
     res = runner.invoke(cli.app, ['get', name], catch_exceptions=False)
     assert res.exit_code == 0
     assert res.stdout.strip() == value
+
+    res = runner.invoke(cli.app, ['unset', name], catch_exceptions=False)
+    assert res.exit_code == 0
+
+    res = runner.invoke(cli.app, 'list', catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == ''
 
 
 # backwards compatibility
@@ -71,6 +78,14 @@ def test_config_get_unknown_names(bc_runner: CliRunner):
 def test_config_set_unknown_name(name: str, value: str, runner: CliRunner):
     res = runner.invoke(cli.app, ['set', name, value], catch_exceptions=False)
     assert res.exit_code == 2
+
+
+def test_config_unset_unknown_name(runner: CliRunner):
+    res = runner.invoke(cli.app, ['unset', 'foo'], catch_exceptions=False)
+    assert res.exit_code == 1
+
+    res = runner.invoke(cli.app, ['unset', 'foo/bar'], catch_exceptions=False)
+    assert res.exit_code == 1
 
 
 @pytest.mark.parametrize(
