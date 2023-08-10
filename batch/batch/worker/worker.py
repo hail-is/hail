@@ -1026,7 +1026,7 @@ class Container:
     async def _setup_network_namespace(self):
         assert network_allocator
         assert port_allocator
-        async with async_timeout.timeout(10):
+        async with async_timeout.timeout(60):
             if self.network == 'private':
                 self.netns = await network_allocator.allocate_private()
             else:
