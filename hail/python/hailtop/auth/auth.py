@@ -89,10 +89,10 @@ def hail_credentials(
     tokens = get_tokens(tokens_file)
     deploy_config = get_deploy_config()
     ns = namespace or deploy_config.default_namespace()
-    return HailCredentials(tokens, get_scoped_cloud_credentials(), ns, authorize_target=authorize_target)
+    return HailCredentials(tokens, get_cloud_credentials_scoped_for_hail(), ns, authorize_target=authorize_target)
 
 
-def get_scoped_cloud_credentials() -> Optional[CloudCredentials]:
+def get_cloud_credentials_scoped_for_hail() -> Optional[CloudCredentials]:
     scopes: Optional[List[str]]
 
     spec = load_identity_spec()

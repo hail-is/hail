@@ -1,7 +1,6 @@
 import abc
 import base64
 from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 import json
 import logging
@@ -122,7 +121,8 @@ class GoogleFlow(Flow):
             email = userinfo['email']
             if email.endswith('iam.gserviceaccount.com'):
                 return userinfo['sub']
-            # We don't currently track user's unique GCP IAM ID (sub) in the database, just their email.
+            # We don't currently track user's unique GCP IAM ID (sub) in the database, just their email,
+            # but we should eventually use the sub as that is guaranteed to be unique to the user.
             return email
         except httpx.ClientResponseError as e:
             if e.status in (400, 401):
@@ -189,9 +189,9 @@ class AzureFlow(Flow):
                 resp = await session.get_read_json('https://login.microsoftonline.com/common/discovery/keys')
                 AzureFlow._aad_keys = resp['keys']
 
-            jwk = [key for key in AzureFlow._aad_keys if key['kid'] == kid][0]
+            jwk = next(key for key in AzureFlow._aad_keys if key['kid'] == kid)
             der_cert = base64.b64decode(jwk['x5c'][0])
-            cert = x509.load_der_x509_certificate(der_cert, default_backend())
+            cert = x509.load_der_x509_certificate(der_cert)
             pem_key = cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo).decode()
 
             decoded = jwt.decode(access_token, pem_key, algorithms=['RS256'], audience=audience)

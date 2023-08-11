@@ -141,8 +141,7 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
 # https://developers.google.com/identity/protocols/oauth2/service-account
 # studying `gcloud --log-http print-access-token` was also useful
 class GoogleServiceAccountCredentials(GoogleCredentials):
-
-    def __init__(self, key, scopes: Optional[List[str]], **kwargs):
+    def __init__(self, key, **kwargs):
         super().__init__(**kwargs)
         self.key = key
 

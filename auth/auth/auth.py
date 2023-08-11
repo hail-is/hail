@@ -761,7 +761,7 @@ async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
     raise web.HTTPUnauthorized()
 
 
-async def get_userinfo_from_login_id_or_hail_identity_id(request, login_id):
+async def get_userinfo_from_login_id_or_hail_identity_id(request: web.Request, login_id: str) -> UserData:
     db = request.app['db']
 
     users = [
@@ -782,7 +782,7 @@ WHERE (users.login_id = %s OR users.hail_identity_uid = %s) AND users.state = 'a
     return users[0]
 
 
-async def get_userinfo_from_hail_session_id(request, session_id):
+async def get_userinfo_from_hail_session_id(request: web.Request, session_id: str) -> Optional[UserData]:
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
         return None
@@ -846,11 +846,11 @@ async def on_startup(app):
     app['client_session'] = httpx.client_session()
 
     credentials_file = '/auth-oauth2-client-secret/client_secret.json'
-    if CLOUD == 'azure':
-        app['flow_client'] = AzureFlow(credentials_file)
-    else:
-        assert CLOUD == 'gcp'
+    if CLOUD == 'gcp':
         app['flow_client'] = GoogleFlow(credentials_file)
+    else:
+        assert CLOUD == 'azure'
+        app['flow_client'] = AzureFlow(credentials_file)
 
     with open('/auth-oauth2-client-secret/hailctl_client_secret.json', 'r', encoding='utf-8') as f:
         app['hailctl_client_config'] = json.loads(f.read())

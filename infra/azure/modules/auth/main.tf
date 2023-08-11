@@ -72,9 +72,9 @@ resource "azuread_application" "hailctl_oauth2" {
 
   api {
     oauth2_permission_scope {
-      admin_consent_description  = "Allow the hail python library to access the Hail Batch service on behalf of the signed-in user."
+      admin_consent_description  = "Allow the Hail library to access the Hail Batch service on behalf of the signed-in user."
       admin_consent_display_name = "hailctl"
-      user_consent_description   = "Allow the hail python library to access the Hail Batch service on your behalf."
+      user_consent_description   = "Allow the Hail library to access the Hail Batch service on your behalf."
       user_consent_display_name  = "hailctl"
       enabled                    = true
       id                         = random_uuid.hailctl_oauth2_scope_id.result
