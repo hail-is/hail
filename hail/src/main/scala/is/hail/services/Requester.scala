@@ -33,9 +33,6 @@ abstract class CloudCredentials {
 }
 
 class GoogleCloudCredentials(gsaKeyPath: String) extends CloudCredentials {
-  private[this] val scopes = Array(
-  )
-
   private[this] val credentials = using(new FileInputStream(gsaKeyPath)) { is =>
     ServiceAccountCredentials
       .fromStream(is)
