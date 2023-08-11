@@ -2,6 +2,7 @@ import pytest
 
 from typer.testing import CliRunner
 
+from hailtop.config.variables import ConfigVariable, config_variables
 from hailtop.hailctl.config import cli
 
 
@@ -109,3 +110,8 @@ def test_config_unset_unknown_name(runner: CliRunner):
 def test_config_set_bad_value(name: str, value: str, runner: CliRunner):
     res = runner.invoke(cli.app, ['set', name, value], catch_exceptions=False)
     assert res.exit_code == 1
+
+
+def test_all_config_variables_in_map():
+    for variable in ConfigVariable:
+        assert variable in config_variables()
