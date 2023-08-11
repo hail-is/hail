@@ -2229,6 +2229,8 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       {% for user in code.get("developers", []) %}
       {% if user['username'] != 'test-dev' %}
       hailctl auth create-user \
@@ -2249,68 +2251,6 @@ steps:
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
-      - deploy_batch
-  - kind: runImage
-    name: create_billing_projects
-    resources:
-      memory: standard
-      cpu: '0.25'
-    image:
-      valueFrom: hailgenetics_hailtop_image.image
-    script: |
-      set -ex
-      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-
-      # create billing projects and add users to them
-      cat > create-billing-projects.py <<EOF
-      import sys
-      import json
-      import asyncio
-      import aiohttp
-      from hailtop import httpx
-      from hailtop.utils import async_to_blocking
-      from hailtop.batch_client.aioclient import BatchClient
-      async def create(billing_project, user, limit=None):
-          bc = await BatchClient.create(None)
-          try:
-              try:
-                  await bc.create_billing_project(billing_project)
-              except httpx.ClientResponseError as e:
-                  if e.status != 403 or 'already exists' not in e.body:
-                       raise
-
-              try:
-                  await bc.add_user(user, billing_project)
-              except aiohttp.ClientResponseError as e:
-                  if e.status != 403 or 'already member of billing project' not in e.body:
-                       raise
-
-              await bc.edit_billing_limit(billing_project, limit)
-          finally:
-              await bc.close()
-      async def main():
-          {% if deploy %}
-          benchmark_limit = 25
-          {% else %}
-          benchmark_limit = 5
-          {% endif %}
-
-          await asyncio.gather(*[
-              create(billing_project="benchmark", user="benchmark", limit=benchmark_limit)
-          ])
-      async_to_blocking(main())
-      EOF
-      python3 create-billing-projects.py
-    secrets:
-      - name: test-dev-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-    dependsOn:
-      - default_ns
-      - hailgenetics_hailtop_image
-      - create_deploy_config
-      - create_accounts
       - deploy_batch
   - kind: runImage
     name: upload_query_jar
@@ -3771,3 +3711,78 @@ steps:
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
+  - kind: runImage
+    name: setup_dev_namespace_autoscalers
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+      cat > dev-namespace-scalers.yaml <<'EOF'
+      {% for user in code.get("developers", []) %}
+      {% if user['username'] != 'test-dev' %}
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: dev-namespace-scaledown-{{ user["username"] }}
+        namespace: {{ user["username"] }}
+      spec:
+        schedule: 0 20 * * 1,2,3,4,5"  # Weekdays at 8p
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 1
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                serviceAccountName: admin
+                containers:
+                - name: dev-namespace-scaledown-dking
+                  image: bitnami/kubectl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=0 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=0
+                restartPolicy: OnFailure
+      ---
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: dev-namespace-scaleup-{{ user["username"] }}
+        namespace: {{ user["username"] }}
+      spec:
+        schedule: "0 9 * * 1,2,3,4,5"  # Weekdays at 9a
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 0
+        failedJobsHistoryLimit: 1
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                serviceAccountName: admin
+                containers:
+                - name: dev-namespace-daytime-autoscaler
+                  image: bitnami/kubectl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=1 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=1
+                restartPolicy: OnFailure
+      ---
+      {% endif %}
+      {% endfor %}
+      EOF
+      kubectl apply -f dev-namespace-scalers.yaml
+    scopes:
+      - deploy
+    serviceAccount:
+      name: ci-admin
+      namespace:
+        valueFrom: default_ns.name
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+    scopes:
+      - deploy

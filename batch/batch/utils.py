@@ -166,8 +166,8 @@ LEFT JOIN LATERAL (
   SELECT SUM(`usage` * rate) as cost
   FROM (
     SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-    FROM aggregated_billing_project_user_resources_v2
-    WHERE billing_projects.name = aggregated_billing_project_user_resources_v2.billing_project
+    FROM aggregated_billing_project_user_resources_v3
+    WHERE billing_projects.name = aggregated_billing_project_user_resources_v3.billing_project
     GROUP BY billing_project, resource_id
     LOCK IN SHARE MODE
   ) AS usage_t

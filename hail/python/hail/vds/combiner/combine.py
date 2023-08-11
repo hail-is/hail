@@ -50,7 +50,7 @@ def make_variants_matrix_table(mt: MatrixTable,
                              'LPGT', 'PGT'}
 
             if 'GT' not in e:
-                raise hl.utils.FatalError("the Hail GVCF combiner expects GVCFs to have a 'GT' field in FORMAT.")
+                raise hl.utils.FatalError("the Hail VDS combiner expects input GVCFs to have a 'GT' field in FORMAT.")
 
             handled_fields['LA'] = hl.range(0, alleles_len - hl.if_else(has_non_ref, 1, 0))
             handled_fields['LGT'] = get_lgt(e, alleles_len, has_non_ref, row)

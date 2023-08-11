@@ -1162,7 +1162,7 @@ LOCK IN SHARE MODE;
 SELECT billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_billing_project_user_resources_v2
+  FROM aggregated_billing_project_user_resources_v3
   GROUP BY billing_project, resource_id) AS t
 LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY t.billing_project

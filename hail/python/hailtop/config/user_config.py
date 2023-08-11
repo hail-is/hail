@@ -27,8 +27,7 @@ def get_user_identity_config_path() -> Path:
     return Path(get_hail_config_path(), 'identity.json')
 
 
-def _load_user_config():
-    global user_config
+def get_user_config() -> configparser.ConfigParser:
     user_config = configparser.ConfigParser()
     config_file = get_user_config_path()
     # in older versions, the config file was accidentally named
@@ -38,12 +37,6 @@ def _load_user_config():
     if old_path.exists() and not config_file.exists():
         old_path.rename(config_file)
     user_config.read(config_file)
-
-
-def get_user_config() -> configparser.ConfigParser:
-    if user_config is None:
-        _load_user_config()
-        assert user_config is not None
     return user_config
 
 
