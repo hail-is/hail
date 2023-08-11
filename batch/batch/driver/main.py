@@ -465,7 +465,7 @@ FROM user_inst_coll_resources;
         'instances': inst_coll_manager.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
         'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
-        'live_free_cores_mcpu': inst_coll_manager.global_current_version_live_free_cores_mcpu,
+        'live_schedulable_free_cores_mcpu': inst_coll_manager.global_current_version_live_schedulable_free_cores_mcpu,
         'frozen': app['frozen'],
         'feature_flags': app['feature_flags'],
     }
