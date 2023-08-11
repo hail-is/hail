@@ -73,9 +73,11 @@ def configuration_of(config_variable: ConfigVariable,
                      fallback: T,
                      *,
                      deprecated_envvar: Optional[str] = None) -> Union[str, T]:
-    config_variable_info = config_variables()[config_variable]
-    section = config_variable_info.section
-    option = config_variable_info.option
+    if '/' in config_variable.name:
+        section, option = config_variable.name.split('/')
+    else:
+        section = 'global'
+        option = config_variable.name
     return unchecked_configuration_of(section, option, explicit_argument, fallback, deprecated_envvar=deprecated_envvar)
 
 
