@@ -1,6 +1,5 @@
 import os
 import sys
-import warnings
 
 from typing import Optional, Tuple, Annotated as Ann
 from rich import print
