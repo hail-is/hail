@@ -30,9 +30,13 @@ operational_error_retry_codes = (1040, 1213, 2003, 2013)
 internal_error_retry_codes = (1205,)
 
 
-def retry_transient_mysql_errors(f):
+T = TypeVar("T")
+P = ParamSpec('P')
+
+
+def retry_transient_mysql_errors(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
     @functools.wraps(f)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         tries = 0
         while True:
             try:
@@ -59,10 +63,6 @@ def retry_transient_mysql_errors(f):
             await sleep_before_try(tries)
 
     return wrapper
-
-
-T = TypeVar("T")
-P = ParamSpec('P')
 
 
 def transaction(db: 'Database', read_only: bool = False):
@@ -128,7 +128,9 @@ def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLC
 
 
 @retry_transient_mysql_errors
-async def create_database_pool(config_file: Optional[str] = None, autocommit: bool = True, maxsize: int = 10):
+async def create_database_pool(
+    config_file: Optional[str] = None, autocommit: bool = True, maxsize: int = 10
+) -> aiomysql.Pool:
     sql_config = get_sql_config(config_file)
     if get_deploy_config().location() != 'k8s' and sql_config.host.endswith('svc.cluster.local'):
         sql_config = await resolve_test_db_endpoint(sql_config)
