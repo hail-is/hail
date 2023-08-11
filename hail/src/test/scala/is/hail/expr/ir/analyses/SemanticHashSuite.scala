@@ -142,19 +142,20 @@ class SemanticHashSuite extends HailSuite {
       }
     )
 
-  def isHandednessSemanticallyEquivalent: Array[Array[Any]] =
+  def isTreeStructureSemanticallyEquivalent: Array[Array[Any]] =
     Array(
       Array(
         MakeArray(
-          MakeArray(MakeArray(I32(0))),
+          MakeArray(I32(0)),
           MakeArray(I32(0))
         ),
         MakeArray(
-          MakeArray(I32(0)),
-          MakeArray(MakeArray(I32(0)))
+          MakeArray(
+            MakeArray(I32(0), I32(0))
+          )
         ),
         false,
-        "Trace contributes to semantics"
+        "Tree structure contributes to semantics"
       )
     )
 
@@ -163,7 +164,7 @@ class SemanticHashSuite extends HailSuite {
       isTriviallySemanticallyEquivalent,
       isLetSemanticallyEquivalent,
       isBaseStructSemanticallyEquivalent,
-      isHandednessSemanticallyEquivalent
+      isTreeStructureSemanticallyEquivalent
     )
 
   def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {
