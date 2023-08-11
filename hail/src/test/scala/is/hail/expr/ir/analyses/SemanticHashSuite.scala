@@ -39,16 +39,29 @@ class SemanticHashSuite extends HailSuite {
     Array((Let, Ref), (RelationalLet, RelationalRef)).flatMap { case (let, ref) =>
       Array(
         Array(
-          let("A", Void(), ref("A", TVoid)),
-          let("B", Void(), ref("B", TVoid)),
+          let("x", Void(), ref("x", TVoid)),
+          let("y", Void(), ref("y", TVoid)),
           true,
           "names used in let-bindings do not change semantics"
         ),
+
         Array(
-          let("A", I32(0), ref("A", TInt32)),
-          let("B", Void(), ref("B", TVoid)),
+          let("x", Void(), let("y", Void(), ref("x", TVoid))),
+          let("y", Void(), let("x", Void(), ref("y", TVoid))),
+          true,
+          "names of let-bindings do not change semantics"
+        ),
+        Array(
+          let("a", I32(0), ref("a", TInt32)),
+          let("a", Void(), ref("a", TVoid)),
           false,
           "different IRs"
+        ),
+        Array(
+          let("x", Void(), let("y", Void(), ref("x", TVoid))),
+          let("y", Void(), let("x", Void(), ref("x", TVoid))),
+          false,
+          "Different binding being referenced"
         ),
         /* `SemanticHash` does not perform or recognise opportunities for simplification.
          * The following examples demonstrate some of its limitations as a consequence.
