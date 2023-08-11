@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import signal
+import warnings
 from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Any, Awaitable, Callable, Dict, Set, Tuple
@@ -88,6 +89,12 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 auth = AuthClient()
+
+warnings.filterwarnings(
+    'ignore',
+    ".*Warning: Field or reference 'batch.billing_projects.name' of SELECT #. was resolved in SELECT #.",
+    module='aiomysql.*',
+)
 
 
 def instance_name_from_request(request):
