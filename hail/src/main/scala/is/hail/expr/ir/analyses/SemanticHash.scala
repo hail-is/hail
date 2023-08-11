@@ -398,6 +398,11 @@ case object SemanticHash extends Logging {
       fromInt(clz.hashCode())
   }
 
+  object CodeGenSupport {
+    def lift(hash: SemanticHash.Type): Option[SemanticHash.Type] =
+      Some(hash)
+  }
+
 }
 
 case object EncodeTypename {

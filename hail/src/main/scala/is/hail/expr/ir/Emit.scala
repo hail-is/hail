@@ -2514,7 +2514,12 @@ class Emit[C](
           emitI(dynamicID).consume(cb,
             ctx.executeContext.irMetadata.nextHash.foreach { hash =>
               cb.assign(semhash,
-                Code.newInstance[Some[SemanticHash.Type], SemanticHash.Type](hash)
+                Code.invokeScalaObject[Option[SemanticHash.Type]](
+                  SemanticHash.CodeGenSupport.getClass,
+                  "lift",
+                  Array(classOf[SemanticHash.Type]),
+                  Array(hash)
+                )
               )
             },
             { dynamicID =>
@@ -2534,7 +2539,12 @@ class Emit[C](
                   )
 
                 cb.assign(semhash,
-                  Code.newInstance[Some[SemanticHash.Type], SemanticHash.Type](combined)
+                  Code.invokeScalaObject[Option[SemanticHash.Type]](
+                    SemanticHash.CodeGenSupport.getClass,
+                    "lift",
+                    Array(classOf[SemanticHash.Type]),
+                    Array(combined)
+                  )
                 )
               }
             }
