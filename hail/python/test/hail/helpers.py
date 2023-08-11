@@ -4,7 +4,7 @@ import unittest
 import pytest
 from decorator import decorator
 
-from hail.utils.java import Env, choose_backend
+from hail.utils.java import choose_backend
 import hail as hl
 
 

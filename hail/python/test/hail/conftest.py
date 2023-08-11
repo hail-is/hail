@@ -71,6 +71,9 @@ def set_query_name(init_hail, request):
         backend.batch_attributes = dict(name=request.node.name)
         yield
         backend.batch_attributes = dict()
+        for rg in backend._references:
+            backend.remove_reference(rg)
+        backend.initialize_references()
         if backend._batch:
             report: Dict[str, CollectReport] = request.node.stash[test_results_key]
             if any(r.failed for r in report.values()):
