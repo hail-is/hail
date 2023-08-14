@@ -5,7 +5,7 @@ import re
 
 _config_variables = None
 
-ConfigVariableInfo = namedtuple('ConfigVariable', ['help_msg', 'validation'])
+ConfigVariableInfo = namedtuple('ConfigVariableInfo', ['help_msg', 'validation'])
 
 
 class ConfigVariable(str, Enum):

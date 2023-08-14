@@ -82,11 +82,12 @@ def test_config_set_unknown_name(name: str, value: str, runner: CliRunner):
 
 
 def test_config_unset_unknown_name(runner: CliRunner):
+    # backwards compatibility
     res = runner.invoke(cli.app, ['unset', 'foo'], catch_exceptions=False)
-    assert res.exit_code == 1
+    assert res.exit_code == 0
 
     res = runner.invoke(cli.app, ['unset', 'foo/bar'], catch_exceptions=False)
-    assert res.exit_code == 1
+    assert res.exit_code == 0
 
 
 @pytest.mark.parametrize(
