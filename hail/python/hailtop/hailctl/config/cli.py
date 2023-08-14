@@ -57,7 +57,7 @@ def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set",
         print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
         sys.exit(1)
 
-    section, key, path = get_section_key_path(parameter.value)
+    section, key, _ = get_section_key_path(parameter.value)
 
     config_variable_info = config_variables()[parameter]
     validation_func, error_msg  = config_variable_info.validation
@@ -83,7 +83,7 @@ def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set",
 
 
 def get_config_variable(incomplete: str):
-    from hailtop.config import config_variables, get_user_config  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel
 
     config = get_user_config()
 

@@ -10,11 +10,11 @@ ConfigVariableInfo = namedtuple('ConfigVariableInfo', ['help_msg', 'validation']
 
 class ConfigVariable(str, Enum):
     DOMAIN = 'domain'
-    GCS_REQUESTER_PAYS_PROJECT = 'gcs_requester_pays/project',
-    GCS_REQUESTER_PAYS_BUCKETS = 'gcs_requester_pays/buckets',
+    GCS_REQUESTER_PAYS_PROJECT = 'gcs_requester_pays/project'
+    GCS_REQUESTER_PAYS_BUCKETS = 'gcs_requester_pays/buckets'
     BATCH_BUCKET = 'batch/bucket'
     BATCH_REMOTE_TMPDIR = 'batch/remote_tmpdir'
-    BATCH_REGIONS = 'batch/regions',
+    BATCH_REGIONS = 'batch/regions'
     BATCH_BILLING_PROJECT = 'batch/billing_project'
     BATCH_BACKEND = 'batch/backend'
     QUERY_BACKEND = 'query/backend'
