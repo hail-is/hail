@@ -71,7 +71,8 @@ def set_query_name(init_hail, request):
         backend.batch_attributes = dict(name=request.node.name)
         yield
         backend.batch_attributes = dict()
-        for rg in backend._references:
+        references = list(backend._references.keys())
+        for rg in references:
             backend.remove_reference(rg)
         backend.initialize_references()
         if backend._batch:
