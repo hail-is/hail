@@ -5,7 +5,7 @@ import configparser
 import warnings
 from pathlib import Path
 
-from .variables import ConfigVariable, config_variables
+from .variables import ConfigVariable
 
 user_config = None
 
