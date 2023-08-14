@@ -8,6 +8,7 @@ from typing import Optional, List, Annotated as Ann
 
 from . import list_batches
 from . import billing
+from . import initialize
 from . import submit as _submit
 from .batch_cli_utils import (
     get_batch_if_exists,
@@ -170,3 +171,11 @@ def submit(
     $ hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
     '''
     asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
+
+
+@app.command('init', help='Initialize a Hail Batch environment.')
+def initialize(
+        domain: Ann[str, Opt('--domain', '-d', help='Domain to login to.')] = None,
+        verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
+):
+    asyncio.get_event_loop().run_until_complete(initialize.async_basic_initialize(domain=domain, verbose=verbose))

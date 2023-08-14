@@ -1,6 +1,6 @@
 import json
 import tempfile
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 
 class InsufficientPermissions(Exception):
@@ -15,6 +15,14 @@ async def already_logged_into_service() -> bool:
         return True
     except Exception:
         return False
+
+
+async def login_to_service(domain: Optional[str]):
+    from hailtop.hailctl.auth.login import async_login  # pylint: disable=import-outside-toplevel
+    from hailtop.hailctl.config.cli import set as _set  # pylint: disable=import-outside-toplevel
+    if domain:
+        _set('domain', domain)
+    await async_login('default')
 
 
 async def check_for_gcloud() -> bool:
@@ -64,7 +72,7 @@ async def create_gcp_bucket(*,
         labels_str = None
 
     try:
-        await check_exec_output('gcloud', '--project', project, 'storage', 'buckets', 'create', f'gs://{bucket}', '--location={location}', echo=verbose)
+        await check_exec_output('gcloud', '--project', project, 'storage', 'buckets', 'create', f'gs://{bucket}', f'--location={location}', echo=verbose)
     except CalledProcessError as e:
         if 'does not have storage.buckets.create access to the Google Cloud project' in e.stderr.decode('utf-8'):
             msg = f'ERROR: You do not have the necessary permissions to create buckets in project {project}. Ask a project administrator ' \

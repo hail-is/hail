@@ -1,17 +1,9 @@
-import asyncio
 import os
 import sys
 
 from typing import Optional, Tuple, Annotated as Ann
-from rich import print
-
-from rich.prompt import Prompt
-
 import typer
-from typer import Abort, Argument as Arg, Exit, Option as Opt
-
-
-from .initialize import async_basic_initialize
+from typer import Argument as Arg
 
 from hailtop.config.variables import ConfigVariable
 from .config_variables import config_variables
@@ -143,7 +135,7 @@ def get(parameter: Ann[str, Arg(help="Configuration variable to get", autocomple
         print(config[section][key])
 
 
-@app.command(name='config-location', help='Show the path to the configuration file.')
+@app.command(name='config-location')
 def config_location():
     '''Print the location of the config file.'''
     from hailtop.config import get_user_config_path  # pylint: disable=import-outside-toplevel
@@ -151,7 +143,7 @@ def config_location():
     print(get_user_config_path())
 
 
-@app.command(help='List all configuration variables.')
+@app.command()
 def list(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
     '''Lists every config variable in the section.'''
     from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel
@@ -164,23 +156,3 @@ def list(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
         for sname, items in config.items():
             for key, value in items.items():
                 print(f'{sname}/{key}={value}')
-
-
-@app.command(help='Clear an existing Hail environment.')
-def clear():
-    from hailtop.config import get_user_config_path  # pylint: disable=import-outside-toplevel
-
-    config_file = get_user_config_path()
-    if os.path.isfile(config_file):
-        os.remove(config_file)
-
-
-@app.command('init', help='Initialize a Hail environment.')
-def initialize(
-        overwrite: Ann[bool, Opt('--overwrite', '-o',
-                                 help='Destroy the existing configuration before setting new variables.')] = False,
-        verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
-):
-    if overwrite:
-        clear()
-    asyncio.get_event_loop().run_until_complete(async_basic_initialize(verbose=verbose))
