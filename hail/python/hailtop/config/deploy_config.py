@@ -2,7 +2,6 @@ from typing import Dict
 import os
 import json
 import logging
-
 from ..utils import first_extant_file
 
 from .user_config import get_user_config
