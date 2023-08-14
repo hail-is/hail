@@ -118,7 +118,6 @@ def unset(parameter: Ann[str, Arg(help="Configuration variable to unset", autoco
             config.write(f)
     else:
         print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
-        sys.exit(1)
 
 
 @app.command()

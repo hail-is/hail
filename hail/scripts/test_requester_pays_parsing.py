@@ -22,8 +22,6 @@ async def unset_hailctl():
         'config',
         'unset',
         'gcs_requester_pays/project',
-        '||',
-        'true'
     )
 
     await check_exec_output(
@@ -31,8 +29,6 @@ async def unset_hailctl():
         'config',
         'unset',
         'gcs_requester_pays/buckets',
-        '||',
-        'true'
     )
 
 
