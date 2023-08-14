@@ -2,8 +2,8 @@ import pytest
 
 from typer.testing import CliRunner
 
-from hailtop.config.variables import ConfigVariable, config_variables
-from hailtop.hailctl.config import cli
+from hailtop.config.variables import ConfigVariable
+from hailtop.hailctl.config import cli, config_variables
 
 
 def test_config_location(runner: CliRunner, config_dir: str):
@@ -115,4 +115,4 @@ def test_config_set_bad_value(name: str, value: str, runner: CliRunner):
 
 def test_all_config_variables_in_map():
     for variable in ConfigVariable:
-        assert variable in config_variables()
+        assert variable in config_variables.config_variables()

@@ -7,7 +7,8 @@ from rich import print
 import typer
 from typer import Argument as Arg
 
-from hailtop.config.variables import ConfigVariable, config_variables
+from hailtop.config.variables import ConfigVariable
+from .config_variables import config_variables
 
 
 app = typer.Typer(
