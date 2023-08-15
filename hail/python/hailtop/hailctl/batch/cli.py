@@ -8,7 +8,7 @@ from typing import Optional, List, Annotated as Ann
 
 from . import list_batches
 from . import billing
-from . import initialize
+from .initialize import async_basic_initialize
 from . import submit as _submit
 from .batch_cli_utils import (
     get_batch_if_exists,
@@ -178,4 +178,4 @@ def initialize(
         domain: Ann[str, Opt('--domain', '-d', help='Domain to login to.')] = None,
         verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
 ):
-    asyncio.get_event_loop().run_until_complete(initialize.async_basic_initialize(domain=domain, verbose=verbose))
+    asyncio.get_event_loop().run_until_complete(async_basic_initialize(domain=domain, verbose=verbose))

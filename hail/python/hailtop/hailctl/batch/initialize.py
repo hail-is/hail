@@ -44,8 +44,8 @@ async def setup_existing_remote_tmpdir(service_account: str, verbose: bool) -> T
     give_access_to_remote_tmpdir = Confirm.ask(f'Do you want to give service account {service_account} read/write access to bucket {bucket}?')
     if give_access_to_remote_tmpdir:
         try:
-            await grant_service_account_bucket_access_with_role(project=None, bucket=bucket, service_account=service_account, role= 'roles/storage.objectViewer', verbose=verbose)
-            await grant_service_account_bucket_access_with_role(project=None, bucket=bucket, service_account=service_account, role= 'roles/storage.objectCreator', verbose=verbose)
+            await grant_service_account_bucket_access_with_role(bucket=bucket, service_account=service_account, role= 'roles/storage.objectViewer', verbose=verbose)
+            await grant_service_account_bucket_access_with_role(bucket=bucket, service_account=service_account, role= 'roles/storage.objectCreator', verbose=verbose)
         except InsufficientPermissions as e:
             typer.secho(e.message, fg=typer.colors.RED)
             raise Abort()
@@ -67,10 +67,12 @@ async def setup_new_remote_tmpdir(*,
     from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
 
     from .utils import (
+        BucketAlreadyExistsError,
         InsufficientPermissions,
         create_gcp_bucket,
         get_gcp_default_project,
         grant_service_account_bucket_access_with_role,
+        update_gcp_bucket,
     )  # pylint: disable=import-outside-toplevel
 
     token = secret_alnum_string(5).lower()
@@ -121,6 +123,25 @@ async def setup_new_remote_tmpdir(*,
             project=project,
             bucket=bucket_name,
             location=bucket_region,
+            verbose=verbose,
+        )
+        typer.secho(f'Created bucket {bucket_name} in project {project}.', fg=typer.colors.GREEN)
+    except InsufficientPermissions as e:
+        typer.secho(e.message, fg=typer.colors.RED)
+        raise Abort()
+    except BucketAlreadyExistsError as e:
+        typer.secho(e.message, fg=typer.colors.YELLOW)
+        continue_w_update = Confirm.ask(f'Do you wish to continue updating the lifecycle rules and permissions on bucket {bucket_name}?')
+        if not continue_w_update:
+            typer.secho(f'WARNING: The lifecycle rules and permissions on bucket {bucket_name} were not updated. '
+                        f'You will have to manually configure these yourself.', fg=typer.colors.YELLOW)
+            warnings = True
+            return (remote_tmpdir, bucket_region, warnings)
+
+    try:
+        await update_gcp_bucket(
+            project=project,
+            bucket=bucket_name,
             lifecycle_days=lifecycle_days,
             labels=labels,
             verbose=verbose,
@@ -129,11 +150,11 @@ async def setup_new_remote_tmpdir(*,
         typer.secho(e.message, fg=typer.colors.RED)
         raise Abort()
 
-    typer.secho(f'Created bucket {bucket_name} in project {project} with lifecycle rule set to {lifecycle_days} days.', fg=typer.colors.GREEN)
+    typer.secho(f'Updated bucket {bucket_name} in project {project} with lifecycle rule set to {lifecycle_days} days and labels {labels}.', fg=typer.colors.GREEN)
 
     try:
-        await grant_service_account_bucket_access_with_role(project, bucket_name, service_account, 'roles/storage.objectViewer', verbose=verbose)
-        await grant_service_account_bucket_access_with_role(project, bucket_name, service_account, 'roles/storage.objectCreator', verbose=verbose)
+        await grant_service_account_bucket_access_with_role(bucket_name, service_account, 'roles/storage.objectViewer', verbose=verbose)
+        await grant_service_account_bucket_access_with_role(bucket_name, service_account, 'roles/storage.objectCreator', verbose=verbose)
     except InsufficientPermissions as e:
         typer.secho(e.message, fg=typer.colors.RED)
         raise Abort()
