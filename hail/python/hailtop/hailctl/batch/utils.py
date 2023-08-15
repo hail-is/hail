@@ -2,6 +2,8 @@ import json
 import tempfile
 from typing import Dict, Optional
 
+from hailtop.config import ConfigVariable
+
 
 class InsufficientPermissions(Exception):
     def __init__(self, message: str):
@@ -21,7 +23,7 @@ async def login_to_service(domain: Optional[str]):
     from hailtop.hailctl.auth.login import async_login  # pylint: disable=import-outside-toplevel
     from hailtop.hailctl.config.cli import set as _set  # pylint: disable=import-outside-toplevel
     if domain:
-        _set('domain', domain)
+        _set(ConfigVariable.DOMAIN, domain)
     await async_login('default')
 
 

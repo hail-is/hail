@@ -4,6 +4,8 @@ import typer
 from typer import Abort, Exit
 from rich.prompt import Confirm, IntPrompt, Prompt
 
+from hailtop.config import ConfigVariable
+
 
 async def setup_existing_remote_tmpdir(service_account: str, verbose: bool) -> Tuple[Optional[str], str, bool]:
     from hailtop.aiogoogle import GoogleStorageAsyncFS  # pylint: disable=import-outside-toplevel
@@ -212,17 +214,17 @@ async def async_basic_initialize(domain: Optional[str] = None, verbose: bool = F
         warnings = True
 
     if trial_bp_name:
-        set_config('batch/billing_project', trial_bp_name)
+        set_config(ConfigVariable.BATCH_BILLING_PROJECT, trial_bp_name)
 
     if remote_tmpdir:
-        set_config('batch/remote_tmpdir', remote_tmpdir)
+        set_config(ConfigVariable.BATCH_REMOTE_TMPDIR, remote_tmpdir)
 
-    set_config('batch/regions', compute_region)
+    set_config(ConfigVariable.BATCH_REGIONS, compute_region)
 
-    set_config('batch/backend', 'service')
+    set_config(ConfigVariable.BATCH_BACKEND, 'service')
 
     query_backend = Prompt.ask('Which backend do you want to use for Hail Query?', choices=['spark', 'batch', 'local'])
-    set_config('query/backend', query_backend)
+    set_config(ConfigVariable.QUERY_BACKEND, query_backend)
 
     typer.secho('--------------------', fg=typer.colors.BLUE)
     typer.secho('FINAL CONFIGURATION:', fg=typer.colors.BLUE)
