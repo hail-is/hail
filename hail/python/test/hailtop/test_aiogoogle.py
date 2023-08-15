@@ -46,7 +46,7 @@ def test_bucket_path_parsing():
     assert bucket == 'foo' and prefix == ''
 
     bucket, prefix = GoogleStorageAsyncFS.get_bucket_and_name('gs://foo/bar/baz')
-    assert bucket == 'foo' and prefix == 'foo/bar/baz'
+    assert bucket == 'foo' and prefix == 'bar/baz'
 
 
 @pytest.mark.asyncio
