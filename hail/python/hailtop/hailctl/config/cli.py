@@ -2,6 +2,7 @@ import os
 import sys
 
 from typing import Optional, Tuple, Annotated as Ann
+from rich import print
 
 import typer
 from typer import Argument as Arg
@@ -102,11 +103,6 @@ def get_config_variable(incomplete: str):
         if name.startswith(incomplete):
             help_msg = config_items.get(name)
             yield (name, help_msg)
-
-
-# @app.command()
-# def set(parameter: str, value: str):
-#     _set(parameter, value)
 
 
 @app.command(help='Unset the value of a configuration parameter.')
