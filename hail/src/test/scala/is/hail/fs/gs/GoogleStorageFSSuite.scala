@@ -20,12 +20,6 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     }
   }
 
-  val hail_test_storage_uri: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
-  val root: String = hail_test_storage_uri
-
-  val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
-
   lazy val fs = {
     val gac = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     if (gac == null) {
@@ -35,8 +29,6 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
         Some(new String(IOUtils.toByteArray(new FileInputStream(gac)))))
     }
   }
-
-  lazy val tmpdir: String = hail_test_storage_uri
 
   @Test def testMakeQualified(): Unit = {
     val qualifiedFileName = "gs://bucket/path"
@@ -51,35 +43,5 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
         return
     }
     assert(false)
-  }
-
-  @Test def deleteManyFiles(): Unit = {
-    val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
-    for (i <- 0 until 2000) {
-      fs.touch(s"$prefix/$i")
-    }
-    assert(fs.exists(prefix))
-    fs.delete(prefix, recursive = true)
-    assert(!fs.exists(prefix), s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
-  }
-
-  @Test def testSeekAfterEOF(): Unit = {
-    val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
-    val p = s"$prefix/seek_file"
-    using(fs.createCachedNoCompression(p)) { os =>
-      os.write(1.toByte)
-      os.write(2.toByte)
-      os.write(3.toByte)
-      os.write(4.toByte)
-    }
-
-    using(fs.openNoCompression(p)) { is =>
-      assert(is.read() == 1.toByte)
-      is.seek(3)
-      assert(is.read() == 4.toByte)
-      assert(is.read() == (-1).toByte)
-      is.seek(0)
-      assert(is.read() == 1.toByte)
-    }
   }
 }

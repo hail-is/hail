@@ -13,13 +13,15 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 trait FSSuite extends TestNGSuite {
-  def root: String
+  val hail_test_storage_uri: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
-  def fsResourcesRoot: String
+  val root: String = hail_test_storage_uri
+
+  val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
+
+  val tmpdir: String = hail_test_storage_uri
 
   def fs: FS
-
-  def tmpdir: String
 
   /* Structure of src/test/resources/fs:
      /a
@@ -396,6 +398,40 @@ trait FSSuite extends TestNGSuite {
       (0 until toRead.length).foreach { i =>
         assert(toRead(i) == ((seekPos + i) % 251).toByte)
       }
+    }
+  }
+
+  @Test def largeDirectoryOperations(): Unit = {
+    val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }.suffix"
+    for (i <- 0 until 2000) {
+      fs.touch(s"$prefix/$i")
+    }
+
+    assert(fs.listStatus(prefix).size() == 2000)
+    assert(fs.glob(prefix + "/" + "*.suffix").size() == 2000)
+
+    assert(fs.exists(prefix))
+    fs.delete(prefix, recursive = true)
+    assert(!fs.exists(prefix), s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
+  }
+
+  @Test def testSeekAfterEOF(): Unit = {
+    val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    val p = s"$prefix/seek_file"
+    using(fs.createCachedNoCompression(p)) { os =>
+      os.write(1.toByte)
+      os.write(2.toByte)
+      os.write(3.toByte)
+      os.write(4.toByte)
+    }
+
+    using(fs.openNoCompression(p)) { is =>
+      assert(is.read() == 1.toByte)
+      is.seek(3)
+      assert(is.read() == 4.toByte)
+      assert(is.read() == (-1).toByte)
+      is.seek(0)
+      assert(is.read() == 1.toByte)
     }
   }
 }

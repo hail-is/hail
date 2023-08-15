@@ -467,7 +467,7 @@ class GoogleStorageFS(
       )
     }
 
-    blobs.getValues.iterator.asScala
+    blobs.iterateAll().iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
       .map(b => GoogleStorageFileStatus(b))
       .toArray

@@ -21,14 +21,6 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
     }
   }
 
-  val hail_test_storage_uri: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
-  val root: String = hail_test_storage_uri
-
-  val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
-
-  lazy val tmpdir: String = hail_test_storage_uri
-
   lazy val fs = {
     val aac = System.getenv("AZURE_APPLICATION_CREDENTIALS")
     if (aac == null) {
