@@ -16,29 +16,6 @@ trait JoinLattice {
   def combine(l: Value, r: Value): Value
 }
 
-object KeyFieldOrConstantJoinLattice extends JoinLattice {
-  abstract class Value
-  case class Constant(value: Any) extends Value
-  case class KeyField(idx: Int) extends Value
-  case class Contig(rg: String) extends Value
-  case class Position(rg: String) extends Value
-  case object Other extends Value
-
-  def top: Value = Other
-
-  def combine(l: Value, r: Value): Value = (l, r) match {
-    case (Constant(l), Constant(r)) if l == r => Constant(l)
-    case (KeyField(l), KeyField(r)) if l == r => KeyField(l)
-    case (Contig(l), Contig(r)) =>
-      assert(l == r)
-      Contig(l)
-    case (Position(l), Position(r)) =>
-      assert(l == r)
-      Position(l)
-    case _ => Other
-  }
-}
-
 trait AbstractLattice extends JoinLattice {
   def bottom: Value
 }
@@ -170,8 +147,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
     object ConstantValue {
       def apply(v: Any, t: Type): ConstantValue = t match {
-        case t: TStruct => ConstantStruct(v.asInstanceOf[Row], t)
         case TBoolean => ConstantBool(v.asInstanceOf[Boolean])
+        case t: TStruct => ConstantStruct(v.asInstanceOf[Row], t)
+        case _ => ConcreteConstant(v)
       }
 
       def unapply(v: Value): Option[Any] = v match {
@@ -185,7 +163,13 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     object KeyField {
-      def apply(idx: Int): KeyField = ConcreteKeyField(idx)
+      def apply(idx: Int): KeyField = keyType.types(idx) match {
+        case TBoolean => KeyFieldBool(idx)
+        case _: TStruct => KeyFieldStruct(idx)
+        case _ => ConcreteKeyField(idx)
+      }
+
+
       def unapply(v: Value): Option[Int] = v match {
         case v: KeyField => Some(v.idx)
         case _ => None
@@ -204,15 +188,19 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     case class Position(rg: String) extends Value
 
     object StructValue {
-      def apply(fields: Map[String, Value]): StructValue = ConcreteStruct(fields)
-      def apply(fields: Iterable[(String, Value)]): StructValue = ConcreteStruct(fields.toMap)
+      def apply(fields: Iterable[(String, Value)]): StructValue = {
+        val filtered = fields.filter { case (_, v) => v != top }
+        if (filtered.isEmpty)
+          top
+        else
+          ConcreteStruct(filtered.toMap)
+      }
     }
+
     trait StructValue extends Value {
       def apply(field: String): Value
       def values: Iterable[Value]
       def isKeyPrefix: Boolean
-
-//      def combine(other: StructValue): StructValue
     }
 
     private case class ConcreteStruct(fields: Map[String, Value]) extends StructValue {
@@ -224,14 +212,6 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case (f: KeyField, i2) => f.idx == i2
         case _ => false
       }
-
-//      def combine(other: StructValue): StructValue = other match {
-//        case ConcreteStruct(rFields) =>
-//          ConcreteStruct(fields.keySet.intersect(rFields.keySet).view.map {
-//            f => f -> Lattice.combine(fields(f), rFields(f))
-//          }.toMap)
-//        case _ => Other
-//      }
     }
 
     object BoolValue {
@@ -240,7 +220,12 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       val allFalse: BoolValue = ConcreteBool(FastIndexedSeq())
       val top: BoolValue = ConcreteBool(FastIndexedSeq(Interval(Row(), Row(), true, true)))
 
-      def apply(trueBound: IndexedSeq[Interval]): BoolValue = ConcreteBool(trueBound)
+      def apply(trueBound: IndexedSeq[Interval]): BoolValue = {
+        if (trueBound == top.trueBound)
+          Lattice.top
+        else
+          ConcreteBool(trueBound)
+      }
 
       def or(l: BoolValue, r: BoolValue): BoolValue = (l, r) match {
         case (ConstantBool(l), ConstantBool(r)) => ConstantBool(l || r)
@@ -309,7 +294,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         ConcreteStruct(l.keySet.intersect(r.keySet).view.map {
           f => f -> Lattice.combine(l(f), r(f))
         }.toMap)
-      case (ConcreteBool(l), ConcreteBool(r)) => ConcreteBool(Interval.union(l ++ r, iord))
+      case (l: BoolValue, r: BoolValue) => ConcreteBool(Interval.union(l.trueBound ++ r.trueBound, iord))
       case _ => Other
     }
 
@@ -357,7 +342,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case s: StructValue if s.isKeyPrefix =>
           assert(op.isInstanceOf[EQ])
           BoolValue(Array(Interval(endpoint(l, -1, wrapped = false), endpoint(l, 1, wrapped = false))))
-        case _ => BoolValue.top
+        case _ => top
       }
     }
 
@@ -422,7 +407,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           BoolValue(intervalsFromLiteral(collectionVal, true))
         case struct: StructValue if struct.isKeyPrefix =>
           BoolValue(intervalsFromLiteral(collectionVal, false))
-        case _ => BoolValue.top
+        case _ => Lattice.top
       }
     // interval contains
     case (ApplySpecial("contains", _, _, _, _), Seq(ConstantValue(intervalVal), queryVal)) =>
@@ -431,7 +416,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case i: Interval => queryVal match {
           case KeyField(0) => BoolValue(wrapInRow(Array(i)))
           case struct: StructValue if struct.isKeyPrefix => BoolValue(Array(i))
-          case _ => BoolValue.top
+          case _ => Lattice.top
         }
       }
     case (ApplyComparisonOp(op, _, _), Seq(l, r)) =>
@@ -440,7 +425,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       BoolValue.or(l, r)
     case (ApplySpecial("land", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
       BoolValue.and(l, r)
-    case _ => BoolValue.top
+    case _ => Lattice.top
   }
 
   private def _analyze(x: IR, env: Env[AbstractValue]): AbstractValue = {
