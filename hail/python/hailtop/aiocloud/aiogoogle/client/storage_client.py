@@ -617,9 +617,10 @@ class GoogleStorageAsyncFS(AsyncFS):
         end_of_bucket = rest.find('/', 2)
         if end_of_bucket != -1:
             bucket = rest[2:end_of_bucket]
+            name = rest[(end_of_bucket + 1):]
         else:
             bucket = rest[2:]
-        name = rest[(end_of_bucket + 1):]
+            name = ''
 
         return (bucket, name)
 
