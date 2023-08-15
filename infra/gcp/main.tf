@@ -54,7 +54,7 @@ locals {
     "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" :
     "gcr.io/${var.gcp_project}"
   )
-  docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
+  docker_root_image = "${local.docker_prefix}/ubuntu:22.04"
 }
 
 data "sops_file" "terraform_sa_key_sops" {

@@ -24,13 +24,13 @@ Creating a Dockerfile
 
 A Dockerfile contains the instructions for creating an image and is typically called `Dockerfile`.
 The first directive at the top of each Dockerfile is `FROM` which states what image to create this
-image on top of. For example, we can build off of `ubuntu:20.04` which contains a complete Ubuntu
+image on top of. For example, we can build off of `ubuntu:22.04` which contains a complete Ubuntu
 operating system, but does not have Python installed by default. You can use any image that already
 exists to base your image on. An image that has Python preinstalled is `python:3.6-slim-stretch` and
 one that has `gcloud` installed is `google/cloud-sdk:slim`. Be careful when choosing images from
 unknown sources!
 
-In the example below, we create a Dockerfile that is based on `ubuntu:20.04`. In this file, we show an
+In the example below, we create a Dockerfile that is based on `ubuntu:22.04`. In this file, we show an
 example of installing PLINK in the image with the `RUN` directive, which is an arbitrary bash command.
 First, we download a bunch of utilities that do not come with Ubuntu using `apt-get`. Next, we
 download and install PLINK from source. Finally, we can copy files from your local computer to the
@@ -39,7 +39,7 @@ docker image using the `COPY` directive.
 
 .. code-block:: text
 
-    FROM 'ubuntu:20.04'
+    FROM 'ubuntu:22.04'
 
     RUN apt-get update && apt-get install -y \
         python3 \
