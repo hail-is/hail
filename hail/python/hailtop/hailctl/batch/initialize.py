@@ -10,11 +10,7 @@ from hailtop.config import ConfigVariable
 async def setup_existing_remote_tmpdir(service_account: str, verbose: bool) -> Tuple[Optional[str], str, bool]:
     from hailtop.aiogoogle import GoogleStorageAsyncFS  # pylint: disable=import-outside-toplevel
 
-    from .utils import (
-        InsufficientPermissions,
-        get_gcp_bucket_information,
-        grant_service_account_bucket_access_with_role,
-    )  # pylint: disable=import-outside-toplevel
+    from .utils import InsufficientPermissions, get_gcp_bucket_information, grant_service_account_bucket_access_with_role  # pylint: disable=import-outside-toplevel
 
     warnings = False
 
@@ -26,7 +22,7 @@ async def setup_existing_remote_tmpdir(service_account: str, verbose: bool) -> T
         bucket_info = await get_gcp_bucket_information(bucket, verbose)
     except InsufficientPermissions as e:
         typer.secho(e.message, fg=typer.colors.RED)
-        raise Abort()
+        raise Abort() from e
 
     location = bucket_info['location'].lower()
 
@@ -48,7 +44,7 @@ async def setup_existing_remote_tmpdir(service_account: str, verbose: bool) -> T
             await grant_service_account_bucket_access_with_role(bucket=bucket, service_account=service_account, role= 'roles/storage.objectCreator', verbose=verbose)
         except InsufficientPermissions as e:
             typer.secho(e.message, fg=typer.colors.RED)
-            raise Abort()
+            raise Abort() from e
         typer.secho(f'Granted service account {service_account} read and write access to {bucket}.', fg=typer.colors.GREEN)
     else:
         typer.secho(f'WARNING: Please verify service account {service_account} has the role "roles/storage.objectAdmin" or '
@@ -66,14 +62,8 @@ async def setup_new_remote_tmpdir(*,
                                   verbose: bool) -> Tuple[Optional[str], str, bool]:
     from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
 
-    from .utils import (
-        BucketAlreadyExistsError,
-        InsufficientPermissions,
-        create_gcp_bucket,
-        get_gcp_default_project,
-        grant_service_account_bucket_access_with_role,
-        update_gcp_bucket,
-    )  # pylint: disable=import-outside-toplevel
+    from .utils import BucketAlreadyExistsError, InsufficientPermissions, create_gcp_bucket, \
+        get_gcp_default_project, grant_service_account_bucket_access_with_role, update_gcp_bucket  # pylint: disable=import-outside-toplevel
 
     token = secret_alnum_string(5).lower()
     maybe_bucket_name = f'hail-batch-{username}-{token}'
@@ -128,7 +118,7 @@ async def setup_new_remote_tmpdir(*,
         typer.secho(f'Created bucket {bucket_name} in project {project}.', fg=typer.colors.GREEN)
     except InsufficientPermissions as e:
         typer.secho(e.message, fg=typer.colors.RED)
-        raise Abort()
+        raise Abort() from e
     except BucketAlreadyExistsError as e:
         typer.secho(e.message, fg=typer.colors.YELLOW)
         continue_w_update = Confirm.ask(f'Do you wish to continue updating the lifecycle rules and permissions on bucket {bucket_name}?')
@@ -148,7 +138,7 @@ async def setup_new_remote_tmpdir(*,
         )
     except InsufficientPermissions as e:
         typer.secho(e.message, fg=typer.colors.RED)
-        raise Abort()
+        raise Abort() from e
 
     typer.secho(f'Updated bucket {bucket_name} in project {project} with lifecycle rule set to {lifecycle_days} days and labels {labels}.', fg=typer.colors.GREEN)
 
@@ -157,10 +147,10 @@ async def setup_new_remote_tmpdir(*,
         await grant_service_account_bucket_access_with_role(bucket_name, service_account, 'roles/storage.objectCreator', verbose=verbose)
     except InsufficientPermissions as e:
         typer.secho(e.message, fg=typer.colors.RED)
-        raise Abort()
-    else:
-        typer.secho(f'Granted service account {service_account} read and write access to {bucket_name} in project {project}.',
-                    fg=typer.colors.GREEN)
+        raise Abort() from e
+
+    typer.secho(f'Granted service account {service_account} read and write access to {bucket_name} in project {project}.',
+                fg=typer.colors.GREEN)
 
     return (remote_tmpdir, bucket_region, warnings)
 
