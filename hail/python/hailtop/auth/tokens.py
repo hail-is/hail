@@ -61,14 +61,14 @@ class Tokens(collections.abc.MutableMapping):
         deploy_config = get_deploy_config()
         auth_ns = deploy_config.service_ns('auth')
         ns_arg = '' if ns == auth_ns else f'-n {ns}'
-        sys.stderr.write(f'''\
+        msg = f'''
 You are not authenticated.  Please log in with:
 
   $ hailctl auth login {ns_arg}
 
 to obtain new credentials.
-''')
-        sys.exit(1)
+'''
+        raise Exception(msg)
 
     def __delitem__(self, key: str):
         del self._tokens[key]

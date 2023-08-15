@@ -187,15 +187,19 @@ async def initialize_gcp(username: str,
 async def async_basic_initialize(domain: Optional[str] = None, verbose: bool = False):
     from hailtop.auth.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
     from hailtop.batch_client.aioclient import BatchClient  # pylint: disable=import-outside-toplevel
+    from hailtop.config.deploy_config import get_deploy_config  # pylint: disable=import-outside-toplevel
     from hailtop.hailctl.config.cli import set as set_config, list as list_config  # pylint: disable=import-outside-toplevel
 
     from .utils import already_logged_into_service, login_to_service  # pylint: disable=import-outside-toplevel
 
-    already_logged_in = await already_logged_into_service()
+    already_logged_in = await already_logged_into_service(domain)
     if not already_logged_in:
         typer.secho('You are not currently logged in to Hail. Redirecting you to a login screen.', fg=typer.colors.YELLOW)
         await login_to_service(domain)
         typer.secho('In the future, you can use `hailctl auth login` to login to Hail.', fg=typer.colors.YELLOW)
+    else:
+        domain = get_deploy_config()._domain
+        typer.secho(f'You are currently logged in to Hail at domain {domain}.')
 
     user_info = await async_get_userinfo()
     username = user_info['username']

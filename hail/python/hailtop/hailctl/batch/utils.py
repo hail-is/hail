@@ -15,8 +15,20 @@ class BucketAlreadyExistsError(Exception):
         self.message = message
 
 
-async def already_logged_into_service() -> bool:
+def reset_domain(domain: str):
+    from hailtop.hailctl.config.cli import set as _set  # pylint: disable=import-outside-toplevel
+    import hailtop.config.deploy_config  # pylint: disable=import-outside-toplevel
+    if domain:
+        _set(ConfigVariable.DOMAIN, domain)
+    hailtop.config.deploy_config.deploy_config = None
+
+
+async def already_logged_into_service(domain: Optional[str]) -> bool:
     from hailtop.auth.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
+
+    if domain:
+        reset_domain(domain)
+
     try:
         await async_get_userinfo()
         return True
@@ -26,9 +38,8 @@ async def already_logged_into_service() -> bool:
 
 async def login_to_service(domain: Optional[str]):
     from hailtop.hailctl.auth.login import async_login  # pylint: disable=import-outside-toplevel
-    from hailtop.hailctl.config.cli import set as _set  # pylint: disable=import-outside-toplevel
     if domain:
-        _set(ConfigVariable.DOMAIN, domain)
+        reset_domain(domain)
     await async_login('default')
 
 
