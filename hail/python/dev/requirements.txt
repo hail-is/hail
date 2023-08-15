@@ -1,6 +1,5 @@
 -c ../pinned-requirements.txt
 
-mypy==0.990
 pylint>=2.13.5,<3
 black>=22.8.0,<23
 ruff>=0.0.264,<1
@@ -23,7 +22,7 @@ sphinxcontrib.katex>=0.9.0,<1
 fswatch>=0.1.1,<1
 matplotlib>=3.5,<4
 
-# mypy library stubs
+# library type stubs
 types-Deprecated
 types-PyMySQL
 types-PyYAML
