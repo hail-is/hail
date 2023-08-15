@@ -223,14 +223,13 @@ async def async_basic_initialize(domain: Optional[str] = None, verbose: bool = F
         else:
             remote_tmpdir = Prompt.ask(f'Enter a path to an existing remote temporary directory (ex: gs://my-bucket/batch/tmp)')
             typer.secho(f'WARNING: You will need to grant read/write access to {remote_tmpdir} for account {hail_identity}', fg=typer.colors.YELLOW)
-            warnings = True
 
             tmpdir_region = Prompt.ask(f'Which region is your remote temporary directory in? (Example: eastus)')
 
     compute_region = Prompt.ask('Which region do you want your jobs to run in?', choices=supported_regions)
 
-    if tmpdir_region != compute_region:
-        typer.secho(f'WARNING: remote temporary directory "{remote_tmpdir}" is not located in the selected compute region for Batch jobs "{compute_region}".',
+    if tmpdir_region != compute_region and not compute_region.startswith(tmpdir_region):
+        typer.secho(f'WARNING: remote temporary directory "{remote_tmpdir}" is not located in the selected compute region for Batch jobs "{compute_region}". Found {tmpdir_region}.',
                     fg=typer.colors.YELLOW)
         warnings = True
 
