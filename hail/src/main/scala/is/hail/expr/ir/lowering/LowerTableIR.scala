@@ -58,6 +58,7 @@ object TableStage {
   def concatenate(ctx: ExecuteContext, children: IndexedSeq[TableStage]): TableStage = {
     val keyType = children.head.kType
     assert(keyType.size == 0)
+    assert(children.forall(_.kType == keyType))
 
     val ctxType = TTuple(children.map(_.ctxType): _*)
     val ctxArrays = children.view.zipWithIndex.map { case (child, idx) =>
