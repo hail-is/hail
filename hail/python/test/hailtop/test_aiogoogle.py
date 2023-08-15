@@ -41,6 +41,14 @@ def bucket_and_temporary_file():
     return bucket, prefix + '/' + secrets.token_hex(16)
 
 
+def test_bucket_path_parsing():
+    bucket, prefix = GoogleStorageAsyncFS.get_bucket_and_name('gs://foo')
+    assert bucket == 'foo' and prefix == ''
+
+    bucket, prefix = GoogleStorageAsyncFS.get_bucket_and_name('gs://foo/bar/baz')
+    assert bucket == 'foo' and prefix == 'foo/bar/baz'
+
+
 @pytest.mark.asyncio
 async def test_get_object_metadata(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
