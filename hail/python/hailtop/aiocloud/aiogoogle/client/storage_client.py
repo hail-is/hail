@@ -615,8 +615,12 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise ValueError(f'Google Cloud Storage URI must be of the form: gs://bucket/path, found: {url}')
 
         end_of_bucket = rest.find('/', 2)
-        bucket = rest[2:end_of_bucket]
-        name = rest[(end_of_bucket + 1):]
+        if end_of_bucket != -1:
+            bucket = rest[2:end_of_bucket]
+            name = rest[(end_of_bucket + 1):]
+        else:
+            bucket = rest[2:]
+            name = ''
 
         return (bucket, name)
 
