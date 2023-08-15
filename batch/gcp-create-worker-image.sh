@@ -24,7 +24,7 @@ else
     BUILDER=build-batch-worker-$NAMESPACE-image
 fi
 
-UBUNTU_IMAGE=ubuntu-minimal-2004-focal-v20230725
+UBUNTU_IMAGE=ubuntu-minimal-2204-jammy-v20230726
 
 create_build_image_instance() {
     gcloud -q compute --project ${PROJECT} instances delete \
