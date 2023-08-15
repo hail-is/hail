@@ -45,13 +45,13 @@ async def get_gcp_default_project(verbose: bool) -> Optional[str]:
     from hailtop.utils import check_exec_output  # pylint: disable=import-outside-toplevel
     try:
         project, _ = await check_exec_output('gcloud', 'config', 'get-value', 'project', echo=verbose)
-        project = project.strip().decode('utf-8')
-        return project
+        project_str = project.strip().decode('utf-8')
+        return project_str
     except Exception:
         return None
 
 
-async def get_gcp_bucket_information(bucket: str, verbose: bool) -> Optional[dict]:
+async def get_gcp_bucket_information(bucket: str, verbose: bool) -> dict:
     from hailtop.utils import CalledProcessError, check_exec_output  # pylint: disable=import-outside-toplevel
     try:
         info, _ = await check_exec_output('gcloud', 'storage', 'buckets', 'describe', f'gs://{bucket}', '--format="json"', echo=verbose)
