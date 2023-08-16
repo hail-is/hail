@@ -689,11 +689,11 @@ class BatchBuilder:
         job_progress_task.update(n_jobs)
         return int(update_json['start_job_id'])
 
-    async def _create_bunches(self,
-                              specs: List[dict],
-                              max_bunch_bytesize: int,
-                              max_bunch_size: int,
-                              ) -> Tuple[List[List[bytes]], List[int]]:
+    def _create_bunches(self,
+                        specs: List[dict],
+                        max_bunch_bytesize: int,
+                        max_bunch_size: int,
+                        ) -> Tuple[List[List[bytes]], List[int]]:
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
         byte_specs = [orjson.dumps(spec) for spec in specs]
