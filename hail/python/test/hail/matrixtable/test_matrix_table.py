@@ -346,6 +346,20 @@ class Tests(unittest.TestCase):
                .aggregate(x=hl.agg.collect_as_set(mt.col_idx + 5)))
         assert mt3.aggregate_entries(hl.agg.all(mt3.x == hl.set({5, 6, 7})))
 
+    def test_aggregate_cols_ordering(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        ids = ['C', 'A', 'T']
+        mt = mt.key_cols_by(s=hl.literal(ids)[mt.col_idx])
+
+        assert mt.cols().collect() == [
+            hl.Struct(col_idx=1, s='A'),
+            hl.Struct(col_idx=0, s='C'),
+            hl.Struct(col_idx=2, s='T'),
+        ]
+
+        assert mt.aggregate_cols((hl.agg.collect(mt.col_idx), hl.agg.collect(mt.s))) == ([0, 1, 2], ids)
+
+
     def test_aggregate_cols_by(self):
         mt = hl.utils.range_matrix_table(2, 4)
         mt = (mt.annotate_cols(group=mt.col_idx < 2)

@@ -3174,7 +3174,7 @@ class IRSuite extends HailSuite {
 
 
   @Test def testRelationalLetTable() {
-    implicit val execStrats = ExecStrategy.interpretOnly
+    implicit val execStrats = ExecStrategy.lowering
 
     val t = TArray(TStruct("x" -> TInt32))
     val ir = TableAggregate(RelationalLetTable("x",
