@@ -165,6 +165,8 @@ def submit(
 
     If you wish to pass option-like arguments you should use "--". For example:
 
-        hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
+
+
+    $ hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
     '''
     asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
