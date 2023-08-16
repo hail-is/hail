@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.compress.BGzipInputStream
-import is.hail.io.fs.{FS, FileListEntry, Positioned, PositionedInputStream, BGZipCompressionCodec}
+import is.hail.io.fs.{FS, FileListEntry, FileStatus, Positioned, PositionedInputStream, BGZipCompressionCodec}
 import is.hail.io.tabix.{TabixReader, TabixLineIterator}
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.utils._
@@ -252,7 +252,7 @@ object GenericLines {
 
   def read(
     fs: FS,
-    fileListEntries0: IndexedSeq[FileListEntry],
+    fileListEntries0: IndexedSeq[_ <: FileStatus],
     nPartitions: Option[Int],
     blockSizeInMB: Option[Int],
     minPartitions: Option[Int],

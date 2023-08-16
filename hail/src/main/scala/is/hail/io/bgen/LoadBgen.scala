@@ -157,11 +157,11 @@ object LoadBgen {
         badFiles += file
 
       matches.flatMap { fileListEntry =>
-        val file = fileListEntry.getPath.toString
+        val file = fileListEntry.getPath
         if (!file.endsWith(".bgen"))
           warn(s"input file does not have .bgen extension: $file")
 
-        if (fs.isDir(file))
+        if (fileListEntry.isDirectory)
           fs.listDirectory(file)
             .filter(fileListEntry => ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.matches(fileListEntry.getPath.toString))
         else
@@ -180,21 +180,20 @@ object LoadBgen {
   def getAllFilePaths(fs: FS, files: Array[String]): Array[String] =
     getAllFileListEntries(fs, files).map(_.getPath.toString)
 
-
-  def getBgenFileMetadata(ctx: ExecuteContext, files: Array[String], indexFiles: Array[String]): Array[BgenFileMetadata] = {
+  def getBgenFileMetadata(ctx: ExecuteContext, files: Array[FileListEntry], indexFilePaths: Array[String]): Array[BgenFileMetadata] = {
     val fs = ctx.fs
-    require(files.length == indexFiles.length)
-    val headers = getFileHeaders(fs, files)
+    require(files.length == indexFilePaths.length)
+    val headers = getFileHeaders(fs, files.map(_.getPath))
 
     val cacheByRG: mutable.Map[Option[String], (String, Array[Long]) => Array[AnyRef]] = mutable.Map.empty
 
-    headers.zip(indexFiles).map { case (h, indexFile) =>
-      val (keyType, annotationType) = IndexReader.readTypes(fs, indexFile)
+    headers.zip(indexFilePaths).map { case (h, indexFilePath) =>
+      val (keyType, annotationType) = IndexReader.readTypes(fs, indexFilePath)
       val rg = keyType.asInstanceOf[TStruct].field("locus").typ match {
         case TLocus(rg) => Some(rg)
         case _ => None
       }
-      val metadata = IndexReader.readMetadata(fs, indexFile, keyType, annotationType)
+      val metadata = IndexReader.readMetadata(fs, indexFilePath, keyType, annotationType)
       val indexVersion = SemanticVersion(metadata.fileVersion)
       val (leafSpec, internalSpec) = BgenSettings.indexCodecSpecs(indexVersion, rg)
 
@@ -206,12 +205,12 @@ object LoadBgen {
       val nVariants = metadata.nKeys
 
       val rangeBounds = if (nVariants > 0) {
-        val Array(start, end) = getKeys(indexFile, Array[Long](0L, nVariants - 1))
+        val Array(start, end) = getKeys(indexFilePath, Array[Long](0L, nVariants - 1))
         Interval(start, end, includesStart = true, includesEnd = true)
       } else null
 
       BgenFileMetadata(
-        indexFile,
+        indexFilePath,
         indexVersion,
         h,
         rg,
@@ -224,8 +223,8 @@ object LoadBgen {
     }
   }
 
-  def getIndexFileNames(fs: FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
-    def absolutePath(rel: String): String = fs.fileListEntry(rel).getPath.toString
+  def getIndexFileNames(fs: FS, files: Array[FileListEntry], indexFileMap: Map[String, String]): Array[String] = {
+    def absolutePath(rel: String): String = fs.fileStatus(rel).getPath
 
     val fileMapping = Option(indexFileMap)
       .getOrElse(Map.empty[String, String])
@@ -237,15 +236,15 @@ object LoadBgen {
         s"""The following index file paths defined by 'index_file_map' are missing a .idx2 file extension:
            |  ${ badExtensions.mkString("\n  ") })""".stripMargin)
 
-    files.map(absolutePath).map(f => fileMapping.getOrElse(f, f + ".idx2"))
+    files.map(f => fileMapping.getOrElse(f.getPath, f.getPath + ".idx2"))
   }
 
-  def getIndexFiles(fs: FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
+  def getIndexFiles(fs: FS, files: Array[FileListEntry], indexFileMap: Map[String, String]): Array[String] = {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)
     val missingIdxFiles = files.zip(indexFiles).filterNot { case (f, index) => fs.exists(index) && index.endsWith("idx2") }.map(_._1)
     if (missingIdxFiles.nonEmpty)
       fatal(
-        s"""The following BGEN files have no .idx2 index file. Use 'index_bgen' to create the index file once before calling 'import_bgen':
+        s"""The following BGEN .idx2 index files do not exist. Use 'index_bgen' to create the index file once before calling 'import_bgen':
            |  ${ missingIdxFiles.mkString("\n  ") })""".stripMargin)
     indexFiles
   }
@@ -338,9 +337,9 @@ object MatrixBGENReader {
   def apply(ctx: ExecuteContext, params: MatrixBGENReaderParameters): MatrixBGENReader = {
     val fs = ctx.fs
 
-    val allFiles = LoadBgen.getAllFilePaths(fs, params.files.toArray)
-    val indexFiles = LoadBgen.getIndexFiles(fs, allFiles, params.indexFileMap)
-    val fileMetadata = LoadBgen.getBgenFileMetadata(ctx, allFiles, indexFiles)
+    val allFiles = LoadBgen.getAllFileListEntries(fs, params.files.toArray)
+    val indexFilePaths = LoadBgen.getIndexFiles(fs, allFiles, params.indexFileMap)
+    val fileMetadata = LoadBgen.getBgenFileMetadata(ctx, allFiles, indexFilePaths)
     assert(fileMetadata.nonEmpty)
     if (fileMetadata.exists(md => md.indexVersion != fileMetadata.head.indexVersion)) {
       fatal("BGEN index version mismatch. The index versions of all files must be the same, use 'index_bgen' to reindex all files to ensure that all index versions match before calling 'import_bgen' again")

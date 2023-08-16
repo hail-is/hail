@@ -15,6 +15,8 @@ class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
 
   def getPath: String = fs.getPath.toString
 
+  def getActualUrl: String = fs.getPath.toString
+
   def getModificationTime: java.lang.Long = fs.getModificationTime
 
   def getLen: Long = fs.getLen
@@ -156,10 +158,10 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
 
   override def globAll(filenames: Iterable[String]): Array[FileListEntry] = {
     filenames.flatMap { filename =>
-      val statuses = glob(filename)
-      if (statuses.isEmpty)
+      val fles = glob(filename)
+      if (fles.isEmpty)
         warn(s"'$filename' refers to no files")
-      statuses
+      fles
     }.toArray
   }
 
@@ -169,6 +171,14 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
       files = Array.empty
     log.info(s"globbing path $url returned ${ files.length } files: ${ files.map(_.getPath.getName).mkString(",") }")
     files.map(fileListEntry => new HadoopFileListEntry(fileListEntry))
+  }
+
+  override def fileStatus(url: URL): FileStatus = {
+    val fle = fileListEntry(url)
+    if (fle.isDirectory) {
+      throw new FileNotFoundException(url.getPath)
+    }
+    fle
   }
 
   def fileListEntry(url: URL): FileListEntry = {

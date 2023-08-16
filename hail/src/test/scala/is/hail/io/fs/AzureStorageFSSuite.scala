@@ -8,7 +8,7 @@ import org.testng.annotations.{BeforeClass, Test}
 import java.io.FileInputStream
 
 
-class AzureStorageFSSuite extends TestNGSuite with FSSuite {
+class AzureStorageFSSuite extends FSSuite {
   @BeforeClass
   def beforeclass(): Unit = {
     if (System.getenv("HAIL_CLOUD") != "azure") {
@@ -43,10 +43,5 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
         return
     }
     assert(false)
-  }
-
-  @Test def testETag(): Unit = {
-    val etag = fs.eTag(s"$fsResourcesRoot/a")
-    assert(etag.nonEmpty)
   }
 }
