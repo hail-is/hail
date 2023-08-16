@@ -149,10 +149,11 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
             print(f"Job with ID {job_id} on batch {batch_id} not found")
 
 
-@app.command()
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def submit(
+    ctx: typer.Context,
     script: str,
-    arguments: Ann[Optional[List[str]], Arg()] = None,
+    arguments: Ann[Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')] = None,
     files: Ann[
         Optional[List[str]], Opt(help='Files or directories to add to the working directory of the job.')
     ] = None,
@@ -160,5 +161,11 @@ def submit(
     image_name: Ann[Optional[str], Opt(help='Name of Docker image for the job (default: hailgenetics/hail)')] = None,
     output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
 ):
-    '''Submit a batch with a single job that runs SCRIPT with the arguments ARGUMENTS.'''
-    asyncio.run(_submit.submit(name, image_name, files or [], output, script, arguments or []))
+    '''Submit a batch with a single job that runs SCRIPT with the arguments ARGUMENTS.
+
+    If you wish to pass option-like arguments you should use "--". For example:
+
+        hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
+    '''
+    raise ValueError((name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
+    asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))

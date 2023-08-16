@@ -153,11 +153,19 @@ def submit(
     storage_account: Ann[str, Arg(help="Storage account in which the cluster's container exists.")],
     http_password: Ann[str, Arg(help='Web password for the cluster')],
     script: Ann[str, Arg(help='Path to script.')],
+    arguments: Ann[Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')] = None,
 ):
     '''
     Submit a job to an HDInsight cluster configured for Hail.
+
+    If you wish to pass option-like arguments you should use "--". For example:
+
+
+
+    $ hailctl hdinsight submit name account password script.py --image-name docker.io/image my_script.py -- some-argument --animal dog
     '''
-    hdinsight_submit(name, storage_account, http_password, script, ctx.args)
+    raise ValueError((name, storage_account, http_password, script, [*(arguments or []), *ctx.args]))
+    hdinsight_submit(name, storage_account, http_password, script, [*(arguments or []), *ctx.args])
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
