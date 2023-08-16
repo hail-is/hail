@@ -44,6 +44,8 @@ object CodeOrdering {
 
   final case class StructGt(missingEqual: Boolean = true) extends BooleanOp
 
+  final case class StructGteq(missingEqual: Boolean = true) extends BooleanOp
+
   final case class StructCompare(missingEqual: Boolean = true) extends BooleanOp
 
   type F[R] = (EmitCodeBuilder, EmitValue, EmitValue) => Value[R]

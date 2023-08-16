@@ -39,7 +39,6 @@ object ComparisonOp {
   }
 
   def invert(op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
-    assert(!op.isInstanceOf[Compare])
     op match {
       case GT(t1, t2) => LTEQ(t1, t2)
       case LT(t1, t2) => GTEQ(t1, t2)
@@ -49,11 +48,14 @@ object ComparisonOp {
       case NEQ(t1, t2) => EQ(t1, t2)
       case EQWithNA(t1, t2) => NEQWithNA(t1, t2)
       case NEQWithNA(t1, t2) => EQWithNA(t1, t2)
+      case StructLT(t1, t2, sortFields) => StructGTEQ(t1, t2, sortFields)
+      case StructGT(t1, t2, sortFields) => StructLTEQ(t1, t2, sortFields)
+      case StructLTEQ(t1, t2, sortFields) => StructGT(t1, t2, sortFields)
+      case StructGTEQ(t1, t2, sortFields) => StructLT(t1, t2, sortFields)
     }
   }
 
   def swap(op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
-    assert(!op.isInstanceOf[Compare])
     op match {
       case GT(t1, t2) => LT(t2, t1)
       case LT(t1, t2) => GT(t2, t1)
@@ -63,6 +65,10 @@ object ComparisonOp {
       case NEQ(t1, t2) => NEQ(t2, t1)
       case EQWithNA(t1, t2) => EQWithNA(t2, t1)
       case NEQWithNA(t1, t2) => NEQWithNA(t2, t1)
+      case StructLT(t1, t2, sortFields) => StructGT(t2, t1, sortFields)
+      case StructGT(t1, t2, sortFields) => StructLT(t2, t1, sortFields)
+      case StructLTEQ(t1, t2, sortFields) => StructGTEQ(t2, t1, sortFields)
+      case StructGTEQ(t1, t2, sortFields) => StructLTEQ(t2, t1, sortFields)
     }
   }
 }
@@ -139,3 +145,9 @@ case class StructGT(t1: Type, t2: Type, sortFields: Array[SortField]) extends St
 }
 
 object StructGT { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructGT = StructGT(typ, typ, sortFields.toArray) }
+
+case class StructGTEQ(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.StructGteq()
+}
+
+object StructGTEQ { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructGTEQ = StructGTEQ(typ, typ, sortFields.toArray) }

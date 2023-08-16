@@ -10,6 +10,8 @@ import is.hail.variant.{Locus, ReferenceGenome}
 import scala.Option.option2Iterable
 import org.apache.spark.sql.Row
 
+import scala.collection.mutable
+
 trait JoinLattice {
   type Value
   def top: Value
@@ -142,6 +144,34 @@ object ExtractIntervalFilters {
 class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   import ExtractIntervalFilters._
 
+  object KeySet extends AbstractLattice {
+    type Value = IndexedSeq[Interval]
+
+    def top: Value = FastIndexedSeq(Interval(Row(), Row(), true, true))
+    def bottom: Value = FastIndexedSeq()
+    def combine(l: Value, r: Value): Value = Interval.union(l ++ r, iord)
+    def meet(l: Value, r: Value): Value = Interval.intersection(l, r, iord)
+
+    def complement(v: Value): Value = {
+      if (v.isEmpty) return top
+
+      val builder = mutable.ArrayBuilder.make[Interval]()
+      var i = 0
+      if (v.head.left != IntervalEndpoint(Row(), -1)) {
+        builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
+      }
+      while (i + 1 < v.length) {
+        builder += Interval(v(i).right, v(i+1).left)
+        i += 1
+      }
+      if (v.last.right != IntervalEndpoint(Row(), 1)) {
+        builder += Interval(v.last.right, IntervalEndpoint(Row(), 1))
+      }
+
+      builder.result()
+    }
+  }
+
   object Lattice extends JoinLattice {
     abstract class Value
 
@@ -215,34 +245,128 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     object BoolValue {
-      val allTrue: BoolValue = ConcreteBool(FastIndexedSeq(Interval(Row(), Row(), true, true)))
+      private def all: KeySet.Value = KeySet.top
+      private def none: KeySet.Value = KeySet.bottom
 
-      val allFalse: BoolValue = ConcreteBool(FastIndexedSeq())
-      val top: BoolValue = ConcreteBool(FastIndexedSeq(Interval(Row(), Row(), true, true)))
+      val allTrue: BoolValue = ConcreteBool(all, none, none)
+      val allFalse: BoolValue = ConcreteBool(none, all, none)
+      val allNA: BoolValue = ConcreteBool(none, none, all)
+      val top: BoolValue = Lattice.top
 
-      def apply(trueBound: IndexedSeq[Interval]): BoolValue = {
-        if (trueBound == top.trueBound)
+      def apply(trueBound: KeySet.Value, falseBound: KeySet.Value, naBound: KeySet.Value): BoolValue = {
+        if (trueBound == all && falseBound == all && naBound == all)
           Lattice.top
         else
-          ConcreteBool(trueBound)
+          ConcreteBool(trueBound, falseBound, naBound)
       }
 
       def or(l: BoolValue, r: BoolValue): BoolValue = (l, r) match {
         case (ConstantBool(l), ConstantBool(r)) => ConstantBool(l || r)
-        case _ => ConcreteBool(Interval.union(l.trueBound ++ r.trueBound, iord))
+        case _ => ConcreteBool(
+          KeySet.combine(l.trueBound, r.trueBound),
+          KeySet.meet(l.falseBound, r.falseBound),
+          KeySet.combine(l.naBound, r.naBound))
       }
 
       def and(l: BoolValue, r: BoolValue): BoolValue = (l, r) match {
         case (ConstantBool(l), ConstantBool(r)) => ConstantBool(l && r)
-        case _ => ConcreteBool(Interval.intersection(l.trueBound, r.trueBound, iord))
+        case _ => ConcreteBool(
+          KeySet.meet(l.trueBound, r.trueBound),
+          KeySet.combine(l.falseBound, r.falseBound),
+          KeySet.combine(l.naBound, r.naBound))
+      }
+
+      def not(x: BoolValue): BoolValue = x match {
+        case ConstantBool(x) => ConstantBool(!x)
+        case _ => ConcreteBool(x.falseBound, x.trueBound, x.naBound)
+      }
+
+      def fromComparison(v: Any, op: ComparisonOp[_], wrapped: Boolean = true): BoolValue = {
+        (op: @unchecked) match {
+          case _: EQ => BoolValue( // value == key
+            FastIndexedSeq(Interval(endpoint(v, -1, wrapped), endpoint(v, 1, wrapped))),
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, wrapped)), Interval(endpoint(v, 1, wrapped), endpoint(null, -1))),
+            FastIndexedSeq(Interval(endpoint(null, -1), posInf)))
+          case _: NEQ => BoolValue( // value != key
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, wrapped)), Interval(endpoint(v, 1, wrapped), endpoint(null, -1))),
+            FastIndexedSeq(Interval(endpoint(v, -1, wrapped), endpoint(v, 1, wrapped))),
+            FastIndexedSeq(Interval(endpoint(null, -1), posInf)))
+          case _: GT => BoolValue( // value > key
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, wrapped))),
+            FastIndexedSeq(Interval(endpoint(v, -1, wrapped), endpoint(null,  -1))),
+            FastIndexedSeq(Interval(endpoint(null, -1), posInf)))
+          case _: GTEQ => BoolValue( // value >= key
+            FastIndexedSeq(Interval(negInf, endpoint(v, 1, wrapped))),
+            FastIndexedSeq(Interval(endpoint(v, 1, wrapped), endpoint(null, -1))),
+            FastIndexedSeq(Interval(endpoint(null, -1), posInf)))
+          case _: LT => BoolValue( // value < key
+            FastIndexedSeq(Interval(endpoint(v, 1, wrapped), endpoint(null, -1))),
+            FastIndexedSeq(Interval(negInf, endpoint(v, 1, wrapped))),
+            FastIndexedSeq(Interval(endpoint(null, -1), posInf)))
+          case _: LTEQ => BoolValue( // value <= key
+            FastIndexedSeq(Interval(endpoint(v, -1, wrapped), endpoint(null, -1))),
+            FastIndexedSeq(Interval(negInf, endpoint(v, 1, wrapped))),
+            FastIndexedSeq(Interval(endpoint(null, -1), posInf)))
+          case _: EQWithNA => BoolValue( // value == key
+            FastIndexedSeq(Interval(endpoint(v, -1, wrapped), endpoint(v, 1, wrapped))),
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, wrapped)), Interval(endpoint(v, 1, wrapped), posInf)),
+            KeySet.bottom)
+          case _: NEQWithNA => BoolValue( // value != key
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, wrapped)), Interval(endpoint(v, 1, wrapped), posInf)),
+            FastIndexedSeq(Interval(endpoint(v, -1, wrapped), endpoint(v, 1, wrapped))),
+            KeySet.bottom)
+        }
+      }
+
+      def fromComparisonKeyPrefix(v: Row, op: ComparisonOp[_]): BoolValue = {
+        (op: @unchecked) match {
+          case _: EQ => BoolValue( // value == key
+            FastIndexedSeq(Interval(endpoint(v, -1, false), endpoint(v, 1, false))),
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, false)), Interval(endpoint(v, 1, false), posInf)),
+            KeySet.bottom)
+          case _: NEQ => BoolValue( // value != key
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, false)), Interval(endpoint(v, 1, false), posInf)),
+            FastIndexedSeq(Interval(endpoint(v, -1, false), endpoint(v, 1, false))),
+            KeySet.bottom)
+          case _: GT => BoolValue( // value > key
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, false))),
+            FastIndexedSeq(Interval(endpoint(v, -1, false), posInf)),
+            KeySet.bottom)
+          case _: GTEQ => BoolValue( // value >= key
+            FastIndexedSeq(Interval(negInf, endpoint(v, 1, false))),
+            FastIndexedSeq(Interval(endpoint(v, 1, false), posInf)),
+            KeySet.bottom)
+          case _: LT => BoolValue( // value < key
+            FastIndexedSeq(Interval(endpoint(v, 1, false), posInf)),
+            FastIndexedSeq(Interval(negInf, endpoint(v, 1, false))),
+            KeySet.bottom)
+          case _: LTEQ => BoolValue( // value <= key
+            FastIndexedSeq(Interval(endpoint(v, -1, false), posInf)),
+            FastIndexedSeq(Interval(negInf, endpoint(v, 1, false))),
+            KeySet.bottom)
+          case _: EQWithNA => BoolValue( // value == key
+            FastIndexedSeq(Interval(endpoint(v, -1, false), endpoint(v, 1, false))),
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, false)), Interval(endpoint(v, 1, false), posInf)),
+            KeySet.bottom)
+          case _: NEQWithNA => BoolValue( // value != key
+            FastIndexedSeq(Interval(negInf, endpoint(v, -1, false)), Interval(endpoint(v, 1, false), posInf)),
+            FastIndexedSeq(Interval(endpoint(v, -1, false), endpoint(v, 1, false))),
+            KeySet.bottom)
+        }
       }
     }
 
     trait BoolValue extends Value {
-      def trueBound: IndexedSeq[Interval]
+      def trueBound: KeySet.Value
+      def falseBound: KeySet.Value
+      def naBound: KeySet.Value
     }
 
-    private case class ConcreteBool(trueBound: IndexedSeq[Interval]) extends BoolValue
+    private case class ConcreteBool(
+      trueBound: KeySet.Value,
+      falseBound: KeySet.Value,
+      naBound: KeySet.Value
+    ) extends BoolValue
 
     private case class ConstantStruct(value: Row, t: TStruct) extends StructValue with ConstantValue {
       def apply(field: String): Value = this(t.field(field))
@@ -252,15 +376,35 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     private case class ConstantBool(value: Boolean) extends BoolValue with ConstantValue {
-      override def trueBound: IndexedSeq[Interval] = if (value)
+      override def trueBound: KeySet.Value = if (value)
         BoolValue.allTrue.trueBound
       else
         BoolValue.allFalse.trueBound
+
+      override def falseBound: KeySet.Value = if (value)
+        BoolValue.allTrue.falseBound
+      else
+        BoolValue.allFalse.falseBound
+
+      override def naBound: KeySet.Value = if (value)
+        BoolValue.allTrue.naBound
+      else
+        BoolValue.allFalse.naBound
     }
 
     private case class KeyFieldBool(idx: Int) extends BoolValue with KeyField {
-      override def trueBound: IndexedSeq[Interval] = if (idx == 0)
+      override def trueBound: KeySet.Value = if (idx == 0)
         FastIndexedSeq(Interval(true, true, includesStart = true, includesEnd = true))
+      else
+        BoolValue.top.trueBound
+
+      override def falseBound: KeySet.Value = if (idx == 0)
+        FastIndexedSeq(Interval(false, false, includesStart = true, includesEnd = true))
+      else
+        BoolValue.top.trueBound
+
+      override def naBound: KeySet.Value = if (idx == 0)
+        FastIndexedSeq(Interval(null, null, includesStart = true, includesEnd = true))
       else
         BoolValue.top.trueBound
     }
@@ -275,8 +419,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       def apply(field: String): Value = Other
       def values: Iterable[Value] = Iterable.empty
       def isKeyPrefix: Boolean = false
-//      def combine(other: StructValue): StructValue = Other
       override def trueBound: IndexedSeq[Interval] = BoolValue.top.trueBound
+      override def falseBound: IndexedSeq[Interval] = BoolValue.top.falseBound
+      override def naBound: IndexedSeq[Interval] = BoolValue.top.naBound
     }
 
     def top: StructValue with BoolValue = Other
@@ -294,7 +439,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         ConcreteStruct(l.keySet.intersect(r.keySet).view.map {
           f => f -> Lattice.combine(l(f), r(f))
         }.toMap)
-      case (l: BoolValue, r: BoolValue) => ConcreteBool(Interval.union(l.trueBound ++ r.trueBound, iord))
+      case (l: BoolValue, r: BoolValue) => ConcreteBool(
+        KeySet.combine(l.trueBound, r.trueBound),
+        KeySet.combine(l.falseBound, r.falseBound),
+        KeySet.combine(l.naBound, r.naBound))
       case _ => Other
     }
 
@@ -310,44 +458,48 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     private def compareWithConstant(l: Any, r: Value, op: ComparisonOp[_]): BoolValue = {
+      if (op.strict && l == null) return BoolValue.allNA
       r match {
         case r: KeyField if r.idx == 0 =>
           // simple key comparison
-          BoolValue(Array(intervalFromComparison(l, op)))
+          BoolValue.fromComparison(l, op)
         case Contig(rgStr) =>
           // locus contig comparison
+          assert(op.isInstanceOf[EQ])
           val intervals =
             Array(getIntervalFromContig(l.asInstanceOf[String], ctx.getReference(rgStr))).flatten
-          BoolValue(intervals)
+          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
         case Position(rgStr) =>
           // locus position comparison
           val rg = ctx.getReference(rgStr)
           val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
-          val intervals = rg.contigs.indices.flatMap { i =>
-            intervalFromComparison(l, op)
-              .intersect(ord, Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
-              .map { interval =>
-                Interval(
-                  endpoint(
-                    Locus(rg.contigs(i), interval.left.point.asInstanceOf[Row].getAs[Int](0)),
-                    interval.left.sign),
-                  endpoint(
-                    Locus(rg.contigs(i), interval.right.point.asInstanceOf[Row].getAs[Int](0)),
-                    interval.right.sign)
-                  )
-              }
-          }.toArray
-
-          BoolValue(intervals)
+          val posBoolValue = BoolValue.fromComparison(l, op)
+          def liftPosInterval(pos: Interval): Iterable[Interval] = {
+            rg.contigs.indices.flatMap { cont =>
+              pos.intersect(ord, Interval(endpoint(1, -1), endpoint(rg.contigLength(cont), -1)))
+                .map { interval =>
+                  Interval(
+                    endpoint(
+                      Locus(rg.contigs(cont), interval.left.point.asInstanceOf[Row].getAs[Int](0)),
+                      interval.left.sign),
+                    endpoint(
+                      Locus(rg.contigs(cont), interval.right.point.asInstanceOf[Row].getAs[Int](0)),
+                      interval.right.sign))
+                }
+            }
+          }
+          BoolValue(
+            posBoolValue.trueBound.flatMap(liftPosInterval),
+            posBoolValue.falseBound.flatMap(liftPosInterval),
+            posBoolValue.naBound.flatMap(liftPosInterval))
         case s: StructValue if s.isKeyPrefix =>
-          assert(op.isInstanceOf[EQ])
-          BoolValue(Array(Interval(endpoint(l, -1, wrapped = false), endpoint(l, 1, wrapped = false))))
+          BoolValue.fromComparisonKeyPrefix(l.asInstanceOf[Row], op)
         case _ => top
       }
     }
 
     private def opIsSupported(op: ComparisonOp[_]): Boolean = op match {
-      case _: EQ | _: LTEQ | _: LT | _: GTEQ | _: GT => true
+      case _: EQ | _: LTEQ | _: LT | _: GTEQ | _: GT | _: EQWithNA | _: NEQWithNA => true
       case _ => false
     }
   }
@@ -399,24 +551,37 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     case (True(), _) => BoolValue.allTrue
     // collection contains
     case (ApplyIR("contains", _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
-      queryVal match {
+      if (collectionVal == null) {
+        BoolValue.allNA
+      } else queryVal match {
         case Contig(rgStr) =>
           val rg = ctx.stateManager.referenceGenomes(rgStr)
-          BoolValue(intervalsFromLiteralContigs(collectionVal, rg))
+          val intervals = intervalsFromLiteralContigs(collectionVal, rg)
+          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
         case KeyField(0) =>
-          BoolValue(intervalsFromLiteral(collectionVal, true))
+          val intervals = intervalsFromLiteral(collectionVal, true)
+          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
         case struct: StructValue if struct.isKeyPrefix =>
-          BoolValue(intervalsFromLiteral(collectionVal, false))
-        case _ => Lattice.top
+          val intervals = intervalsFromLiteral(collectionVal, false)
+          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
+        case _ => BoolValue.top
       }
     // interval contains
     case (ApplySpecial("contains", _, _, _, _), Seq(ConstantValue(intervalVal), queryVal)) =>
       (intervalVal: @unchecked) match {
-        case null => BoolValue.allFalse
+        case null => BoolValue.allNA
         case i: Interval => queryVal match {
-          case KeyField(0) => BoolValue(wrapInRow(Array(i)))
-          case struct: StructValue if struct.isKeyPrefix => BoolValue(Array(i))
-          case _ => Lattice.top
+          case KeyField(0) =>
+            val l = IntervalEndpoint(Row(i.left.point), i.left.sign)
+            val r = IntervalEndpoint(Row(i.right.point), i.right.sign)
+            BoolValue(
+              Array(Interval(l, r)),
+              Array(Interval(negInf, l), Interval(r, endpoint(null, -1))),
+              Array(Interval(endpoint(null, -1), endpoint(null, 1))))
+          case struct: StructValue if struct.isKeyPrefix =>
+            val intervals = Array(i)
+            BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
+          case _ => BoolValue.top
         }
       }
     case (ApplyComparisonOp(op, _, _), Seq(l, r)) =>
@@ -425,7 +590,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       BoolValue.or(l, r)
     case (ApplySpecial("land", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
       BoolValue.and(l, r)
-    case _ => Lattice.top
+    case (ApplyUnaryPrimOp(Bang(), _), Seq(x: BoolValue)) =>
+      BoolValue.not(x)
+    case _ => BoolValue.top
   }
 
   private def _analyze(x: IR, env: Env[AbstractValue]): AbstractValue = {
@@ -445,7 +612,15 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         StructValue(fields.view.map(name => name -> oldVal.asInstanceOf[StructValue](name)))
       /* TODO: when we support negation, if result is Boolean, handle like (cond & cnsq) | (~cond &
        * altr) */
-      case If(cond, cnsq, altr) => Lattice.combine(recur(cnsq), recur(altr))
+      case x@If(cond, cnsq, altr) =>
+        if (x.typ == TBoolean) {
+          val c = recur(cond).asInstanceOf[BoolValue]
+          BoolValue.or(
+            BoolValue.and(c, recur(cnsq).asInstanceOf[BoolValue]),
+            BoolValue.and(BoolValue.not(c), recur(altr).asInstanceOf[BoolValue]))
+        } else {
+          Lattice.combine(recur(cnsq), recur(altr))
+        }
       case ToStream(a, _) => recur(a)
       case StreamFold(a, zero, accumName, valueName, body) => recur(a) match {
           case ConstantValue(array) => array.asInstanceOf[Iterable[Any]]
