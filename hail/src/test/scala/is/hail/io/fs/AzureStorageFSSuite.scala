@@ -1,5 +1,6 @@
 package is.hail.io.fs
 
+import is.hail.io.fs.AzureStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
@@ -8,7 +9,7 @@ import org.testng.annotations.{BeforeClass, Test}
 import java.io.FileInputStream
 
 
-class AzureStorageFSSuite extends TestNGSuite with FSSuite {
+class AzureStorageFSSuite extends FSSuite {
   @BeforeClass
   def beforeclass(): Unit = {
     if (System.getenv("HAIL_CLOUD") != "azure") {

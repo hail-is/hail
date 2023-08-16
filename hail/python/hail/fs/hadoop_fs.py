@@ -6,7 +6,13 @@ from typing import Dict, List, Union, Any
 import dateutil.parser
 
 from hailtop.fs.fs import FS
-from hailtop.fs.stat_result import FileType, FileListEntry
+from hailtop.fs.stat_result import FileType, FileListEntry, FileStatus
+
+
+def _file_status_scala_to_python(file_status: Dict[str, Any]) -> FileStatus:
+    dt = dateutil.parser.isoparse(file_status['modification_time'])
+    mtime = time.mktime(dt.timetuple())
+    return FileStatus(path=file_status['path'], owner=file_status['owner'], size=file_status['size'], modification_time=mtime)
 
 
 def _file_list_entry_scala_to_python(file_list_entry: Dict[str, Any]) -> FileListEntry:
@@ -63,13 +69,25 @@ class HadoopFS(FS):
     def is_dir(self, path: str) -> bool:
         return self._jfs.isDir(path)
 
+    def fast_stat(self, path: str) -> FileStatus:
+        '''Get information about a path other than its file/directory status.
+
+        In the cloud, determining if a given path is a file, a directory, or both is expensive. This
+        method simply returns file metadata if there is a file at this path. If there is no file at
+        this path, this operation will fail. The presence or absence of a directory at this path
+        does not affect the behaviors of this method.
+
+        '''
+        file_status_dict = json.loads(self._utils_package_object.fileStatus(self._jfs, path))
+        return _file_status_scala_to_python(file_status_dict)
+
     def stat(self, path: str) -> FileListEntry:
-        stat_dict = json.loads(self._utils_package_object.fileListEntry(self._jfs, path))
-        return _file_list_entry_scala_to_python(stat_dict)
+        file_list_entry_dict = json.loads(self._utils_package_object.fileListEntry(self._jfs, path))
+        return _file_list_entry_scala_to_python(file_list_entry_dict)
 
     def ls(self, path: str) -> List[FileListEntry]:
-        return [_file_list_entry_scala_to_python(st)
-                for st in json.loads(self._utils_package_object.ls(self._jfs, path))]
+        return [_file_list_entry_scala_to_python(fle)
+                for fle in json.loads(self._utils_package_object.ls(self._jfs, path))]
 
     def mkdir(self, path: str) -> None:
         return self._jfs.mkDir(path)

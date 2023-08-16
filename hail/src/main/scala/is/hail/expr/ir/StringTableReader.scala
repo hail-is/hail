@@ -13,7 +13,7 @@ import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct, SStack
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
-import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, VirtualTypeWithReq}
+import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils.{FastSeq, fatal, checkGzipOfGlobbedFiles}
 import org.json4s.{Extraction, Formats, JValue}
 

@@ -3,6 +3,8 @@ package is.hail.io.fs
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
+import is.hail.{HailSuite, TestUtils}
+import is.hail.io.fs.{FS, FileListEntry, GoogleStorageFS, Seekable, FileAndDirectoryException}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
@@ -42,12 +44,7 @@ trait FSSuite extends TestNGSuite {
 
   def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
 
-  @Test def testExists(): Unit = {
-    assert(fs.exists(r("/a")))
-
-    assert(fs.exists(r("/zzz")))
-    assert(!fs.exists(r("/z"))) // prefix
-
+  @Test def testExistsOnDirectory(): Unit = {
     assert(fs.exists(r("/dir")))
     assert(fs.exists(r("/dir/")))
 
@@ -55,14 +52,34 @@ trait FSSuite extends TestNGSuite {
     assert(!fs.exists(r("/does_not_exist_dir/")))
   }
 
+  @Test def testExistsOnFile(): Unit = {
+    assert(fs.exists(r("/a")))
+
+    assert(fs.exists(r("/zzz")))
+    assert(!fs.exists(r("/z"))) // prefix
+  }
+
+  @Test def testFileStatusOnFile(): Unit = {
+    // file
+    val f = r("/a")
+    val s = fs.fileStatus(f)
+    assert(s.getPath == f)
+    assert(s.getLen == 12)
+  }
+
   @Test def testFileListEntryOnFile(): Unit = {
     // file
     val f = r("/a")
     val s = fs.fileListEntry(f)
     assert(s.getPath == f)
-    assert(s.isFile)
-    assert(!s.isDirectory)
     assert(s.getLen == 12)
+  }
+
+  @Test def testFileStatusOnDirIsFailure(): Unit = {
+    val f = r("/dir")
+    TestUtils.interceptException[FileNotFoundException](r("/dir"))(
+      fs.fileStatus(r("/dir"))
+    )
   }
 
   @Test def testFileListEntryOnDir(): Unit = {
@@ -70,8 +87,6 @@ trait FSSuite extends TestNGSuite {
     val f = r("/dir")
     val s = fs.fileListEntry(f)
     assert(s.getPath == f)
-    assert(!s.isFile)
-    assert(s.isDirectory)
   }
 
   @Test def testFileListEntryOnDirWithSlash(): Unit = {
@@ -79,8 +94,6 @@ trait FSSuite extends TestNGSuite {
     val f = r("/dir/")
     val s = fs.fileListEntry(f)
     assert(s.getPath == f.dropRight(1))
-    assert(!s.isFile)
-    assert(s.isDirectory)
   }
 
   @Test def testFileListEntryOnMissingFile(): Unit = {
@@ -188,6 +201,20 @@ trait FSSuite extends TestNGSuite {
     val statuses = fs.glob(root)
     // empty with respect to root (self)
     assert(pathsRelRoot(root, statuses) == Set(""))
+  }
+
+  @Test def testFileEndingWithPeriod: Unit = {
+    val f = fs.makeQualified(t())
+    fs.touch(f + "/foo.")
+    val statuses = fs.listDirectory(f)
+    assert(statuses.length == 1, statuses)
+    val status = statuses(0)
+    if (this.isInstanceOf[AzureStorageFSSuite]) {
+      // https://github.com/Azure/azure-sdk-for-java/issues/36674
+      assert(status.getPath == f + "/foo")
+    } else {
+      assert(status.getPath == f + "/foo.")
+    }
   }
 
   @Test def testGlobRootWithSlash(): Unit = {
@@ -432,6 +459,126 @@ trait FSSuite extends TestNGSuite {
       is.seek(0)
       assert(is.read() == 1.toByte)
     }
+  }
+
+  @Test def fileAndDirectoryIsError(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x")
+    fs.touch(s"$d/x/file")
+
+    TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
+      fs.getFileListEntry(s"$d/x")
+    )
+  }
+
+  @Test def fileAndDirectoryIsErrorEvenIfNotFirstEntryInList(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x")
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    // fs.touch(s"$d/x%") // Azure dislikes %'s
+    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
+    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
+    //     at is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238)
+    //     at is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98)
+    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+    fs.touch(s"$d/x/file")
+
+    TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
+      fs.getFileListEntry(s"$d/x")
+    )
+  }
+
+  @Test def fileListEntrySeesDirectoryEvenIfNotFirstEntryInList(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    // fs.touch(s"$d/x%") // Azure dislikes %'s
+    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
+    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
+    //     at is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238)
+    //     at is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98)
+    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+    fs.touch(s"$d/x/file")
+
+    val fle = fs.getFileListEntry(s"$d/x")
+    assert(fle.isDirectory)
+    assert(!fle.isFile)
+  }
+
+  @Test def fileListEntrySeesFileEvenWithPeersPreceedingThePositionOfANonPresentDirectoryEntry(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x")
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    // fs.touch(s"$d/x%") // Azure dislikes %'s
+    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
+    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
+    //     at is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238)
+    //     at is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172)
+    //     at is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98)
+    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+
+    val fle = fs.getFileListEntry(s"$d/x")
+    assert(!fle.isDirectory)
+    assert(fle.isFile)
   }
 }
 
