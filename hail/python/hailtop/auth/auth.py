@@ -7,7 +7,7 @@ import json
 import aiohttp
 
 from hailtop import httpx
-from hailtop.aiocloud.common.credentials import CloudCredentials, Credentials
+from hailtop.aiocloud.common.credentials import AnonymousCloudCredentials, CloudCredentials, Credentials
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.aiogoogle import GoogleCredentials
 from hailtop.aiocloud.aioazure import AzureCredentials
@@ -103,7 +103,7 @@ def get_cloud_credentials_scoped_for_hail() -> Optional[CloudCredentials]:
         scopes = ['email', 'openid', 'profile']
         if spec.oauth2_credentials is not None:
             return GoogleCredentials.from_credentials_data(spec.oauth2_credentials, scopes=scopes)
-        return GoogleCredentials.default_credentials(scopes=scopes)
+        return GoogleCredentials.default_credentials(scopes=scopes, anon_ok=False)
 
     assert spec.idp == IdentityProvider.MICROSOFT
     if spec.oauth2_credentials is not None:

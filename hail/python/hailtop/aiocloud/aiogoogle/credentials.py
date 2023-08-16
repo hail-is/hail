@@ -4,6 +4,7 @@ import json
 import time
 import logging
 import socket
+from typing import overload, Literal
 from urllib.parse import urlencode
 import jwt
 
@@ -70,8 +71,16 @@ class GoogleCredentials(CloudCredentials):
 
         raise ValueError(f'unknown Google Cloud credentials type {credentials_type}')
 
+    @overload
     @staticmethod
-    def default_credentials(scopes: Optional[List[str]] = None) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
+    def default_credentials(scopes: Optional[List[str]] = ..., *, anon_ok: Literal[False] = ...) -> 'GoogleCredentials': ...
+
+    @overload
+    @staticmethod
+    def default_credentials(scopes: Optional[List[str]] = ..., *, anon_ok: Literal[True] = ...) -> Union['GoogleCredentials', AnonymousCloudCredentials]: ...
+
+    @staticmethod
+    def default_credentials(scopes: Optional[List[str]] = None, *, anon_ok: bool = True) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
         credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
         if credentials_file is None:
@@ -90,6 +99,10 @@ class GoogleCredentials(CloudCredentials):
             log.info('Will attempt to use instance metadata server instead')
             return GoogleInstanceMetadataCredentials(scopes=scopes)
 
+        if not anon_ok:
+            raise ValueError(
+                'You are not logged into google. Run `gcloud auth application-default login` to log in.'
+            )
         log.warning('Using anonymous credentials. If accessing private data, '
                     'run `gcloud auth application-default login` first to log in.')
         return AnonymousCloudCredentials()
