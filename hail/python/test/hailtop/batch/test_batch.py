@@ -815,21 +815,18 @@ class ServiceTests(unittest.TestCase):
 
         setup_jobs = []
         for i in range(10):
-            j = b.new_job(f'setup_{i}')
-            j.cpu(0.25)
+            j = b.new_job(f'setup_{i}').cpu(0.25)
             j.command(f'echo "foo" > {j.ofile}')
             setup_jobs.append(j)
 
         jobs = []
         for i in range(500):
-            j = b.new_job(f'create_file_{i}')
-            j.cpu(0.25)
+            j = b.new_job(f'create_file_{i}').cpu(0.25)
             j.command(f'echo {setup_jobs[i % len(setup_jobs)].ofile} > {j.ofile}')
             j.command(f'echo "bar" >> {j.ofile}')
             jobs.append(j)
 
-        combine = b.new_job(f'combine_output')
-        combine.cpu(0.25)
+        combine = b.new_job(f'combine_output').cpu(0.25)
         for _ in grouped(arg_max(), jobs):
             combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
         b.write_output(combine.ofile, f'{self.cloud_output_dir}/pipeline_benchmark_test.txt')
@@ -1289,7 +1286,6 @@ class ServiceTests(unittest.TestCase):
         j2 = b2.new_job()
         j2.command('true')
         res = b2.run()
-
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
