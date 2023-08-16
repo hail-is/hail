@@ -481,7 +481,7 @@ tomli==2.0.1
     #   pytest
 tomlkit==0.12.1
     # via pylint
-tornado==6.3.2
+tornado==6.3.3
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   ipykernel
