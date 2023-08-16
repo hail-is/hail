@@ -402,7 +402,7 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def largeDirectoryOperations(): Unit = {
-    val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }.suffix"
+    val prefix = s"$hail_test_storage_uri/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }.suffix"
     for (i <- 0 until 2000) {
       fs.touch(s"$prefix/$i")
     }
@@ -416,7 +416,7 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def testSeekAfterEOF(): Unit = {
-    val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    val prefix = s"$hail_test_storage_uri/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
     val p = s"$prefix/seek_file"
     using(fs.createCachedNoCompression(p)) { os =>
       os.write(1.toByte)
