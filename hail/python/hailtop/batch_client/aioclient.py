@@ -783,6 +783,7 @@ class BatchBuilder:
                                   byte_job_specs_bunches: List[List[bytes]],
                                   bunch_sizes: List[int],
                                   progress_task: BatchProgressBarTask):
+        assert self._batch
         await bounded_gather(
             *[functools.partial(self._submit_jobs, self._batch.id, self._update_id, bunch, size, progress_task)
               for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
@@ -795,7 +796,7 @@ class BatchBuilder:
                       max_bunch_size: int,
                       disable_progress_bar: bool,
                       min_bunches_for_progress_bar: Optional[int],
-                      progress: Optional[BatchProgressBar]) -> Optional[int]:
+                      progress: BatchProgressBar) -> Optional[int]:
         n_jobs = len(self._jobs)
         byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(self._job_specs, max_bunch_bytesize, max_bunch_size)
         n_job_bunches = len(byte_job_specs_bunches)
