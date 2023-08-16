@@ -329,7 +329,6 @@ def submit(
     $ hailctl dataproc submit name --image-name docker.io/image my_script.py -- some-argument --animal dog
 
     '''
-    raise ValueError((name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, [*(arguments or []), *ctx.args]))
     dataproc_submit(name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, [*(arguments or []), *ctx.args])
 
 

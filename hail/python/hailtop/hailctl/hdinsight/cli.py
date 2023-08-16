@@ -164,7 +164,6 @@ def submit(
 
     $ hailctl hdinsight submit name account password script.py --image-name docker.io/image my_script.py -- some-argument --animal dog
     '''
-    raise ValueError((name, storage_account, http_password, script, [*(arguments or []), *ctx.args]))
     hdinsight_submit(name, storage_account, http_password, script, [*(arguments or []), *ctx.args])
 
 

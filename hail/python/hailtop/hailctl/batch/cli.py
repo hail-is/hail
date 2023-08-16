@@ -167,5 +167,4 @@ def submit(
 
         hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
     '''
-    raise ValueError((name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
     asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
