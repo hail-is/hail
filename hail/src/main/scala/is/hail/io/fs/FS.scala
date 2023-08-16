@@ -69,20 +69,35 @@ trait FileStatus {
   def getPath: String
   def getModificationTime: java.lang.Long
   def getLen: Long
-  def isDirectory: Boolean
   def isSymlink: Boolean
-  def isFile: Boolean
   def getOwner: String
+  def isFileOrFileAndDirectory: Boolean = true
 }
 
-class BlobStorageFileStatus(path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean) extends FileStatus {
+trait FileListEntry extends FileStatus {
+  def isFile: Boolean
+  def isDirectory: Boolean
+  override def isFileOrFileAndDirectory: Boolean = isFile
+}
+
+class BlobStorageFileStatus(
+  path: String, modificationTime: java.lang.Long, size: Long
+) extends FileStatus {
   def getPath: String = path
   def getModificationTime: java.lang.Long = modificationTime
   def getLen: Long = size
-  def isDirectory: Boolean = isDir
-  def isFile: Boolean = !isDir
   def isSymlink: Boolean = false
   def getOwner: String = null
+}
+
+class BlobStorageFileListEntry(
+  path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean
+) extends BlobStorageFileStatus(
+  path, modificationTime, size
+) with FileListEntry {
+  def isDirectory: Boolean = isDir
+  def isFile: Boolean = !isDir
+  override def isFileOrFileAndDirectory = isFile
 }
 
 trait CompressionCodec {
@@ -103,6 +118,8 @@ object BGZipCompressionCodec extends CompressionCodec {
 
   def makeOutputStream(os: OutputStream): OutputStream = new BGzipOutputStream(os)
 }
+
+class FileAndDirectoryException(message: String) extends RuntimeException(message)
 
 object FSUtil {
   def dropTrailingSlash(path: String): String = {
@@ -262,6 +279,51 @@ object FS {
 
     new RouterFS(Array(cloudSpecificFS, new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration()))))
   }
+
+  def fileListEntryFromIterator[T <: FSURL[T]](
+    url: T,
+    it: Iterator[FileListEntry],
+    makeDirFle: String => FileListEntry
+  ): FileListEntry = {
+    if (url.getPath == "")
+      return makeDirFle(url.toString)
+
+    val prefix = dropTrailingSlash(url.toString)
+    val prefixWithSlash = prefix + "/"
+
+    var continue = it.hasNext
+    var fileFle: FileListEntry = null
+    var dirFle: FileListEntry = null
+    while (continue) {
+      val fle = it.next()
+
+      if (fle.getPath == prefix) {
+        assert(fle.isFile)
+        fileFle = fle
+      }
+
+      if (fle.getPath == prefixWithSlash) {
+        assert(fle.isDirectory)
+        dirFle = fle
+      }
+
+      continue = it.hasNext && (fle.getPath <= prefixWithSlash)
+    }
+
+    if (fileFle != null) {
+      if (dirFle != null) {
+        throw new FileAndDirectoryException(prefix)
+      } else {
+        fileFle
+      }
+    } else {
+      if (dirFle != null) {
+        dirFle
+      } else {
+        throw new FileNotFoundException(url.toString)
+      }
+    }
+  }
 }
 
 trait FS extends Serializable {
@@ -343,13 +405,13 @@ trait FS extends Serializable {
 
   def delete(filename: String, recursive: Boolean)
 
-  def listStatus(filename: String): Array[FileStatus]
+  def listDirectory(filename: String): Array[FileListEntry]
 
-  def listStatus(url: URL): Array[FileStatus] = listStatus(url.toString)
+  def listDirectory(url: URL): Array[FileListEntry] = listDirectory(url.toString)
 
-  def glob(filename: String): Array[FileStatus]
+  def glob(filename: String): Array[FileListEntry]
 
-  def globWithPrefix(prefix: URL, path: String) = {
+  def globWithPrefix(prefix: URL, path: String): Array[FileListEntry] = {
     val components =
       if (path == "")
         Array.empty[String]
@@ -358,15 +420,15 @@ trait FS extends Serializable {
 
     val javaFS = FileSystems.getDefault
 
-    val ab = new mutable.ArrayBuffer[FileStatus]()
-    def f(prefix: URL, fs: FileStatus, i: Int): Unit = {
+    val ab = new mutable.ArrayBuffer[FileListEntry]()
+    def f(prefix: URL, fle: FileListEntry, i: Int): Unit = {
       assert(!prefix.getPath.endsWith("/"), prefix)
 
       if (i == components.length) {
-        var t = fs
+        var t = fle
         if (t == null) {
           try {
-            t = fileStatus(prefix)
+            t = getFileListEntry(prefix)
           } catch {
             case _: FileNotFoundException =>
           }
@@ -379,7 +441,7 @@ trait FS extends Serializable {
         val c = components(i)
         if (containsWildcard(c)) {
           val m = javaFS.getPathMatcher(s"glob:$c")
-          for (cfs <- listStatus(prefix)) {
+          for (cfs <- listDirectory(prefix)) {
             val p = dropTrailingSlash(cfs.getPath)
             val d = p.drop(prefix.toString.length + 1)
             if (m.matches(javaFS.getPath(d))) {
@@ -395,14 +457,15 @@ trait FS extends Serializable {
     ab.toArray
   }
 
-  def globAll(filenames: Iterable[String]): Array[String] =
-    globAllStatuses(filenames).map(_.getPath)
-
-  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
+  def globAll(filenames: Iterable[String]): Array[FileListEntry] = filenames.flatMap(glob).toArray
 
   def fileStatus(filename: String): FileStatus
 
-  def fileStatus(url: URL): FileStatus = fileStatus(url.toString)
+  def fileStatus(url: URL): FileStatus
+
+  def getFileListEntry(filename: String): FileListEntry
+
+  def getFileListEntry(url: URL): FileListEntry = getFileListEntry(url.toString)
 
   def makeQualified(path: String): String
 
@@ -446,7 +509,7 @@ trait FS extends Serializable {
 
   def isFile(filename: String): Boolean = {
     try {
-      fileStatus(filename).isFile
+      getFileListEntry(filename).isFile
     } catch {
       case _: FileNotFoundException => false
     }
@@ -454,7 +517,7 @@ trait FS extends Serializable {
 
   def isDir(filename: String): Boolean = {
     try {
-      fileStatus(filename).isDirectory
+      getFileListEntry(filename).isDirectory
     } catch {
       case _: FileNotFoundException => false
     }
@@ -530,25 +593,29 @@ trait FS extends Serializable {
 
     delete(destinationFile, recursive = true) // overwriting by default
 
-    val headerFileStatus = glob(sourceFolder + "/header")
+    val headerFLEs = glob(sourceFolder + "/header")
 
-    if (header && headerFileStatus.isEmpty)
+    if (header && headerFLEs.isEmpty)
       fatal(s"Missing header file")
-    else if (!header && headerFileStatus.nonEmpty)
+    else if (!header && headerFLEs.nonEmpty)
       fatal(s"Found unexpected header file")
 
     val partFileStatuses = partFilesOpt match {
       case None => glob(sourceFolder + "/part-*")
       case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
     }
-    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(new hadoop.fs.Path(fs.getPath).getName))
+
+    val sortedPartFileStatuses = partFileStatuses.sortBy { fileStatus =>
+      getPartNumber(fileStatus.getPath)
+    }
+
     if (sortedPartFileStatuses.length != numPartFilesExpected)
       fatal(s"Expected $numPartFilesExpected part files but found ${ sortedPartFileStatuses.length }")
 
-    val filesToMerge = headerFileStatus ++ sortedPartFileStatuses
+    val filesToMerge: Array[FileStatus] = headerFLEs ++ sortedPartFileStatuses
 
     info(s"merging ${ filesToMerge.length } files totalling " +
-      s"${ readableBytes(sortedPartFileStatuses.map(_.getLen).sum) }...")
+      s"${ readableBytes(filesToMerge.map(_.getLen).sum) }...")
 
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
@@ -568,7 +635,7 @@ trait FS extends Serializable {
     val isBGzip = codec.exists(_ == BGZipCompressionCodec)
 
     require(srcFileStatuses.forall {
-      fileStatus => fileStatus.getPath != destFilename && fileStatus.isFile
+      fileStatus => fileStatus.getPath != destFilename && fileStatus.isFileOrFileAndDirectory
     })
 
     using(createNoCompression(destFilename)) { os =>
@@ -591,7 +658,7 @@ trait FS extends Serializable {
 
     if (deleteSource) {
       srcFileStatuses.foreach { fileStatus =>
-        delete(fileStatus.getPath.toString, recursive = true)
+        delete(fileStatus.getPath, recursive = true)
       }
     }
   }

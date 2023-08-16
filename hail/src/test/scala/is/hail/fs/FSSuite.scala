@@ -2,10 +2,10 @@ package is.hail.fs
 
 import java.io.FileNotFoundException
 import is.hail.fs.azure.AzureStorageFSSuite
-import is.hail.HailSuite
+import is.hail.{HailSuite, TestUtils}
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.io.fs.{FS, FileStatus, GoogleStorageFS, Seekable}
+import is.hail.io.fs.{FS, FileListEntry, GoogleStorageFS, Seekable, FileAndDirectoryException}
 import is.hail.utils._
 import org.apache.commons.codec.binary.Hex
 import org.apache.commons.io.IOUtils
@@ -34,7 +34,7 @@ trait FSSuite extends TestNGSuite {
 
   def t(extension: String = null): String = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fs-suite-tmp", extension)
 
-  def pathsRelRoot(root: String, statuses: Array[FileStatus]): Set[String] = {
+  def pathsRelRoot(root: String, statuses: Array[FileListEntry]): Set[String] = {
     statuses.map { status =>
       var p = status.getPath
       assert(p.startsWith(root), s"$p $root")
@@ -42,7 +42,7 @@ trait FSSuite extends TestNGSuite {
     }.toSet
   }
 
-  def pathsRelResourcesRoot(statuses: Array[FileStatus]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
+  def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
 
   @Test def testExists(): Unit = {
     assert(fs.exists(r("/a")))
@@ -62,8 +62,6 @@ trait FSSuite extends TestNGSuite {
     val f = r("/a")
     val s = fs.fileStatus(f)
     assert(s.getPath == f)
-    assert(s.isFile)
-    assert(!s.isDirectory)
     assert(s.getLen == 12)
   }
 
@@ -72,8 +70,6 @@ trait FSSuite extends TestNGSuite {
     val f = r("/dir")
     val s = fs.fileStatus(f)
     assert(s.getPath == f)
-    assert(!s.isFile)
-    assert(s.isDirectory)
   }
 
   @Test def testFileStatusOnDirWithSlash(): Unit = {
@@ -81,8 +77,6 @@ trait FSSuite extends TestNGSuite {
     val f = r("/dir/")
     val s = fs.fileStatus(f)
     assert(s.getPath == f.dropRight(1))
-    assert(!s.isFile)
-    assert(s.isDirectory)
   }
 
   @Test def testFileStatusOnMissingFile(): Unit = {
@@ -137,12 +131,12 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def testListStatusDir(): Unit = {
-    val statuses = fs.listStatus(r(""))
+    val statuses = fs.listDirectory(r(""))
     assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))
   }
 
   @Test def testListStatusDirWithSlash(): Unit = {
-    val statuses = fs.listStatus(r("/"))
+    val statuses = fs.listDirectory(r("/"))
     assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))
   }
 
@@ -397,6 +391,93 @@ trait FSSuite extends TestNGSuite {
         assert(toRead(i) == ((seekPos + i) % 251).toByte)
       }
     }
+  }
+
+  @Test def fileAndDirectoryIsError(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x")
+    fs.touch(s"$d/x/file")
+
+    TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
+      fs.getFileListEntry(s"$d/x")
+    )
+  }
+
+  @Test def fileAndDirectoryIsErrorEvenIfNotFirstEntryInList(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x")
+    fs.touch(s"$d/x ")
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    fs.touch(s"$d/x%")
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    fs.touch(s"$d/x.")
+    fs.touch(s"$d/x/file")
+
+    TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
+      fs.getFileListEntry(s"$d/x")
+    )
+  }
+
+  @Test def fileListEntrySeesDirectoryEvenIfNotFirstEntryInList(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x ")
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    fs.touch(s"$d/x%")
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    fs.touch(s"$d/x.")
+    fs.touch(s"$d/x/file")
+
+    val fle = fs.getFileListEntry(s"$d/x")
+    assert(fle.isDirectory)
+    assert(!fle.isFile)
+  }
+
+  @Test def fileListEntrySeesFileEvenWithPeersPreceedingThePositionOfANonPresentDirectoryEntry(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x")
+    fs.touch(s"$d/x ")
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    fs.touch(s"$d/x%")
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    fs.touch(s"$d/x.")
+
+    val fle = fs.getFileListEntry(s"$d/x")
+    assert(fle.isDirectory)
+    assert(!fle.isFile)
   }
 }
 

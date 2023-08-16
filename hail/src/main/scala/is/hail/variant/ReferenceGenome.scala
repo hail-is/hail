@@ -592,7 +592,7 @@ object ReferenceGenome {
 
   def readReferences(fs: FS, path: String): Array[ReferenceGenome] = {
     if (fs.exists(path)) {
-      val refs = fs.listStatus(path)
+      val refs = fs.listDirectory(path)
       val rgs = mutable.Set[ReferenceGenome]()
       refs.foreach { fileSystem =>
         val rgPath = fileSystem.getPath.toString

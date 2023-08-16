@@ -561,7 +561,7 @@ object TableTextFinalizer {
   }
 
   def cleanup(fs: FS, outputPath: String, files: Array[String]): Unit = {
-    val outputFiles = fs.listStatus(fs.makeQualified(outputPath)).map(_.getPath).toSet
+    val outputFiles = fs.listDirectory(fs.makeQualified(outputPath)).map(_.getPath).toSet
     val fileSet = files.map(fs.makeQualified(_)).toSet
     outputFiles.diff(fileSet).foreach(fs.delete(_, false))
   }

@@ -3,23 +3,32 @@ import json
 import time
 from typing import Dict, List, Union, Any
 
-import dateutil
+import dateutil.parser
 
 from hailtop.fs.fs import FS
-from hailtop.fs.stat_result import FileType, StatResult
+from hailtop.fs.stat_result import FileType, FileListEntry, FileStatus
 
 
-def _stat_dict_to_stat_result(stat: Dict[str, Any]) -> StatResult:
-    dt = dateutil.parser.isoparse(stat['modification_time'])
+def _file_status_dict_to_file_status(file_status: Dict[str, Any]) -> FileStatus:
+    dt = dateutil.parser.isoparse(file_status['modification_time'])
     mtime = time.mktime(dt.timetuple())
-    if stat['is_dir']:
+    return FileStatus(path=file_status['path'], owner=file_status['owner'], size=file_status['size'], modification_time=mtime)
+
+
+def _file_list_entry_dict_to_file_status(file_list_entry: Dict[str, Any]) -> FileListEntry:
+    dt = dateutil.parser.isoparse(file_list_entry['modification_time'])
+    mtime = time.mktime(dt.timetuple())
+    if file_list_entry['is_dir']:
         typ = FileType.DIRECTORY
-    elif stat['is_link']:
+    elif file_list_entry['is_link']:
         typ = FileType.SYMLINK
     else:
         typ = FileType.FILE
-    return StatResult(path=stat['path'], owner=stat['owner'], size=stat['size'],
-                      typ=typ, modification_time=mtime)
+    return FileListEntry(path=file_list_entry['path'],
+                         owner=file_list_entry['owner'],
+                         size=file_list_entry['size'],
+                         typ=typ,
+                         modification_time=mtime)
 
 
 class HadoopFS(FS):
@@ -60,12 +69,24 @@ class HadoopFS(FS):
     def is_dir(self, path: str) -> bool:
         return self._jfs.isDir(path)
 
-    def stat(self, path: str) -> StatResult:
-        stat_dict = json.loads(self._utils_package_object.stat(self._jfs, path))
-        return _stat_dict_to_stat_result(stat_dict)
+    def fast_stat(self, path: str) -> FileStatus:
+        '''Get information about a path other than its file/directory status.
 
-    def ls(self, path: str) -> List[StatResult]:
-        return [_stat_dict_to_stat_result(st)
+        In the cloud, determining if a given path is a file, a directory, or both is expensive. This
+        method simply returns file metadata if there is a file at this path. If there is no file at
+        this path, this operation will fail. The presence or absence of a directory at this path
+        does not affect the return value of this method at all.
+
+        '''
+        file_status_dict = json.loads(self._utils_package_object.fileStatus(self._jfs, path))
+        return _file_status_dict_to_file_status(file_status_dict)
+
+    def stat(self, path: str) -> FileListEntry:
+        filestatus_dict = json.loads(self._utils_package_object.getFileListEntry(self._jfs, path))
+        return _file_list_entry_dict_to_file_status(filestatus_dict)
+
+    def ls(self, path: str) -> List[FileListEntry]:
+        return [_file_list_entry_dict_to_file_status(st)
                 for st in json.loads(self._utils_package_object.ls(self._jfs, path))]
 
     def mkdir(self, path: str) -> None:
