@@ -3,11 +3,12 @@ from hailtop.hail_logging import configure_logging
 # configure logging before importing anything else
 configure_logging()
 
-from .main import run  # noqa: E402 pylint: disable=wrong-import-position
-import aiohttp  # noqa: E402 pylint: disable=wrong-import-position
-import traceback  # noqa: E402 pylint: disable=wrong-import-position
 import sys  # noqa: E402 pylint: disable=wrong-import-position
+import traceback  # noqa: E402 pylint: disable=wrong-import-position
 
+import aiohttp  # noqa: E402 pylint: disable=wrong-import-position
+
+from .main import run  # noqa: E402 pylint: disable=wrong-import-position
 
 oldinit = aiohttp.ClientSession.__init__
 
