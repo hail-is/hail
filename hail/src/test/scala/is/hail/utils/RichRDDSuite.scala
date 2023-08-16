@@ -34,7 +34,7 @@ class RichRDDSuite extends HailSuite {
     val merged = ctx.createTmpPath("merged", ".gz")
     val mergeList = Array(separateHeader + "/header.gz",
       separateHeader + "/part-00000.gz",
-      separateHeader + "/part-00001.gz").flatMap(fs.glob)
+      separateHeader + "/part-00001.gz").map(x => fs.fileStatus(x))
     fs.copyMergeList(mergeList, merged, deleteSource = false)
 
     assert(read(merged) sameElements read(concatenated))

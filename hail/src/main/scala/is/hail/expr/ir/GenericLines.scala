@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.compress.BGzipInputStream
-import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, BGZipCompressionCodec}
+import is.hail.io.fs.{FS, FileListEntry, Positioned, PositionedInputStream, BGZipCompressionCodec}
 import is.hail.io.tabix.{TabixReader, TabixLineIterator}
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.utils._
@@ -252,7 +252,7 @@ object GenericLines {
 
   def read(
     fs: FS,
-    fileStatuses0: IndexedSeq[FileStatus],
+    fles0: IndexedSeq[FileListEntry],
     nPartitions: Option[Int],
     blockSizeInMB: Option[Int],
     minPartitions: Option[Int],
@@ -260,8 +260,8 @@ object GenericLines {
     allowSerialRead: Boolean,
     filePerPartition: Boolean = false
   ): GenericLines = {
-    val fileStatuses = fileStatuses0.zipWithIndex.filter(_._1.getLen > 0)
-    val totalSize = fileStatuses.map(_._1.getLen).sum
+    val fles = fles0.zipWithIndex.filter(_._1.getLen > 0)
+    val totalSize = fles.map(_._1.getLen).sum
 
     var totalPartitions = nPartitions match {
       case Some(nPartitions) => nPartitions
@@ -276,9 +276,9 @@ object GenericLines {
       case None =>
     }
 
-    val contexts = fileStatuses.flatMap { case (status, fileNum) =>
-      val size = status.getLen
-      val codec = fs.getCodecFromPath(status.getPath, gzAsBGZ)
+    val contexts = fles.flatMap { case (fle, fileNum) =>
+      val size = fle.getLen
+      val codec = fs.getCodecFromPath(fle.getPath, gzAsBGZ)
 
       val splittable = codec == null || codec == BGZipCompressionCodec
       if (splittable && !filePerPartition) {
@@ -294,14 +294,14 @@ object GenericLines {
             var end = partScan(i + 1)
             if (codec != null)
               end = makeVirtualOffset(end, 0)
-            Row(i, fileNum, status.getPath, start, end, true)
+            Row(i, fileNum, fle.getPath, start, end, true)
           }
       } else {
         if (!allowSerialRead && !filePerPartition)
-          fatal(s"Cowardly refusing to read file serially: ${ status.getPath }.")
+          fatal(s"Cowardly refusing to read file serially: ${ fle.getPath }.")
 
         Iterator.single {
-          Row(0, fileNum, status.getPath, 0L, size, false)
+          Row(0, fileNum, fle.getPath, 0L, size, false)
         }
       }
     }

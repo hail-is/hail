@@ -10,7 +10,6 @@ import is.hail.expr.ir.MatrixValue
 import is.hail.expr.ir.functions.MatrixToValueFunction
 import is.hail.types.{MatrixType, RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{TVoid, Type}
-import is.hail.io.fs.FileStatus
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row

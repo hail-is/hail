@@ -7,7 +7,7 @@ import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
 
 import java.io._
 
-class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
+class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
   val normalizedPath = fs.getPath
 
   def getPath: String = fs.getPath.toString
@@ -122,7 +122,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
-  def listStatus(filename: String): Array[FileStatus] = {
+  def listDirectory(filename: String): Array[FileListEntry] = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     var statuses = fs.globStatus(hPath)
@@ -131,7 +131,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     } else {
       statuses.par.map(_.getPath)
         .flatMap(fs.listStatus(_))
-        .map(new HadoopFileStatus(_))
+        .map(new HadoopFileListEntry(_))
         .toArray
     }
   }
@@ -152,27 +152,16 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     getFileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
   }
 
-  override def globAll(filenames: Iterable[String]): Array[String] = {
-    filenames.iterator
-      .flatMap { arg =>
-        val fss = glob(arg)
-        val files = fss.map(_.getPath.toString)
-        if (files.isEmpty)
-          warn(s"'$arg' refers to no files")
-        files
-      }.toArray
-  }
-
-  override def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = {
+  override def globAll(filenames: Iterable[String]): Array[FileListEntry] = {
     filenames.flatMap { filename =>
-      val statuses = glob(filename)
-      if (statuses.isEmpty)
+      val fles = glob(filename)
+      if (fles.isEmpty)
         warn(s"'$filename' refers to no files")
-      statuses
+      fles
     }.toArray
   }
 
-  def glob(filename: String): Array[FileStatus] = {
+  def glob(filename: String): Array[FileListEntry] = {
     val fs = getFileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
@@ -180,13 +169,19 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     if (files == null)
       files = Array.empty
     log.info(s"globbing path $filename returned ${ files.length } files: ${ files.map(_.getPath.getName).mkString(",") }")
-    files.map(fileStatus => new HadoopFileStatus(fileStatus))
+    files.map(fle => new HadoopFileListEntry(fle))
   }
 
-  def fileStatus(filename: String): FileStatus = {
+  override def fileStatus(filename: String): FileStatus = getFileListEntry(filename)
+
+  override def fileStatus(url: URL): FileStatus = fileStatus(url.toString)
+
+  override def getFileListEntry(filename: String): FileListEntry = {
     val p = new hadoop.fs.Path(filename)
-    new HadoopFileStatus(p.getFileSystem(conf.value).getFileStatus(p))
+    new HadoopFileListEntry(p.getFileSystem(conf.value).getFileStatus(p))
   }
+
+  override def getFileListEntry(url: URL): FileListEntry = getFileListEntry(url.toString)
 
   def makeQualified(path: String): String = {
     val ppath = new hadoop.fs.Path(path)

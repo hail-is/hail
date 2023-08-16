@@ -5,7 +5,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.{FS, FileListEntry}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct, SStackStructValue}
@@ -14,7 +14,7 @@ import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness, VirtualTypeWithReq}
-import is.hail.utils.{FastIndexedSeq, FastSeq, checkGzippedFile, fatal}
+import is.hail.utils.{FastIndexedSeq, FastSeq, fatal, checkGzipOfGlobbedFiles}
 import org.json4s.{Extraction, Formats, JValue}
 
 case class StringTableReaderParameters(
@@ -26,27 +26,14 @@ case class StringTableReaderParameters(
 
 object StringTableReader {
   def apply(fs: FS, params: StringTableReaderParameters): StringTableReader = {
-     val fileStatuses = getFileStatuses(fs, params.files, params.forceBGZ, params.forceGZ)
-    new StringTableReader(params, fileStatuses)
+    val fles = fs.globAll(params.files)
+    checkGzipOfGlobbedFiles(params.files, fles, params.forceGZ, params.forceBGZ)
+    new StringTableReader(params, fles)
   }
   def fromJValue(fs: FS, jv: JValue): StringTableReader = {
     implicit val formats: Formats = TableReader.formats
     val params = jv.extract[StringTableReaderParameters]
     StringTableReader(fs, params)
-  }
-
-  def getFileStatuses(fs: FS, files: Array[String], forceBGZ: Boolean, forceGZ: Boolean): Array[FileStatus] = {
-    val status = fs.globAllStatuses(files)
-    if (status.isEmpty)
-      fatal(s"arguments refer to no files: ${files.toIndexedSeq}.")
-    if (!forceBGZ) {
-      status.foreach { status =>
-        val file = status.getPath
-        if (file.endsWith(".gz"))
-          checkGzippedFile(fs, file, forceGZ, forceBGZ)
-      }
-    }
-    status
   }
 }
 
@@ -141,7 +128,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
 
 class StringTableReader(
   val params: StringTableReaderParameters,
-  fileStatuses: IndexedSeq[FileStatus]
+  fles: IndexedSeq[FileListEntry]
 ) extends TableReaderWithExtraUID {
 
   override def uidType = TTuple(TInt64, TInt64)
@@ -157,7 +144,7 @@ class StringTableReader(
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val fs = ctx.fs
-    val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
+    val lines = GenericLines.read(fs, fles, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
       params.filePerPartition)
     TableStage(globals = MakeStruct(FastSeq()),
       partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),

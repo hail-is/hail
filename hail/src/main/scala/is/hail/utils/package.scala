@@ -10,6 +10,7 @@ import java.util.zip.{Deflater, Inflater}
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import is.hail.expr.ir.ByteArrayBuilder
+import is.hail.io.fs.{FS, FileListEntry}
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
@@ -26,7 +27,6 @@ import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
-import is.hail.io.fs.FS
 import org.apache.spark.sql.Row
 
 package utils {
@@ -99,24 +99,43 @@ package object utils extends Logging
     l.toInt
   }
 
-  def checkGzippedFile(fs: FS,
-    input: String,
+  def checkGzipOfGlobbedFiles(
+    globPaths: Seq[String],
+    fles: Array[FileListEntry],
     forceGZ: Boolean,
     gzAsBGZ: Boolean,
-    maxSizeMB: Int = 128) {
+    maxSizeMB: Int = 128
+  ) = {
+    if (fles.isEmpty)
+      fatal(s"arguments refer to no files: ${globPaths.toIndexedSeq}.")
+    if (!gzAsBGZ) {
+      fles.foreach { fle =>
+        val path = fle.getPath
+        if (path.endsWith(".gz"))
+          checkGzippedFile(fle, forceGZ, false, maxSizeMB)
+      }
+    }
+  }
+
+  def checkGzippedFile(
+    fle: FileListEntry,
+    forceGZ: Boolean,
+    gzAsBGZ: Boolean,
+    maxSizeMB: Int = 128
+  ) {
     if (!forceGZ && !gzAsBGZ)
       fatal(
-        s"""Cannot load file '$input'
+        s"""Cannot load file '${fle.getPath}'
            |  .gz cannot be loaded in parallel. Is the file actually *block* gzipped?
            |  If the file is actually block gzipped (even though its extension is .gz),
            |  use the 'force_bgz' argument to treat all .gz file extensions as .bgz.
            |  If you are sure that you want to load a non-block-gzipped file serially
            |  on one core, use the 'force' argument.""".stripMargin)
     else if (!gzAsBGZ) {
-      val fileSize = fs.getFileSize(input)
+      val fileSize = fle.getLen
       if (fileSize > 1024 * 1024 * maxSizeMB)
         warn(
-          s"""file '$input' is ${ readableBytes(fileSize) }
+          s"""file '${fle.getPath}' is ${ readableBytes(fileSize) }
              |  It will be loaded serially (on one core) due to usage of the 'force' argument.
              |  If it is actually block-gzipped, either rename to .bgz or use the 'force_bgz'
              |  argument.""".stripMargin)
