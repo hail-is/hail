@@ -2,7 +2,6 @@ from typing import Optional, Dict
 import base64
 import collections.abc
 import os
-import sys
 import json
 import logging
 from hailtop.config import get_deploy_config
