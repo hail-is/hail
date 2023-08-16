@@ -66,7 +66,7 @@ BEGIN
   SET now_cancelled        = NOT always_run AND now_marked_cancelled;
   SET now_cancellable      = NOT always_run AND NOT now_marked_cancelled;
 
-  # NB: was_cancelled => now_cancelled b/c you cannot be uncancelled
+  # NB: was_cancelled implies now_cancelled b/c you cannot be uncancelled
 
   SET was_ready    = old.state = 'Ready';
   SET now_ready    = new.state = 'Ready';
