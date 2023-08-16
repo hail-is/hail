@@ -89,7 +89,7 @@ class UtilsSuite extends HailSuite {
     val partFileNames = fs.glob("src/test/resources/part-*")
       .sortBy { fle =>
         getPartNumber(fle.getPath)
-      }.map(_.getPath)
+      }.map(_.getPath.split("/").last)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }

@@ -85,7 +85,7 @@ trait Py4jUtils {
   }
 
   private def fileListEntryToJson(fs: FileListEntry): JObject = {
-    (fileStatusToJson(fs) ++ JObject("is_dir" -> JBool(fs.isDirectory))).asInstanceOf[JObject]
+    JObject(fileStatusToJson(fs).obj :+ ("is_dir" -> JBool(fs.isDirectory)))
   }
 
   private val kilo: Long = 1024
