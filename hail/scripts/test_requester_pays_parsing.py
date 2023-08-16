@@ -4,8 +4,8 @@ import os
 
 from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
 from hailtop.aiocloud.aiogoogle.user_config import spark_conf_path, get_spark_conf_gcs_requester_pays_configuration
-from hailtop.utils.process import check_exec_output
-from hailtop.config.user_config import configuration_of
+from hailtop.utils.process import CalledProcessError, check_exec_output
+from hailtop.config.user_config import ConfigVariable, configuration_of
 
 
 if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS' not in os.environ:
@@ -14,6 +14,7 @@ if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS' not in os.env
 
 
 SPARK_CONF_PATH = spark_conf_path()
+
 
 async def unset_hailctl():
     await check_exec_output(
@@ -141,8 +142,8 @@ async def test_hailctl_takes_precedence_1():
 
     actual = get_gcs_requester_pays_configuration()
     assert actual == 'hailctl_project', str((
-        configuration_of('gcs_requester_pays', 'project', None, None),
-        configuration_of('gcs_requester_pays', 'buckets', None, None),
+        configuration_of(ConfigVariable.GCS_REQUESTER_PAYS_PROJECT, None, None),
+        configuration_of(ConfigVariable.GCS_REQUESTER_PAYS_BUCKETS, None, None),
         get_spark_conf_gcs_requester_pays_configuration(),
         open('/Users/dking/.config/hail/config.ini', 'r').readlines()
     ))

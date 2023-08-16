@@ -5,6 +5,8 @@ import configparser
 import warnings
 from pathlib import Path
 
+from .variables import ConfigVariable
+
 user_config = None
 
 
@@ -44,15 +46,12 @@ VALID_SECTION_AND_OPTION_RE = re.compile('[a-z0-9_]+')
 T = TypeVar('T')
 
 
-def configuration_of(section: str,
-                     option: str,
-                     explicit_argument: Optional[T],
-                     fallback: T,
-                     *,
-                     deprecated_envvar: Optional[str] = None) -> Union[str, T]:
-    assert VALID_SECTION_AND_OPTION_RE.fullmatch(section), (section, option)
-    assert VALID_SECTION_AND_OPTION_RE.fullmatch(option), (section, option)
-
+def unchecked_configuration_of(section: str,
+                               option: str,
+                               explicit_argument: Optional[T],
+                               fallback: T,
+                               *,
+                               deprecated_envvar: Optional[str] = None) -> Union[str, T]:
     if explicit_argument is not None:
         return explicit_argument
 
@@ -77,6 +76,19 @@ def configuration_of(section: str,
     return fallback
 
 
+def configuration_of(config_variable: ConfigVariable,
+                     explicit_argument: Optional[T],
+                     fallback: T,
+                     *,
+                     deprecated_envvar: Optional[str] = None) -> Union[str, T]:
+    if '/' in config_variable.value:
+        section, option = config_variable.value.split('/')
+    else:
+        section = 'global'
+        option = config_variable.value
+    return unchecked_configuration_of(section, option, explicit_argument, fallback, deprecated_envvar=deprecated_envvar)
+
+
 def get_remote_tmpdir(caller_name: str,
                       *,
                       bucket: Optional[str] = None,
@@ -95,7 +107,7 @@ def get_remote_tmpdir(caller_name: str,
         raise ValueError(f'Cannot specify both \'remote_tmpdir\' and \'bucket\' in {caller_name}(...). Specify \'remote_tmpdir\' as a keyword argument instead.')
 
     if bucket is None and remote_tmpdir is None:
-        remote_tmpdir = configuration_of('batch', 'remote_tmpdir', None, None)
+        remote_tmpdir = configuration_of(ConfigVariable.BATCH_REMOTE_TMPDIR, None, None)
 
     if remote_tmpdir is None:
         if bucket is None:

@@ -1054,17 +1054,19 @@ class Tests(unittest.TestCase):
         self.assertTrue(t._same(ref_tab))
 
     def test_union(self):
-        t1 = hl.utils.range_table(5)
+        t1 = hl.utils.range_table(5, 2)
 
-        t2 = hl.utils.range_table(5)
-        t2 = t2.key_by(idx = t2.idx + 5)
+        t2 = hl.utils.range_table(5, 2)
+        t2 = t2.key_by(idx=t2.idx + 5)
 
-        t3 = hl.utils.range_table(5)
-        t3 = t3.key_by(idx = t3.idx + 10)
+        t3 = hl.utils.range_table(5, 2)
+        t3 = t3.key_by(idx=t3.idx + 10)
 
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
-        self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
-                        ._same(hl.utils.range_table(15).key_by()))
+
+        no_key = t1.key_by().union(t2.key_by(), t3.key_by())
+        assert no_key.n_partitions() == 6
+        self.assertTrue(no_key._same(hl.utils.range_table(15).key_by()))
 
     def nested_union(self, N, M):
         t = hl.utils.range_table(N, n_partitions=1)

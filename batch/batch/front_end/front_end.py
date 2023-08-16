@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union
 
 import aiohttp
 import aiohttp.web_exceptions
@@ -138,7 +138,7 @@ def catch_ui_error_in_dev(fun):
             return await fun(request, userdata, *args, **kwargs)
         except asyncio.CancelledError:
             raise
-        except aiohttp.web_exceptions.HTTPFound as e:
+        except web.HTTPFound as e:
             raise e
         except Exception as e:
             if SCOPE == 'dev':
@@ -1679,7 +1679,7 @@ async def ui_batch(request, userdata, batch_id):
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
-async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
+async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
     post = await request.post()
     q = post.get('q')
     params: Dict[str, str] = {}
@@ -1691,14 +1691,14 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFou
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     finally:
         location = request.app.router['batches'].url_for().with_query(params)
-        return web.HTTPFound(location=location)  # pylint: disable=lost-exception
+        raise web.HTTPFound(location=location)  # pylint: disable=lost-exception
 
 
 @routes.post('/batches/{batch_id}/delete')
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
-async def ui_delete_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
+async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
     post = await request.post()
     q = post.get('q')
     params: Dict[str, str] = {}
@@ -1708,7 +1708,7 @@ async def ui_delete_batch(request: web.Request, _, batch_id: int) -> web.HTTPFou
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
-    return web.HTTPFound(location=location)
+    raise web.HTTPFound(location=location)
 
 
 @routes.get('/batches', name='batches')
@@ -2263,7 +2263,7 @@ async def post_edit_billing_limits(request: web.Request) -> web.Response:
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_edit_billing_limits_ui(request: web.Request, _) -> web.HTTPFound:
+async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     post = await request.post()
@@ -2273,7 +2273,7 @@ async def post_edit_billing_limits_ui(request: web.Request, _) -> web.HTTPFound:
         await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
         set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')  # type: ignore
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
 
 
 async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tuple[list, str, Optional[str]]:
@@ -2489,7 +2489,7 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_remove_user(request: web.Request, _) -> web.HTTPFound:
+async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
@@ -2499,7 +2499,7 @@ async def post_billing_projects_remove_user(request: web.Request, _) -> web.HTTP
         await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
         set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
@@ -2559,7 +2559,7 @@ VALUES (%s, %s, %s);
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_add_user(request: web.Request, _) -> web.HTTPFound:
+async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     user = post['user']
@@ -2571,7 +2571,7 @@ async def post_billing_projects_add_user(request: web.Request, _) -> web.HTTPFou
         await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
@@ -2617,7 +2617,7 @@ VALUES (%s, %s);
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_create_billing_projects(request: web.Request, _) -> web.HTTPFound:
+async def post_create_billing_projects(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     billing_project = post['billing_project']
@@ -2627,7 +2627,7 @@ async def post_create_billing_projects(request: web.Request, _) -> web.HTTPFound
         await _handle_ui_error(session, _create_billing_project, db, billing_project)
         set_message(session, f'Added billing project {billing_project}.', 'info')  # type: ignore
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
@@ -2678,7 +2678,7 @@ FOR UPDATE;
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_close_billing_projects(request: web.Request, _) -> web.HTTPFound:
+async def post_close_billing_projects(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -2687,7 +2687,7 @@ async def post_close_billing_projects(request: web.Request, _) -> web.HTTPFound:
         await _handle_ui_error(session, _close_billing_project, db, billing_project)
         set_message(session, f'Closed billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
@@ -2723,7 +2723,7 @@ async def _reopen_billing_project(db, billing_project):
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def post_reopen_billing_projects(request: web.Request) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -2732,7 +2732,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
         await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
@@ -2797,7 +2797,7 @@ SELECT frozen FROM globals;
 @routes.get('/')
 @auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
-async def index(request: web.Request, _) -> web.HTTPFound:
+async def index(request: web.Request, _) -> NoReturn:
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
