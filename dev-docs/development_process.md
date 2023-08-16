@@ -201,7 +201,7 @@ python3 devbin/sync.py \
     --namespace <my_namespace> \
     --app batch --app batch-driver \
     --path batch/batch /usr/local/lib/python3.9/dist-packages/ \
-    --path gear/gear /usr/local/lib/python3.9/dist-packages/
+    --path gear/gear /usr/local/lib/python3.9/dist-packages/ \
     --path web_common/web_common /usr/local/lib/python3.9/dist-packages/ \
     --path hail/python/hailtop /usr/local/lib/python3.9/dist-packages/
 ```
