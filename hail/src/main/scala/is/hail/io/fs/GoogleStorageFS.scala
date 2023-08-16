@@ -9,7 +9,7 @@ import java.util.concurrent._
 import org.apache.log4j.Logger
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
-import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
+import com.google.cloud.storage.Storage.{BlobGetOption, BlobListOption, BlobWriteOption, BlobSourceOption}
 import com.google.cloud.storage.{Option => StorageOption, _}
 import com.google.cloud.http.HttpTransportOptions
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
@@ -64,13 +64,13 @@ object GoogleStorageFS {
   }
 }
 
-object GoogleStorageFileStatus {
-  def apply(blob: Blob): BlobStorageFileStatus = {
+object GoogleStorageFileListEntry {
+  def apply(blob: Blob): BlobStorageFileListEntry = {
     val isDir = blob.isDirectory
 
     val name = dropTrailingSlash(blob.getName)
 
-    new BlobStorageFileStatus(
+    new BlobStorageFileListEntry(
       s"gs://${ blob.getBucket }/$name",
       if (isDir)
         null
@@ -78,6 +78,10 @@ object GoogleStorageFileStatus {
         blob.getUpdateTimeOffsetDateTime.toInstant().toEpochMilli(),
       blob.getSize,
       isDir)
+  }
+
+  def dir(path: String): BlobStorageFileListEntry = {
+    return new BlobStorageFileListEntry(path, null, 0, true)
   }
 }
 
@@ -449,14 +453,14 @@ class GoogleStorageFS(
     }
   }
 
-  def glob(filename: String): Array[FileStatus] = retryTransientErrors {
+  def glob(filename: String): Array[FileListEntry] = retryTransientErrors {
     val url = parseUrl(filename)
     globWithPrefix(url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
-  def listStatus(filename: String): Array[FileStatus] = listStatus(parseUrl(filename))
+  def listDirectory(filename: String): Array[FileListEntry] = listDirectory(parseUrl(filename))
 
-  override def listStatus(url: GoogleStorageFSURL): Array[FileStatus] = retryTransientErrors {
+  override def listDirectory(url: GoogleStorageFSURL): Array[FileListEntry] = retryTransientErrors {
     val path = if (url.path.endsWith("/")) url.path else url.path + "/"
 
     val blobs = retryTransientErrors {
@@ -469,18 +473,43 @@ class GoogleStorageFS(
 
     blobs.getValues.iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
-      .map(b => GoogleStorageFileStatus(b))
+      .map(b => GoogleStorageFileListEntry(b))
       .toArray
   }
 
-  def fileStatus(filename: String): FileStatus = fileStatus(parseUrl(filename))
+  override def fileStatus(filename: String): FileStatus = fileStatus(parseUrl(filename))
 
   override def fileStatus(url: GoogleStorageFSURL): FileStatus = retryTransientErrors {
-    val path = dropTrailingSlash(url.path)
-
     if (url.path == "")
-      return new BlobStorageFileStatus(s"gs://${url.bucket}", null, 0, true)
+      return GoogleStorageFileListEntry.dir(url.toString)
 
+    val blob = retryTransientErrors {
+      handleRequesterPays(
+        (options: Seq[BlobGetOption]) =>
+        storage.get(url.bucket, url.path, options:_*),
+        BlobGetOption.userProject _,
+        url.bucket
+      )
+    }
+
+    if (blob == null) {
+      throw new FileNotFoundException(url.toString)
+    }
+
+    new BlobStorageFileStatus(
+      dropTrailingSlash(url.toString),
+      blob.getUpdateTimeOffsetDateTime.toInstant().toEpochMilli(),
+      blob.getSize
+    )
+  }
+
+  def getFileListEntry(filename: String): FileListEntry = getFileListEntry(parseUrl(filename))
+
+  def getFileListEntry(url: URL): FileListEntry = {
+    if (url.path == "")
+      return GoogleStorageFileListEntry.dir(url.toString)
+
+    val path = dropTrailingSlash(url.path)
     val blobs = retryTransientErrors {
       handleRequesterPays(
         (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options):_*),
@@ -496,7 +525,7 @@ class GoogleStorageFS(
       while (name.endsWith("/"))
         name = name.dropRight(1)
       if (name == path)
-        return GoogleStorageFileStatus(b)
+        return GoogleStorageFileListEntry(b)
     }
 
     throw new FileNotFoundException(url.toString)

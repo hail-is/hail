@@ -23,7 +23,7 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
     val splitPoints = hConf.get("bgz.test.splits").split(",").map(_.toLong)
 
     val splits = new mutable.ArrayBuffer[hd.mapreduce.InputSplit]
-    val files = listStatus(job).asScala
+    val files = listDirectory(job).asScala
     assert(files.length == 1)
 
     val file = files.head
