@@ -2228,9 +2228,6 @@ class StreamAgg(IR):
         else:
             return {}
 
-    def renderable_uses_agg_context(self, i: int):
-        return i == 0
-
     def renderable_new_block(self, i: int) -> bool:
         return i == 1
 
