@@ -3702,7 +3702,7 @@ steps:
         name: dev-namespace-scaledown-{{ user["username"] }}
         namespace: {{ user["username"] }}
       spec:
-        schedule: "0 20 * * 1,2,3,4,5"  # Weekdays at 8p
+        schedule: "0 0 * * 1,2,3,4,5"  # Weekdays at midnight UTC
         concurrencyPolicy: Forbid
         successfulJobsHistoryLimit: 1
         failedJobsHistoryLimit: 1
@@ -3726,7 +3726,7 @@ steps:
         name: dev-namespace-scaleup-{{ user["username"] }}
         namespace: {{ user["username"] }}
       spec:
-        schedule: "0 9 * * 1,2,3,4,5"  # Weekdays at 9a
+        schedule: "0 13 * * 1,2,3,4,5"  # Weekdays at 1pm UTC
         concurrencyPolicy: Forbid
         successfulJobsHistoryLimit: 0
         failedJobsHistoryLimit: 1
