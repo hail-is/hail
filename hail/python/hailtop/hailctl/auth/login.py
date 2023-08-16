@@ -22,8 +22,8 @@ async def auth_flow(deploy_config: DeployConfig, default_ns: str, session: Clien
     # Confirm that the logged in user is registered with the hail service
     async with hail_credentials(namespace=default_ns) as c:
         headers_with_auth = await c.auth_headers()
-        async with client_session(headers=headers_with_auth) as auth_session:
-            userinfo = await auth_session.get_read_json(deploy_config.url('auth', '/api/v1alpha/userinfo'))
+    async with client_session(headers=headers_with_auth) as auth_session:
+        userinfo = await auth_session.get_read_json(deploy_config.url('auth', '/api/v1alpha/userinfo'))
 
     username = userinfo['username']
     if default_ns == 'default':
@@ -37,5 +37,5 @@ async def async_login(namespace: Optional[str]):
     namespace = namespace or deploy_config.default_namespace()
     async with hail_credentials(namespace=namespace, authorize_target=False) as credentials:
         headers = await credentials.auth_headers()
-        async with client_session(headers=headers) as session:
-            await auth_flow(deploy_config, namespace, session)
+    async with client_session(headers=headers) as session:
+        await auth_flow(deploy_config, namespace, session)
