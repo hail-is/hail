@@ -1,4 +1,4 @@
-from typing import Set
+from typing import Callable, Set
 import asyncio
 import logging
 
@@ -21,8 +21,15 @@ class BackgroundTaskManager:
         if self._closed:
             raise TaskManagerClosedError
         t = asyncio.create_task(coroutine)
-        t.add_done_callback(lambda _: self.tasks.remove(t))
+        t.add_done_callback(self.on_task_done(t))
         self.tasks.add(t)
+
+    def on_task_done(self, t: asyncio.Task) -> Callable[[asyncio.Future], None]:
+        def callback(fut: asyncio.Future):
+            self.tasks.remove(t)
+            if e := fut.exception():
+                log.exception(e)
+        return callback
 
     def shutdown(self):
         self._closed = True
