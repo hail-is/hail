@@ -185,7 +185,7 @@ async def initialize_gcp(username: str,
 
 
 async def async_basic_initialize(domain: Optional[str] = None, verbose: bool = False):
-    from hailtop.auth.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
+    from hailtop.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
     from hailtop.batch_client.aioclient import BatchClient  # pylint: disable=import-outside-toplevel
     from hailtop.config.deploy_config import get_deploy_config  # pylint: disable=import-outside-toplevel
     from hailtop.hailctl.config.cli import set as set_config, list as list_config  # pylint: disable=import-outside-toplevel

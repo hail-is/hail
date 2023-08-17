@@ -18,6 +18,17 @@ def session_id_decode_from_str(session_id_str: str) -> bytes:
     return base64.urlsafe_b64decode(session_id_str.encode('ascii'))
 
 
+class NotLoggedInError(Exception):
+    def __init__(self, ns_arg):
+        self.message = f'''
+You are not authenticated.  Please log in with:
+
+  $ hailctl auth login {ns_arg}
+
+to obtain new credentials.
+'''
+
+
 class Tokens(collections.abc.MutableMapping):
     @staticmethod
     def get_tokens_file() -> str:
@@ -60,14 +71,7 @@ class Tokens(collections.abc.MutableMapping):
         deploy_config = get_deploy_config()
         auth_ns = deploy_config.service_ns('auth')
         ns_arg = '' if ns == auth_ns else f'-n {ns}'
-        msg = f'''
-You are not authenticated.  Please log in with:
-
-  $ hailctl auth login {ns_arg}
-
-to obtain new credentials.
-'''
-        raise Exception(msg)
+        raise NotLoggedInError(ns_arg)
 
     def __delitem__(self, key: str):
         del self._tokens[key]

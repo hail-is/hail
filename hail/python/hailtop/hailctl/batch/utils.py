@@ -24,7 +24,7 @@ def reset_domain(domain: str):
 
 
 async def already_logged_into_service(domain: Optional[str]) -> bool:
-    from hailtop.auth.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
+    from hailtop.auth import NotLoggedInError, async_get_userinfo  # pylint: disable=import-outside-toplevel
 
     if domain:
         reset_domain(domain)
@@ -32,7 +32,7 @@ async def already_logged_into_service(domain: Optional[str]) -> bool:
     try:
         await async_get_userinfo()
         return True
-    except Exception:
+    except NotLoggedInError:
         return False
 
 
