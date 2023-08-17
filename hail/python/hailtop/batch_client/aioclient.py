@@ -641,7 +641,8 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _create_fast(self, byte_job_specs: List[bytes], n_jobs: int, progress_task: BatchProgressBarTask) -> Batch:
+    async def _create_fast(self, byte_job_specs: List[bytes], n_jobs: int, job_progress_task: BatchProgressBarTask) -> Batch:
+        assert not self._batch
         assert n_jobs == len(self._job_specs)
         b = bytearray()
         b.extend(b'{"bunch":')
@@ -659,15 +660,16 @@ class BatchBuilder:
             data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
         )
         batch_json = await resp.json()
-        progress_task.update(n_jobs)
+        job_progress_task.update(n_jobs)
         return Batch(self._client,
                      batch_json['id'],
                      self.attributes,
                      self.token,
                      submission_info=BatchSubmissionInfo(True))
 
-    async def _update_fast(self, byte_job_specs: List[bytes], progress_task: BatchProgressBarTask) -> int:
+    async def _update_fast(self, byte_job_specs: List[bytes], n_jobs: int, job_progress_task: BatchProgressBarTask) -> int:
         assert self._batch
+        assert n_jobs == len(self._job_specs)
         b = bytearray()
         b.extend(b'{"bunch":')
         b.append(ord('['))
@@ -684,8 +686,42 @@ class BatchBuilder:
             data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
         )
         update_json = await resp.json()
-        progress_task.update(len(byte_job_specs))
+        job_progress_task.update(n_jobs)
         return int(update_json['start_job_id'])
+
+    def _create_bunches(self,
+                        specs: List[dict],
+                        max_bunch_bytesize: int,
+                        max_bunch_size: int,
+                        ) -> Tuple[List[List[bytes]], List[int]]:
+        assert max_bunch_bytesize > 0
+        assert max_bunch_size > 0
+        byte_specs = [orjson.dumps(spec) for spec in specs]
+        byte_specs_bunches: List[List[bytes]] = []
+        bunch_sizes = []
+        bunch: List[bytes] = []
+        bunch_n_bytes = 0
+        bunch_n_jobs = 0
+        for spec in byte_specs:
+            n_bytes = len(spec)
+            assert n_bytes < max_bunch_bytesize, (
+                'every spec must be less than max_bunch_bytesize,'
+                f' { max_bunch_bytesize }B, but {spec.decode()} is larger')
+            if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
+                bunch.append(spec)
+                bunch_n_bytes += n_bytes
+                bunch_n_jobs += 1
+            else:
+                byte_specs_bunches.append(bunch)
+                bunch_sizes.append(bunch_n_jobs)
+                bunch = [spec]
+                bunch_n_bytes = n_bytes
+                bunch_n_jobs = 1
+        if bunch:
+            byte_specs_bunches.append(bunch)
+            bunch_sizes.append(bunch_n_jobs)
+
+        return (byte_specs_bunches, bunch_sizes)
 
     async def _submit_jobs(self, batch_id: int, update_id: int, byte_job_specs: List[bytes], n_jobs: int, progress_task: BatchProgressBarTask):
         assert len(byte_job_specs) > 0, byte_job_specs
@@ -743,55 +779,64 @@ class BatchBuilder:
         commit_json = await (await self._client._patch(f'/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')).json()
         return int(commit_json['start_job_id'])
 
-    MAX_BUNCH_BYTESIZE = 1024 * 1024
-    MAX_BUNCH_SIZE = 1024
+    async def _submit_job_bunches(self,
+                                  byte_job_specs_bunches: List[List[bytes]],
+                                  bunch_sizes: List[int],
+                                  progress_task: BatchProgressBarTask):
+        assert self._batch
+        await bounded_gather(
+            *[functools.partial(self._submit_jobs, self._batch.id, self._update_id, bunch, size, progress_task)
+              for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
+              ],
+            parallelism=6,
+        )
 
-    async def _submit_bunches(self,
-                              byte_job_specs_bunches: List[List[bytes]],
-                              bunch_sizes: List[int],
-                              progress: BatchProgressBar,
-                              disable_progress_bar: bool):
-        with progress.with_task('submit bunches', total=len(self._job_specs), disable=disable_progress_bar) as progress_task:
-            n_bunches = len(byte_job_specs_bunches)
+    async def _submit(self,
+                      max_bunch_bytesize: int,
+                      max_bunch_size: int,
+                      disable_progress_bar: bool,
+                      min_bunches_for_progress_bar: Optional[int],
+                      progress: BatchProgressBar) -> Optional[int]:
+        n_jobs = len(self._jobs)
+        byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(self._job_specs, max_bunch_bytesize, max_bunch_size)
+        n_job_bunches = len(byte_job_specs_bunches)
+
+        if min_bunches_for_progress_bar is not None and n_job_bunches < 100:
+            progress.progress.disable = True
+
+        with progress.with_task('submit job bunches', total=n_jobs, disable=disable_progress_bar) as job_progress_task:
             if self._batch is None:
-                if n_bunches == 0:
+                if n_job_bunches == 0:
                     self._batch = await self._open_batch()
                     log.info(f'created batch {self._batch.id}')
-                    return self._batch
-                if n_bunches == 1:
-                    self._batch = await self._create_fast(byte_job_specs_bunches[0], bunch_sizes[0], progress_task)
+                    return None
+                if n_job_bunches == 1:
+                    self._batch = await self._create_fast(byte_job_specs_bunches[0], job_bunch_sizes[0], job_progress_task)
                     start_job_id = 1
                 else:
                     self._batch = await self._open_batch()
                     assert self._update_id is not None
-                    await bounded_gather(
-                        *[functools.partial(self._submit_jobs, self._batch.id, self._update_id, bunch, size, progress_task)
-                          for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
-                          ],
-                        parallelism=6,
-                    )
+                    await self._submit_job_bunches(byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                     start_job_id = await self._commit_update(self._batch.id, self._update_id)
                     self._batch.submission_info.used_fast_update[self._update_id] = False
                     assert start_job_id == 1
                 log.info(f'created batch {self._batch.id}')
             else:
-                if n_bunches == 0:
+                if n_job_bunches == 0:
                     log.warning('Tried to submit an update with 0 jobs. Doing nothing.')
-                    return self._batch
-                if n_bunches == 1:
-                    start_job_id = await self._update_fast(byte_job_specs_bunches[0], progress_task)
+                    return None
+                if n_job_bunches == 1:
+                    start_job_id = await self._update_fast(byte_job_specs_bunches[0], job_bunch_sizes[0], job_progress_task)
                 else:
                     self._update_id = await self._create_update(self._batch.id)
-                    await bounded_gather(
-                        *[functools.partial(self._submit_jobs, self._batch.id, self._update_id, bunch, size, progress_task)
-                          for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
-                          ],
-                        parallelism=6,
-                    )
+                    await self._submit_job_bunches(byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                     start_job_id = await self._commit_update(self._batch.id, self._update_id)
                     self._batch.submission_info.used_fast_update[self._update_id] = False
                 log.info(f'updated batch {self._batch.id}')
             return start_job_id
+
+    MAX_BUNCH_BYTESIZE = 1024 * 1024
+    MAX_BUNCH_SIZE = 1024
 
     async def submit(self,
                      max_bunch_bytesize: int = MAX_BUNCH_BYTESIZE,
@@ -802,47 +847,17 @@ class BatchBuilder:
                      ) -> Batch:
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
-        byte_job_specs = [orjson.dumps(job_spec)
-                          for job_spec in self._job_specs]
-        byte_job_specs_bunches: List[List[bytes]] = []
-        bunch_sizes = []
-        bunch: List[bytes] = []
-        bunch_n_bytes = 0
-        bunch_n_jobs = 0
-        for spec in byte_job_specs:
-            n_bytes = len(spec)
-            assert n_bytes < max_bunch_bytesize, (
-                'every job spec must be less than max_bunch_bytesize,'
-                f' { max_bunch_bytesize }B, but {spec.decode()} is larger')
-            if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
-                bunch.append(spec)
-                bunch_n_bytes += n_bytes
-                bunch_n_jobs += 1
-            else:
-                byte_job_specs_bunches.append(bunch)
-                bunch_sizes.append(bunch_n_jobs)
-                bunch = [spec]
-                bunch_n_bytes = n_bytes
-                bunch_n_jobs = 1
-        if bunch:
-            byte_job_specs_bunches.append(bunch)
-            bunch_sizes.append(bunch_n_jobs)
 
-        if progress is not None:
-            start_job_id = await self._submit_bunches(byte_job_specs_bunches,
-                                                      bunch_sizes,
-                                                      progress,
-                                                      disable_progress_bar)
+        if progress:
+            start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, None, progress)
         else:
-            n_bunches = len(byte_job_specs_bunches)
-            with BatchProgressBar(disable=disable_progress_bar or n_bunches < 100) as progress2:
-                start_job_id = await self._submit_bunches(byte_job_specs_bunches,
-                                                          bunch_sizes,
-                                                          progress2,
-                                                          disable_progress_bar)
+            with BatchProgressBar(disable=disable_progress_bar) as progress2:
+                start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, 100, progress2)
+
         assert self._batch is not None
 
         for j in self._jobs:
+            assert start_job_id is not None
             j._job = j._job._submit(self._batch, start_job_id)
 
         self._job_specs = []
