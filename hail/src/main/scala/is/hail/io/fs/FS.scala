@@ -523,6 +523,15 @@ trait FS extends Serializable {
     }
   }
 
+  def fileExists(filename: String): Boolean = {
+    try {
+      fileStatus(filename)
+      true
+    } catch {
+      case _: FileNotFoundException => false
+    }
+  }
+
   def exists(filename: String): Boolean = {
     try {
       getFileListEntry(filename)

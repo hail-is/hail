@@ -243,7 +243,7 @@ object LoadBgen {
 
   def getIndexFiles(fs: FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)
-    val missingIdxFiles = files.zip(indexFiles).filterNot { case (f, index) => fs.exists(index) && index.endsWith("idx2") }.map(_._1)
+    val missingIdxFiles = files.zip(indexFiles).filterNot { case (f, index) => fs.fileExists(index) && index.endsWith("idx2") }.map(_._1)
     if (missingIdxFiles.nonEmpty)
       fatal(
         s"""The following BGEN files have no .idx2 index file. Use 'index_bgen' to create the index file once before calling 'import_bgen':

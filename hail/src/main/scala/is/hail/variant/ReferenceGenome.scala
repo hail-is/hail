@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import java.io.InputStream
+import java.io.{InputStream, FileNotFoundException}
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
@@ -331,15 +331,19 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
-    if (!fs.exists(fastaFile))
+
+    if (!fs.fileExists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist or you do not have access.")
-    if (!fs.exists(indexFile))
-      fatal(s"FASTA index file '$indexFile' does not exist or you do not have access.")
+
+    val index = try {
+      // assumption, fastaFile and indexFile will not move or change for the entire duration of a hail pipeline
+      using(fs.open(indexFile))(new FastaSequenceIndex(_))
+    } catch {
+      case exc: FileNotFoundException =>
+        fatal(s"FASTA index file '$indexFile' does not exist or you do not have access.", exc)
+    }
     fastaFilePath = fastaFile
     fastaIndexPath = indexFile
-
-    // assumption, fastaFile and indexFile will not move or change for the entire duration of a hail pipeline
-    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
 
     val missingContigs = contigs.filterNot(index.hasIndexEntry)
     if (missingContigs.nonEmpty)
@@ -405,11 +409,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
 
-    if (!fs.exists(chainFile))
-      fatal(s"Chain file '$chainFile' does not exist.")
-
-    val chainFilePath = fs.fileStatus(chainFile).getPath
-    val lo = LiftOver(fs, chainFilePath)
+    val lo = LiftOver(fs, chainFile)
     val destRG = ctx.getReference(destRGName)
     lo.checkChainFile(this, destRG)
 
@@ -570,12 +570,15 @@ object ReferenceGenome {
     val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
 
-    if (!fs.exists(fastaFile))
+    if (!fs.fileExists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
-    if (!fs.exists(indexFile))
-      fatal(s"FASTA index file '$indexFile' does not exist.")
-
-    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
+    val index = try {
+      // assumption, fastaFile and indexFile will not move or change for the entire duration of a hail pipeline
+      using(fs.open(indexFile))(new FastaSequenceIndex(_))
+    } catch {
+      case exc: FileNotFoundException =>
+        fatal(s"FASTA index file '$indexFile' does not exist or you do not have access.", exc)
+    }
 
     val contigs = new BoxedArrayBuilder[String]
     val lengths = new BoxedArrayBuilder[(String, Int)]
@@ -591,23 +594,24 @@ object ReferenceGenome {
   }
 
   def readReferences(fs: FS, path: String): Array[ReferenceGenome] = {
-    if (fs.exists(path)) {
+    try {
       val refs = fs.listDirectory(path)
       val rgs = mutable.Set[ReferenceGenome]()
-      refs.foreach { fileSystem =>
-        val rgPath = fileSystem.getPath.toString
-        val rg = using(fs.open(rgPath))(read)
+      refs.foreach { fle =>
+        val rg = retryTransientErrors { using(fs.open(fle.getPath))(read) }
         val name = rg.name
         if (!rgs.contains(rg) && !hailReferences.contains(name))
           rgs += rg
       }
       rgs.toArray
-    } else Array()
+    } catch {
+      case exc: FileNotFoundException => Array()
+    }
   }
 
   def writeReference(fs: FS, path: String, rg: ReferenceGenome) {
     val rgPath = path + "/" + rg.name + ".json.gz"
-    if (!hailReferences.contains(rg.name) && !fs.exists(rgPath))
+    if (!hailReferences.contains(rg.name) && !fs.fileExists(rgPath))
       rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
   }
 

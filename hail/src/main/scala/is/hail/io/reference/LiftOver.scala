@@ -1,6 +1,6 @@
 package is.hail.io.reference
 
-import java.io.File
+import java.io.{File, FileNotFoundException}
 import java.net.URI
 
 import is.hail.backend.ExecuteContext
@@ -17,7 +17,12 @@ object LiftOver {
 }
 
 class LiftOver(fs: FS, val chainFile: String) {
-  val lo = using(fs.open(chainFile))(new htsjdk.samtools.liftover.LiftOver(_, chainFile))
+  val lo = try {
+    using(fs.open(chainFile))(new htsjdk.samtools.liftover.LiftOver(_, chainFile))
+  } catch {
+    case exc: FileNotFoundException =>
+      fatal(s"Chain file '$chainFile' does not exist.")
+  }
 
   def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): (is.hail.utils.Interval, Boolean) = {
     val start = interval.start.asInstanceOf[Locus]

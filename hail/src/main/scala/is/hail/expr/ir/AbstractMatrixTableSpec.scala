@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FS
 import is.hail.rvd._
+import is.hail.services.retryTransientErrors
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
@@ -12,7 +13,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 
-import java.io.OutputStreamWriter
+import java.io.{OutputStreamWriter, FileNotFoundException}
 import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 
@@ -28,15 +29,20 @@ object RelationalSpec {
     new MatrixTypeSerializer
 
   def readMetadata(fs: FS, path: String): JValue = {
-    if (!fs.isDir(path)) {
-      if (!fs.exists(path)) {
-        fatal(s"No file or directory found at ${path}")
-      } else {
-        fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
-      }
-    }
     val metadataFile = path + "/metadata.json.gz"
-    val jv = using(fs.open(metadataFile)) { in => parse(in) }
+    val jv = try {
+      retryTransientErrors { using(fs.open(metadataFile)) { in => parse(in) } }
+    } catch {
+      case exc: FileNotFoundException =>
+        val fle = fs.getFileListEntry(path)
+        if (fle.isDirectory) {
+          throw fatal(s"MatrixTable or Table at '$path' is corrupted.", exc)
+        } else if (fle.isFile) {
+          fatal(s"MatrixTable and Table files are directories, but '$path' is a file.")
+        } else {
+          fatal(s"No file or directory found at '$path'")
+        }
+    }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
