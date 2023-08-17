@@ -610,8 +610,6 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       case SelectFields(old, fields) =>
         val oldVal = recur(old)
         StructValue(fields.view.map(name => name -> oldVal.asInstanceOf[StructValue](name)))
-      /* TODO: when we support negation, if result is Boolean, handle like (cond & cnsq) | (~cond &
-       * altr) */
       case x@If(cond, cnsq, altr) =>
         if (x.typ == TBoolean) {
           val c = recur(cond).asInstanceOf[BoolValue]
@@ -629,9 +627,22 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               }
           case _ => Lattice.top
         }
-      case Coalesce(values) =>
-        val first = recur(values.head)
-        values.tail.foldLeft[AbstractValue](first)((acc, value) => Lattice.combine(acc, recur(value)))
+      case x@Coalesce(values) =>
+        val aVals = values.map(recur(_))
+        if (x.typ == TBoolean) {
+          val bVals = aVals.asInstanceOf[Seq[BoolValue]]
+          val trueBound = bVals.foldRight(KeySet.bottom) { (x, acc) =>
+            KeySet.combine(x.trueBound, KeySet.meet(x.naBound, acc))
+          }
+          val falseBound = bVals.foldRight(KeySet.bottom) { (x, acc) =>
+            KeySet.combine(x.falseBound, KeySet.meet(x.naBound, acc))
+          }
+          val naBound = bVals.foldRight(KeySet.top) { (x, acc) =>
+            KeySet.meet(x.naBound, acc)
+          }
+          BoolValue(trueBound, falseBound, naBound)
+        }
+        aVals.reduce(Lattice.combine)
       case _ =>
         val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
         val keyOrConstVal = computeKeyOrConst(x, children)
@@ -646,3 +657,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   }
 
 }
+
+// todos:
+// * simplifying filter conditions: can replace with True whenever falseSet and naSet are disjoint from interval filter
+//   * most rigorous: run analysis again, using interval filter cond as key field bounds in env. Replace with true when falseSet and naSet are empty
+// * make Env track bounds on key fields (like BoolValue)
+// * ensure analysis of bool expr always returns a refinement of the env bounds
+// * If intersects env with bool bounds (and negation) in branches, similarly in Coalesce
