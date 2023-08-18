@@ -334,27 +334,59 @@ steps:
         to: /io/repo/admin-pod
     dependsOn:
       - hail_ubuntu_image
+  - kind: buildImage2
+    name: auth_image
+    dockerFile: /io/repo/auth/Dockerfile
+    contextPath: /io/repo
+    publishAs: auth
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/auth
+        to: /io/repo/auth
+      - from: /repo/hail/python/setup-hailtop.py
+        to: /io/repo/hail/python/setup-hailtop.py
+      - from: /repo/hail/python/MANIFEST.in
+        to: /io/repo/hail/python/MANIFEST.in
+      - from: /repo/hail/python/hailtop
+        to: /io/repo/hail/python/hailtop
+      - from: /hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/web_common
+        to: /io/repo/web_common
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
   - kind: runImage
     name: delete_auth_tables
     image:
-      valueFrom: admin_pod_image.image
+      valueFrom: auth_image.image
     script: |
       set -ex
-      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
+      cd /io
+      python3 delete_dev_database.py {{ default_ns.name }} auth
     inputs:
-      - from: /repo/auth/sql
-        to: /io/sql
+      - from: /repo/ci/delete_dev_database.py
+        to: /io/delete_dev_database.py
     secrets:
       - name: database-server-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     runIfRequested: true
     scopes:
       - dev
     dependsOn:
       - default_ns
-      - admin_pod_image
+      - auth_image
       - merge_code
       - create_test_database_server_config
   - kind: createDatabase2
@@ -490,33 +522,6 @@ steps:
     dependsOn:
       - default_ns
       - ci_utils_image
-  - kind: buildImage2
-    name: auth_image
-    dockerFile: /io/repo/auth/Dockerfile
-    contextPath: /io/repo
-    publishAs: auth
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/auth
-        to: /io/repo/auth
-      - from: /repo/hail/python/setup-hailtop.py
-        to: /io/repo/hail/python/setup-hailtop.py
-      - from: /repo/hail/python/MANIFEST.in
-        to: /io/repo/hail/python/MANIFEST.in
-      - from: /repo/hail/python/hailtop
-        to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
-      - from: /repo/gear
-        to: /io/repo/gear
-      - from: /repo/web_common
-        to: /io/repo/web_common
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
   - kind: deploy
     name: deploy_auth_driver_service_account
     namespace:
@@ -1631,24 +1636,29 @@ steps:
   - kind: runImage
     name: delete_monitoring_tables
     image:
-      valueFrom: admin_pod_image.image
+      valueFrom: monitoring_image.image
     script: |
       set -ex
-      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-monitoring-tables.sql
+      cd /io
+      python3 delete_dev_database.py {{ default_ns.name }} monitoring
     inputs:
-      - from: /repo/monitoring/sql
-        to: /io/sql
+      - from: /repo/ci/delete_dev_database.py
+        to: /io/delete_dev_database.py
     secrets:
       - name: database-server-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     runIfRequested: true
     scopes:
       - dev
     dependsOn:
       - default_ns
-      - admin_pod_image
+      - monitoring_image
       - merge_code
       - create_test_database_server_config
   - kind: createDatabase2
@@ -1842,47 +1852,57 @@ steps:
   - kind: runImage
     name: delete_batch_tables
     image:
-      valueFrom: admin_pod_image.image
+      valueFrom: batch_image.image
     script: |
       set -ex
-      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
+      cd /io
+      python3 delete_dev_database.py {{ default_ns.name }} batch
     inputs:
-      - from: /repo/batch/sql
-        to: /io/sql
+      - from: /repo/ci/delete_dev_database.py
+        to: /io/delete_dev_database.py
     secrets:
       - name: database-server-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     runIfRequested: true
     scopes:
       - dev
     dependsOn:
       - default_ns
-      - admin_pod_image
+      - batch_image
       - merge_code
       - create_test_database_server_config
   - kind: runImage
     name: delete_ci_tables
     image:
-      valueFrom: admin_pod_image.image
+      valueFrom: ci_image.image
     script: |
       set -ex
-      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
+      cd /io
+      python3 delete_dev_database.py {{ default_ns.name }} ci
     inputs:
-      - from: /repo/ci/sql
-        to: /io/sql
+      - from: /repo/ci/delete_dev_database.py
+        to: /io/delete_dev_database.py
     secrets:
       - name: database-server-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     runIfRequested: true
     scopes:
       - dev
     dependsOn:
       - default_ns
-      - admin_pod_image
+      - ci_image
       - merge_code
       - create_test_database_server_config
   - kind: createDatabase2
