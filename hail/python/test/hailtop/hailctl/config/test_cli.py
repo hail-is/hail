@@ -1,8 +1,10 @@
+import os
 import pytest
 
 from typer.testing import CliRunner
 
 from hailtop.config.variables import ConfigVariable
+from hailtop.config.user_config import get_user_config_path
 from hailtop.hailctl.config import cli, config_variables
 
 
@@ -60,7 +62,18 @@ def test_config_set_get_list_unset(name: str, value: str, runner: CliRunner):
 
 
 # backwards compatibility
-def test_config_get_unknown_names(bc_runner: CliRunner):
+def test_config_get_unknown_names(bc_runner: CliRunner, config_dir: str):
+    config_path = get_user_config_path(_config_dir=config_dir)
+    os.makedirs(os.path.dirname(config_path))
+    with open(config_path, 'w', encoding='utf-8') as config:
+        config.write(f'''
+[global]
+email = johndoe@gmail.com
+
+[batch]
+foo = 5
+''')
+
     res = bc_runner.invoke(cli.app, ['get', 'email'], catch_exceptions=False)
     assert res.exit_code == 0
     assert res.stdout.strip() == 'johndoe@gmail.com'

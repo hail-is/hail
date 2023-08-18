@@ -17,8 +17,8 @@ def xdg_config_home() -> Path:
     return Path(value)
 
 
-def get_user_config_path() -> Path:
-    return Path(xdg_config_home(), 'hail', 'config.ini')
+def get_user_config_path(*, _config_dir: Optional[str] = None) -> Path:
+    return Path(_config_dir or xdg_config_home(), 'hail', 'config.ini')
 
 
 def get_user_config() -> configparser.ConfigParser:
