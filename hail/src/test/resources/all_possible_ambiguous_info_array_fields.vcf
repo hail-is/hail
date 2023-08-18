@@ -1,0 +1,14 @@
+##fileformat=VCFv4.2
+##INFO=<ID=Number0,Number=0,Type=Flag,Description="">
+##INFO=<ID=Number1,Number=1,Type=String,Description="">
+##INFO=<ID=Number2,Number=2,Type=String,Description="">
+##INFO=<ID=NumberA,Number=A,Type=String,Description="">
+##INFO=<ID=NumberR,Number=R,Type=String,Description="">
+##INFO=<ID=NumberG,Number=G,Type=String,Description="">
+##INFO=<ID=NumberDot,Number=.,Type=String,Description="">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+#Hail cannot parse VCFs with no alts, they are parsed as an empty string allele
+#1	1	.	A		.	LowQual	Number0=.;Number1=.;Number2=.;NumberA=.;NumberR=.;NumberG=.;NumberDot=.
+1	1	.	A	T	.	LowQual	Number0=.;Number1=.;Number2=.;NumberA=.;NumberR=.;NumberG=.;NumberDot=.
+1	1	.	A	T,G	.	LowQual	Number0=.;Number1=.;Number2=.;NumberA=.;NumberR=.;NumberG=.;NumberDot=.
+1	2	.	A	T,G	.	LowQual	Number0;Number1=X;Number2=X,.;NumberA=.,X;NumberR=.,X,.;NumberG=.,X,.,X,.,X;NumberDot=.,X,X,X,.

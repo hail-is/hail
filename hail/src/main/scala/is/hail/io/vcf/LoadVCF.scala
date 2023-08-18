@@ -1809,8 +1809,12 @@ class MatrixVCFReader(
     IRParser.parseType(params.entryFloatTypeName),
     params.callFields)
 
+  val globalType = TStruct(
+    "vcf_header" -> VCFHeaderInfo.headerType.typeAfterSelectNames(Array("formatAttrs", "filterAttrs", "infoAttrs"))
+  )
+
   def fullMatrixTypeWithoutUIDs: MatrixType = MatrixType(
-    globalType = TStruct.empty,
+    globalType = globalType,
     colType = TStruct("s" -> TString),
     colKey = Array("s"),
     rowType = TStruct(
@@ -1892,7 +1896,14 @@ class MatrixVCFReader(
         GenericLines.read(fs, fileStatuses, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
     }
 
-    val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastIndexedSeq)
+    val globals = Row(
+      Row(
+        header.formatAttrs,
+        header.filtersAttrs,
+        header.infoAttrs
+      ),
+      sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastIndexedSeq
+    )
 
     val fullRowPType: PType = fullRVDType.rowType
 

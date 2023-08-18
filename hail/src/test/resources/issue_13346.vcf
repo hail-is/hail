@@ -1,0 +1,21 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##FILTER=<ID=ExcessHet,Description="Site has excess het value larger than the threshold">
+##FILTER=<ID=LowQual,Description="Low quality">
+##FILTER=<ID=NO_HQ_GENOTYPES,Description="Site has no high quality variant genotypes">
+##FILTER=<ID=low_VQSLOD_INDEL,Description="Site failed INDEL model sensitivity cutoff (99.0), corresponding with VQSLOD cutoff of -1.3625">
+##FILTER=<ID=low_VQSLOD_SNP,Description="Site failed SNP model sensitivity cutoff (99.7), corresponding with VQSLOD cutoff of -2.2757">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">
+##FORMAT=<ID=FT,Number=1,Type=String,Description="Genotype Filter Field">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=RGQ,Number=1,Type=Integer,Description="Unconditional reference genotype confidence, encoded as a phred quality -10*log10 p(genotype call is wrong)">
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes, for each ALT allele, in the same order as listed">
+##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency, for each ALT allele, in the same order as listed">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##INFO=<ID=AS_QUALapprox,Number=1,Type=String,Description="Allele-specific QUAL approximations">
+##INFO=<ID=AS_VQSLOD,Number=A,Type=String,Description="For each alt allele, the log odds of being a true variant versus being false under the trained gaussian mixture model">
+##INFO=<ID=AS_YNG,Number=A,Type=String,Description="For each alt allele, the yay/nay/grey status (yay are known good alleles, nay are known false positives, grey are unknown)">
+##INFO=<ID=QUALapprox,Number=1,Type=Integer,Description="Sum of PL[0] values; used to approximate the QUAL score">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	1	2	3	4	5	6	7	8	9	10	11	1
+chr1	10403	.	ACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAAC	A,ACCCCTAACCCTAACCCTAACCCTAACCCTAACCCTAAC	.	LowQual	AC=1,1;AF=0.250,0.250;AN=4;AS_QUALapprox=0|23|45;AS_VQSLOD=.,.;AS_YNG=.,.;QUALapprox=45	GT:AD:GQ:RGQ	./.	0/1:23,7,0:20:23	./.	./.	./.	0/2:6,0,4:35:45	./.	./.	./.	./.	./.	./.	./.	./.	./.	./.	./.	./.

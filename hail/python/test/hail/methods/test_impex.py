@@ -2176,3 +2176,122 @@ def test_import_export_same(i):
 
     assert mt._same(mt2)
     assert mt._same(mt3)
+
+
+def test_import_vcf_13346():
+    mt = hl.import_vcf(resource(f'issue_13346.vcf'), reference_genome='GRCh38')
+    actual = mt.rows().collect()[0]
+    expected = hl.Struct(
+        locus=hl.Locus('chr1', 10403, reference_genome='GRCh38'),
+	alleles=['ACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAAC', 'A', 'ACCCCTAACCCTAACCCTAACCCTAACCCTAACCCTAAC'],
+	rsid=None,
+        qual=-10.0,
+        filters={'LowQual'}
+        ,
+        info=hl.Struct(
+            AC=[1, 1],
+            AF=[0.250, 0.250],
+            AN=4,
+            AS_QUALapprox='0|23|45',
+            AS_VQSLOD=[None, None],
+            AS_YNG=[None, None],
+            QUALapprox=45,
+	),
+    )
+    assert actual == expected
+
+
+def test_import_vcf_number0_field_disambiguator_is_error():
+    with pytest.raises(ValueError, match='Do not provide a disambiguator for the non-array INFO field Number0. It cannot be ambiguous.'):
+        mt = hl.import_vcf(
+            resource(f'all_possible_ambiguous_info_array_fields.vcf'),
+            disambiguate_single_dot={'Number0': lambda x: 'hello'}
+        )
+
+
+def test_import_vcf_number1_field_disambiguator_is_error():
+    with pytest.raises(ValueError, match='Do not provide a disambiguator for the non-array INFO field Number1. It cannot be ambiguous.'):
+        mt = hl.import_vcf(
+            resource(f'all_possible_ambiguous_info_array_fields.vcf'),
+            disambiguate_single_dot={'Number1': lambda x: 'hello'}
+        )
+
+
+def test_import_vcf_ambiguous_field_defaults_to_error():
+    with pytest.raises(HailUserError, match='.*This value is ambiguous. It could either be a missing array value or.*'):
+        mt = hl.import_vcf(resource(f'all_possible_ambiguous_info_array_fields.vcf'))
+        print(mt.rows().collect())
+
+
+def test_import_vcf_disambiguator_changing_type_has_good_error_message():
+    with pytest.raises(HailUserError, match='Disambiguator must have same type as field: field NumberA had type array<str> but disambiguator had type int32.'):
+        mt = hl.import_vcf(
+            resource(f'all_possible_ambiguous_info_array_fields.vcf'),
+            disambiguate_single_dot={'NumberA': lambda x: 42}
+        )
+        print(mt.rows().collect())
+
+
+def test_import_vcf_disambiguator_is_used_or_ambiguous_cases():
+    mt = hl.import_vcf(
+        resource(f'all_possible_ambiguous_info_array_fields.vcf'),
+        disambiguate_single_dot=dict(
+            Number2=lambda _: ["Number2 is Ambiguous"],
+            NumberA=lambda _: ["NumberA is Ambiguous"],
+            NumberR=lambda _: ["NumberR is Ambiguous"],
+            NumberG=lambda _: ["NumberG is Ambiguous"],
+            NumberDot=lambda _: ["NumberDot is Ambiguous"],
+        )
+    )
+    one_alt, two_alts, no_ambiguities = mt.rows().collect()
+
+    assert one_alt == hl.Struct(
+        locus=hl.Locus('1', 1),
+	alleles=['A', 'T'],
+	rsid=None,
+        qual=-10.0,
+        filters={'LowQual'},
+        info=hl.Struct(
+            Number0=True,
+            Number1=None,
+            Number2=None,
+            NumberA=["NumberA is Ambiguous"],
+            NumberR=None,
+            NumberG=None,
+            NumberDot=["NumberDot is Ambiguous"],
+	),
+    )
+
+    assert two_alts == hl.Struct(
+        locus=hl.Locus('1', 1),
+	alleles=['A', 'T', 'G'],
+	rsid=None,
+        qual=-10.0,
+        filters={'LowQual'},
+        info=hl.Struct(
+            Number0=True,
+            Number1=None,
+            Number2=None,
+            NumberA=None,
+            NumberR=None,
+            NumberG=None,
+            NumberDot=["NumberDot is Ambiguous"],
+	),
+    )
+
+    assert no_ambiguities == hl.Struct(
+        locus=hl.Locus('1', 2),
+	alleles=['A', 'T', 'G'],
+	rsid=None,
+        qual=-10.0,
+        filters={'LowQual'},
+        info=hl.Struct(
+            Number0=True,
+            Number1='X',
+            Number2=['X', None],
+            NumberA=[None, 'X'],
+            NumberR=[None, 'X', None],
+            NumberG=[None, 'X', None, 'X', None, 'X'],
+            NumberDot=[None, 'X', 'X', 'X', None],
+	),
+    )

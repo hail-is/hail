@@ -1,3 +1,4 @@
+from typing import Dict, Callable, Optional
 import os
 import re
 from collections import defaultdict
@@ -8,9 +9,9 @@ from avro.io import DatumReader
 
 import hail as hl
 from hail import ir
-from hail.expr import StructExpression, LocusExpression, \
-    expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
-    expr_int32, to_expr, analyze
+from hail.expr import (StructExpression, LocusExpression, expr_array, expr_float64, expr_str,
+                       expr_numeric, expr_call, expr_bool, expr_int32, to_expr, analyze, Expression,
+                       DictExpression, expr_any)
 from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
     tcall, tbool, tint64, tfloat32
 from hail.genetics.reference_genome import reference_genome_type
@@ -18,8 +19,8 @@ from hail.ir.utils import parse_type
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.table import Table
-from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
-    sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
+from hail.typecheck import (typecheck, nullable, oneof, dictof, anytype, sequenceof, enumeration,
+                            sized_tupleof, numeric, table_key_type, char, func_spec)
 from hail.utils import new_temp_file
 from hail.utils.deduplicate import deduplicate
 from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
@@ -2628,6 +2629,9 @@ def get_vcf_metadata(path):
     return Env.backend().parse_vcf_metadata(path)
 
 
+
+array_elements_required_nonce = object()
+
 @typecheck(path=oneof(str, sequenceof(str)),
            force=bool,
            force_bgz=bool,
@@ -2637,7 +2641,7 @@ def get_vcf_metadata(path):
            call_fields=oneof(str, sequenceof(str)),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
-           array_elements_required=bool,
+           array_elements_required=oneof(bool, enumeration(array_elements_required_nonce)),
            skip_invalid_loci=bool,
            entry_float_type=enumeration(tfloat32, tfloat64),
            filter=nullable(str),
@@ -2645,7 +2649,8 @@ def get_vcf_metadata(path):
            n_partitions=nullable(int),
            block_size=nullable(int),
            _create_row_uids=bool,
-           _create_col_uids=bool)
+           _create_col_uids=bool,
+           disambiguate_single_dot=nullable(dictof(str, func_spec(1, expr_any))))
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -2655,14 +2660,17 @@ def import_vcf(path,
                call_fields=['PGT'],
                reference_genome='default',
                contig_recoding=None,
-               array_elements_required=True,
+               array_elements_required=array_elements_required_nonce,
                skip_invalid_loci=False,
                entry_float_type=tfloat64,
                filter=None,
                find_replace=None,
                n_partitions=None,
                block_size=None,
-               _create_row_uids=False, _create_col_uids=False,
+               *,
+               _create_row_uids=False,
+               _create_col_uids=False,
+               disambiguate_single_dot: Optional[Dict[str, Callable[[Expression], Expression]]] = None,
                ) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
@@ -2779,12 +2787,11 @@ def import_vcf(path,
         All contigs must be present in the `reference_genome`, so this is
         useful for mapping differently-formatted data onto known references.
     array_elements_required : :obj:`bool`
-        If ``True``, all elements in an array field must be present. Set this
-        parameter to ``False`` for Hail to allow array fields with missing
-        values such as ``1,.,5``. In this case, the second element will be
-        missing. However, in the case of a single missing element ``.``, the
-        entire field will be missing and **not** an array with one missing
-        element.
+        DEPRECATED: use `disambiguate_single_dot` instead. If ``True``, all elements in an array
+        field must be present. Set this parameter to ``False`` for Hail to allow array fields with
+        missing values such as ``1,.,5``. In this case, the second element will be missing. However,
+        in the case of a single missing element ``.``, the entire field will be missing and **not**
+        an array with one missing element.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
     entry_float_type: :class:`.HailType`
@@ -2803,23 +2810,133 @@ def import_vcf(path,
         are specified, `n_partitions` will be used.
     block_size : :obj:`int`, optional
         Block size, in MB.  Default: 128MB blocks.
+    disambiguate_single_dot : :obj:`dict` of (:class:`str`, :class:`Callable`[[:class:`Expression`], :class:`Expression]), optional
+        User-specified expressions to interpret the meaning of an INFO or FORMAT array-field whose
+        value is ".". If specified, a dictionary mapping from INFO and/or FORMAT fields to
+        functions. Whenever a "." is encountered, the function for that field is called with the
+        current row as an argument. The returned value is used as the value of the field. If there
+        is no value for that field, an error is raised.
 
     Returns
     -------
     :class:`.MatrixTable`
+
     """
     if force:
-        hl.utils.warning(
+        warning(
             f'You are trying to read {path} with *ONE* core of parallelism. This '
             'will be very slow. If this file is block-gzipped (bgzip-ed), use '
             'force_bgz=True instead.'
         )
 
+    if array_elements_required is array_elements_required_nonce:
+        array_elements_required = False
+    else:
+        warning(
+            f'"array_elements_required=False is deprecated. Please use "disambiguate_single_dot" instead.'
+        )
+
+        if disambiguate_single_dot is not None:
+            raise ValueError(
+                'Do not provide "array_elements_required" when providing '
+                '"disambiguate_single_dot". Provide only "disambiguate_single_dot".'
+            )
+
+    disambiguate_single_dot = disambiguate_single_dot or {}
+
     reader = ir.MatrixVCFReader(path, call_fields, entry_float_type, header_file,
                                 n_partitions, block_size, min_partitions,
                                 reference_genome, contig_recoding, array_elements_required,
                                 skip_invalid_loci, force_bgz, force, filter, find_replace)
-    return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples, drop_row_uids=not _create_row_uids, drop_col_uids=not _create_col_uids))
+    mt = MatrixTable(
+        ir.MatrixRead(
+            reader,
+            drop_cols=drop_samples,
+            drop_row_uids=not _create_row_uids,
+            drop_col_uids=not _create_col_uids
+        )
+    )
+
+    if array_elements_required is True:
+        return mt.select_globals()
+
+    def disambiguate_field(field: str, value: Expression, attributes: DictExpression) -> Expression:
+        disambiguator = disambiguate_single_dot.get(field)
+
+        if field in {'AF', 'CIGAR', 'EC'}:
+            # VCFs may incorrectly encode these as ".". The VCF spec requires A.
+            field_number = 'A'
+        elif field in {'AD', 'ADF', 'ADR'}:
+            # VCFs may incorrectly encode these as ".". The VCF spec requires R.
+            field_number = 'R'
+        elif field in {'GL', 'GP', 'PL', 'PP'}:
+            # VCFs may incorrectly encode these as ".". The VCF spec requires G.
+            field_number = 'G'
+        else:
+            field_number = attributes[field]['Number']
+
+        if not isinstance(value.dtype, hl.tarray):
+            if disambiguator is not None:
+                raise ValueError(
+                    f'Do not provide a disambiguator for the non-array INFO field {field}. It cannot be ambiguous.'
+                )
+            return value
+
+        isA = field_number == 'A'
+        isR = field_number == 'R'
+        isG = field_number == 'G'
+        isDot = field_number == '.'
+        n_alts = hl.len(mt.alleles) - 1
+        is_ambiguous = hl.any(
+            hl.all(isA, n_alts == 1),
+            hl.all(isR, n_alts == 0),
+            hl.all(isG, n_alts == 0),
+            isDot
+        )
+
+        cb = (
+            hl.case()
+            .when(hl.is_defined(value), value)
+            .when(~is_ambiguous, value)
+        )
+
+        if disambiguator is not None:
+            disambiguated_value = disambiguator(mt.row)
+            try:
+                return cb.default(disambiguated_value)
+            except TypeError as exc:
+                raise ValueError(
+                    f'Disambiguator must have same type as field: field {field} had type {value.dtype} but disambiguator had type {disambiguated_value.dtype}.'
+                ) from exc
+
+        return cb.or_error(
+            hl.format(
+                f'At row with key %s, INFO array field {field} had the value ".". '
+                f'This value is ambiguous. It could either be a missing array value or '
+                f'an array with one element which is a missing value. You must use the '
+                f'"disambiguate_single_dot" parameter of "import_vcf" to specify how to '
+                f'interpret "." for this field.',
+                mt.row_key
+            )
+        )
+
+    mt = mt.annotate_rows(info=hl.Struct(**{
+        row_field: disambiguate_field(
+            row_field,
+            mt.info[row_field],
+            mt.vcf_header.infoAttrs
+        )
+        for row_field in mt.info
+    }))
+    mt = mt.annotate_entries(**{
+        entry_field: disambiguate_field(
+            entry_field,
+            mt.entry[entry_field],
+            mt.vcf_header.formatAttrs
+        )
+        for entry_field in mt.entry
+    })
+    return mt.select_globals()
 
 
 @typecheck(path=expr_str,
