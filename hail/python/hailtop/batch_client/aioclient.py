@@ -369,7 +369,7 @@ def submitted_batch_only(fun):
         batch = args[0]
         if not batch.submitted:
             raise BatchNotSubmittedError
-        return await fun(batch, *args, **kwargs)
+        return await fun(*args, **kwargs)
     return wrapped
 
 
@@ -379,7 +379,7 @@ def unsubmitted_batch_only(fun):
         batch = args[0]
         if batch.submitted:
             raise BatchAlreadyCreatedError
-        return await fun(batch, *args, **kwargs)
+        return await fun(*args, **kwargs)
     return wrapped
 
 
