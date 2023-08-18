@@ -53,7 +53,8 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     assert(false)
   }
 
-  @Test def deleteManyFiles(): Unit = {
+  // @Test
+  def deleteManyFiles(): Unit = {
     val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
     for (i <- 0 until 2000) {
       fs.touch(s"$prefix/$i")

@@ -92,7 +92,7 @@ object AzureStorageFS {
   val schemes: Array[String] = Array("hail-az", "https")
 
   def parseUrl(filename: String): AzureStorageFSURL = {
-    val scheme = new URI(filename).getScheme
+    val scheme = filename.split(":")(0)
     if (scheme == "hail-az") {
       parseHailAzUrl(filename)
     } else if (scheme == "https") {
@@ -142,17 +142,17 @@ object AzureStorageFS {
 }
 
 object AzureStorageFileListEntry {
-  def apply(path: String, blobItem: BlobItem): BlobStorageFileListEntry = {
+  def apply(url: AzureStorageFSURL, blobItem: BlobItem): BlobStorageFileListEntry = {
     if (blobItem.isPrefix) {
-      dir(path)
+      dir(url)
     } else {
       val properties = blobItem.getProperties
-      new BlobStorageFileListEntry(path, properties.getLastModified.toEpochSecond, properties.getContentLength, false)
+      new BlobStorageFileListEntry(url.toString, properties.getLastModified.toEpochSecond, properties.getContentLength, false)
     }
   }
 
-  def dir(path: String): BlobStorageFileListEntry = {
-    new BlobStorageFileListEntry(path, null, 0, true)
+  def dir(url: AzureStorageFSURL): BlobStorageFileListEntry = {
+    new BlobStorageFileListEntry(url.toString, null, 0, true)
   }
 }
 
@@ -388,8 +388,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val prefixMatches = blobContainerClient.listBlobsByHierarchy(prefix)
 
     prefixMatches.forEach(blobItem => {
-      val blobPath = dropTrailingSlash(url.withPath(blobItem.getName).toString())
-      statList += AzureStorageFileListEntry(blobPath, blobItem)
+      statList += AzureStorageFileListEntry(url.withPath(blobItem.getName), blobItem)
     })
 
     statList.toArray
@@ -406,7 +405,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   override def fileStatus(url: AzureStorageFSURL): FileStatus = retryTransientErrors {
     if (url.path == "") {
-      return AzureStorageFileListEntry.dir(url.toString)
+      return AzureStorageFileListEntry.dir(url)
     }
 
     val blobClient = getBlobClient(url)
@@ -423,14 +422,17 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   override def getFileListEntry(filename: String): FileListEntry = getFileListEntry(AzureStorageFS.parseUrl(filename))
 
   override def getFileListEntry(url: URL): FileListEntry = {
+    if (url.getPath == "")
+      return AzureStorageFileListEntry.dir(url)
+
     val it = {
       val containerClient = getContainerClient(url)
-      val options = new ListBlobsOptions().setPrefix(dropTrailingSlash(url.toString))
+      val options = new ListBlobsOptions().setPrefix(dropTrailingSlash(url.getPath))
       val prefixMatches = containerClient.listBlobsByHierarchy("/", options, timeout)
       prefixMatches.iterator()
-    }.asScala.map(AzureStorageFileListEntry.apply(url.toString, _))
+    }.asScala.map(AzureStorageFileListEntry.apply(url, _))
 
-    FS.fileListEntryFromIterator(url, it, AzureStorageFileListEntry.dir _)
+    FS.fileListEntryFromIterator(url, it)
   }
 
   def makeQualified(filename: String): String = {

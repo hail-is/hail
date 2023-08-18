@@ -12,6 +12,8 @@ class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
 
   def getPath: String = fs.getPath.toString
 
+  def getActualUrl: String = fs.getPath.toString
+
   def getModificationTime: java.lang.Long = fs.getModificationTime
 
   def getLen: Long = fs.getLen
@@ -172,7 +174,13 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     files.map(fle => new HadoopFileListEntry(fle))
   }
 
-  override def fileStatus(filename: String): FileStatus = getFileListEntry(filename)
+  override def fileStatus(filename: String): FileStatus = {
+    val fle = getFileListEntry(filename)
+    if (fle.isDirectory) {
+      throw new FileNotFoundException(fle.getPath)
+    }
+    fle
+  }
 
   override def fileStatus(url: URL): FileStatus = fileStatus(url.toString)
 

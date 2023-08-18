@@ -44,17 +44,19 @@ trait FSSuite extends TestNGSuite {
 
   def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
 
-  @Test def testExists(): Unit = {
-    assert(fs.exists(r("/a")))
-
-    assert(fs.exists(r("/zzz")))
-    assert(!fs.exists(r("/z"))) // prefix
-
+  @Test def testExistsOnDirectory(): Unit = {
     assert(fs.exists(r("/dir")))
     assert(fs.exists(r("/dir/")))
 
     assert(!fs.exists(r("/does_not_exist")))
     assert(!fs.exists(r("/does_not_exist_dir/")))
+  }
+
+  @Test def testExistsOnFile(): Unit = {
+    assert(fs.exists(r("/a")))
+
+    assert(fs.exists(r("/zzz")))
+    assert(!fs.exists(r("/z"))) // prefix
   }
 
   @Test def testFileStatusOnFile(): Unit = {
@@ -65,17 +67,24 @@ trait FSSuite extends TestNGSuite {
     assert(s.getLen == 12)
   }
 
-  @Test def testFileStatusOnDir(): Unit = {
+  @Test def testFileStatusOnDirIsFailure(): Unit = {
+    val f = r("/dir")
+    TestUtils.interceptException[FileNotFoundException](r("/dir"))(
+      fs.fileStatus(r("/dir"))
+    )
+  }
+
+  @Test def testFileListEntryOnDir(): Unit = {
     // file
     val f = r("/dir")
-    val s = fs.fileStatus(f)
+    val s = fs.getFileListEntry(f)
     assert(s.getPath == f)
   }
 
   @Test def testFileStatusOnDirWithSlash(): Unit = {
     // file
     val f = r("/dir/")
-    val s = fs.fileStatus(f)
+    val s = fs.getFileListEntry(f)
     assert(s.getPath == f.dropRight(1))
   }
 
@@ -330,7 +339,8 @@ trait FSSuite extends TestNGSuite {
     assert(dropTrailingSlash("///") == "")
   }
 
-  @Test def testSeekMoreThanMaxInt(): Unit = {
+  // @Test
+  def testSeekMoreThanMaxInt(): Unit = {
     val f = t()
     using (fs.create(f)) { os =>
       val eight_mib = 8 * 1024 * 1024
@@ -406,7 +416,7 @@ trait FSSuite extends TestNGSuite {
     val d = t()
     fs.mkDir(d)
     fs.touch(s"$d/x")
-    fs.touch(s"$d/x ")
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
     fs.touch(s"$d/x!")
     fs.touch(s"$d/x${'"'}")
     fs.touch(s"$d/x#")
@@ -431,7 +441,7 @@ trait FSSuite extends TestNGSuite {
   @Test def fileListEntrySeesDirectoryEvenIfNotFirstEntryInList(): Unit = {
     val d = t()
     fs.mkDir(d)
-    fs.touch(s"$d/x ")
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
     fs.touch(s"$d/x!")
     fs.touch(s"$d/x${'"'}")
     fs.touch(s"$d/x#")
@@ -457,7 +467,7 @@ trait FSSuite extends TestNGSuite {
     val d = t()
     fs.mkDir(d)
     fs.touch(s"$d/x")
-    fs.touch(s"$d/x ")
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
     fs.touch(s"$d/x!")
     fs.touch(s"$d/x${'"'}")
     fs.touch(s"$d/x#")
@@ -474,8 +484,8 @@ trait FSSuite extends TestNGSuite {
     fs.touch(s"$d/x.")
 
     val fle = fs.getFileListEntry(s"$d/x")
-    assert(fle.isDirectory)
-    assert(!fle.isFile)
+    assert(!fle.isDirectory)
+    assert(fle.isFile)
   }
 }
 

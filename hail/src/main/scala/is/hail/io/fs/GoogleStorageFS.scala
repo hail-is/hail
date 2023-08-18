@@ -48,7 +48,7 @@ object GoogleStorageFS {
   private[this] val GCS_URI_REGEX = "^gs:\\/\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
   def parseUrl(filename: String): GoogleStorageFSURL = {
-    val scheme = new URI(filename).getScheme
+    val scheme = filename.split(":")(0)
     if (scheme == null || scheme != "gs") {
       throw new IllegalArgumentException(s"Invalid scheme, expected gs: $scheme")
     }
@@ -68,10 +68,8 @@ object GoogleStorageFileListEntry {
   def apply(blob: Blob): BlobStorageFileListEntry = {
     val isDir = blob.isDirectory
 
-    val name = dropTrailingSlash(blob.getName)
-
     new BlobStorageFileListEntry(
-      s"gs://${ blob.getBucket }/$name",
+      s"gs://${ blob.getBucket }/${blob.getName}",
       if (isDir)
         null
       else
@@ -80,8 +78,8 @@ object GoogleStorageFileListEntry {
       isDir)
   }
 
-  def dir(path: String): BlobStorageFileListEntry = {
-    return new BlobStorageFileListEntry(path, null, 0, true)
+  def dir(url: GoogleStorageFSURL): BlobStorageFileListEntry = {
+    return new BlobStorageFileListEntry(url.toString, null, 0, true)
   }
 }
 
@@ -480,7 +478,7 @@ class GoogleStorageFS(
 
   override def fileStatus(url: GoogleStorageFSURL): FileStatus = retryTransientErrors {
     if (url.path == "")
-      return GoogleStorageFileListEntry.dir(url.toString)
+      return GoogleStorageFileListEntry.dir(url)
 
     val blob = retryTransientErrors {
       handleRequesterPays(
@@ -496,7 +494,7 @@ class GoogleStorageFS(
     }
 
     new BlobStorageFileStatus(
-      dropTrailingSlash(url.toString),
+      url.toString,
       blob.getUpdateTimeOffsetDateTime.toInstant().toEpochMilli(),
       blob.getSize
     )
@@ -505,16 +503,21 @@ class GoogleStorageFS(
   override def getFileListEntry(filename: String): FileListEntry = getFileListEntry(parseUrl(filename))
 
   override def getFileListEntry(url: URL): FileListEntry = {
-    val prefix = dropTrailingSlash(url.toString)
-    val it = retryTransientErrors {
-      handleRequesterPays(
-        (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(prefix) +: BlobListOption.currentDirectory() +: options):_*),
-        BlobListOption.userProject _,
-        url.bucket
-      )
-    }.iterateAll().iterator.asScala.map(GoogleStorageFileListEntry.apply _)
+    if (url.getPath == "") {
+      return GoogleStorageFileListEntry.dir(url)
+    }
 
-    FS.fileListEntryFromIterator(url, it, GoogleStorageFileListEntry.dir _)
+    val prefix = dropTrailingSlash(url.getPath)
+    val obj = retryTransientErrors {
+       handleRequesterPays(
+         (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(prefix) +: BlobListOption.currentDirectory() +: options):_*),
+         BlobListOption.userProject _,
+         url.bucket
+       )
+    }
+    val it = obj.iterateAll().iterator.asScala.map(GoogleStorageFileListEntry.apply _)
+
+    FS.fileListEntryFromIterator(url, it)
   }
 
   def makeQualified(filename: String): String = {

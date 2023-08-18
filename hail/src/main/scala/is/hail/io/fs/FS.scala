@@ -67,6 +67,7 @@ trait FSURL[T <: FSURL[T]] {
 
 trait FileStatus {
   def getPath: String
+  def getActualUrl: String
   def getModificationTime: java.lang.Long
   def getLen: Long
   def isSymlink: Boolean
@@ -81,9 +82,10 @@ trait FileListEntry extends FileStatus {
 }
 
 class BlobStorageFileStatus(
-  path: String, modificationTime: java.lang.Long, size: Long
+  actualUrl: String, modificationTime: java.lang.Long, size: Long
 ) extends FileStatus {
-  def getPath: String = path
+  def getPath: String = dropTrailingSlash(actualUrl) // getPath is a backwards compatible method: in the past, Hail dropped trailing slashes
+  def getActualUrl: String = actualUrl
   def getModificationTime: java.lang.Long = modificationTime
   def getLen: Long = size
   def isSymlink: Boolean = false
@@ -91,13 +93,15 @@ class BlobStorageFileStatus(
 }
 
 class BlobStorageFileListEntry(
-  path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean
+  actualUrl: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean
 ) extends BlobStorageFileStatus(
-  path, modificationTime, size
+  actualUrl, modificationTime, size
 ) with FileListEntry {
   def isDirectory: Boolean = isDir
   def isFile: Boolean = !isDir
   override def isFileOrFileAndDirectory = isFile
+  override def toString: String = s"BSFLE($actualUrl $modificationTime $size $isDir)"
+
 }
 
 trait CompressionCodec {
@@ -283,31 +287,32 @@ object FS {
   def fileListEntryFromIterator[T <: FSURL[T]](
     url: T,
     it: Iterator[FileListEntry],
-    makeDirFle: String => FileListEntry
   ): FileListEntry = {
-    if (url.getPath == "")
-      return makeDirFle(url.toString)
-
     val prefix = dropTrailingSlash(url.toString)
     val prefixWithSlash = prefix + "/"
 
     var continue = it.hasNext
     var fileFle: FileListEntry = null
     var dirFle: FileListEntry = null
+    System.err.println(s"prefix=$prefix")
+    System.err.println(s"prefixWithSlash=$prefixWithSlash")
     while (continue) {
       val fle = it.next()
 
-      if (fle.getPath == prefix) {
+      System.err.println(s"fle.getActualUrl=${fle.getActualUrl}")
+
+      if (fle.getActualUrl == prefix) {
         assert(fle.isFile)
         fileFle = fle
       }
 
-      if (fle.getPath == prefixWithSlash) {
+      if (fle.getActualUrl == prefixWithSlash) {
         assert(fle.isDirectory)
         dirFle = fle
       }
 
-      continue = it.hasNext && (fle.getPath <= prefixWithSlash)
+      System.err.println(s"lte=${(fle.getActualUrl <= prefixWithSlash)}")
+      continue = it.hasNext && (fle.getActualUrl <= prefixWithSlash)
     }
 
     if (fileFle != null) {
