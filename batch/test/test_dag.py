@@ -34,7 +34,7 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = create_batch(client)
-        fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, 10000)
+        fake_job = aioclient.Job.unsubmitted_job(batch._async_batch, 10000)
         fake_job = Job.from_async_job(fake_job)
         batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
         batch = batch.submit()
@@ -150,7 +150,7 @@ async def test_callback(client):
         )
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
         b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
-        b = b.submit()
+        await b.submit()
         await asyncio.wait_for(callback_event.wait(), 5 * 60)
         callback_body = callback_bodies[0]
 
