@@ -62,7 +62,7 @@ def test_config_set_get_list_unset(name: str, value: str, runner: CliRunner):
 
 
 # backwards compatibility
-def test_config_get_unknown_names(bc_runner: CliRunner, config_dir: str):
+def test_config_get_unknown_names(runner: CliRunner, config_dir: str):
     config_path = get_user_config_path(_config_dir=config_dir)
     os.makedirs(os.path.dirname(config_path))
     with open(config_path, 'w', encoding='utf-8') as config:
@@ -74,11 +74,11 @@ email = johndoe@gmail.com
 foo = 5
 ''')
 
-    res = bc_runner.invoke(cli.app, ['get', 'email'], catch_exceptions=False)
+    res = runner.invoke(cli.app, ['get', 'email'], catch_exceptions=False)
     assert res.exit_code == 0
     assert res.stdout.strip() == 'johndoe@gmail.com'
 
-    res = bc_runner.invoke(cli.app, ['get', 'batch/foo'], catch_exceptions=False)
+    res = runner.invoke(cli.app, ['get', 'batch/foo'], catch_exceptions=False)
     assert res.exit_code == 0
     assert res.stdout.strip() == '5'
 
