@@ -1,5 +1,6 @@
 import asyncio
 import sys
+
 from gear import Database
 
 namespace = sys.argv[1]
