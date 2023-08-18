@@ -73,8 +73,7 @@ object ExtractIntervalFilters {
     )
   }
 
-  def extractPartitionFilters(ctx: ExecuteContext, cond: IR, ref: Ref, key: IndexedSeq[String])
-      : Option[(IR, IndexedSeq[Interval])] = {
+  def extractPartitionFilters(ctx: ExecuteContext, cond: IR, ref: Ref, key: IndexedSeq[String]): Option[(IR, IndexedSeq[Interval])] = {
     if (key.isEmpty) None
     else {
       val extract = new ExtractIntervalFilters(ctx, ref.typ.asInstanceOf[TStruct])
@@ -432,9 +431,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       def apply(field: String): Value = Top
       def values: Iterable[Value] = Iterable.empty
       def isKeyPrefix: Boolean = false
-      override def trueBound: IndexedSeq[Interval] = BoolValue.top.trueBound
-      override def falseBound: IndexedSeq[Interval] = BoolValue.top.falseBound
-      override def naBound: IndexedSeq[Interval] = BoolValue.top.naBound
+      override def trueBound: IndexedSeq[Interval] = KeySet.top
+      override def falseBound: IndexedSeq[Interval] = KeySet.top
+      override def naBound: IndexedSeq[Interval] = KeySet.top
     }
 
     private case object Bottom extends StructValue with BoolValue {
