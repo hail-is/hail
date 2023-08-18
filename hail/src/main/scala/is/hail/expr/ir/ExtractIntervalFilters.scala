@@ -84,6 +84,7 @@ object ExtractIntervalFilters {
       else {
         val rw = extract.Rewrites(mutable.Set.empty, mutable.Set.empty)
         extract.analyze(cond, ref.name, Some(rw))
+        Some((extract.rewrite(cond, rw), trueSet))
       }
     }
   }
@@ -683,8 +684,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     def recur(x: IR, env: AbstractEnv = env): AbstractValue =
       _analyze(x, env, rewrites)
 
-    println(s"visiting:\n${Pretty(ctx, x)}")
-    println(s"env: ${env}")
+//    println(s"visiting:\n${Pretty(ctx, x)}")
+//    println(s"env: ${env}")
     val res: Lattice.Value = x match {
       case Let(name, value, body) => recur(body, env.bind(name -> recur(value)))
       case Ref(name, _) => env.lookupOption(name).getOrElse(Lattice.top)
@@ -728,30 +729,23 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
         val keyOrConstVal = computeKeyOrConst(x, children)
         if (keyOrConstVal == Lattice.top)
-          computeBoolean(x, children, env.keySet)
+          computeBoolean(x, children)
         else
           keyOrConstVal
     }
-    println(s"finished visiting:\n${Pretty(ctx, x)}")
-    println(s"result: $res")
+//    println(s"finished visiting:\n${Pretty(ctx, x)}")
+//    println(s"result: $res")
 
     rewrites.foreach { rw =>
       if (x.typ == TBoolean) {
         val bool = res.asInstanceOf[BoolValue]
         if (KeySet.meet(KeySet.meet(bool.falseBound, env.keySet), bool.naBound) == KeySet.bottom)
-          rw.replaceWithTrue += x
+          rw.replaceWithTrue += RefEquality(x)
         else if (KeySet.meet(KeySet.meet(bool.trueBound, env.keySet), bool.naBound) == KeySet.bottom)
-          rw.replaceWithFalse += x
+          rw.replaceWithFalse += RefEquality(x)
       }
     }
     res
   }
 
 }
-
-// todos:
-// * simplifying filter conditions: can replace with True whenever falseSet and naSet are disjoint from interval filter
-//   * most rigorous: run analysis again, using interval filter cond as key field bounds in env. Replace with true when falseSet and naSet are empty
-// * make Env track bounds on key fields (like BoolValue)
-// * ensure analysis of bool expr always returns a refinement of the env bounds
-// * If intersects env with bool bounds (and negation) in branches, similarly in Coalesce
