@@ -826,17 +826,7 @@ object LowerTableIR {
 
     val lowered: TableStage = tir match {
       case TableRead(typ, dropRows, reader) =>
-        if (dropRows) {
-          val globals = reader.lowerGlobals(ctx, typ.globalType)
-
-          TableStage(
-            globals,
-            RVDPartitioner.empty(ctx, typ.keyType),
-            TableStageDependency.none,
-            MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
-            (_: Ref) => MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
-        } else
-          reader.lower(ctx, typ)
+        reader.lower(ctx, typ, dropRows)
 
       case TableParallelize(rowsAndGlobal, nPartitions) =>
         val nPartitionsAdj = nPartitions.getOrElse(ctx.backend.defaultParallelism)
