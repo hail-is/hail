@@ -1,12 +1,8 @@
 from unittest.mock import Mock
-from typer.testing import CliRunner
 
 import pytest
 
 from hailtop.hailctl.dataproc import cli
-
-
-runner = CliRunner(mix_stderr=False)
 
 
 @pytest.fixture
@@ -26,7 +22,7 @@ def patch_subprocess(monkeypatch, subprocess):
     monkeypatch.undo()
 
 
-def test_cluster_and_service_required(gcloud_run):
+def test_cluster_and_service_required(runner, gcloud_run):
     res = runner.invoke(cli.app, ['connect'])
     assert res.exit_code == 2
     assert gcloud_run.call_count == 0
@@ -36,14 +32,14 @@ def test_cluster_and_service_required(gcloud_run):
     assert gcloud_run.call_count == 0
 
 
-def test_dry_run(gcloud_run, subprocess):
+def test_dry_run(runner, gcloud_run, subprocess):
     res = runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook', '--dry-run'])
     assert res.exit_code == 0
     assert gcloud_run.call_count == 0
     assert subprocess.Popen.call_count == 0
 
 
-def test_connect(gcloud_run, subprocess):
+def test_connect(runner, gcloud_run, subprocess):
     runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook'])
 
     gcloud_args = gcloud_run.call_args[0][0]
@@ -73,14 +69,14 @@ def test_connect(gcloud_run, subprocess):
     ("notebook", "8123"),
     ("nb", "8123"),
 ])
-def test_service_port_and_path(subprocess, service, expected_port_and_path):
+def test_service_port_and_path(runner, subprocess, service, expected_port_and_path):
     runner.invoke(cli.app, ['connect', 'test-cluster', service])
 
     popen_args = subprocess.Popen.call_args[0][0]
     assert popen_args[1] == f"http://localhost:{expected_port_and_path}"
 
 
-def test_hailctl_chrome(subprocess, monkeypatch):
+def test_hailctl_chrome(runner, subprocess, monkeypatch):
     monkeypatch.setattr(
         "hailtop.hailctl.dataproc.connect.get_chrome_path",
         Mock(side_effect=Exception("Unable to find chrome"))
@@ -92,12 +88,12 @@ def test_hailctl_chrome(subprocess, monkeypatch):
     assert popen_args[0] == "/path/to/chrome.exe"
 
 
-def test_port(gcloud_run):
+def test_port(runner, gcloud_run):
     runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook', '--port=8000'])
     assert "--ssh-flag=-D 8000" in gcloud_run.call_args[0][0]
 
 
-def test_connect_zone(gcloud_run, gcloud_config):
+def test_connect_zone(runner, gcloud_run, gcloud_config):
     gcloud_config["compute/zone"] = "us-central1-b"
 
     runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook', '--zone=us-east1-d'])
@@ -105,7 +101,7 @@ def test_connect_zone(gcloud_run, gcloud_config):
     assert "--zone=us-east1-d" in gcloud_run.call_args[0][0]
 
 
-def test_connect_default_zone(gcloud_run, gcloud_config):
+def test_connect_default_zone(runner, gcloud_run, gcloud_config):
     gcloud_config["compute/zone"] = "us-west1-a"
 
     runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook'])
@@ -113,7 +109,7 @@ def test_connect_default_zone(gcloud_run, gcloud_config):
     assert "--zone=us-west1-a" in gcloud_run.call_args[0][0]
 
 
-def test_connect_zone_required(gcloud_run, gcloud_config):
+def test_connect_zone_required(runner, gcloud_run, gcloud_config):
     gcloud_config["compute/zone"] = None
 
     res = runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook'])
@@ -122,6 +118,6 @@ def test_connect_zone_required(gcloud_run, gcloud_config):
     assert gcloud_run.call_count == 0
 
 
-def test_connect_project(gcloud_run):
+def test_connect_project(runner, gcloud_run):
     runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook', '--project=test-project'])
     assert "--project=test-project" in gcloud_run.call_args[0][0]
