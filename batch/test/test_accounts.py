@@ -193,7 +193,7 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
         }
         spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
         with pbar.with_task('submitting jobs', total=1) as pbar_task:
-            await b._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
+            await b._submit_jobs(update_id, [orjson.dumps(spec)], 1, pbar_task)
     try:
         await dev_client.close_billing_project(project)
     except httpx.ClientResponseError as e:

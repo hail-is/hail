@@ -938,11 +938,6 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0', 401),
         (session.delete, '/api/v1alpha/batches/0', 401),
         (session.patch, '/api/v1alpha/batches/0/close', 401),
-        (session.get, '/api/v1alpha/batches/0/job_groups', 401),
-        (session.patch, '/api/v1alpha/batches/0/job_groups/1/cancel', 401),
-        (session.post, '/api/v1alpha/batches/0/job_groups', 401),
-        (session.get, '/api/v1alpha/batches/0/job_groups/1', 401),
-        (session.get, '/api/v1alpha/batches/0/job_groups/resources', 401),
         # redirect to auth/login
         (session.get, '/batches', 302),
         (session.get, '/batches/0', 302),
@@ -1355,14 +1350,14 @@ async def test_old_clients_that_submit_mount_docker_socket_false_is_ok(client: B
         }
         spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
         with pbar.with_task('submitting jobs', total=1) as pbar_task:
-            await b._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
+            await b._submit_jobs(update_id, [orjson.dumps(spec)], 1, pbar_task)
 
 
 async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(client: BatchClient):
     b = create_batch(client)._async_batch
     await b._open_batch()
     b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    update_id = await b._create_update(b.id)
+    update_id = await b._create_update()
     with BatchProgressBar() as pbar:
         process = {
             'type': 'docker',
@@ -1376,7 +1371,7 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
                 httpx.ClientResponseError,
                 match='mount_docker_socket is no longer supported but was set to True in request. Please upgrade.',
             ):
-                await b._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
+                await b._submit_jobs(update_id, [orjson.dumps(spec)], 1, pbar_task)
 
 
 def test_pool_highmem_instance(client: BatchClient):
@@ -1684,7 +1679,7 @@ def test_update_cancelled_batch_wout_fast_path(client: BatchClient):
         b.submit()
     except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'bunch contains job where the job group has already been cancelled' in err.body
+        assert 'Cannot submit new jobs to a cancelled batch' in err.body
     else:
         assert False
 
@@ -1700,7 +1695,7 @@ def test_submit_update_to_cancelled_batch(client: BatchClient):
         b.submit()
     except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'bunch contains job where the job group has already been cancelled' in err.body
+        assert 'Cannot submit new jobs to a cancelled batch' in err.body
     else:
         assert False
 

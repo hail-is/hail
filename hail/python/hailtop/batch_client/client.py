@@ -104,23 +104,18 @@ class Job:
 
 
 class Batch:
-    _async_batch: aioclient.Batch
-
-    @classmethod
-    def from_async_batch(cls, batch: aioclient.Batch):
-        b = object.__new__(cls)
-        b._async_batch = batch
-        return b
-
     @staticmethod
     def _open_batch(client: 'BatchClient', token: Optional[str] = None) -> 'Batch':
         async_batch = client.create_batch(token=token)._async_batch
         async_to_blocking(async_batch._open_batch())
-        return Batch.from_async_batch(async_batch)
+        return Batch(async_batch)
+
+    def __init__(self, async_batch: aioclient.Batch):
+        self._async_batch = async_batch
 
     @property
-    def submitted(self) -> bool:
-        return self._async_batch.submitted
+    def is_created(self) -> bool:
+        return self._async_batch.is_created
 
     @property
     def id(self) -> int:
@@ -254,7 +249,7 @@ class BatchClient:
 
     def list_batches(self, q=None, last_batch_id=None, limit=2**64, version=None):
         for b in ait_to_blocking(self._async_client.list_batches(q=q, last_batch_id=last_batch_id, limit=limit, version=version)):
-            yield Batch.from_async_batch(b)
+            yield Batch(b)
 
     def get_job(self, batch_id, job_id):
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
@@ -270,7 +265,7 @@ class BatchClient:
 
     def get_batch(self, id):
         b = async_to_blocking(self._async_client.get_batch(id))
-        return Batch.from_async_batch(b)
+        return Batch(b)
 
     def create_batch(self,
                      attributes=None,
@@ -282,7 +277,7 @@ class BatchClient:
                                                 callback=callback,
                                                 token=token,
                                                 cancel_after_n_failures=cancel_after_n_failures)
-        return Batch.from_async_batch(batch)
+        return Batch(batch)
 
     def get_billing_project(self, billing_project):
         return async_to_blocking(self._async_client.get_billing_project(billing_project))
