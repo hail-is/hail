@@ -3722,7 +3722,7 @@ steps:
         name: dev-namespace-scaledown-{{ user["username"] }}
         namespace: {{ user["username"] }}
       spec:
-        schedule: "0 0 * * 1,2,3,4,5"  # Weekdays at midnight UTC
+        schedule: "0 0 * * *"  # Every day at midnight UTC
         concurrencyPolicy: Forbid
         successfulJobsHistoryLimit: 1
         failedJobsHistoryLimit: 1
