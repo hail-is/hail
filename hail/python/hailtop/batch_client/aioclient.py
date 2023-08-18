@@ -365,7 +365,8 @@ class BatchAlreadyCreatedError(Exception):
 
 def submitted_batch_only(fun):
     @functools.wraps(fun)
-    async def wrapped(batch, *args, **kwargs):
+    async def wrapped(*args, **kwargs):
+        batch = args[0]
         if not batch.submitted:
             raise BatchNotSubmittedError
         return await fun(batch, *args, **kwargs)
@@ -374,7 +375,8 @@ def submitted_batch_only(fun):
 
 def unsubmitted_batch_only(fun):
     @functools.wraps(fun)
-    async def wrapped(batch, *args, **kwargs):
+    async def wrapped(*args, **kwargs):
+        batch = args[0]
         if batch.submitted:
             raise BatchAlreadyCreatedError
         return await fun(batch, *args, **kwargs)
@@ -533,7 +535,7 @@ class Batch:
     async def debug_info(self):
         batch_status = await self.status()
         jobs = []
-        async for j_status in self.jobs():
+        async for j_status in await self.jobs():
             id = j_status['job_id']
             log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
             jobs.append({'log': log, 'status': job._status})
