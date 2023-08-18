@@ -691,7 +691,7 @@ class Batch:
         batch_json = await resp.json()
         job_progress_task.update(n_jobs)
 
-        self.id = batch_json['id']
+        self._id = batch_json['id']
         self._submission_info = BatchSubmissionInfo(used_fast_path=True)
 
     @submitted_batch_only
@@ -789,7 +789,7 @@ class Batch:
     async def _open_batch(self) -> int:
         batch_spec = self._batch_spec()
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
-        self.id = batch_json['id']
+        self._id = batch_json['id']
         return int(batch_json['update_id'])
 
     def _update_spec(self) -> dict:
