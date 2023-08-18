@@ -407,8 +407,8 @@ trait FSSuite extends TestNGSuite {
       fs.touch(s"$prefix/$i")
     }
 
-    assert(fs.listStatus(prefix).size() == 2000)
-    assert(fs.glob(prefix + "/" + "*.suffix").size() == 2000)
+    assert(fs.listStatus(prefix).size == 2000)
+    assert(fs.glob(prefix + "/" + "*.suffix").size == 2000)
 
     assert(fs.exists(prefix))
     fs.delete(prefix, recursive = true)
