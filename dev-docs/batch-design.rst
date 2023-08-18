@@ -1,6 +1,13 @@
---------
+============
+Batch Design
+============
+
+.. sectnum::
+.. contents::
+
+********
 Overview
---------
+********
 
 Hail Batch is a multi-tenant batch job processing system. The Hail
 team maintains deployments in GCP and Azure. There are also a few
@@ -26,9 +33,9 @@ jobs. There is a single job per partition within a stage. The number
 of jobs within a stage can be on the order of 100K jobs. 
 
 
-----------------------------
+****************************
 How the Current System Works
-----------------------------
+****************************
 
 The Batch system is a set of services and infrastructure components
 that work in concert to allow users to submit requests describing
@@ -45,7 +52,7 @@ works, and how billing works. Lastly, we describe what happens on the
 worker VMs.
 
 
-==============
+
 Infrastructure
 ==============
 
@@ -65,29 +72,26 @@ services and cloud infrastructure components:
 - Container Registry
 
 
-~~~~~~~~~~~~~~~~~~~
 Kubernetes Services
-~~~~~~~~~~~~~~~~~~~
+-------------------
 
 
-*******
 Gateway
-*******
+^^^^^^^
 
-Gateway is a Kubernetes service that is a load balancer that is
-managed by the cloud provider. It is associated with a statically
+Gateway is a Kubernetes service and associated cloud-provider-managed
+external load balancer. It is associated with a statically
 known external IP Address. This is the entry point in which external
 users send requests to the Batch system such as submitting batches and
-getting information on their jobs. There is a an NGINX server behind
+getting information on their jobs. There is a an Envoy server behind
 the load balancer that forwards requests to the appropriate service.
 
 
-****************
 Internal Gateway
-****************
+^^^^^^^^^^^^^^^^
 
-Internal Gateway is a Kubernetes service that is a load balancer that
-is managed by the cloud provider. Unlike the Gateway, the Internal
+Internal Gateway is a Kubernetes service and associated cloud-provider-managed
+internal load balancer. Unlike the Gateway, the Internal
 Gateway is associated with a statically known **internal** IP address
 that is only accessible from virtual machines within our private
 network. This endpoint is how Batch worker VMs are able to talk to the
@@ -95,30 +99,30 @@ Batch Driver Kubernetes Service directly without going through the public
 internet.
 
 
-******************
 Auth / Auth-Driver
-******************
+^^^^^^^^^^^^^^^^^^
 
 The Auth Kubernetes service is responsible for creating new users,
-logging in existing users, and directing requests to the correct
-service in the cluster. We will soon be changing how authentication /
-authorization is implemented. Currently, for REST API requests, a user
-provides an authorization bearer header with a Hail-issued token. This
-token is generated when users login and has a default expiration date
-for 30 days. UI web requests have an associated cookie that includes
-the token. The Auth Driver service is responsible for creating new
-user resources such as service accounts, secondary Kubernetes
-namespaces for developers, Kubernetes secrets that store the user's
-active Hail authorization token and their Google service account or
-Azure service principal certificates, which allows users to access
-their resources required to execute jobs such as Docker images and
-data stored in Google Cloud Storage or Azure Blob Storage. When a user
-is deleted, their corresponding resources are deleted as well.
+logging in existing users, authenticating requests from logged in
+users, verifying developer status for accessing protected services
+like a batch deployment in a developer namespace. We will soon be
+changing how authentication / authorization is implemented. Currently,
+for REST API requests, a user provides an authorization bearer header
+with a Hail-issued token. This token is generated when users login and
+has a default expiration date for 30 days. UI web requests have an
+associated cookie that includes the token. The Auth Driver service is
+responsible for creating new user resources such as service accounts,
+secondary Kubernetes namespaces for developers, Kubernetes secrets
+that store the user's active Hail authorization token and their Google
+service account or Azure service principal certificates, which allows
+users to access their resources required to execute jobs such as
+Docker images and data stored in Google Cloud Storage or Azure Blob
+Storage. When a user is deleted, their corresponding resources are
+deleted as well.
 
 
-***************
 Batch Front End
-***************
+^^^^^^^^^^^^^^^
 
 The Batch Front End is a Kubernetes service responsible for handling
 user requests such as creating batches, updating batches, and viewing
@@ -136,9 +140,8 @@ information necessary to fulfill user requests. It also writes job
 specs to cloud storage for use downstream by the worker VMs.
 
 
-************
 Batch Driver
-************
+^^^^^^^^^^^^
 
 The Batch Driver is a Kubernetes service responsible for provisioning
 worker VMs in response to demand, scheduling jobs on free worker VMs,
@@ -156,26 +159,24 @@ responsible for maintaining TLS handshakes so as to reduce the CPU
 load on the actual Python web server.
 
 
-~~~~~~~~~~
 Worker VMs
-~~~~~~~~~~
+----------
 
 Worker VMs are virtual machines that are created outside of the
-Kubernetes cluster, but within the same virtual network. They are
-created with a default service account that has permissions to read
-and write files to cloud storage such as job specs and job logs as
-well as delete VMs (so it can delete itself). Virtual machines are
-created with a preconfigured boot disk image that has Docker
-preinstalled. Startup scripts then initialize the worker VM, download
-the worker server application image from a container registry, and
-then create the worker Docker container. Once the worker container is
-running, it notifies the Batch Driver that it is active and starts
-executing jobs.
+Kubernetes cluster. They share a network with the Kubernetes VMs, but
+not with the Kubernetes pods. They are created with a default service
+account that has permissions to read and write files to cloud storage
+such as job specs and job logs as well as delete VMs (so it can delete
+itself). Virtual machines are created with a preconfigured boot disk
+image that has Docker preinstalled. Startup scripts then initialize
+the worker VM, download the worker server application image from a
+container registry, and then create the worker Docker container. Once
+the worker container is running, it notifies the Batch Driver that it
+is active and starts executing jobs.
 
 
-~~~~~~~~~~~~~~
 MySQL Database
-~~~~~~~~~~~~~~
+--------------
 
 All Batch and Auth state is stored in a cloud-provider managed MySQL
 database. We use SSL certificates to secure communication between
@@ -183,9 +184,8 @@ Kubernetes services and the database. Worker VMs cannot talk directly
 to the database.
 
 
-~~~~~~~~~~~~~
 Cloud Storage
-~~~~~~~~~~~~~
+-------------
 
 Users store the data they want to compute on in Cloud Storage (Google
 Cloud Storage or Azure Blob Storage). All Batch created files such as
@@ -193,9 +193,8 @@ user job specs, job log files, job status files, and job resource
 usage monitoring files are stored in cloud storage.
 
 
-~~~~~~~~~~~~~~~~~~
 Container Registry
-~~~~~~~~~~~~~~~~~~
+------------------
 
 Container images used to execute user jobs as well as the images used
 in our Kubernetes services are stored in a cloud provider managed
@@ -203,27 +202,23 @@ Container Registry (Google Artifact Registry and Azure Container
 Registry).
 
 
-~~~~~~~~~
 Terraform
-~~~~~~~~~
+---------
 
 TBD.
 
 
-~~~~~~~~~~~~~
 Bootstrapping
-~~~~~~~~~~~~~
+-------------
 
 TBD.
 
 
-===================
 Application Details
 ===================
 
-~~~~~~~~~~~~~~~
 Batch Lifecycle
-~~~~~~~~~~~~~~~
+---------------
 
 1. A user submits a request to the Batch front end service to create a
    batch along with job specifications.
@@ -253,14 +248,13 @@ Batch Lifecycle
    End until the batch state is "complete".
 
 
-~~~~~~~~~~
 Data Model
-~~~~~~~~~~
+----------
 
 The core concepts in the Batch data model are billing projects,
 batches, jobs, updates, attempts, and resources.
 
-A **billing project** is a mechanism for imposing cost control and
+A **billing project** is a mechanism for cost accounting, cost control, and
 enabling the ability to share information about batches and jobs
 across users. Each billing project has a list of authorized users and
 a billing limit. Any users in the billing project can view information
@@ -291,7 +285,7 @@ attempt of a job running on a worker VM. There can be multiple
 attempts if a job is preempted. If a job is cancelled before it has a
 chance to run, it will have zero attempts. An attempt has the
 **instance** name that it ran on, the start time, and the end
-time. The end_time must always be greater than the start_time. All
+time. The end time must always be greater than the start time. All
 billing tracking is done at the level of an attempt as different
 attempts for the same job can have different resource pricing if the
 VM configurations are different (4 core worker vs 16 core worker).
@@ -301,16 +295,16 @@ preemptible n1-standard-16 VM in us-central1) combined with a version
 tag. Each resource has a rate that is used to compute cost when
 multiplied by the usage of the resource. Resource rates are in units
 that are dependent on the type of resource. For example, VM rates are
-measured in mCPU*hours. Each attempt has a set of resources associated
-with it along with their usage in a resource-dependent set of
-units. For example, a 1 core job has a usage value of 1000 (this value
-is in mCPU). To compute the aggregate cost of a job, we sum up all of
-the usages multiplied by the rates and then multiplied by the duration
-the attempt has been running.
+denominated in USD per core-hour. Each attempt has a set of resources
+associated with it along with their usage in a resource-dependent set
+of units. For example, a 1 core job has a usage value of 1000 (this
+value is in mCPU). To compute the aggregate cost of a job, we sum up
+all of the usages multiplied by the rates and then multiplied by the
+duration the attempt has been running.
 
-~~~~~~~~~~~~~
+
 State Diagram
-~~~~~~~~~~~~~
+-------------
 
 A job can be in one of the following states:
 
@@ -344,9 +338,8 @@ The batch and job states are critical for database performance and
 must be indexed appropriately.
 
 
-~~~~~~~~~~~~~~~
 Batch Front End
-~~~~~~~~~~~~~~~
+---------------
 
 The Batch Front End service (batch) is a stateless web service that
 handles requests from the user. The front end exposes a REST API
@@ -360,9 +353,8 @@ high degree of parallelism. This is necessary for batches with more
 than a million jobs.
 
 
-**************************************
 Flow for Creating and Updating Batches
-**************************************
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following flow is used to create a new batch or update an existing
 batch with a set of job specifications:
@@ -377,7 +369,7 @@ batch with a set of job specifications:
    new update id are returned to the client.
 
 2. The client library submits job specifications in 6-way parallelism
-   in groups of 100 jobs for the newly created batch update as a POST
+   in groups of jobs, called bunches, for the newly created batch update as a POST
    request to
    ``/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create``. The
    front end service creates new entries into the jobs table as well
@@ -396,14 +388,15 @@ above except step 1 submits a request to
 ``/api/v1alpha/batches/{batch_id}/updates/create``.
 
 There are also two fast paths for creating and updating batches when
-there are fewer than 100 jobs at
+all jobs fit in a single HTTP request. At time of writing, our client
+code uses this path when there are fewer than 1,024 jobs and the
+specifications fit in fewer than 1KiB. at
 ``/api/v1alpha/batches/{batch_id}/create-fast`` and
 ``/api/v1alpha/batches/{batch_id}/update-fast``.
 
 
-************************
 Listing Batches and Jobs
-************************
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 To find all matching batches and jobs either via the UI or the Python
 client library, a user provides a query filtering string as well as an
@@ -412,9 +405,8 @@ response and it is up to the client to send the next request with the
 ID of the last record returned in the subsequent request.
 
 
-~~~~~~~~~~~~
 Batch Driver
-~~~~~~~~~~~~
+------------
 
 The Batch Driver is a Kubernetes service that creates a fleet of
 worker VMs in response to user workloads and has mechanisms in place
@@ -430,9 +422,8 @@ pod to handle TLS handshakes to avoid excess CPU usage of the batch
 driver.
 
 
-********************
 Instance Collections
-********************
+^^^^^^^^^^^^^^^^^^^^
 
 The batch driver maintains two different types of collections of
 workers. There are **pools** that are multi-tenant and have a
@@ -448,9 +439,8 @@ worker requests a specific machine type. This is used commonly for
 jobs that require more memory than a 16 core machine can provide.
 
 
-**********
 Fair Share
-**********
+^^^^^^^^^^
 
 In order to avoid having one user starve other users from getting
 their jobs run, we use the following fair share algorithm. We start
@@ -467,21 +457,20 @@ maintaining counts of the number of ready cores per instance
 collection and user.
 
 
-**********
 Autoscaler
-**********
+^^^^^^^^^^
 
 At a high level, the autoscaler is in charge of figuring out how many
 worker VMs are required to run all of the jobs that are ready to run
 without wasting resources. The simplest autoscaler takes the number of
 ready cores total across all users and divides up that amount by the
 number of cores per worker to get the number of instances that are
-required. It then spins up a maximum of 10 instances each time the
-autoscaler runs to avoid cloud provider API rate limits. This approach
-works well for large workloads that have long running jobs. It is not
-very efficient if there's many short running jobs and the driver
-cannot handle the load from a large cluster or the workload is large
-but runs quickly.
+required. It then spins up a configurable number of instances each
+time the autoscaler runs to avoid cloud provider API rate limits. This
+approach works well for large workloads that have long running
+jobs. However, the autoscaler can produce more cores than the
+scheduler can keep busy with work. This happens when there are many
+jobs with a short execution time.
 
 Due to differences in resource prices across regions and extra fees
 for inter-region data transfer, the autoscaler needs to be aware of
@@ -517,9 +506,8 @@ to spin up per region:
    the possible regions the instance can be spun up in.
 
 
-*********
 Scheduler
-*********
+^^^^^^^^^
 
 The scheduler finds the set of jobs to schedule by iterating through
 each user in fair share order and then scheduling jobs with a "Ready"
@@ -530,22 +518,21 @@ scheduling is not very sophisticated so it is possible to have a job
 get stuck if for example it requires 8 cores, but two instances are
 live with 4 cores each.
 
-Once the scheduler has assigned jobs to their respective instances, in
-groups of 50, the scheduler performs the work necessary to grab any
-secrets from Kubernetes, update the job state and add an attempt in
-the database, and then communicate with the worker VM to start running
-the job. There must be a timeout on this scheduling attempt that is
-short (1 second) in order to ensure that a delay in one job doesn't
-cause the scheduler to get stuck waiting for that one job to be
-finished scheduling. We wait at the end of the scheduling iteration
-for all jobs to finish scheduling. If we didn't wait, then we might
-try and reschedule the same job multiple times before the original
-operation to schedule the job in the database completes.
+Once the scheduler has assigned jobs to their respective instances,
+the scheduler performs the work necessary to grab any secrets from
+Kubernetes, update the job state and add an attempt in the database,
+and then communicate with the worker VM to start running the
+job. There must be a timeout on this scheduling attempt that is short
+(1 second) in order to ensure that a delay in one job doesn't cause
+the scheduler to get stuck waiting for that one job to be finished
+scheduling. We wait at the end of the scheduling iteration for all
+jobs to finish scheduling. If we didn't wait, then we might try and
+reschedule the same job multiple times before the original operation
+to schedule the job in the database completes.
 
 
-*****************
 Job State Updates
-*****************
+^^^^^^^^^^^^^^^^^
 
 There are three main job state update operations:
 - SJ: Schedule Job
@@ -587,13 +574,12 @@ the appropriate resources for that attempt into the database.
 
 When we are looking at overall Batch performance, we look at the
 metrics of SJ and MJC rates per second for heavy workloads (ex: 1000s
-of no-op true jobs). We should be able to handle 80 jobs per second,
-but the goal is ultimately 200 jobs per second.
+of no-op true jobs). We historically scheduled at 80 jobs per second. We
+endeavor to schedule much faster.
 
 
-*********
 Canceller
-*********
+^^^^^^^^^
 
 The canceller consists of three background loops that cancel any
 ready, running, or creating jobs in batches that have been cancelled
@@ -604,9 +590,8 @@ multiplying by 300 jobs to cancel in each iteration with a minimum of
 20 jobs per user.
 
 
-***************
 Billing Updates
-***************
+^^^^^^^^^^^^^^^
 
 To provide users with real time billing and effectively enforce
 billing limits, we have the worker send us the job attempts it has
@@ -617,27 +602,26 @@ end time. The rollup time is then used in billing calculations to
 figure out the duration the job has been running thus far.
 
 
-****************
 Quota Exhaustion
-****************
+^^^^^^^^^^^^^^^^
 
 There is a mechanism in GCP by which we monitor our current quotas and
 assign jobs that can be run in any region to a different region if
 we've exceeded our quota.
 
 
-**********************
+
 Cloud Price Monitoring
-**********************
+^^^^^^^^^^^^^^^^^^^^^^
 
 We periodically call the corresponding cloud APIs to get up to date
 billing information and update the current rates of each product used
 accordingly.
 
 
-~~~~~~~~
+
 Database
-~~~~~~~~
+--------
 
 The batch database has a series of tables, triggers, and stored
 procedures that are used to keep track of the state of billing
@@ -672,9 +656,8 @@ Key tables have triggers on them to support billing, job state counts,
 and fast cancellation which will be described in more detail below.
 
 
-~~~~~~~
 Billing
-~~~~~~~
+^^^^^^^
 
 Billing is implemented by keeping track of the resources each attempt
 uses as well as the duration of time each attempt runs for. It is
@@ -699,9 +682,8 @@ periodic updates every minute with the elapsed time jobs have been
 running for such that we can have "real-time billing".
 
 
-~~~~~~~~~~~~~~~~~~
 Job State Tracking
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
 To quickly be able to count the number of ready jobs, ready cores,
 running jobs, running cores, creating jobs, and creating cores for
@@ -712,9 +694,8 @@ the job state diagram. The updates to the ``user_inst_coll_resources``
 table happen in a trigger on the ``jobs`` table.
 
 
-~~~~~~~~~~~~
 Cancellation
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 A user can trigger a cancellation of a batch via the cancel button in
 the UI or a REST request. The batch system also monitors how much has
@@ -752,9 +733,9 @@ handled accordingly one by one.
 Once a batch has been cancelled, no subsequent updates are allowed to
 the batch.
 
-~~~~~~~~~~~~~
+
 Batch Workers
-~~~~~~~~~~~~~
+-------------
 
 Workers are Python web servers running on virtual machines. The Python
 web server activates itself with the Batch driver and then accepts
@@ -768,15 +749,14 @@ Docker. When the worker has not received any work to do and no jobs
 are currently running, it will deactivate itself and shut itself down.
 
 
-~~~~~~~~~~~~
+
 Known Issues
-~~~~~~~~~~~~
+------------
 
 - The current database structure serializes MJC operations because the
   table ``batches_n_jobs_in_complete_states`` has one row per batch
   and each MJC operation tries to update the same row in this
-  table. This proposal aims to fix this performance bottleneck while
-  implementing job groups.
+  table.
 - ``commit_update`` is slow for large updates because we have to
   compute the job states by scanning the states of all of a job's
   parents.
