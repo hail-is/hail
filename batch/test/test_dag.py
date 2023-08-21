@@ -150,7 +150,7 @@ async def test_callback(client):
         )
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
         b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
-        await b.submit()
+        b.submit()
         await asyncio.wait_for(callback_event.wait(), 5 * 60)
         callback_body = callback_bodies[0]
 
