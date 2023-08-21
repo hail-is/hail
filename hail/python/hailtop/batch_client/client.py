@@ -31,15 +31,8 @@ class Job:
     def total_duration_msecs(job_status):
         return aioclient.Job.total_duration_msecs(job_status)
 
-    @classmethod
-    def from_async_job(cls, job: aioclient.Job):
-        j = object.__new__(cls)
-        j._async_job = job
-        return j
-
-    def __init__(self, batch: aioclient.Batch, job_id: int, _status=None):
-        j = aioclient.SubmittedJob(batch, job_id, _status)
-        self._async_job: aioclient.Job = aioclient.Job(j)
+    def __init__(self, async_job: aioclient.Job):
+        self._async_job: aioclient.Job = async_job
 
     @property
     def _status(self):
@@ -168,7 +161,7 @@ class Batch:
 
     def get_job(self, job_id: int) -> Job:
         j = async_to_blocking(self._async_batch.get_job(job_id))
-        return Job.from_async_job(j)
+        return Job(j)
 
     def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
@@ -209,7 +202,7 @@ class Batch:
             network=network, unconfined=unconfined, user_code=user_code,
             regions=regions)
 
-        return Job.from_async_job(async_job)
+        return Job(async_job)
 
     def create_jvm_job(self, command, *, profile: bool = False, parents=None, **kwargs) -> Job:
         if parents:
@@ -217,7 +210,7 @@ class Batch:
 
         async_job = self._async_batch.create_jvm_job(command, profile=profile, parents=parents, **kwargs)
 
-        return Job.from_async_job(async_job)
+        return Job(async_job)
 
     def submit(self, *args, **kwargs):
         async_to_blocking(self._async_batch.submit(*args, **kwargs))
@@ -253,7 +246,7 @@ class BatchClient:
 
     def get_job(self, batch_id, job_id):
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
-        return Job.from_async_job(j)
+        return Job(j)
 
     def get_job_log(self, batch_id, job_id) -> Optional[Dict[str, Any]]:
         log = async_to_blocking(self._async_client.get_job_log(batch_id, job_id))
