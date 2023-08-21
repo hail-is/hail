@@ -1486,6 +1486,16 @@ def test_job_private_instance_cancel(client: BatchClient):
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
 
 
+def test_always_run_job_private_instance_cancel(client: BatchClient):
+    bb = create_batch(client)
+    resources = {'machine_type': smallest_machine_type()}
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources, always_run=True)
+    b = bb.submit()
+    b.cancel()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+
 def test_create_fast_path_more_than_one_job(client: BatchClient):
     bb = create_batch(client)
     bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
