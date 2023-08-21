@@ -538,7 +538,7 @@ mkdir -p {shq(repo_dir)}
                 callback=CALLBACK_URL,
             )
             config.build(batch, self, scope='test')
-            batch = await batch.submit()
+            await batch.submit()
             self.batch = batch
         except concurrent.futures.CancelledError:
             raise

@@ -802,7 +802,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 print(f'Waiting for batch {batch_id}...')
             starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)
             await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
-            status = await batch_handle.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
+            status = await batch_handle._async_batch.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
             print(f'batch {batch_id} complete: {status["state"]}')
 
         batch._python_function_defs.clear()

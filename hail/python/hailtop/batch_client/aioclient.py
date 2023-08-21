@@ -775,12 +775,15 @@ class Batch:
             batch_spec['cancel_after_n_failures'] = self._cancel_after_n_failures
         return batch_spec
 
-    async def _open_batch(self) -> int:
+    async def _open_batch(self) -> Optional[int]:
         self._raise_if_created()
         batch_spec = self._batch_spec()
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
         self._id = batch_json['id']
-        return int(batch_json['update_id'])
+        update_id = batch_json['update_id']
+        if update_id is None:
+            assert batch_spec['n_jobs'] == 0
+        return update_id
 
     def _update_spec(self) -> dict:
         update_token = secrets.token_urlsafe(32)
@@ -834,6 +837,7 @@ class Batch:
                     start_job_id = 1
                 else:
                     update_id = await self._open_batch()
+                    assert update_id is not None
                     await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                     start_job_id = await self._commit_update(update_id)
                     self._submission_info = BatchSubmissionInfo(used_fast_path=False)
@@ -881,8 +885,6 @@ class Batch:
         self._job_specs = []
         self._jobs = []
         self._job_idx = 0
-
-        return self
 
 
 class HailExplicitTokenCredentials(CloudCredentials):
