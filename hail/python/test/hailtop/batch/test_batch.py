@@ -1077,7 +1077,7 @@ class ServiceTests(unittest.TestCase):
             long_str = secrets.token_urlsafe(256 * 1024)
             j1.command(f'echo "{long_str}" > /dev/null')
         batch = b.run()
-        assert not batch.submission_info.used_fast_create
+        assert not batch._submission_info.used_fast_path
         batch_status = batch.status()
         assert batch_status['state'] == 'success', str((batch.debug_info()))
 
