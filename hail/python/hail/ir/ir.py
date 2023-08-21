@@ -1,3 +1,4 @@
+from typing import Callable, TypeVar
 import copy
 import json
 from collections import defaultdict
@@ -2972,7 +2973,10 @@ def register_seeded_function(name, param_types, ret_type):
     _register(_seeded_function_registry, name, (param_types, ret_type))
 
 
-def udf(*param_types):
+T = TypeVar('T')
+
+
+def udf(*param_types) -> Callable[[Callable[..., T]], Callable[..., T]]:
 
     uid = Env.get_uid()
 
