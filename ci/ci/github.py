@@ -16,7 +16,7 @@ import prometheus_client as pc  # type: ignore
 import zulip
 
 from gear import Database, UserData
-from hailtop.batch_client.aioclient import Batch
+from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
@@ -489,7 +489,7 @@ class PR(Code):
             self.set_review_state(review_state)
             self.target_branch.state_changed = True
 
-    async def _start_build(self, db: Database, batch_client):
+    async def _start_build(self, db: Database, batch_client: BatchClient):
         assert await self.authorized(db)
 
         # clear current batch
@@ -970,7 +970,7 @@ Deploy config failed to build with exception:
 '''
                 await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 raise
-            deploy_batch = await deploy_batch.submit()
+            await deploy_batch.submit()
             self.deploy_batch = deploy_batch
         except concurrent.futures.CancelledError:
             raise
@@ -1033,7 +1033,7 @@ class UnwatchedBranch(Code):
             config.update(self.extra_config)
         return config
 
-    async def deploy(self, db: Database, batch_client, steps, excluded_steps=()):
+    async def deploy(self, db: Database, batch_client: BatchClient, steps, excluded_steps=()):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -1070,7 +1070,7 @@ mkdir -p {shq(repo_dir)}
                 }
             )
             config.build(deploy_batch, self, scope='dev')
-            deploy_batch = await deploy_batch.submit()
+            await deploy_batch.submit()
             self.deploy_batch = deploy_batch
             return deploy_batch.id
         finally:
