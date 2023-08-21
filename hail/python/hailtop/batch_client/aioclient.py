@@ -882,6 +882,8 @@ class Batch:
         self._jobs = []
         self._job_idx = 0
 
+        return self
+
 
 class HailExplicitTokenCredentials(CloudCredentials):
     def __init__(self, token: str):
