@@ -491,7 +491,7 @@ class BlobStorageFSSuite extends FSSuite {
   }
 }
 
-class HadoopFSSuite extends FSSuite {
+class HadoopFSSuite extends HailSuite with FSSuite {
   val root: String = "file:/"
 
   lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
