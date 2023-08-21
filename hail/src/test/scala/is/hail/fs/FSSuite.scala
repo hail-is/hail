@@ -437,9 +437,9 @@ trait FSSuite extends TestNGSuite {
 }
 
 class HadoopFSSuite extends HailSuite with FSSuite {
-  val root: String = "file:/"
+  override val root: String = "file:/"
 
-  lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
+  override lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
 
-  lazy val tmpdir: String = ctx.tmpdir
+  override lazy val tmpdir: String = ctx.tmpdir
 }
