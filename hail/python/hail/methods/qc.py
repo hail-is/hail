@@ -975,7 +975,7 @@ def _service_vep(backend: ServiceBackend,
 
     starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
 
-    b = backend._batch
+    b = bc.client.Batch(backend._batch)
     build_vep_batch(b, temp_input_directory, temp_output_directory)
 
     b.submit(disable_progress_bar=True)
