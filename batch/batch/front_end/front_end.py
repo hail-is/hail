@@ -83,7 +83,13 @@ from ..exceptions import (
     QueryError,
 )
 from ..file_store import FileStore
-from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, complete_states
+from ..globals import (
+    BATCH_FORMAT_VERSION,
+    HTTP_CLIENT_MAX_SIZE,
+    RESERVED_STORAGE_GB_PER_CORE,
+    ROOT_JOB_GROUP_ID,
+    complete_states,
+)
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
@@ -1014,6 +1020,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 batch_id,
                 job_id,
                 update_id,
+                ROOT_JOB_GROUP_ID,
                 state,
                 json.dumps(db_spec),
                 always_run,
@@ -1045,8 +1052,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                     query_name='insert_jobs',
@@ -1094,6 +1101,7 @@ VALUES (%s, %s, %s);
                 (
                     batch_id,
                     update_id,
+                    ROOT_JOB_GROUP_ID,
                     inst_coll,
                     rand_token,
                     resources['n_jobs'],
@@ -1104,8 +1112,8 @@ VALUES (%s, %s, %s);
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batches_inst_coll_staging (batch_id, update_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s, %s)
+INSERT INTO batches_inst_coll_staging (batch_id, update_id, job_group_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + VALUES(n_jobs),
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
@@ -1119,6 +1127,7 @@ ON DUPLICATE KEY UPDATE
                 (
                     batch_id,
                     update_id,
+                    ROOT_JOB_GROUP_ID,
                     inst_coll,
                     rand_token,
                     resources['n_ready_cancellable_jobs'],
@@ -1128,8 +1137,8 @@ ON DUPLICATE KEY UPDATE
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s)
+INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
@@ -1286,8 +1295,8 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures, migrated)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 json.dumps(userdata),
@@ -1302,24 +1311,60 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 'complete',
                 BATCH_FORMAT_VERSION,
                 batch_spec.get('cancel_after_n_failures'),
+                True,
             ),
             query_name='insert_batches',
         )
+
         await tx.execute_insertone(
             '''
-INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
+INSERT INTO job_groups (batch_id, job_group_id, `user`, attributes, cancel_after_n_failures, state, n_jobs, time_created, time_completed, callback)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-            (id,),
+            (
+                id,
+                ROOT_JOB_GROUP_ID,
+                user,
+                json.dumps(attributes),
+                batch_spec.get('cancel_after_n_failures'),
+                'complete',
+                0,
+                now,
+                now,
+                batch_spec.get('callback'),
+            ),
+            query_name='insert_job_group',
+        )
+
+        await tx.execute_insertone(
+            '''
+INSERT INTO job_group_parents (batch_id, job_group_id, parent_id, level)
+VALUES (%s, %s, %s, %s);
+''',
+            (
+                id,
+                ROOT_JOB_GROUP_ID,
+                ROOT_JOB_GROUP_ID,
+                0,
+            ),
+            query_name='insert_job_group_parent',
+        )
+
+        await tx.execute_insertone(
+            '''
+INSERT INTO batches_n_jobs_in_complete_states (id, job_group_id) VALUES (%s, %s);
+''',
+            (id, ROOT_JOB_GROUP_ID),
             query_name='insert_batches_n_jobs_in_complete_states',
         )
 
         if attributes:
             await tx.execute_many(
                 '''
-INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
-VALUES (%s, %s, %s)
+INSERT INTO `batch_attributes` (batch_id, job_group_id, `key`, `value`)
+VALUES (%s, %s, %s, %s)
 ''',
-                [(id, k, v) for k, v in attributes.items()],
+                [(id, ROOT_JOB_GROUP_ID, k, v) for k, v in attributes.items()],
                 query_name='insert_batch_attributes',
             )
         return id
