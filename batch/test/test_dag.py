@@ -24,7 +24,7 @@ def test_simple(client):
     batch = create_batch(client)
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
-    batch = batch.submit()
+    batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Success') == 2, str((status, batch.debug_info()))
@@ -37,7 +37,7 @@ def test_missing_parent_is_400(client):
         fake_job = aioclient.Job.unsubmitted_job(batch._async_batch, 10000)
         fake_job = Job.from_async_job(fake_job)
         batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
-        batch = batch.submit()
+        batch.submit()
     except ValueError as err:
         assert re.search('parents with invalid job ids', str(err))
         return
@@ -50,7 +50,7 @@ def test_dag(client):
     left = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'left'], parents=[head])
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
     tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
-    batch = batch.submit()
+    batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
 
@@ -75,7 +75,7 @@ def test_cancel_tail(client):
         DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[left, right]
     )
     try:
-        batch = batch.submit()
+        batch.submit()
         left.wait()
         right.wait()
     finally:
@@ -100,7 +100,7 @@ def test_cancel_left_after_tail(client):
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
     tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
     try:
-        batch = batch.submit()
+        batch.submit()
         head.wait()
         right.wait()
     finally:
@@ -206,7 +206,7 @@ def test_input_dependency(client):
         input_files=[(f'{remote_tmpdir}data1', '/io/data1'), (f'{remote_tmpdir}data2', '/io/data2')],
         parents=[head],
     )
-    batch = batch.submit()
+    batch.submit()
     tail.wait()
     head_status = head.status()
     assert head._get_exit_code(head_status, 'main') == 0, str((head_status, batch.debug_info()))
@@ -228,7 +228,7 @@ def test_input_dependency_wildcard(client):
         input_files=[(f'{remote_tmpdir}data1', '/io/data1'), (f'{remote_tmpdir}data2', '/io/data2')],
         parents=[head],
     )
-    batch = batch.submit()
+    batch.submit()
     tail.wait()
     head_status = head.status()
     assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
@@ -250,7 +250,7 @@ def test_input_dependency_directory(client):
         input_files=[(f'{remote_tmpdir}test', '/io/test')],
         parents=[head],
     )
-    batch = batch.submit()
+    batch.submit()
     tail.wait()
     head_status = head.status()
     assert head._get_exit_code(head_status, 'main') == 0, str((head_status, batch.debug_info()))
@@ -267,7 +267,7 @@ def test_always_run_cancel(client):
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
     tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right], always_run=True)
     try:
-        batch = batch.submit()
+        batch.submit()
         right.wait()
     finally:
         batch.cancel()
@@ -286,7 +286,7 @@ def test_always_run_error(client):
     batch = create_batch(client)
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'exit 1'])
     tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head], always_run=True)
-    batch = batch.submit()
+    batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
     assert batch_status_job_counter(status, 'Failed') == 1, str((status, batch.debug_info()))
