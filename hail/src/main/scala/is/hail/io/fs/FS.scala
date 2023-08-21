@@ -329,8 +329,6 @@ trait FS extends Serializable {
   }
 
   final def openNoCompression(filename: String): SeekableDataInputStream = openNoCompression(filename, false)
-  def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream
-
   def readNoCompression(filename: String): Array[Byte] = retryTransientErrors {
     using(openNoCompression(filename)) { is =>
       IOUtils.toByteArray(is)
@@ -411,8 +409,8 @@ trait FS extends Serializable {
       new Thread(() => delete(filename, recursive = false)))
   }
 
-  def open(path: String, codec: CompressionCodec, _debug: Boolean = false): InputStream = {
-    val is = openNoCompression(path, _debug)
+  def open(path: String, codec: CompressionCodec): InputStream = {
+    val is = openNoCompression(path)
     if (codec != null)
       codec.makeInputStream(is)
     else
