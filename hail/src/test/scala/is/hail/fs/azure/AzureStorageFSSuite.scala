@@ -1,6 +1,6 @@
 package is.hail.fs.azure
 
-import is.hail.fs.FSSuite
+import is.hail.fs.BlobStorageFSSuite
 import is.hail.io.fs.AzureStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
@@ -10,7 +10,7 @@ import org.testng.annotations.{BeforeClass, Test}
 import java.io.FileInputStream
 
 
-class AzureStorageFSSuite extends TestNGSuite with FSSuite {
+class AzureStorageFSSuite extends BlobStorageFSSuite {
   @BeforeClass
   def beforeclass(): Unit = {
     if (System.getenv("HAIL_CLOUD") != "azure") {

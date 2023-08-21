@@ -90,7 +90,8 @@ class IndexSuite extends HailSuite {
         TStruct("a" -> TBoolean),
         branchingFactor,
         attributes)
-      assert(fs.getFileSize(file) != 0)
+      assert(fs.getFileSize(file + "/index") != 0)
+      assert(fs.getFileSize(file + "/metadata.json.gz") != 0)
 
       val index = indexReader(file, TStruct("a" -> TBoolean))
 

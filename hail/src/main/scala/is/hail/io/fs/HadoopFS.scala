@@ -177,7 +177,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   override def fileStatus(filename: String): FileStatus = {
     val fle = getFileListEntry(filename)
     if (fle.isDirectory) {
-      throw new FileNotFoundException(fle.getPath)
+      throw new FileNotFoundException(fle.getPath + " " + fle.getLen.toString)
     }
     fle
   }

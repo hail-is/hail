@@ -1,7 +1,7 @@
 package is.hail.fs.gs
 
 import java.io.FileInputStream
-import is.hail.fs.FSSuite
+import is.hail.fs.BlobStorageFSSuite
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
@@ -9,7 +9,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{BeforeClass, Test}
 import org.testng.SkipException
 
-class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
+class GoogleStorageFSSuite extends BlobStorageFSSuite {
   @BeforeClass
   def beforeclass(): Unit = {
     if (System.getenv("HAIL_CLOUD") != "gcp") {

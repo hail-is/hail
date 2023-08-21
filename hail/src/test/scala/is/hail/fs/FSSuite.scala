@@ -400,7 +400,9 @@ trait FSSuite extends TestNGSuite {
       }
     }
   }
+}
 
+class BlobStorageFSSuite extends FSSuite {
   @Test def fileAndDirectoryIsError(): Unit = {
     val d = t()
     fs.mkDir(d)
@@ -489,7 +491,7 @@ trait FSSuite extends TestNGSuite {
   }
 }
 
-class HadoopFSSuite extends HailSuite with FSSuite {
+class HadoopFSSuite extends FSSuite {
   val root: String = "file:/"
 
   lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
