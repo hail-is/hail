@@ -10,7 +10,7 @@ import aiohttp  # noqa: E402 pylint: disable=wrong-import-position
 
 from .main import run  # noqa: E402 pylint: disable=wrong-import-position
 
-oldinit = aiohttp.ClientSession.__init__
+oldinit = aiohttp.ClientSession.__init__  # type: ignore
 
 
 def newinit(self, *args, **kwargs):
