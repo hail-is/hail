@@ -533,7 +533,7 @@ class Batch:
                 else:
                     in_update_parent_ids.append(parent._in_update_job_id)
             elif not self.is_created or parent._batch.id != self.id:
-                    foreign_batches.append(parent)
+                foreign_batches.append(parent)
             else:
                 absolute_parent_ids.append(parent.job_id)
 
