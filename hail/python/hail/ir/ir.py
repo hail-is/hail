@@ -1,9 +1,9 @@
-from typing import Callable, TypeVar
+from typing import Callable, TypeVar, ParamSpec, cast
 import copy
 import json
 from collections import defaultdict
 
-import decorator
+from hailtop.hail_decorator import decorator
 
 import hail
 from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
@@ -2974,21 +2974,22 @@ def register_seeded_function(name, param_types, ret_type):
 
 
 T = TypeVar('T')
+P = ParamSpec('P')
 
 
-def udf(*param_types) -> Callable[[Callable[..., T]], Callable[..., T]]:
+def udf(*param_types: HailType) -> Callable[[Callable[P, T]], Callable[P, T]]:
 
     uid = Env.get_uid()
 
-    @decorator.decorator
-    def wrapper(__original_func, *args, **kwargs):
+    @decorator
+    def wrapper(__original_func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         registry = hail.ir.ir._udf_registry
         if uid in registry:
             f = registry[uid]
         else:
             f = hail.experimental.define_function(__original_func, *param_types, _name=uid)
             registry[uid] = f
-        return f(*args, **kwargs)
+        return cast(Callable[P, T], f)(*args, **kwargs)
 
     return wrapper
 

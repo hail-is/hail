@@ -1,8 +1,9 @@
+from typing import Callable, ParamSpec, TypeVar
 import os
 from timeit import default_timer as timer
 import unittest
 import pytest
-from decorator import decorator
+from hailtop.hail_decorator import decorator
 
 from hail.utils.java import choose_backend
 import hail as hl
@@ -121,10 +122,14 @@ def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
 
 
+P = ParamSpec('P')
+T = TypeVar('T')
+
+
 def skip_unless_spark_backend(reason='requires Spark'):
     from hail.backend.spark_backend import SparkBackend
     @decorator
-    def wrapper(func, *args, **kwargs):
+    def wrapper(func, *args, **kwargs) -> T:
         if isinstance(hl.utils.java.Env.backend(), SparkBackend):
             return func(*args, **kwargs)
         else:
