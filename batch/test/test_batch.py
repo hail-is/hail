@@ -10,7 +10,7 @@ import pytest
 from hailtop import httpx
 from hailtop.auth import hail_credentials
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
-from hailtop.batch_client import JobNotSubmittedError
+from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
 from hailtop.batch_client.client import Batch, BatchClient
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.test_utils import skip_in_azure
@@ -253,7 +253,7 @@ def test_unsubmitted_state(client: BatchClient):
     b = create_batch(client)
     j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
 
-    with pytest.raises(JobNotSubmittedError):
+    with pytest.raises(BatchNotCreatedError):
         j.batch_id  # pylint: disable=pointless-statement
     with pytest.raises(JobNotSubmittedError):
         j.id  # pylint: disable=pointless-statement
