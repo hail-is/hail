@@ -3,7 +3,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Optional, TypedDict, Sequence
+from typing import Dict, List, Optional, Sequence, TypedDict
 
 import jinja2
 import yaml
