@@ -27,8 +27,11 @@ class BackgroundTaskManager:
     def on_task_done(self, t: asyncio.Task) -> Callable[[asyncio.Future], None]:
         def callback(fut: asyncio.Future):
             self.tasks.remove(t)
-            if e := fut.exception():
-                log.exception(e)
+            try:
+                if e := fut.exception():
+                    log.exception(e)
+            except asyncio.CancelledError:
+                pass
         return callback
 
     def shutdown(self):
