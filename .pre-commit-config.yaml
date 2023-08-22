@@ -23,6 +23,27 @@ repos:
         language: system
         types: [python]
         require_serial: true
+      - id: check-web_common
+        name: check-web_common
+        entry: bash pre-commit-make-shim web_common
+        files: web_common/
+        language: system
+        types: [python]
+        require_serial: true
+      - id: check-gear
+        name: check-gear
+        entry: bash pre-commit-make-shim gear
+        files: gear/
+        language: system
+        types: [python]
+        require_serial: true
+      - id: check-hailtop
+        name: check-hailtop
+        entry: bash pre-commit-make-shim hailtop
+        files: hailtop/
+        language: system
+        types: [python]
+        require_serial: true
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.3.0
     hooks:

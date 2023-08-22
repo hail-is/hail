@@ -55,9 +55,14 @@ pylint-%:
 .PRECIOUS: $(patsubst %, .venvs/%/bin/activate, $(SERVICES))
 .venvs/%/bin/activate: %/pinned-requirements.txt hail/python/dev/pinned-requirements.txt Makefile
 	$(PYTHON) -m venv .venvs/$*
+
+	mkdir -p .venvs/$*/hailtop-package/hailtop
+	ln -s hail/python/hailtop .venvs/$*/hailtop-package/hailtop
+	ln -s hail/python/setup-hailtop.py .venvs/$*/hailtop-package/hailtop/setup.py
+
 	source .venvs/$*/bin/activate && \
 	    pip3 install -r $*/pinned-requirements.txt -r hail/python/dev/pinned-requirements.txt && \
-	    pip3 install --editable ./gear ./web_common
+	    pip3 install --editable ./gear ./web_common ./venvs/$*/hailtop-package
 
 .PHONY: check-%-fast
 check-%-fast:
