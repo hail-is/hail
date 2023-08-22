@@ -30,6 +30,14 @@ class JobNotSubmittedError(Exception):
     pass
 
 
+class AbsoluteJobId(int):
+    pass
+
+
+class InUpdateJobId(int):
+    pass
+
+
 class Job:
     @staticmethod
     def _get_error(job_status, task):
@@ -166,22 +174,19 @@ class Job:
 
     @staticmethod
     def submitted_job(batch: 'Batch', job_id: int, _status: Optional[dict] = None):
-        return Job(batch, in_update_job_id=None, absolute_job_id=job_id, _status=_status)
+        return Job(batch, AbsoluteJobId(job_id), _status=_status)
 
     @staticmethod
-    def unsubmitted_job(batch: 'Batch', in_update_job_id: int):
-        return Job(batch, in_update_job_id=in_update_job_id, absolute_job_id=None)
+    def unsubmitted_job(batch: 'Batch', job_id: int):
+        return Job(batch, InUpdateJobId(job_id))
 
     def __init__(self,
                  batch: 'Batch',
-                 in_update_job_id: Optional[int],
-                 absolute_job_id: Optional[int],
+                 job_id: Union[AbsoluteJobId, InUpdateJobId],
                  *,
                  _status: Optional[dict] = None):
         self._batch = batch
-        self._client = batch._client
-        self._absolute_job_id = absolute_job_id
-        self._in_update_job_id = in_update_job_id
+        self._job_id = job_id
         self._status = _status
 
     def _raise_if_not_submitted(self):
@@ -194,58 +199,52 @@ class Job:
 
     def _submit(self, in_update_start_job_id: int):
         self._raise_if_submitted()
-        assert self._in_update_job_id is not None
-        self._absolute_job_id = in_update_start_job_id + self._in_update_job_id - 1
-        self._in_update_job_id = None
+        self._job_id = AbsoluteJobId(in_update_start_job_id + self._job_id - 1)
 
     @property
     def is_submitted(self):
-        return self._absolute_job_id is not None and self._in_update_job_id is None
+        return isinstance(self._job_id, AbsoluteJobId)
 
     @property
     def batch_id(self) -> int:
-        self._raise_if_not_submitted()
         return self._batch.id
 
     @property
     def job_id(self) -> int:
         self._raise_if_not_submitted()
-        assert self._absolute_job_id is not None
-        return self._absolute_job_id
+        return self._job_id
 
     @property
     def id(self) -> Tuple[int, int]:
         self._raise_if_not_submitted()
         return (self.batch_id, self.job_id)
 
+    @property
+    def _client(self) -> 'BatchClient':
+        return self._batch._client
+
     async def attributes(self):
-        self._raise_if_not_submitted()
         if not self._status:
             await self.status()
         assert self._status is not None
         return self._status['attributes']
 
     async def _is_job_in_state(self, states):
-        self._raise_if_not_submitted()
         await self.status()
         assert self._status is not None
         state = self._status['state']
         return state in states
 
     async def is_complete(self):
-        self._raise_if_not_submitted()
         return await self._is_job_in_state(complete_states)
 
     async def is_running(self):
-        self._raise_if_not_submitted()
         return await self._is_job_in_state(['Running'])
 
     async def is_pending(self):
-        self._raise_if_not_submitted()
         return await self._is_job_in_state(['Pending'])
 
     async def is_ready(self):
-        self._raise_if_not_submitted()
         return await self._is_job_in_state(['Ready'])
 
     # {
@@ -268,7 +267,6 @@ class Job:
         return self._status
 
     async def wait(self):
-        self._raise_if_not_submitted()
         return await self._wait_for_states(*complete_states)
 
     async def _wait_for_states(self, *states: str):
@@ -525,17 +523,17 @@ class Batch:
         invalid_job_ids = []
         for parent in parents:
             if not parent.is_submitted:
-                assert parent._in_update_job_id is not None
+                assert isinstance(parent._job_id, InUpdateJobId)
                 if parent._batch != self:
                     foreign_batches.append(parent)
-                elif not 0 < parent._in_update_job_id < self._job_idx:
-                    invalid_job_ids.append(parent._in_update_job_id)
+                elif not 0 < parent._job_id < self._job_idx:
+                    invalid_job_ids.append(parent._job_id)
                 else:
-                    in_update_parent_ids.append(parent._in_update_job_id)
+                    in_update_parent_ids.append(parent._job_id)
             elif not self.is_created or parent._batch.id != self.id:
                 foreign_batches.append(parent)
             else:
-                absolute_parent_ids.append(parent.job_id)
+                absolute_parent_ids.append(parent._job_id)
 
         error_msg = []
         if len(foreign_batches) != 0:
