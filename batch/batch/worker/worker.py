@@ -812,7 +812,6 @@ class Container:
 
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
-        self.config_path = f'{self.container_scratch}/config'
         self.log_path = log_path or f'{self.container_scratch}/container.log'
         self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
@@ -1065,9 +1064,7 @@ class Container:
                         'crun',
                         'run',
                         '--bundle',
-                        f'{self.container_overlay_path}/merged',
-                        '--config',
-                        f'{self.config_path}/config.json',
+                        self.container_scratch,
                         self.name,
                         stdin=stdin,
                         stdout=container_log,
@@ -1101,8 +1098,7 @@ class Container:
         config = await self.container_config()
         self._validate_container_config(config)
 
-        os.makedirs(self.config_path)
-        with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
+        with open(f'{self.container_scratch}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(config))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
@@ -1132,7 +1128,7 @@ class Container:
         config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
-                'path': '.',
+                'path': f'{self.container_overlay_path}/merged',
                 'readonly': False,
             },
             'hostname': self.netns.hostname,

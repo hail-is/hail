@@ -40,8 +40,7 @@ scratch/
 │  │  │  ├─ io/ (bind mount)
 │  │  ├─ workdir/
 │  ├─ volumes/
-│  ├─ config/
-│  │  ├─ config.json
+│  ├─ config.json
 ├─ main/
 │  ├─ rootfs_overlay/
 │  │  ├─ upperdir/ (writeable layer)
@@ -54,8 +53,7 @@ scratch/
 │  │  ├─ workdir/
 │  ├─ volumes/
 │  │  ├─ image/specified/volume/
-│  ├─ config/
-│  │  ├─ config.json
+│  ├─ config.json
 ├─ output/
 │  ├─ ...
 ```
