@@ -44,6 +44,13 @@ repos:
         language: system
         types: [python]
         require_serial: true
+      - id: check-hail
+        name: check-hail
+        entry: bash pre-commit-make-shim hail
+        files: hail/python/hail
+        language: system
+        types: [python]
+        require_serial: true
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.3.0
     hooks:
