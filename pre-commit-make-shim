@@ -1,7 +1,0 @@
-#!/bin/bash
-
-set -ex
-
-service=$1
-shift
-make pre-commit-check-in-$service-venv FILES="$*"

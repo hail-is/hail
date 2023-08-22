@@ -2,52 +2,9 @@
 repos:
   - repo: local
     hooks:
-      - id: check-ci
-        name: check-ci
-        entry: bash pre-commit-make-shim ci
-        files: ci/
-        language: system
-        types: [python]
-        require_serial: true
-      - id: check-batch
-        name: check-batch
-        entry: bash pre-commit-make-shim batch
-        files: batch/
-        language: system
-        types: [python]
-        require_serial: true
-      - id: check-auth
-        name: check-auth
-        entry: bash pre-commit-make-shim auth
-        files: auth/
-        language: system
-        types: [python]
-        require_serial: true
-      - id: check-web_common
-        name: check-web_common
-        entry: bash pre-commit-make-shim web_common
-        files: web_common/
-        language: system
-        types: [python]
-        require_serial: true
-      - id: check-gear
-        name: check-gear
-        entry: bash pre-commit-make-shim gear
-        files: gear/
-        language: system
-        types: [python]
-        require_serial: true
-      - id: check-hailtop
-        name: check-hailtop
-        entry: bash pre-commit-make-shim hailtop
-        files: hail/python/hailtop
-        language: system
-        types: [python]
-        require_serial: true
-      - id: check-hail
-        name: check-hail
-        entry: bash pre-commit-make-shim hail
-        files: hail/python/hail
+      - id: ruff
+        name: ruff
+        entry: bash pre-commit-ruff-shim
         language: system
         types: [python]
         require_serial: true
