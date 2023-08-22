@@ -2204,6 +2204,9 @@ steps:
       - name: jobs-after-update-simple.sql
         script: /io/sql/jobs-after-update-simple.sql
         online: true
+      - name: turn-on-billing-compaction
+        script: /io/sql/turn_on_billing_compaction.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
