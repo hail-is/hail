@@ -582,7 +582,7 @@ def _make_dec(checkers, is_method: bool) -> Callable[[Callable[..., T]], Callabl
     checkers = {k: only(v) for k, v in checkers.items()}
 
     @decorator
-    def wrapper(__original_func: Callable[..., T], *args, **kwargs) -> T:
+    def wrapper(__original_func, *args, **kwargs):
         args_, kwargs_ = check_all(__original_func, args, kwargs, checkers, is_method=is_method)
         return __original_func(*args_, **kwargs_)
 
