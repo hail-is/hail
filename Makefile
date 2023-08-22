@@ -52,6 +52,16 @@ check-services: $(CHECK_SERVICES_MODULES)
 pylint-%:
 	$(PYTHON) -m pylint --rcfile pylintrc --recursive=y $* --score=n
 
+.venvs/hail/bin/activate: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt Makefile
+	$(PYTHON) -m venv .venvs/hail
+	source .venvs/hail/bin/activate && \
+	    pip3 install -r hail/python/pinned-requirements.txt -r hail/python/dev/pinned-requirements.txt
+
+.venvs/hailtop/bin/activate: hail/python/hailtop/pinned-requirements.txt hail/python/dev/pinned-requirements.txt Makefile
+	$(PYTHON) -m venv .venvs/hailtop
+	source .venvs/hailtop/bin/activate && \
+	    pip3 install -r hail/python/hailtop/pinned-requirements.txt -r hail/python/dev/pinned-requirements.txt
+
 .PRECIOUS: $(patsubst %, .venvs/%/bin/activate, $(SERVICES))
 .venvs/%/bin/activate: %/pinned-requirements.txt hail/python/dev/pinned-requirements.txt Makefile
 	$(PYTHON) -m venv .venvs/$*

@@ -40,7 +40,7 @@ repos:
       - id: check-hailtop
         name: check-hailtop
         entry: bash pre-commit-make-shim hailtop
-        files: hailtop/
+        files: hail/python/hailtop
         language: system
         types: [python]
         require_serial: true
