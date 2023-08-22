@@ -1,5 +1,28 @@
 ---
 repos:
+  - repo: local
+    hooks:
+      - id: check-ci
+        name: check-ci
+        entry: bash pre-commit-make-shim ci
+        files: ci/
+        language: system
+        types: [python]
+        require_serial: true
+      - id: check-batch
+        name: check-batch
+        entry: bash pre-commit-make-shim batch
+        files: batch/
+        language: system
+        types: [python]
+        require_serial: true
+      - id: check-auth
+        name: check-auth
+        entry: bash pre-commit-make-shim auth
+        files: auth/
+        language: system
+        types: [python]
+        require_serial: true
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.3.0
     hooks:
