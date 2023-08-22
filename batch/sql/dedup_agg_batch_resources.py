@@ -84,7 +84,7 @@ async def audit_changes(db):
     print('starting auditing batch records')
 
     chunk_offsets = [None]
-    for offset in await find_chunk_offsets_for_audit(db, 100):
+    for offset in await find_chunk_offsets(db, 100):
         chunk_offsets.append(offset)
     chunk_offsets = list(zip(chunk_offsets[:-1], chunk_offsets[1:]))
 
@@ -165,32 +165,6 @@ WHERE MOD((@rank := @rank + 1), %s) = 0;
 
         offsets = tx.execute_and_fetchall(query, (size,))
         offsets = [(offset['batch_id'], offset['resource_id']) async for offset in offsets]
-        offsets.append(None)
-
-        print(f'found chunk offsets in {round(time.time() - start_time, 4)}s')
-        return offsets
-
-    return await _find_chunks()
-
-
-async def find_chunk_offsets_for_audit(db, size):
-    @transaction(db)
-    async def _find_chunks(tx) -> List[Optional[Tuple[int, int, str]]]:
-        start_time = time.time()
-
-        await tx.just_execute('SET @rank=0;')
-
-        query = f'''
-SELECT t.batch_id FROM (
-  SELECT batch_id
-  FROM aggregated_batch_resources_v2
-  ORDER BY batch_id ASC
-) AS t
-WHERE MOD((@rank := @rank + 1), %s) = 0;
-'''
-
-        offsets = tx.execute_and_fetchall(query, (size,))
-        offsets = [(offset['batch_id']) async for offset in offsets]
         offsets.append(None)
 
         print(f'found chunk offsets in {round(time.time() - start_time, 4)}s')
