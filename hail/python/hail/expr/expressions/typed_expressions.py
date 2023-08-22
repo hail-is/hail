@@ -2497,7 +2497,7 @@ class BooleanExpression(NumericExpression):
         return self.__or__(other)
 
     @typecheck_method(other=expr_bool)
-    def __and__(self, other) :
+    def __and__(self, other):
         """Return ``True`` if the left and right arguments are ``True``.
 
         Examples
