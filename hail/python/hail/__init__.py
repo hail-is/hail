@@ -30,8 +30,8 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 # F403 'from .expr import *' used; unable to detect undefined names
 # F401 '.expr.*' imported but unused
 # E402 module level import not at top of file
-from .expr import *
-from .expr import aggregators
+from .expr import *  # noqa: E402, F403
+from .expr import aggregators  # noqa: E402
 from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
                         hadoop_stat, hadoop_exists, hadoop_is_file,
                         hadoop_is_dir, hadoop_scheme_supported, copy_log, ANY_REGION)
