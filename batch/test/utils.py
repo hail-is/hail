@@ -1,13 +1,26 @@
 import inspect
 import os
+from typing import Union, overload
 
+import hailtop.batch_client.aioclient as aiobc
+import hailtop.batch_client.client as bc
 from hailtop import pip_version
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
 
 
-def create_batch(client, **kwargs):
+@overload
+def create_batch(client: bc.BatchClient, **kwargs) -> bc.Batch:
+    ...
+
+
+@overload
+def create_batch(client: aiobc.BatchClient, **kwargs) -> aiobc.Batch:
+    ...
+
+
+def create_batch(client: Union[bc.BatchClient, aiobc.BatchClient], **kwargs) -> Union[bc.Batch, aiobc.Batch]:
     name_of_test_method = inspect.stack()[1][3]
     attrs = kwargs.pop('attributes', {})  # Tests should be able to override the name
     return client.create_batch(attributes={'name': name_of_test_method, **attrs}, **kwargs)
