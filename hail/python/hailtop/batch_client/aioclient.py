@@ -22,6 +22,22 @@ from .globals import tasks, complete_states
 log = logging.getLogger('batch_client.aioclient')
 
 
+class JobAlreadySubmittedError(Exception):
+    pass
+
+
+class JobNotSubmittedError(Exception):
+    pass
+
+
+class AbsoluteJobId(int):
+    pass
+
+
+class InUpdateJobId(int):
+    pass
+
+
 class Job:
     @staticmethod
     def _get_error(job_status, task):
@@ -157,155 +173,65 @@ class Job:
         return sum(durations)
 
     @staticmethod
-    def unsubmitted_job(batch, job_id):
-        assert isinstance(batch, Batch)
-        _job = UnsubmittedJob(batch, job_id)
-        return Job(_job)
+    def submitted_job(batch: 'Batch', job_id: int, _status: Optional[dict] = None):
+        return Job(batch, AbsoluteJobId(job_id), _status=_status)
 
     @staticmethod
-    def submitted_job(batch, job_id, _status=None):
-        assert isinstance(batch, Batch)
-        _job = SubmittedJob(batch, job_id, _status)
-        return Job(_job)
+    def unsubmitted_job(batch: 'Batch', job_id: int):
+        return Job(batch, InUpdateJobId(job_id))
 
-    def __init__(self, job):
-        self._job = job
-
-    @property
-    def batch_id(self):
-        return self._job.batch_id
-
-    @property
-    def job_id(self):
-        return self._job.job_id
-
-    @property
-    def id(self):
-        return self._job.id
-
-    async def attributes(self):
-        return await self._job.attributes()
-
-    async def is_complete(self):
-        return await self._job.is_complete()
-
-    async def is_running(self):
-        return await self._job.is_running()
-
-    async def is_pending(self):
-        return await self._job.is_pending()
-
-    async def is_ready(self):
-        return await self._job.is_ready()
-
-    # {
-    #   batch_id: int
-    #   job_id: int
-    #   user: str
-    #   billing_project: str
-    #   name: optional(str)
-    #   state: str (Ready, Running, Success, Error, Failure, Cancelled)
-    #   exit_code: optional(int)
-    #   duration: optional(int) (msecs)
-    #   msec_mcpu: int
-    #   cost: float
-    # }
-    async def status(self):
-        return await self._job.status()
-
-    @property
-    def _status(self):
-        return self._job._status
-
-    async def wait(self):
-        return await self._job.wait()
-
-    async def _wait_for_states(self, *states: str):
-        return await self._job._wait_for_states(*states)
-
-    async def container_log(self, container_name: str):
-        return await self._job.container_log(container_name)
-
-    async def log(self):
-        return await self._job.log()
-
-    async def attempts(self):
-        return await self._job.attempts()
-
-
-class UnsubmittedJob:
-    def _submit(self, update_start_job_id: int):
-        return SubmittedJob(self._batch, self._job_id + update_start_job_id - 1)
-
-    def __init__(self, batch: 'Batch', job_id: int):
+    def __init__(self,
+                 batch: 'Batch',
+                 job_id: Union[AbsoluteJobId, InUpdateJobId],
+                 *,
+                 _status: Optional[dict] = None):
         self._batch = batch
         self._job_id = job_id
-
-    @property
-    def batch_id(self):
-        raise ValueError("cannot get the batch_id of an unsubmitted job")
-
-    @property
-    def job_id(self):
-        raise ValueError("cannot get the job_id of an unsubmitted job")
-
-    @property
-    def id(self):
-        raise ValueError("cannot get the id of an unsubmitted job")
-
-    async def attributes(self):
-        raise ValueError("cannot get the attributes of an unsubmitted job")
-
-    async def is_complete(self):
-        raise ValueError("cannot determine if an unsubmitted job is complete")
-
-    async def is_running(self):
-        raise ValueError("cannot determine if an unsubmitted job is running")
-
-    async def is_pending(self):
-        raise ValueError("cannot determine if an unsubmitted job is pending")
-
-    async def is_ready(self):
-        raise ValueError("cannot determine if an unsubmitted job is ready")
-
-    async def status(self):
-        raise ValueError("cannot get the status of an unsubmitted job")
-
-    @property
-    def _status(self):
-        raise ValueError("cannot get the _status of an unsubmitted job")
-
-    async def wait(self):
-        raise ValueError("cannot wait on an unsubmitted job")
-
-    async def _wait_for_states(self, *states: str):
-        raise ValueError("cannot _wait_for_states on an unsubmitted job")
-
-    async def container_log(self, container_name: str):
-        raise ValueError("cannot get the log of an unsubmitted job")
-
-    async def log(self):
-        raise ValueError("cannot get the log of an unsubmitted job")
-
-    async def attempts(self):
-        raise ValueError("cannot get the attempts of an unsubmitted job")
-
-
-class SubmittedJob:
-    def __init__(self, batch, job_id, _status=None):
-        self._batch = batch
-        self.batch_id = batch.id
-        self.job_id = job_id
-        self.id = (self.batch_id, self.job_id)
         self._status = _status
+
+    def _raise_if_not_submitted(self):
+        if not self.is_submitted:
+            raise JobNotSubmittedError
+
+    def _raise_if_submitted(self):
+        if self.is_submitted:
+            raise JobAlreadySubmittedError
+
+    def _submit(self, in_update_start_job_id: int):
+        self._raise_if_submitted()
+        self._job_id = AbsoluteJobId(in_update_start_job_id + self._job_id - 1)
+
+    @property
+    def is_submitted(self):
+        return isinstance(self._job_id, AbsoluteJobId)
+
+    @property
+    def batch_id(self) -> int:
+        return self._batch.id
+
+    @property
+    def job_id(self) -> int:
+        self._raise_if_not_submitted()
+        return self._job_id
+
+    @property
+    def id(self) -> Tuple[int, int]:
+        self._raise_if_not_submitted()
+        return (self.batch_id, self.job_id)
+
+    @property
+    def _client(self) -> 'BatchClient':
+        return self._batch._client
 
     async def attributes(self):
         if not self._status:
             await self.status()
+        assert self._status is not None
         return self._status['attributes']
 
     async def _is_job_in_state(self, states):
         await self.status()
+        assert self._status is not None
         state = self._status['state']
         return state in states
 
@@ -321,9 +247,23 @@ class SubmittedJob:
     async def is_ready(self):
         return await self._is_job_in_state(['Ready'])
 
-    async def status(self):
-        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
+    # {
+    #   batch_id: int
+    #   job_id: int
+    #   user: str
+    #   billing_project: str
+    #   name: optional(str)
+    #   state: str (Ready, Running, Success, Error, Failure, Cancelled)
+    #   exit_code: optional(int)
+    #   duration: optional(int) (msecs)
+    #   msec_mcpu: int
+    #   cost: float
+    # }
+    async def status(self) -> dict:
+        self._raise_if_not_submitted()
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
         self._status = await resp.json()
+        assert self._status is not None
         return self._status
 
     async def wait(self):
@@ -338,15 +278,18 @@ class SubmittedJob:
             await sleep_before_try(tries)
 
     async def container_log(self, container_name: str) -> bytes:
-        async with await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}') as resp:
+        self._raise_if_not_submitted()
+        async with await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}') as resp:
             return await resp.read()
 
     async def log(self):
-        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+        self._raise_if_not_submitted()
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
         return await resp.json()
 
     async def attempts(self):
-        resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/attempts')
+        self._raise_if_not_submitted()
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/attempts')
         return await resp.json()
 
 
@@ -355,7 +298,7 @@ class BatchSubmissionInfo:
         self.used_fast_path = used_fast_path
 
 
-class BatchNotSubmittedError(Exception):
+class BatchNotCreatedError(Exception):
     pass
 
 
@@ -392,7 +335,7 @@ class Batch:
 
     def _raise_if_not_created(self):
         if not self.is_created:
-            raise BatchNotSubmittedError
+            raise BatchNotCreatedError
 
     def _raise_if_created(self):
         if self.is_created:
@@ -576,23 +519,21 @@ class Batch:
 
         absolute_parent_ids = []
         in_update_parent_ids = []
-        foreign_batches: List[Union[SubmittedJob, UnsubmittedJob]] = []
+        foreign_batches: List[Job] = []
         invalid_job_ids = []
         for parent in parents:
-            job = parent._job
-            if isinstance(job, UnsubmittedJob):
-                if job._batch != self:
-                    foreign_batches.append(job)
-                elif not 0 < job._job_id < self._job_idx:
-                    invalid_job_ids.append(job)
+            if not parent.is_submitted:
+                assert isinstance(parent._job_id, InUpdateJobId)
+                if parent._batch != self:
+                    foreign_batches.append(parent)
+                elif not 0 < parent._job_id < self._job_idx:
+                    invalid_job_ids.append(parent._job_id)
                 else:
-                    in_update_parent_ids.append(job._job_id)
+                    in_update_parent_ids.append(parent._job_id)
+            elif not self.is_created or parent._batch.id != self.id:
+                foreign_batches.append(parent)
             else:
-                assert isinstance(job, SubmittedJob)
-                if not self.is_created or job._batch.id != self.id:
-                    foreign_batches.append(job)
-                else:
-                    absolute_parent_ids.append(job.job_id)
+                absolute_parent_ids.append(parent._job_id)
 
         error_msg = []
         if len(foreign_batches) != 0:
@@ -880,7 +821,7 @@ class Batch:
 
         for j in self._jobs:
             assert start_job_id is not None
-            j._job = j._job._submit(start_job_id)
+            j._submit(start_job_id)
 
         self._job_specs = []
         self._jobs = []

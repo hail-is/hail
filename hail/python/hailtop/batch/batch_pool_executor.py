@@ -546,8 +546,8 @@ class BatchPoolFuture:
 
     async def _async_fetch_result(self):
         try:
-            await self.job.wait()
-            main_container_status = self.job._status['status']['container_statuses']['main']
+            status = await self.job.wait()
+            main_container_status = status['status']['container_statuses']['main']
             if main_container_status['state'] == 'error':
                 raise ValueError(
                     f"submitted job failed:\n{main_container_status['error']}")
