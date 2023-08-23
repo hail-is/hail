@@ -152,10 +152,14 @@ def wb_and_pr_from_request(request: web.Request) -> Tuple[WatchedBranch, PR]:
 
 
 def filter_jobs(jobs):
-    filtered: Dict[str, list] = {"running": [], "failed": [], "pending": [], "jobs": []}
+    filtered: Dict[str, list] = {
+        state: []
+        # the order of this list is the order in which the states will be displayed on the page
+        for state in ["failed", "error", "cancelled", "running", "pending", "ready", "creating", "success"]
+    }
     for job in jobs:
-        filtered.get(job["state"].lower(), filtered["jobs"]).append(job)
-    return {"completed" if k == "jobs" else k: v if len(v) > 0 else None for k, v in filtered.items()}
+        filtered[job["state"].lower()].append(job)
+    return {"jobs": filtered}
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
