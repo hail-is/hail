@@ -31,7 +31,8 @@ class BackgroundTaskManager:
                 if e := fut.exception():
                     log.exception(e)
             except asyncio.CancelledError:
-                pass
+                if not self._closed:
+                    log.exception('Background task was cancelled before task manager shutdown')
         return callback
 
     def shutdown(self):
