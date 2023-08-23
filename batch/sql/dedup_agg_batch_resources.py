@@ -160,7 +160,7 @@ SELECT t.batch_id FROM (
   FROM aggregated_batch_resources_v2
   ORDER BY batch_id ASC
 ) AS t
-WHERE MOD((@rank := @rank  1), %s) = 0;
+WHERE MOD((@rank := @rank + 1), %s) = 0;
 '''
 
         offsets = tx.execute_and_fetchall(query, (size,))
