@@ -43,4 +43,3 @@ infra/.terraform.lock.hcl
 .cache/
 wheel-container.tar
 *-image
-.venvs/

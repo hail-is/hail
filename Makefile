@@ -52,16 +52,6 @@ check-services: $(CHECK_SERVICES_MODULES)
 pylint-%:
 	$(PYTHON) -m pylint --rcfile pylintrc --recursive=y $* --score=n
 
-.venvs/pre-commit-ruff/bin/activate: hail/python/pinned-requirements.txt
-.venvs/pre-commit-ruff/bin/activate: hail/python/dev/pinned-requirements.txt
-.venvs/pre-commit-ruff/bin/activate: gear/pinned-requirements.txt
-.venvs/pre-commit-ruff/bin/activate: web_common/pinned-requirements.txt
-.venvs/pre-commit-ruff/bin/activate: auth/pinned-requirements.txt
-.venvs/pre-commit-ruff/bin/activate: batch/pinned-requirements.txt
-.venvs/pre-commit-ruff/bin/activate: ci/pinned-requirements.txt
-	$(PYTHON) -m venv .venvs/pre-commit-ruff
-	source .venvs/pre-commit-ruff/bin/activate && pip3 install $(patsubst %,-r %, $?)
-
 .PHONY: check-%-fast
 check-%-fast:
 	ruff check $*
@@ -69,10 +59,6 @@ check-%-fast:
 	$(PYTHON) -m black $* --check --diff
 	curlylint $*
 	cd $* && bash ../check-sql.sh
-
-.PHONY: pre-commit-check-in-%-venv
-pre-commit-ruff: .venvs/pre-commit-ruff/bin/activate
-	source $< && time ruff check --fix $(FILES)
 
 .PHONY: check-%
 $(CHECK_SERVICES_MODULES): check-%: check-%-fast pylint-%
