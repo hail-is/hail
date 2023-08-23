@@ -4,7 +4,7 @@ repos:
     hooks:
       - id: ruff
         name: ruff
-        entry: ruff
+        entry: ruff --fix --show-fixes
         language: system
         types: [python]
         require_serial: true
