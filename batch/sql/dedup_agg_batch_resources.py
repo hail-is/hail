@@ -118,7 +118,7 @@ LEFT JOIN (
   FROM aggregated_batch_resources_v3
   LEFT JOIN resources ON resources.resource_id = aggregated_batch_resources_v3.resource_id
   {where_statement}
-  GROUP BY batch_id, resource_id
+  GROUP BY batch_id, deduped_resource_id
   LOCK IN SHARE MODE
 ) AS new ON old.batch_id = new.batch_id AND old.deduped_resource_id = new.deduped_resource_id
 WHERE new.`usage` != old.`usage`
