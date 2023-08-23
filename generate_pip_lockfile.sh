@@ -13,7 +13,7 @@ if [[ "$(uname)" == 'Linux' ]]; then
     # user's local bin which is not on the PATH
     PATH="$PATH:$HOME/.local/bin" pip-compile --upgrade $reqs --output-file=$pinned_reqs
 else
-	docker run --rm \
+	docker run --rm -it \
         -v ${HAIL_HAIL_DIR}:/hail \
 		python:3.9-slim \
 		/bin/bash -c "pip install 'pip-tools==6.13.0' && cd /hail && pip-compile --upgrade $reqs --output-file=$pinned_reqs"
