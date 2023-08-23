@@ -697,7 +697,7 @@ DROP TRIGGER IF EXISTS batches_after_update $$
 CREATE TRIGGER batches_after_update AFTER UPDATE ON batches
 FOR EACH ROW
 BEGIN
-  IF OLD.migrated = 0 AND NEW.migrated = 1 THEN
+  IF OLD.migrated_batch = 0 AND NEW.migrated_batch = 1 THEN
     INSERT INTO job_groups (batch_id, job_group_id, `user`, cancel_after_n_failures, `state`, n_jobs, time_created, time_completed, callback, attributes)
     VALUES (NEW.id, 0, NEW.`user`, NEW.cancel_after_n_failures, NEW.state, NEW.n_jobs, NEW.time_created, NEW.time_completed, NEW.callback, NEW.attributes);
 
@@ -705,12 +705,14 @@ BEGIN
     VALUES (NEW.id, 0, 0, 0);
   ELSE
     UPDATE job_groups
-    SET cancel_after_n_failures = NEW.cancel_after_n_failures,
+    SET `user` = NEW.`user`,
+      cancel_after_n_failures = NEW.cancel_after_n_failures,
       `state` = NEW.state,
       n_jobs = NEW.n_jobs,
       time_created = NEW.time_created,
       time_completed = NEW.time_completed,
-      callback = NEW.callback
+      callback = NEW.callback,
+      attributes = NEW.attributes
     WHERE batch_id = NEW.id AND job_group_id = 0;
   END IF;
 END $$
