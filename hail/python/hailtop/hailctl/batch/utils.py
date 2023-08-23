@@ -2,8 +2,6 @@ import json
 import tempfile
 from typing import Dict, Optional
 
-from hailtop.config import ConfigVariable
-
 
 class InsufficientPermissions(Exception):
     def __init__(self, message: str):
