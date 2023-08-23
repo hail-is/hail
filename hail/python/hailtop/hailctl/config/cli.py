@@ -49,7 +49,7 @@ def complete_config_variable(incomplete: str):
             yield (var.value, var_info.help_msg)
 
 
-@app.command(help='Set the value of a configuration parameter.')
+@app.command()
 def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)], value: str):
     '''Set a Hail configuration parameter.'''
     from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
@@ -105,7 +105,7 @@ def get_config_variable(incomplete: str):
             yield (name, help_msg)
 
 
-@app.command(help='Unset the value of a configuration parameter.')
+@app.command()
 def unset(parameter: Ann[str, Arg(help="Configuration variable to unset", autocompletion=get_config_variable)]):
     '''Unset a Hail configuration parameter (restore to default behavior).'''
     from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
@@ -121,7 +121,7 @@ def unset(parameter: Ann[str, Arg(help="Configuration variable to unset", autoco
         print(f"WARNING: Unknown parameter {parameter!r}", file=sys.stderr)
 
 
-@app.command(help='Get the value for a configuration parameter.')
+@app.command()
 def get(parameter: Ann[str, Arg(help="Configuration variable to get", autocompletion=get_config_variable)]):
     '''Get the value of a Hail configuration parameter.'''
     from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel

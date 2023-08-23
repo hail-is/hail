@@ -175,7 +175,6 @@ def submit(
 
 @app.command('init', help='Initialize a Hail Batch environment.')
 def initialize(
-        domain: Ann[Optional[str], Opt('--domain', '-d', help='Domain to login to.')] = None,
         verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
 ):
-    asyncio.get_event_loop().run_until_complete(async_basic_initialize(domain=domain, verbose=verbose))
+    asyncio.get_event_loop().run_until_complete(async_basic_initialize(verbose=verbose))
