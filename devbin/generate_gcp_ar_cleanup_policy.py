@@ -102,26 +102,44 @@ class MostRecentVersionKeepPolicy(CleanupPolicy):
 
 third_party_images_fp = 'docker/third-party/images.txt'
 third_party_packages = []
+third_party_tags = []
 with open(third_party_images_fp, 'r') as f:
     for image in f:
         image = image.strip()
-        package = image.split(':')[0]
+        image_split = image.split(':')
+        if len(image_split) == 1:
+            package = image_split[0]
+            tag = None
+        else:
+            package, tag = image_split
         if package not in third_party_packages:
             third_party_packages.append(package)
-
+        if tag and tag not in third_party_tags:
+            third_party_tags.append(tag)
 
 deploy_packages = []
-with open('build.yaml', 'r') as f:
-    config_str = f.read().strip()
-    build_config = yaml.safe_load(config_str)
-    for step in build_config['steps']:
-        if step['kind'] == 'buildImage2':
-            image = step['publishAs']
-            if image not in deploy_packages:
-                deploy_packages.append(image)
 
+
+def scrape_build_yaml(file_path: str):
+    found_packages = []
+    with open('build.yaml', 'r') as f:
+        config_str = f.read().strip()
+        build_config = yaml.safe_load(config_str)
+        for step in build_config['steps']:
+            if step['kind'] == 'buildImage2':
+                image = step['publishAs']
+                if image not in found_packages:
+                    found_packages.append(image)
+    return found_packages
+
+
+deploy_packages.extend(scrape_build_yaml('build.yaml'))
+deploy_packages.extend(scrape_build_yaml('ci/test/resources/build.yaml'))
+
+deploy_packages = list(set(deploy_packages))
 
 third_party_packages.sort()
+third_party_tags.sort()
 deploy_packages.sort()
 
 policies = [
@@ -131,7 +149,7 @@ policies = [
     DeletePolicy('delete_test_deploy', 'tagged', tag_prefixes=['test-deploy-'], older_than='3d'),
     DeletePolicy('delete_cache', 'tagged', tag_prefixes=['cache-pr-'], older_than='7d'),
     DeletePolicy('delete_cache', 'tagged', tag_prefixes=['cache-'], older_than='30d'),
-    ConditionalKeepPolicy('keep_third_party', 'any', package_name_prefixes=third_party_packages),
+    ConditionalKeepPolicy('keep_third_party', 'any', package_name_prefixes=third_party_packages, tag_prefixes=third_party_tags),
     MostRecentVersionKeepPolicy('keep_most_recent_deploy', package_name_prefixes=deploy_packages, keep_count=10),
 ]
 
