@@ -18,7 +18,7 @@ def newinit(self, *args, **kwargs):
     self._source_traceback = traceback.extract_stack(sys._getframe(1))
 
 
-aiohttp.ClientSession.__init__ = newinit
+aiohttp.ClientSession.__init__ = newinit  # type: ignore
 
 
 run()
