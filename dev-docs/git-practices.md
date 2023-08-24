@@ -84,7 +84,7 @@ git push origin <feature_branch>
 
 If you have already done this before but have since rebased, you may get
 an error because the history on your fork is no longer a prefix of your local
-branch's history. Force push your branch to overwrite the history on github
+branch's history. Force push your branch to overwrite the history on GitHub
 with that of your local branch.
 
 ```bash
@@ -101,7 +101,7 @@ your feature branch and `git push origin <feature_branch>` to reflect those
 changes in your PR.
 
 However, once the review process has begun it is best not to `rebase` the branch
-any further. Doing so rewrites the commit history of the PR and causes github to lose
+any further. Doing so rewrites the commit history of the PR and causes GitHub to lose
 when and where review comments were made. It also removes the PR reviewer's ability
 to use the GitHub feature "see changes since last review", which can be very
 helpful for long PRs and review processes.
