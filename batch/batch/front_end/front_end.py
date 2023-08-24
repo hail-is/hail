@@ -1717,7 +1717,7 @@ async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
 async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
     user = userdata['username']
-    q = request.query.get('q', f'user:{user}')
+    q = request.query.get('q', f'user = {user}' if CURRENT_QUERY_VERSION == 2 else f'user:{user}')
     last_batch_id = cast_query_param_to_int(request.query.get('last_batch_id'))
     try:
         result = await _handle_ui_error(session, _query_batches, request, user, q, CURRENT_QUERY_VERSION, last_batch_id)
