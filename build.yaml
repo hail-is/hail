@@ -2716,7 +2716,7 @@ steps:
           --from-literal=github_context="ci-test" \
           --from-literal=storage_uri="{{ global.test_storage_uri }}" \
           --from-literal=deploy_steps="[]" \
-          --from-literal=watched_branches="[[\"hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master\", true, true]]" \
+          --from-literal=watched_branches="[[\"hail-ci-test/ci-test-{{create_ci_test_repo.token}}:main\", true, true]]" \
           --save-config --dry-run=client -o yaml \
         | kubectl -n {{ default_ns.name }} apply -f -
     serviceAccount:
