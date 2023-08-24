@@ -106,15 +106,10 @@ third_party_tags = []
 with open(third_party_images_fp, 'r') as f:
     for image in f:
         image = image.strip()
-        image_split = image.split(':')
-        if len(image_split) == 1:
-            package = image_split[0]
-            tag = None
-        else:
-            package, tag = image_split
+        package, tag = image.split(':')
         if package not in third_party_packages:
             third_party_packages.append(package)
-        if tag and tag not in third_party_tags:
+        if tag not in third_party_tags:
             third_party_tags.append(tag)
 
 deploy_packages = []
@@ -122,7 +117,7 @@ deploy_packages = []
 
 def scrape_build_yaml(file_path: str):
     found_packages = []
-    with open('build.yaml', 'r') as f:
+    with open(file_path, 'r') as f:
         config_str = f.read().strip()
         build_config = yaml.safe_load(config_str)
         for step in build_config['steps']:
