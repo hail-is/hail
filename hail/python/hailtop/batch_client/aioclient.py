@@ -259,20 +259,21 @@ class Job:
     #   msec_mcpu: int
     #   cost: float
     # }
-    async def status(self) -> dict:
+    async def status(self) -> Dict[str, Any]:
         self._raise_if_not_submitted()
         resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
         self._status = await resp.json()
         assert self._status is not None
         return self._status
 
-    async def wait(self):
+    async def wait(self) -> Dict[str, Any]:
         return await self._wait_for_states(*complete_states)
 
-    async def _wait_for_states(self, *states: str):
+    async def _wait_for_states(self, *states: str) -> Dict[str, Any]:
         tries = 0
         while True:
             if await self._is_job_in_state(states) or await self.is_complete():
+                assert self._status
                 return self._status
             tries += 1
             await sleep_before_try(tries)

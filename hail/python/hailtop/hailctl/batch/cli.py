@@ -145,7 +145,8 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
         job = get_job_if_exists(client, batch_id, job_id)
 
         if job is not None:
-            print(make_formatter(output)(job._status))
+            assert job._status
+            print(make_formatter(output)([job._status]))
         else:
             print(f"Job with ID {job_id} on batch {batch_id} not found")
 
