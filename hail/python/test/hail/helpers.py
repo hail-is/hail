@@ -1,4 +1,5 @@
-from typing import Callable, ParamSpec, TypeVar
+from typing import Callable, TypeVar
+from typing_extensions import ParamSpec
 import os
 from timeit import default_timer as timer
 import unittest

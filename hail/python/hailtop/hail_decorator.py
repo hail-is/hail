@@ -1,4 +1,5 @@
-from typing import ParamSpec, TypeVar, Callable, cast, Protocol
+from typing import TypeVar, Callable, cast, Protocol
+from typing_extensions import ParamSpec
 from decorator import decorator as _decorator
 
 P = ParamSpec('P')
