@@ -25,7 +25,7 @@ RUN hail-apt-get-install ca-certificates pkg-config libfuse-dev cmake libcurl4-g
     curl -LO https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
     dpkg -i packages-microsoft-prod.deb && \
     apt-get update && \
-    hail-apt-get-install blobfuse
+    hail-apt-get-install blobfuse2
 
 {% else %}
 RUN echo "!!! UNEXPECTED CLOUD {{global.cloud}} !!!" && exit 1
