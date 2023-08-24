@@ -292,7 +292,7 @@ If your review is requested on a PR submitted by an outside contributor, you sho
 responsible for ensuring that the PR does not go stale and is eventually
 merged or closed.
 
-![](dismiss_review.png)
+![](dismiss-review.png)
 
 
 ## Merge / Deploy
