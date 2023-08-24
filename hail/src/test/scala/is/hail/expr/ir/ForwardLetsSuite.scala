@@ -60,7 +60,7 @@ class ForwardLetsSuite extends HailSuite {
       MakeTuple.ordered(FastSeq(I32(1), ApplyBinaryPrimOp(Add(), x, I32(2)))),
       If(True(), x, I32(0)),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), I32(2), x), I32(1)),
-      ApplyUnaryPrimOp(Negate(), x),
+      ApplyUnaryPrimOp(Negate, x),
       ToArray(StreamMap(StreamRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32))),
       ToArray(StreamFilter(StreamRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32) <= I32(0)))
     ).map(ir => Array[IR](Let("x", In(0, TInt32) + In(0, TInt32), ir)))

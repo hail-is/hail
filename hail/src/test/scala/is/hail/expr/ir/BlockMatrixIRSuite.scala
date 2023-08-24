@@ -46,7 +46,7 @@ class BlockMatrixIRSuite extends HailSuite {
 
   @Test def testBlockMatrixMap() {
     val sqrtIR = BlockMatrixMap(ones, "element", Apply("sqrt", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), false)
-    val negIR = BlockMatrixMap(ones, "element", ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64)), false)
+    val negIR = BlockMatrixMap(ones, "element", ApplyUnaryPrimOp(Negate, Ref("element", TFloat64)), false)
     val logIR = BlockMatrixMap(ones, "element", Apply("log", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), true)
     val absIR = BlockMatrixMap(ones, "element", Apply("abs", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), false)
 

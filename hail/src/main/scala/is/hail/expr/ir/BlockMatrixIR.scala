@@ -292,7 +292,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
 
 
     val (name, breezeF): (String, DenseMatrix[Double] => DenseMatrix[Double]) = f match {
-      case ApplyUnaryPrimOp(Negate(), _) => ("negate", BlockMatrix.negationOp)
+      case ApplyUnaryPrimOp(Negate, _) => ("negate", BlockMatrix.negationOp)
       case Apply("abs", _, _, _, _) => ("abs", numerics.abs(_))
       case Apply("log", _, _, _, _) => ("log", numerics.log(_))
       case Apply("sqrt", _, _, _,_) => ("sqrt", numerics.sqrt(_))

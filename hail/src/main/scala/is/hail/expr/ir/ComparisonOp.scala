@@ -38,7 +38,7 @@ object ComparisonOp {
       Compare(t1, t2)
   }
 
-  def invert(op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
+  def negate(op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
     op match {
       case GT(t1, t2) => LTEQ(t1, t2)
       case LT(t1, t2) => GTEQ(t1, t2)

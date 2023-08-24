@@ -144,42 +144,42 @@ class IRSuite extends HailSuite {
 
   @Test def testApplyUnaryPrimOpNegate() {
     assertAllEvalTo(
-      (ApplyUnaryPrimOp(Negate(), I32(5)), -5),
-      (ApplyUnaryPrimOp(Negate(), i32na), null),
-      (ApplyUnaryPrimOp(Negate(), I64(5)), -5L),
-      (ApplyUnaryPrimOp(Negate(), i64na), null),
-      (ApplyUnaryPrimOp(Negate(), F32(5)), -5F),
-      (ApplyUnaryPrimOp(Negate(), f32na), null),
-      (ApplyUnaryPrimOp(Negate(), F64(5)), -5D),
-      (ApplyUnaryPrimOp(Negate(), f64na), null)
+      (ApplyUnaryPrimOp(Negate, I32(5)), -5),
+      (ApplyUnaryPrimOp(Negate, i32na), null),
+      (ApplyUnaryPrimOp(Negate, I64(5)), -5L),
+      (ApplyUnaryPrimOp(Negate, i64na), null),
+      (ApplyUnaryPrimOp(Negate, F32(5)), -5F),
+      (ApplyUnaryPrimOp(Negate, f32na), null),
+      (ApplyUnaryPrimOp(Negate, F64(5)), -5D),
+      (ApplyUnaryPrimOp(Negate, f64na), null)
     )
   }
 
   @Test def testApplyUnaryPrimOpBang() {
-    assertEvalsTo(ApplyUnaryPrimOp(Bang(), False()), true)
-    assertEvalsTo(ApplyUnaryPrimOp(Bang(), True()), false)
-    assertEvalsTo(ApplyUnaryPrimOp(Bang(), bna), null)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang, False()), true)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang, True()), false)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang, bna), null)
   }
 
   @Test def testApplyUnaryPrimOpBitFlip() {
     assertAllEvalTo(
-      (ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef)), ~0xdeadbeef),
-      (ApplyUnaryPrimOp(BitNot(), I32(-0xdeadbeef)), ~(-0xdeadbeef)),
-      (ApplyUnaryPrimOp(BitNot(), i32na), null),
-      (ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L),
-      (ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L)),
-      (ApplyUnaryPrimOp(BitNot(), i64na), null)
+      (ApplyUnaryPrimOp(BitNot, I32(0xdeadbeef)), ~0xdeadbeef),
+      (ApplyUnaryPrimOp(BitNot, I32(-0xdeadbeef)), ~(-0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitNot, i32na), null),
+      (ApplyUnaryPrimOp(BitNot, I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L),
+      (ApplyUnaryPrimOp(BitNot, I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitNot, i64na), null)
     )
   }
 
   @Test def testApplyUnaryPrimOpBitCount() {
     assertAllEvalTo(
-      (ApplyUnaryPrimOp(BitCount(), I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
-      (ApplyUnaryPrimOp(BitCount(), I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
-      (ApplyUnaryPrimOp(BitCount(), i32na), null),
-      (ApplyUnaryPrimOp(BitCount(), I64(0xdeadbeef12345678L)), java.lang.Long.bitCount(0xdeadbeef12345678L)),
-      (ApplyUnaryPrimOp(BitCount(), I64(-0xdeadbeef12345678L)), java.lang.Long.bitCount(-0xdeadbeef12345678L)),
-      (ApplyUnaryPrimOp(BitCount(), i64na), null)
+      (ApplyUnaryPrimOp(BitCount, I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitCount, I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitCount, i32na), null),
+      (ApplyUnaryPrimOp(BitCount, I64(0xdeadbeef12345678L)), java.lang.Long.bitCount(0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitCount, I64(-0xdeadbeef12345678L)), java.lang.Long.bitCount(-0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitCount, i64na), null)
     )
   }
 
@@ -1564,7 +1564,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamFilter(a, "x",
       IsNA(Ref("x", TInt32)))), FastIndexedSeq(null))
     assertEvalsTo(ToArray(StreamFilter(a, "x",
-      ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32))))), FastIndexedSeq(3, 7))
+      ApplyUnaryPrimOp(Bang, IsNA(Ref("x", TInt32))))), FastIndexedSeq(3, 7))
 
     assertEvalsTo(ToArray(StreamFilter(a, "x",
       ApplyComparisonOp(LT(TInt32), Ref("x", TInt32), I32(6)))), FastIndexedSeq(3))
@@ -1767,12 +1767,12 @@ class IRSuite extends HailSuite {
     val nDim = 2
 
     val positives = makeNDArray(data.map(_.toDouble), shape, True())
-    val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64)))
+    val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate, Ref("e", TFloat64)))
     assertEvalsTo(makeNDArrayRef(positives, FastSeq(1L, 0L)), 5.0)
     assertEvalsTo(makeNDArrayRef(negatives, FastSeq(1L, 0L)), -5.0)
 
     val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean)), MakeTuple.ordered(shape.map(I64)), True(), ErrorIDs.NO_ERROR)
-    val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean)))
+    val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang, Ref("e", TBoolean)))
     assertEvalsTo(makeNDArrayRef(trues, FastSeq(1L, 0L)), true)
     assertEvalsTo(makeNDArrayRef(falses, FastSeq(1L, 0L)), false)
 
@@ -2716,7 +2716,7 @@ class IRSuite extends HailSuite {
       AggLet("v", i, collect(v), false) -> (_.createAgg),
       Ref("x", TInt32) -> (_.bindEval("x", TInt32)),
       ApplyBinaryPrimOp(Add(), i, j),
-      ApplyUnaryPrimOp(Negate(), i),
+      ApplyUnaryPrimOp(Negate, i),
       ApplyComparisonOp(EQ(TInt32), i, j),
       MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
       MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
@@ -2724,7 +2724,7 @@ class IRSuite extends HailSuite {
       NDArrayReshape(nd, MakeTuple.ordered(IndexedSeq(I64(4))), ErrorIDs.NO_ERROR),
       NDArrayConcat(MakeArray(FastSeq(nd, nd), TArray(nd.typ)), 0),
       NDArrayRef(nd, FastSeq(I64(1), I64(2)), -1),
-      NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
+      NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate, v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r), ErrorIDs.NO_ERROR),
       NDArrayReindex(nd, FastIndexedSeq(0, 1)),
       NDArrayAgg(nd, FastIndexedSeq(0)),
