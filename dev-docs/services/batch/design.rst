@@ -30,7 +30,7 @@ system is ~16 million jobs. Likewise, QoB consists of a single,
 nonpreemptible driver job and subsequent sets of updates of jobs to
 the directed acyclic graph (DAG) for subsequent stages of worker
 jobs. There is a single job per partition within a stage. The number
-of jobs within a stage can be on the order of 100K jobs. 
+of jobs within a stage can be on the order of 100K jobs.
 
 
 ****************************
