@@ -36,8 +36,8 @@ possible to view the file format version of a Hail Table or MatrixTable.
 
 The Hail file formats and Python API are backwards compatible. This means that a script developed to
 run on Hail 0.2.5 should continue to work in every subsequent release within the 0.2 major version.
-**The exception to this rule is experimental functionality, denoted as such in the reference
-documentation, which may change at any time**.
+This also means any file written by python library versions 0.2.1 through 0.2.5 can be read by
+0.2.5.
 
 Forward compatibility of file formats and the Python API is not guaranteed. In particular, a new
 file format version is only readable by library versions released after the file format. For
@@ -47,6 +47,10 @@ versions after and including 0.2.119 *can* read file format version 1.7.0.
 
 Each version of the Hail Python library can only write files using the latest file format version it
 supports.
+
+**The hl.experimental package and other methods marked experimental in the docs are exempt from this
+policy. Their functionality or even existence may change without notice. Please contact us if you
+critically depend on experimental functionality.**
 
 ## Version 0.2.120
 
