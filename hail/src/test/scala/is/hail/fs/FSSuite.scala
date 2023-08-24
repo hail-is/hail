@@ -17,9 +17,9 @@ trait FSSuite extends TestNGSuite {
 
   val root: String = hail_test_storage_uri
 
-  val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
+  def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
 
-  val tmpdir: String = hail_test_storage_uri
+  def tmpdir: String = hail_test_storage_uri
 
   def fs: FS
 
