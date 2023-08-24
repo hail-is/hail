@@ -920,7 +920,9 @@ url: {url}
 
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
-        for pr in self.prs.values():
+        prs_by_prio = sorted(self.prs.values(), key=lambda pr: pr.merge_priority(), reverse=True)
+
+        for pr in prs_by_prio:
             await pr._heal(batch_client, db, pr == merge_candidate, gh)
 
         # cancel orphan builds
