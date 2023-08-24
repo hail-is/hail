@@ -402,7 +402,7 @@ trait FSSuite extends TestNGSuite {
   }
 }
 
-class BlobStorageFSSuite extends FSSuite {
+abstract class BlobStorageFSSuite extends FSSuite {
   @Test def fileAndDirectoryIsError(): Unit = {
     val d = t()
     fs.mkDir(d)
