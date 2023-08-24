@@ -402,9 +402,9 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def largeDirectoryOperations(): Unit = {
-    val prefix = s"$hail_test_storage_uri/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }.suffix"
+    val prefix = s"$hail_test_storage_uri/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
     for (i <- 0 until 2000) {
-      fs.touch(s"$prefix/$i")
+      fs.touch(s"$prefix/$i.suffix")
     }
 
     assert(fs.listStatus(prefix).size == 2000)
