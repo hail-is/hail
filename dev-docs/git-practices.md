@@ -57,11 +57,8 @@ way.
 To rebase your feature branch on the latest upstream main, run
 
 ```bash
-git checkout main
-git pull upstream main
-
-git checkout <feature_branch>
-git rebase -i main
+git fetch upstream
+git rebase upstream/main <feature_branch>
 ```
 
 The `-i` here is optional but extremely informative, and can help you understand
@@ -88,7 +85,7 @@ branch's history. Force push your branch to overwrite the history on GitHub
 with that of your local branch.
 
 ```bash
-git push -f origin <feature_branch>
+git push --force-with-lease origin <feature_branch>
 ```
 
 You can then make a PR on GitHub from the branch on your fork to `hail-is/hail:main`.
@@ -110,10 +107,9 @@ If an existing PR runs into merge conflicts, you can instead merge main *into* y
 feature branch.
 
 ```bash
-git checkout main
-git pull upstream main
+git fetch upstream
 git checkout <feature_branch>
-git merge main
+git merge upstream/main
 
 ... resolve any conflicts and `git add` any resolved files ...
 
