@@ -33,16 +33,13 @@ upstream	https://github.com/hail-is/hail.git (fetch)
 upstream	https://github.com/hail-is/hail.git (push)
 ```
 
-To get the latest changes on your local `main` branch, run
+When starting a new feature branch, retrieve the latest changes from
+upstream and checkout a branch based on those changes:
 
 ```bash
-git checkout main
-git pull upstream main
+git fetch upstream
+git checkout -b <feature_branch> upstream/main
 ```
-
-Now if you create a feature branch like `git checkout -b my-feature`, it will
-be based on the latest upstream changes.
-
 
 ## While developing a feature
 
