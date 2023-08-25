@@ -2,7 +2,7 @@ from typing import TypedDict, Literal, Optional, List
 from typing_extensions import NotRequired
 
 
-class JobListEntry(TypedDict):
+class JobListEntryv1(TypedDict):
     batch_id: int
     job_id: int
     name: str
@@ -15,6 +15,6 @@ class JobListEntry(TypedDict):
     msec_mcpu: int
 
 
-class GetJobsResponse(TypedDict):
-    jobs: List[JobListEntry]
+class GetJobsResponsev1(TypedDict):
+    jobs: List[JobListEntryv1]
     last_job_id: NotRequired[int]

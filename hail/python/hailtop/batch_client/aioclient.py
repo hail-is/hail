@@ -18,7 +18,7 @@ from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
-from .types import GetJobsResponse, JobListEntry
+from .types import GetJobsResponsv1, JobListEntryv1
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
@@ -310,7 +310,7 @@ class BatchAlreadyCreatedError(Exception):
 
 class BatchDebugInfo(TypedDict):
     status: Dict[str, Any]
-    jobs: List[JobListEntry]
+    jobs: List[JobListEntryv1]
 
 class Batch:
     def __init__(self,
@@ -364,7 +364,7 @@ class Batch:
     async def jobs(self,
                    q: Optional[str] = None,
                    version: Optional[int] = None
-                   ) -> AsyncIterable[JobListEntry]:
+                   ) -> AsyncIterable[JobListEntryv1]:
         self._raise_if_not_created()
         if version is None:
             version = 1
@@ -377,7 +377,7 @@ class Batch:
                 params['last_job_id'] = last_job_id
             resp = await self._client._get(f'/api/v{version}alpha/batches/{self.id}/jobs', params=params)
             body = cast(
-                GetJobsResponse,
+                GetJobsResponsev1,
                 await resp.json()
             )
             for job in body['jobs']:
@@ -475,7 +475,7 @@ class Batch:
             return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
     async def debug_info(self,
-                         _job_filter: Optional[Callable[[JobListEntry], bool]] = None,
+                         _job_filter: Optional[Callable[[JobListEntryv1], bool]] = None,
                          _max_jobs: Optional[int] = None
                          ) -> BatchDebugInfo:
         self._raise_if_not_created()
