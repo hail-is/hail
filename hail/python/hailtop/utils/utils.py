@@ -78,7 +78,7 @@ def cost_str(cost: Optional[int]) -> Optional[str]:
     if cost is None:
         return None
     if cost < 0.0001:
-        return f'<$0.0001'
+        return '<$0.0001'
     return f'${cost:.4f}'
 
 
