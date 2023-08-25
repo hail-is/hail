@@ -3838,6 +3838,7 @@ steps:
       valueFrom: ci_utils_image.image
     script: |
       set -ex
+      cd /io/repo/
       python3 devbin/generate_gcp_ar_cleanup_policy.py | diff - infra/gcp-broad/gcp-ar-cleanup-policy.txt
     clouds:
       - gcp
