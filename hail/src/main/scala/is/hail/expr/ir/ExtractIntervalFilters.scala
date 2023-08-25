@@ -374,6 +374,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case _ => ConcreteBool(x.falseBound, x.trueBound, x.naBound)
       }
 
+      def isNA(x: BoolValue): BoolValue = x match {
+        case ConstantBool(x) => ConstantBool(false)
+        case _ => ConcreteBool(x.naBound, KeySet.combine(x.trueBound, x.falseBound), KeySet.bottom)
+      }
+
       def fromComparison(v: Any, op: ComparisonOp[_], wrapped: Boolean = true): BoolValue = {
         (op: @unchecked) match {
           case _: EQ => BoolValue( // value == key
@@ -712,6 +717,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   private def computeBoolean(x: IR, children: IndexedSeq[AbstractValue]): BoolValue = (x, children) match {
     case (False(), _) => BoolValue.allFalse
     case (True(), _) => BoolValue.allTrue
+    case (IsNA(_), Seq(KeyField(0))) => BoolValue(
+      IntervalsSet(Interval(endpoint(null, -1), posInf)),
+      IntervalsSet(Interval(negInf, endpoint(null, -1))),
+      KeySet.bottom)
+    case (IsNA(_), Seq(b: BoolValue)) => BoolValue.isNA(b)
     // collection contains
     case (ApplyIR("contains", _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
       if (collectionVal == null) {
@@ -751,10 +761,6 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       }
     case (ApplyComparisonOp(op, _, _), Seq(l, r)) =>
       Lattice.compare(l, r, op)
-    case (IsNA(_), Seq(KeyField(0))) => BoolValue(
-      IntervalsSet(Interval(endpoint(null, -1), posInf)),
-      IntervalsSet(Interval(negInf, endpoint(null, -1))),
-      KeySet.bottom)
     case (ApplySpecial("lor", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
       BoolValue.or(l, r)
     case (ApplySpecial("land", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>

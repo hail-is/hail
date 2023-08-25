@@ -34,16 +34,21 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   def grch38: ReferenceGenome = ctx.getReference(ReferenceGenome.GRCh38)
 
-  def check(filter: IR, expectedIntervals: Seq[Interval], residualFilter: IR, probes: IndexedSeq[Row], rowRef: Ref, key: IR): Unit = {
-    val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ctx, filter, rowRef, key.typ.asInstanceOf[TStruct].fieldNames).get
+  def check(filter: IR, rowRef: Ref, key: IR, probes: IndexedSeq[Row], residualFilter: IR, trueIntervals: Seq[Interval]): Unit = {
+    val result = ExtractIntervalFilters.extractPartitionFilters(ctx, filter, rowRef, key.typ.asInstanceOf[TStruct].fieldNames)
+    if (result.isEmpty) {
+      assert(trueIntervals == FastIndexedSeq(Interval(Row(), Row(), true, true)))
+      return
+    }
+    val (rw, intervals) = result.get
     assert(rw == residualFilter)
-    assert(intervals == expectedIntervals)
+    if (trueIntervals != null) assert(intervals == trueIntervals)
 
     val keyType = key.typ.asInstanceOf[TStruct]
 
     val irIntervals: IR = Literal(
       TArray(RVDPartitioner.intervalIRRepresentation(keyType)),
-      expectedIntervals.map { i =>
+      trueIntervals.map { i =>
         RVDPartitioner.intervalToIRRepresentation(i, keyType.size)
       })
 
@@ -64,12 +69,40 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     assertEvalsTo(testIR, true)(ExecStrategy.compileOnly)
   }
 
+  def checkAll(
+    filter: IR,
+    rowRef: Ref,
+    key: IR,
+    probes: IndexedSeq[Row],
+    trueIntervals: Seq[Interval],
+    falseIntervals: Seq[Interval],
+    naIntervals: Seq[Interval],
+    trueResidual: IR = True(),
+    falseResidual: IR = True(),
+    naResidual: IR = True()
+  ): Unit = {
+    check(filter, rowRef, key, probes, trueResidual, trueIntervals)
+    check(ApplyUnaryPrimOp(Bang, filter), rowRef, key, probes, falseResidual, falseIntervals)
+    check(IsNA(filter), rowRef, key, probes, naResidual, naIntervals)
+  }
+
+  @Test def testIsNA(): Unit = {
+    val testRows = FastIndexedSeq(
+      Row(0,  0, true),
+      Row(0, null, true))
+    checkAll(IsNA(k1), ref1, k1Full, testRows,
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)),
+      FastIndexedSeq(Interval(Row(), Row(null), true, false)),
+      FastIndexedSeq())
+  }
+
   @Test def testKeyComparison() {
     def check(
       op: ComparisonOp[Boolean],
       point: IR,
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
+      naIntervals: IndexedSeq[Interval]
     ) {
       val testRows = FastIndexedSeq(
         Row(0, -1, true),
@@ -77,58 +110,63 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         Row(0,  1, true),
         Row(0, null, true))
 
-      outer.check(ApplyComparisonOp(op, k1, point), trueIntervals, True(), testRows, ref1, k1Full)
-      outer.check(ApplyComparisonOp(ComparisonOp.swap(op), point, k1), trueIntervals, True(), testRows, ref1, k1Full)
-      outer.check(ApplyComparisonOp(ComparisonOp.negate(op), k1, point), falseIntervals, True(), testRows, ref1, k1Full)
-      outer.check(ApplyComparisonOp(ComparisonOp.swap(ComparisonOp.negate(op)), point, k1), falseIntervals, True(), testRows, ref1, k1Full)
+      checkAll(ApplyComparisonOp(op, k1, point), ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
+      checkAll(ApplyComparisonOp(ComparisonOp.swap(op), point, k1), ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
+      checkAll(ApplyComparisonOp(ComparisonOp.negate(op), k1, point), ref1, k1Full, testRows, falseIntervals, trueIntervals, naIntervals)
+      checkAll(ApplyComparisonOp(ComparisonOp.swap(ComparisonOp.negate(op)), point, k1), ref1, k1Full, testRows, falseIntervals, trueIntervals, naIntervals)
     }
 
     check(LT(TInt32), I32(0),
       FastIndexedSeq(Interval(Row(), Row(0), true, false)),
-      FastIndexedSeq(Interval(Row(0), Row(null), true, false)))
+      FastIndexedSeq(Interval(Row(0), Row(null), true, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
     check(GT(TInt32), I32(0),
       FastIndexedSeq(Interval(Row(0), Row(null), false, false)),
-      FastIndexedSeq(Interval(Row(), Row(0), true, true)))
+      FastIndexedSeq(Interval(Row(), Row(0), true, true)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
     check(EQ(TInt32), I32(0),
       FastIndexedSeq(Interval(Row(0), Row(0), true, true)),
       FastIndexedSeq(
         Interval(Row(), Row(0), true, false),
-        Interval(Row(0), Row(null), false, false)))
+        Interval(Row(0), Row(null), false, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
 
     // These are never true (always missing), extracts the empty set of intervals
     check(LT(TInt32), NA(TInt32),
       FastIndexedSeq(),
-      FastIndexedSeq())
+      FastIndexedSeq(),
+      FastIndexedSeq(Interval(Row(), Row(), true, true)))
     check(GT(TInt32), NA(TInt32),
       FastIndexedSeq(),
-      FastIndexedSeq())
+      FastIndexedSeq(),
+      FastIndexedSeq(Interval(Row(), Row(), true, true)))
     check(EQ(TInt32), NA(TInt32),
       FastIndexedSeq(),
-      FastIndexedSeq())
+      FastIndexedSeq(),
+      FastIndexedSeq(Interval(Row(), Row(), true, true)))
 
     check(EQWithNA(TInt32), I32(0),
       FastIndexedSeq(Interval(Row(0), Row(0), true, true)),
       FastIndexedSeq(
         Interval(Row(), Row(0), true, false),
-        Interval(Row(0), Row(), false, true)))
+        Interval(Row(0), Row(), false, true)),
+      FastIndexedSeq())
     check(EQWithNA(TInt32), NA(TInt32),
       FastIndexedSeq(Interval(Row(null), Row(), true, true)),
-      FastIndexedSeq(Interval(Row(), Row(null), true, false)))
-
-//    check(IsNA(k1),
-//      Interval(Row(null), Row(), true, true))
+      FastIndexedSeq(Interval(Row(), Row(null), true, false)),
+      FastIndexedSeq())
 
     assert(ExtractIntervalFilters.extractPartitionFilters(ctx, ApplyComparisonOp(Compare(TInt32), I32(0), k1), ref1, ref1Key).isEmpty)
   }
 
   @Test def testLiteralContains() {
-    def check(node: IR, expectedIntervals: Interval*) {
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval]) {
       val testRows = FastIndexedSeq(
         Row(0, 1, true),
         Row(0, 5, true),
         Row(0, 10, true),
         Row(0, null, true))
-      outer.check(node, expectedIntervals, True(), testRows, ref1, k1Full)
+      checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
     for  {
@@ -137,17 +175,16 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         Literal(TArray(TInt32), FastIndexedSeq(10, 1, null)),
         Literal(TDict(TInt32, TString), Map(1 -> "foo", (null, "bar"), 10 -> "baz")))
     } {
-      val ir = invoke("contains", TBoolean, lit, k1)
-      check(ir,
-        Interval(Row(1), Row(1), true, true),
-        Interval(Row(10), Row(10), true, true),
-        Interval(Row(null), Row(), true, true))
-
-      val ir2 = ApplyUnaryPrimOp(Bang, ir)
-      check(ir2,
-        Interval(Row(), Row(1), true, false),
-        Interval(Row(1), Row(10), false, false),
-        Interval(Row(10), Row(null), false, false))
+      check(invoke("contains", TBoolean, lit, k1),
+        FastIndexedSeq(
+          Interval(Row(1), Row(1), true, true),
+          Interval(Row(10), Row(10), true, true),
+          Interval(Row(null), Row(), true, true)),
+        FastIndexedSeq(
+          Interval(Row(), Row(1), true, false),
+          Interval(Row(1), Row(10), false, false),
+          Interval(Row(10), Row(null), false, false)),
+        FastIndexedSeq())
     }
 
     for  {
@@ -156,23 +193,23 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         Literal(TArray(TInt32), FastIndexedSeq(10, 1)),
         Literal(TDict(TInt32, TString), Map(1 -> "foo", 10 -> "baz")))
     } {
-      val ir = invoke("contains", TBoolean, lit, k1)
-      check(ir,
-        Interval(Row(1), Row(1), true, true),
-        Interval(Row(10), Row(10), true, true))
-
-      val ir2 = ApplyUnaryPrimOp(Bang, ir)
-      check(ir2,
-        Interval(Row(), Row(1), true, false),
-        Interval(Row(1), Row(10), false, false),
-        Interval(Row(10), Row(), false, true))
+      check(
+        invoke("contains", TBoolean, lit, k1),
+        FastIndexedSeq(
+          Interval(Row(1), Row(1), true, true),
+          Interval(Row(10), Row(10), true, true)),
+        FastIndexedSeq(
+          Interval(Row(), Row(1), true, false),
+          Interval(Row(1), Row(10), false, false),
+          Interval(Row(10), Row(), false, true)),
+        FastIndexedSeq())
     }
   }
 
   @Test def testLiteralContainsStruct() {
     hc // force initialization
 
-    def check(node: IR, expectedIntervals: Interval*) {
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval]) {
       val testRows = FastIndexedSeq(
         Row(0, 1, 2),
         Row(0, 3, 4),
@@ -181,85 +218,74 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         Row(0, 5, 5),
         Row(0, null, 1),
         Row(0, null, null))
-      outer.check(node, expectedIntervals, True(), testRows, structRef, fullKeyRefs(0))
+      checkAll(node, structRef, fullKeyRefs(0), testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
     for {
       lit <- Array(
         Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4), Row(3, null))),
-        Literal(TArray(structT1), FastIndexedSeq(Row(3, 4), Row(1, 2), null, Row(3, null))),
+        Literal(TArray(structT1), FastIndexedSeq(Row(3, 4), Row(1, 2), Row(3, null))),
         Literal(TDict(structT1, TString), Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar", Row(3, null) -> "baz")))
     } {
       for (k <- fullKeyRefs) {
-        val ir = invoke("contains", TBoolean, lit, k)
-
-        check(ir,
-          Interval(Row(1, 2), Row(1, 2), true, true),
-          Interval(Row(3, 4), Row(3, 4), true, true),
-          Interval(Row(3, null), Row(3, null), true, true))
-
-        val ir2 = ApplyUnaryPrimOp(Bang, ir)
-        check(ir2,
-          Interval(Row(), Row(1, 2), true, false),
-          Interval(Row(1, 2), Row(3, 4), false, false),
-          Interval(Row(3, 4), Row(3, null), false, false),
-          Interval(Row(3, null), Row(), false, true))
+        check(invoke("contains", TBoolean, lit, k),
+          IndexedSeq(
+            Interval(Row(1, 2), Row(1, 2), true, true),
+            Interval(Row(3, 4), Row(3, 4), true, true),
+            Interval(Row(3, null), Row(3, null), true, true)),
+          IndexedSeq(
+            Interval(Row(), Row(1, 2), true, false),
+            Interval(Row(1, 2), Row(3, 4), false, false),
+            Interval(Row(3, 4), Row(3, null), false, false),
+            Interval(Row(3, null), Row(), false, true)),
+          IndexedSeq())
       }
     }
 
     for {
       lit <- Array(
-        Literal(TSet(structT2), Set(Row(1), Row(3), null, Row(null))),
-        Literal(TArray(structT2), FastIndexedSeq(null, Row(3), Row(null), Row(1))),
+        Literal(TSet(structT2), Set(Row(1), Row(3), Row(null))),
+        Literal(TArray(structT2), FastIndexedSeq(Row(3), Row(null), Row(1))),
         Literal(TDict(structT2, TString), Map(Row(1) -> "foo", Row(null) -> "baz", Row(3) -> "bar")))
     } {
       for (k <- prefixKeyRefs) {
-        val ir = invoke("contains", TBoolean, lit, k)
-
-        val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ctx, ir, structRef, structRefKey).get
-        assert(rw == True())
-        assert(i == FastSeq(
-          Interval(Row(1), Row(1), true, true),
-          Interval(Row(3), Row(3), true, true),
-          Interval(Row(null), Row(), true, true)))
-
-        val ir2 = ApplyUnaryPrimOp(Bang, ir)
-        val (rw2, i2) = ExtractIntervalFilters.extractPartitionFilters(ctx, ir2, structRef, structRefKey).get
-        assert(rw2 == True())
-        assert(i2 == FastSeq(
-          Interval(Row(), Row(1), true, false),
-          Interval(Row(1), Row(3), false, false),
-          Interval(Row(3), Row(null), false, false)))
+        check(invoke("contains", TBoolean, lit, k),
+          IndexedSeq(
+            Interval(Row(1), Row(1), true, true),
+            Interval(Row(3), Row(3), true, true),
+            Interval(Row(null), Row(), true, true)),
+          IndexedSeq(
+            Interval(Row(), Row(1), true, false),
+            Interval(Row(1), Row(3), false, false),
+            Interval(Row(3), Row(null), false, false)),
+          IndexedSeq())
       }
     }
   }
 
   @Test def testIntervalContains() {
-    def check(node: IR, expectedIntervals: Interval*) {
-      val testRows = FastIndexedSeq(
-        Row(0, 0, true),
-        Row(0, 1, true),
-        Row(0, 5, true),
-        Row(0, 10, true),
-        Row(0, null, true))
-      outer.check(node, expectedIntervals, True(), testRows, ref1, k1Full)
-    }
-
     val interval = Interval(1, 5, false, true)
-    val ir = invoke("contains", TBoolean, Literal(TInterval(TInt32), interval), k1)
-    check(ir, Interval(Row(1), Row(5), false, true))
+    val testRows = FastIndexedSeq(
+      Row(0, 0, true),
+      Row(0, 1, true),
+      Row(0, 5, true),
+      Row(0, 10, true),
+      Row(0, null, true))
 
-    val ir2 = ApplyUnaryPrimOp(Bang, ir)
-    check(ir2,
-      Interval(Row(), Row(1), true, true),
-      Interval(Row(5), Row(null), false, false))
+    val ir = invoke("contains", TBoolean, Literal(TInterval(TInt32), interval), k1)
+    checkAll(ir, ref1, k1Full, testRows,
+      FastIndexedSeq(Interval(Row(1), Row(5), false, true)),
+      FastIndexedSeq(
+        Interval(Row(), Row(1), true, true),
+        Interval(Row(5), Row(null), false, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
   }
 
   @Test def testIntervalContainsStruct() {
     val fullInterval = Interval(Row(1, 1), Row(2, 2), false, true)
     val prefixInterval = Interval(Row(1), Row(2), false, true)
 
-    def check(node: IR, expectedIntervals: Interval*) {
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval]) {
       val testRows = FastIndexedSeq(
         Row(0, null, 0),
         Row(0, 0, 0),
@@ -272,27 +298,25 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         Row(0, 2, null),
         Row(0, 3, 0),
         Row(0, null, null))
-      outer.check(node, expectedIntervals, True(), testRows, structRef, fullKeyRefs(0))
+      checkAll(node, structRef, fullKeyRefs(0), testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
     for (k <- fullKeyRefs) {
-      val ir = invoke("contains", TBoolean, Literal(TInterval(structT1), fullInterval), k)
-      check(ir, fullInterval)
-
-      val ir2 = ApplyUnaryPrimOp(Bang, ir)
-      check(ir2,
-        Interval(Row(), Row(1, 1), true, true),
-        Interval(Row(2, 2), Row(), false, true))
+      check(invoke("contains", TBoolean, Literal(TInterval(structT1), fullInterval), k),
+        FastIndexedSeq(fullInterval),
+        FastIndexedSeq(
+          Interval(Row(), Row(1, 1), true, true),
+          Interval(Row(2, 2), Row(), false, true)),
+        FastIndexedSeq())
     }
 
     for (k <- prefixKeyRefs) {
-      val ir = invoke("contains", TBoolean, Literal(TInterval(structT2), prefixInterval), k)
-      check(ir, prefixInterval)
-
-      val ir2 = ApplyUnaryPrimOp(Bang, ir)
-      check(ir2,
-        Interval(Row(), Row(1), true, true),
-        Interval(Row(2), Row(), false, true))
+      check(invoke("contains", TBoolean, Literal(TInterval(structT2), prefixInterval), k),
+        FastIndexedSeq(prefixInterval),
+        FastIndexedSeq(
+          Interval(Row(), Row(1), true, true),
+          Interval(Row(2), Row(), false, true)),
+        FastIndexedSeq())
     }
   }
 
@@ -301,29 +325,25 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
-    def check(node: IR, expectedIntervals: Interval*) {
-      val testRows = FastIndexedSeq(
-        Row(Locus("chr1", 5)),
-        Row(Locus("chr2", 1)),
-        Row(Locus("chr2", 1000)),
-        Row(Locus("chr3", 5)),
-        Row(null))
-      outer.check(node, expectedIntervals, True(), testRows, ref, ref)
-    }
-
     val ir1 = ApplyComparisonOp(EQ(TString), Str("chr2"), invoke("contig", TString, k))
     val ir2 = ApplyComparisonOp(EQ(TString), invoke("contig", TString, k), Str("chr2"))
-    val ir3 = ApplyUnaryPrimOp(Bang, ir2)
 
-    check(ir1,
+    val testRows = FastIndexedSeq(
+      Row(Locus("chr1", 5)),
+      Row(Locus("chr2", 1)),
+      Row(Locus("chr2", 1000)),
+      Row(Locus("chr3", 5)),
+      Row(null))
+
+    val trueIntervals = FastIndexedSeq(
       Interval(Row(Locus("chr2", 1)), Row(Locus("chr2", grch38.contigLength("chr2"))), true, false))
-
-    check(ir2,
-      Interval(Row(Locus("chr2", 1)), Row(Locus("chr2", grch38.contigLength("chr2"))), true, false))
-
-    check(ir3,
+    val falseIntervals = FastIndexedSeq(
       Interval(Row(), Row(Locus("chr2", 1)), true, false),
       Interval(Row(Locus("chr2", grch38.contigLength("chr2"))), Row(null), true, false))
+    val naIntervals = FastIndexedSeq(Interval(Row(null), Row(), true, true))
+
+    checkAll(ir1, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
+    checkAll(ir2, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
   }
 
   @Test def testLocusPositionComparison() {
@@ -352,10 +372,10 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         Row(Locus("chr3", 105)),
         Row(null))
 
-      outer.check(ApplyComparisonOp(op, pos, I32(point)), trueIntervals, True(), testRows, ref, ref)
-      outer.check(ApplyComparisonOp(ComparisonOp.swap(op), I32(point), pos), trueIntervals, True(), testRows, ref, ref)
-      outer.check(ApplyComparisonOp(ComparisonOp.negate(op), pos, I32(point)), falseIntervals, True(), testRows, ref, ref)
-      outer.check(ApplyComparisonOp(ComparisonOp.swap(ComparisonOp.negate(op)), I32(point), pos), falseIntervals, True(), testRows, ref, ref)
+      outer.check(ApplyComparisonOp(op, pos, I32(point)), ref, ref, testRows, True(), trueIntervals)
+      outer.check(ApplyComparisonOp(ComparisonOp.swap(op), I32(point), pos), ref, ref, testRows, True(), trueIntervals)
+      outer.check(ApplyComparisonOp(ComparisonOp.negate(op), pos, I32(point)), ref, ref, testRows, True(), falseIntervals)
+      outer.check(ApplyComparisonOp(ComparisonOp.swap(ComparisonOp.negate(op)), I32(point), pos), ref, ref, testRows, True(), falseIntervals)
     }
 
     check(GT(TInt32), 100,
