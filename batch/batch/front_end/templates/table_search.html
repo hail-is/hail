@@ -67,7 +67,7 @@
   <script>
     document.getElementById("{{ component_name }}-input-box")
       .addEventListener("keydown", function(e) {
-        if (e.which === 13 && e.metaKey) {
+        if (e.which === 13 && (e.metaKey || e.ctrlKey)) {
           e.preventDefault();
           document.getElementById("{{ component_name }}-form").submit();
         }
