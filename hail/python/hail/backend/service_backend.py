@@ -493,7 +493,10 @@ class ServiceBackend(Backend):
         except FileNotFoundError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(
+                    _job_filter=lambda x: x['state'] == 'Failed',
+                    _max_jobs=10
+                ),
                 'input_uri': await self._async_fs.read(input_uri),
             })) from exc
 
@@ -514,7 +517,10 @@ class ServiceBackend(Backend):
         except UnexpectedEOFError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(
+                    _job_filter=lambda x: x['state'] == 'Failed',
+                    _max_jobs=10
+                ),
                 'in': await self._async_fs.read(input_uri),
                 'out': await self._async_fs.read(output_uri),
             })) from exc

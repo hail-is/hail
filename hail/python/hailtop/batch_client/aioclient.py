@@ -1,4 +1,5 @@
-from typing import Optional, Dict, Any, List, Tuple, Union
+from typing import Optional, Dict, Any, List, Tuple, Union, AsyncIterable, TypedDict, Callable, cast
+from enum import Enum
 import math
 import random
 import logging
@@ -17,6 +18,7 @@ from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
+from .types import GetJobsResponse, JobListEntry
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
@@ -306,6 +308,10 @@ class BatchAlreadyCreatedError(Exception):
     pass
 
 
+class BatchDebugInfo(TypedDict):
+    status: Dict[str, Any]
+    jobs: List[JobListEntry]
+
 class Batch:
     def __init__(self,
                  client: 'BatchClient',
@@ -352,11 +358,15 @@ class Batch:
         return self._id is not None
 
     async def cancel(self):
-        self._raise_if_not_created()
+v        self._raise_if_not_created()
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def jobs(self, q: Optional[str] = None, version: Optional[int] = None):
+    async def jobs(self,
+                   q: Optional[str] = None,
+                   version: Optional[int] = None
+                   ) -> AsyncIterable[JobListEntry]:
         self._raise_if_not_created()
+>>>>>>> Stashed changes
         if version is None:
             version = 1
         last_job_id = None
@@ -367,7 +377,10 @@ class Batch:
             if last_job_id is not None:
                 params['last_job_id'] = last_job_id
             resp = await self._client._get(f'/api/v{version}alpha/batches/{self.id}/jobs', params=params)
-            body = await resp.json()
+            body = cast(
+                GetJobsResponse,
+                await resp.json()
+            )
             for job in body['jobs']:
                 yield job
             last_job_id = body.get('last_job_id')
@@ -462,14 +475,21 @@ class Batch:
         with BatchProgressBar(disable=disable_progress_bar) as progress2:
             return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
-    async def debug_info(self):
+    async def debug_info(self,
+                         _job_filter: Optional[Callable[[JobListEntry], bool]] = None,
+                         _max_jobs: Optional[int] = None
+                         ) -> BatchDebugInfo:
         self._raise_if_not_created()
         batch_status = await self.status()
         jobs = []
         async for j_status in self.jobs():
-            id = j_status['job_id']
-            log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
-            jobs.append({'log': log, 'status': job._status})
+            if _max_jobs and len(jobs) == _max_jobs:
+                break
+
+            if _job_filter is None or _job_filter(j_status):
+                id = j_status['job_id']
+                log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
+                jobs.append({'log': log, 'status': job._status})
         return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):

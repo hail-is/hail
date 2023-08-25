@@ -1,8 +1,10 @@
+from typing import Any, Dict
 import json
 import logging
 
 from gear import transaction
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
+from hailtop.batch_client.types import JobListEntry
 
 from .batch_format_version import BatchFormatVersion
 from .exceptions import NonExistentBatchError, OpenBatchError
@@ -66,7 +68,7 @@ def batch_record_to_dict(record):
     return d
 
 
-def job_record_to_dict(record, name):
+def job_record_to_dict(record: Dict[str, Any], name: str) -> JobListEntry:
     format_version = BatchFormatVersion(record['format_version'])
 
     db_status = record['status']
@@ -77,7 +79,7 @@ def job_record_to_dict(record, name):
         exit_code = None
         duration = None
 
-    result = {
+    return {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
         'name': name,
@@ -89,8 +91,6 @@ def job_record_to_dict(record, name):
         'cost': coalesce(record['cost'], 0),
         'msec_mcpu': record['msec_mcpu'],
     }
-
-    return result
 
 
 async def cancel_batch_in_db(db, batch_id):

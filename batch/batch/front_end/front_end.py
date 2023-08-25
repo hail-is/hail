@@ -44,6 +44,7 @@ from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, version
+from hailtop.batch_client.types import JobListEntry, GetJobsResponse
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -252,7 +253,9 @@ async def _handle_api_error(f: Callable[P, Awaitable[T]], *args: P.args, **kwarg
         raise e.http_response()
 
 
-async def _query_batch_jobs(request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
+async def _query_batch_jobs(
+    request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]
+) -> Tuple[List[JobListEntry], Optional[int]]:
     db: Database = request.app['db']
     if version == 1:
         sql, sql_args = parse_batch_jobs_query_v1(batch_id, q, last_job_id)
@@ -270,7 +273,9 @@ async def _query_batch_jobs(request: web.Request, batch_id: int, version: int, q
     return (jobs, last_job_id)
 
 
-async def _get_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
+async def _get_jobs(
+    request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]
+) -> GetJobsResponse:
     db = request.app['db']
 
     record = await db.select_and_fetchone(
@@ -285,7 +290,7 @@ WHERE id = %s AND NOT deleted;
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id, version, q, last_job_id)
 
-    resp = {'jobs': jobs}
+    resp: GetJobsResponse = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
     return resp
