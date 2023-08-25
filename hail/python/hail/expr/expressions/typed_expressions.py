@@ -1779,7 +1779,7 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
 
     def _set_field(self, key, value):
         self._fields[key] = value
-        if key not in self.__dict__:
+        if key not in self.__dir__():
             self.__dict__[key] = value
 
     def _get_field(self, item):
