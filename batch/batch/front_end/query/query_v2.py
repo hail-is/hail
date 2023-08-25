@@ -133,7 +133,7 @@ SELECT batches.*,
   batches_n_jobs_in_complete_states.n_succeeded,
   batches_n_jobs_in_complete_states.n_failed,
   batches_n_jobs_in_complete_states.n_cancelled,
-  cost_t.cost
+  cost_t.cost, cost_t.cost_breakdown
 FROM batches
 LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
 LEFT JOIN batches_n_jobs_in_complete_states ON batches.id = batches_n_jobs_in_complete_states.id
