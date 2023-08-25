@@ -3841,6 +3841,8 @@ steps:
       cd /io/repo/
       python3 devbin/generate_gcp_ar_cleanup_policy.py | diff - infra/gcp-broad/gcp-ar-cleanup-policy.txt
     inputs:
+      - from: /repo/build.yaml
+        to: /io/repo/build.yaml
       - from: /repo/devbin
         to: /io/repo/devbin
       - from: /repo/infra
