@@ -18,7 +18,7 @@ from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
-from .types import GetJobsResponsev1, JobListEntryv1
+from .types import GetJobsResponseV1Alpha, JobListEntryV1Alpha
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
@@ -310,7 +310,7 @@ class BatchAlreadyCreatedError(Exception):
 
 class BatchDebugInfo(TypedDict):
     status: Dict[str, Any]
-    jobs: List[JobListEntryv1]
+    jobs: List[JobListEntryV1Alpha]
 
 class Batch:
     def __init__(self,
@@ -364,7 +364,7 @@ class Batch:
     async def jobs(self,
                    q: Optional[str] = None,
                    version: Optional[int] = None
-                   ) -> AsyncIterable[JobListEntryv1]:
+                   ) -> AsyncIterable[JobListEntryV1Alpha]:
         self._raise_if_not_created()
         if version is None:
             version = 1
@@ -377,7 +377,7 @@ class Batch:
                 params['last_job_id'] = last_job_id
             resp = await self._client._get(f'/api/v{version}alpha/batches/{self.id}/jobs', params=params)
             body = cast(
-                GetJobsResponsev1,
+                GetJobsResponseV1Alpha,
                 await resp.json()
             )
             for job in body['jobs']:
