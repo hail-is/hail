@@ -3845,6 +3845,10 @@ steps:
         to: /io/repo/devbin
       - from: /repo/infra
         to: /io/repo/infra
+      - from: /repo/docker
+        to: /io/repo/docker
+      - from: /repo/ci/test/resources
+        to: /io/repo/ci/test/resources
     clouds:
       - gcp
     dependsOn:
