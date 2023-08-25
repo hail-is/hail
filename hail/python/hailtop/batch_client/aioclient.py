@@ -475,20 +475,19 @@ class Batch:
             return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
     async def debug_info(self,
-                         _job_filter: Optional[Callable[[JobListEntryv1], bool]] = None,
-                         _max_jobs: Optional[int] = None
+                         _jobs_query_string: Optional[str] = None,
+                         _max_jobs: Optional[int] = None,
                          ) -> BatchDebugInfo:
         self._raise_if_not_created()
         batch_status = await self.status()
         jobs = []
-        async for j_status in self.jobs():
+        async for j_status in self.jobs(q=_jobs_query_string):
             if _max_jobs and len(jobs) == _max_jobs:
                 break
 
-            if _job_filter is None or _job_filter(j_status):
-                id = j_status['job_id']
-                log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
-                jobs.append({'log': log, 'status': job._status})
+            id = j_status['job_id']
+            log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
+            jobs.append({'log': log, 'status': job._status})
         return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):
