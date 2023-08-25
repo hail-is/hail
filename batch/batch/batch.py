@@ -12,6 +12,10 @@ from .utils import coalesce
 log = logging.getLogger('batch')
 
 
+def cost_breakdown_to_dict(cost_breakdown: dict):
+    return [{'resource': resource, 'cost': cost} for resource, cost in cost_breakdown.items()]
+
+
 def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     if record['state'] == 'open':
         state = 'open'
@@ -40,10 +44,7 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
         duration = None
 
     if record['cost_breakdown'] is not None:
-        record['cost_breakdown'] = json.loads(record['cost_breakdown'])
-        record['cost_breakdown'] = [
-            {'resource': resource, 'cost': cost} for resource, cost in record['cost_breakdown'].items()
-        ]
+        record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
     d = {
         'id': record['id'],
@@ -86,10 +87,7 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> Dict[str,
         duration = None
 
     if record['cost_breakdown'] is not None:
-        record['cost_breakdown'] = json.loads(record['cost_breakdown'])
-        record['cost_breakdown'] = [
-            {'resource': resource, 'cost': cost} for resource, cost in record['cost_breakdown'].items()
-        ]
+        record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
     result = {
         'batch_id': record['batch_id'],
