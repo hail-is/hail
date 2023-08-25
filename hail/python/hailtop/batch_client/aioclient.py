@@ -18,7 +18,7 @@ from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
-from .types import GetJobsResponsv1, JobListEntryv1
+from .types import GetJobsResponsev1, JobListEntryv1
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
