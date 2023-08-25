@@ -29,8 +29,7 @@ def backend():
 @pytest.fixture(scope='session', autouse=True)
 def check_for_running_batches():
     yield
-    billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
-    with BatchClient(billing_project=billing_project) as bc:
+    with BatchClient('') as bc:
         for id in submitted_batch_ids:
             b = bc.get_batch(id)
             tries = 1

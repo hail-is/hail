@@ -8,7 +8,6 @@ from aiohttp import web
 
 from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient, Job
-from hailtop.config import get_user_config
 
 from .utils import DOCKER_ROOT_IMAGE, batch_status_job_counter, create_batch, legacy_batch_status
 
@@ -192,8 +191,7 @@ def test_no_parents_allowed_in_other_batches(client):
     assert False
 
 
-def test_input_dependency(client):
-    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
+def test_input_dependency(client, remote_tmpdir):
     batch = create_batch(client)
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
@@ -214,8 +212,7 @@ def test_input_dependency(client):
     assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
 
 
-def test_input_dependency_wildcard(client):
-    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
+def test_input_dependency_wildcard(client, remote_tmpdir):
     batch = create_batch(client)
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
@@ -236,8 +233,7 @@ def test_input_dependency_wildcard(client):
     assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
 
 
-def test_input_dependency_directory(client):
-    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
+def test_input_dependency_directory(client, remote_tmpdir):
     batch = create_batch(client)
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,

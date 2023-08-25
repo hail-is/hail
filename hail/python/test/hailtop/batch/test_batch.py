@@ -16,11 +16,13 @@ from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped, async_to_blocking
-from hailtop.config import get_user_config
+from hailtop.config import get_remote_tmpdir, configuration_of
 from hailtop.batch.utils import concatenate
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.test_utils import skip_in_azure
 from hailtop.httpx import ClientResponseError
+
+from hailtop.config.variables import ConfigVariable
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
@@ -480,7 +482,7 @@ class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend()
 
-        remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
+        remote_tmpdir = get_remote_tmpdir('hailtop_test_batch_service_tests')
         if not remote_tmpdir.endswith('/'):
             remote_tmpdir += '/'
         self.remote_tmpdir = remote_tmpdir + str(uuid.uuid4()) + '/'
@@ -1093,7 +1095,7 @@ class ServiceTests(unittest.TestCase):
 
         j = bb.new_python_job()
         j.env('HAIL_QUERY_BACKEND', 'batch')
-        j.env('HAIL_BATCH_BILLING_PROJECT', get_user_config().get('batch', 'billing_project'))
+        j.env('HAIL_BATCH_BILLING_PROJECT', configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, None, ''))
         j.env('HAIL_BATCH_REMOTE_TMPDIR', self.remote_tmpdir)
         j.call(qob_in_batch)
 
