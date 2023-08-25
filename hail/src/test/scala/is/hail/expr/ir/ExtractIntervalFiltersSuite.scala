@@ -34,6 +34,18 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   def grch38: ReferenceGenome = ctx.getReference(ReferenceGenome.GRCh38)
 
+  def lt(l: IR, r: IR): IR = ApplyComparisonOp(LT(l.typ), l, r)
+  def gt(l: IR, r: IR): IR = ApplyComparisonOp(GT(l.typ), l, r)
+  def lteq(l: IR, r: IR): IR = ApplyComparisonOp(LTEQ(l.typ), l, r)
+  def gteq(l: IR, r: IR): IR = ApplyComparisonOp(GTEQ(l.typ), l, r)
+  def eq(l: IR, r: IR): IR = ApplyComparisonOp(EQ(l.typ), l, r)
+  def neq(l: IR, r: IR): IR = ApplyComparisonOp(NEQ(l.typ), l, r)
+  def eqna(l: IR, r: IR): IR = ApplyComparisonOp(EQWithNA(l.typ), l, r)
+  def neqna(l: IR, r: IR): IR = ApplyComparisonOp(NEQWithNA(l.typ), l, r)
+  def or(l: IR, r: IR): IR = invoke("lor", TBoolean, l, r)
+  def and(l: IR, r: IR): IR = invoke("land", TBoolean, l, r)
+  def not(b: IR): IR = ApplyUnaryPrimOp(Bang, b)
+
   def check(filter: IR, rowRef: Ref, key: IR, probes: IndexedSeq[Row], residualFilter: IR, trueIntervals: Seq[Interval]): Unit = {
     val result = ExtractIntervalFilters.extractPartitionFilters(ctx, filter, rowRef, key.typ.asInstanceOf[TStruct].fieldNames)
     if (result.isEmpty) {
@@ -357,9 +369,11 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       point: Int,
       truePosIntervals: IndexedSeq[Interval],
       falsePosIntervals: IndexedSeq[Interval],
+      naPosIntervals: IndexedSeq[Interval]
     ) {
       val trueIntervals = ExtractIntervalFilters.liftPosIntervalsToLocus(truePosIntervals, grch38, ctx)
       val falseIntervals = ExtractIntervalFilters.liftPosIntervalsToLocus(falsePosIntervals, grch38, ctx)
+      val naIntervals = ExtractIntervalFilters.liftPosIntervalsToLocus(naPosIntervals, grch38, ctx)
 
       val testRows = FastIndexedSeq(
         Row(Locus("chr1", 1)),
@@ -372,43 +386,51 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         Row(Locus("chr3", 105)),
         Row(null))
 
-      outer.check(ApplyComparisonOp(op, pos, I32(point)), ref, ref, testRows, True(), trueIntervals)
-      outer.check(ApplyComparisonOp(ComparisonOp.swap(op), I32(point), pos), ref, ref, testRows, True(), trueIntervals)
-      outer.check(ApplyComparisonOp(ComparisonOp.negate(op), pos, I32(point)), ref, ref, testRows, True(), falseIntervals)
-      outer.check(ApplyComparisonOp(ComparisonOp.swap(ComparisonOp.negate(op)), I32(point), pos), ref, ref, testRows, True(), falseIntervals)
+      checkAll(ApplyComparisonOp(op, pos, I32(point)), ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
+      checkAll(ApplyComparisonOp(ComparisonOp.swap(op), I32(point), pos), ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
+      checkAll(ApplyComparisonOp(ComparisonOp.negate(op), pos, I32(point)), ref, ref, testRows, falseIntervals, trueIntervals, naIntervals)
+      checkAll(ApplyComparisonOp(ComparisonOp.swap(ComparisonOp.negate(op)), I32(point), pos), ref, ref, testRows, falseIntervals, trueIntervals, naIntervals)
     }
 
     check(GT(TInt32), 100,
       FastIndexedSeq(Interval(Row(100), Row(null), false, false)),
-      FastIndexedSeq(Interval(Row(), Row(100), true, true)))
+      FastIndexedSeq(Interval(Row(), Row(100), true, true)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
     check(GT(TInt32), -1000,
         FastIndexedSeq(Interval(Row(1), Row(null), true, false)),
-        FastIndexedSeq())
+        FastIndexedSeq(),
+        FastIndexedSeq(Interval(Row(null), Row(), true, true)))
 
     check(LT(TInt32), 100,
       FastIndexedSeq(Interval(Row(), Row(100), true, false)),
-      FastIndexedSeq(Interval(Row(100), Row(null), true, false)))
+      FastIndexedSeq(Interval(Row(100), Row(null), true, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
     check(LT(TInt32), -1000,
       FastIndexedSeq(),
-      FastIndexedSeq(Interval(Row(), Row(null), true, false)))
+      FastIndexedSeq(Interval(Row(), Row(null), true, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
 
     check(EQ(TInt32), 100,
       FastIndexedSeq(Interval(Row(100), Row(100), true, true)),
       FastIndexedSeq(
         Interval(Row(), Row(100), true, false),
-        Interval(Row(100), Row(null), false, false)))
+        Interval(Row(100), Row(null), false, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
     check(EQ(TInt32), -1000,
       FastIndexedSeq(),
-      FastIndexedSeq(Interval(Row(), Row(null), true, false)))
+      FastIndexedSeq(Interval(Row(), Row(null), true, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
 
     check(EQWithNA(TInt32), 100,
       FastIndexedSeq(Interval(Row(100), Row(100), true, true)),
       FastIndexedSeq(
         Interval(Row(), Row(100), true, false),
-        Interval(Row(100), Row(), false, true)))
+        Interval(Row(100), Row(), false, true)),
+      FastIndexedSeq())
     check(EQWithNA(TInt32), -1000,
       FastIndexedSeq(),
-      FastIndexedSeq(Interval(Row(), Row(), true, true)))
+      FastIndexedSeq(Interval(Row(), Row(), true, true)),
+      FastIndexedSeq())
 
     assert(ExtractIntervalFilters.extractPartitionFilters(ctx, ApplyComparisonOp(Compare(TInt32), I32(0), pos), ref, ref1Key).isEmpty)
   }
@@ -419,43 +441,78 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     val k = GetField(ref, "x")
     val contig = invoke("contig", TString, k)
 
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval]) {
+      val testRows = FastIndexedSeq(
+        Row(Locus("chr1", 5)),
+        Row(Locus("chr2", 1)),
+        Row(Locus("chr10", 5)),
+        Row(null))
+      checkAll(node, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
+    }
+
     for {
       lit <- Array(
         Literal(TSet(TString), Set("chr10", "chr1", null, "foo")),
         Literal(TArray(TString), FastIndexedSeq("foo", "chr10", null, "chr1")),
         Literal(TDict(TString, TString), Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz", (null, "quux"))))
     } {
-      val ir = invoke("contains", TBoolean, lit, contig)
+      check(invoke("contains", TBoolean, lit, contig),
+        FastIndexedSeq(
+          Interval(
+            Row(Locus("chr1", 1)),
+            Row(Locus("chr1", grch38.contigLength("chr1"))),
+            true, false),
+          Interval(
+            Row(Locus("chr10", 1)),
+            Row(Locus("chr10", grch38.contigLength("chr10"))),
+            true, false),
+          Interval(Row(null), Row(), true, true)),
+        FastIndexedSeq(
+          Interval(
+            Row(),
+            Row(Locus("chr1", 1)),
+            true, false),
+          Interval(
+            Row(Locus("chr1", grch38.contigLength("chr1"))),
+            Row(Locus("chr10", 1)),
+            true, false),
+          Interval(
+            Row(Locus("chr10", grch38.contigLength("chr10"))),
+            Row(null),
+            true, false)),
+        FastIndexedSeq())
+    }
 
-      val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ctx, ir, ref, ref1Key).get
-      assert(rw == True())
-      assert(intervals == FastSeq(
-        Interval(
-          Row(Locus("chr1", 1)),
-          Row(Locus("chr1", grch38.contigLength("chr1"))),
-          true, false),
-        Interval(
-          Row(Locus("chr10", 1)),
-          Row(Locus("chr10", grch38.contigLength("chr10"))),
-          true, false),
-        Interval(Row(null), Row(), true, true)))
-
-      val ir2 = ApplyUnaryPrimOp(Bang, ir)
-      val (rw2, intervals2) = ExtractIntervalFilters.extractPartitionFilters(ctx, ir2, ref, ref1Key).get
-      assert(rw2 == True())
-      assert(intervals2 == FastSeq(
-        Interval(
-          Row(),
-          Row(Locus("chr1", 1)),
-          true, false),
-        Interval(
-          Row(Locus("chr1", grch38.contigLength("chr1"))),
-          Row(Locus("chr10", 1)),
-          true, false),
-        Interval(
-          Row(Locus("chr10", grch38.contigLength("chr10"))),
-          Row(null),
-          true, false)))
+    for {
+      lit <- Array(
+        Literal(TSet(TString), Set("chr10", "chr1", "foo")),
+        Literal(TArray(TString), FastIndexedSeq("foo", "chr10", "chr1")),
+        Literal(TDict(TString, TString), Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz")))
+    } {
+      check(invoke("contains", TBoolean, lit, contig),
+        FastIndexedSeq(
+          Interval(
+            Row(Locus("chr1", 1)),
+            Row(Locus("chr1", grch38.contigLength("chr1"))),
+            true, false),
+          Interval(
+            Row(Locus("chr10", 1)),
+            Row(Locus("chr10", grch38.contigLength("chr10"))),
+            true, false)),
+        FastIndexedSeq(
+          Interval(
+            Row(),
+            Row(Locus("chr1", 1)),
+            true, false),
+          Interval(
+            Row(Locus("chr1", grch38.contigLength("chr1"))),
+            Row(Locus("chr10", 1)),
+            true, false),
+          Interval(
+            Row(Locus("chr10", grch38.contigLength("chr10"))),
+            Row(),
+            true, true)),
+        FastIndexedSeq())
     }
   }
 
@@ -470,6 +527,23 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       Interval(20, 25, true, false),
       Interval(-10, 5, true, false))
 
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval]) {
+      val testRows = FastIndexedSeq(
+        Row(0, -15, true),
+        Row(0, -10, true),
+        Row(0, -5, true),
+        Row(0, 0, true),
+        Row(0, 5, true),
+        Row(0, 10, true),
+        Row(0, 15, true),
+        Row(0, 20, true),
+        Row(0, 22, true),
+        Row(0, 25, true),
+        Row(0, 30, true),
+        Row(0, null, true))
+      checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
+    }
+
     def containsKey(intervals: IndexedSeq[Interval]) = StreamFold(
       ToStream(Literal(TArray(TInterval(TInt32)), intervals)),
       False(),
@@ -479,57 +553,83 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         Ref("acc", TBoolean),
         invoke("contains", TBoolean, Ref("elt", TInterval(TInt32)), k1)))
 
-    val ir1 = containsKey(inIntervals)
-    val ir2 = containsKey(inIntervalsWithNull)
-    TypeCheck(ctx, ir1, BindingEnv(Env(ref1.name -> ref1.typ)))
-    TypeCheck(ctx, ir2, BindingEnv(Env(ref1.name -> ref1.typ)))
+    check(containsKey(inIntervals),
+      FastIndexedSeq(
+        Interval(Row(-10), Row(10), true, false),
+        Interval(Row(20), Row(25), true, false)),
+      FastIndexedSeq(
+        Interval(Row(), Row(-10), true, false),
+        Interval(Row(10), Row(20), true, false),
+        Interval(Row(25), Row(null), true, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
 
-    val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ctx, ir1, ref1, ref1Key).get
-    assert(rw == True())
-    assert(intervals == FastSeq(
-      Interval(Row(-10), Row(10), true, false),
-      Interval(Row(20), Row(25), true, false)))
-
-    val notIR1 = ApplyUnaryPrimOp(Bang, ir1)
-    val (rw2, intervals2) = ExtractIntervalFilters.extractPartitionFilters(ctx, notIR1, ref1, ref1Key).get
-    assert(rw2 == True())
-    assert(intervals2 == FastSeq(
-      Interval(Row(), Row(-10), true, false),
-      Interval(Row(10), Row(20), true, false),
-      Interval(Row(25), Row(null), true, false)))
-
-    // Whenever ir1 would be false, ir2 is instead missing, because of the null
+    // Whenever the previous would be false, this is instead missing, because of the null
     // In particular, it is never false, so notIR2 filters everything
-    val (rw3, intervals3) = ExtractIntervalFilters.extractPartitionFilters(ctx, ir2, ref1, ref1Key).get
-    assert(rw3 == True())
-    assert(intervals3 == FastSeq(
-      Interval(Row(-10), Row(10), true, false),
-      Interval(Row(20), Row(25), true, false)))
-
-    val notIR2 = ApplyUnaryPrimOp(Bang, ir2)
-    val (rw4, intervals4) = ExtractIntervalFilters.extractPartitionFilters(ctx, notIR2, ref1, ref1Key).get
-    assert(rw4 == True())
-    assert(intervals4 == FastSeq())
+    check(containsKey(inIntervalsWithNull),
+      FastIndexedSeq(
+        Interval(Row(-10), Row(10), true, false),
+        Interval(Row(20), Row(25), true, false)),
+      FastIndexedSeq(),
+      FastIndexedSeq(
+        Interval(Row(), Row(-10), true, false),
+        Interval(Row(10), Row(20), true, false),
+        Interval(Row(25), Row(), true, true)))
   }
 
   @Test def testDisjunction() {
-    val ir1 = ApplyComparisonOp(LT(TInt32), k1, I32(5))
-    val ir2 = ApplyComparisonOp(GT(TInt32), k1, I32(10))
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval], trueResidual: IR = True(), falseResidual: IR = True(), naResidual: IR = True()) {
+      val testRows = FastIndexedSeq(
+        Row(0, 0, true),
+        Row(0, 0, false),
+        Row(0, 5, true),
+        Row(0, 5, false),
+        Row(0, 7, true),
+        Row(0, 7, false),
+        Row(0, 10, true),
+        Row(0, 10, false),
+        Row(0, 15, true),
+        Row(0, 15, false),
+        Row(0, null, true),
+        Row(0, null, false))
+      checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals, trueResidual, falseResidual, naResidual)
+    }
 
-    val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ctx, invoke("lor", TBoolean, ir1, ir2), ref1, ref1Key).get
-    assert(rw == True())
-    assert(intervals == FastSeq(Interval(Row(), Row(5), true, false), Interval(Row(10), Row(null), false, false)))
+    val lt5 = ApplyComparisonOp(LT(TInt32), k1, I32(5))
+    val gt10 = ApplyComparisonOp(GT(TInt32), k1, I32(10))
 
-    assert(ExtractIntervalFilters.extractPartitionFilters(ctx, invoke("lor", TBoolean, ir1, Ref("foo", TBoolean)), ref1, ref1Key).isEmpty)
+    check(or(lt5, gt10),
+      FastIndexedSeq(
+        Interval(Row(), Row(5), true, false),
+        Interval(Row(10), Row(null), false, false)),
+      FastIndexedSeq(Interval(Row(5), Row(10), true, true)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
 
-    val ir3 = invoke("land", TBoolean,
-                     ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, ir1, unknownBool)),
-                     ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, ir2, unknownBool)))
-    val (rw3, intervals3) = ExtractIntervalFilters.extractPartitionFilters(ctx, ir3, ref1, ref1Key).get
-    assert(rw3 == invoke("land", TBoolean,
-                         ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, False(), unknownBool)),
-                         ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, False(), unknownBool))))
-    assert(intervals3 == FastSeq(Interval(Row(5), Row(10), true, true)))
+    check(or(lt5, unknownBool),
+      // could be true anywhere, since unknownBool might be true
+      FastIndexedSeq(Interval(Row(), Row(), true, true)),
+      // can only be false if lt5 is false
+      FastIndexedSeq(Interval(Row(5), Row(null), true, false)),
+      // can only be missing if lt5 is missing (and unknown is false or missing),
+      // or if lt5 is false (and unknown is missing)
+      FastIndexedSeq(Interval(Row(5), Row(), true, true)),
+      // we've filtered to the rows where lt5 is false
+      falseResidual = not(or(False(), unknownBool)),
+      // we've filtered to where lt5 is false or missing, so can't simplify
+      naResidual = IsNA(or(lt5, unknownBool)))
+
+    check(
+      invoke("land", TBoolean,
+        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, lt5, unknownBool)),
+        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, gt10, unknownBool))),
+      FastIndexedSeq(Interval(Row(5), Row(10), true, true)),
+      FastIndexedSeq(Interval(Row(), Row(), true, true)),
+      FastIndexedSeq(Interval(Row(5), Row(10), true, true), Interval(Row(null), Row(), true, true)),
+      trueResidual = invoke("land", TBoolean,
+        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, False(), unknownBool)),
+        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, False(), unknownBool))),
+      naResidual = IsNA(invoke("land", TBoolean,
+        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, lt5, unknownBool)),
+        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, gt10, unknownBool)))))
   }
 
   @Test def testConjunction() {
