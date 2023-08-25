@@ -3840,6 +3840,11 @@ steps:
       set -ex
       cd /io/repo/
       python3 devbin/generate_gcp_ar_cleanup_policy.py | diff - infra/gcp-broad/gcp-ar-cleanup-policy.txt
+    inputs:
+      - from: /repo/devbin
+        to: /io/repo/devbin
+      - from: /repo/infra
+        to: /io/repo/infra
     clouds:
       - gcp
     dependsOn:
