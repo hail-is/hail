@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Tuple
 
 
 class ConfigVariable(str, Enum):
@@ -18,3 +19,8 @@ class ConfigVariable(str, Enum):
     QUERY_BATCH_WORKER_MEMORY = 'query/batch_worker_memory'
     QUERY_NAME_PREFIX = 'query/name_prefix'
     QUERY_DISABLE_PROGRESS_BAR = 'query/disable_progress_bar'
+
+    def to_section_option(self) -> Tuple[str, str]:
+        if '/' in self.value:
+            return tuple(self.value.split('/'))
+        return ('global', self.value)

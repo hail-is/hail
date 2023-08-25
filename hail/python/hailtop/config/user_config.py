@@ -38,6 +38,10 @@ VALID_SECTION_AND_OPTION_RE = re.compile('[a-z0-9_]+')
 T = TypeVar('T')
 
 
+def config_option_environment_variable_name(section: str, option: str) -> str:
+    return 'HAIL_' + section.upper() + '_' + option.upper()
+
+
 def unchecked_configuration_of(section: str,
                                option: str,
                                explicit_argument: Optional[T],
@@ -47,7 +51,7 @@ def unchecked_configuration_of(section: str,
     if explicit_argument is not None:
         return explicit_argument
 
-    envvar = 'HAIL_' + section.upper() + '_' + option.upper()
+    envvar = config_option_environment_variable_name(section, option)
     envval = os.environ.get(envvar, None)
     deprecated_envval = None if deprecated_envvar is None else os.environ.get(deprecated_envvar)
     if envval is not None:
@@ -73,11 +77,7 @@ def configuration_of(config_variable: ConfigVariable,
                      fallback: T,
                      *,
                      deprecated_envvar: Optional[str] = None) -> Union[str, T]:
-    if '/' in config_variable.value:
-        section, option = config_variable.value.split('/')
-    else:
-        section = 'global'
-        option = config_variable.value
+    section, option = config_variable.to_section_option()
     return unchecked_configuration_of(section, option, explicit_argument, fallback, deprecated_envvar=deprecated_envvar)
 
 
