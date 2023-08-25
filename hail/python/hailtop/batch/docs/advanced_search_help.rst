@@ -14,7 +14,7 @@ Exact Match Expression
 A single word enclosed with double quotes that is an exact match for either the name or
 value of an attribute.
 
-**Example:** ``“pca_pipeline”``
+**Example:** ``"pca_pipeline"``
 
 Partial Match Expression
 ------------------------
