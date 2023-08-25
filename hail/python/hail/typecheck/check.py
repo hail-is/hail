@@ -1,8 +1,9 @@
+from typing import TypeVar, Callable
 import re
 import inspect
 import abc
 import collections
-from decorator import decorator
+from hailtop.hail_decorator import decorator
 
 
 class TypecheckFailure(Exception):
@@ -566,7 +567,6 @@ def check_all(f, args, kwargs, checks, is_method):
                 kwargs_[kwarg_name] = kwargs_check(arg, name, kwarg_name, checker)
     return args_, kwargs_
 
-
 def typecheck_method(**checkers):
     return _make_dec(checkers, is_method=True)
 
@@ -575,11 +575,14 @@ def typecheck(**checkers):
     return _make_dec(checkers, is_method=False)
 
 
-def _make_dec(checkers, is_method):
+T = TypeVar('T')
+
+
+def _make_dec(checkers, is_method: bool) -> Callable[[Callable[..., T]], Callable[..., T]]:
     checkers = {k: only(v) for k, v in checkers.items()}
 
     @decorator
-    def wrapper(__original_func, *args, **kwargs):
+    def wrapper(__original_func: Callable[..., T], *args, **kwargs) -> T:
         args_, kwargs_ = check_all(__original_func, args, kwargs, checkers, is_method=is_method)
         return __original_func(*args_, **kwargs_)
 
