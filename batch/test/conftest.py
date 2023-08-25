@@ -18,7 +18,7 @@ def log_before_after():
 
 @pytest.fixture(scope='module')
 def remote_tmpdir():
-    return get_remote_tmpdir('batch tests')
+    return get_remote_tmpdir('batch_tests')
 
 
 def pytest_collection_modifyitems(config, items):  # pylint: disable=unused-argument
