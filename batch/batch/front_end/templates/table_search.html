@@ -45,8 +45,8 @@
     }
   </style>
   <div class="flex-col">
-    <div id="{{ component_name }}" class="flex-col-align-right">
-      <form method="GET" action="{{ endpoint }}">
+    <div id="{{ component_name }}" class="flex-col-align-left">
+      <form id="{{ component_name }}-form" method="GET" action="{{ endpoint }}">
         <div id="{{ component_name }}-inner">
           <div>
             <textarea id="{{ component_name }}-input-box" autofocus name="q">{% if q %}{{ q }}{% endif %}</textarea>
@@ -64,4 +64,13 @@
       </form>
     </div>
   </div>
+  <script>
+    document.getElementById("{{ component_name }}-input-box")
+      .addEventListener("keydown", function(e) {
+        if (e.which === 13 && e.metaKey) {
+          e.preventDefault();
+          document.getElementById("{{ component_name }}-form").submit();
+        }
+    });
+  </script>
 {% endmacro %}
