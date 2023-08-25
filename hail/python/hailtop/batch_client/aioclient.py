@@ -358,7 +358,7 @@ class Batch:
         return self._id is not None
 
     async def cancel(self):
-v        self._raise_if_not_created()
+        self._raise_if_not_created()
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
     async def jobs(self,
@@ -366,7 +366,6 @@ v        self._raise_if_not_created()
                    version: Optional[int] = None
                    ) -> AsyncIterable[JobListEntry]:
         self._raise_if_not_created()
->>>>>>> Stashed changes
         if version is None:
             version = 1
         last_job_id = None
