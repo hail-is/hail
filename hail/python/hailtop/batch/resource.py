@@ -448,3 +448,6 @@ class PythonResult(Resource, str):
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member
+
+
+ResourceType = PythonResult | ResourceFile | ResourceGroup
