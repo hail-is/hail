@@ -33,7 +33,7 @@ from typing import (
 )
 
 import aiodocker  # type: ignore
-import aiodocker.utils
+import aiodocker.images
 import aiohttp
 import aiohttp.client_exceptions
 import aiomonitor
@@ -144,7 +144,7 @@ def compose_auth_header_urlsafe(orig_f):
 # We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
 # in urlsafe mode which is required for Azure's credentials.
 # https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
-aiodocker.utils.compose_auth_header = compose_auth_header_urlsafe(aiodocker.utils.compose_auth_header)
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)  # type: ignore
 
 
 configure_logging()
