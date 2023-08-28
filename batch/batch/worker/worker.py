@@ -1847,7 +1847,7 @@ class DockerJob(Job):
         except asyncio.CancelledError:
             raise
         except Exception:
-            pass
+            log.exception('While running container')
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
