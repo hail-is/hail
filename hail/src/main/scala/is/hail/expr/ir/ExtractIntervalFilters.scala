@@ -819,8 +819,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
             KeySet.meet(x.naBound, acc)
           }
           BoolValue(trueBound, falseBound, naBound)
+        } else {
+          aVals.reduce(Lattice.combine)
         }
-        aVals.reduce(Lattice.combine)
       case _ =>
         val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
         val keyOrConstVal = computeKeyOrConst(x, children)

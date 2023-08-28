@@ -337,8 +337,8 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
-    val ir1 = ApplyComparisonOp(EQ(TString), Str("chr2"), invoke("contig", TString, k))
-    val ir2 = ApplyComparisonOp(EQ(TString), invoke("contig", TString, k), Str("chr2"))
+    val ir1 = eq(Str("chr2"), invoke("contig", TString, k))
+    val ir2 = eq(invoke("contig", TString, k), Str("chr2"))
 
     val testRows = FastIndexedSeq(
       Row(Locus("chr1", 5)),
@@ -594,8 +594,8 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals, trueResidual, falseResidual, naResidual)
     }
 
-    val lt5 = ApplyComparisonOp(LT(TInt32), k1, I32(5))
-    val gt10 = ApplyComparisonOp(GT(TInt32), k1, I32(10))
+    val lt5 = lt(k1, I32(5))
+    val gt10 = gt(k1, I32(10))
 
     check(or(lt5, gt10),
       FastIndexedSeq(
@@ -617,36 +617,102 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       // we've filtered to where lt5 is false or missing, so can't simplify
       naResidual = IsNA(or(lt5, unknownBool)))
 
-    check(
-      invoke("land", TBoolean,
-        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, lt5, unknownBool)),
-        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, gt10, unknownBool))),
+    check(and(not(or(lt5, unknownBool)),
+              not(or(gt10, unknownBool))),
       FastIndexedSeq(Interval(Row(5), Row(10), true, true)),
       FastIndexedSeq(Interval(Row(), Row(), true, true)),
       FastIndexedSeq(Interval(Row(5), Row(10), true, true), Interval(Row(null), Row(), true, true)),
-      trueResidual = invoke("land", TBoolean,
-        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, False(), unknownBool)),
-        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, False(), unknownBool))),
-      naResidual = IsNA(invoke("land", TBoolean,
-        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, lt5, unknownBool)),
-        ApplyUnaryPrimOp(Bang, invoke("lor", TBoolean, gt10, unknownBool)))))
+      trueResidual = and(
+        not(or(False(), unknownBool)),
+        not(or(False(), unknownBool))),
+      naResidual = IsNA(and(
+        not(or(lt5, unknownBool)),
+        not(or(gt10, unknownBool)))))
   }
 
   @Test def testConjunction() {
-    val ir1 = ApplyComparisonOp(GT(TInt32), k1, I32(0))
-    val ir2 = ApplyComparisonOp(GT(TInt32), k1, I32(10))
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval], trueResidual: IR = True(), falseResidual: IR = True(), naResidual: IR = True()) {
+      val testRows = FastIndexedSeq(
+        Row(0, 0, true),
+        Row(0, 0, false),
+        Row(0, 5, true),
+        Row(0, 5, false),
+        Row(0, 7, true),
+        Row(0, 7, false),
+        Row(0, 10, true),
+        Row(0, 10, false),
+        Row(0, 15, true),
+        Row(0, 15, false),
+        Row(0, null, true),
+        Row(0, null, false))
+      checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals, trueResidual, falseResidual, naResidual)
+    }
 
-    val (rw1, intervals1) = ExtractIntervalFilters.extractPartitionFilters(ctx, invoke("land", TBoolean, ir1, ir2), ref1, ref1Key).get
-    assert(rw1 == True())
-    assert(intervals1 == FastSeq(
-      Interval(Row(10), Row(null), false, false)))
+    val gt5 = gt(k1, I32(5))
+    val lt10 = lt(k1, I32(10))
 
-    val (rw2, intervals2) = ExtractIntervalFilters.extractPartitionFilters(ctx, invoke("land", TBoolean, unknownBool, ir2), ref1, ref1Key).get
-    assert(rw2 == invoke("land", TBoolean, unknownBool, True()))
-    assert(intervals2 == FastSeq(
-      Interval(Row(10), Row(null), false, false)))
+    check(and(gt5, lt10),
+      FastIndexedSeq(Interval(Row(5), Row(10), false, false)),
+      FastIndexedSeq(
+        Interval(Row(), Row(5), true, true),
+        Interval(Row(10), Row(null), true, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
 
-    assert(ExtractIntervalFilters.extractPartitionFilters(ctx, invoke("land", TBoolean, unknownBool, unknownBool), ref1, ref1Key).isEmpty)
+    check(and(gt5, unknownBool),
+      // can only be true if gt5 is true
+      FastIndexedSeq(Interval(Row(5), Row(null), false, false)),
+      // could be false anywhere, since unknownBool might be false
+      FastIndexedSeq(Interval(Row(), Row(), true, true)),
+      // can only be missing if gt5 is missing (and unknown is true or missing),
+      // or if gt5 is true (and unknown is missing)
+      FastIndexedSeq(Interval(Row(5), Row(), false, true)),
+      // we've filtered to the rows where gt5 is true
+      trueResidual = and(True(), unknownBool),
+      // we've filtered to where gt5 is false or missing, so can't simplify
+      naResidual = IsNA(and(gt5, unknownBool)))
+  }
+
+  @Test def testCoalesce(): Unit = {
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval], trueResidual: IR = True(), falseResidual: IR = True(), naResidual: IR = True()) {
+      val testRows = FastIndexedSeq(
+        Row(0, 0, true),
+        Row(0, 5, true),
+        Row(0, 7, true),
+        Row(0, 10, true),
+        Row(0, 15, true),
+        Row(0, null, true))
+      checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals, trueResidual, falseResidual, naResidual)
+    }
+
+    val gt5 = gt(k1, I32(5))
+    val lt10 = lt(k1, I32(10))
+
+    check(Coalesce(FastSeq(gt5, lt10, False())),
+      FastIndexedSeq(Interval(Row(5), Row(null), false, false)),
+      FastIndexedSeq(
+        Interval(Row(), Row(5), true, true),
+        Interval(Row(null), Row(), true, true)),
+      FastIndexedSeq())
+  }
+
+  @Test def testIf(): Unit = {
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval], trueResidual: IR = True(), falseResidual: IR = True(), naResidual: IR = True()) {
+      val testRows = FastIndexedSeq(
+        Row(0, 0, true),
+        Row(0, 5, true),
+        Row(0, 7, true),
+        Row(0, 10, true),
+        Row(0, 15, true),
+        Row(0, null, true))
+      checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals, trueResidual, falseResidual, naResidual)
+    }
+
+    check(If(gt(k1, I32(0)), lt(k1, I32(5)), gt(k1, I32(-5))),
+      FastIndexedSeq(Interval(Row(-5), Row(5), false, false)),
+      FastIndexedSeq(
+        Interval(Row(), Row(-5), true, true),
+        Interval(Row(5), Row(null), true, false)),
+      FastIndexedSeq(Interval(Row(null), Row(), true, true)))
   }
 
   @Test def testIntegration() {
