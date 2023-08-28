@@ -74,6 +74,7 @@ from ..cloud.resource_utils import (
     valid_machine_types,
 )
 from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
+from ..constants import ROOT_JOB_GROUP_ID
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
@@ -87,7 +88,6 @@ from ..globals import (
     BATCH_FORMAT_VERSION,
     HTTP_CLIENT_MAX_SIZE,
     RESERVED_STORAGE_GB_PER_CORE,
-    ROOT_JOB_GROUP_ID,
     complete_states,
 )
 from ..inst_coll_config import InstanceCollectionConfigs
