@@ -1172,9 +1172,10 @@ BEGIN
   ELSE
     SELECT COALESCE(SUM(n_jobs), 0) INTO staging_n_jobs
     FROM batches_inst_coll_staging
-    WHERE batch_id = in_batch_id AND update_id = in_update_id
+    WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
     FOR UPDATE;
 
+    # we can only check staged equals expected for the root job group
     IF staging_n_jobs = expected_n_jobs THEN
       UPDATE batch_updates
       SET committed = 1, time_committed = in_timestamp
@@ -1186,11 +1187,21 @@ BEGIN
         n_jobs = n_jobs + expected_n_jobs
       WHERE id = in_batch_id;
 
+      UPDATE job_groups
+      INNER JOIN (
+        SELECT batch_id, job_group_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
+        FROM batches_inst_coll_staging
+        WHERE batch_id = in_batch_id AND update_id = in_update_id
+        GROUP BY batch_id, job_group_id
+      ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
+      SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
+
+      # compute global number of new ready jobs from root job group
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
       SELECT user, inst_coll, 0, @n_ready_jobs := COALESCE(SUM(n_ready_jobs), 0), @ready_cores_mcpu := COALESCE(SUM(ready_cores_mcpu), 0)
       FROM batches_inst_coll_staging
       JOIN batches ON batches.id = batches_inst_coll_staging.batch_id
-      WHERE batch_id = in_batch_id AND update_id = in_update_id
+      WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
       GROUP BY `user`, inst_coll
       ON DUPLICATE KEY UPDATE
         n_ready_jobs = n_ready_jobs + @n_ready_jobs,
