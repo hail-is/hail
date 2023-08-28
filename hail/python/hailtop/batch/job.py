@@ -877,17 +877,19 @@ source {code}
         return True
 
 
-UnpreparedArg = '_resource.ResourceType' | List['UnpreparedArg'] | Tuple['UnpreparedArg', ...] | Dict[str, 'UnpreparedArg'] | Any
+# Needs Python 3.10
+# UnpreparedArg = '_resource.ResourceType' | List['UnpreparedArg'] | Tuple['UnpreparedArg', ...] | Dict[str, 'UnpreparedArg'] | Any
 
-PreparedArg = (
-    Tuple[Literal['py_path'], str] |
-    Tuple[Literal['path'], str] |
-    Tuple[Literal['dict_path'], Dict[str, str]] |
-    Tuple[Literal['list'], List['PreparedArg']] |
-    Tuple[Literal['dict'], Dict[str, 'PreparedArg']] |
-    Tuple[Literal['tuple'], Tuple['PreparedArg', ...]] |
-    Tuple[Literal['value'], Any]
-)
+# Needs Python 3.10
+# PreparedArg = (
+#     Tuple[Literal['py_path'], str] |
+#     Tuple[Literal['path'], str] |
+#     Tuple[Literal['dict_path'], Dict[str, str]] |
+#     Tuple[Literal['list'], List['PreparedArg']] |
+#     Tuple[Literal['dict'], Dict[str, 'PreparedArg']] |
+#     Tuple[Literal['tuple'], Tuple['PreparedArg', ...]] |
+#     Tuple[Literal['value'], Any]
+# )
 
 
 class PythonJob(Job):
@@ -936,7 +938,7 @@ class PythonJob(Job):
         super().__init__(batch, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
-        self._function_calls: List[Tuple[_resource.PythonResult, int, Tuple[UnpreparedArg, ...], Dict[str, UnpreparedArg]]] = []
+        self._function_calls: List[Tuple[_resource.PythonResult, int, Tuple[Any, ...], Dict[str, Any]]] = []
         self.n_results = 0
 
     def _get_python_resource(self, item: str) -> '_resource.PythonResult':
@@ -982,7 +984,7 @@ class PythonJob(Job):
         self._image = image
         return self
 
-    def call(self, unapplied: Callable, *args: UnpreparedArg, **kwargs: UnpreparedArg) -> '_resource.PythonResult':
+    def call(self, unapplied: Callable, *args: Any, **kwargs: Any) -> '_resource.PythonResult':
         """Execute a Python function.
 
         Examples
@@ -1160,7 +1162,7 @@ class PythonJob(Job):
         return result
 
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
-        def preserialize(arg: UnpreparedArg) -> PreparedArg:
+        def preserialize(arg: Any) -> Any:
             if isinstance(arg, _resource.PythonResult):
                 return ('py_path', arg._get_path(local_tmpdir))
             if isinstance(arg, _resource.ResourceFile):
