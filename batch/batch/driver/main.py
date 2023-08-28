@@ -76,7 +76,7 @@ from .canceller import Canceller
 from .driver import CloudDriver
 from .instance import Instance
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
-from .job import mark_job_complete, mark_job_started
+from .job import mark_batch_complete, mark_job_complete, mark_job_started
 
 uvloop.install()
 
@@ -1245,6 +1245,30 @@ async def _cancel_batch(app, batch_id):
     set_cancel_state_changed(app)
 
 
+async def monitor_for_missed_complete_batches(app):
+    db: Database = app['db']
+    client_session: httpx.ClientSession = app['client_session']
+
+    records = db.execute_and_fetchall(
+        '''
+SELECT id
+FROM batches
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(n_completed), 0) AS n_completed
+  FROM batches_n_jobs_in_complete_states
+  WHERE batches.id = batches_n_jobs_in_complete_states.id
+  GROUP BY id
+) AS states ON TRUE
+WHERE state != 'complete' AND n_jobs = n_completed
+LIMIT 1000;
+''',
+        query_name='get_missed_complete_batches',
+    )
+
+    async for record in records:
+        await mark_batch_complete(db, client_session, record['id'])
+
+
 async def monitor_billing_limits(app):
     db: Database = app['db']
 
@@ -1270,11 +1294,15 @@ async def cancel_fast_failing_batches(app):
 
     records = db.select_and_fetchall(
         '''
-SELECT batches.id, batches_n_jobs_in_complete_states.n_failed
+SELECT batches.id
 FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
-WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
+LEFT JOIN LATERAL (
+  SELECT id, COALESCE(SUM(n_failed), 0) AS n_failed
+  FROM batches_n_jobs_in_complete_states
+  WHERE batches.id = batches_n_jobs_in_complete_states.id
+  GROUP BY id
+) AS states ON TRUE
+WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND states.n_failed >= cancel_after_n_failures;
 '''
     )
     async for batch in records:
@@ -1631,6 +1659,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     app['canceller'] = await Canceller.create(app)
 
+    task_manager.ensure_future(periodically_call(10, monitor_for_missed_complete_batches, app))
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
     task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))

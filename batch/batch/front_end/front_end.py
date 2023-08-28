@@ -1316,9 +1316,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         )
         await tx.execute_insertone(
             '''
-INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
+INSERT INTO batches_n_jobs_in_complete_states (id, token) VALUES (%s, %s);
 ''',
-            (id,),
+            (id, 0),
             query_name='insert_batches_n_jobs_in_complete_states',
         )
 
@@ -1467,30 +1467,31 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-WITH base_t AS (
-SELECT batches.*,
-  batches_cancelled.id IS NOT NULL AS cancelled,
-  batches_n_jobs_in_complete_states.n_completed,
-  batches_n_jobs_in_complete_states.n_succeeded,
-  batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, states.*, cost_t.*
 FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-       ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN LATERAL (
+  SELECT id, COALESCE(SUM(n_completed), 0) AS n_completed,
+    COALESCE(SUM(n_succeeded), 0) AS n_succeeded,
+    COALESCE(SUM(n_failed), 0) AS n_failed,
+    COALESCE(SUM(n_cancelled), 0) AS n_cancelled
+  FROM batches_n_jobs_in_complete_states
+  WHERE batches.id = batches_n_jobs_in_complete_states.id
+  GROUP BY id
+) AS states ON TRUE
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
-WHERE batches.id = %s AND NOT deleted
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
-LEFT JOIN (
-  SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-  GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
-) AS usage_t ON base_t.id = usage_t.batch_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.id;
+LEFT JOIN LATERAL (
+  SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
+  FROM (
+    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_batch_resources_v2
+    WHERE aggregated_batch_resources_v2.batch_id = batches.id
+    GROUP BY batch_id, resource_id
+  ) AS abr
+  LEFT JOIN resources ON abr.resource_id = resources.resource_id
+  GROUP BY batch_id
+) AS cost_t ON TRUE
+WHERE batches.id = %s AND NOT deleted;
 ''',
         (batch_id,),
     )

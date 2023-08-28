@@ -205,11 +205,12 @@ CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start
 
 CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
   `id` BIGINT NOT NULL,
+  `token` INT NOT NULL DEFAULT 0,
   `n_completed` INT NOT NULL DEFAULT 0,
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
   `n_cancelled` INT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`),
+  PRIMARY KEY (`id`, `token`),
   FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
@@ -1546,21 +1547,17 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    UPDATE batches_n_jobs_in_complete_states
-      SET n_completed = (@new_n_completed := n_completed + 1),
-          n_cancelled = n_cancelled + (new_state = 'Cancelled'),
-          n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
-          n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
-      WHERE id = in_batch_id;
-
-    # Grabbing an exclusive lock on batches here could deadlock,
-    # but this IF should only execute for the last job
-    IF @new_n_completed = total_jobs_in_batch THEN
-      UPDATE batches
-      SET time_completed = new_timestamp,
-          `state` = 'complete'
-      WHERE id = in_batch_id;
-    END IF;
+    INSERT INTO batches_n_jobs_in_complete_states (id, token, n_completed, n_succeeded, n_failed, n_cancelled)
+    VALUES (in_batch_id, rand_token,
+            1,
+            (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed'),
+            (new_state = 'Error' OR new_state = 'Failed'),
+            (new_state = 'Cancelled'))
+    ON DUPLICATE KEY UPDATE
+      n_completed = n_completed + 1,
+      n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed'),
+      n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
+      n_cancelled = n_cancelled + (new_state = 'Cancelled');
 
     UPDATE jobs
       LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id

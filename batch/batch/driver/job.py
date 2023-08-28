@@ -28,34 +28,58 @@ if TYPE_CHECKING:
 log = logging.getLogger('job')
 
 
-async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
+async def mark_batch_complete(db: Database, client_session: httpx.ClientSession, batch_id: int):
+    batch_state_rows_updated = await db.execute_update(
+        '''
+UPDATE batches
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(n_completed), 0) AS n_completed
+  FROM batches_n_jobs_in_complete_states
+  WHERE batches.id = batches_n_jobs_in_complete_states.id
+  GROUP BY id
+) AS states ON TRUE
+SET state = 'complete'
+WHERE id = %s AND state != 'complete' AND n_jobs = n_completed;
+''',
+        (batch_id,),
+        'update_batch_state_to_complete',
+    )
+
+    if batch_state_rows_updated == 0:
+        return
+    assert batch_state_rows_updated == 1, batch_state_rows_updated
+
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id IS NOT NULL AS cancelled, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
+SELECT batches.*, cost_t.*, batches_cancelled.id IS NOT NULL AS cancelled, states.*
 FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
-LEFT JOIN (
-  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_batch_resources_v2
-  WHERE batch_id = %s
-  GROUP BY batch_id, resource_id
-) AS abr
-  ON batches.id = abr.batch_id
-LEFT JOIN resources
-  ON abr.resource_id = resources.resource_id
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(n_completed), 0) AS n_completed, COALESCE(SUM(n_succeeded), 0) AS n_succeeded,
+    COALESCE(SUM(n_failed), 0) AS n_failed, COALESCE(SUM(n_cancelled), 0) AS n_cancelled
+  FROM batches_n_jobs_in_complete_states
+  WHERE batches.id = batches_n_jobs_in_complete_states.id
+  GROUP BY id
+) AS states ON TRUE
+LEFT JOIN LATERAL (
+  SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
+  FROM (
+    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_batch_resources_v2
+    WHERE aggregated_batch_resources_v2.batch_id = batches.id
+    GROUP BY batch_id, resource_id
+  ) AS abr
+  LEFT JOIN resources ON abr.resource_id = resources.resource_id
+  GROUP BY batch_id
+) AS cost_t ON TRUE
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
 WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
-   batches.`state` = 'complete'
-GROUP BY batches.id;
+   batches.`state` = 'complete' AND n_jobs = n_completed;
 ''',
-        (batch_id, batch_id),
+        (batch_id,),
         'notify_batch_job_complete',
     )
 
-    if not record:
-        return
     callback = record['callback']
 
     log.info(f'making callback for batch {batch_id}: {callback}')
@@ -191,7 +215,7 @@ async def mark_job_complete(
         # already complete, do nothing
         return
 
-    await notify_batch_job_complete(db, client_session, batch_id)
+    await mark_batch_complete(db, client_session, batch_id)
 
     if instance and not instance.inst_coll.is_pool and instance.state == 'active':
         task_manager.ensure_future(instance.kill())

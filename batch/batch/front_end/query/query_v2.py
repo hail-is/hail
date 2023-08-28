@@ -127,16 +127,16 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
         where_args += args
 
     sql = f'''
-SELECT batches.*,
-  batches_cancelled.id IS NOT NULL AS cancelled,
-  batches_n_jobs_in_complete_states.n_completed,
-  batches_n_jobs_in_complete_states.n_succeeded,
-  batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled,
-  cost_t.cost
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, states.*, cost_t.cost
 FROM batches
 LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
-LEFT JOIN batches_n_jobs_in_complete_states ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(n_completed), 0) AS n_completed, COALESCE(SUM(n_succeeded), 0) AS n_succeeded,
+    COALESCE(SUM(n_failed), 0) AS n_failed, COALESCE(SUM(n_cancelled), 0) AS n_cancelled
+  FROM batches_n_jobs_in_complete_states
+  WHERE batches.id = batches_n_jobs_in_complete_states.id
+  GROUP BY id
+) AS states ON TRUE
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 LEFT JOIN LATERAL (
