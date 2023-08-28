@@ -770,7 +770,7 @@ async def userinfo(_, userdata: UserData) -> web.Response:
 
 
 async def get_session_id(request: web.Request) -> Optional[str]:
-    if 'X-Hail-Internal-Authorization' in request.headers:
+    if 'X-Hail-Internal-Authorization' in request.headers and DEFAULT_NAMESPACE == 'default':
         return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
 
     if 'Authorization' in request.headers:
