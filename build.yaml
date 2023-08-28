@@ -2207,6 +2207,9 @@ steps:
       - name: turn-on-billing-compaction
         script: /io/sql/turn_on_billing_compaction.py
         online: true
+      - name: cleanup-deprecated-functions
+        script: /io/sql/cleanup-deprecated-functions.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
