@@ -1035,7 +1035,7 @@ class Container:
                 else:
                     assert self.network is None or self.network == 'public'
                     self.netns = await network_allocator.allocate_public()
-        except asyncio.CancelledError:
+        except asyncio.TimeoutError:
             log.exception(network_allocator.task_manager.tasks)
             raise
 
