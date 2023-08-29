@@ -35,7 +35,7 @@ class AzureSlimInstanceConfig(InstanceConfig):
         else:
             data_disk_resource = AzureStaticSizedDiskResource.create(product_versions, 'P', data_disk_size_gb, location)
 
-        resources = filter_none(
+        resources: List[AzureResource] = filter_none(
             [
                 AzureVMResource.create(product_versions, machine_type, preemptible, location),
                 AzureStaticSizedDiskResource.create(product_versions, 'E', boot_disk_size_gb, location),

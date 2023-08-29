@@ -17,6 +17,7 @@ submitted_batch_ids = []
 class RecordingServiceBackend(ServiceBackend):
     def _run(self, *args, **kwargs):
         b = super()._run(*args, **kwargs)
+        assert b
         submitted_batch_ids.append(b.id)
         return b
 
@@ -118,7 +119,7 @@ def test_map_chunksize(backend):
                 for row in range(5)
                 for x in [row, row, row, row, row]]
     col_args = [x
-                for row in range(5)
+                for _ in range(5)
                 for x in list(range(5))]
     with BatchPoolExecutor(backend=backend, project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
         multiplication_table = list(bpe.map(lambda x, y: x * y,

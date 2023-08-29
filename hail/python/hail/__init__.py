@@ -50,6 +50,7 @@ from . import experimental  # noqa: E402
 from . import ir  # noqa: E402
 from . import backend  # noqa: E402
 from . import nd  # noqa: E402
+from . import utils  # noqa: E402
 from . import vds  # noqa: E402
 
 from .context import (init, init_local, init_batch, stop, spark_context, tmp_dir,  # noqa: E402
@@ -113,6 +114,7 @@ __all__ = [
     'citation',
     'cite_hail',
     'cite_hail_bibtex',
+    'utils',
     'version',
     'ANY_REGION',
 ]

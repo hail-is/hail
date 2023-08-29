@@ -1,7 +1,7 @@
 import abc
 import asyncio
 import base64
-import concurrent
+import concurrent.futures
 import errno
 import json
 import logging
@@ -144,7 +144,7 @@ def compose_auth_header_urlsafe(orig_f):
 # We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
 # in urlsafe mode which is required for Azure's credentials.
 # https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
-aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)  # type: ignore
 
 
 configure_logging()
@@ -1645,7 +1645,7 @@ class Job(abc.ABC):
     #   start_time: int,
     #   end_time: int,
     #   resources: list of dict, {name: str, quantity: int}
-    #   region: str
+    #   region: str  # type: ignore
     # }
     def status(self):
         status = {
@@ -2899,7 +2899,7 @@ class Worker:
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
-        self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)
+        self._jvms = SortedSet([], key=lambda jvm: jvm.n_cores)
 
     async def _initialize_jvms(self):
         assert instance_config

@@ -17,7 +17,7 @@ from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['file', 'gs', 's3', 'azure-https', 'router/file', 'router/gs', 'router/s3', 'router/azure-https', 'sas/azure-https'])
-async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, str]]:
+async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]]:
     token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
@@ -55,6 +55,7 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
                 if request.param.startswith('sas'):
                     sub_id = os.environ['HAIL_TEST_AZURE_SUBID']
                     res_grp = os.environ['HAIL_TEST_AZURE_RESGRP']
+                    assert isinstance(fs, AzureAsyncFS)
                     sas_token = await fs.generate_sas_token(sub_id, res_grp, account, "rwdlc")
                     base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/?{sas_token}')
                 else:

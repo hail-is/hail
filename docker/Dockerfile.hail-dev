@@ -1,6 +1,4 @@
 FROM {{ hailgenetics_hail_image.image }}
 
-RUN hail-apt-get-install make
-
 COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
 RUN hail-pip-install -r dev-requirements.txt
