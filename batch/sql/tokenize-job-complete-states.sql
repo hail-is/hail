@@ -24,10 +24,15 @@ BEGIN
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE total_jobs_in_batch INT;
   DECLARE expected_attempt_id VARCHAR(40);
+  DECLARE cur_n_tokens INT;
+  DECLARE rand_token INT;
 
   START TRANSACTION;
 
   SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
+
+  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
+  SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
   SELECT state, cores_mcpu
   INTO cur_job_state, cur_cores_mcpu
