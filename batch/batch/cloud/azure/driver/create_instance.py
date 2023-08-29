@@ -426,7 +426,7 @@ done
                 'imageReference': {
                     'value': {
                         'id': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/'
-                        f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker/versions/0.0.13'
+                        f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker-22-04/versions/0.0.13'
                     }
                 },
                 'workspaceName': {
