@@ -3829,3 +3829,30 @@ steps:
       - default_ns
     scopes:
       - deploy
+  - kind: runImage
+    name: test_gcp_ar_cleanup_policies
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+      cd /io/repo/
+      python3 devbin/generate_gcp_ar_cleanup_policy.py | diff - infra/gcp-broad/gcp-ar-cleanup-policy.txt
+    inputs:
+      - from: /repo/build.yaml
+        to: /io/repo/build.yaml
+      - from: /repo/devbin
+        to: /io/repo/devbin
+      - from: /repo/infra
+        to: /io/repo/infra
+      - from: /repo/docker
+        to: /io/repo/docker
+      - from: /repo/ci/test/resources
+        to: /io/repo/ci/test/resources
+    clouds:
+      - gcp
+    dependsOn:
+      - ci_utils_image
+      - default_ns
