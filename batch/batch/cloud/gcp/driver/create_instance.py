@@ -228,6 +228,17 @@ read_from_head true
 tag worker.log
 </source>
 
+sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
+<source>
+@type tail
+format syslog
+path /var/log/syslog
+pos_file /var/lib/google-fluentd/pos/syslog.pos
+read_from_head true
+tag syslog
+</source>
+EOF
+
 <filter worker.log>
 @type record_transformer
 enable_ruby
