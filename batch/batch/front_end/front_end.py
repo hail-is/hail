@@ -1470,7 +1470,7 @@ async def _get_batch(app, batch_id):
 SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, states.*, cost_t.*
 FROM batches
 LEFT JOIN LATERAL (
-  SELECT id, COALESCE(SUM(n_completed), 0) AS n_completed,
+  SELECT COALESCE(SUM(n_completed), 0) AS n_completed,
     COALESCE(SUM(n_succeeded), 0) AS n_succeeded,
     COALESCE(SUM(n_failed), 0) AS n_failed,
     COALESCE(SUM(n_cancelled), 0) AS n_cancelled
@@ -1497,6 +1497,13 @@ WHERE batches.id = %s AND NOT deleted;
     )
     if not record:
         raise web.HTTPNotFound()
+
+    try:
+        batch_record_to_dict(record)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception(f'batch_id {batch_id}: record {record}')
 
     return batch_record_to_dict(record)
 

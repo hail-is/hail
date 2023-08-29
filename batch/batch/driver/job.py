@@ -80,6 +80,9 @@ WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
         'notify_batch_job_complete',
     )
 
+    if record is None:
+        return
+
     callback = record['callback']
 
     log.info(f'making callback for batch {batch_id}: {callback}')
