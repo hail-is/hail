@@ -2244,6 +2244,9 @@ steps:
       - name: cleanup-deprecated-functions
         script: /io/sql/cleanup-deprecated-functions.sql
         online: true
+      - name: tokenize-job-complete-states
+        script: /io/sql/tokenize-job-complete-states.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

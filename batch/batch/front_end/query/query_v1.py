@@ -84,35 +84,33 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
         where_args.extend(args)
 
     sql = f'''
-WITH base_t AS (
-  SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, states.*
-  FROM batches
-  LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
-  LEFT JOIN LATERAL (
-    SELECT COALESCE(SUM(n_completed), 0) AS n_completed, COALESCE(SUM(n_succeeded), 0) AS n_succeeded,
-      COALESCE(SUM(n_failed), 0) AS n_failed, COALESCE(SUM(n_cancelled), 0) AS n_cancelled
-    FROM batches_n_jobs_in_complete_states
-    WHERE batches.id = batches_n_jobs_in_complete_states.id
-    GROUP BY id
-  ) AS states ON TRUE
-  LEFT JOIN batches_cancelled
-    ON batches.id = batches_cancelled.id
-  STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
-  WHERE {' AND '.join(where_conditions)}
-  ORDER BY id DESC
-  LIMIT 51
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
-LEFT JOIN (
-  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-  GROUP BY batch_id, resource_id
-) AS usage_t ON base_t.id = usage_t.batch_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY id
-ORDER BY id DESC;
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, states.*, cost_t.*
+FROM batches
+LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(n_completed), 0) AS n_completed, COALESCE(SUM(n_succeeded), 0) AS n_succeeded,
+    COALESCE(SUM(n_failed), 0) AS n_failed, COALESCE(SUM(n_cancelled), 0) AS n_cancelled
+  FROM batches_n_jobs_in_complete_states
+  WHERE batches.id = batches_n_jobs_in_complete_states.id
+  GROUP BY id
+) AS states ON TRUE
+LEFT JOIN batches_cancelled
+  ON batches.id = batches_cancelled.id
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost
+  FROM (
+    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_batch_resources_v2
+    WHERE batches.id = aggregated_batch_resources_v2.batch_id
+    GROUP BY batch_id, resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+  GROUP BY batch_id
+) AS cost_t ON TRUE
+STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+WHERE {' AND '.join(where_conditions)}
+ORDER BY id DESC
+LIMIT 51;
 '''
 
     return (sql, where_args)
