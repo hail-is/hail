@@ -56,8 +56,7 @@ LEFT JOIN LATERAL (
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
 WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
-   batches.`state` = 'complete'
-GROUP BY batches.id;
+   batches.`state` = 'complete';
 ''',
         (batch_id,),
         'notify_batch_job_complete',
