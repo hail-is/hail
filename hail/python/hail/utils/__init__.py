@@ -14,6 +14,7 @@ from .tutorial import get_1kg, get_hgdp, get_movie_lens
 from .deduplicate import deduplicate
 from .jsonx import JSONEncoder
 from .genomic_range_table import genomic_range_table
+from .table_iterator import table_iterator
 
 __all__ = ['hadoop_open',
            'hadoop_copy',
@@ -57,4 +58,5 @@ __all__ = ['hadoop_open',
            'JSONEncoder',
            'genomic_range_table',
            'ANY_REGION',
+           'table_iterator',
            ]
