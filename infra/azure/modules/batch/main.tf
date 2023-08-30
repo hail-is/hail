@@ -45,7 +45,7 @@ resource "azurerm_shared_image" "batch_worker_22_04" {
   resource_group_name = var.resource_group.name
   location            = var.resource_group.location
   os_type             = "Linux"
-  specialized	        = false
+  specialized         = false
 
   hyper_v_generation = "V2"
 
