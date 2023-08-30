@@ -1259,7 +1259,7 @@ LEFT JOIN LATERAL (
   WHERE batches.id = batches_n_jobs_in_complete_states.id
   GROUP BY id
 ) AS states ON TRUE
-WHERE state != 'complete' AND n_jobs = n_completed
+WHERE state = "running" AND n_jobs = n_completed
 LIMIT 1000;
 ''',
         query_name='get_missed_complete_batches',
