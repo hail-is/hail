@@ -1135,7 +1135,6 @@ class Container:
         ]
 
         nvidia_runtime_hook = []
-        # if 'g2' in INSTANCE_CONFIG["machine_type"]:
         accelerator_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
         if machine_type_to_gpu(accelerator_family):
             nvidia_runtime_hook = [

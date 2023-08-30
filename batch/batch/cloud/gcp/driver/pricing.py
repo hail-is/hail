@@ -479,9 +479,6 @@ async def fetch_prices(
     billing_client: aiogoogle.GoogleBillingClient, regions: List[str], currency_code: str
 ) -> AsyncGenerator[Price, None]:
     params = {'currencyCode': currency_code}
-    log.info("before-gpu-func")
-    await get_gpu_skus(billing_client, currency_code)
-    log.info("after-gpu-func")
     async for sku in billing_client.list_skus('/6F81-5844-456A/skus', params=params):
         category = sku['category']
         if 'GPU' in category['resourceGroup']:

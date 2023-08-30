@@ -1434,16 +1434,16 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 
 
 def test_gpu_accesibility_g2(client: BatchClient):
-    bb = create_batch(client)
+    b = create_batch(client)
     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
-    j = bb.create_job(
+    j = b.create_job(
         os.environ['HAIL_GPU_IMAGE'],
         ['python', '-c', 'import torch; assert torch.cuda.is_available()'],
         resources=resources,
     )
-    bb.submit()
+    b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str((status, bb.debug_info()))
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_job_private_instance_preemptible(client: BatchClient):
