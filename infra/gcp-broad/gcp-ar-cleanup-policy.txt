@@ -114,6 +114,7 @@
                 "create_certs_image",
                 "curl",
                 "git-make-bash",
+                "gpu",
                 "hail-buildkit",
                 "hail-dev",
                 "hail-run",
