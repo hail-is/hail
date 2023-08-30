@@ -47,10 +47,12 @@ resource "azurerm_shared_image" "batch_worker_22_04" {
   os_type             = "Linux"
   specialized	        = false
 
+  hyper_v_generation = "V2"
+
   identifier {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "22.04-LTS"
+    publisher = "Hail"
+    offer     = "BatchWorker"
+    sku       = "Ubuntu-22.04-LTS"
   }
 }
 

@@ -45,7 +45,7 @@ echo "Creating $VM_NAME VM..."
 IP=$(az vm create \
     --resource-group $BUILD_IMAGE_RESOURCE_GROUP \
     --name $VM_NAME \
-    --image UbuntuLTS \
+    --image Ubuntu2204 \
     --generate-ssh-keys \
     --public-ip-sku Standard \
     --assign-identity ${BATCH_WORKER_IDENTITY} \
