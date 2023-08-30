@@ -82,7 +82,7 @@ BEGIN
       n_completed = n_completed + 1,
       n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed'),
       n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
-      n_cancelled = n_cancelled + (new_state = 'Cancelled')
+      n_cancelled = n_cancelled + (new_state = 'Cancelled'),
       time_completed = GREATEST(time_completed, new_timestamp);
 
     UPDATE jobs
