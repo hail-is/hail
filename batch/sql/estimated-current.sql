@@ -210,6 +210,7 @@ CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
   `n_cancelled` INT NOT NULL DEFAULT 0,
+  `time_completed` BIGINT,
   PRIMARY KEY (`id`, `token`),
   FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -1552,17 +1553,19 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    INSERT INTO batches_n_jobs_in_complete_states (id, token, n_completed, n_succeeded, n_failed, n_cancelled)
+    INSERT INTO batches_n_jobs_in_complete_states (id, token, n_completed, n_succeeded, n_failed, n_cancelled, time_completed)
     VALUES (in_batch_id, rand_token,
             1,
             (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed'),
             (new_state = 'Error' OR new_state = 'Failed'),
-            (new_state = 'Cancelled'))
+            (new_state = 'Cancelled'),
+            new_timestamp)
     ON DUPLICATE KEY UPDATE
       n_completed = n_completed + 1,
       n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed'),
       n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
-      n_cancelled = n_cancelled + (new_state = 'Cancelled');
+      n_cancelled = n_cancelled + (new_state = 'Cancelled')
+      time_completed = GREATEST(time_completed, new_timestamp);
 
     UPDATE jobs
       LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id

@@ -33,12 +33,13 @@ async def mark_batch_complete(db: Database, client_session: httpx.ClientSession,
         '''
 UPDATE batches
 LEFT JOIN LATERAL (
-  SELECT CAST(COALESCE(SUM(n_completed), 0) AS SIGNED) AS n_completed
+  SELECT CAST(COALESCE(SUM(n_completed), 0) AS SIGNED) AS n_completed,
+    CAST(MAX(time_completed) AS SIGNED) AS time_completed
   FROM batches_n_jobs_in_complete_states
   WHERE batches.id = batches_n_jobs_in_complete_states.id
   GROUP BY id
 ) AS states ON TRUE
-SET state = 'complete'
+SET state = 'complete', time_completed = time_completed
 WHERE id = %s AND state != 'complete' AND n_jobs = n_completed;
 ''',
         (batch_id,),
