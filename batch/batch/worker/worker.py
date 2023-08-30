@@ -965,6 +965,7 @@ class Container:
                 self._killed = True
 
     async def _cleanup(self):
+        log.info(f'Cleaning up {self}')
         if self._cleaned_up:
             return
 
@@ -987,6 +988,7 @@ class Container:
             if self.netns:
                 assert network_allocator
                 network_allocator.free(self.netns)
+                log.info(f'Freed the network namespace for {self}')
                 self.netns = None
         finally:
             try:
@@ -1026,12 +1028,16 @@ class Container:
     async def _setup_network_namespace(self):
         assert network_allocator
         assert port_allocator
-        async with async_timeout.timeout(60):
-            if self.network == 'private':
-                self.netns = await network_allocator.allocate_private()
-            else:
-                assert self.network is None or self.network == 'public'
-                self.netns = await network_allocator.allocate_public()
+        try:
+            async with async_timeout.timeout(60):
+                if self.network == 'private':
+                    self.netns = await network_allocator.allocate_private()
+                else:
+                    assert self.network is None or self.network == 'public'
+                    self.netns = await network_allocator.allocate_public()
+        except asyncio.TimeoutError:
+            log.exception(network_allocator.task_manager.tasks)
+            raise
 
         if self.port is not None:
             self.host_port = await port_allocator.allocate()
@@ -1847,7 +1853,7 @@ class DockerJob(Job):
         except asyncio.CancelledError:
             raise
         except Exception:
-            pass
+            log.exception(f'While running container: {container}')
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
