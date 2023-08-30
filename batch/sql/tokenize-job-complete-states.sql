@@ -25,15 +25,10 @@ BEGIN
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE total_jobs_in_batch INT;
   DECLARE expected_attempt_id VARCHAR(40);
-  DECLARE cur_n_tokens INT;
-  DECLARE rand_token INT;
 
   START TRANSACTION;
 
   SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
-
-  SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
-  SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
   SELECT state, cores_mcpu
   INTO cur_job_state, cur_cores_mcpu
@@ -75,8 +70,9 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
+    # We insert at token = 0 for backwards compatibility until server is updated
     INSERT INTO batches_n_jobs_in_complete_states (id, token, n_completed, n_succeeded, n_failed, n_cancelled, time_completed)
-    VALUES (in_batch_id, rand_token,
+    VALUES (in_batch_id, 0,
             1,
             (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed'),
             (new_state = 'Error' OR new_state = 'Failed'),
