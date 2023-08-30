@@ -88,8 +88,10 @@ SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, states.*, cost_
 FROM batches
 LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
 LEFT JOIN LATERAL (
-  SELECT COALESCE(SUM(n_completed), 0) AS n_completed, COALESCE(SUM(n_succeeded), 0) AS n_succeeded,
-    COALESCE(SUM(n_failed), 0) AS n_failed, COALESCE(SUM(n_cancelled), 0) AS n_cancelled
+  SELECT CAST(COALESCE(SUM(n_completed), 0) AS SIGNED) AS n_completed,
+    CAST(COALESCE(SUM(n_succeeded), 0) AS SIGNED) AS n_succeeded,
+    CAST(COALESCE(SUM(n_failed), 0) AS SIGNED) AS n_failed,
+    CAST(COALESCE(SUM(n_cancelled), 0) AS SIGNED) AS n_cancelled
   FROM batches_n_jobs_in_complete_states
   WHERE batches.id = batches_n_jobs_in_complete_states.id
   GROUP BY id

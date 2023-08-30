@@ -33,7 +33,7 @@ async def mark_batch_complete(db: Database, client_session: httpx.ClientSession,
         '''
 UPDATE batches
 LEFT JOIN LATERAL (
-  SELECT COALESCE(SUM(n_completed), 0) AS n_completed
+  SELECT CAST(COALESCE(SUM(n_completed), 0) AS SIGNED) AS n_completed
   FROM batches_n_jobs_in_complete_states
   WHERE batches.id = batches_n_jobs_in_complete_states.id
   GROUP BY id
@@ -54,8 +54,10 @@ WHERE id = %s AND state != 'complete' AND n_jobs = n_completed;
 SELECT batches.*, cost_t.*, batches_cancelled.id IS NOT NULL AS cancelled, states.*
 FROM batches
 LEFT JOIN LATERAL (
-  SELECT COALESCE(SUM(n_completed), 0) AS n_completed, COALESCE(SUM(n_succeeded), 0) AS n_succeeded,
-    COALESCE(SUM(n_failed), 0) AS n_failed, COALESCE(SUM(n_cancelled), 0) AS n_cancelled
+  SELECT CAST(COALESCE(SUM(n_completed), 0) AS SIGNED) AS n_completed,
+    CAST(COALESCE(SUM(n_succeeded), 0) AS SIGNED) AS n_succeeded,
+    CAST(COALESCE(SUM(n_failed), 0) AS SIGNED) AS n_failed,
+    CAST(COALESCE(SUM(n_cancelled), 0) AS SIGNED) AS n_cancelled
   FROM batches_n_jobs_in_complete_states
   WHERE batches.id = batches_n_jobs_in_complete_states.id
   GROUP BY id

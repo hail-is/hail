@@ -1254,7 +1254,7 @@ async def monitor_for_missed_complete_batches(app):
 SELECT id
 FROM batches
 LEFT JOIN LATERAL (
-  SELECT COALESCE(SUM(n_completed), 0) AS n_completed
+  SELECT CAST(COALESCE(SUM(n_completed), 0) AS SIGNED) AS n_completed
   FROM batches_n_jobs_in_complete_states
   WHERE batches.id = batches_n_jobs_in_complete_states.id
   GROUP BY id
@@ -1297,7 +1297,7 @@ async def cancel_fast_failing_batches(app):
 SELECT batches.id
 FROM batches
 LEFT JOIN LATERAL (
-  SELECT id, COALESCE(SUM(n_failed), 0) AS n_failed
+  SELECT id, CAST(COALESCE(SUM(n_failed), 0) AS SIGNED) AS n_failed
   FROM batches_n_jobs_in_complete_states
   WHERE batches.id = batches_n_jobs_in_complete_states.id
   GROUP BY id
