@@ -1467,33 +1467,30 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-WITH base_t AS (
 SELECT batches.*,
   batches_cancelled.id IS NOT NULL AS cancelled,
   batches_n_jobs_in_complete_states.n_completed,
   batches_n_jobs_in_complete_states.n_succeeded,
   batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled
+  batches_n_jobs_in_complete_states.n_cancelled,
+  cost_t.*
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
        ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
-WHERE batches.id = %s AND NOT deleted
-)
-SELECT base_t.*, cost_t.cost, cost_t.cost_breakdown
-FROM base_t
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
     SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_batch_resources_v2
-    WHERE base_t.id = aggregated_batch_resources_v2.batch_id
+    WHERE batches.id = aggregated_batch_resources_v2.batch_id
     GROUP BY batch_id, resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY batch_id
-) AS cost_t ON TRUE;
+) AS cost_t ON TRUE
+WHERE batches.id = %s AND NOT deleted;
 ''',
         (batch_id,),
     )
