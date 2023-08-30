@@ -3839,7 +3839,16 @@ steps:
     script: |
       set -ex
       cd /io/repo/
-      python3 devbin/generate_gcp_ar_cleanup_policy.py | diff - infra/gcp-broad/gcp-ar-cleanup-policy.txt
+      new_policy=$(mktemp)
+      python3 devbin/generate_gcp_ar_cleanup_policy.py > $new_policy
+      diff $new_policy infra/gcp-broad/gcp-ar-cleanup-policy.txt || {
+        echo '>>> AR cleanup policy has changed, new policy is <<<'
+        cat $new_policy
+        echo '--------------------------------------'
+        echo "Please regenerate the policy file by running:"
+        echo "> python3 devbin/generate_gcp_ar_cleanup_policy.py > infra/gcp-broad/gcp-ar-cleanup-policy.txt"
+        exit 1
+      }
     inputs:
       - from: /repo/build.yaml
         to: /io/repo/build.yaml
