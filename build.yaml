@@ -3343,7 +3343,7 @@ steps:
       - gcp
   - kind: runImage
     name: mirror_hailgenetics_images
-    image: quay.io/skopeo/stable:v1.11.2
+    image: quay.io/skopeo/stable:v1.13.2
     script: |
       set -ex
 
