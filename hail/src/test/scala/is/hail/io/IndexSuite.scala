@@ -111,7 +111,8 @@ class IndexSuite extends HailSuite {
   @Test def testEmptyKeys() {
     val file = ctx.createTmpPath("empty", "idx")
     writeIndex(file, Array.empty[String], Array.empty[Annotation], TStruct("a" -> TBoolean), 2)
-    assert(fs.getFileSize(file) != 0)
+    assert(fs.getFileSize(file + "/index") != 0)
+    assert(fs.getFileSize(file + "/metadata.json.gz") != 0)
     val index = indexReader(file, TStruct("a" -> TBoolean))
     intercept[IllegalArgumentException](index.queryByIndex(0L))
     assert(index.queryByKey("moo").isEmpty)

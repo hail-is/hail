@@ -98,16 +98,16 @@ trait FSSuite extends TestNGSuite {
     assert(false)
   }
 
-  @Test def testFileStatusRoot(): Unit = {
-    val s = fs.fileStatus(root)
+  @Test def testGetFileListEntryOnRoot(): Unit = {
+    val s = fs.getFileListEntry(root)
     assert(s.getPath == root)
   }
 
-  @Test def testFileStatusRootWithSlash(): Unit = {
+  @Test def testGetFileListEntryOnRootWithSlash(): Unit = {
     if (root.endsWith("/"))
       return
 
-    val s = fs.fileStatus(s"$root/")
+    val s = fs.getFileListEntry(s"$root/")
     assert(s.getPath == root)
   }
 
