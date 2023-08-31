@@ -17,6 +17,7 @@ from hail.utils.java import warning, Env, info
 from hail.utils.misc import wrap_to_tuple, \
     get_key_by_exprs, \
     get_select_exprs, check_annotate_exprs, process_joins
+import warnings
 
 
 class GroupedMatrixTable(ExprContainer):
@@ -4033,6 +4034,7 @@ class MatrixTable(ExprContainer):
         if n_rows is not None:
             n_rows_name = 'n_rows'
         else:
+            warnings.warn("MatrixTable.head: the 'n' parameter is deprecated in favor of 'n_rows'.")
             n_rows = n
             n_rows_name = 'n'
 
@@ -4105,6 +4107,7 @@ class MatrixTable(ExprContainer):
         if n_rows is not None:
             n_rows_name = 'n_rows'
         else:
+            warnings.warn("MatrixTable.tail: the 'n' parameter is deprecated in favor of 'n_rows'.")
             n_rows = n
             n_rows_name = 'n'
 
