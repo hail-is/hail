@@ -4037,6 +4037,7 @@ class MatrixTable(ExprContainer):
             warnings.warn("MatrixTable.head: the 'n' parameter is deprecated in favor of 'n_rows'.")
             n_rows = n
             n_rows_name = 'n'
+        del n
 
         mt = self
         if n_rows is not None:
@@ -4110,12 +4111,13 @@ class MatrixTable(ExprContainer):
             warnings.warn("MatrixTable.tail: the 'n' parameter is deprecated in favor of 'n_rows'.")
             n_rows = n
             n_rows_name = 'n'
+        del n
 
         mt = self
-        if n is not None:
-            if n < 0:
-                raise ValueError(f"MatrixTable.tail: expect '{n_rows_name}' to be non-negative or None, found '{n}'")
-            mt = MatrixTable(ir.MatrixRowsTail(mt._mir, n))
+        if n_rows is not None:
+            if n_rows < 0:
+                raise ValueError(f"MatrixTable.tail: expect '{n_rows_name}' to be non-negative or None, found '{n_rows}'")
+            mt = MatrixTable(ir.MatrixRowsTail(mt._mir, n_rows))
         if n_cols is not None:
             if n_cols < 0:
                 raise ValueError(f"MatrixTable.tail: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
