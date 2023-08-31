@@ -128,10 +128,10 @@ class LocalBackend(
   ): Array[Array[Byte]] = {
     val stageId = nextStageId()
     collection.zipWithIndex.map { case (c, i) =>
-      val htc = new LocalTaskContext(i, stageId)
-      val bytes = f(c, htc, theHailClassLoader, fs)
-      htc.close()
-      bytes
+      using(new LocalTaskContext(i, stageId)) { htc =>
+        val bytes = f(c, htc, theHailClassLoader, fs)
+        bytes
+      }
     }
   }
 
