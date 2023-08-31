@@ -1404,6 +1404,21 @@ class Tests(unittest.TestCase):
                      hl.Struct(f1=1, f2=2, f3=3),
                      tstruct(f1=tint32, f2=tint32, f3=tint32))
 
+    def test_shadowed_struct_fields(self):
+        from typing import Callable
+
+        s = hl.struct(foo=1, values=2)
+        assert isinstance(s.foo, hl.Expression)
+        assert not s._warned_on_shadowed_name
+        assert isinstance(s.values, Callable)
+        assert s._warned_on_shadowed_name
+
+        s = hl.struct(foo=1, collect=2)
+        assert isinstance(s.foo, hl.Expression)
+        assert not s._warned_on_shadowed_name
+        assert isinstance(s.collect, Callable)
+        assert s._warned_on_shadowed_name
+
     def test_iter(self):
         a = hl.literal([1, 2, 3])
         self.assertRaises(hl.expr.ExpressionException, lambda: hl.eval(list(a)))
