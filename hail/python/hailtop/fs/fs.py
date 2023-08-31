@@ -1,13 +1,12 @@
 import abc
-import io
-from typing import List
+from typing import IO, List
 
 from .stat_result import StatResult
 
 
 class FS(abc.ABC):
     @abc.abstractmethod
-    def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
+    def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> IO:
         raise NotImplementedError
 
     @abc.abstractmethod

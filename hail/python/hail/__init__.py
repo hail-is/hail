@@ -30,9 +30,13 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 # F403 'from .expr import *' used; unable to detect undefined names
 # F401 '.expr.*' imported but unused
 # E402 module level import not at top of file
+from .expr import *  # noqa: E402, F403
+from .expr import aggregators  # noqa: E402
+from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
+                        hadoop_stat, hadoop_exists, hadoop_is_file,
+                        hadoop_is_dir, hadoop_scheme_supported, copy_log, ANY_REGION)
 from .table import Table, GroupedTable, asc, desc  # noqa: E402
 from .matrixtable import MatrixTable, GroupedMatrixTable  # noqa: E402
-from .expr import *  # noqa: F403, E402
 from .genetics import *  # noqa: F403, E402
 from .methods import *  # noqa: F403, E402
 from . import expr  # noqa: E402
@@ -46,11 +50,8 @@ from . import experimental  # noqa: E402
 from . import ir  # noqa: E402
 from . import backend  # noqa: E402
 from . import nd  # noqa: E402
+from . import utils  # noqa: E402
 from . import vds  # noqa: E402
-from hail.expr import aggregators as agg  # noqa: E402
-from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
-                        hadoop_stat, hadoop_exists, hadoop_is_file,
-                        hadoop_is_dir, hadoop_scheme_supported, copy_log, ANY_REGION)
 
 from .context import (init, init_local, init_batch, stop, spark_context, tmp_dir,  # noqa: E402
                       default_reference, get_reference, set_global_seed, reset_global_randomness,
@@ -58,7 +59,8 @@ from .context import (init, init_local, init_batch, stop, spark_context, tmp_dir
                       current_backend, debug_info, citation, cite_hail, cite_hail_bibtex,
                       version, TemporaryFilename, TemporaryDirectory)
 
-scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
+agg = aggregators
+scan = aggregators.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
 
 __all__ = [
     'init',
@@ -112,6 +114,7 @@ __all__ = [
     'citation',
     'cite_hail',
     'cite_hail_bibtex',
+    'utils',
     'version',
     'ANY_REGION',
 ]

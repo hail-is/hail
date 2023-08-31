@@ -2,7 +2,7 @@ import asyncio
 import logging
 import urllib.parse
 from functools import wraps
-from typing import Awaitable, Callable, Optional, Tuple, TypedDict
+from typing import Awaitable, Callable, NoReturn, Optional, Tuple, TypedDict
 
 import aiohttp
 import aiohttp_session
@@ -24,7 +24,10 @@ TEN_SECONDS_IN_NANOSECONDS = int(1e10)
 
 
 class UserData(TypedDict):
+    id: int
+    state: str
     username: str
+    login_id: str
     namespace_name: str
     is_developer: bool
     is_service_account: bool
@@ -73,7 +76,7 @@ class AuthClient:
                     rest_userdata = await self._userdata_from_rest_request(request)
                     if rest_userdata:
                         raise web.HTTPUnauthorized(reason="provided REST auth to web endpoint")
-                    raise _web_unauthenticated(request, redirect)
+                    _web_unauthenticated(request, redirect)
                 return await fun(request, userdata)
 
             return wrapped
@@ -153,7 +156,7 @@ async def impersonate_user_and_get_info(session_id: str, client_session: httpx.C
         raise
 
 
-def _web_unauthenticated(request, redirect):
+def _web_unauthenticated(request, redirect) -> NoReturn:
     if not redirect:
         raise web.HTTPUnauthorized()
 
@@ -168,4 +171,4 @@ def _web_unauthenticated(request, redirect):
     if x_forwarded_proto:
         request_url = request_url.with_scheme(x_forwarded_proto)
 
-    return web.HTTPFound(f'{login_url}?next={urllib.parse.quote(str(request_url))}')
+    raise web.HTTPFound(f'{login_url}?next={urllib.parse.quote(str(request_url))}')

@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import traceback
-from typing import Callable, Dict, List, Optional, Set, Tuple, TypedDict
+from typing import Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
 import kubernetes_asyncio
@@ -35,7 +35,7 @@ from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import collect_agen, humanize_timedelta_msecs, periodically_call, retry_transient_errors
+from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_call, retry_transient_errors
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
@@ -152,10 +152,14 @@ def wb_and_pr_from_request(request: web.Request) -> Tuple[WatchedBranch, PR]:
 
 
 def filter_jobs(jobs):
-    filtered: Dict[str, list] = {"running": [], "failed": [], "pending": [], "jobs": []}
+    filtered: Dict[str, list] = {
+        state: []
+        # the order of this list is the order in which the states will be displayed on the page
+        for state in ["failed", "error", "cancelled", "running", "pending", "ready", "creating", "success"]
+    }
     for job in jobs:
-        filtered.get(job["state"].lower(), filtered["jobs"]).append(job)
-    return {"completed" if k == "jobs" else k: v if len(v) > 0 else None for k, v in filtered.items()}
+        filtered[job["state"].lower()].append(job)
+    return {"jobs": filtered}
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
@@ -172,7 +176,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     if batch:
         if isinstance(batch, Batch):
             status = await batch.last_known_status()
-            jobs = await collect_agen(batch.jobs())
+            jobs = await collect_aiter(batch.jobs())
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
@@ -222,11 +226,11 @@ async def retry_pr(wb, pr, request):
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
-async def post_retry_pr(request: web.Request, _) -> web.HTTPFound:
+async def post_retry_pr(request: web.Request, _) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
 
     await asyncio.shield(retry_pr(wb, pr, request))
-    return web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
+    raise web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
 @routes.get('/batches')
@@ -246,7 +250,7 @@ async def get_batch(request, userdata):
     batch_client = request.app['batch_client']
     b = await batch_client.get_batch(batch_id)
     status = await b.last_known_status()
-    jobs = await collect_agen(b.jobs())
+    jobs = await collect_aiter(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
     wb = get_maybe_wb_for_batch(b)
@@ -325,7 +329,7 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
 @routes.post('/authorize_source_sha')
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
-async def post_authorized_source_sha(request: web.Request, _) -> web.HTTPFound:
+async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     post = await request.post()
@@ -334,7 +338,7 @@ async def post_authorized_source_sha(request: web.Request, _) -> web.HTTPFound:
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/healthcheck')
@@ -428,7 +432,7 @@ async def deploy_status(request: web.Request, _) -> web.Response:
         if isinstance(batch, MergeFailureBatch):
             exc = batch.exception
             return traceback.format_exception(type(exc), value=exc, tb=exc.__traceback__)
-        jobs = await collect_agen(batch.jobs())
+        jobs = await collect_aiter(batch.jobs())
 
         async def fetch_job_and_log(j):
             full_job = await batch_client.get_job(j['batch_id'], j['job_id'])
@@ -527,14 +531,14 @@ async def batch_callback(request):
 @routes.post('/freeze_merge_deploy')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def freeze_deploys(request: web.Request, _) -> web.HTTPFound:
+async def freeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
     if app['frozen_merge_deploy']:
         set_message(session, 'CI is already frozen.', 'info')
-        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
         '''
@@ -546,20 +550,20 @@ UPDATE globals SET frozen_merge_deploy = 1;
 
     set_message(session, 'Froze all merges and deploys.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.post('/unfreeze_merge_deploy')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def unfreeze_deploys(request: web.Request, _) -> web.HTTPFound:
+async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
     if not app['frozen_merge_deploy']:
         set_message(session, 'CI is already unfrozen.', 'info')
-        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
         '''
@@ -571,7 +575,7 @@ UPDATE globals SET frozen_merge_deploy = 0;
 
     set_message(session, 'Unfroze all merges and deploys.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/namespaces')
@@ -600,7 +604,7 @@ GROUP BY active_namespaces.namespace'''
 @routes.post('/namespaces/{namespace}/services/add')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def add_namespaced_service(request: web.Request, _) -> web.HTTPFound:
+async def add_namespaced_service(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     service = post['service']
@@ -623,13 +627,13 @@ WHERE namespace = %s AND service = %s
             (namespace, service),
         )
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
 @routes.post('/namespaces/add')
 @check_csrf_token
 @auth.web_authenticated_developers_only()
-async def add_namespace(request: web.Request, _) -> web.HTTPFound:
+async def add_namespace(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     namespace = post['namespace']
@@ -648,7 +652,7 @@ async def add_namespace(request: web.Request, _) -> web.HTTPFound:
             (namespace,),
         )
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
 async def cleanup_expired_namespaces(db: Database):

@@ -119,14 +119,20 @@ ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
 services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	+./pgradle testServices $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
+	./gradlew testServices $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
 fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	+./pgradle testFS $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
+	[ -n $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
+	[ -n $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
+	HAIL_CLOUD=$(HAIL_CLOUD) \
+	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
+	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
+	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
+	./gradlew testFS $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
 # javac args from compileJava in build.gradle
 $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java

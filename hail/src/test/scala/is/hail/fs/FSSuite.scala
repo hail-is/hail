@@ -356,9 +356,7 @@ trait FSSuite extends TestNGSuite {
 
     assert(fs.exists(f))
 
-    val debug = this.isInstanceOf[AzureStorageFSSuite]
-
-    using(fs.open(f, fs.getCodecFromPath(f), _debug=debug)) { is =>
+    using(fs.open(f, fs.getCodecFromPath(f))) { is =>
       is match {
         case base: Seekable => base.seek(Int.MaxValue + 2.toLong)
         case base: org.apache.hadoop.fs.Seekable => base.seek(Int.MaxValue + 2.toLong)

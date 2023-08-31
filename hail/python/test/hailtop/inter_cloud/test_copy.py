@@ -1,4 +1,4 @@
-from typing import Tuple, Dict, AsyncIterator
+from typing import Tuple, Dict, AsyncIterator, List
 import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
@@ -6,7 +6,7 @@ import asyncio
 import functools
 import pytest
 from hailtop.utils import url_scheme, bounded_gather2
-from hailtop.aiotools import LocalAsyncFS, Transfer, FileAndDirectoryError, Copier, AsyncFS
+from hailtop.aiotools import LocalAsyncFS, Transfer, FileAndDirectoryError, Copier, AsyncFS, FileListEntry
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiocloud.aioaws import S3AsyncFS
@@ -126,7 +126,7 @@ async def test_copy_behavior(copy_test_context, test_spec):
 
         dest_scheme = url_scheme(dest_base)
         if ((dest_scheme == 'gs' or dest_scheme == 's3' or dest_scheme == 'https')
-                and 'files' in result
+                and (result is not None and 'files' in result)
                 and expected.get('exception') in ('IsADirectoryError', 'NotADirectoryError')):
             return
 
@@ -457,7 +457,7 @@ async def write_file(fs, url, data):
         await f.write(data)
 
 
-async def collect_files(it):
+async def collect_files(it: AsyncIterator[FileListEntry]) -> List[str]:
     return [await x.url() async for x in it]
 
 
@@ -500,7 +500,7 @@ async def test_file_and_directory_error_with_slash_empty_file(router_filesystem:
 
 @pytest.mark.asyncio
 async def test_file_and_directory_error_with_slash_non_empty_file_for_google_non_recursive(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
-    sema, fs, bases = router_filesystem
+    _, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, 'gs')
 
@@ -596,7 +596,7 @@ async def test_file_and_directory_error_with_slash_empty_file_only(router_filesy
 
 @pytest.mark.asyncio
 async def test_file_and_directory_error_with_slash_non_empty_file_only_google_non_recursive(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
-    sema, fs, bases = router_filesystem
+    _, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, 'gs')
 

@@ -355,6 +355,7 @@ object ArrayFunctions extends RegistryFunctions {
             val laGIndexer = cb.newLocal[Int]("g_indexer", 0)
             cb.whileLoop(i < laLen, {
               val lai = localAlleles.loadElement(cb, i).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+              cb.ifx(lai >= nTotalAlleles, cb._fatalWithError(err, "local_to_global: local allele of ", lai.toS, " out of bounds given n_total_alleles of ", nTotalAlleles.toS))
 
               val j = cb.newLocal[Int]("la_j", 0)
               cb.whileLoop(j <= i, {
@@ -414,6 +415,7 @@ object ArrayFunctions extends RegistryFunctions {
             val i = cb.newLocal[Int]("la_i", 0)
             cb.whileLoop(i < localLen, {
               val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+              cb.ifx(lai >= nTotalAlleles, cb._fatalWithError(err, "local_to_global: local allele of ", lai.toS, " out of bounds given n_total_alleles of ", nTotalAlleles.toS))
               push(cb, cb.memoize(lai - idxAdjustmentForOmitFirst), array.loadElement(cb, i))
 
               cb.assign(i, i + 1)

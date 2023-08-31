@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Any, AsyncIterator, Dict
 
 from gear import Database
 from hailtop import aiotools
@@ -92,7 +93,7 @@ HAVING n_cancelled_ready_jobs > 0;
             for user, user_n_jobs in user_n_cancelled_ready_jobs.items()
         }
 
-        async def user_cancelled_ready_jobs(user, remaining):
+        async def user_cancelled_ready_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
                 '''
 SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled
@@ -180,7 +181,7 @@ HAVING n_cancelled_creating_jobs > 0;
             for user, user_n_jobs in user_n_cancelled_creating_jobs.items()
         }
 
-        async def user_cancelled_creating_jobs(user, remaining):
+        async def user_cancelled_creating_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
                 '''
 SELECT batches.id
@@ -277,7 +278,7 @@ HAVING n_cancelled_running_jobs > 0;
             for user, user_n_jobs in user_n_cancelled_running_jobs.items()
         }
 
-        async def user_cancelled_running_jobs(user, remaining):
+        async def user_cancelled_running_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
                 '''
 SELECT batches.id

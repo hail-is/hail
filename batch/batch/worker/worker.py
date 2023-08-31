@@ -1,7 +1,7 @@
 import abc
 import asyncio
 import base64
-import concurrent
+import concurrent.futures
 import errno
 import json
 import logging
@@ -36,6 +36,7 @@ import aiodocker  # type: ignore
 import aiodocker.images
 import aiohttp
 import aiohttp.client_exceptions
+import aiomonitor
 import aiorwlock
 import async_timeout
 import orjson
@@ -143,7 +144,7 @@ def compose_auth_header_urlsafe(orig_f):
 # We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
 # in urlsafe mode which is required for Azure's credentials.
 # https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
-aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)  # type: ignore
 
 
 configure_logging()
@@ -812,7 +813,6 @@ class Container:
 
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
-        self.config_path = f'{self.container_scratch}/config'
         self.log_path = log_path or f'{self.container_scratch}/container.log'
         self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
@@ -965,6 +965,7 @@ class Container:
                 self._killed = True
 
     async def _cleanup(self):
+        log.info(f'Cleaning up {self}')
         if self._cleaned_up:
             return
 
@@ -987,6 +988,7 @@ class Container:
             if self.netns:
                 assert network_allocator
                 network_allocator.free(self.netns)
+                log.info(f'Freed the network namespace for {self}')
                 self.netns = None
         finally:
             try:
@@ -1026,12 +1028,16 @@ class Container:
     async def _setup_network_namespace(self):
         assert network_allocator
         assert port_allocator
-        async with async_timeout.timeout(60):
-            if self.network == 'private':
-                self.netns = await network_allocator.allocate_private()
-            else:
-                assert self.network is None or self.network == 'public'
-                self.netns = await network_allocator.allocate_public()
+        try:
+            async with async_timeout.timeout(60):
+                if self.network == 'private':
+                    self.netns = await network_allocator.allocate_private()
+                else:
+                    assert self.network is None or self.network == 'public'
+                    self.netns = await network_allocator.allocate_public()
+        except asyncio.TimeoutError:
+            log.exception(network_allocator.task_manager.tasks)
+            raise
 
         if self.port is not None:
             self.host_port = await port_allocator.allocate()
@@ -1065,9 +1071,7 @@ class Container:
                         'crun',
                         'run',
                         '--bundle',
-                        f'{self.container_overlay_path}/merged',
-                        '--config',
-                        f'{self.config_path}/config.json',
+                        self.container_scratch,
                         self.name,
                         stdin=stdin,
                         stdout=container_log,
@@ -1101,8 +1105,7 @@ class Container:
         config = await self.container_config()
         self._validate_container_config(config)
 
-        os.makedirs(self.config_path)
-        with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
+        with open(f'{self.container_scratch}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(config))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
@@ -1132,7 +1135,7 @@ class Container:
         config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
-                'path': '.',
+                'path': f'{self.container_overlay_path}/merged',
                 'readonly': False,
             },
             'hostname': self.netns.hostname,
@@ -1648,7 +1651,7 @@ class Job(abc.ABC):
     #   start_time: int,
     #   end_time: int,
     #   resources: list of dict, {name: str, quantity: int}
-    #   region: str
+    #   region: str  # type: ignore
     # }
     def status(self):
         status = {
@@ -1850,7 +1853,7 @@ class DockerJob(Job):
         except asyncio.CancelledError:
             raise
         except Exception:
-            pass
+            log.exception(f'While running container: {container}')
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
@@ -2902,7 +2905,7 @@ class Worker:
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
-        self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)
+        self._jvms = SortedSet([], key=lambda jvm: jvm.n_cores)
 
     async def _initialize_jvms(self):
         assert instance_config
@@ -3391,35 +3394,36 @@ async def async_main():
     await network_allocator.reserve()
 
     worker = Worker(httpx.client_session())
-    try:
-        await worker.run()
-    finally:
+    with aiomonitor.start_monitor(asyncio.get_event_loop(), locals=locals()):
         try:
-            await worker.shutdown()
-            log.info('worker shutdown', exc_info=True)
+            await worker.run()
         finally:
             try:
-                await CLOUD_WORKER_API.close()
+                await worker.shutdown()
+                log.info('worker shutdown', exc_info=True)
             finally:
                 try:
-                    await network_allocator_task_manager.shutdown_and_wait()
+                    await CLOUD_WORKER_API.close()
                 finally:
                     try:
-                        await docker.close()
-                        log.info('docker closed')
+                        await network_allocator_task_manager.shutdown_and_wait()
                     finally:
-                        asyncio.get_event_loop().set_debug(True)
-                        other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                        if other_tasks:
-                            log.warning('Tasks immediately after docker close')
-                            dump_all_stacktraces()
-                            _, pending = await asyncio.wait(
-                                other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
-                            )
-                            for t in pending:
-                                log.warning('Dangling task:')
-                                t.print_stack()
-                                t.cancel()
+                        try:
+                            await docker.close()
+                            log.info('docker closed')
+                        finally:
+                            asyncio.get_event_loop().set_debug(True)
+                            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                            if other_tasks:
+                                log.warning('Tasks immediately after docker close')
+                                dump_all_stacktraces()
+                                _, pending = await asyncio.wait(
+                                    other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
+                                )
+                                for t in pending:
+                                    log.warning('Dangling task:')
+                                    t.print_stack()
+                                    t.cancel()
 
 
 loop = asyncio.get_event_loop()

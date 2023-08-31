@@ -35,7 +35,7 @@ check-all: check-hail check-services
 check-hail-fast:
 	ruff check hail/python/hail
 	ruff check hail/python/hailtop
-	$(PYTHON) -m mypy --config-file setup.cfg hail/python/hailtop
+	$(PYTHON) -m pyright hail/python/hailtop
 
 .PHONY: pylint-hailtop
 pylint-hailtop:
@@ -55,7 +55,7 @@ pylint-%:
 .PHONY: check-%-fast
 check-%-fast:
 	ruff check $*
-	$(PYTHON) -m mypy --config-file setup.cfg $*
+	$(PYTHON) -m pyright $*
 	$(PYTHON) -m black $* --check --diff
 	curlylint $*
 	cd $* && bash ../check-sql.sh

@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
-import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
+import is.hail.expr.ir.functions.{ArrayFunctions, TableCalculateNewPartitions, WrappedMatrixToTableFunction}
 import is.hail.expr.ir.{TableNativeWriter, agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFilterPartitions}
@@ -53,6 +53,47 @@ object TableStage {
   }
   def wrapInBindings(body: IR, letBindings: IndexedSeq[(String, IR)]): IR = letBindings.foldRight[IR](body) {
     case ((name, value), body) => Let(name, value, body)
+  }
+
+  def concatenate(ctx: ExecuteContext, children: IndexedSeq[TableStage]): TableStage = {
+    val keyType = children.head.kType
+    assert(keyType.size == 0)
+    assert(children.forall(_.kType == keyType))
+
+    val ctxType = TTuple(children.map(_.ctxType): _*)
+    val ctxArrays = children.view.zipWithIndex.map { case (child, idx) =>
+      ToArray(mapIR(child.contexts) { ctx =>
+        MakeTuple.ordered(children.indices.map { idx2 =>
+          if (idx == idx2) ctx else NA(children(idx2).ctxType)
+        })
+      })
+    }
+    val ctxs = flatMapIR(MakeStream(ctxArrays.toFastIndexedSeq, TStream(TArray(ctxType)))) { ctxArray =>
+      ToStream(ctxArray)
+    }
+
+    val newGlobals = children.head.globals
+    val globalsRef = Ref(genUID(), newGlobals.typ)
+    val newPartitioner = new RVDPartitioner(ctx.stateManager, keyType, children.flatMap(_.partitioner.rangeBounds))
+
+    TableStage(
+      children.flatMap(_.letBindings) :+ globalsRef.name -> newGlobals,
+      children.flatMap(_.broadcastVals) :+ globalsRef.name -> globalsRef,
+      globalsRef,
+      newPartitioner,
+      TableStageDependency.union(children.map(_.dependency)),
+      ctxs,
+      (ctxRef: Ref) => {
+        StreamMultiMerge(
+          children.indices.map { i =>
+            bindIR(GetTupleElement(ctxRef, i)) { ctx =>
+              If(IsNA(ctx),
+                 MakeStream(IndexedSeq(), TStream(children(i).rowType)),
+                 children(i).partition(ctx))
+            }
+          },
+          IndexedSeq())
+      })
   }
 }
 
@@ -785,17 +826,7 @@ object LowerTableIR {
 
     val lowered: TableStage = tir match {
       case TableRead(typ, dropRows, reader) =>
-        if (dropRows) {
-          val globals = reader.lowerGlobals(ctx, typ.globalType)
-
-          TableStage(
-            globals,
-            RVDPartitioner.empty(ctx, typ.keyType),
-            TableStageDependency.none,
-            MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
-            (_: Ref) => MakeStream(FastIndexedSeq(), TStream(typ.rowType)))
-        } else
-          reader.lower(ctx, typ)
+        reader.lower(ctx, typ, dropRows)
 
       case TableParallelize(rowsAndGlobal, nPartitions) =>
         val nPartitionsAdj = nPartitions.getOrElse(ctx.backend.defaultParallelism)
@@ -1542,21 +1573,26 @@ object LowerTableIR {
       case x@TableUnion(children) =>
         val lowered = children.map(lower)
         val keyType = x.typ.keyType
-        val newPartitioner = RVDPartitioner.generate(ctx.stateManager, keyType, lowered.flatMap(_.partitioner.rangeBounds))
-        val repartitioned = lowered.map(_.repartitionNoShuffle(ctx, newPartitioner))
 
-        TableStage(
-          repartitioned.flatMap(_.letBindings),
-          repartitioned.flatMap(_.broadcastVals),
-          repartitioned.head.globals,
-          newPartitioner,
-          TableStageDependency.union(repartitioned.map(_.dependency)),
-          zipIR(repartitioned.map(_.contexts), ArrayZipBehavior.AssumeSameLength) { ctxRefs =>
-            MakeTuple.ordered(ctxRefs)
-          },
-          ctxRef =>
-            StreamMultiMerge(repartitioned.indices.map(i => repartitioned(i).partition(GetTupleElement(ctxRef, i))), keyType.fieldNames)
-        )
+        if (keyType.size == 0) {
+          TableStage.concatenate(ctx, lowered)
+        } else {
+          val newPartitioner = RVDPartitioner.generate(ctx.stateManager, keyType, lowered.flatMap(_.partitioner.rangeBounds))
+          val repartitioned = lowered.map(_.repartitionNoShuffle(ctx, newPartitioner))
+
+          TableStage(
+            repartitioned.flatMap(_.letBindings),
+            repartitioned.flatMap(_.broadcastVals),
+            repartitioned.head.globals,
+            newPartitioner,
+            TableStageDependency.union(repartitioned.map(_.dependency)),
+            zipIR(repartitioned.map(_.contexts), ArrayZipBehavior.AssumeSameLength) { ctxRefs =>
+              MakeTuple.ordered(ctxRefs)
+            },
+            ctxRef =>
+              StreamMultiMerge(repartitioned.indices.map(i => repartitioned(i).partition(GetTupleElement(ctxRef, i))), keyType.fieldNames)
+            )
+        }
 
       case x@TableMultiWayZipJoin(children, fieldName, globalName) =>
         val lowered = children.map(lower)

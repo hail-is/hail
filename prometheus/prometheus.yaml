@@ -288,7 +288,7 @@ spec:
         fsGroup: 65534
       containers:
        - name: prometheus
-         image: prom/prometheus:v2.34.0
+         image: prom/prometheus:v2.46.0
          imagePullPolicy: Always
          command:
           - "/bin/prometheus"
