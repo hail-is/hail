@@ -246,6 +246,7 @@ BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}
 
 # So here I go it's my shot.
 docker run \
+--name worker \
 -e CLOUD=azure \
 -e CORES=$CORES \
 -e NAME=$NAME \
