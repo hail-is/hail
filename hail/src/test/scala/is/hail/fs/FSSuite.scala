@@ -410,7 +410,12 @@ trait FSSuite extends TestNGSuite {
 
     assert(fs.exists(prefix))
     fs.delete(prefix, recursive = true)
-    assert(!fs.exists(prefix), s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
+    if (fs.exists(prefix)) {
+      // NB: TestNGSuite.assert does not have a lazy message argument so we must use an if to protect this list
+      //
+      // see: https://www.scalatest.org/scaladoc/1.7.2/org/scalatest/testng/TestNGSuite.html
+      assert(false, s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
+    }
   }
 
   @Test def testSeekAfterEOF(): Unit = {
