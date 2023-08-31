@@ -238,6 +238,17 @@ enable_ruby
 </filter>
 EOF
 
+sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
+<source>
+@type tail
+format syslog
+path /var/log/syslog
+pos_file /var/lib/google-fluentd/pos/syslog.pos
+read_from_head true
+tag syslog
+</source>
+EOF
+
 sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
 <source>
 @type tail
@@ -326,6 +337,7 @@ BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}
 
 # So here I go it's my shot.
 docker run \
+--name worker \
 -e CLOUD=gcp \
 -e CORES=$CORES \
 -e NAME=$NAME \

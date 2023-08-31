@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import typing
 from functools import wraps
 from typing import List, NoReturn, Optional
 
@@ -102,10 +103,10 @@ def maybe_authenticated_user(fun: MaybeAuthenticatedAIOHTTPHandler) -> AIOHTTPHa
     return wrapped
 
 
-async def user_from_login_id(db, login_id):
+async def user_from_login_id(db: Database, login_id: str) -> Optional[UserData]:
     users = [x async for x in db.select_and_fetchall("SELECT * FROM users WHERE login_id = %s;", login_id)]
     if len(users) == 1:
-        return users[0]
+        return typing.cast(UserData, users[0])
     assert len(users) == 0, users
     return None
 
@@ -284,17 +285,11 @@ async def _wait_websocket(request, login_id):
 
     try:
         count = 0
-        while count < 10:
-            try:
-                user = await user_from_login_id(db, login_id)
-                assert user
-                if user['state'] != 'creating':
-                    log.info(f"user {user['username']} is no longer creating")
-                    break
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception(f"/creating/wait: error while updating status for user {user['username']}")
+        user = await user_from_login_id(db, login_id)
+        assert user
+        while count < 10 and user['state'] == 'creating':
+            user = await user_from_login_id(db, login_id)
+            assert user
             await asyncio.sleep(1)
             count += 1
 
@@ -813,7 +808,7 @@ async def userinfo(_, userdata: UserData) -> web.Response:
 
 
 async def get_session_id(request: web.Request) -> Optional[str]:
-    if 'X-Hail-Internal-Authorization' in request.headers:
+    if 'X-Hail-Internal-Authorization' in request.headers and DEFAULT_NAMESPACE == 'default':
         return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
 
     if 'Authorization' in request.headers:

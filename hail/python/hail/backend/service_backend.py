@@ -432,9 +432,7 @@ class ServiceBackend(Backend):
                 if 'name' not in batch_attributes:
                     batch_attributes = {**batch_attributes, 'name': self.name_prefix}
                 if self._batch is None:
-                    bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
-                else:
-                    bb = await self.async_bc.update_batch(self._batch)
+                    self._batch = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
                 if driver_cores is not None:
@@ -450,7 +448,7 @@ class ServiceBackend(Backend):
                 if storage_requirement_bytes != 0:
                     resources['storage'] = storage_gib_str
 
-                j = bb.create_jvm_job(
+                j = self._batch.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
@@ -465,7 +463,7 @@ class ServiceBackend(Backend):
                     cloudfuse=cloudfuse_config,
                     profile=self.flags['profile'] is not None,
                 )
-                self._batch = await bb.submit(disable_progress_bar=True)
+                await self._batch.submit(disable_progress_bar=True)
 
             with timings.step("wait driver"):
                 try:

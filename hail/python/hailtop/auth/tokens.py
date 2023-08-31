@@ -2,7 +2,6 @@ from typing import Optional, Dict
 import base64
 import collections.abc
 import os
-import sys
 import json
 import logging
 from hailtop.config import get_deploy_config
@@ -17,6 +16,21 @@ def session_id_encode_to_str(session_id_bytes: bytes) -> str:
 
 def session_id_decode_from_str(session_id_str: str) -> bytes:
     return base64.urlsafe_b64decode(session_id_str.encode('ascii'))
+
+
+class NotLoggedInError(Exception):
+    def __init__(self, ns_arg):
+        super().__init__()
+        self.message = f'''
+You are not authenticated.  Please log in with:
+
+  $ hailctl auth login {ns_arg}
+
+to obtain new credentials.
+'''
+
+    def __str__(self):
+        return self.message
 
 
 class Tokens(collections.abc.MutableMapping):
@@ -64,14 +78,7 @@ class Tokens(collections.abc.MutableMapping):
         deploy_config = get_deploy_config()
         auth_ns = deploy_config.service_ns('auth')
         ns_arg = '' if ns == auth_ns else f'-n {ns}'
-        sys.stderr.write(f'''\
-You are not authenticated.  Please log in with:
-
-  $ hailctl auth login {ns_arg}
-
-to obtain new credentials.
-''')
-        sys.exit(1)
+        raise NotLoggedInError(ns_arg)
 
     def __delitem__(self, key: str):
         del self._tokens[key]

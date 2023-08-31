@@ -262,7 +262,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     serviceClientCache.getServiceClient(url).getBlobContainerClient(url.container)
   }
 
-  def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream = handlePublicAccessError(filename) {
+  def openNoCompression(filename: String): SeekableDataInputStream = handlePublicAccessError(filename) {
     val url = AzureStorageFS.parseUrl(filename)
     val blobClient: BlobClient = getBlobClient(url)
     val blobSize = blobClient.getProperties.getBlobSize
@@ -296,16 +296,8 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           bb.flip()
           assert(bb.position() == 0 && bb.remaining() > 0)
 
-          if (_debug) {
-            val byteContents = bb.array().map("%02X" format _).mkString
-            log.info(s"AzureStorageFS.openNoCompression SeekableInputStream: pos=$pos blobSize=$blobSize count=$count response.getStatusCode()=${response.getStatusCode()} bb.toString()=${bb} byteContents=${byteContents}")
-          }
-
           bb.remaining()
         } else {
-          if (_debug) {
-            log.info(s"AzureStorageFS.openNoCompression SeekableInputStream: pos=$pos blobSize=$blobSize count=$count response.getStatusCode()=${response.getStatusCode()}")
-          }
           -1
         }
       }

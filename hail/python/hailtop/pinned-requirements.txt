@@ -10,19 +10,19 @@ aiohttp==3.8.5
     # via -r hail/hail/python/hailtop/requirements.txt
 aiosignal==1.3.1
     # via aiohttp
-async-timeout==4.0.2
+async-timeout==4.0.3
     # via aiohttp
 attrs==23.1.0
     # via aiohttp
 azure-common==1.1.28
     # via azure-mgmt-storage
-azure-core==1.28.0
+azure-core==1.29.2
     # via
     #   azure-identity
     #   azure-mgmt-core
     #   azure-storage-blob
     #   msrest
-azure-identity==1.13.0
+azure-identity==1.14.0
     # via -r hail/hail/python/hailtop/requirements.txt
 azure-mgmt-core==1.4.0
     # via azure-mgmt-storage
@@ -30,9 +30,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/hail/python/hailtop/requirements.txt
 azure-storage-blob==12.17.0
     # via -r hail/hail/python/hailtop/requirements.txt
-boto3==1.28.19
+boto3==1.28.26
     # via -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.19
+botocore==1.31.26
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   boto3
@@ -125,7 +125,7 @@ nest-asyncio==1.5.7
     # via -r hail/hail/python/hailtop/requirements.txt
 oauthlib==3.2.2
     # via requests-oauthlib
-orjson==3.9.2
+orjson==3.9.4
     # via -r hail/hail/python/hailtop/requirements.txt
 portalocker==2.7.0
     # via msal-extensions
@@ -144,7 +144,7 @@ pycares==4.3.0
     # via aiodns
 pycparser==2.21
     # via cffi
-pygments==2.15.1
+pygments==2.16.1
     # via rich
 pyjwt[crypto]==2.8.0
     # via msal
@@ -175,7 +175,6 @@ s3transfer==0.6.1
 six==1.16.0
     # via
     #   azure-core
-    #   azure-identity
     #   google-auth
     #   isodate
     #   jproperties

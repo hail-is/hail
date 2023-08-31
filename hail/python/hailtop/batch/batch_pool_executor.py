@@ -3,7 +3,7 @@ from types import TracebackType
 from io import BytesIO
 import warnings
 import asyncio
-import concurrent
+import concurrent.futures
 import dill
 import functools
 
@@ -394,8 +394,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
 "''')
         output_gcs = self.outputs + f'{name}/output'
         batch.write_output(j.ofile, output_gcs)
-        backend_batch = batch.run(wait=False,
-                                  disable_progress_bar=True)._async_batch
+        backend_batch = batch.run(wait=False, disable_progress_bar=True)._async_batch
         try:
             return BatchPoolFuture(self,
                                    backend_batch,
@@ -546,8 +545,8 @@ class BatchPoolFuture:
 
     async def _async_fetch_result(self):
         try:
-            await self.job.wait()
-            main_container_status = self.job._status['status']['container_statuses']['main']
+            status = await self.job.wait()
+            main_container_status = status['status']['container_statuses']['main']
             if main_container_status['state'] == 'error':
                 raise ValueError(
                     f"submitted job failed:\n{main_container_status['error']}")
@@ -575,7 +574,7 @@ class BatchPoolFuture:
             raise concurrent.futures.CancelledError()
         self.result(timeout)
 
-    def add_done_callback(self, fn):
+    def add_done_callback(self, _):
         """NOT IMPLEMENTED
         """
         raise NotImplementedError()

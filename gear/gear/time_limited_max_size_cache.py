@@ -63,7 +63,7 @@ class TimeLimitedMaxSizeCache(Generic[T, U]):
 
         self._futures[k] = asyncio.create_task(self.load(k))
         try:
-            v = await prom_async_time(CACHE_LOAD_LATENCY.labels(cache_name=self.cache_name), self._futures[k])
+            v = await prom_async_time(CACHE_LOAD_LATENCY.labels(cache_name=self.cache_name), self._futures[k])  # type: ignore
         finally:
             del self._futures[k]
 
@@ -90,5 +90,5 @@ class TimeLimitedMaxSizeCache(Generic[T, U]):
         return len(self._keys_by_expiry) > self.num_slots
 
     def _evict_oldest(self) -> None:
-        oldest_key = self._keys_by_expiry[0]
+        oldest_key: T = self._keys_by_expiry[0]  # type: ignore
         self._remove(oldest_key)

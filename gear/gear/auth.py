@@ -24,7 +24,10 @@ TEN_SECONDS_IN_NANOSECONDS = int(1e10)
 
 
 class UserData(TypedDict):
+    id: int
+    state: str
     username: str
+    login_id: str
     namespace_name: str
     is_developer: bool
     is_service_account: bool

@@ -1,12 +1,12 @@
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
-from hailtop.aiocloud.aiogoogle.user_config import spark_conf_path, get_spark_conf_gcs_requester_pays_configuration
-from hailtop.utils.process import CalledProcessError, check_exec_output
+from hailtop.aiocloud.aiogoogle.user_config import get_spark_conf_gcs_requester_pays_configuration, spark_conf_path
 from hailtop.config.user_config import ConfigVariable, configuration_of
-
+from hailtop.utils.process import check_exec_output
 
 if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS' not in os.environ:
     print('This script will overwrite your spark-defaults.conf and hailctl settings. It is intended to be executed inside a container.')
@@ -14,6 +14,7 @@ if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS' not in os.env
 
 
 SPARK_CONF_PATH = spark_conf_path()
+assert SPARK_CONF_PATH
 
 
 async def unset_hailctl():
@@ -34,7 +35,7 @@ async def unset_hailctl():
 
 @pytest.mark.asyncio
 async def test_no_configuration():
-    with open(SPARK_CONF_PATH, 'w') as f:
+    with open(SPARK_CONF_PATH, 'w'):
         pass
 
     await unset_hailctl()

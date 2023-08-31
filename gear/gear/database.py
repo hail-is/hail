@@ -4,7 +4,7 @@ import logging
 import os
 import ssl
 import traceback
-from typing import Awaitable, Callable, Optional, TypeVar
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, Optional, TypeVar
 
 import aiomysql
 import kubernetes_asyncio.client
@@ -91,11 +91,11 @@ async def resolve_test_db_endpoint(sql_config: SQLConfig) -> SQLConfig:
     await kubernetes_asyncio.config.load_kube_config()
     async with kubernetes_asyncio.client.ApiClient() as api:
         client = kubernetes_asyncio.client.CoreV1Api(api)
-        db_service = await client.read_namespaced_service(service_name, namespace)
-        db_pod = await client.read_namespaced_pod(f'{db_service.spec.selector["app"]}-0', namespace)
+        db_service = await client.read_namespaced_service(service_name, namespace)  # type: ignore
+        db_pod = await client.read_namespaced_pod(f'{db_service.spec.selector["app"]}-0', namespace)  # type: ignore
         sql_config_dict = sql_config.to_dict()
-        sql_config_dict['host'] = db_pod.status.host_ip
-        sql_config_dict['port'] = db_service.spec.ports[0].node_port
+        sql_config_dict['host'] = db_pod.status.host_ip  # type: ignore
+        sql_config_dict['port'] = db_service.spec.ports[0].node_port  # type: ignore
         return SQLConfig.from_dict(sql_config_dict)
 
 
@@ -243,7 +243,7 @@ class Transaction:
                     await cursor.execute(sql, args)
             return await cursor.fetchone()
 
-    async def execute_and_fetchall(self, sql, args=None, query_name=None):
+    async def execute_and_fetchall(self, sql: str, args=None, query_name=None) -> AsyncIterator[Dict[str, Any]]:
         assert self.conn
         async with self.conn.cursor() as cursor:
             if query_name is None:
@@ -258,7 +258,7 @@ class Transaction:
                 for row in rows:
                     yield row
 
-    async def execute_insertone(self, sql, args=None, *, query_name=None):
+    async def execute_insertone(self, sql, args=None, *, query_name=None) -> Optional[int]:
         assert self.conn
         async with self.conn.cursor() as cursor:
             if query_name is None:

@@ -3,11 +3,11 @@ import logging
 import secrets
 from collections import deque
 from functools import wraps
-from typing import Deque, Set, Tuple
+from typing import Any, Deque, Dict, List, Optional, Set, Tuple, overload
 
 from aiohttp import web
 
-from gear import maybe_parse_bearer_header
+from gear import Database, maybe_parse_bearer_header
 from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('utils')
@@ -133,7 +133,7 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-async def query_billing_projects_with_cost(db, user=None, billing_project=None):
+async def query_billing_projects_with_cost(db, user=None, billing_project=None) -> List[Dict[str, Any]]:
     where_conditions = ["billing_projects.`status` != 'deleted'"]
     args = []
 
@@ -186,7 +186,9 @@ LOCK IN SHARE MODE;
     return billing_projects
 
 
-async def query_billing_projects_without_cost(db, user=None, billing_project=None):
+async def query_billing_projects_without_cost(
+    db: Database, user: Optional[str] = None, billing_project: Optional[str] = None
+) -> List[Dict[str, Any]]:
     where_conditions = ["billing_projects.`status` != 'deleted'"]
     args = []
 
@@ -242,7 +244,19 @@ def regions_to_bits_rep(selected_regions, all_regions_mapping):
     return result
 
 
-def regions_bits_rep_to_regions(regions_bits_rep, all_regions_mapping):
+@overload
+def regions_bits_rep_to_regions(regions_bits_rep: None, all_regions_mapping: Dict[str, int]) -> None:
+    ...
+
+
+@overload
+def regions_bits_rep_to_regions(regions_bits_rep: int, all_regions_mapping: Dict[str, int]) -> List[str]:
+    ...
+
+
+def regions_bits_rep_to_regions(
+    regions_bits_rep: Optional[int], all_regions_mapping: Dict[str, int]
+) -> Optional[List[str]]:
     if regions_bits_rep is None:
         return None
     result = []

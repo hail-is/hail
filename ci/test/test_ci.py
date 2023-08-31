@@ -22,6 +22,7 @@ async def test_deploy():
 
             async def wait_forever():
                 deploy_state = None
+                deploy_status = None
                 failure_information = None
                 while deploy_state is None:
                     headers = await creds.auth_headers()

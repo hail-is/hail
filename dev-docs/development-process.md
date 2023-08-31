@@ -216,7 +216,8 @@ deploy and then delete existing workers in your namespace.
 ## PR
 
 Once you have a branch that you are happy with, then you create a Pull Request
-on the GitHub UI.
+on the GitHub UI. For an overview of our practices around git and pull requests,
+see [this doc](git-practices.md)
 
 You’ll want to add an appropriate reviewer in the "Reviewers" box on the
 right hand side of the page. If you are an outside contributor and cannot
@@ -292,7 +293,7 @@ If your review is requested on a PR submitted by an outside contributor, you sho
 responsible for ensuring that the PR does not go stale and is eventually
 merged or closed.
 
-![](dismiss_review.png)
+![](dismiss-review.png)
 
 
 ## Merge / Deploy
