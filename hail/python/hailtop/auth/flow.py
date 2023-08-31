@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import serialization
 import json
 import logging
 import urllib.parse
-from typing import Any, Dict, List, Mapping, Optional, TypedDict
+from typing import Any, Dict, List, Mapping, Optional, TypedDict, ClassVar
 
 import aiohttp.web
 import google.auth.transport.requests
@@ -60,7 +60,7 @@ class Flow(abc.ABC):
 
 
 class GoogleFlow(Flow):
-    scopes = [
+    scopes: ClassVar[List[str]] = [
         'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/userinfo.email',
         'openid',

@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union, List
+from typing import Dict, Optional, Union, List, ClassVar
 import os
 import json
 import time
@@ -33,8 +33,7 @@ class GoogleExpiringAccessToken:
 
 
 class GoogleCredentials(CloudCredentials):
-    _http_session: httpx.ClientSession
-    default_scopes = [
+    default_scopes: ClassVar[List[str]] = [
         'openid',
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/cloud-platform',
