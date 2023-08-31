@@ -1,11 +1,10 @@
-from typing import Any, Dict
 import json
 import logging
 from typing import Any, Dict, Optional
 
 from gear import transaction
-from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 from hailtop.batch_client.types import JobListEntryV1Alpha
+from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
 from .exceptions import NonExistentBatchError, OpenBatchError

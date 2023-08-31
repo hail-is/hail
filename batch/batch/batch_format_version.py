@@ -1,4 +1,5 @@
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
 from hailtop.batch_client.aioclient import Job
 
 
