@@ -1,6 +1,7 @@
 -c ../pinned-requirements.txt
 
 pylint>=2.13.5,<3
+pre-commit>=3.3.3,<4
 black>=22.8.0,<23
 ruff>=0.0.264,<1
 curlylint>=0.13.1,<1
