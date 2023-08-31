@@ -4,7 +4,7 @@ import unittest
 import hail as hl
 from hail.utils import *
 from hail.utils.misc import escape_str, escape_id
-from hail.utils.java import Env, FatalError
+from hail.utils.java import FatalError
 from hail.utils.linkedlist import LinkedList
 
 from ..helpers import *

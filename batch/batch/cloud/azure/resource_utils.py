@@ -100,7 +100,7 @@ def azure_disk_from_storage_in_gib(disk_type: str, storage_in_gib: int) -> Optio
     index = disks.bisect_key_left(storage_in_gib)
     if index == len(disks):
         return None
-    return disks[index]
+    return disks[index]  # type: ignore
 
 
 class MachineTypeParts:

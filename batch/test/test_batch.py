@@ -12,7 +12,7 @@ from hailtop.auth import hail_credentials
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
 from hailtop.batch_client.client import Batch, BatchClient
-from hailtop.config import get_deploy_config, get_user_config
+from hailtop.config import get_deploy_config
 from hailtop.test_utils import skip_in_azure
 from hailtop.utils import delay_ms_for_try, external_requests_client_session, retry_response_returning_functions
 from hailtop.utils.rich_progress_bar import BatchProgressBar
@@ -1114,9 +1114,8 @@ def test_verify_no_access_to_metadata_server(client: BatchClient):
     assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
-def test_submit_batch_in_job(client: BatchClient):
+def test_submit_batch_in_job(client: BatchClient, remote_tmpdir: str):
     b = create_batch(client)
-    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     script = f'''import hailtop.batch as hb
 backend = hb.ServiceBackend("test", remote_tmpdir="{remote_tmpdir}")
 b = hb.Batch(backend=backend)
@@ -1135,11 +1134,10 @@ backend.close()
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient):
+def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient, remote_tmpdir: str):
     DOMAIN = os.environ['HAIL_DOMAIN']
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
-    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     script = f'''import hailtop.batch as hb
 backend = hb.ServiceBackend("test", remote_tmpdir="{remote_tmpdir}")
 b = hb.Batch(backend=backend)
@@ -1215,9 +1213,8 @@ curl -fsSL -m 5 $OTHER_IP
 
 
 @skip_in_azure
-def test_hadoop_can_use_cloud_credentials(client: BatchClient):
+def test_hadoop_can_use_cloud_credentials(client: BatchClient, remote_tmpdir: str):
     token = os.environ["HAIL_TOKEN"]
-    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     b = create_batch(client)
     script = f'''import hail as hl
 import secrets
@@ -1596,9 +1593,9 @@ def test_update_with_always_run(client: BatchClient):
 
     wait_status = j1._wait_for_states('Running')
     if wait_status['state'] != 'Running':
-        assert False, str(j1.status(), b.debug_info())
+        assert False, str((j1.status(), b.debug_info()))
 
-    assert j2.is_pending(), str(j2.status(), b.debug_info())
+    assert j2.is_pending(), str((j2.status(), b.debug_info()))
 
     b.cancel()
     j2.wait()
@@ -1619,7 +1616,7 @@ def test_update_jobs_are_not_serialized(client: BatchClient):
 
     wait_status = j1._wait_for_states('Running')
     if wait_status['state'] != 'Running':
-        assert False, str(j1.status(), b.debug_info())
+        assert False, str((j1.status(), b.debug_info()))
 
     b.cancel()
 

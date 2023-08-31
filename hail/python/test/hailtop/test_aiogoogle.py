@@ -3,7 +3,7 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-import concurrent
+import concurrent.futures
 import functools
 from hailtop.utils import secret_alnum_string, bounded_gather2, retry_transient_errors
 from hailtop.aiotools import LocalAsyncFS
@@ -75,7 +75,7 @@ async def test_get_object_headers(bucket_and_temporary_file):
                 await f.write(b'foo')
         await retry_transient_errors(upload)
         async with await client.get_object(bucket, file) as f:
-            headers = f.headers()
+            headers = f.headers()  # type: ignore
             assert 'ETag' in headers
             assert headers['X-Goog-Hash'] == 'crc32c=z8SuHQ==,md5=rL0Y20zC+Fzt72VPzMSk2A=='
             assert await f.read() == b'foo'

@@ -11,6 +11,7 @@ from shlex import quote as shq
 from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import aiohttp
+import aiohttp.client_exceptions
 import gidgethub
 import prometheus_client as pc  # type: ignore
 import zulip
@@ -909,7 +910,9 @@ url: {url}
             if pr.review_state == 'approved' and not pr.build_failed_on_at_least_one_platform():
                 pri = pr.merge_priority()
                 is_authorized = await pr.authorized(db)
-                if is_authorized and (not merge_candidate or pri > merge_candidate_pri):
+                if is_authorized and (
+                    not merge_candidate or (merge_candidate_pri is not None and pri > merge_candidate_pri)
+                ):
                     merge_candidate = pr
                     merge_candidate_pri = pri
 
