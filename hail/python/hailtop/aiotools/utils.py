@@ -2,6 +2,8 @@ from typing import Deque, TypeVar, AsyncIterator, Iterator
 import collections
 from contextlib import contextmanager
 import asyncio
+import random
+from hailtop.utils import TransientError
 
 
 _T = TypeVar('_T')
@@ -88,6 +90,9 @@ class WriteBuffer:
         assert not self._iterating
 
         def _chunks_iterator() -> Iterator[bytes]:
+            if random.randrange(100) == 0:
+                raise TransientError()
+
             remaining = chunk_size
             i = 0
             while remaining > 0:
