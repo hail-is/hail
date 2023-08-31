@@ -14,5 +14,5 @@ class CloudUserCredentials(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def identity_json(self) -> dict:
+    def identity_provider_json(self) -> dict:
         raise NotImplementedError

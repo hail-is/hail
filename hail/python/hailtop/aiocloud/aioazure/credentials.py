@@ -28,6 +28,11 @@ class RefreshTokenCredential(AsyncTokenCredential):
     async def get_token(
         self, *scopes: str, claims: Optional[str] = None, tenant_id: Optional[str] = None, **kwargs: Any
     ) -> AccessToken:
+        # MSAL token objects, like those returned from `acquire_token_by_refresh_token` do their own internal
+        # caching of refresh tokens. Per their documentation it is not advised to use the original refresh token
+        # once you have "migrated it into MSAL".
+        # See docs:
+        # https://msal-python.readthedocs.io/en/latest/#msal.ClientApplication.acquire_token_by_refresh_token
         if self._refresh_token:
             res_co = blocking_to_async(self._pool, self._app.acquire_token_by_refresh_token, self._refresh_token, scopes)
             self._refresh_token = None
@@ -41,7 +46,7 @@ class RefreshTokenCredential(AsyncTokenCredential):
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback) -> None:
-        pass
+        await self.close()
 
     async def close(self) -> None:
         self._pool.shutdown()
@@ -101,7 +106,7 @@ class AzureCredentials(CloudCredentials):
 
     async def auth_headers(self):
         access_token = await self.access_token()
-        return {'Authorization': f'Bearer {access_token.token}'}  # type: ignore
+        return {'Authorization': f'Bearer {access_token}'}
 
     async def access_token(self) -> str:
         now = time.time()

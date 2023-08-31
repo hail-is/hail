@@ -2931,10 +2931,10 @@ steps:
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
 
       {% if global.cloud == "gcp" %}
-      export HAIL_IDENTITY_JSON='{"idp": "Google"}'
+      export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Google"}'
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       {% elif global.cloud == "azure" %}
-      export HAIL_IDENTITY_JSON='{"idp": "Microsoft"}'
+      export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Microsoft"}'
       export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       {% else %}

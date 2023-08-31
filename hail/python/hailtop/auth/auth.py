@@ -1,5 +1,4 @@
-from typing import Any, Optional, Dict, Tuple, Type, List
-from types import TracebackType
+from typing import Any, Optional, Dict, Tuple, List
 from dataclasses import dataclass
 from enum import Enum
 import os
@@ -7,7 +6,7 @@ import json
 import aiohttp
 
 from hailtop import httpx
-from hailtop.aiocloud.common.credentials import AnonymousCloudCredentials, CloudCredentials, Credentials
+from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.aiogoogle import GoogleCredentials
 from hailtop.aiocloud.aioazure import AzureCredentials
@@ -33,7 +32,7 @@ class IdentityProviderSpec:
         return IdentityProviderSpec(IdentityProvider(config['idp']), config.get('credentials'))
 
 
-class HailCredentials(Credentials):
+class HailCredentials(CloudCredentials):
     def __init__(self, tokens: Tokens, cloud_credentials: Optional[CloudCredentials], namespace: str, authorize_target: bool):
         self._tokens = tokens
         self._cloud_credentials = cloud_credentials
@@ -54,6 +53,9 @@ class HailCredentials(Credentials):
             headers['X-Hail-Internal-Authorization'] = f'Bearer {token}'
         return headers
 
+    async def access_token(self) -> str:
+        return await self._get_idp_access_token_or_hail_token(self._namespace)
+
     async def _get_idp_access_token_or_hail_token(self, namespace: str) -> str:
         if self._cloud_credentials is not None:
             return await self._cloud_credentials.access_token()
@@ -71,12 +73,7 @@ class HailCredentials(Credentials):
     async def __aenter__(self):
         return self
 
-    async def __aexit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
-    ) -> None:
+    async def __aexit__(self, *_) -> None:
         await self.close()
 
 
@@ -103,7 +100,7 @@ def get_cloud_credentials_scoped_for_hail() -> Optional[CloudCredentials]:
         scopes = ['email', 'openid', 'profile']
         if spec.oauth2_credentials is not None:
             return GoogleCredentials.from_credentials_data(spec.oauth2_credentials, scopes=scopes)
-        return GoogleCredentials.default_credentials(scopes=scopes, anon_ok=False)
+        return GoogleCredentials.default_credentials(scopes=scopes, anonymous_ok=False)
 
     assert spec.idp == IdentityProvider.MICROSOFT
     if spec.oauth2_credentials is not None:
@@ -117,7 +114,7 @@ def get_cloud_credentials_scoped_for_hail() -> Optional[CloudCredentials]:
 
 
 def load_identity_spec() -> Optional[IdentityProviderSpec]:
-    if idp := os.environ.get('HAIL_IDENTITY_JSON'):
+    if idp := os.environ.get('HAIL_IDENTITY_PROVIDER_JSON'):
         return IdentityProviderSpec.from_json(json.loads(idp))
 
     identity_file = get_user_identity_config_path()
@@ -136,25 +133,26 @@ async def deploy_config_and_headers_from_namespace(namespace: Optional[str] = No
     else:
         namespace = deploy_config.default_namespace()
 
-    credentials = hail_credentials(namespace=namespace, authorize_target=authorize_target)
-    headers = await credentials.auth_headers()
+
+    async with hail_credentials(namespace=namespace, authorize_target=authorize_target) as credentials:
+        headers = await credentials.auth_headers()
 
     return (deploy_config, headers, namespace)
 
 
 async def async_get_userinfo():
     deploy_config = get_deploy_config()
-    credentials = hail_credentials()
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
 
-    async with Session(credentials=credentials) as session:
-        try:
-            async with await session.get(userinfo_url) as resp:
-                return await resp.json()
-        except aiohttp.ClientResponseError as err:
-            if err.status == 401:
-                return None
-            raise
+    async with hail_credentials() as credentials:
+        async with Session(credentials=credentials) as session:
+            try:
+                async with await session.get(userinfo_url) as resp:
+                    return await resp.json()
+            except aiohttp.ClientResponseError as err:
+                if err.status == 401:
+                    return None
+                raise
 
 
 def get_userinfo():

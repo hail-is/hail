@@ -33,7 +33,7 @@ from gear.auth import AIOHTTPHandler, AuthenticatedAIOHTTPHandler, MaybeAuthenti
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
-from hailtop.auth import AzureFlow, Flow, GoogleFlow
+from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -507,8 +507,8 @@ async def rest_login(request: web.Request) -> web.Response:
 
 @routes.get('/api/v1alpha/oauth2-client')
 async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
-    idp = 'Google' if CLOUD == 'gcp' else 'Microsoft'
-    return json_response({'idp': idp, 'oauth2_client': request.app['hailctl_client_config']})
+    idp = IdentityProvider.GOOGLE if CLOUD == 'gcp' else IdentityProvider.MICROSOFT
+    return json_response({'idp': idp.value, 'oauth2_client': request.app['hailctl_client_config']})
 
 
 @routes.get('/roles')
@@ -756,7 +756,9 @@ async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
     raise web.HTTPUnauthorized()
 
 
-async def get_userinfo_from_login_id_or_hail_identity_id(request: web.Request, login_id: str) -> UserData:
+async def get_userinfo_from_login_id_or_hail_identity_id(
+    request: web.Request, login_id_or_hail_idenity_uid: str
+) -> UserData:
     db = request.app['db']
 
     users = [
@@ -767,7 +769,7 @@ SELECT users.*
 FROM users
 WHERE (users.login_id = %s OR users.hail_identity_uid = %s) AND users.state = 'active'
 ''',
-            (login_id, login_id),
+            (login_id_or_hail_idenity_uid, login_id_or_hail_idenity_uid),
         )
     ]
 

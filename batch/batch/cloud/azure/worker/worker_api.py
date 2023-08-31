@@ -36,7 +36,7 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
         self._blobfuse_credential_files: Dict[str, str] = {}
 
     @property
-    def cloud_specific_env_vars(self) -> List[str]:
+    def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
         return [f'HAIL_AZURE_OAUTH_SCOPE={self.hail_oauth_scope}']
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:

@@ -12,15 +12,17 @@ class CleanupPolicy(abc.ABC):
 
 
 class DeletePolicy(CleanupPolicy):
-    def __init__(self,
-                 name: str,
-                 tag_state: str,
-                 *,
-                 tag_prefixes: Optional[List[str]] = None,
-                 version_name_prefixes: Optional[List[str]] = None,
-                 package_name_prefixes: Optional[List[str]] = None,
-                 older_than: Optional[str] = None,
-                 newer_than: Optional[str] = None):
+    def __init__(
+        self,
+        name: str,
+        tag_state: str,
+        *,
+        tag_prefixes: Optional[List[str]] = None,
+        version_name_prefixes: Optional[List[str]] = None,
+        package_name_prefixes: Optional[List[str]] = None,
+        older_than: Optional[str] = None,
+        newer_than: Optional[str] = None
+    ):
         self.name = name
         self.tag_state = tag_state
         self.tag_prefixes = tag_prefixes
@@ -46,15 +48,17 @@ class DeletePolicy(CleanupPolicy):
 
 
 class ConditionalKeepPolicy(CleanupPolicy):
-    def __init__(self,
-                 name: str,
-                 tag_state: str,
-                 *,
-                 tag_prefixes: Optional[List[str]] = None,
-                 version_name_prefixes: Optional[List[str]] = None,
-                 package_name_prefixes: Optional[List[str]] = None,
-                 older_than: Optional[str] = None,
-                 newer_than: Optional[str] = None):
+    def __init__(
+        self,
+        name: str,
+        tag_state: str,
+        *,
+        tag_prefixes: Optional[List[str]] = None,
+        version_name_prefixes: Optional[List[str]] = None,
+        package_name_prefixes: Optional[List[str]] = None,
+        older_than: Optional[str] = None,
+        newer_than: Optional[str] = None
+    ):
         self.name = name
         self.tag_state = tag_state
         self.tag_prefixes = tag_prefixes
@@ -80,10 +84,7 @@ class ConditionalKeepPolicy(CleanupPolicy):
 
 
 class MostRecentVersionKeepPolicy(CleanupPolicy):
-    def __init__(self,
-                 name: str,
-                 package_name_prefixes: List[str],
-                 keep_count: int):
+    def __init__(self, name: str, package_name_prefixes: List[str], keep_count: int):
         self.name = name
         self.package_name_prefixes = package_name_prefixes
         self.keep_count = keep_count
@@ -92,10 +93,7 @@ class MostRecentVersionKeepPolicy(CleanupPolicy):
         data = {
             'name': self.name,
             'action': {'type': 'Keep'},
-            'mostRecentVersions': {
-                'packageNamePrefixes': self.package_name_prefixes,
-                'keepCount': self.keep_count
-            }
+            'mostRecentVersions': {'packageNamePrefixes': self.package_name_prefixes, 'keepCount': self.keep_count},
         }
         return data
 

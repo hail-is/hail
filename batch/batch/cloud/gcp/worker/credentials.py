@@ -24,5 +24,5 @@ class GCPUserCredentials(CloudUserCredentials):
         return self._key
 
     @property
-    def identity_json(self):
+    def identity_provider_json(self):
         return {'idp': IdentityProvider.GOOGLE.value}

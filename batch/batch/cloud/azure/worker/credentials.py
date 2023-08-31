@@ -29,7 +29,7 @@ class AzureUserCredentials(CloudUserCredentials):
         return '/azure-credentials/key.json'
 
     @property
-    def identity_json(self):
+    def identity_provider_json(self):
         return {'idp': IdentityProvider.MICROSOFT.value}
 
     def blobfuse_credentials(self, account: str, container: str) -> str:

@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives import serialization
 import json
 import logging
 import urllib.parse
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Mapping, Optional, TypedDict
 
 import aiohttp.web
 import google.auth.transport.requests
@@ -21,10 +21,10 @@ log = logging.getLogger('auth')
 
 
 class FlowResult:
-    def __init__(self, login_id: str, email: str, refresh_token: str):
+    def __init__(self, login_id: str, email: str, token: Mapping[Any, Any]):
         self.login_id = login_id
         self.email = email
-        self.refresh_token = refresh_token
+        self.token = token
 
 
 class Flow(abc.ABC):
@@ -89,7 +89,7 @@ class GoogleFlow(Flow):
         flow.redirect_uri = flow_dict['callback_uri']
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
-            flow.credentials.id_token, google.auth.transport.requests.Request()
+            flow.credentials.id_token, google.auth.transport.requests.Request()  # type: ignore
         )
         email = token['email']
         return FlowResult(email, email, token)
@@ -115,7 +115,9 @@ class GoogleFlow(Flow):
                 'https://www.googleapis.com/oauth2/v3/tokeninfo',
                 params={'access_token': access_token},
             )
-            if userinfo['aud'] != oauth2_client_audience and userinfo['aud'] != userinfo['sub']:
+            is_human_with_hail_audience = userinfo['aud'] == oauth2_client_audience
+            is_service_account = userinfo['aud'] == userinfo['sub']
+            if not (is_human_with_hail_audience or is_service_account):
                 return None
 
             email = userinfo['email']
@@ -188,6 +190,11 @@ class AzureFlow(Flow):
             if AzureFlow._aad_keys is None:
                 resp = await session.get_read_json('https://login.microsoftonline.com/common/discovery/keys')
                 AzureFlow._aad_keys = resp['keys']
+
+            # This code is taken nearly verbatim from
+            # https://github.com/AzureAD/microsoft-authentication-library-for-python/issues/147
+            # At time of writing, the community response in that issue is the recommended way to validate
+            # AAD access tokens in python as it is not a part of the MSAL library.
 
             jwk = next(key for key in AzureFlow._aad_keys if key['kid'] == kid)
             der_cert = base64.b64decode(jwk['x5c'][0])

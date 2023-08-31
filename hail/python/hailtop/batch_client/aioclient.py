@@ -11,7 +11,7 @@ import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
-from hailtop.aiocloud.common.credentials import Credentials
+from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
 from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
@@ -829,12 +829,15 @@ class Batch:
         self._job_idx = 0
 
 
-class HailExplicitTokenCredentials(Credentials):
+class HailExplicitTokenCredentials(CloudCredentials):
     def __init__(self, token: str):
         self._token = token
 
     async def auth_headers(self) -> Dict[str, str]:
         return {'Authorization': f'Bearer {self._token}'}
+
+    async def access_token(self) -> str:
+        return self._token
 
     async def close(self):
         pass
@@ -853,7 +856,7 @@ class BatchClient:
         url = deploy_config.base_url('batch')
         if headers is None:
             headers = {}
-        credentials: Credentials
+        credentials: CloudCredentials
         if _token is not None:
             credentials = HailExplicitTokenCredentials(_token)
         else:

@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, Generic, TypedDict, TypeVar
+from typing import Dict, Generic, List, TypedDict, TypeVar
 
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
@@ -22,7 +22,7 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
 
     @property
     @abc.abstractmethod
-    def cloud_specific_env_vars(self) -> List[str]:
+    def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
         raise NotImplementedError
 
     @abc.abstractmethod

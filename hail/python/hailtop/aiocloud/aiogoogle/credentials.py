@@ -73,14 +73,14 @@ class GoogleCredentials(CloudCredentials):
 
     @overload
     @staticmethod
-    def default_credentials(scopes: Optional[List[str]] = ..., *, anon_ok: Literal[False] = ...) -> 'GoogleCredentials': ...
+    def default_credentials(scopes: Optional[List[str]] = ..., *, anonymous_ok: Literal[False] = ...) -> 'GoogleCredentials': ...
 
     @overload
     @staticmethod
-    def default_credentials(scopes: Optional[List[str]] = ..., *, anon_ok: Literal[True] = ...) -> Union['GoogleCredentials', AnonymousCloudCredentials]: ...
+    def default_credentials(scopes: Optional[List[str]] = ..., *, anonymous_ok: Literal[True] = ...) -> Union['GoogleCredentials', AnonymousCloudCredentials]: ...
 
     @staticmethod
-    def default_credentials(scopes: Optional[List[str]] = None, *, anon_ok: bool = True) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
+    def default_credentials(scopes: Optional[List[str]] = None, *, anonymous_ok: bool = True) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
         credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
         if credentials_file is None:
@@ -99,9 +99,9 @@ class GoogleCredentials(CloudCredentials):
             log.info('Will attempt to use instance metadata server instead')
             return GoogleInstanceMetadataCredentials(scopes=scopes)
 
-        if not anon_ok:
+        if not anonymous_ok:
             raise ValueError(
-                'You are not logged into google. Run `gcloud auth application-default login` to log in.'
+                'No valid Google Cloud credentials found. Run `gcloud auth application-default login` or set `GOOGLE_APPLICATION_CREDENTIALS`.'
             )
         log.warning('Using anonymous credentials. If accessing private data, '
                     'run `gcloud auth application-default login` first to log in.')

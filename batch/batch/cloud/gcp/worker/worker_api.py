@@ -33,7 +33,7 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
         self._gcsfuse_credential_files: Dict[str, str] = {}
 
     @property
-    def cloud_specific_env_vars(self) -> List[str]:
+    def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
         return []
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> GCPDisk:
