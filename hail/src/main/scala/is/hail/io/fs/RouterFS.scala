@@ -19,7 +19,7 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   override def createCachedNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createCachedNoCompression(filename)
 
-  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = lookupFS(filename).openNoCompression(filename, _debug)
+  def openNoCompression(filename: String): SeekableDataInputStream = lookupFS(filename).openNoCompression(filename)
 
   def createNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createNoCompression(filename)
 

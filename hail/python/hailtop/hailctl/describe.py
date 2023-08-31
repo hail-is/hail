@@ -1,6 +1,6 @@
 import asyncio
 import orjson
-from typing import List, Optional, Annotated as Ann
+from typing import List, Optional, Union, Annotated as Ann
 from os import path
 from zlib import decompress, MAX_WBITS
 from statistics import median, mean, stdev
@@ -71,7 +71,7 @@ def key_str(k):
 
 
 def get_partitions_info_str(j):
-    partitions = j['components']['partition_counts']['counts']
+    partitions: List[Union[int, float]] = j['components']['partition_counts']['counts']
     partitions_info = {
         'Partitions': len(partitions),
         'Rows': sum(partitions),

@@ -1,4 +1,4 @@
-from typing import Union, Dict, Pattern, Callable, Any, List
+from typing import Union, Dict, Pattern, Callable, Any, List, Optional
 import re
 import logging
 
@@ -87,7 +87,7 @@ class SetValidator:
 
 
 class RegexValidator(TypedValidator):
-    def __init__(self, pattern: str, re_obj: Pattern, maxlen: int):
+    def __init__(self, pattern: str, re_obj: Optional[Pattern], maxlen: Optional[int]):
         super().__init__(str)
         self.pattern = pattern
         self.re_obj = re_obj if re_obj is not None else re.compile(pattern)

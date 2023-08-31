@@ -1,7 +1,7 @@
 import abc
 import asyncio
 import base64
-import concurrent
+import concurrent.futures
 import errno
 import json
 import logging
@@ -144,7 +144,7 @@ def compose_auth_header_urlsafe(orig_f):
 # We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
 # in urlsafe mode which is required for Azure's credentials.
 # https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
-aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)  # type: ignore
 
 
 configure_logging()
@@ -965,6 +965,7 @@ class Container:
                 self._killed = True
 
     async def _cleanup(self):
+        log.info(f'Cleaning up {self}')
         if self._cleaned_up:
             return
 
@@ -987,6 +988,7 @@ class Container:
             if self.netns:
                 assert network_allocator
                 network_allocator.free(self.netns)
+                log.info(f'Freed the network namespace for {self}')
                 self.netns = None
         finally:
             try:
@@ -1026,12 +1028,16 @@ class Container:
     async def _setup_network_namespace(self):
         assert network_allocator
         assert port_allocator
-        async with async_timeout.timeout(60):
-            if self.network == 'private':
-                self.netns = await network_allocator.allocate_private()
-            else:
-                assert self.network is None or self.network == 'public'
-                self.netns = await network_allocator.allocate_public()
+        try:
+            async with async_timeout.timeout(60):
+                if self.network == 'private':
+                    self.netns = await network_allocator.allocate_private()
+                else:
+                    assert self.network is None or self.network == 'public'
+                    self.netns = await network_allocator.allocate_public()
+        except asyncio.TimeoutError:
+            log.exception(network_allocator.task_manager.tasks)
+            raise
 
         if self.port is not None:
             self.host_port = await port_allocator.allocate()
@@ -1645,7 +1651,7 @@ class Job(abc.ABC):
     #   start_time: int,
     #   end_time: int,
     #   resources: list of dict, {name: str, quantity: int}
-    #   region: str
+    #   region: str  # type: ignore
     # }
     def status(self):
         status = {
@@ -1847,7 +1853,7 @@ class DockerJob(Job):
         except asyncio.CancelledError:
             raise
         except Exception:
-            pass
+            log.exception(f'While running container: {container}')
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
@@ -2899,7 +2905,7 @@ class Worker:
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
-        self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)
+        self._jvms = SortedSet([], key=lambda jvm: jvm.n_cores)
 
     async def _initialize_jvms(self):
         assert instance_config

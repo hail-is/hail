@@ -4,7 +4,7 @@ import pandas
 import numpy as np
 import pyspark
 import pprint
-from typing import Optional, Dict, Callable, Sequence, Union
+from typing import Optional, Dict, Callable, Sequence, Union, List, overload
 
 from hail.expr.expressions import Expression, StructExpression, \
     BooleanExpression, expr_struct, expr_any, expr_bool, analyze, Indices, \
@@ -2127,6 +2127,12 @@ class Table(ExprContainer):
         """
         return Env.backend().unpersist(self)
 
+    @overload
+    def collect(self) -> List[hl.Struct]:
+        ...
+    @overload
+    def collect(self, _localize=False) -> hl.ArrayExpression:
+        ...
     @typecheck_method(_localize=bool, _timed=bool)
     def collect(self, _localize=True, *, _timed=False):
         """Collect the rows of the table into a local list.

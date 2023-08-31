@@ -52,7 +52,7 @@ def get(batch_id: int, output: StructuredFormatOption = StructuredFormat.YAML):
     with BatchClient('') as client:
         batch = get_batch_if_exists(client, batch_id)
         if batch:
-            print(make_formatter(output)(batch.last_known_status()))
+            print(make_formatter(output)([batch.last_known_status()]))
         else:
             print(f"Batch with id {batch_id} not found")
 
@@ -145,7 +145,8 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
         job = get_job_if_exists(client, batch_id, job_id)
 
         if job is not None:
-            print(make_formatter(output)(job._status))
+            assert job._status
+            print(make_formatter(output)([job._status]))
         else:
             print(f"Job with ID {job_id} on batch {batch_id} not found")
 

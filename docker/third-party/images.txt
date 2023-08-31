@@ -4,7 +4,6 @@ envoyproxy/envoy:v1.22.3
 ghost:3.0-alpine
 google/cloud-sdk:305.0.0-slim
 grafana/grafana:9.1.4
-jupyter/scipy-notebook
 jupyter/scipy-notebook:c094bb7219f9
 moby/buildkit:v0.8.3-rootless
 python:3.9

@@ -11,7 +11,7 @@ ConfigVariableInfo = namedtuple('ConfigVariableInfo', ['help_msg', 'validation']
 
 def config_variables():
     from hailtop.batch_client.parse import CPU_REGEXPAT, MEMORY_REGEXPAT  # pylint: disable=import-outside-toplevel
-    from hailtop.fs.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
+    from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
 
     global _config_variables
 

@@ -4,6 +4,8 @@ import os
 
 import pytest
 
+from hailtop.config import get_remote_tmpdir
+
 log = logging.getLogger(__name__)
 
 
@@ -12,6 +14,11 @@ def log_before_after():
     log.info('starting test')
     yield
     log.info('ending test')
+
+
+@pytest.fixture(scope='module')
+def remote_tmpdir():
+    return get_remote_tmpdir('batch_tests')
 
 
 def pytest_collection_modifyitems(config, items):  # pylint: disable=unused-argument

@@ -15,15 +15,18 @@ import orjson
 import hailtop.fs as hfs
 import hailtop.batch_client.client as bc
 from hailtop import pip_version
-from hailtop.batch import Batch, ServiceBackend, LocalBackend
+from hailtop.batch import Batch, ServiceBackend, LocalBackend, ResourceGroup
+from hailtop.batch.resource import JobResourceFile
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped, async_to_blocking
-from hailtop.config import get_user_config
+from hailtop.config import get_remote_tmpdir, configuration_of
 from hailtop.batch.utils import concatenate
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.test_utils import skip_in_azure
 from hailtop.httpx import ClientResponseError
+
+from hailtop.config.variables import ConfigVariable
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
@@ -192,6 +195,7 @@ class LocalTests(unittest.TestCase):
             b = self.batch()
             j = b.new_job()
             j.declare_resource_group(ofile={'log': "{root}.txt"})
+            assert isinstance(j.ofile, ResourceGroup)
             j.command(f'echo "{msg}" > {j.ofile.log}')
             b.write_output(j.ofile.log, output_file.name)
             b.run()
@@ -211,6 +215,7 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
+        assert isinstance(j.foo, ResourceGroup)
         j.command(f"cat {j.foo.bed}")
         assert j.foo.bed in j._mentioned
         assert j.foo.bim not in j._mentioned
@@ -227,6 +232,7 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j1 = b.new_job()
         j1.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
+        assert isinstance(j1.foo, ResourceGroup)
         j1.command(f"cat {j1.foo.bed}")
         j2 = b.new_job()
         j2.command(f"cat {j1.foo.bed}")
@@ -248,7 +254,7 @@ class LocalTests(unittest.TestCase):
 
         output_files = []
         try:
-            output_files = [tempfile.NamedTemporaryFile('w') for i in range(5)]
+            output_files = [tempfile.NamedTemporaryFile('w') for _ in range(5)]
 
             for i, ofile in enumerate(output_files):
                 msg = f'hello world {i}'
@@ -296,7 +302,7 @@ class LocalTests(unittest.TestCase):
 
             merger = b.new_job()
             merger.command('cat {files} > {ofile}'.format(files=' '.join([j.ofile for j in sorted(b.select_jobs('foo'),
-                                                                                                  key=lambda x: x.name,
+                                                                                                  key=lambda x: x.name,  # type: ignore
                                                                                                   reverse=True)]),
                                                           ofile=merger.ofile))
 
@@ -309,13 +315,16 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.command(f'echo "hello" > {j.ofile}')
+        assert isinstance(j.ofile, JobResourceFile)
         j.ofile.add_extension('.txt.bgz')
+        assert j.ofile._value
         assert j.ofile._value.endswith('.txt.bgz')
 
     def test_add_extension_input_resource_file(self):
         input_file1 = '/tmp/data/example1.txt.bgz.foo'
         b = self.batch()
         in1 = b.read_input(input_file1)
+        assert in1._value
         assert in1._value.endswith('.txt.bgz.foo')
 
     def test_file_name_space(self):
@@ -338,6 +347,7 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.declare_resource_group(foo={'bed': '{root}.bed'})
+        assert isinstance(j.foo, ResourceGroup)
         j.command(f'echo "hello" > {j.foo}')
 
         t2 = b.new_job()
@@ -357,7 +367,7 @@ class LocalTests(unittest.TestCase):
     def test_concatenate(self):
         b = self.batch()
         files = []
-        for i in range(10):
+        for _ in range(10):
             j = b.new_job()
             j.command(f'touch {j.ofile}')
             files.append(j.ofile)
@@ -396,7 +406,7 @@ class LocalTests(unittest.TestCase):
             tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()} > {tail.ofile}')
 
             b.write_output(tail.ofile, output_file.name)
-            res = b.run()
+            b.run()
             assert self.read(output_file.name) == '3\n5\n30\n{\"x\": 3, \"y\": 5}'
 
     def test_backend_context_manager(self):
@@ -483,20 +493,26 @@ class ServiceTests(unittest.TestCase):
     def setUp(self):
         self.backend = ServiceBackend()
 
-        remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
+        remote_tmpdir = get_remote_tmpdir('hailtop_test_batch_service_tests')
         if not remote_tmpdir.endswith('/'):
             remote_tmpdir += '/'
         self.remote_tmpdir = remote_tmpdir + str(uuid.uuid4()) + '/'
 
         if remote_tmpdir.startswith('gs://'):
-            self.bucket = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
+            match = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir)
+            assert match
+            self.bucket = match.groupdict()['bucket_name']
         else:
             assert remote_tmpdir.startswith('hail-az://')
             if remote_tmpdir.startswith('hail-az://'):
-                storage_account, container_name = re.fullmatch('hail-az://(?P<storage_account>[^/]+)/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
+                match = re.fullmatch('hail-az://(?P<storage_account>[^/]+)/(?P<container_name>[^/]+).*', remote_tmpdir)
+                assert match
+                storage_account, container_name = match.groups()
             else:
                 assert remote_tmpdir.startswith('https://')
-                storage_account, container_name = re.fullmatch('https://(?P<storage_account>[^/]+).blob.core.windows.net/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
+                match = re.fullmatch('https://(?P<storage_account>[^/]+).blob.core.windows.net/(?P<container_name>[^/]+).*', remote_tmpdir)
+                assert match
+                storage_account, container_name = match.groups()
             self.bucket = f'{storage_account}/{container_name}'
 
         self.cloud_input_dir = f'{self.remote_tmpdir}batch-tests/resources'
@@ -585,6 +601,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.declare_resource_group(output={'foo': '{root}.foo'})
+        assert isinstance(j.output, ResourceGroup)
         j.command(f'echo "hello" > {j.output.foo}')
         res = b.run()
         res_status = res.status()
@@ -594,6 +611,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.declare_resource_group(output={'foo': '{root}.foo'})
+        assert isinstance(j.output, ResourceGroup)
         j.command(f'echo "hello" > {j.output.foo}')
         b.write_output(j.output, f'{self.cloud_output_dir}/test_single_task_write_resource_group')
         b.write_output(j.output.foo, f'{self.cloud_output_dir}/test_single_task_write_resource_group_file.txt')
@@ -645,7 +663,7 @@ class ServiceTests(unittest.TestCase):
 
         merger = b.new_job()
         merger.command('cat {files} > {ofile}'.format(files=' '.join([j.ofile for j in sorted(b.select_jobs('foo'),
-                                                                                              key=lambda x: x.name,
+                                                                                              key=lambda x: x.name,  # type: ignore
                                                                                               reverse=True)]),
                                                       ofile=merger.ofile))
 
@@ -665,7 +683,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_local_paths_error(self):
         b = self.batch()
-        j = b.new_job()
+        b.new_job()
         for input in ["hi.txt", "~/hello.csv", "./hey.tsv", "/sup.json", "file://yo.yaml"]:
             with pytest.raises(ValueError) as e:
                 b.read_input(input)
@@ -814,7 +832,7 @@ class ServiceTests(unittest.TestCase):
             jobs.append(j)
 
         combine = b.new_job(f'combine_output').cpu(0.25)
-        for tasks in grouped(arg_max(), jobs):
+        for _ in grouped(arg_max(), jobs):
             combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
         b.write_output(combine.ofile, f'{self.cloud_output_dir}/pipeline_benchmark_test.txt')
         # too slow
@@ -907,6 +925,7 @@ class ServiceTests(unittest.TestCase):
         head = b.new_job()
         head.declare_resource_group(count={'r5': '{root}.r5',
                                            'r3': '{root}.r3'})
+        assert isinstance(head.count, ResourceGroup)
 
         head.command(f'echo "5" > {head.count.r5}')
         head.command(f'echo "3" > {head.count.r3}')
@@ -953,6 +972,7 @@ class ServiceTests(unittest.TestCase):
 
         res = b.run()
         assert res
+        assert tail._job_id
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == 'foo', str(res.debug_info())
@@ -962,6 +982,7 @@ class ServiceTests(unittest.TestCase):
         head = b.new_job()
         head.declare_resource_group(count={'r5': '{root}.r5',
                                            'r3': '{root}.r3'})
+        assert isinstance(head.count, ResourceGroup)
 
         head.command(f'echo "5" > {head.count.r5}')
         head.command(f'echo "3" > {head.count.r3}')
@@ -1075,7 +1096,7 @@ class ServiceTests(unittest.TestCase):
         backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
         b = Batch(backend=backend)
         # 8 * 256 * 1024 = 2 MiB > 1 MiB max bunch size
-        for i in range(8):
+        for _ in range(8):
             j1 = b.new_job()
             long_str = secrets.token_urlsafe(256 * 1024)
             j1.command(f'echo "{long_str}" > /dev/null')
@@ -1096,7 +1117,7 @@ class ServiceTests(unittest.TestCase):
 
         j = bb.new_python_job()
         j.env('HAIL_QUERY_BACKEND', 'batch')
-        j.env('HAIL_BATCH_BILLING_PROJECT', get_user_config().get('batch', 'billing_project'))
+        j.env('HAIL_BATCH_BILLING_PROJECT', configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, None, ''))
         j.env('HAIL_BATCH_REMOTE_TMPDIR', self.remote_tmpdir)
         j.call(qob_in_batch)
 
@@ -1266,7 +1287,7 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-        b2 = Batch.from_batch_id(b._batch_handle.id, backend=b._backend)
+        b2 = Batch.from_batch_id(res.id, backend=b._backend)
         j2 = b2.new_job()
         j2.command('true')
         res = b2.run()
@@ -1290,7 +1311,7 @@ class ServiceTests(unittest.TestCase):
         with hfs.open(output_path) as f:
             assert orjson.loads(f.read()) == 'hello world'
 
-     def test_tuple_recursive_resource_extraction_in_python_jobs(self):
+    def test_tuple_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
         def write(paths):
@@ -1310,9 +1331,10 @@ class ServiceTests(unittest.TestCase):
         assert res
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert tail._job_id is not None
         assert res.get_job_log(tail._job_id)['main'] == '01', str(res.debug_info())
 
-     def test_list_recursive_resource_extraction_in_python_jobs(self):
+    def test_list_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
         def write(paths):
@@ -1329,6 +1351,7 @@ class ServiceTests(unittest.TestCase):
 
         res = b.run()
         assert res
+        assert tail._job_id
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == '01', str(res.debug_info())
@@ -1350,6 +1373,7 @@ class ServiceTests(unittest.TestCase):
 
         res = b.run()
         assert res
+        assert tail._job_id
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
         assert res.get_job_log(tail._job_id)['main'] == 'ab', str(res.debug_info())
