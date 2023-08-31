@@ -1743,6 +1743,8 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         x = ir.MakeStruct([(n, expr._ir) for (n, expr) in fields.items()])
         indices, aggregations = unify_all(*fields.values())
         s = StructExpression.__new__(cls)
+        s._warned_on_shadowed_name = False
+        s._shadowed_fields = set()
         s._fields = {}
         for k, v in fields.items():
             s._set_field(k, v)
@@ -1753,6 +1755,8 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
     def __init__(self, x, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
         super(StructExpression, self).__init__(x, type, indices, aggregations)
         self._fields: Dict[str, Expression] = {}
+        self._warned_on_shadowed_name = False
+        self._shadowed_fields = set()
 
         for i, (f, t) in enumerate(self.dtype.items()):
             if isinstance(self._ir, ir.MakeStruct):
@@ -1778,9 +1782,10 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
             self._set_field(f, expr)
 
     def _set_field(self, key, value):
+        if key not in self._fields:
+            if hasattr(self, key):
+                self._shadowed_fields.add(key)
         self._fields[key] = value
-        if key not in self.__dir__():
-            self.__dict__[key] = value
 
     def _get_field(self, item):
         if item in self._fields:
@@ -1788,9 +1793,17 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         else:
             raise KeyError(get_nice_field_error(self, item))
 
+    def __getattribute__(self, item):
+        if (not super().__getattribute__('_warned_on_shadowed_name')
+                and item in super().__getattribute__('_shadowed_fields')):
+            warning(f'Field {item} is shadowed by another method or attribute. '
+                    f'Use ["{item}"] syntax to access the field.')
+            self._warned_on_shadowed_name = True
+        return super().__getattribute__(item)
+
     def __getattr__(self, item):
-        if item in self.__dict__:
-            return self.__dict__[item]
+        if item in self._fields:
+            return self._fields[item]
         else:
             raise AttributeError(get_nice_attr_error(self, item))
 
