@@ -1413,10 +1413,34 @@ class Tests(unittest.TestCase):
         assert isinstance(s.values, Callable)
         assert s._warned_on_shadowed_name
 
+        s = hl.StructExpression._from_fields({'foo': hl.int(1), 'values': hl.int(2)})
+        assert isinstance(s.foo, hl.Expression)
+        assert not s._warned_on_shadowed_name
+        assert isinstance(s.values, Callable)
+        assert s._warned_on_shadowed_name
+
         s = hl.struct(foo=1, collect=2)
         assert isinstance(s.foo, hl.Expression)
         assert not s._warned_on_shadowed_name
         assert isinstance(s.collect, Callable)
+        assert s._warned_on_shadowed_name
+
+        s = hl.StructExpression._from_fields({'foo': hl.int(1), 'collect': hl.int(2)})
+        assert isinstance(s.foo, hl.Expression)
+        assert not s._warned_on_shadowed_name
+        assert isinstance(s.collect, Callable)
+        assert s._warned_on_shadowed_name
+
+        s = hl.struct(foo=1, _ir=2)
+        assert isinstance(s.foo, hl.Expression)
+        assert not s._warned_on_shadowed_name
+        assert isinstance(s._ir, ir.IR)
+        assert s._warned_on_shadowed_name
+
+        s = hl.StructExpression._from_fields({'foo': hl.int(1), '_ir': hl.int(2)})
+        assert isinstance(s.foo, hl.Expression)
+        assert not s._warned_on_shadowed_name
+        assert isinstance(s._ir, ir.IR)
         assert s._warned_on_shadowed_name
 
     def test_iter(self):

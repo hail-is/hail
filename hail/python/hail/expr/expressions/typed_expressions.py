@@ -1743,12 +1743,12 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         x = ir.MakeStruct([(n, expr._ir) for (n, expr) in fields.items()])
         indices, aggregations = unify_all(*fields.values())
         s = StructExpression.__new__(cls)
+        super(StructExpression, s).__init__(x, t, indices, aggregations)
         s._warned_on_shadowed_name = False
         s._shadowed_fields = set()
         s._fields = {}
         for k, v in fields.items():
             s._set_field(k, v)
-        super(StructExpression, s).__init__(x, t, indices, aggregations)
         return s
 
     @typecheck_method(x=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
