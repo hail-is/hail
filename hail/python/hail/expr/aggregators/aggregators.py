@@ -339,7 +339,7 @@ def approx_cdf(expr, k=100):
         tfloat32: lambda x: x.map(hl.float32),
         tfloat64: identity
     }
-    return hl.struct(values=conv[expr.dtype](res.values), ranks=res.ranks, _compaction_counts=res._compaction_counts)
+    return hl.struct(values=conv[expr.dtype](res['values']), ranks=res.ranks, _compaction_counts=res._compaction_counts)
 
 
 @typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)

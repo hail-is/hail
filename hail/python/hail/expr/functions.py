@@ -79,10 +79,10 @@ def _quantile_from_cdf(cdf, q):
     def compute(cdf):
         n = cdf.ranks[cdf.ranks.length() - 1]
         pos = hl.int64(q * n) + 1
-        idx = hl.max(0, hl.min(cdf.values.length() - 1, _lower_bound(cdf.ranks, pos) - 1))
+        idx = hl.max(0, hl.min(cdf['values'].length() - 1, _lower_bound(cdf.ranks, pos) - 1))
         res = hl.if_else(n == 0,
-                         hl.missing(cdf.values.dtype.element_type),
-                         cdf.values[idx])
+                         hl.missing(cdf['values'].dtype.element_type),
+                         cdf['values'][idx])
         return res
     return hl.rbind(cdf, compute)
 
