@@ -1744,8 +1744,7 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         indices, aggregations = unify_all(*fields.values())
         s = StructExpression.__new__(cls)
         super(StructExpression, s).__init__(x, t, indices, aggregations)
-        s._warned_on_shadowed_name = False
-        s._shadowed_fields = set()
+        s._warn_on_shadowed_name = set()
         s._fields = {}
         for k, v in fields.items():
             s._set_field(k, v)
@@ -1755,8 +1754,7 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
     def __init__(self, x, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
         super(StructExpression, self).__init__(x, type, indices, aggregations)
         self._fields: Dict[str, Expression] = {}
-        self._warned_on_shadowed_name = False
-        self._shadowed_fields = set()
+        self._warn_on_shadowed_name = set()
 
         for i, (f, t) in enumerate(self.dtype.items()):
             if isinstance(self._ir, ir.MakeStruct):
@@ -1786,7 +1784,7 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
             # Avoid using hasattr on self. Each new field added will fall through to __getattr__,
             # which has to build a nice error message.
             if key in self.__dict__ or hasattr(super(), key):
-                self._shadowed_fields.add(key)
+                self._warn_on_shadowed_name.add(key)
             else:
                 self.__dict__[key] = value
             self._fields[key] = value
@@ -1798,11 +1796,10 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
             raise KeyError(get_nice_field_error(self, item))
 
     def __getattribute__(self, item):
-        if (not super().__getattribute__('_warned_on_shadowed_name')
-                and item in super().__getattribute__('_shadowed_fields')):
+        if item in super().__getattribute__('_warn_on_shadowed_name'):
             warning(f'Field {item} is shadowed by another method or attribute. '
                     f'Use ["{item}"] syntax to access the field.')
-            self._warned_on_shadowed_name = True
+            self._warn_on_shadowed_name.remove(item)
         return super().__getattribute__(item)
 
     def __getattr__(self, item):
