@@ -70,7 +70,7 @@ curlylint==0.13.1
     # via -r hail/hail/python/dev/requirements.txt
 cycler==0.11.0
     # via matplotlib
-debugpy==1.6.8
+debugpy==1.6.7.post1
     # via ipykernel
 decorator==4.4.2
     # via
@@ -101,7 +101,7 @@ fastjsonschema==2.18.0
     # via nbformat
 filelock==3.12.3
     # via virtualenv
-fonttools==4.42.0
+fonttools==4.42.1
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema

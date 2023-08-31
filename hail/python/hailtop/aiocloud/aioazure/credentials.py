@@ -40,7 +40,7 @@ class RefreshTokenCredential(AsyncTokenCredential):
         else:
             res = await blocking_to_async(self._pool, self._app.acquire_token_silent, scopes, None)
             assert res
-        return AccessToken(res['access_token'], res['id_token_claims']['exp'])
+        return AccessToken(res['access_token'], res['id_token_claims']['exp'])  # type: ignore
 
     async def __aenter__(self):
         return self
