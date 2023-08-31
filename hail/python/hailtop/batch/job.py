@@ -877,17 +877,17 @@ source {code}
         return True
 
 
-UnpreparedArg = '_resource.ResourceType' | List['UnpreparedArg'] | Tuple['UnpreparedArg', ...] | Dict[str, 'UnpreparedArg'] | Any
+UnpreparedArg = Union['_resource.ResourceType', List['UnpreparedArg'], Tuple['UnpreparedArg', ...], Dict[str, 'UnpreparedArg'], Any]
 
-PreparedArg = (
-    Tuple[Literal['py_path'], str] |
-    Tuple[Literal['path'], str] |
-    Tuple[Literal['dict_path'], Dict[str, str]] |
-    Tuple[Literal['list'], List['PreparedArg']] |
-    Tuple[Literal['dict'], Dict[str, 'PreparedArg']] |
-    Tuple[Literal['tuple'], Tuple['PreparedArg', ...]] |
+PreparedArg = Union[
+    Tuple[Literal['py_path'], str],
+    Tuple[Literal['path'], str],
+    Tuple[Literal['dict_path'], Dict[str, str]],
+    Tuple[Literal['list'], List['PreparedArg']],
+    Tuple[Literal['dict'], Dict[str, 'PreparedArg']],
+    Tuple[Literal['tuple'], Tuple['PreparedArg', ...]],
     Tuple[Literal['value'], Any]
-)
+]
 
 
 class PythonJob(Job):

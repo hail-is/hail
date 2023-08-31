@@ -450,4 +450,4 @@ class PythonResult(Resource, str):
         return self._uid  # pylint: disable=no-member
 
 
-ResourceType = PythonResult | ResourceFile | ResourceGroup
+ResourceType = Union[PythonResult, ResourceFile, ResourceGroup]
