@@ -49,7 +49,7 @@
       <form method="GET" action="{{ endpoint }}">
         <div id="{{ component_name }}-inner">
           <div>
-            <textarea id="{{ component_name }}-input-box" spellcheck="false" autocorrect="false" autofocus name="q">{% if q %}{{ q }}{% endif %}</textarea>
+            <textarea id="{{ component_name }}-input-box" spellcheck="off" autocorrect="off" autofocus name="q">{% if q %}{{ q }}{% endif %}</textarea>
           </div>
           <div id="{{ component_name }}-buttons">
             <a href="https://hail.is/docs/batch/advanced_search_help.html" target="_blank">
