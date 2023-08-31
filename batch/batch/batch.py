@@ -1,10 +1,11 @@
 from typing import Any, Dict
 import json
 import logging
+from typing import Any, Dict, Optional
 
 from gear import transaction
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
-from hailtop.batch_client.types import JobListEntry
+from hailtop.batch_client.types import JobListEntryV1Alpha
 
 from .batch_format_version import BatchFormatVersion
 from .exceptions import NonExistentBatchError, OpenBatchError
@@ -13,7 +14,7 @@ from .utils import coalesce
 log = logging.getLogger('batch')
 
 
-def batch_record_to_dict(record):
+def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
@@ -68,7 +69,7 @@ def batch_record_to_dict(record):
     return d
 
 
-def job_record_to_dict(record: Dict[str, Any], name: str) -> JobListEntry:
+def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEntryV1Alpha:
     format_version = BatchFormatVersion(record['format_version'])
 
     db_status = record['status']

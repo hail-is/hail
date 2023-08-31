@@ -66,7 +66,7 @@ steps:
           - azure
   - kind: runImage
     name: copy_third_party_images
-    image: quay.io/skopeo/stable:v1.11.2
+    image: quay.io/skopeo/stable:v1.13.2
     script: |
       set -ex
 
@@ -152,10 +152,6 @@ steps:
     inputs:
       - from: /repo/docker/Dockerfile.base
         to: /io/repo/docker/Dockerfile.base
-      - from: /repo/pylintrc
-        to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
     dependsOn:
       - hail_ubuntu_image
       - merge_code
@@ -1403,14 +1399,54 @@ steps:
     dependsOn:
       - hailgenetics_hail_image
       - merge_code
+  - kind: buildImage2
+    name: hail_linting_image
+    contextPath: /io/repo
+    dockerFile:
+      inline: |
+        FROM {{ hail_ubuntu_image.image }}
+        RUN hail-apt-get-install make
+        COPY hail/python/pinned-requirements.txt hail-requirements.txt
+        COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
+        COPY gear/pinned-requirements.txt gear-requirements.txt
+        COPY web_common/pinned-requirements.txt web_common-requirements.txt
+        COPY auth/pinned-requirements.txt auth-requirements.txt
+        COPY batch/pinned-requirements.txt batch-requirements.txt
+        COPY ci/pinned-requirements.txt ci-requirements.txt
+        RUN python3 -m pip install \
+            -r hail-requirements.txt \
+            -r dev-requirements.txt \
+            -r gear-requirements.txt \
+            -r web_common-requirements.txt \
+            -r auth-requirements.txt \
+            -r batch-requirements.txt \
+            -r ci-requirements.txt
+    publishAs: linting
+    inputs:
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/repo/hail/python/dev/pinned-requirements.txt
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
+      - from: /repo/web_common/pinned-requirements.txt
+        to: /io/repo/web_common/pinned-requirements.txt
+      - from: /repo/auth/pinned-requirements.txt
+        to: /io/repo/auth/pinned-requirements.txt
+      - from: /repo/batch/pinned-requirements.txt
+        to: /io/repo/batch/pinned-requirements.txt
+      - from: /repo/ci/pinned-requirements.txt
+        to: /io/repo/ci/pinned-requirements.txt
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
   - kind: runImage
     name: check_services
     image:
-      valueFrom: hail_dev_image.image
+      valueFrom: hail_linting_image.image
     script: |
       set -ex
       cd /io/repo
-      make install-dev-requirements
       {% if 'target_sha' in code %}
       export HAIL_TARGET_SHA={{ code.target_sha }}
       {% endif %}
@@ -1419,12 +1455,12 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - hail_dev_image
+      - hail_linting_image
       - merge_code
   - kind: runImage
     name: check_hail
     image:
-      valueFrom: hail_dev_image.image
+      valueFrom: hail_linting_image.image
     script: |
       set -ex
       cd /io/repo
@@ -1434,8 +1470,6 @@ steps:
         to: /io/repo/Makefile
       - from: /repo/pylintrc
         to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
       - from: /repo/hail/python
@@ -1443,7 +1477,7 @@ steps:
       - from: /repo/config.mk
         to: /io/repo/config.mk
     dependsOn:
-      - hail_dev_image
+      - hail_linting_image
       - merge_code
   - kind: runImage
     name: get_pip_versioned_docs
@@ -2207,6 +2241,9 @@ steps:
       - name: turn-on-billing-compaction
         script: /io/sql/turn_on_billing_compaction.py
         online: true
+      - name: cleanup-deprecated-functions
+        script: /io/sql/cleanup-deprecated-functions.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2701,7 +2738,6 @@ steps:
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/tls/create_test_db_config.sh ./ci/test/resources/
       cp /io/repo/pylintrc ./
-      cp /io/repo/setup.cfg ./
       cp /io/repo/pyproject.toml ./
       cp -R /io/repo/docker ./
       cp -R /io/repo/gear ./
@@ -3307,7 +3343,7 @@ steps:
       - gcp
   - kind: runImage
     name: mirror_hailgenetics_images
-    image: quay.io/skopeo/stable:v1.11.2
+    image: quay.io/skopeo/stable:v1.13.2
     script: |
       set -ex
 
@@ -3793,3 +3829,39 @@ steps:
       - default_ns
     scopes:
       - deploy
+  - kind: runImage
+    name: test_gcp_ar_cleanup_policies
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+      cd /io/repo/
+      new_policy=$(mktemp)
+      python3 devbin/generate_gcp_ar_cleanup_policy.py > $new_policy
+      diff $new_policy infra/gcp-broad/gcp-ar-cleanup-policy.txt || {
+        echo '>>> AR cleanup policy has changed, new policy is <<<'
+        cat $new_policy
+        echo '--------------------------------------'
+        echo "Please regenerate the policy file by running:"
+        echo "> python3 devbin/generate_gcp_ar_cleanup_policy.py > infra/gcp-broad/gcp-ar-cleanup-policy.txt"
+        exit 1
+      }
+    inputs:
+      - from: /repo/build.yaml
+        to: /io/repo/build.yaml
+      - from: /repo/devbin
+        to: /io/repo/devbin
+      - from: /repo/infra
+        to: /io/repo/infra
+      - from: /repo/docker
+        to: /io/repo/docker
+      - from: /repo/ci/test/resources
+        to: /io/repo/ci/test/resources
+    clouds:
+      - gcp
+    dependsOn:
+      - ci_utils_image
+      - default_ns

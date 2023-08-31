@@ -35,7 +35,7 @@ from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import collect_agen, humanize_timedelta_msecs, periodically_call, retry_transient_errors
+from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_call, retry_transient_errors
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
@@ -176,7 +176,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     if batch:
         if isinstance(batch, Batch):
             status = await batch.last_known_status()
-            jobs = await collect_agen(batch.jobs())
+            jobs = await collect_aiter(batch.jobs())
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
@@ -250,7 +250,7 @@ async def get_batch(request, userdata):
     batch_client = request.app['batch_client']
     b = await batch_client.get_batch(batch_id)
     status = await b.last_known_status()
-    jobs = await collect_agen(b.jobs())
+    jobs = await collect_aiter(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
     wb = get_maybe_wb_for_batch(b)
@@ -432,7 +432,7 @@ async def deploy_status(request: web.Request, _) -> web.Response:
         if isinstance(batch, MergeFailureBatch):
             exc = batch.exception
             return traceback.format_exception(type(exc), value=exc, tb=exc.__traceback__)
-        jobs = await collect_agen(batch.jobs())
+        jobs = await collect_aiter(batch.jobs())
 
         async def fetch_job_and_log(j):
             full_job = await batch_client.get_job(j['batch_id'], j['job_id'])

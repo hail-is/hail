@@ -6,7 +6,8 @@ from enum import Enum
 from dataclasses import dataclass
 
 
-from hailtop.config.user_config import ConfigVariable, configuration_of
+from hailtop.config.user_config import configuration_of
+from hailtop.config.variables import ConfigVariable
 
 
 GCSRequesterPaysConfiguration = Union[str, Tuple[str, List[str]]]

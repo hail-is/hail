@@ -6,6 +6,7 @@ import textwrap
 import warnings
 from shlex import quote as shq
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
+from typing_extensions import Self
 
 import hailtop.batch_client.client as bc
 
@@ -132,7 +133,7 @@ class Job:
     def _add_inputs(self, resource: '_resource.Resource') -> None:
         _add_resource_to_set(self._inputs, resource, include_rg=False)
 
-    def depends_on(self, *jobs: 'Job') -> 'Job':
+    def depends_on(self, *jobs: 'Job') -> Self:
         """
         Explicitly set dependencies on other jobs.
 
@@ -182,7 +183,7 @@ class Job:
     def env(self, variable: str, value: str):
         self._env[variable] = value
 
-    def storage(self, storage: Optional[Union[str, int]]) -> 'Job':
+    def storage(self, storage: Optional[Union[str, int]]) -> Self:
         """
         Set the job's storage size.
 
@@ -231,7 +232,7 @@ class Job:
         self._storage = opt_str(storage)
         return self
 
-    def memory(self, memory: Optional[Union[str, int]]) -> 'Job':
+    def memory(self, memory: Optional[Union[str, int]]) -> Self:
         """
         Set the job's memory requirements.
 
@@ -274,7 +275,7 @@ class Job:
         self._memory = opt_str(memory)
         return self
 
-    def cpu(self, cores: Optional[Union[str, int, float]]) -> 'Job':
+    def cpu(self, cores: Optional[Union[str, int, float]]) -> Self:
         """
         Set the job's CPU requirements.
 
@@ -314,7 +315,7 @@ class Job:
         self._cpu = opt_str(cores)
         return self
 
-    def always_run(self, always_run: bool = True) -> 'Job':
+    def always_run(self, always_run: bool = True) -> Self:
         """
         Set the job to always run, even if dependencies fail.
 
@@ -342,7 +343,7 @@ class Job:
         self._always_run = always_run
         return self
 
-    def spot(self, is_spot: bool) -> 'Job':
+    def spot(self, is_spot: bool) -> Self:
         """
         Set whether a job is run on spot instances. By default, all jobs run on spot instances.
 
@@ -368,7 +369,7 @@ class Job:
         self._preemptible = is_spot
         return self
 
-    def regions(self, regions: Optional[List[str]]) -> 'Job':
+    def regions(self, regions: Optional[List[str]]) -> Self:
         """
         Set the cloud regions a job can run in.
 
@@ -415,7 +416,7 @@ class Job:
         self._regions = regions
         return self
 
-    def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':
+    def timeout(self, timeout: Optional[Union[float, int]]) -> Self:
         """
         Set the maximum amount of time this job can run for in seconds.
 
@@ -448,7 +449,7 @@ class Job:
         self._timeout = timeout
         return self
 
-    def gcsfuse(self, bucket, mount_point, read_only=True):
+    def gcsfuse(self, bucket, mount_point, read_only=True) -> Self:
         """
         Add a bucket to mount with gcsfuse.
 
@@ -488,7 +489,7 @@ class Job:
         warnings.warn("The 'gcsfuse' method has been deprecated. Use the 'cloudfuse' method instead.")
         return self.cloudfuse(bucket, mount_point, read_only=read_only)
 
-    def cloudfuse(self, bucket: str, mount_point: str, *, read_only: bool = True):
+    def cloudfuse(self, bucket: str, mount_point: str, *, read_only: bool = True) -> Self:
         """
         Add a bucket to mount with gcsfuse in GCP or a storage container with blobfuse in Azure.
 
@@ -547,7 +548,7 @@ class Job:
         self._cloudfuse.append((bucket, mount_point, read_only))
         return self
 
-    def always_copy_output(self, always_copy_output: bool = True) -> 'Job':
+    def always_copy_output(self, always_copy_output: bool = True) -> Self:
         """
         Set the job to always copy output to cloud storage, even if the job failed.
 

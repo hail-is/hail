@@ -44,7 +44,7 @@ from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, version
-from hailtop.batch_client.types import JobListEntryV1Alpha, GetJobsResponseV1Alpha
+from hailtop.batch_client.types import JobListEntryV1Alpha, GetJobsResponseV1Alpha, GetJobResponseV1Alpha
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -290,10 +290,9 @@ WHERE id = %s AND NOT deleted;
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id, version, q, last_job_id)
 
-    resp: GetJobsResponseV1Alpha = {'jobs': jobs}
     if last_job_id is not None:
-        resp['last_job_id'] = last_job_id
-    return resp
+        return {'jobs': jobs, 'last_job_id': last_job_id}
+    return {'jobs': jobs}
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
@@ -433,7 +432,7 @@ async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
     return dict(zip(containers, logs))
 
 
-async def _get_job_resource_usage(app, batch_id, job_id):
+async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
 
     client_session: httpx.ClientSession = app['client_session']
@@ -476,7 +475,7 @@ async def _get_job_resource_usage(app, batch_id, job_id):
     return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
 
 
-async def _get_jvm_profile(app, batch_id, job_id):
+async def _get_jvm_profile(app: web.Application, batch_id: int, job_id: int) -> Optional[str]:
     record = await _get_job_record(app, batch_id, job_id)
 
     file_store: FileStore = app['file_store']
@@ -656,10 +655,10 @@ async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
     result = await _handle_api_error(_query_batches, request, user, q, 1, last_batch_id)
     assert result is not None
     batches, last_batch_id = result
-    body = {'batches': batches}
+
     if last_batch_id is not None:
-        body['last_batch_id'] = last_batch_id
-    return json_response(body)
+        return json_response({'batches': batches, 'last_batch_id': last_batch_id})
+    return json_response({'batches': batches})
 
 
 @routes.get('/api/v2alpha/batches')
@@ -672,10 +671,10 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     result = await _handle_api_error(_query_batches, request, user, q, 2, last_batch_id)
     assert result is not None
     batches, last_batch_id = result
-    body = {'batches': batches}
+
     if last_batch_id is not None:
-        body['last_batch_id'] = last_batch_id
-    return json_response(body)
+        return json_response({'batches': batches, 'last_batch_id': last_batch_id})
+    return json_response({'batches': batches})
 
 
 def check_service_account_permissions(user, sa):
@@ -1722,7 +1721,7 @@ async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
 async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
     user = userdata['username']
-    q = request.query.get('q', f'user:{user}')
+    q = request.query.get('q', f'user = {user}' if CURRENT_QUERY_VERSION == 2 else f'user:{user}')
     last_batch_id = cast_query_param_to_int(request.query.get('last_batch_id'))
     try:
         result = await _handle_ui_error(session, _query_batches, request, user, q, CURRENT_QUERY_VERSION, last_batch_id)
@@ -1790,9 +1789,11 @@ GROUP BY base_t.batch_id, base_t.job_id, base_t.last_cancelled_attempt_id;
         _get_full_job_status(app, record), _get_full_job_spec(app, record), _get_attributes(app, record)
     )
 
-    job = job_record_to_dict(record, attributes.get('name'))
-    job['status'] = full_status
-    job['spec'] = full_spec
+    job: GetJobResponseV1Alpha = {
+        **job_record_to_dict(record, attributes.get('name')),
+        'status': full_status,
+        'spec': full_spec,
+    }
     if attributes:
         job['attributes'] = attributes
     return job
@@ -2130,21 +2131,22 @@ async def ui_get_job(request, userdata, batch_id):
     non_io_storage_limit_bytes = None
     memory_limit_bytes = None
 
-    resources = job_specification['resources']
-    if 'memory_bytes' in resources:
-        memory_limit_bytes = resources['memory_bytes']
-        resources['actual_memory'] = humanize.naturalsize(memory_limit_bytes, binary=True)
-        del resources['memory_bytes']
-    if 'storage_gib' in resources:
-        io_storage_limit_bytes = resources['storage_gib'] * 1024**3
-        resources['actual_storage'] = humanize.naturalsize(io_storage_limit_bytes, binary=True)
-        del resources['storage_gib']
-    if 'cores_mcpu' in resources:
-        cores = resources['cores_mcpu'] / 1000
-        non_io_storage_limit_gb = min(cores * RESERVED_STORAGE_GB_PER_CORE, RESERVED_STORAGE_GB_PER_CORE)
-        non_io_storage_limit_bytes = int(non_io_storage_limit_gb * 1024**3 + 1)
-        resources['actual_cpu'] = cores
-        del resources['cores_mcpu']
+    if job_specification is not None:
+        resources = job_specification['resources']
+        if 'memory_bytes' in resources:
+            memory_limit_bytes = resources['memory_bytes']
+            resources['actual_memory'] = humanize.naturalsize(memory_limit_bytes, binary=True)
+            del resources['memory_bytes']
+        if 'storage_gib' in resources:
+            io_storage_limit_bytes = resources['storage_gib'] * 1024**3
+            resources['actual_storage'] = humanize.naturalsize(io_storage_limit_bytes, binary=True)
+            del resources['storage_gib']
+        if 'cores_mcpu' in resources:
+            cores = resources['cores_mcpu'] / 1000
+            non_io_storage_limit_gb = min(cores * RESERVED_STORAGE_GB_PER_CORE, RESERVED_STORAGE_GB_PER_CORE)
+            non_io_storage_limit_bytes = int(non_io_storage_limit_gb * 1024**3 + 1)
+            resources['actual_cpu'] = cores
+            del resources['cores_mcpu']
 
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''
@@ -2180,7 +2182,7 @@ async def ui_get_job(request, userdata, batch_id):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
-async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
+async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.StreamResponse:
     return await get_job_container_log(request, batch_id)
 
 
@@ -2880,7 +2882,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    regions = {
+    regions: Dict[str, int] = {
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }

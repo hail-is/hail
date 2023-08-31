@@ -202,6 +202,7 @@ async def async_basic_initialize(verbose: bool = False):
         typer.secho(f'You are currently logged in to Hail at domain {domain}.')
 
     user_info = await async_get_userinfo()
+    assert user_info
     username = user_info['username']
     hail_identity = user_info['hail_identity']
     trial_bp_name = user_info['trial_bp_name']

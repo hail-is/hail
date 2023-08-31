@@ -146,7 +146,7 @@ class BatchProgressBarTask:
 
 def is_notebook() -> bool:
     try:
-        from IPython import get_ipython  # pylint: disable=import-error,import-outside-toplevel
+        from IPython.core.getipython import get_ipython  # pylint: disable=import-error,import-outside-toplevel
         return get_ipython().__class__.__name__ == 'ZMQInteractiveShell'
     except (NameError, ModuleNotFoundError):
         return False
