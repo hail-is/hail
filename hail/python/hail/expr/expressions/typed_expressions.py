@@ -1785,7 +1785,9 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         if key not in self._fields:
             if hasattr(self, key):
                 self._shadowed_fields.add(key)
-        self._fields[key] = value
+            else:
+                self.__dict__[key] = value
+            self._fields[key] = value
 
     def _get_field(self, item):
         if item in self._fields:
@@ -1802,10 +1804,7 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         return super().__getattribute__(item)
 
     def __getattr__(self, item):
-        if item in self._fields:
-            return self._fields[item]
-        else:
-            raise AttributeError(get_nice_attr_error(self, item))
+        raise AttributeError(get_nice_attr_error(self, item))
 
     def __len__(self):
         return len(self._fields)
