@@ -1783,7 +1783,9 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
 
     def _set_field(self, key, value):
         if key not in self._fields:
-            if hasattr(self, key):
+            # Avoid using hasattr on self. Each new field added will fall through to __getattr__,
+            # which has to build a nice error message.
+            if key in self.__dict__ or hasattr(super(), key):
                 self._shadowed_fields.add(key)
             else:
                 self.__dict__[key] = value
