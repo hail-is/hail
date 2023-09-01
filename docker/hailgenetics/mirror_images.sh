@@ -10,9 +10,6 @@ copy_if_not_present() {
     if ! skopeo inspect "docker://docker.io/$1";
     then
         echo "$1 does not exist yet, doing nothing"
-    elif skopeo inspect "docker://$2";
-    then
-      echo "$2 already exists, doing nothing"
     else
       echo "$2 does not exist, copying $1 to $2"
       copy_image $1 $2
