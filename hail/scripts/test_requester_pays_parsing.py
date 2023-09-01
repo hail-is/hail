@@ -5,7 +5,7 @@ import pytest
 
 from hailtop.aiocloud.aiogoogle import get_gcs_requester_pays_configuration
 from hailtop.aiocloud.aiogoogle.user_config import get_spark_conf_gcs_requester_pays_configuration, spark_conf_path
-from hailtop.config.user_config import ConfigVariable, configuration_of
+from hailtop.config import ConfigVariable, configuration_of
 from hailtop.utils.process import check_exec_output
 
 if 'YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS' not in os.environ:

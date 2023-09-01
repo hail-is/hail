@@ -10,7 +10,10 @@ import tempfile
 from shlex import quote as shq
 import uuid
 import re
+import orjson
 
+import hailtop.fs as hfs
+import hailtop.batch_client.client as bc
 from hailtop import pip_version
 from hailtop.batch import Batch, ServiceBackend, LocalBackend, ResourceGroup
 from hailtop.batch.resource import JobResourceFile
@@ -1290,6 +1293,47 @@ class ServiceTests(unittest.TestCase):
         res = b2.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_python_job_with_kwarg(self):
+        def foo(*, kwarg):
+            return kwarg
+
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+        j = b.new_python_job()
+        r = j.call(foo, kwarg='hello world')
+
+        output_path = f'{self.cloud_output_dir}/test_python_job_with_kwarg'
+        b.write_output(r.as_json(), output_path)
+        res = b.run()
+        assert isinstance(res, bc.Batch)
+
+        assert res.status()['state'] == 'success', str((res, res.debug_info()))
+        with hfs.open(output_path) as f:
+            assert orjson.loads(f.read()) == 'hello world'
+
+    def test_tuple_recursive_resource_extraction_in_python_jobs(self):
+        b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
+
+        def write(paths):
+            if not isinstance(paths, tuple):
+                raise ValueError('paths must be a tuple')
+            for i, path in enumerate(paths):
+                with open(path, 'w') as f:
+                    f.write(f'{i}')
+
+        head = b.new_python_job()
+        head.call(write, (head.ofile1, head.ofile2))
+
+        tail = b.new_bash_job()
+        tail.command(f'cat {head.ofile1}')
+        tail.command(f'cat {head.ofile2}')
+
+        res = b.run()
+        assert res
+        assert tail._job_id
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+        assert res.get_job_log(tail._job_id)['main'] == '01', str(res.debug_info())
 
     def test_list_recursive_resource_extraction_in_python_jobs(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
