@@ -1,4 +1,5 @@
 import time
+from typing import Optional, overload
 import datetime
 import dateutil.parser
 
@@ -24,7 +25,11 @@ def humanize_timedelta_msecs(delta_msecs):
     return humanize.naturaldelta(datetime.timedelta(milliseconds=delta_msecs))
 
 
-def parse_timestamp_msecs(ts):
+@overload
+def parse_timestamp_msecs(ts: None) -> None: ...
+@overload
+def parse_timestamp_msecs(ts: str) -> int: ...
+def parse_timestamp_msecs(ts: Optional[str]) -> Optional[int]:
     if ts is None:
         return ts
-    return dateutil.parser.isoparse(ts).timestamp() * 1000
+    return int(dateutil.parser.isoparse(ts).timestamp() * 1000)

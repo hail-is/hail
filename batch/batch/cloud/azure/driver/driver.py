@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from typing import Dict
 
 from gear import Database
 from gear.cloud_config import get_azure_config
@@ -45,7 +46,7 @@ ON DUPLICATE KEY UPDATE region = region;
             region_args,
         )
 
-        db_regions = {
+        db_regions: Dict[str, int] = {
             record['region']: record['region_id']
             async for record in db.select_and_fetchall('SELECT region_id, region from regions')
         }

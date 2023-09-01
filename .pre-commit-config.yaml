@@ -1,4 +1,5 @@
 ---
+default_install_hook_types: [pre-commit, pre-push]
 repos:
   - repo: local
     hooks:
@@ -8,6 +9,14 @@ repos:
         language: system
         types: [python]
         require_serial: true
+      - id: pyright
+        name: pyright
+        entry: pyright
+        language: system
+        types: [python]
+        require_serial: true
+        stages:
+          - pre-push
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.3.0
     hooks:
