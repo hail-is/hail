@@ -15,7 +15,7 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     if (System.getenv("HAIL_CLOUD") != "gcp") {
       throw new SkipException("This test suite is only run in GCP.");
     } else {
-      assert(hail_test_storage_uri != null)
+      assert(root != null)
       assert(fsResourcesRoot != null)
     }
   }

@@ -13,13 +13,11 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 trait FSSuite extends TestNGSuite {
-  val hail_test_storage_uri: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
-  val root: String = hail_test_storage_uri
+  val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
   def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
 
-  def tmpdir: String = hail_test_storage_uri
+  def tmpdir: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
   def fs: FS
 
@@ -400,7 +398,7 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def largeDirectoryOperations(): Unit = {
-    val prefix = s"$hail_test_storage_uri/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    val prefix = s"$tmpdir/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
     for (i <- 0 until 2000) {
       fs.touch(s"$prefix/$i.suffix")
     }
@@ -419,7 +417,7 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def testSeekAfterEOF(): Unit = {
-    val prefix = s"$hail_test_storage_uri/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    val prefix = s"$tmpdir/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
     val p = s"$prefix/seek_file"
     using(fs.createCachedNoCompression(p)) { os =>
       os.write(1.toByte)
