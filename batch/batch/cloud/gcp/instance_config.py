@@ -103,28 +103,14 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     @staticmethod
     def from_dict(data: dict) -> 'GCPSlimInstanceConfig':
-        if data['version'] < 4:
-            disks = data['disks']
-            assert len(disks) == 2, data
-            assert disks[0]['boot']
-            boot_disk_size_gb = disks[0]['size']
-            assert not disks[1]['boot']
-            local_ssd_data_disk = disks[1]['type'] == 'local-ssd'
-            data_disk_size_gb = disks[1]['size']
-            job_private = data['job-private']
-            preemptible = data['instance']['preemptible']
-            machine_type = family_worker_type_cores_to_gcp_machine_type(
-                data['instance']['family'],
-                data['instance']['type'],
-                data['instance']['cores'],
-            )
-        else:
-            machine_type = data['machine_type']
-            preemptible = data['preemptible']
-            local_ssd_data_disk = data['local_ssd_data_disk']
-            data_disk_size_gb = data['data_disk_size_gb']
-            boot_disk_size_gb = data['boot_disk_size_gb']
-            job_private = data['job_private']
+        assert data['version'] == GCP_INSTANCE_CONFIG_VERSION
+
+        machine_type = data['machine_type']
+        preemptible = data['preemptible']
+        local_ssd_data_disk = data['local_ssd_data_disk']
+        data_disk_size_gb = data['data_disk_size_gb']
+        boot_disk_size_gb = data['boot_disk_size_gb']
+        job_private = data['job_private']
 
         assert 'resources' in data and data['resources'] is not None
         resources = [gcp_resource_from_dict(data) for data in data['resources']]
