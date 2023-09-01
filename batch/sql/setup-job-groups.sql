@@ -244,13 +244,14 @@ CREATE PROCEDURE update_job_groups(
 BEGIN
   DECLARE cursor_job_group_id INT;
   DECLARE done BOOLEAN DEFAULT FALSE;
-  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
   DECLARE job_group_cursor CURSOR FOR
   SELECT parent_id
   FROM job_group_parents
   WHERE batch_id = in_batch_id AND job_group_id = in_job_group_id
   ORDER BY job_group_id ASC;
+
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
   DECLARE total_jobs_in_job_group INT;
   DECLARE cur_n_completed INT;
