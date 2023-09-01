@@ -1,5 +1,6 @@
 name: Bug Report
 description: Report a bug
+labels: needs-triage
 body:
   - type: textarea
     id: what-happened
@@ -19,5 +20,5 @@ body:
     id: log
     attributes:
       label: Relevant log output
-      description: Please copy and paste any relevant log output.
+      description: Please copy and paste any relevant log output. If too large, please put in https://gist.github.com and provide the link.
       render: shell

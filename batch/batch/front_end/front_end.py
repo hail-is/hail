@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union
 
 import aiohttp
 import aiohttp.web_exceptions
@@ -138,7 +138,7 @@ def catch_ui_error_in_dev(fun):
             return await fun(request, userdata, *args, **kwargs)
         except asyncio.CancelledError:
             raise
-        except aiohttp.web_exceptions.HTTPFound as e:
+        except web.HTTPFound as e:
             raise e
         except Exception as e:
             if SCOPE == 'dev':
@@ -285,10 +285,9 @@ WHERE id = %s AND NOT deleted;
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id, version, q, last_job_id)
 
-    resp = {'jobs': jobs}
     if last_job_id is not None:
-        resp['last_job_id'] = last_job_id
-    return resp
+        return {'jobs': jobs, 'last_job_id': last_job_id}
+    return {'jobs': jobs}
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
@@ -428,7 +427,7 @@ async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
     return dict(zip(containers, logs))
 
 
-async def _get_job_resource_usage(app, batch_id, job_id):
+async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
 
     client_session: httpx.ClientSession = app['client_session']
@@ -471,7 +470,7 @@ async def _get_job_resource_usage(app, batch_id, job_id):
     return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
 
 
-async def _get_jvm_profile(app, batch_id, job_id):
+async def _get_jvm_profile(app: web.Application, batch_id: int, job_id: int) -> Optional[str]:
     record = await _get_job_record(app, batch_id, job_id)
 
     file_store: FileStore = app['file_store']
@@ -651,10 +650,10 @@ async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
     result = await _handle_api_error(_query_batches, request, user, q, 1, last_batch_id)
     assert result is not None
     batches, last_batch_id = result
-    body = {'batches': batches}
+
     if last_batch_id is not None:
-        body['last_batch_id'] = last_batch_id
-    return json_response(body)
+        return json_response({'batches': batches, 'last_batch_id': last_batch_id})
+    return json_response({'batches': batches})
 
 
 @routes.get('/api/v2alpha/batches')
@@ -667,10 +666,10 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     result = await _handle_api_error(_query_batches, request, user, q, 2, last_batch_id)
     assert result is not None
     batches, last_batch_id = result
-    body = {'batches': batches}
+
     if last_batch_id is not None:
-        body['last_batch_id'] = last_batch_id
-    return json_response(body)
+        return json_response({'batches': batches, 'last_batch_id': last_batch_id})
+    return json_response({'batches': batches})
 
 
 def check_service_account_permissions(user, sa):
@@ -1267,7 +1266,7 @@ LOCK IN SHARE MODE''',
 SELECT COALESCE(SUM(t.`usage` * rate), 0) AS cost
 FROM (
   SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_billing_project_user_resources_v2
+  FROM aggregated_billing_project_user_resources_v3
   WHERE billing_project = %s
   GROUP BY resource_id
 ) AS t
@@ -1468,30 +1467,30 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-WITH base_t AS (
 SELECT batches.*,
   batches_cancelled.id IS NOT NULL AS cancelled,
   batches_n_jobs_in_complete_states.n_completed,
   batches_n_jobs_in_complete_states.n_succeeded,
   batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled
+  batches_n_jobs_in_complete_states.n_cancelled,
+  cost_t.*
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
        ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
-WHERE batches.id = %s AND NOT deleted
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
-LEFT JOIN (
-  SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-  GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
-) AS usage_t ON base_t.id = usage_t.batch_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.id;
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+  FROM (
+    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_batch_resources_v2
+    WHERE batches.id = aggregated_batch_resources_v2.batch_id
+    GROUP BY batch_id, resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+  GROUP BY batch_id
+) AS cost_t ON TRUE
+WHERE batches.id = %s AND NOT deleted;
 ''',
         (batch_id,),
     )
@@ -1667,6 +1666,11 @@ async def ui_batch(request, userdata, batch_id):
 
     batch['cost'] = cost_str(batch['cost'])
 
+    if batch['cost_breakdown'] is not None:
+        for record in batch['cost_breakdown']:
+            record['cost'] = cost_str(record['cost'])
+        batch['cost_breakdown'].sort(key=lambda record: record['resource'])
+
     page_context = {
         'batch': batch,
         'q': q,
@@ -1679,7 +1683,7 @@ async def ui_batch(request, userdata, batch_id):
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
-async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
+async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
     post = await request.post()
     q = post.get('q')
     params: Dict[str, str] = {}
@@ -1691,14 +1695,14 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> web.HTTPFou
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     finally:
         location = request.app.router['batches'].url_for().with_query(params)
-        return web.HTTPFound(location=location)  # pylint: disable=lost-exception
+        raise web.HTTPFound(location=location)  # pylint: disable=lost-exception
 
 
 @routes.post('/batches/{batch_id}/delete')
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
-async def ui_delete_batch(request: web.Request, _, batch_id: int) -> web.HTTPFound:
+async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
     post = await request.post()
     q = post.get('q')
     params: Dict[str, str] = {}
@@ -1708,7 +1712,7 @@ async def ui_delete_batch(request: web.Request, _, batch_id: int) -> web.HTTPFou
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
-    return web.HTTPFound(location=location)
+    raise web.HTTPFound(location=location)
 
 
 @routes.get('/batches', name='batches')
@@ -1717,7 +1721,7 @@ async def ui_delete_batch(request: web.Request, _, batch_id: int) -> web.HTTPFou
 async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
     user = userdata['username']
-    q = request.query.get('q', f'user:{user}')
+    q = request.query.get('q', f'user = {user}' if CURRENT_QUERY_VERSION == 2 else f'user:{user}')
     last_batch_id = cast_query_param_to_int(request.query.get('last_batch_id'))
     try:
         result = await _handle_ui_error(session, _query_batches, request, user, q, CURRENT_QUERY_VERSION, last_batch_id)
@@ -1760,21 +1764,18 @@ LEFT JOIN batch_updates
   ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s AND batch_updates.committed
 )
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT base_t.*, cost_t.cost, cost_t.cost_breakdown
 FROM base_t
-LEFT JOIN (
-  SELECT aggregated_job_resources_v2.batch_id,
-    aggregated_job_resources_v2.job_id,
-    aggregated_job_resources_v2.resource_id,
-    CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_job_resources_v2
-    ON aggregated_job_resources_v2.batch_id = base_t.batch_id AND
-       aggregated_job_resources_v2.job_id = base_t.job_id
+LEFT JOIN LATERAL (
+SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+FROM (SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_resources_v2
+  WHERE aggregated_job_resources_v2.batch_id = base_t.batch_id AND aggregated_job_resources_v2.job_id = base_t.job_id
   GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
-) AS usage_t ON usage_t.batch_id = base_t.batch_id AND usage_t.job_id = base_t.job_id
+) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.batch_id, base_t.job_id, base_t.last_cancelled_attempt_id;
+GROUP BY usage_t.batch_id, usage_t.job_id
+) AS cost_t ON TRUE;
 ''',
         (batch_id, job_id, batch_id, job_id),
     )
@@ -2074,6 +2075,11 @@ async def ui_get_job(request, userdata, batch_id):
     job['duration'] = humanize_timedelta_msecs(job['duration'])
     job['cost'] = cost_str(job['cost'])
 
+    if job['cost_breakdown'] is not None:
+        for record in job['cost_breakdown']:
+            record['cost'] = cost_str(record['cost'])
+        job['cost_breakdown'].sort(key=lambda record: record['resource'])
+
     job_status = job['status']
     container_status_spec = dictfix.NoneOr(
         {
@@ -2175,7 +2181,7 @@ async def ui_get_job(request, userdata, batch_id):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
-async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
+async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.StreamResponse:
     return await get_job_container_log(request, batch_id)
 
 
@@ -2263,7 +2269,7 @@ async def post_edit_billing_limits(request: web.Request) -> web.Response:
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_edit_billing_limits_ui(request: web.Request, _) -> web.HTTPFound:
+async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     post = await request.post()
@@ -2273,7 +2279,7 @@ async def post_edit_billing_limits_ui(request: web.Request, _) -> web.HTTPFound:
         await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
         set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')  # type: ignore
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
 
 
 async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tuple[list, str, Optional[str]]:
@@ -2330,8 +2336,8 @@ SELECT
   COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM (
   SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_billing_project_user_resources_by_date_v2
-  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v2.billing_project
+  FROM aggregated_billing_project_user_resources_by_date_v3
+  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v3.billing_project
   WHERE {' AND '.join(where_conditions)}
   GROUP BY billing_project, `user`, resource_id
 ) AS t
@@ -2489,7 +2495,7 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_remove_user(request: web.Request, _) -> web.HTTPFound:
+async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
@@ -2499,7 +2505,7 @@ async def post_billing_projects_remove_user(request: web.Request, _) -> web.HTTP
         await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
         set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
@@ -2559,7 +2565,7 @@ VALUES (%s, %s, %s);
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_add_user(request: web.Request, _) -> web.HTTPFound:
+async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     user = post['user']
@@ -2571,7 +2577,7 @@ async def post_billing_projects_add_user(request: web.Request, _) -> web.HTTPFou
         await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
@@ -2617,7 +2623,7 @@ VALUES (%s, %s);
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_create_billing_projects(request: web.Request, _) -> web.HTTPFound:
+async def post_create_billing_projects(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     billing_project = post['billing_project']
@@ -2627,7 +2633,7 @@ async def post_create_billing_projects(request: web.Request, _) -> web.HTTPFound
         await _handle_ui_error(session, _create_billing_project, db, billing_project)
         set_message(session, f'Added billing project {billing_project}.', 'info')  # type: ignore
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
@@ -2678,7 +2684,7 @@ FOR UPDATE;
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_close_billing_projects(request: web.Request, _) -> web.HTTPFound:
+async def post_close_billing_projects(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -2687,7 +2693,7 @@ async def post_close_billing_projects(request: web.Request, _) -> web.HTTPFound:
         await _handle_ui_error(session, _close_billing_project, db, billing_project)
         set_message(session, f'Closed billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
@@ -2723,7 +2729,7 @@ async def _reopen_billing_project(db, billing_project):
 @check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
+async def post_reopen_billing_projects(request: web.Request) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -2732,7 +2738,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
         await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     finally:
-        return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
+        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
@@ -2797,7 +2803,7 @@ SELECT frozen FROM globals;
 @routes.get('/')
 @auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
-async def index(request: web.Request, _) -> web.HTTPFound:
+async def index(request: web.Request, _) -> NoReturn:
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
@@ -2875,7 +2881,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    regions = {
+    regions: Dict[str, int] = {
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
     }

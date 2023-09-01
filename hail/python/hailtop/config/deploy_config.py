@@ -123,12 +123,12 @@ class DeployConfig:
         root_routes = web.RouteTableDef()
 
         @root_routes.get('/healthcheck')
-        async def get_healthcheck(request):  # pylint: disable=unused-argument,unused-variable
+        async def get_healthcheck(_):
             return web.Response()
 
         @root_routes.get('/metrics')
-        async def get_metrics(request):  # pylint: disable=unused-argument,unused-variable
-            return web.HTTPFound(location=f'{base_path}/metrics')
+        async def get_metrics(_):
+            raise web.HTTPFound(location=f'{base_path}/metrics')
 
         root_app = web.Application(**kwargs)
         root_app.add_routes(root_routes)

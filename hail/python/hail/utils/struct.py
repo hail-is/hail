@@ -1,3 +1,4 @@
+from typing import Dict, Any
 from collections import OrderedDict
 from collections.abc import Mapping
 import pprint
@@ -49,6 +50,12 @@ class Struct(Mapping):
 
     def __contains__(self, item):
         return item in self._fields
+
+    def __getstate__(self) -> Dict[str, Any]:
+        return self._fields
+
+    def __setstate__(self, state: Dict[str, Any]):
+        self.__dict__["_fields"] = state
 
     def _get_field(self, item):
         if item in self._fields:

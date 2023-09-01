@@ -66,7 +66,7 @@ steps:
           - azure
   - kind: runImage
     name: copy_third_party_images
-    image: quay.io/skopeo/stable:v1.11.2
+    image: quay.io/skopeo/stable:v1.13.2
     script: |
       set -ex
 
@@ -152,10 +152,6 @@ steps:
     inputs:
       - from: /repo/docker/Dockerfile.base
         to: /io/repo/docker/Dockerfile.base
-      - from: /repo/pylintrc
-        to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
     dependsOn:
       - hail_ubuntu_image
       - merge_code
@@ -334,27 +330,59 @@ steps:
         to: /io/repo/admin-pod
     dependsOn:
       - hail_ubuntu_image
+  - kind: buildImage2
+    name: auth_image
+    dockerFile: /io/repo/auth/Dockerfile
+    contextPath: /io/repo
+    publishAs: auth
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/auth
+        to: /io/repo/auth
+      - from: /repo/hail/python/setup-hailtop.py
+        to: /io/repo/hail/python/setup-hailtop.py
+      - from: /repo/hail/python/MANIFEST.in
+        to: /io/repo/hail/python/MANIFEST.in
+      - from: /repo/hail/python/hailtop
+        to: /io/repo/hail/python/hailtop
+      - from: /hail_version
+        to: /io/repo/hail/python/hailtop/hail_version
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/web_common
+        to: /io/repo/web_common
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
   - kind: runImage
     name: delete_auth_tables
     image:
-      valueFrom: admin_pod_image.image
+      valueFrom: auth_image.image
     script: |
       set -ex
-      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
+      cd /io
+      python3 delete_dev_database.py {{ default_ns.name }} auth
     inputs:
-      - from: /repo/auth/sql
-        to: /io/sql
+      - from: /repo/ci/delete_dev_database.py
+        to: /io/delete_dev_database.py
     secrets:
       - name: database-server-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     runIfRequested: true
     scopes:
       - dev
     dependsOn:
       - default_ns
-      - admin_pod_image
+      - auth_image
       - merge_code
       - create_test_database_server_config
   - kind: createDatabase2
@@ -490,33 +518,6 @@ steps:
     dependsOn:
       - default_ns
       - ci_utils_image
-  - kind: buildImage2
-    name: auth_image
-    dockerFile: /io/repo/auth/Dockerfile
-    contextPath: /io/repo
-    publishAs: auth
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/auth
-        to: /io/repo/auth
-      - from: /repo/hail/python/setup-hailtop.py
-        to: /io/repo/hail/python/setup-hailtop.py
-      - from: /repo/hail/python/MANIFEST.in
-        to: /io/repo/hail/python/MANIFEST.in
-      - from: /repo/hail/python/hailtop
-        to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
-      - from: /repo/gear
-        to: /io/repo/gear
-      - from: /repo/web_common
-        to: /io/repo/web_common
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
   - kind: deploy
     name: deploy_auth_driver_service_account
     namespace:
@@ -1398,14 +1399,54 @@ steps:
     dependsOn:
       - hailgenetics_hail_image
       - merge_code
+  - kind: buildImage2
+    name: hail_linting_image
+    contextPath: /io/repo
+    dockerFile:
+      inline: |
+        FROM {{ hail_ubuntu_image.image }}
+        RUN hail-apt-get-install make
+        COPY hail/python/pinned-requirements.txt hail-requirements.txt
+        COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
+        COPY gear/pinned-requirements.txt gear-requirements.txt
+        COPY web_common/pinned-requirements.txt web_common-requirements.txt
+        COPY auth/pinned-requirements.txt auth-requirements.txt
+        COPY batch/pinned-requirements.txt batch-requirements.txt
+        COPY ci/pinned-requirements.txt ci-requirements.txt
+        RUN python3 -m pip install \
+            -r hail-requirements.txt \
+            -r dev-requirements.txt \
+            -r gear-requirements.txt \
+            -r web_common-requirements.txt \
+            -r auth-requirements.txt \
+            -r batch-requirements.txt \
+            -r ci-requirements.txt
+    publishAs: linting
+    inputs:
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/repo/hail/python/dev/pinned-requirements.txt
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
+      - from: /repo/web_common/pinned-requirements.txt
+        to: /io/repo/web_common/pinned-requirements.txt
+      - from: /repo/auth/pinned-requirements.txt
+        to: /io/repo/auth/pinned-requirements.txt
+      - from: /repo/batch/pinned-requirements.txt
+        to: /io/repo/batch/pinned-requirements.txt
+      - from: /repo/ci/pinned-requirements.txt
+        to: /io/repo/ci/pinned-requirements.txt
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
   - kind: runImage
     name: check_services
     image:
-      valueFrom: hail_dev_image.image
+      valueFrom: hail_linting_image.image
     script: |
       set -ex
       cd /io/repo
-      make install-dev-requirements
       {% if 'target_sha' in code %}
       export HAIL_TARGET_SHA={{ code.target_sha }}
       {% endif %}
@@ -1414,12 +1455,12 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - hail_dev_image
+      - hail_linting_image
       - merge_code
   - kind: runImage
     name: check_hail
     image:
-      valueFrom: hail_dev_image.image
+      valueFrom: hail_linting_image.image
     script: |
       set -ex
       cd /io/repo
@@ -1429,8 +1470,6 @@ steps:
         to: /io/repo/Makefile
       - from: /repo/pylintrc
         to: /io/repo/pylintrc
-      - from: /repo/setup.cfg
-        to: /io/repo/setup.cfg
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
       - from: /repo/hail/python
@@ -1438,7 +1477,7 @@ steps:
       - from: /repo/config.mk
         to: /io/repo/config.mk
     dependsOn:
-      - hail_dev_image
+      - hail_linting_image
       - merge_code
   - kind: runImage
     name: get_pip_versioned_docs
@@ -1631,24 +1670,29 @@ steps:
   - kind: runImage
     name: delete_monitoring_tables
     image:
-      valueFrom: admin_pod_image.image
+      valueFrom: monitoring_image.image
     script: |
       set -ex
-      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-monitoring-tables.sql
+      cd /io
+      python3 delete_dev_database.py {{ default_ns.name }} monitoring
     inputs:
-      - from: /repo/monitoring/sql
-        to: /io/sql
+      - from: /repo/ci/delete_dev_database.py
+        to: /io/delete_dev_database.py
     secrets:
       - name: database-server-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     runIfRequested: true
     scopes:
       - dev
     dependsOn:
       - default_ns
-      - admin_pod_image
+      - monitoring_image
       - merge_code
       - create_test_database_server_config
   - kind: createDatabase2
@@ -1842,47 +1886,57 @@ steps:
   - kind: runImage
     name: delete_batch_tables
     image:
-      valueFrom: admin_pod_image.image
+      valueFrom: batch_image.image
     script: |
       set -ex
-      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
+      cd /io
+      python3 delete_dev_database.py {{ default_ns.name }} batch
     inputs:
-      - from: /repo/batch/sql
-        to: /io/sql
+      - from: /repo/ci/delete_dev_database.py
+        to: /io/delete_dev_database.py
     secrets:
       - name: database-server-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     runIfRequested: true
     scopes:
       - dev
     dependsOn:
       - default_ns
-      - admin_pod_image
+      - batch_image
       - merge_code
       - create_test_database_server_config
   - kind: runImage
     name: delete_ci_tables
     image:
-      valueFrom: admin_pod_image.image
+      valueFrom: ci_image.image
     script: |
       set -ex
-      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
+      cd /io
+      python3 delete_dev_database.py {{ default_ns.name }} ci
     inputs:
-      - from: /repo/ci/sql
-        to: /io/sql
+      - from: /repo/ci/delete_dev_database.py
+        to: /io/delete_dev_database.py
     secrets:
       - name: database-server-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /sql-config
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     runIfRequested: true
     scopes:
       - dev
     dependsOn:
       - default_ns
-      - admin_pod_image
+      - ci_image
       - merge_code
       - create_test_database_server_config
   - kind: createDatabase2
@@ -2181,6 +2235,15 @@ steps:
       - name: add-billing-index-token
         script: /io/sql/add-billing-index-token.sql
         online: true
+      - name: jobs-after-update-simple.sql
+        script: /io/sql/jobs-after-update-simple.sql
+        online: true
+      - name: turn-on-billing-compaction
+        script: /io/sql/turn_on_billing_compaction.py
+        online: true
+      - name: cleanup-deprecated-functions
+        script: /io/sql/cleanup-deprecated-functions.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2224,66 +2287,33 @@ steps:
       - deploy_auth
       - create_certs
   - kind: runImage
-    name: create_billing_projects
-    resources:
-      memory: standard
-      cpu: '0.25'
+    name: add_developers
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-
-      # create billing projects and add users to them
-      cat > create-billing-projects.py <<EOF
-      import sys
-      import json
-      import asyncio
-      import aiohttp
-      from hailtop import httpx
-      from hailtop.utils import async_to_blocking
-      from hailtop.batch_client.aioclient import BatchClient
-      async def create(billing_project, user, limit=None):
-          bc = await BatchClient.create(None)
-          try:
-              try:
-                  await bc.create_billing_project(billing_project)
-              except httpx.ClientResponseError as e:
-                  if e.status != 403 or 'already exists' not in e.body:
-                       raise
-
-              try:
-                  await bc.add_user(user, billing_project)
-              except aiohttp.ClientResponseError as e:
-                  if e.status != 403 or 'already member of billing project' not in e.body:
-                       raise
-
-              await bc.edit_billing_limit(billing_project, limit)
-          finally:
-              await bc.close()
-      async def main():
-          {% if deploy %}
-          benchmark_limit = 25
-          {% else %}
-          benchmark_limit = 5
-          {% endif %}
-
-          await asyncio.gather(*[
-              create(billing_project="benchmark", user="benchmark", limit=benchmark_limit)
-          ])
-      async_to_blocking(main())
-      EOF
-      python3 create-billing-projects.py
+      {% for user in code.get("developers", []) %}
+      {% if user['username'] != 'test-dev' %}
+      hailctl auth create-user \
+        --developer \
+        --hail-identity {{ user["hail_identity"] }} \
+        --hail-credentials-secret-name {{ user["username"] }}-gsa-key \
+        {{ user["username"] }} {{ user["login_id"] }}
+      {% endif %}
+      {% endfor %}
     secrets:
       - name: test-dev-tokens
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
+    scopes:
+      - dev
+      - test
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
-      - create_deploy_config
-      - create_accounts
       - deploy_batch
   - kind: runImage
     name: upload_query_jar
@@ -2708,7 +2738,6 @@ steps:
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/tls/create_test_db_config.sh ./ci/test/resources/
       cp /io/repo/pylintrc ./
-      cp /io/repo/setup.cfg ./
       cp /io/repo/pyproject.toml ./
       cp -R /io/repo/docker ./
       cp -R /io/repo/gear ./
@@ -3314,7 +3343,7 @@ steps:
       - gcp
   - kind: runImage
     name: mirror_hailgenetics_images
-    image: quay.io/skopeo/stable:v1.11.2
+    image: quay.io/skopeo/stable:v1.13.2
     script: |
       set -ex
 
@@ -3714,3 +3743,125 @@ steps:
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
+  - kind: runImage
+    name: setup_dev_namespace_autoscalers
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+      {% for user in code.get("developers", []) %}
+      {% if user['username'] != 'test-dev' %}
+
+      if kubectl get namespace {{ user["username"] }} 2>/dev/null
+      then
+      cat > the.yaml <<'EOF'
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: dev-namespace-scaledown-{{ user["username"] }}
+        namespace: {{ user["username"] }}
+      spec:
+        schedule: "0 0 * * *"  # Every day at midnight UTC
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 1
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                serviceAccountName: admin
+                containers:
+                - name: dev-namespace-scaledown-{{ user["username"] }}
+                  image: bitnami/kubectl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=0 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=0
+                restartPolicy: OnFailure
+      ---
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: dev-namespace-scaleup-{{ user["username"] }}
+        namespace: {{ user["username"] }}
+      spec:
+        schedule: "0 13 * * 1,2,3,4,5"  # Weekdays at 1pm UTC
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 0
+        failedJobsHistoryLimit: 1
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                serviceAccountName: admin
+                containers:
+                - name: dev-namespace-daytime-autoscaler
+                  image: bitnami/kubectl:latest
+                  command:
+                  - /bin/sh
+                  - -c
+                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=1 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=1
+                restartPolicy: OnFailure
+      ---
+      EOF
+
+      kubectl apply -f the.yaml
+      echo "For {{ user["username"] }}, applied:"
+      echo "---"
+      cat the.yaml
+      else
+      echo "Skipping {{ user["username"] }} because they have no namespace."
+      fi
+
+      {% endif %}
+      {% endfor %}
+    scopes:
+      - deploy
+    serviceAccount:
+      name: ci-agent
+      namespace:
+        valueFrom: default_ns.name
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+    scopes:
+      - deploy
+  - kind: runImage
+    name: test_gcp_ar_cleanup_policies
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+      cd /io/repo/
+      new_policy=$(mktemp)
+      python3 devbin/generate_gcp_ar_cleanup_policy.py > $new_policy
+      diff $new_policy infra/gcp-broad/gcp-ar-cleanup-policy.txt || {
+        echo '>>> AR cleanup policy has changed, new policy is <<<'
+        cat $new_policy
+        echo '--------------------------------------'
+        echo "Please regenerate the policy file by running:"
+        echo "> python3 devbin/generate_gcp_ar_cleanup_policy.py > infra/gcp-broad/gcp-ar-cleanup-policy.txt"
+        exit 1
+      }
+    inputs:
+      - from: /repo/build.yaml
+        to: /io/repo/build.yaml
+      - from: /repo/devbin
+        to: /io/repo/devbin
+      - from: /repo/infra
+        to: /io/repo/infra
+      - from: /repo/docker
+        to: /io/repo/docker
+      - from: /repo/ci/test/resources
+        to: /io/repo/ci/test/resources
+    clouds:
+      - gcp
+    dependsOn:
+      - ci_utils_image
+      - default_ns

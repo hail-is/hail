@@ -5,6 +5,8 @@ import configparser
 import warnings
 from pathlib import Path
 
+from .variables import ConfigVariable
+
 user_config = None
 
 
@@ -15,12 +17,11 @@ def xdg_config_home() -> Path:
     return Path(value)
 
 
-def get_user_config_path() -> Path:
-    return Path(xdg_config_home(), 'hail', 'config.ini')
+def get_user_config_path(*, _config_dir: Optional[str] = None) -> Path:
+    return Path(_config_dir or xdg_config_home(), 'hail', 'config.ini')
 
 
-def _load_user_config():
-    global user_config
+def get_user_config() -> configparser.ConfigParser:
     user_config = configparser.ConfigParser()
     config_file = get_user_config_path()
     # in older versions, the config file was accidentally named
@@ -30,12 +31,6 @@ def _load_user_config():
     if old_path.exists() and not config_file.exists():
         old_path.rename(config_file)
     user_config.read(config_file)
-
-
-def get_user_config() -> configparser.ConfigParser:
-    if user_config is None:
-        _load_user_config()
-        assert user_config is not None
     return user_config
 
 
@@ -43,15 +38,12 @@ VALID_SECTION_AND_OPTION_RE = re.compile('[a-z0-9_]+')
 T = TypeVar('T')
 
 
-def configuration_of(section: str,
-                     option: str,
-                     explicit_argument: Optional[T],
-                     fallback: T,
-                     *,
-                     deprecated_envvar: Optional[str] = None) -> Union[str, T]:
-    assert VALID_SECTION_AND_OPTION_RE.fullmatch(section), (section, option)
-    assert VALID_SECTION_AND_OPTION_RE.fullmatch(option), (section, option)
-
+def unchecked_configuration_of(section: str,
+                               option: str,
+                               explicit_argument: Optional[T],
+                               fallback: T,
+                               *,
+                               deprecated_envvar: Optional[str] = None) -> Union[str, T]:
     if explicit_argument is not None:
         return explicit_argument
 
@@ -76,6 +68,19 @@ def configuration_of(section: str,
     return fallback
 
 
+def configuration_of(config_variable: ConfigVariable,
+                     explicit_argument: Optional[T],
+                     fallback: T,
+                     *,
+                     deprecated_envvar: Optional[str] = None) -> Union[str, T]:
+    if '/' in config_variable.value:
+        section, option = config_variable.value.split('/')
+    else:
+        section = 'global'
+        option = config_variable.value
+    return unchecked_configuration_of(section, option, explicit_argument, fallback, deprecated_envvar=deprecated_envvar)
+
+
 def get_remote_tmpdir(caller_name: str,
                       *,
                       bucket: Optional[str] = None,
@@ -94,7 +99,7 @@ def get_remote_tmpdir(caller_name: str,
         raise ValueError(f'Cannot specify both \'remote_tmpdir\' and \'bucket\' in {caller_name}(...). Specify \'remote_tmpdir\' as a keyword argument instead.')
 
     if bucket is None and remote_tmpdir is None:
-        remote_tmpdir = configuration_of('batch', 'remote_tmpdir', None, None)
+        remote_tmpdir = configuration_of(ConfigVariable.BATCH_REMOTE_TMPDIR, None, None)
 
     if remote_tmpdir is None:
         if bucket is None:

@@ -615,16 +615,20 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise ValueError(f'Google Cloud Storage URI must be of the form: gs://bucket/path, found: {url}')
 
         end_of_bucket = rest.find('/', 2)
-        bucket = rest[2:end_of_bucket]
-        name = rest[(end_of_bucket + 1):]
+        if end_of_bucket != -1:
+            bucket = rest[2:end_of_bucket]
+            name = rest[(end_of_bucket + 1):]
+        else:
+            bucket = rest[2:]
+            name = ''
 
         return (bucket, name)
 
-    async def open(self, url: str) -> ReadableStream:
+    async def open(self, url: str) -> GetObjectStream:
         bucket, name = self.get_bucket_and_name(url)
         return await self._storage_client.get_object(bucket, name)
 
-    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> GetObjectStream:
         bucket, name = self.get_bucket_and_name(url)
         range_str = f'bytes={start}-'
         if length is not None:
@@ -730,7 +734,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                 return False
             return True
 
-        async def cons(first_entry, it):
+        async def cons(first_entry, it) -> AsyncIterator[FileListEntry]:
             if await should_yield(first_entry):
                 yield first_entry
             try:

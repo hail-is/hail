@@ -8,15 +8,16 @@ import random
 import secrets
 from enum import Enum
 from shlex import quote as shq
-from typing import Dict, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import aiohttp
+import aiohttp.client_exceptions
 import gidgethub
 import prometheus_client as pc  # type: ignore
 import zulip
 
-from gear import Database
-from hailtop.batch_client.aioclient import Batch
+from gear import Database, UserData
+from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
@@ -228,7 +229,18 @@ fi
 
 class PR(Code):
     def __init__(
-        self, number, title, body, source_branch, source_sha, target_branch, author, assignees, reviewers, labels
+        self,
+        number,
+        title,
+        body,
+        source_branch,
+        source_sha,
+        target_branch,
+        author,
+        assignees,
+        reviewers,
+        labels,
+        developers,
     ):
         self.number: int = number
         self.title: str = title
@@ -257,6 +269,8 @@ class PR(Code):
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
         self.target_branch.state_changed = True
+
+        self.developers = developers
 
     def set_build_state(self, build_state):
         log.info(f'{self.short_str()}: Build state changing from {self.build_state} => {build_state}')
@@ -355,6 +369,7 @@ class PR(Code):
             {user['login'] for user in gh_json['assignees']},
             {user['login'] for user in gh_json['requested_reviewers']},
             {label['name'] for label in gh_json['labels']},
+            target_branch.developers,
         )
         pr.increment_pr_metric()
         return pr
@@ -368,6 +383,7 @@ class PR(Code):
         target_repo = self.target_branch.branch.repo
         return {
             'checkout_script': self.checkout_script(),
+            'developers': self.developers,
             'number': self.number,
             'source_repo': source_repo.short_str(),
             'source_repo_url': source_repo.url,
@@ -489,7 +505,7 @@ class PR(Code):
             self.set_review_state(review_state)
             self.target_branch.state_changed = True
 
-    async def _start_build(self, db: Database, batch_client):
+    async def _start_build(self, db: Database, batch_client: BatchClient):
         assert await self.authorized(db)
 
         # clear current batch
@@ -538,7 +554,7 @@ mkdir -p {shq(repo_dir)}
                 callback=CALLBACK_URL,
             )
             config.build(batch, self, scope='test')
-            batch = await batch.submit()
+            await batch.submit()
             self.batch = batch
         except concurrent.futures.CancelledError:
             raise
@@ -669,11 +685,12 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 
 
 class WatchedBranch(Code):
-    def __init__(self, index, branch, deployable, mergeable):
+    def __init__(self, index, branch, deployable, mergeable, developers):
         self.index: int = index
         self.branch: FQBranch = branch
         self.deployable: bool = deployable
         self.mergeable: bool = mergeable
+        self.developers: List[dict] = developers
 
         self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
@@ -713,6 +730,7 @@ class WatchedBranch(Code):
             'repo': self.branch.repo.short_str(),
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
+            'developers': self.developers,
         }
 
     async def notify_github_changed(self, app):
@@ -868,7 +886,7 @@ url: {url}
             async with repos_lock:
                 await self._start_deploy(app['db'], batch_client)
 
-    async def _update_batch(self, batch_client, db: Database):
+    async def _update_batch(self, batch_client: BatchClient, db: Database):
         log.info(f'update batch {self.short_str()}')
 
         if self.deployable:
@@ -892,7 +910,9 @@ url: {url}
             if pr.review_state == 'approved' and not pr.build_failed_on_at_least_one_platform():
                 pri = pr.merge_priority()
                 is_authorized = await pr.authorized(db)
-                if is_authorized and (not merge_candidate or pri > merge_candidate_pri):
+                if is_authorized and (
+                    not merge_candidate or (merge_candidate_pri is not None and pri > merge_candidate_pri)
+                ):
                     merge_candidate = pr
                     merge_candidate_pri = pri
 
@@ -903,7 +923,9 @@ url: {url}
 
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
-        for pr in self.prs.values():
+        prs_by_prio = sorted(self.prs.values(), key=lambda pr: pr.merge_priority(), reverse=True)
+
+        for pr in prs_by_prio:
             await pr._heal(batch_client, db, pr == merge_candidate, gh)
 
         # cancel orphan builds
@@ -917,7 +939,7 @@ url: {url}
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, db: Database, batch_client):
+    async def _start_deploy(self, db: Database, batch_client: BatchClient):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -968,7 +990,7 @@ Deploy config failed to build with exception:
 '''
                 await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 raise
-            deploy_batch = await deploy_batch.submit()
+            await deploy_batch.submit()
             self.deploy_batch = deploy_batch
         except concurrent.futures.CancelledError:
             raise
@@ -983,7 +1005,7 @@ Deploy config failed to build with exception:
                 log.info(f'deleting partially deployed batch {deploy_batch.id}')
                 await deploy_batch.delete()
 
-    def checkout_script(self):
+    def checkout_script(self) -> str:
         assert self.sha
         return f'''
 {clone_or_fetch_script(self.branch.repo.url)}
@@ -993,22 +1015,31 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata, extra_config=None):
+    def __init__(
+        self,
+        branch: FQBranch,
+        sha: str,
+        userdata: UserData,
+        developers: List[UserData],
+        *,
+        extra_config: Optional[Dict[str, Any]] = None,
+    ):
         self.branch = branch
-        self.user = userdata['username']
-        self.namespace = userdata['namespace_name']
+        self.user: str = userdata['username']
+        self.namespace: str = userdata['namespace_name']
+        self.developers = developers
         self.sha = sha
         self.extra_config = extra_config
 
-        self.deploy_batch = None
+        self.deploy_batch: Optional[Batch] = None
 
-    def short_str(self):
+    def short_str(self) -> str:
         return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
 
-    def repo_dir(self):
+    def repo_dir(self) -> str:
         return f'repos/{self.branch.repo.short_str()}'
 
-    def config(self):
+    def config(self) -> Dict[str, str]:
         config = {
             'checkout_script': self.checkout_script(),
             'branch': self.branch.name,
@@ -1016,12 +1047,15 @@ class UnwatchedBranch(Code):
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
             'user': self.user,
+            'developers': self.developers,
         }
         if self.extra_config is not None:
             config.update(self.extra_config)
         return config
 
-    async def deploy(self, db: Database, batch_client, steps, excluded_steps=()):
+    async def deploy(
+        self, db: Database, batch_client: BatchClient, steps: Sequence[str], excluded_steps: Sequence[str] = ()
+    ):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -1058,7 +1092,7 @@ mkdir -p {shq(repo_dir)}
                 }
             )
             config.build(deploy_batch, self, scope='dev')
-            deploy_batch = await deploy_batch.submit()
+            await deploy_batch.submit()
             self.deploy_batch = deploy_batch
             return deploy_batch.id
         finally:
@@ -1066,7 +1100,7 @@ mkdir -p {shq(repo_dir)}
                 log.info(f'deleting partially created deploy batch {deploy_batch.id}')
                 await deploy_batch.delete()
 
-    def checkout_script(self):
+    def checkout_script(self) -> str:
         return f'''
 {clone_or_fetch_script(self.branch.repo.url)}
 

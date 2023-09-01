@@ -43,7 +43,7 @@ class GCPResourceManager(CloudResourceManager):
         self,
         project: str,
         compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
-        billing_manager: GCPBillingManager,
+        billing_manager: GCPBillingManager,  # BORROWED
     ):
         self.compute_client = compute_client
         self.project = project
