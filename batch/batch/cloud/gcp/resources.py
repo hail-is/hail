@@ -14,7 +14,7 @@ from ...resources import (
 )
 
 
-class GCPResource(Resource, abc.ABC):
+class GCPResource(Resource):
     pass
 
 
