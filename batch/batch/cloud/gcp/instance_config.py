@@ -118,7 +118,6 @@ class GCPSlimInstanceConfig(InstanceConfig):
                 data['instance']['type'],
                 data['instance']['cores'],
             )
-            instance_family = data['instance']['family']
         else:
             machine_type = data['machine_type']
             preemptible = data['preemptible']
@@ -127,33 +126,8 @@ class GCPSlimInstanceConfig(InstanceConfig):
             boot_disk_size_gb = data['boot_disk_size_gb']
             job_private = data['job_private']
 
-            machine_type_parts = gcp_machine_type_to_parts(machine_type)
-            assert machine_type_parts is not None, machine_type
-            instance_family = machine_type_parts.machine_family
-
-        resources = data.get('resources')
-        if resources is None:
-            assert data['version'] < 5, data
-
-            preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
-
-            if local_ssd_data_disk:
-                data_disk_resource = GCPStaticSizedDiskResource('disk/local-ssd/1', data_disk_size_gb)
-            else:
-                data_disk_resource = GCPStaticSizedDiskResource('disk/pd-ssd/1', data_disk_size_gb)
-
-            # hard coded product versions "/1" are for backwards compatibility
-            resources = [
-                GCPComputeResource(f'compute/{instance_family}-{preemptible_str}/1'),
-                GCPMemoryResource(f'memory/{instance_family}-{preemptible_str}/1'),
-                GCPStaticSizedDiskResource('disk/pd-ssd/1', boot_disk_size_gb),
-                data_disk_resource,
-                GCPDynamicSizedDiskResource('disk/pd-ssd/1'),
-                GCPIPFeeResource('service-fee/1'),
-                GCPServiceFeeResource('ip-fee/1024/1'),
-            ]
-        else:
-            resources = [gcp_resource_from_dict(data) for data in resources]
+        assert 'resources' in data and data['resources'] is not None
+        resources = [gcp_resource_from_dict(data) for data in data['resources']]
 
         return GCPSlimInstanceConfig(
             machine_type,
