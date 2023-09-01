@@ -2,7 +2,7 @@ from typing import List, Union
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import family_worker_type_cores_to_gcp_machine_type, gcp_machine_type_to_parts
+from .resource_utils import gcp_machine_type_to_parts
 from .resources import (
     GCPComputeResource,
     GCPDynamicSizedDiskResource,
