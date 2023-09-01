@@ -2138,8 +2138,12 @@ def from_numpy(np_dtype):
 def dtypes_from_pandas(pd_dtype):
     if type(pd_dtype) == pd.StringDtype:
         return hl.tstr
-    elif pd.api.types.is_int64_dtype(pd_dtype):
+    elif pd_dtype == np.int64:
         return hl.tint64
+    elif pd_dtype == np.uint64:
+        # Hail does *not* support unsigned integers but the next condition,
+        # pd.api.types.is_integer_dtype(pd_dtype) would return true on unsigned 64-bit ints
+        return None
     # For some reason pandas doesn't have `is_int32_dtype`, so we use `is_integer_dtype` if first branch failed.
     elif pd.api.types.is_integer_dtype(pd_dtype):
         return hl.tint32
