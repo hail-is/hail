@@ -1,9 +1,9 @@
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from gear import transaction
-from hailtop.batch_client.types import JobListEntryV1Alpha
+from hailtop.batch_client.types import JobListEntryV1Alpha, CostBreakdownEntry
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
@@ -13,7 +13,7 @@ from .utils import coalesce
 log = logging.getLogger('batch')
 
 
-def cost_breakdown_to_dict(cost_breakdown: dict):
+def cost_breakdown_to_dict(cost_breakdown: Dict[str, float]) -> List[CostBreakdownEntry]:
     return [{'resource': resource, 'cost': cost} for resource, cost in cost_breakdown.items()]
 
 
