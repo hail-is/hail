@@ -583,6 +583,17 @@ steps:
       - merge_code
       - hail_ubuntu_image
   - kind: buildImage2
+    name: hailgenetics_vep_grch38_95_image
+    dockerFile: /io/repo/docker/hailgenetics/vep/grch38/95/Dockerfile
+    contextPath: /io/repo/docker/vep/
+    publishAs: hailgenetics/vep-grch38-95
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
+  - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile
     contextPath: /io/repo
@@ -2370,6 +2381,7 @@ steps:
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
@@ -2431,6 +2443,7 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
     clouds:
       - gcp
   - kind: runImage
@@ -2454,6 +2467,7 @@ steps:
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
@@ -2516,6 +2530,7 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
     scopes:
       - deploy
       - dev
@@ -3293,6 +3308,7 @@ steps:
                              docker://{{ hailgenetics_hail_image.image }} \
                              docker://{{ hailgenetics_hailtop_image.image }} \
                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+                             docker://{{ hailgenetics_vep_grch38_95_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
@@ -3337,6 +3353,7 @@ steps:
       - hailgenetics_hail_image
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
       - build_wheel_for_azure
       - make_docs
     clouds:
