@@ -77,6 +77,10 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
 def cost_str(cost: Optional[float]) -> Optional[str]:
     if cost is None:
         return None
+    if cost == 0.0:
+        return '$0.0000'
+    if cost < 0.0001:
+        return '<$0.0001'
     return f'${cost:.4f}'
 
 

@@ -1472,30 +1472,30 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-WITH base_t AS (
 SELECT batches.*,
   batches_cancelled.id IS NOT NULL AS cancelled,
   batches_n_jobs_in_complete_states.n_completed,
   batches_n_jobs_in_complete_states.n_succeeded,
   batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled
+  batches_n_jobs_in_complete_states.n_cancelled,
+  cost_t.*
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
        ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
-WHERE batches.id = %s AND NOT deleted
-)
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM base_t
-LEFT JOIN (
-  SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-  GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
-) AS usage_t ON base_t.id = usage_t.batch_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.id;
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+  FROM (
+    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_batch_resources_v2
+    WHERE batches.id = aggregated_batch_resources_v2.batch_id
+    GROUP BY batch_id, resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+  GROUP BY batch_id
+) AS cost_t ON TRUE
+WHERE batches.id = %s AND NOT deleted;
 ''',
         (batch_id,),
     )
@@ -1671,6 +1671,11 @@ async def ui_batch(request, userdata, batch_id):
 
     batch['cost'] = cost_str(batch['cost'])
 
+    if batch['cost_breakdown'] is not None:
+        for record in batch['cost_breakdown']:
+            record['cost'] = cost_str(record['cost'])
+        batch['cost_breakdown'].sort(key=lambda record: record['resource'])
+
     page_context = {
         'batch': batch,
         'q': q,
@@ -1764,21 +1769,18 @@ LEFT JOIN batch_updates
   ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s AND batch_updates.committed
 )
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT base_t.*, cost_t.cost, cost_t.cost_breakdown
 FROM base_t
-LEFT JOIN (
-  SELECT aggregated_job_resources_v2.batch_id,
-    aggregated_job_resources_v2.job_id,
-    aggregated_job_resources_v2.resource_id,
-    CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM base_t
-  LEFT JOIN aggregated_job_resources_v2
-    ON aggregated_job_resources_v2.batch_id = base_t.batch_id AND
-       aggregated_job_resources_v2.job_id = base_t.job_id
+LEFT JOIN LATERAL (
+SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+FROM (SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_resources_v2
+  WHERE aggregated_job_resources_v2.batch_id = base_t.batch_id AND aggregated_job_resources_v2.job_id = base_t.job_id
   GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
-) AS usage_t ON usage_t.batch_id = base_t.batch_id AND usage_t.job_id = base_t.job_id
+) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.batch_id, base_t.job_id, base_t.last_cancelled_attempt_id;
+GROUP BY usage_t.batch_id, usage_t.job_id
+) AS cost_t ON TRUE;
 ''',
         (batch_id, job_id, batch_id, job_id),
     )
@@ -2079,6 +2081,11 @@ async def ui_get_job(request, userdata, batch_id):
 
     job['duration'] = humanize_timedelta_msecs(job['duration'])
     job['cost'] = cost_str(job['cost'])
+
+    if job['cost_breakdown'] is not None:
+        for record in job['cost_breakdown']:
+            record['cost'] = cost_str(record['cost'])
+        job['cost_breakdown'].sort(key=lambda record: record['resource'])
 
     job_status = job['status']
     container_status_spec = dictfix.NoneOr(
