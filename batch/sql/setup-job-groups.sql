@@ -67,17 +67,6 @@ BEGIN
 
     INSERT INTO job_group_parents (batch_id, job_group_id, parent_id, `level`)
     VALUES (NEW.id, 0, 0, 0);
-  ELSE
-    UPDATE job_groups
-    SET `user` = NEW.`user`,
-      cancel_after_n_failures = NEW.cancel_after_n_failures,
-      `state` = NEW.state,
-      n_jobs = NEW.n_jobs,
-      time_created = NEW.time_created,
-      time_completed = NEW.time_completed,
-      callback = NEW.callback,
-      attributes = NEW.attributes
-    WHERE batch_id = NEW.id AND job_group_id = 0;
   END IF;
 END $$
 
@@ -245,6 +234,56 @@ BEGIN
   END IF;
 END $$
 
+DROP PROCEDURE IF EXISTS mark_job_group_complete $$
+CREATE PROCEDURE update_job_groups(
+  IN in_batch_id BIGINT,
+  IN in_job_group_id INT,
+  IN new_timestamp BIGINT
+)
+BEGIN
+  DECLARE cursor_job_group_id INT;
+  DECLARE done BOOLEAN DEFAULT FALSE;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  DECLARE job_group_cursor CURSOR FOR
+  SELECT parent_id
+  FROM job_group_parents
+  WHERE batch_id = in_batch_id AND job_group_id = in_job_group_id
+  ORDER BY job_group_id ASC;
+
+  DECLARE total_jobs_in_job_group INT;
+  DECLARE cur_n_completed INT;
+
+  OPEN job_group_cursor;
+  update_job_group_loop: LOOP
+    FETCH job_group_cursor INTO cursor_job_group_id;
+
+    IF done THEN
+      LEAVE update_job_group_loop;
+    END IF;
+
+    SELECT n_jobs INTO total_jobs_in_job_group
+    FROM job_groups
+    WHERE batch_id = in_batch_id AND job_group_id = cursor_job_group_id
+    LOCK IN SHARE MODE;
+
+    SELECT n_completed INTO cur_n_completed
+    FROM batches_n_jobs_in_complete_states
+    WHERE id = in_batch_id AND job_group_id = cursor_job_group_id
+    LOCK IN SHARE MODE;
+
+    # Grabbing an exclusive lock on job groups here could deadlock,
+    # but this IF should only execute for the last job
+    IF cur_n_completed = total_jobs_in_job_group THEN
+      UPDATE job_groups
+      SET time_completed = new_timestamp,
+        `state` = 'complete'
+      WHERE batch_id = in_batch_id AND job_group_id = cursor_job_group_id;
+    END IF;
+  END LOOP;
+  CLOSE job_group_cursor;
+END $$
+
 DROP PROCEDURE IF EXISTS mark_job_complete $$
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
@@ -259,6 +298,7 @@ CREATE PROCEDURE mark_job_complete(
   IN new_timestamp BIGINT
 )
 BEGIN
+  DECLARE cur_job_group_id INT;
   DECLARE cur_job_state VARCHAR(40);
   DECLARE cur_instance_state VARCHAR(40);
   DECLARE cur_cores_mcpu INT;
@@ -271,8 +311,8 @@ BEGIN
 
   SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
 
-  SELECT state, cores_mcpu
-  INTO cur_job_state, cur_cores_mcpu
+  SELECT state, cores_mcpu, job_group_id
+  INTO cur_job_state, cur_cores_mcpu, cur_job_group_id
   FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
@@ -311,12 +351,14 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
+    # update only the record for the root job group
+    # backwards compatibility for job groups that do not exist
     UPDATE batches_n_jobs_in_complete_states
       SET n_completed = (@new_n_completed := n_completed + 1),
           n_cancelled = n_cancelled + (new_state = 'Cancelled'),
           n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
           n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
-      WHERE id = in_batch_id;
+      WHERE id = in_batch_id AND job_group_id = 0;
 
     # Grabbing an exclusive lock on batches here could deadlock,
     # but this IF should only execute for the last job
@@ -326,6 +368,22 @@ BEGIN
           `state` = 'complete'
       WHERE id = in_batch_id;
     END IF;
+
+    # update the rest of the non-root job groups if they exist
+    # necessary for backwards compatibility
+    UPDATE batches_n_jobs_in_complete_states
+    INNER JOIN (
+      SELECT batch_id, parent_id, n_completed, n_cancelled, n_failed, n_succeeded
+      FROM job_group_parents
+      WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id AND job_group_id != 0
+      ORDER BY job_group_id ASC
+    ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
+    SET n_completed = n_completed + 1,
+        n_cancelled = n_cancelled + (new_state = 'Cancelled'),
+        n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
+        n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
+
+    CALL mark_job_group_complete(in_batch_id, cur_job_group_id, new_timestamp);
 
     UPDATE jobs
       LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
