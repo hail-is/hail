@@ -2244,6 +2244,9 @@ steps:
       - name: cleanup-deprecated-functions
         script: /io/sql/cleanup-deprecated-functions.sql
         online: true
+      - name: add-gcp-support-logs-specs-and-firewall-fees
+        script: /io/sql/add-gcp-support-logs-specs-and-firewall-fees.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

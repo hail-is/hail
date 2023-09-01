@@ -12,6 +12,7 @@ from .resources import (
     GCPResource,
     GCPServiceFeeResource,
     GCPStaticSizedDiskResource,
+    GCPSupportLogsSpecsAndFirewallFees,
     gcp_resource_from_dict,
 )
 
@@ -57,6 +58,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             GCPDynamicSizedDiskResource.create(product_versions, 'pd-ssd', region),
             GCPIPFeeResource.create(product_versions, 1024),
             GCPServiceFeeResource.create(product_versions),
+            GCPSupportLogsSpecsAndFirewallFees.create(product_versions),
         ]
 
         return GCPSlimInstanceConfig(
@@ -151,6 +153,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
                 GCPDynamicSizedDiskResource('disk/pd-ssd/1'),
                 GCPIPFeeResource('service-fee/1'),
                 GCPServiceFeeResource('ip-fee/1024/1'),
+                GCPSupportLogsSpecsAndFirewallFees('gcp-support-logs-specs-and-firewall-fees/1'),
             ]
         else:
             resources = [gcp_resource_from_dict(data) for data in resources]

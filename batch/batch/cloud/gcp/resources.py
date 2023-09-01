@@ -259,6 +259,39 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
         return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
+class GCPSupportLogsSpecsAndFirewallFees(GCPResource):
+    FORMAT_VERSION = 1
+    TYPE = 'gcp_support_logs_specs_and_firewall_fees'
+
+    def to_quantified_resource(
+        self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
+    ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
+        del memory_in_bytes, worker_fraction_in_1024ths, external_storage_in_gib
+        return {'name': self.name, 'quantity': cpu_in_mcpu}
+
+    @staticmethod
+    def product_name() -> str:
+        return 'gcp-support-logs-specs-and-firewall-fees'
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> 'GCPSupportLogsSpecsAndFirewallFees':
+        assert data['type'] == GCPSupportLogsSpecsAndFirewallFees.TYPE
+        return GCPSupportLogsSpecsAndFirewallFees(data['name'])
+
+    @staticmethod
+    def create(product_versions: ProductVersions) -> 'GCPSupportLogsSpecsAndFirewallFees':
+        product = GCPSupportLogsSpecsAndFirewallFees.product_name()
+        name = product_versions.resource_name(product)
+        assert name, product
+        return GCPSupportLogsSpecsAndFirewallFees(name)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def to_dict(self) -> dict:
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
+
+
 def gcp_resource_from_dict(data: dict) -> GCPResource:
     typ = data['type']
     if typ == GCPStaticSizedDiskResource.TYPE:
@@ -273,5 +306,7 @@ def gcp_resource_from_dict(data: dict) -> GCPResource:
         return GCPMemoryResource.from_dict(data)
     if typ == GCPServiceFeeResource.TYPE:
         return GCPServiceFeeResource.from_dict(data)
-    assert typ == GCPIPFeeResource.TYPE
-    return GCPIPFeeResource.from_dict(data)
+    if typ == GCPIPFeeResource.TYPE:
+        return GCPIPFeeResource.from_dict(data)
+    assert typ == GCPSupportLogsSpecsAndFirewallFees
+    return GCPSupportLogsSpecsAndFirewallFees.from_dict(data)
