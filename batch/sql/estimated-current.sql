@@ -220,8 +220,8 @@ CREATE TABLE IF NOT EXISTS `job_group_parents` (
   FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `parent_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX `job_group_parents_p_id_level` ON `job_group_parents` (`batch_id`, `parent_id`, `level`);
-CREATE INDEX `job_group_parents_jg_id_level` ON `job_group_parents` (`batch_id`, `job_group_id`, `level`);
+CREATE INDEX `job_group_parents_parent_id_level` ON `job_group_parents` (`batch_id`, `parent_id`, `level`);
+CREATE INDEX `job_group_parents_job_group_id_level` ON `job_group_parents` (`batch_id`, `job_group_id`, `level`);
 
 CREATE TABLE IF NOT EXISTS `batch_updates` (
   `batch_id` BIGINT NOT NULL,
