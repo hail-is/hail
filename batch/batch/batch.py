@@ -1,9 +1,9 @@
 import json
 import logging
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 from gear import transaction
-from hailtop.batch_client.types import JobListEntryV1Alpha, CostBreakdownEntry
+from hailtop.batch_client.types import CostBreakdownEntry, JobListEntryV1Alpha
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
