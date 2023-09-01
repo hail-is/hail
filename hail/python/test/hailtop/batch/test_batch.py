@@ -1315,7 +1315,8 @@ class ServiceTests(unittest.TestCase):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
 
         def write(paths):
-            assert isinstance(paths, tuple)
+            if not isinstance(paths, tuple):
+                raise ValueError('paths must be a tuple')
             for i, path in enumerate(paths):
                 with open(path, 'w') as f:
                     f.write(f'{i}')
@@ -1329,9 +1330,9 @@ class ServiceTests(unittest.TestCase):
 
         res = b.run()
         assert res
+        assert tail._job_id
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
-        assert tail._job_id is not None
         assert res.get_job_log(tail._job_id)['main'] == '01', str(res.debug_info())
 
     def test_list_recursive_resource_extraction_in_python_jobs(self):
