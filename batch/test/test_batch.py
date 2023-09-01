@@ -1111,7 +1111,7 @@ def test_verify_no_access_to_metadata_server(client: BatchClient):
     status = j.wait()
     assert status['state'] == 'Failed', str((status, b.debug_info()))
     job_log = j.log()
-    assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
+    assert "Connection timeout" in job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_submit_batch_in_job(client: BatchClient, remote_tmpdir: str):

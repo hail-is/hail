@@ -29,7 +29,7 @@ from hailtop.httpx import ClientResponseError
 from hailtop.config.variables import ConfigVariable
 
 
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:20.04')
+DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
 

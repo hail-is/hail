@@ -1,4 +1,4 @@
-FROM {{ global.docker_prefix }}/ubuntu:focal-20221019
+FROM {{ global.docker_prefix }}/ubuntu:jammy-20230624
 ENV LANG C.UTF-8
 ENV DEBIAN_FRONTEND noninteractive
 COPY retry /bin/retry
@@ -16,9 +16,9 @@ RUN chmod 755 /bin/retry && \
     hail-apt-get-install curl gpg jq rsync && \
     curl 'https://keyserver.ubuntu.com/pks/lookup?search=0xF23C5A6CF475977595C89F51BA6932366A755776&hash=on&exact=on&options=mr&op=get' \
          | gpg --dearmor > /usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg && \
-    echo 'deb [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu focal main' \
+    echo 'deb [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu jammy main' \
          >> /etc/apt/sources.list && \
-    echo 'deb-src [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu focal main' \
+    echo 'deb-src [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu jammy main' \
          >> /etc/apt/sources.list && \
     hail-apt-get-install python3.9-minimal python3.9-dev python3.9-distutils gcc g++ && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1 && \
