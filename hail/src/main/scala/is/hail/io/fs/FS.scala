@@ -311,7 +311,6 @@ object FS {
         dirFle = fle
       }
 
-
       continue = it.hasNext && (fle.getActualUrl <= prefixWithSlash)
     }
 
