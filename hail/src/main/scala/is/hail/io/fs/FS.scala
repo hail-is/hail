@@ -289,7 +289,8 @@ object FS {
     url: T,
     it: Iterator[FileListEntry],
   ): FileListEntry = {
-    val prefix = dropTrailingSlash(url.toString)
+    val urlStr = url.toString
+    val prefix = dropTrailingSlash(urlStr)
     val prefixWithSlash = prefix + "/"
 
     var continue = it.hasNext
@@ -298,13 +299,18 @@ object FS {
     while (continue) {
       val fle = it.next()
 
-      if (fle.isFile) {
+      if (fle.isFile && fle.getActualUrl == urlStr) {
+        // In Google, there could be a blob with the name "foo/". We return it iff the user
+        // requested "foo/" with the trailing slash.
         fileFle = fle
       }
-
-      if (fle.isDirectory) {
+      if (fle.isDirectory && dropTrailingSlash(fle.getActualUrl) == prefix) {
+        // In Google, "directory" entries always have a trailing slash.
+        //
+        // In Azure, "directory" entries never have a trailing slash.
         dirFle = fle
       }
+
 
       continue = it.hasNext && (fle.getActualUrl <= prefixWithSlash)
     }
