@@ -416,7 +416,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         throw new FileNotFoundException(url.toString)
     }
 
-    new BlobStorageFileStatus(url.path, blobProperties.getLastModified.toEpochSecond, blobProperties.getBlobSize)
+    new BlobStorageFileStatus(url.toString, blobProperties.getLastModified.toEpochSecond, blobProperties.getBlobSize)
   }
 
   override def getFileListEntry(filename: String): FileListEntry = getFileListEntry(AzureStorageFS.parseUrl(filename))

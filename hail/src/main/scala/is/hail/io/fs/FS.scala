@@ -84,6 +84,7 @@ trait FileListEntry extends FileStatus {
 class BlobStorageFileStatus(
   actualUrl: String, modificationTime: java.lang.Long, size: Long
 ) extends FileStatus {
+  // NB: it is called getPath but it *must* return the URL *with* the scheme.
   def getPath: String = dropTrailingSlash(actualUrl) // getPath is a backwards compatible method: in the past, Hail dropped trailing slashes
   def getActualUrl: String = actualUrl
   def getModificationTime: java.lang.Long = modificationTime
