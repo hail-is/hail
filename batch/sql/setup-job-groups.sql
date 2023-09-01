@@ -129,7 +129,8 @@ BEGIN
     # there are no cancellable jobs left, they have been cancelled
     DELETE FROM batch_inst_coll_cancellable_resources WHERE batch_id = in_batch_id;
 
-    INSERT INTO batches_cancelled (id) VALUES (in_batch_id);
+    # cancel root job group only
+    INSERT INTO batches_cancelled (id, job_group_id) VALUES (in_batch_id, 0);
   END IF;
 
   COMMIT;
