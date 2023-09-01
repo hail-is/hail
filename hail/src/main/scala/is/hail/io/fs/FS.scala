@@ -294,30 +294,23 @@ object FS {
     var continue = it.hasNext
     var fileFle: FileListEntry = null
     var dirFle: FileListEntry = null
-    System.err.println(s"prefix=$prefix")
-    System.err.println(s"prefixWithSlash=$prefixWithSlash")
     while (continue) {
       val fle = it.next()
 
-      System.err.println(s"fle.getActualUrl=${fle.getActualUrl}")
-
-      if (fle.getActualUrl == prefix) {
-        assert(fle.isFile)
+      if (fle.isFile) {
         fileFle = fle
       }
 
-      if (fle.getActualUrl == prefixWithSlash) {
-        assert(fle.isDirectory)
+      if (fle.isDirectory) {
         dirFle = fle
       }
 
-      System.err.println(s"lte=${(fle.getActualUrl <= prefixWithSlash)}")
       continue = it.hasNext && (fle.getActualUrl <= prefixWithSlash)
     }
 
     if (fileFle != null) {
       if (dirFle != null) {
-        throw new FileAndDirectoryException(prefix)
+        throw new FileAndDirectoryException(s"${url.toString} appears as both file ${fileFle.getActualUrl} and directory ${dirFle.getActualUrl}")
       } else {
         fileFle
       }
