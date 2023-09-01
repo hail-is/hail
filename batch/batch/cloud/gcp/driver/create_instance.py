@@ -368,7 +368,6 @@ docker run \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
 --network host \
---cgroupns host \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 
