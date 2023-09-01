@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union, cast
 
 import aiohttp
 import aiohttp.web_exceptions
@@ -1744,7 +1744,7 @@ async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
-async def _get_job(app, batch_id, job_id):
+async def _get_job(app, batch_id, job_id) -> GetJobResponseV1Alpha:
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
@@ -2078,6 +2078,8 @@ async def ui_get_job(request, userdata, batch_id):
         _get_job_log(app, batch_id, job_id),
         _get_job_resource_usage(app, batch_id, job_id),
     )
+
+    job = cast(Dict[str, Any], job)
 
     job['duration'] = humanize_timedelta_msecs(job['duration'])
     job['cost'] = cost_str(job['cost'])
