@@ -11,7 +11,7 @@ copy_if_not_present() {
     then
         echo "$1 does not exist yet, doing nothing"
     else
-      echo "$2 does not exist, copying $1 to $2"
+      echo "copying $1 to $2"
       copy_image $1 $2
     fi
 }
