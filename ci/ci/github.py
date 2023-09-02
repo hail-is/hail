@@ -202,6 +202,7 @@ ASSIGN_COMPILER = '#assign compiler'
 HIGH_PRIORITY = 'prio:high'
 STACKED_PR = 'stacked PR'
 WIP = 'WIP'
+DO_NOT_TEST = 'do-not-test'
 
 DO_NOT_MERGE = {STACKED_PR, WIP}
 
@@ -307,6 +308,9 @@ class PR(Code):
 
     def build_failed_on_at_least_one_platform(self):
         return any(gh_status == GithubStatus.FAILURE for gh_status in self.last_known_github_status.values())
+
+    def testable(self):
+        return DO_NOT_TEST not in self.labels
 
     def merge_priority(self):
         # passed > unknown > failed
@@ -635,6 +639,9 @@ mkdir -p {shq(repo_dir)}
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
 
         if not await self.authorized(db):
+            return
+
+        if not self.testable():
             return
 
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
