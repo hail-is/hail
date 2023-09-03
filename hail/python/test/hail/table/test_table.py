@@ -2504,3 +2504,12 @@ def test_query_table_interval_key():
 def test_large_number_of_partitions():
     ht = hl.utils.range_table(1500, n_partitions=1500)
     ht.collect()
+
+
+def test_range_table_biggest_int():
+    biggest_int32 = (1 << 31) - 1
+    ht = hl.utils.range_table(biggest_int32)
+
+    n = biggest_int32 - 1  # NB: range table is [0, ..., n - 1]
+    expected_sum = n * (n + 1) // 2
+    assert expected_sum == ht.aggregate(hl.agg.sum(hl.int64(ht.idx)))
