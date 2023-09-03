@@ -21,7 +21,7 @@ object QoBOutputStreamManager {
     _instances.values.foreach(_.changeFile(newFilename))
   }
 
-  def remove(layout: Layout): Unit = synchronized {
+  def remove(layout: Layout[_]): Unit = synchronized {
     _instances.remove(layout)
   }
 
