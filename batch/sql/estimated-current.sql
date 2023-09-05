@@ -1562,6 +1562,8 @@ CREATE PROCEDURE update_job_groups(
 BEGIN
   DECLARE cursor_job_group_id INT;
   DECLARE done BOOLEAN DEFAULT FALSE;
+  DECLARE total_jobs_in_job_group INT;
+  DECLARE cur_n_completed INT;
 
   DECLARE job_group_cursor CURSOR FOR
   SELECT parent_id
@@ -1570,9 +1572,6 @@ BEGIN
   ORDER BY job_group_id ASC;
 
   DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
-
-  DECLARE total_jobs_in_job_group INT;
-  DECLARE cur_n_completed INT;
 
   OPEN job_group_cursor;
   update_job_group_loop: LOOP
