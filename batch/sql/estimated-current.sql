@@ -1696,7 +1696,7 @@ BEGIN
       FROM job_group_parents
       WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id AND job_group_id != 0
       ORDER BY job_group_id ASC
-    ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
+    ) AS t ON job_group_parents.batch_id = t.batch_id AND job_group_parents.job_group_id = t.job_group_id
     SET n_completed = n_completed + 1,
         n_cancelled = n_cancelled + (new_state = 'Cancelled'),
         n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
