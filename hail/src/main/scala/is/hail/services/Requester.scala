@@ -6,6 +6,10 @@ import java.nio.charset.StandardCharsets
 import is.hail.HailContext
 import is.hail.utils._
 import is.hail.services._
+import is.hail.shadedazure.com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder}
+import is.hail.shadedazure.com.azure.core.credential.TokenRequestContext
+
+import com.google.auth.oauth2.ServiceAccountCredentials
 import org.apache.commons.io.IOUtils
 import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
 import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost, HttpUriRequest}
@@ -19,7 +23,49 @@ import org.apache.log4j.{LogManager, Logger}
 import org.json4s.{DefaultFormats, Formats, JObject, JValue}
 import org.json4s.jackson.JsonMethods
 
+import scala.collection.JavaConverters._
 import scala.util.Random
+import java.io.FileInputStream
+
+
+abstract class CloudCredentials {
+  def accessToken(): String
+}
+
+class GoogleCloudCredentials(gsaKeyPath: String) extends CloudCredentials {
+  private[this] val credentials = using(new FileInputStream(gsaKeyPath)) { is =>
+    ServiceAccountCredentials
+      .fromStream(is)
+      .createScoped("openid", "email", "profile")
+  }
+
+  override def accessToken(): String = {
+    credentials.refreshIfExpired()
+    credentials.getAccessToken.getTokenValue
+  }
+}
+
+class AzureCloudCredentials(credentialsPath: String) extends CloudCredentials {
+  private[this] val credentials: ClientSecretCredential = using(new FileInputStream(credentialsPath)) { is =>
+      implicit val formats: Formats = defaultJSONFormats
+      val kvs = JsonMethods.parse(is)
+      val appId = (kvs \ "appId").extract[String]
+      val password = (kvs \ "password").extract[String]
+      val tenant = (kvs \ "tenant").extract[String]
+
+      new ClientSecretCredentialBuilder()
+        .clientId(appId)
+        .clientSecret(password)
+        .tenantId(tenant)
+        .build()
+  }
+
+  override def accessToken(): String = {
+    val context = new TokenRequestContext()
+    context.setScopes(Array(System.getenv("HAIL_AZURE_OAUTH_SCOPE")).toList.asJava)
+    credentials.getToken(context).block.getToken
+  }
+}
 
 class ClientResponseException(
   val status: Int,
@@ -58,14 +104,23 @@ object Requester {
         .build()
     }
   }
+
+  def fromCredentialsFile(credentialsPath: String) = {
+    val credentials = sys.env.get("HAIL_CLOUD") match {
+      case Some("gcp") => new GoogleCloudCredentials(credentialsPath)
+      case Some("azure") => new AzureCloudCredentials(credentialsPath)
+      case Some(cloud) =>
+        throw new IllegalArgumentException(s"Bad cloud: $cloud")
+      case None =>
+        throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
+    }
+    new Requester(credentials)
+  }
 }
 
 class Requester(
-  tokens: Tokens,
-  val service: String
+  val credentials: CloudCredentials
 ) {
-  def this(service: String) = this(Tokens.get, service)
-
   import Requester._
   def requestWithHandler[T >: Null](req: HttpUriRequest, body: HttpEntity, f: InputStream => T): T = {
     log.info(s"request ${ req.getMethod } ${ req.getURI }")
@@ -73,7 +128,8 @@ class Requester(
     if (body != null)
       req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(body)
 
-    tokens.addServiceAuthHeaders(service, req)
+    val token = credentials.accessToken()
+    req.addHeader("Authorization", s"Bearer $token")
 
     retryTransientErrors {
       using(httpClient.execute(req)) { resp =>
