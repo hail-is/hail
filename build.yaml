@@ -1794,8 +1794,7 @@ steps:
       set -ex
 
       # Or else hailctl will try to authenticate as CI
-      unset GOOGLE_APPLICATION_CREDENTIALS
-      unset AZURE_APPLICATION_CREDENTIALS
+      unset HAIL_IDENTITY_PROVIDER_JSON
 
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
@@ -1857,8 +1856,7 @@ steps:
       set -ex
 
       # Or else hailctl will try to authenticate as CI
-      unset GOOGLE_APPLICATION_CREDENTIALS
-      unset AZURE_APPLICATION_CREDENTIALS
+      unset HAIL_IDENTITY_PROVIDER_JSON
 
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
