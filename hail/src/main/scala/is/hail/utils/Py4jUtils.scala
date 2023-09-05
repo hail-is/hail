@@ -99,7 +99,7 @@ trait Py4jUtils {
   }
 
   private def formatDigits(n: Long, factor: Long): String = {
-    (n / factor.toDouble).formatted("%.1f")
+    "%.1f".format(n / factor.toDouble)
   }
 
   def readFile(fs: FS, path: String, buffSize: Int): HadoopSeekablePyReader =

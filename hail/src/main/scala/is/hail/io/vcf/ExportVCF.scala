@@ -24,8 +24,8 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def fmtFloat(fmt: String, value: Float): String = value.formatted(fmt)
-  def fmtDouble(fmt: String, value: Double): String = value.formatted(fmt)
+  def fmtFloat(fmt: String, value: Float): String = fmt.format(value)
+  def fmtDouble(fmt: String, value: Double): String = fmt.format(value)
 
   def infoType(t: Type): Option[String] = t match {
     case TInt32 | TInt64 => Some("Integer")
