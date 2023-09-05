@@ -85,8 +85,6 @@ compileScala {
 }
 
 configurations {
-    justSpark
-
     all {
         resolutionStrategy {
             eachDependency { DependencyResolveDetails details ->
@@ -96,58 +94,45 @@ configurations {
             }
 	    }
     }
-
-    compile.extendsFrom bundled, unbundled
-    testCompile.extendsFrom compile, hailTest
-    hailJar.extendsFrom bundled
-    hailJar {
-        exclude group: 'org.scala-lang', module: 'scala-library'
-        exclude group: 'org.apache.spark'
-    }
-
-    hailTestJar.extendsFrom hailJar, hailTest
-    hailTestJar {
-        exclude group: 'org.scala-lang', module: 'scala-library'
-    }
 }
 
 dependencies {
-    justSpark('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
+    implementation ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude group: 'org.scalanlp'
     }
 
-    unbundled 'org.scala-lang:scala-library:' + scalaVersion
-    unbundled 'org.scala-lang:scala-reflect:' + scalaVersion
+    shadow 'org.scala-lang:scala-library:' + scalaVersion
+    shadow 'org.scala-lang:scala-reflect:' + scalaVersion
 
-    unbundled('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
+    shadow('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude module: 'hadoop-client'
     }
-    unbundled('org.apache.hadoop:hadoop-client:3.3.4') {
+    shadow('org.apache.hadoop:hadoop-client:3.3.4') {
         exclude module: 'servlet-api'
         exclude module: 'asm'
     }
-    unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
-    unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+    shadow 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
+    shadow 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
 
-    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M11') {
+    implementation('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M11') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled 'org.lz4:lz4-java:1.8.0'
+    implementation 'org.lz4:lz4-java:1.8.0'
 
     // Breeze 1.0 has a known bug (https://github.com/scalanlp/breeze/issues/772)
-    unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
-    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion) {
+    shadow 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
+    implementation('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion) {
         exclude module: 'commons-math3'
     }
-    bundled 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
+    implementation 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
-    bundled 'com.github.fommil.netlib:all:1.1.2'
-    bundled('com.github.samtools:htsjdk:3.0.4') {
+    implementation 'com.github.fommil.netlib:all:1.1.2'
+    implementation('com.github.samtools:htsjdk:3.0.4') {
         transitive = false
     }
 
-    bundled group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
 
     def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
     if (elasticMajorVersion != "7" && elasticMajorVersion != "8") {
@@ -156,57 +141,57 @@ dependencies {
 
     if (sparkVersion.startsWith("3.")) {
         if (elasticMajorVersion == "8") {
-            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.4.3'
+            implementation 'org.elasticsearch:elasticsearch-spark-30_2.12:8.4.3'
         }
         else if (elasticMajorVersion == "7") {
-            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.4.3'
+            implementation 'org.elasticsearch:elasticsearch-spark-30_2.12:8.4.3'
         }
     }
     else if (sparkVersion.startsWith("2.4.")) {
         assert(elasticMajorVersion == "7")
-        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:8.6.1'
+        implementation 'org.elasticsearch:elasticsearch-spark-20_2.12:8.6.1'
     }
     else {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.26.1') {
+    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.26.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled 'org.apache.httpcomponents:httpcore:4.4.14'
-    bundled('org.apache.httpcomponents:httpclient:4.5.13') {
+    implementation 'org.apache.httpcomponents:httpcore:4.4.14'
+    implementation('org.apache.httpcomponents:httpclient:4.5.13') {
         transitive = false
     }
 
-    bundled group: 'org.ow2.asm', name: 'asm', version: '7.3.1'
-    bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
-    bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
+    implementation group: 'org.ow2.asm', name: 'asm', version: '7.3.1'
+    implementation group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
+    implementation group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
-    bundled 'net.java.dev.jna:jna:5.13.0'
-    bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
+    implementation 'net.java.dev.jna:jna:5.13.0'
+    implementation('net.sourceforge.jdistlib:jdistlib:0.4.5') {
         transitive = false
     }
 
-    hailTest 'org.testng:testng:6.8.21'
-    hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':3.0.5'
+    testImplementation 'org.testng:testng:6.8.21'
+    testImplementation 'org.scalatest:scalatest_' + scalaMajorVersion + ':3.0.5'
 
-    unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
-    bundled group: 'commons-codec', name: 'commons-codec', version: '1.15'
-    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.12.0'
-    bundled(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
+    shadow group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
+    implementation group: 'commons-codec', name: 'commons-codec', version: '1.15'
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.12.0'
+    implementation(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled 'commons-io:commons-io:2.11.0'
+    implementation 'commons-io:commons-io:2.11.0'
 
-    bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
+    implementation group: 'org.freemarker', name: 'freemarker', version: '2.3.31'
 
-    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
+    implementation 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
-    bundled 'com.github.luben:zstd-jni:1.5.5-2'
+    implementation 'com.github.luben:zstd-jni:1.5.5-2'
 
-    bundled project(path: ':shadedazure', configuration: 'shadow')
+    implementation project(path: ':shadedazure', configuration: 'shadow')
 }
 
 task(checkSettings) doLast {
@@ -343,12 +328,8 @@ tasks.withType(ShadowJar) {
 
 shadowJar {
     archiveClassifier = 'spark'
-    from project.sourceSets.main.output
-    configurations = [project.configurations.hailJar]
 }
 
 task shadowTestJar(type: ShadowJar) {
     archiveClassifier = 'spark-test'
-    from project.sourceSets.main.output, project.sourceSets.test.output
-    configurations = [project.configurations.hailTestJar]
 }
