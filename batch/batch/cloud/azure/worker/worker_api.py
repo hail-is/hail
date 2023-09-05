@@ -98,7 +98,8 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
             options.append('ro')
 
         await check_exec_output(
-            'blobfuse',
+            'blobfuse2',
+            'mountv1',
             mount_base_path_data,
             f'--tmp-path={mount_base_path_tmp}',
             f'--config-file={fuse_credentials_path}',

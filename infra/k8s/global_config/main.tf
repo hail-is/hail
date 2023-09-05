@@ -21,7 +21,7 @@ resource "kubernetes_secret" "global_config" {
     cloud                  = var.cloud
     default_namespace      = "default"
     docker_prefix          = var.docker_prefix
-    docker_root_image      = "${var.docker_prefix}/ubuntu:20.04"
+    docker_root_image      = "${var.docker_prefix}/ubuntu:22.04"
     domain                 = var.domain
     organization_domain    = var.organization_domain
     internal_ip            = var.internal_gateway_ip

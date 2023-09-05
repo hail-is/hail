@@ -14,7 +14,7 @@ PROJECT=$(get_global_config_field gcp_project $NAMESPACE)
 ZONE=$(get_global_config_field gcp_zone $NAMESPACE)
 DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
 
-WORKER_IMAGE_VERSION=12
+WORKER_IMAGE_VERSION=13
 
 if [ "$NAMESPACE" == "default" ]; then
     WORKER_IMAGE=batch-worker-${WORKER_IMAGE_VERSION}
@@ -24,7 +24,7 @@ else
     BUILDER=build-batch-worker-$NAMESPACE-image
 fi
 
-UBUNTU_IMAGE=ubuntu-minimal-2004-focal-v20230725
+UBUNTU_IMAGE=ubuntu-minimal-2204-jammy-v20230726
 
 create_build_image_instance() {
     gcloud -q compute --project ${PROJECT} instances delete \

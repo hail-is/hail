@@ -158,17 +158,18 @@ object Worker {
         // FIXME: workers should not have backends, but some things do need hail contexts
         new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None))
     }
-    val htc = new ServiceTaskContext(i)
+
     var result: Array[Byte] = null
     var userError: HailException = null
-    try {
-      retryTransientErrors {
-        result = f(context, htc, theHailClassLoader, fs)
+    using(new ServiceTaskContext(i)) { htc =>
+      try {
+        retryTransientErrors {
+          result = f(context, htc, theHailClassLoader, fs)
+        }
+      } catch {
+        case err: HailException => userError = err
       }
-    } catch {
-      case err: HailException => userError = err
     }
-    htc.close()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")
