@@ -1886,7 +1886,7 @@ steps:
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /test-gsa-key/key.json
+        mountPath: /test-gsa-key
     dependsOn:
       - default_ns
       - create_accounts
