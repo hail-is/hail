@@ -2604,6 +2604,14 @@ steps:
       valueFrom: batch_image.image
     script: |
       set -ex
+
+      # Use the test identity's credentials instead of CI's
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      export HAIL_TEST_GSA_KEY_FILE=/test-gsa-key/key.json
+      export HAIL_TEST_DEV_GSA_KEY_FILE=/test-dev-gsa-key/key.json
+
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export CI_UTILS_IMAGE={{ ci_utils_image.image }}
       export HAIL_CURL_IMAGE={{ curl_image.image }}
@@ -2615,8 +2623,6 @@ steps:
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
-      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_DOMAIN="{{ global.domain }}"
@@ -2645,18 +2651,14 @@ steps:
     port: 5000
     timeout: 1500
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: test-dev-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /dev-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+      - name: test-dev-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dev-gsa-key
     dependsOn:
       - create_deploy_config
       - create_accounts
