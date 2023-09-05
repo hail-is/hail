@@ -1554,7 +1554,7 @@ BEGIN
 END $$
 
 DROP PROCEDURE IF EXISTS mark_job_group_complete $$
-CREATE PROCEDURE update_job_groups(
+CREATE PROCEDURE mark_job_group_complete(
   IN in_batch_id BIGINT,
   IN in_job_group_id INT,
   IN new_timestamp BIGINT
