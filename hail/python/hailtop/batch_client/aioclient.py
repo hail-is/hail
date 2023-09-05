@@ -836,6 +836,9 @@ class HailExplicitTokenCredentials(CloudCredentials):
     async def auth_headers(self) -> Dict[str, str]:
         return {'Authorization': f'Bearer {self._token}'}
 
+    async def access_token(self) -> str:
+        return self._token
+
     async def close(self):
         pass
 
@@ -857,7 +860,7 @@ class BatchClient:
         if _token is not None:
             credentials = HailExplicitTokenCredentials(_token)
         else:
-            credentials = hail_credentials(credentials_file=token_file)
+            credentials = hail_credentials(tokens_file=token_file)
         return BatchClient(
             billing_project=billing_project,
             url=url,

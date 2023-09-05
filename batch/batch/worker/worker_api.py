@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, Generic, TypedDict, TypeVar
+from typing import Dict, Generic, List, TypedDict, TypeVar
 
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
@@ -19,6 +19,11 @@ class ContainerRegistryCredentials(TypedDict):
 
 class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
     nameserver_ip: str
+
+    @property
+    @abc.abstractmethod
+    def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
+        raise NotImplementedError
 
     @abc.abstractmethod
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> CloudDisk:

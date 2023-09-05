@@ -213,6 +213,13 @@ spec:
              secretKeyRef:
                name: global-config
                key: internal_ip
+{% if global.cloud == "azure" %}
+         - name: HAIL_AZURE_OAUTH_SCOPE
+           valueFrom:
+             secretKeyRef:
+               name: auth-oauth2-client-secret
+               key: sp_oauth_scope
+{% endif %}
          - name: HAIL_SHA
            value: "{{ code.sha }}"
 {% if scope != "test" %}

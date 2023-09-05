@@ -1,10 +1,10 @@
 from types import TracebackType
-from typing import Optional, Type, TypeVar, Mapping
+from typing import Optional, Type, TypeVar, Mapping, Union
 import aiohttp
 import abc
 from hailtop import httpx
 from hailtop.utils import retry_transient_errors, RateLimit, RateLimiter
-from .credentials import CloudCredentials
+from .credentials import CloudCredentials, AnonymousCloudCredentials
 
 SessionType = TypeVar('SessionType', bound='BaseSession')
 
@@ -63,12 +63,9 @@ class RateLimitedSession(BaseSession):
 
 
 class Session(BaseSession):
-    _http_session: httpx.ClientSession
-    _credentials: CloudCredentials
-
     def __init__(self,
                  *,
-                 credentials: CloudCredentials,
+                 credentials: Union[CloudCredentials, AnonymousCloudCredentials],
                  params: Optional[Mapping[str, str]] = None,
                  http_session: Optional[httpx.ClientSession] = None,
                  **kwargs):

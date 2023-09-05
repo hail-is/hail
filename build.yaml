@@ -2378,6 +2378,7 @@ steps:
       {% elif global.cloud == "azure" %}
       export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
       export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
+      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
       {% endif %}
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
@@ -2504,6 +2505,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
+      - name: auth-oauth2-client-secret
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /oauth-secret
     dependsOn:
       - default_ns
       - merge_code
@@ -2924,7 +2929,19 @@ steps:
 
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
+
+      {% if global.cloud == "gcp" %}
+      export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Google"}'
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      {% elif global.cloud == "azure" %}
+      export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Microsoft"}'
+      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      {% else %}
+      echo "unknown cloud {{ global.cloud }}"
+      exit 1
+      {% endif %}
+
 
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/hailctl-test/{{ token }}
@@ -3009,14 +3026,14 @@ steps:
           exit 1;
       fi
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+      - name: auth-oauth2-client-secret
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /oauth-secret
     dependsOn:
       - hailgenetics_hail_image
       - upload_query_jar
@@ -3524,7 +3541,12 @@ steps:
       cpu: '2'
     script: |
       set -ex
+
+      export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      {% if global.cloud == "azure" %}
+      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
+      {% endif %}
 
       cd /io
       mkdir -p src/test
@@ -3542,10 +3564,14 @@ steps:
       - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml
     secrets:
-      - name: test-tokens
+      - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-gsa-key
+      - name: auth-oauth2-client-secret
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /oauth-secret
     timeout: 1200
     dependsOn:
       - default_ns

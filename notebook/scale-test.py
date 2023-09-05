@@ -26,7 +26,8 @@ def get_cookie(session, name):
 
 
 async def run(args, i):
-    headers = await hail_credentials(authorize_target=False).auth_headers()
+    async with hail_credentials(authorize_target=False) as credentials:
+        headers = await credentials.auth_headers()
 
     async with client_session() as session:
         # make sure notebook is up

@@ -41,7 +41,6 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 class ServiceBackendContext(
-  @transient val sessionID: String,
   val billingProject: String,
   val remoteTmpDir: String,
   val workerCores: String,
@@ -51,8 +50,6 @@ class ServiceBackendContext(
   val cloudfuseConfig: Array[(String, String, Boolean)],
   val profile: Boolean
 ) extends BackendContext with Serializable {
-  def tokens(): Tokens =
-    new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
 }
 
 object ServiceBackend {
@@ -439,13 +436,9 @@ object ServiceBackendSocketAPI2 {
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
-    val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
-    Tokens.set(userTokens)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
 
-    val sessionId = userTokens.namespaceToken(deployConfig.defaultNamespace)
-    log.info("Namespace token acquired.")
-    val batchClient = BatchClient.fromSessionID(sessionId)
+    val batchClient = new BatchClient(s"$scratchDir/secrets/gsa-key/key.json")
     log.info("BatchClient allocated.")
 
     var batchId = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
@@ -464,7 +457,7 @@ object ServiceBackendSocketAPI2 {
       log.info("HailContexet initialized.")
     }
 
-    new ServiceBackendSocketAPI2(backend, fs, inputURL, outputURL, sessionId).executeOneCommand()
+    new ServiceBackendSocketAPI2(backend, fs, inputURL, outputURL).executeOneCommand()
   }
 }
 
@@ -570,7 +563,6 @@ class ServiceBackendSocketAPI2(
   private[this] val fs: FS,
   private[this] val inputURL: String,
   private[this] val outputURL: String,
-  private[this] val sessionId: String,
 ) extends Thread {
   private[this] val LOAD_REFERENCES_FROM_DATASET = 1
   private[this] val VALUE_TYPE = 2
@@ -689,7 +681,7 @@ class ServiceBackendSocketAPI2(
               addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
                 ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
               }
-              ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig, shouldProfile)
+              ctx.backendContext = new ServiceBackendContext(billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig, shouldProfile)
               method(ctx)
             }
           }
