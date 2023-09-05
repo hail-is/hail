@@ -4,7 +4,8 @@ import json
 import time
 import logging
 
-from typing import Any, List, Optional, Union
+from types import TracebackType
+from typing import Any, List, Optional, Type, Union
 from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 from azure.core.credentials import AccessToken
 from azure.core.credentials_async import AsyncTokenCredential
@@ -45,7 +46,12 @@ class RefreshTokenCredential(AsyncTokenCredential):
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[TracebackType] = None,
+    ) -> None:
         await self.close()
 
     async def close(self) -> None:
