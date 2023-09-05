@@ -1433,6 +1433,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@skip_in_azure
 def test_gpu_accesibility_g2(client: BatchClient):
     b = create_batch(client)
     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}

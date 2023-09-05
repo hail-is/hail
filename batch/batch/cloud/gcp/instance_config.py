@@ -18,8 +18,6 @@ from .resources import (
 
 GCP_INSTANCE_CONFIG_VERSION = 5
 
-# GPU_VERSIONS = {"g2": "l4"}
-
 
 def region_from_location(location: str) -> str:
     return location.rsplit('-', maxsplit=1)[0]

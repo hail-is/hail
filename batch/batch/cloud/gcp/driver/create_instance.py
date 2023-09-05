@@ -369,7 +369,7 @@ docker run \
 -v /deploy-config:/deploy-config \
 -v /cloudfuse:/cloudfuse:shared \
 -v /etc/netns:/etc/netns \
--v /sys/fs/cgroup:/sys/fs/cgroup:shared \
+-v /sys/fs/cgroup:/sys/fs/cgroup \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \
