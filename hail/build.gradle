@@ -342,13 +342,13 @@ tasks.withType(ShadowJar) {
 }
 
 shadowJar {
-    classifier = 'spark'
+    archiveClassifier = 'spark'
     from project.sourceSets.main.output
     configurations = [project.configurations.hailJar]
 }
 
 task shadowTestJar(type: ShadowJar) {
-    classifier = 'spark-test'
+    archiveClassifier = 'spark-test'
     from project.sourceSets.main.output, project.sourceSets.test.output
     configurations = [project.configurations.hailTestJar]
 }
