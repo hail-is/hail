@@ -130,7 +130,7 @@ dependencies {
     implementation 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
     implementation 'com.github.fommil.netlib:all:1.1.2'
-    implementation('com.github.samtools:htsjdk:4.0.1') {
+    implementation('com.github.samtools:htsjdk:3.0.8') {
         transitive = false
     }
 
