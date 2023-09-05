@@ -3568,10 +3568,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
       - name: auth-oauth2-client-secret
         namespace:
           valueFrom: default_ns.name
