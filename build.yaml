@@ -1793,8 +1793,10 @@ steps:
     script: |
       set -ex
 
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      # Or else hailctl will try to authenticate as CI
+      unset GOOGLE_APPLICATION_CREDENTIALS
+      unset AZURE_APPLICATION_CREDENTIALS
+
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
@@ -1834,10 +1836,10 @@ steps:
           assert(exc.status == 401)
       '
     secrets:
-      - name: test-gsa-key
+      - name: test-tokens
         namespace:
           valueFrom: default_ns.name
-        mountPath: /test-gsa-key
+        mountPath: /user-tokens
     dependsOn:
       - default_ns
       - create_accounts
@@ -1854,8 +1856,10 @@ steps:
     script: |
       set -ex
 
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      # Or else hailctl will try to authenticate as CI
+      unset GOOGLE_APPLICATION_CREDENTIALS
+      unset AZURE_APPLICATION_CREDENTIALS
+
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
@@ -1883,10 +1887,10 @@ steps:
           assert(exc.status == 401)
       '
     secrets:
-      - name: test-gsa-key
+      - name: test-tokens
         namespace:
           valueFrom: default_ns.name
-        mountPath: /test-gsa-key
+        mountPath: /user-tokens
     dependsOn:
       - default_ns
       - create_accounts
