@@ -20,7 +20,7 @@ from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
 from hailtop.config import (ConfigVariable, configuration_of, get_remote_tmpdir)
-from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings, am_i_interactive, retry_transient_errors
+from hailtop.utils import async_to_blocking, TransientError, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
