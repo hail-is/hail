@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 export PROJECT="$(gcloud config get-value project)"
 export VEP_CONFIG_PATH="$(/usr/share/google/get_metadata_value attributes/VEP_CONFIG_PATH)"
 export VEP_REPLICATE="$(/usr/share/google/get_metadata_value attributes/VEP_REPLICATE)"
@@ -23,6 +25,10 @@ curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
 sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 apt-get update
 apt-get install -y --allow-unauthenticated docker-ce
+
+# https://github.com/hail-is/hail/issues/12936
+sleep 60
+sudo service docker restart
 
 # Get VEP cache and LOFTEE data
 gcloud storage cp --billing-project $PROJECT gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json /vep_data/vep95-GRCh38-gcloud.json
@@ -56,5 +62,3 @@ docker run -i -v /vep_data/:/opt/vep/.vep/:ro ${VEP_DOCKER_IMAGE} \
   /opt/vep/src/ensembl-vep/vep "\$@"
 EOF
 chmod +x /vep.sh
-
-sudo service docker restart
