@@ -3210,7 +3210,7 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3252,7 +3252,7 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38
     dependsOn:
       - ci_utils_image
       - default_ns
