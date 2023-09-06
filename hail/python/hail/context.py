@@ -504,7 +504,7 @@ async def init_batch(
                                           worker_cores=worker_cores,
                                           worker_memory=worker_memory,
                                           name_prefix=name_prefix,
-                                          token=token,
+                                          credentials_token=token,
                                           regions=regions,
                                           gcs_requester_pays_configuration=gcs_requester_pays_configuration)
 
