@@ -51,7 +51,7 @@ class Flow(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def logout_installed_app(oauth2_credentials: Dict[str, Any]):
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
         """Revokes the OAuth2 credentials on the user's machine."""
         raise NotImplementedError
 
