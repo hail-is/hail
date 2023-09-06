@@ -31,7 +31,7 @@ cleanup_image:
 BENCHMARK_DOCKER_TAG ?= $(shell whoami)
 BECNHMARK_IMAGE_REPOSITORY ?= us-docker.pkg.dev/broad-ctsa/hail-benchmarks
 BENCHMARK_REPO_BASE = $(BECNHMARK_IMAGE_REPOSITORY)/$(BENCHMARK_DOCKER_TAG)
-DOCKER_ROOT_IMAGE := ubuntu:20.04
+DOCKER_ROOT_IMAGE := ubuntu:22.04
 
 ifndef HAIL_WHEEL
 image_sha:

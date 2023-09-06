@@ -1,9 +1,12 @@
 import os
 import random
 import subprocess as sp
+from typing import List, TypeVar
+
+T = TypeVar("T")
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[T]) -> List[List[T]]:
     assert k > 0
     assert ls
 

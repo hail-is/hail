@@ -14,7 +14,7 @@ Exact Match Expression
 A single word enclosed with double quotes that is an exact match for either the name or
 value of an attribute.
 
-**Example:** ``“pca_pipeline”``
+**Example:** ``"pca_pipeline"``
 
 Partial Match Expression
 ------------------------
@@ -43,7 +43,10 @@ listed in the tables below. Allowed operators are dependent on the type of the v
 keyword, but can be one of ``=``, ``==``, ``!=``, ``>``, ``>=``, ``<``, ``<=``, ``=~``, ``!~``.
 The right hand side is the value to search against.
 
-.. list-table:: Keywords
+Keywords
+^^^^^^^^
+
+.. list-table::
     :widths: 25 25 50 50
     :header-rows: 1
 
@@ -75,8 +78,10 @@ The right hand side is the value to search against.
 
 **Example:** ``start_time >= 2023-02-24T17:15:25Z``
 
+Keywords specific to searching for batches
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. list-table:: Keywords specific to searching for batches
+.. list-table::
     :widths: 25 25 50 50
     :header-rows: 1
 
@@ -108,9 +113,10 @@ The right hand side is the value to search against.
 
 **Example:** ``billing_project = johndoe-trial``
 
+Keywords specific to searching for jobs in a batch
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-
-.. list-table:: Keywords specific to searching for jobs in a batch
+.. list-table::
     :widths: 25 25 50 50
     :header-rows: 1
 

@@ -20,12 +20,15 @@ RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     hail-apt-get-install fuse gcsfuse=0.41.12
 
 {% elif global.cloud == "azure" %}
+RUN apt-get update && \
+    hail-apt-get-install libreadline8
+
 # https://github.com/Azure/azure-storage-fuse/issues/603
 RUN hail-apt-get-install ca-certificates pkg-config libfuse-dev cmake libcurl4-gnutls-dev libgnutls28-dev uuid-dev libgcrypt20-dev && \
-    curl -LO https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb && \
+    curl -LO https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
     dpkg -i packages-microsoft-prod.deb && \
     apt-get update && \
-    hail-apt-get-install blobfuse
+    hail-apt-get-install blobfuse2
 
 {% else %}
 RUN echo "!!! UNEXPECTED CLOUD {{global.cloud}} !!!" && exit 1

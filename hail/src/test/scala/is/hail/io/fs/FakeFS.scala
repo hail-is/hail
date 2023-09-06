@@ -3,7 +3,7 @@ package is.hail.io.fs
 abstract class FakeFS extends FS {
   override type URL = LocalFSURL
   override def validUrl(filename: String): Boolean = ???
-  override def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream = ???
+  override def openNoCompression(filename: String): SeekableDataInputStream = ???
   override def createNoCompression(filename: String): PositionedDataOutputStream = ???
   override def delete(filename: String, recursive: Boolean): Unit = ???
   override def listStatus(filename: String): Array[FileStatus] = ???

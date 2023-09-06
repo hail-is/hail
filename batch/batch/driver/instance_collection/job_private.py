@@ -3,7 +3,7 @@ import json
 import logging
 import random
 import traceback
-from typing import Dict, List, Tuple
+from typing import Any, AsyncIterator, Dict, List, Tuple
 
 import sortedcontainers
 
@@ -271,7 +271,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             lowest_total = None
 
             if pending_users_by_live_jobs:
-                lowest_running_user = pending_users_by_live_jobs[0]
+                lowest_running_user: str = pending_users_by_live_jobs[0]  # type: ignore
                 lowest_running = user_live_jobs[lowest_running_user]
                 if lowest_running == mark:
                     pending_users_by_live_jobs.remove(lowest_running_user)
@@ -279,7 +279,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
                     continue
 
             if allocating_users_by_total_jobs:
-                lowest_total_user = allocating_users_by_total_jobs[0]
+                lowest_total_user: str = allocating_users_by_total_jobs[0]  # type: ignore
                 lowest_total = user_total_jobs[lowest_total_user]
                 if lowest_total == mark:
                     allocating_users_by_total_jobs.remove(lowest_total_user)
@@ -348,7 +348,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             for user, resources in user_resources.items()
         }
 
-        async def user_runnable_jobs(user, remaining):
+        async def user_runnable_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
                 '''
 SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
@@ -448,6 +448,7 @@ LIMIT %s
                         else:
                             regions = regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
 
+                        assert machine_spec
                         instance, total_resources_on_instance = await self.create_instance(machine_spec, regions)
                         log.info(f'created {instance} for {(batch_id, job_id)}')
                         await mark_job_creating(

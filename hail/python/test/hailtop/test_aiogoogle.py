@@ -3,7 +3,7 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-import concurrent
+import concurrent.futures
 import functools
 from hailtop.utils import secret_alnum_string, bounded_gather2, retry_transient_errors
 from hailtop.aiotools import LocalAsyncFS
@@ -41,6 +41,14 @@ def bucket_and_temporary_file():
     return bucket, prefix + '/' + secrets.token_hex(16)
 
 
+def test_bucket_path_parsing():
+    bucket, prefix = GoogleStorageAsyncFS.get_bucket_and_name('gs://foo')
+    assert bucket == 'foo' and prefix == ''
+
+    bucket, prefix = GoogleStorageAsyncFS.get_bucket_and_name('gs://foo/bar/baz')
+    assert bucket == 'foo' and prefix == 'bar/baz'
+
+
 @pytest.mark.asyncio
 async def test_get_object_metadata(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
@@ -67,7 +75,7 @@ async def test_get_object_headers(bucket_and_temporary_file):
                 await f.write(b'foo')
         await retry_transient_errors(upload)
         async with await client.get_object(bucket, file) as f:
-            headers = f.headers()
+            headers = f.headers()  # type: ignore
             assert 'ETag' in headers
             assert headers['X-Goog-Hash'] == 'crc32c=z8SuHQ==,md5=rL0Y20zC+Fzt72VPzMSk2A=='
             assert await f.read() == b'foo'

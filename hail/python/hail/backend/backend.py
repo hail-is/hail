@@ -4,7 +4,7 @@ import orjson
 import pkg_resources
 import zipfile
 
-from hailtop.config.user_config import configuration_of
+from hailtop.config.user_config import unchecked_configuration_of
 from hailtop.fs.fs import FS
 
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
@@ -199,7 +199,7 @@ class Backend(abc.ABC):
 
     def _initialize_flags(self, initial_flags: Dict[str, str]) -> None:
         self.set_flags(**{
-            k: configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
+            k: unchecked_configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
             for k, (deprecated_envvar, default) in Backend._flags_env_vars_and_defaults.items()
             if k not in initial_flags
         }, **initial_flags)

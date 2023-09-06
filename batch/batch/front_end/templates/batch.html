@@ -1,3 +1,4 @@
+{% from "table_search.html" import table_search with context %}
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
 {% block head %}
@@ -41,45 +42,31 @@
 {% endfor %}
 {% endif %}
 
+<h2>Cost Breakdown</h2>
+{% if batch['cost_breakdown'] %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Resource</th>
+      <th>Cost</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for resource_cost in batch['cost_breakdown'] %}
+    <tr>
+      <td>{{ resource_cost['resource'] }}</td>
+      <td>{{ resource_cost['cost'] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No accrued costs</p>
+{% endif %}
+
 <h2>Jobs</h2>
 <div class="flex-col">
-  <div class="flex-col-align-right">
-    <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
-      <input style="vertical-align:text-bottom;" id="searchBar" name="q" size=30 type="text"
-        {% if q %}
-        value="{{ q }}"
-        {% else %}
-          placeholder="Search terms..."
-        {% endif %}
-       >
-      <button type="submit">Search</button>
-    </form>
-    <input id="expand-search-syntax-checkbox" class="expand-checkbox" type="checkbox">
-    <label for="expand-search-syntax-checkbox" class="expand-label">Search Help</label>
-    <div class="expand-content" style="max-width:75%;">
-      <p>Search jobs with the given search terms.  Return jobs
-        that match all terms.  Terms:</p>
-      <ul>
-        <li>job_id=JOB_ID - jobs with an id equal to JOB_ID</li>
-        <li>k=v - jobs with an attribute with key k and value v</li>
-        <li>has:k - jobs that have an attribute with key k</li>
-        <li>state - jobs in the given state, one of:
-          <ul>
-            <li>ready</li>
-            <li>running</li>
-            <li>live (ready or running)</li>
-            <li>cancelled</li>
-            <li>error</li>
-            <li>failed</li>
-            <li>bad (error or failed)</li>
-            <li>success</li>
-            <li>done (cancelled, error, failed or success)</li>
-          </ul>
-        </li>
-        <li>!term - jobs not matched by term</li>
-      </ul>
-    </div>
-  </div>
+  {{ table_search("job-search", base_path ~ "/batches/" ~ batch["id"]) }}
   <div class='flex-col' style="overflow: auto;">
     <table class="data-table" id="batch" style="width: 100%">
       <thead>
@@ -134,7 +121,4 @@
   </form>
   {% endif %}
 </div>
-<script type="text/javascript">
-  focusOnSlash("searchBar");
-</script>
 {% endblock %}

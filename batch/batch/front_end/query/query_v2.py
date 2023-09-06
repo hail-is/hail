@@ -133,14 +133,14 @@ SELECT batches.*,
   batches_n_jobs_in_complete_states.n_succeeded,
   batches_n_jobs_in_complete_states.n_failed,
   batches_n_jobs_in_complete_states.n_cancelled,
-  cost_t.cost
+  cost_t.cost, cost_t.cost_breakdown
 FROM batches
 LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
 LEFT JOIN batches_n_jobs_in_complete_states ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 LEFT JOIN LATERAL (
-  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost
+  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
     SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_batch_resources_v2
@@ -269,7 +269,8 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
         attempts_table_join_str = ''
 
     sql = f'''
-SELECT jobs.*, batches.user, batches.billing_project, batches.format_version, job_attributes.value AS name, cost_t.cost
+SELECT jobs.*, batches.user, batches.billing_project, batches.format_version, job_attributes.value AS name, cost_t.cost,
+  cost_t.cost_breakdown
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
@@ -279,7 +280,7 @@ LEFT JOIN job_attributes
     job_attributes.`key` = 'name'
 {attempts_table_join_str}
 LEFT JOIN LATERAL (
-SELECT COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
 FROM (SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_job_resources_v2
   WHERE aggregated_job_resources_v2.batch_id = jobs.batch_id AND aggregated_job_resources_v2.job_id = jobs.job_id

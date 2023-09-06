@@ -208,8 +208,7 @@ class GoogleStorageFS(
     }
   }
 
-  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = retryTransientErrors {
-    assert(!_debug)
+  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
     val url = parseUrl(filename)
 
     val is: SeekableInputStream = new FSSeekableInputStream {
@@ -464,7 +463,7 @@ class GoogleStorageFS(
       )
     }
 
-    blobs.getValues.iterator.asScala
+    blobs.iterateAll().iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
       .map(b => GoogleStorageFileStatus(b))
       .toArray

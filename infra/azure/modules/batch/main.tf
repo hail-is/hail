@@ -39,6 +39,23 @@ resource "azurerm_shared_image" "batch_worker" {
   }
 }
 
+resource "azurerm_shared_image" "batch_worker_22_04" {
+  name                = "batch-worker-22-04"
+  gallery_name        = azurerm_shared_image_gallery.batch.name
+  resource_group_name = var.resource_group.name
+  location            = var.resource_group.location
+  os_type             = "Linux"
+  specialized         = false
+
+  hyper_v_generation = "V2"
+
+  identifier {
+    publisher = "Hail"
+    offer     = "BatchWorker"
+    sku       = "Ubuntu-22.04-LTS"
+  }
+}
+
 resource "kubernetes_secret" "batch_worker_ssh_public_key" {
   metadata {
     name = "batch-worker-ssh-public-key"

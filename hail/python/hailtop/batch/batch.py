@@ -1,7 +1,7 @@
 import os
 import warnings
 import re
-from typing import Callable, Optional, Dict, Union, List, Any, Set
+from typing import Callable, Optional, Dict, Union, List, Any, Set, Literal, overload
 from io import BytesIO
 import dill
 
@@ -10,7 +10,7 @@ from hailtop.aiotools import AsyncFS
 from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch_client.client as _bc
-from hailtop.config import configuration_of
+from hailtop.config import ConfigVariable, configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -167,7 +167,7 @@ class Batch:
         if backend:
             self._backend = backend
         else:
-            backend_config = configuration_of('batch', 'backend', None, 'local')
+            backend_config = configuration_of(ConfigVariable.BATCH_BACKEND, None, 'local')
             if backend_config == 'service':
                 self._backend = _backend.ServiceBackend()
             else:
@@ -643,11 +643,15 @@ class Batch:
 
         return [job for job in self._jobs if job.name is not None and re.match(pattern, job.name) is not None]
 
+    @overload
+    def run(self, dry_run: Literal[False] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> _bc.Batch: ...
+    @overload
+    def run(self, dry_run: Literal[True] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> None: ...
     def run(self,
             dry_run: bool = False,
             verbose: bool = False,
             delete_scratch_on_exit: bool = True,
-            **backend_kwargs: Any):
+            **backend_kwargs: Any) -> Optional[_bc.Batch]:
         """
         Execute a batch.
 
@@ -705,6 +709,7 @@ class Batch:
             async_to_blocking(self._DEPRECATED_fs.close())
             self._DEPRECATED_fs = None
         return run_result
+
 
     def __str__(self):
         return self._uid

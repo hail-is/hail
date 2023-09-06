@@ -9,16 +9,15 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 import java.io.FileNotFoundException
-import java.nio.charset.StandardCharsets
 
 trait FSSuite extends TestNGSuite {
-  def root: String
+  val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
-  def fsResourcesRoot: String
+  def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
+
+  def tmpdir: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
   def fs: FS
-
-  def tmpdir: String
 
   /* Structure of src/test/resources/fs:
      /a
@@ -353,9 +352,7 @@ trait FSSuite extends TestNGSuite {
 
     assert(fs.exists(f))
 
-    val debug = this.isInstanceOf[AzureStorageFSSuite]
-
-    using(fs.open(f, fs.getCodecFromPath(f), _debug=debug)) { is =>
+    using(fs.open(f, fs.getCodecFromPath(f))) { is =>
       is match {
         case base: Seekable => base.seek(Int.MaxValue + 2.toLong)
         case base: org.apache.hadoop.fs.Seekable => base.seek(Int.MaxValue + 2.toLong)
@@ -397,14 +394,53 @@ trait FSSuite extends TestNGSuite {
       }
     }
   }
+
+  @Test def largeDirectoryOperations(): Unit = {
+    val prefix = s"$tmpdir/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    for (i <- 0 until 2000) {
+      fs.touch(s"$prefix/$i.suffix")
+    }
+
+    assert(fs.listStatus(prefix).size == 2000)
+    assert(fs.glob(prefix + "/" + "*.suffix").size == 2000)
+
+    assert(fs.exists(prefix))
+    fs.delete(prefix, recursive = true)
+    if (fs.exists(prefix)) {
+      // NB: TestNGSuite.assert does not have a lazy message argument so we must use an if to protect this list
+      //
+      // see: https://www.scalatest.org/scaladoc/1.7.2/org/scalatest/testng/TestNGSuite.html
+      assert(false, s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
+    }
+  }
+
+  @Test def testSeekAfterEOF(): Unit = {
+    val prefix = s"$tmpdir/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    val p = s"$prefix/seek_file"
+    using(fs.createCachedNoCompression(p)) { os =>
+      os.write(1.toByte)
+      os.write(2.toByte)
+      os.write(3.toByte)
+      os.write(4.toByte)
+    }
+
+    using(fs.openNoCompression(p)) { is =>
+      assert(is.read() == 1.toByte)
+      is.seek(3)
+      assert(is.read() == 4.toByte)
+      assert(is.read() == (-1).toByte)
+      is.seek(0)
+      assert(is.read() == 1.toByte)
+    }
+  }
 }
 
 class HadoopFSSuite extends HailSuite with FSSuite {
-  val root: String = "file:/"
+  override val root: String = "file:/"
 
-  lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
+  override lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
 
-  lazy val tmpdir: String = ctx.tmpdir
+  override lazy val tmpdir: String = ctx.tmpdir
 
   @Test def testETag(): Unit = {
     val etag = fs.eTag(s"$fsResourcesRoot/a")
