@@ -143,7 +143,7 @@ dependencies {
     bundled 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
-    bundled('com.github.samtools:htsjdk:3.0.4') {
+    bundled('com.github.samtools:htsjdk:4.0.1') {
         transitive = false
     }
 
