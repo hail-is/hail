@@ -1,4 +1,4 @@
-from typing import AsyncIterator, Optional, Dict, Any, List, Tuple, Union
+from typing import Optional, Dict, Any, List, Tuple, Union, AsyncIterator, TypedDict, cast
 import math
 import random
 import logging
@@ -17,6 +17,7 @@ from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
+from .types import GetJobsResponseV1Alpha, JobListEntryV1Alpha, GetJobResponseV1Alpha
 from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
@@ -173,7 +174,7 @@ class Job:
         return sum(durations)  # type: ignore
 
     @staticmethod
-    def submitted_job(batch: 'Batch', job_id: int, _status: Optional[dict] = None):
+    def submitted_job(batch: 'Batch', job_id: int, _status: Optional[GetJobResponseV1Alpha] = None):
         return Job(batch, AbsoluteJobId(job_id), _status=_status)
 
     @staticmethod
@@ -184,7 +185,7 @@ class Job:
                  batch: 'Batch',
                  job_id: Union[AbsoluteJobId, InUpdateJobId],
                  *,
-                 _status: Optional[dict] = None):
+                 _status: Optional[GetJobResponseV1Alpha] = None):
         self._batch = batch
         self._job_id = job_id
         self._status = _status
@@ -227,7 +228,9 @@ class Job:
         if not self._status:
             await self.status()
         assert self._status is not None
-        return self._status['attributes']
+        if 'attributes' in self._status:
+            return self._status['attributes']
+        return {}
 
     async def _is_job_in_state(self, states):
         await self.status()
@@ -267,9 +270,12 @@ class Job:
         return self._status
 
     async def wait(self) -> Dict[str, Any]:
-        return await self._wait_for_states(*complete_states)
+        return cast(
+            Dict[str, Any], # https://stackoverflow.com/a/76515675/6823256
+            await self._wait_for_states(*complete_states)
+        )
 
-    async def _wait_for_states(self, *states: str) -> Dict[str, Any]:
+    async def _wait_for_states(self, *states: str) -> GetJobResponseV1Alpha:
         tries = 0
         while True:
             if await self._is_job_in_state(states) or await self.is_complete():
@@ -306,6 +312,10 @@ class BatchNotCreatedError(Exception):
 class BatchAlreadyCreatedError(Exception):
     pass
 
+
+class BatchDebugInfo(TypedDict):
+    status: Dict[str, Any]
+    jobs: List[JobListEntryV1Alpha]
 
 class Batch:
     def __init__(self,
@@ -356,7 +366,10 @@ class Batch:
         self._raise_if_not_created()
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def jobs(self, q: Optional[str] = None, version: Optional[int] = None) -> AsyncIterator[Dict[str, Any]]:
+    async def jobs(self,
+                   q: Optional[str] = None,
+                   version: Optional[int] = None
+                   ) -> AsyncIterator[JobListEntryV1Alpha]:
         self._raise_if_not_created()
         if version is None:
             version = 1
@@ -368,7 +381,10 @@ class Batch:
             if last_job_id is not None:
                 params['last_job_id'] = last_job_id
             resp = await self._client._get(f'/api/v{version}alpha/batches/{self.id}/jobs', params=params)
-            body = await resp.json()
+            body = cast(
+                GetJobsResponseV1Alpha,
+                await resp.json()
+            )
             for job in body['jobs']:
                 yield job
             last_job_id = body.get('last_job_id')
@@ -463,11 +479,17 @@ class Batch:
         with BatchProgressBar(disable=disable_progress_bar) as progress2:
             return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
-    async def debug_info(self):
+    async def debug_info(self,
+                         _jobs_query_string: Optional[str] = None,
+                         _max_jobs: Optional[int] = None,
+                         ) -> BatchDebugInfo:
         self._raise_if_not_created()
         batch_status = await self.status()
         jobs = []
-        async for j_status in self.jobs():
+        async for j_status in self.jobs(q=_jobs_query_string):
+            if _max_jobs and len(jobs) == _max_jobs:
+                break
+
             id = j_status['job_id']
             log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
             jobs.append({'log': log, 'status': job._status})
@@ -926,7 +948,10 @@ class BatchClient:
     async def get_job(self, batch_id, job_id):
         b = await self.get_batch(batch_id)
         j_resp = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
-        j = await j_resp.json()
+        j = cast(
+            GetJobResponseV1Alpha,
+            await j_resp.json()
+        )
         return Job.submitted_job(b, j['job_id'], _status=j)
 
     async def get_job_log(self, batch_id, job_id) -> Dict[str, Any]:
