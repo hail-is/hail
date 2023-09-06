@@ -13,13 +13,28 @@ import org.apache.spark.sql.Row
 import scala.collection.{GenTraversableOnce, mutable}
 
 trait JoinLattice {
-  type Value
+  type Value <: AnyRef
   def top: Value
   def combine(l: Value, r: Value): Value
 }
 
 trait AbstractLattice extends JoinLattice {
   def bottom: Value
+}
+
+object AbstactLattice {
+  class Memo(lattice: AbstractLattice) extends AbstractLattice {
+    type Value = lattice.Value
+
+    val top = lattice.top
+    val bottom = lattice.bottom
+
+    private val joinCache: mutable.Map[(RefEquality[Value], RefEquality[Value]), Value] = mutable.Map.empty
+
+    def combine(l: Value, r: Value): Value =
+      joinCache.getOrElseUpdate((RefEquality(l), RefEquality(r)), lattice.combine(l, r))
+
+  }
 }
 
 class LatticeFromJoin[T <: JoinLattice](val joinLattice: T) extends AbstractLattice {
