@@ -67,7 +67,7 @@ Released 2023-08-31
   Query-on-Batch and Batch use.
 
 ### Bug Fixes
-- (hail#13327) Fix (hail#12936) in which VEP frequently failed (due to Docker not starting up) on
+- (hail#13573) Fix (hail#12936) in which VEP frequently failed (due to Docker not starting up) on
   clusters with a non-trivial number of workers.
 - (hail#13485) Fix (hail#13479) in which `hl.vds.local_to_global` could produce invalid values when
   the LA field is too short. There were and are no issues when the LA field has the correct length.
@@ -109,6 +109,9 @@ Released 2023-08-31
 ### Deprecations
 
 - (hail#13275) Hail no longer officially supports Python 3.8.
+- (hail#13508) The `n` parameter of `MatrixTable.tail` is deprecated in favor of a new `n_rows`
+  parameter.
+
 
 ## Version 0.2.120
 
