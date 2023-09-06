@@ -109,6 +109,9 @@ Released 2023-08-31
 ### Deprecations
 
 - (hail#13275) Hail no longer officially supports Python 3.8.
+- (hail#13508) The `n` parameter of `MatrixTable.tail` is deprecated in favor of a new `n_rows`
+  parameter.
+
 
 ## Version 0.2.120
 
