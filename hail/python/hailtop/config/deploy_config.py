@@ -9,17 +9,19 @@ from .user_config import get_user_config
 log = logging.getLogger('deploy_config')
 
 
-def env_var_or_default(name: str, default: str) -> str:
-    return os.environ.get(f'HAIL_{name}') or default
+def env_var_or_default(name: str, defaults: Dict[str, str]) -> str:
+    return os.environ.get(f'HAIL_{name.upper()}') or defaults[name]
 
 
 class DeployConfig:
     @staticmethod
-    def from_config(config) -> 'DeployConfig':
+    def from_config(config: Dict[str, str]) -> 'DeployConfig':
+        if 'domain' not in config:
+            config['domain'] = 'hail.is'
         return DeployConfig(
-            env_var_or_default('LOCATION', config['location']),
-            env_var_or_default('DEFAULT_NAMESPACE', config['default_namespace']),
-            env_var_or_default('DOMAIN', config.get('domain') or 'hail.is')
+            env_var_or_default('location', config),
+            env_var_or_default('default_namespace', config),
+            env_var_or_default('domain', config)
         )
 
     def get_config(self) -> Dict[str, str]:

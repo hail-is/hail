@@ -210,7 +210,7 @@ Merge Clumping Results
 
 The third function concatenates all of the clumping results per chromosome into a single file
 with one header line. The inputs are the :class:`.Batch` for which to create a new :class:`.BashJob`
-and a list containing all of the individual clumping results files. We use the ``ubuntu:20.04``
+and a list containing all of the individual clumping results files. We use the ``ubuntu:22.04``
 Docker image for this job. The return value is the new :class:`.BashJob` created.
 
 .. code-block:: python
@@ -220,7 +220,7 @@ Docker image for this job. The return value is the new :class:`.BashJob` created
         Merge clumped results files together
         """
         merger = batch.new_job(name='merge-results')
-        merger.image('ubuntu:20.04')
+        merger.image('ubuntu:22.04')
         if results:
             merger.command(f'''
     head -n 1 {results[0]} > {merger.ofile}

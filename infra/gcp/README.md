@@ -204,7 +204,7 @@ Instructions:
 You can now install Hail:
 
 - Create a VM on the internal network, standard-8, 100GB PD-SSD,
-  Ubuntu 20.04 TLS, allow full access to all Cloud APIs, use the
+  Ubuntu 22.04 TLS, allow full access to all Cloud APIs, use the
   Terraform service account.  10GB will run out of space.  We assume
   the rest of the commands are run on the VM.  You will need to
   connect to this instance with ssh.  You may want to add a suiteable

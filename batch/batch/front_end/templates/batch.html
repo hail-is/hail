@@ -42,6 +42,28 @@
 {% endfor %}
 {% endif %}
 
+<h2>Cost Breakdown</h2>
+{% if batch['cost_breakdown'] %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Resource</th>
+      <th>Cost</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for resource_cost in batch['cost_breakdown'] %}
+    <tr>
+      <td>{{ resource_cost['resource'] }}</td>
+      <td>{{ resource_cost['cost'] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No accrued costs</p>
+{% endif %}
+
 <h2>Jobs</h2>
 <div class="flex-col">
   {{ table_search("job-search", base_path ~ "/batches/" ~ batch["id"]) }}
