@@ -125,8 +125,8 @@ spec:
            - mountPath: /secrets/oauth-token
              name: hail-ci-0-1-github-oauth-token
              readOnly: true
-           - mountPath: /user-tokens
-             name: ci-tokens
+           - name: gsa-key
+             mountPath: /gsa-key
              readOnly: true
            - mountPath: /zulip-config
              name: zulip-config
@@ -162,9 +162,9 @@ spec:
        - name: hail-ci-0-1-github-oauth-token
          secret:
            secretName: hail-ci-0-1-github-oauth-token
-       - name: ci-tokens
+       - name: gsa-key
          secret:
-           secretName: ci-tokens
+           secretName: ci-gsa-key
        - name: zulip-config
          secret:
            secretName: zulip-config

@@ -84,9 +84,6 @@ spec:
           - name: gsa-key
             mountPath: /gsa-key
             readOnly: true
-          - name: auth-tokens
-            mountPath: /user-tokens
-            readOnly: true
           - name: ssl-config-auth-driver
             mountPath: /ssl-config
             readOnly: true
@@ -108,9 +105,6 @@ spec:
        - name: gsa-key
          secret:
            secretName: auth-gsa-key
-       - name: auth-tokens
-         secret:
-           secretName: auth-tokens
        - name: ssl-config-auth-driver
          secret:
            secretName: ssl-config-auth-driver
