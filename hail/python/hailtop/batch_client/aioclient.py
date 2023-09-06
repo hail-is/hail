@@ -850,7 +850,9 @@ class BatchClient:
                      session: Optional[httpx.ClientSession] = None,
                      headers: Optional[Dict[str, str]] = None,
                      _token: Optional[str] = None,
-                     token_file: Optional[str] = None):
+                     token_file: Optional[str] = None,
+                     *,
+                     cloud_credentials_file: Optional[str] = None):
         if not deploy_config:
             deploy_config = get_deploy_config()
         url = deploy_config.base_url('batch')
@@ -860,7 +862,7 @@ class BatchClient:
         if _token is not None:
             credentials = HailExplicitTokenCredentials(_token)
         else:
-            credentials = hail_credentials(tokens_file=token_file)
+            credentials = hail_credentials(tokens_file=token_file, cloud_credentials_file=cloud_credentials_file)
         return BatchClient(
             billing_project=billing_project,
             url=url,

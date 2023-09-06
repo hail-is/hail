@@ -80,16 +80,17 @@ class HailCredentials(CloudCredentials):
 def hail_credentials(
     *,
     tokens_file: Optional[str] = None,
+    cloud_credentials_file: Optional[str] = None,
     namespace: Optional[str] = None,
     authorize_target: bool = True
 ) -> HailCredentials:
     tokens = get_tokens(tokens_file)
     deploy_config = get_deploy_config()
     ns = namespace or deploy_config.default_namespace()
-    return HailCredentials(tokens, get_cloud_credentials_scoped_for_hail(), ns, authorize_target=authorize_target)
+    return HailCredentials(tokens, get_cloud_credentials_scoped_for_hail(credentials_file=cloud_credentials_file), ns, authorize_target=authorize_target)
 
 
-def get_cloud_credentials_scoped_for_hail() -> Optional[CloudCredentials]:
+def get_cloud_credentials_scoped_for_hail(credentials_file: Optional[str] = None) -> Optional[CloudCredentials]:
     scopes: Optional[List[str]]
 
     spec = load_identity_spec()
@@ -100,6 +101,8 @@ def get_cloud_credentials_scoped_for_hail() -> Optional[CloudCredentials]:
         scopes = ['email', 'openid', 'profile']
         if spec.oauth2_credentials is not None:
             return GoogleCredentials.from_credentials_data(spec.oauth2_credentials, scopes=scopes)
+        if credentials_file is not None:
+            return GoogleCredentials.from_file(credentials_file)
         return GoogleCredentials.default_credentials(scopes=scopes, anonymous_ok=False)
 
     assert spec.idp == IdentityProvider.MICROSOFT
@@ -110,6 +113,9 @@ def get_cloud_credentials_scoped_for_hail() -> Optional[CloudCredentials]:
         scopes = [os.environ["HAIL_AZURE_OAUTH_SCOPE"]]
     else:
         scopes = None
+
+    if credentials_file is not None:
+        return AzureCredentials.from_file(credentials_file, scopes=scopes)
     return AzureCredentials.default_credentials(scopes=scopes)
 
 

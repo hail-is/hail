@@ -1088,6 +1088,7 @@ steps:
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
@@ -1213,6 +1214,7 @@ steps:
       # The test should use the test credentials, not CI's credentials
       sed -i 's/gsa-key/test-gsa-key/g' ${SPARK_HOME}/conf/core-site.xml
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
       export HAIL_QUERY_N_CORES=2
       export OMP_NUM_THREADS=2
@@ -1646,6 +1648,8 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
 
       {% if default_ns.name == "default" %}
@@ -1658,10 +1662,10 @@ steps:
         {{ code.username }} {{ code.login_id }}
       {% endif %}
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
@@ -1747,6 +1751,8 @@ steps:
       valueFrom: hail_dev_image.image
     script: |
       set -ex
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
 
       python3 -m pytest \
@@ -1760,10 +1766,10 @@ steps:
               --timeout=120 \
               /io/monitoring/test
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     timeout: 300
     inputs:
       - from: /repo/monitoring/test
@@ -1786,6 +1792,9 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+
+      # Or else hailctl will try to authenticate as CI
+      unset HAIL_IDENTITY_PROVIDER_JSON
 
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
@@ -1845,6 +1854,9 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+
+      # Or else hailctl will try to authenticate as CI
+      unset HAIL_IDENTITY_PROVIDER_JSON
 
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
@@ -2293,6 +2305,8 @@ steps:
     script: |
       set -ex
 
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       {% for user in code.get("developers", []) %}
       {% if user['username'] != 'test-dev' %}
@@ -2304,10 +2318,10 @@ steps:
       {% endif %}
       {% endfor %}
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     scopes:
       - dev
       - test
@@ -2417,10 +2431,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
     dependsOn:
       - default_ns
       - merge_code
@@ -2501,10 +2511,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
       - name: auth-oauth2-client-secret
         namespace:
           valueFrom: default_ns.name
@@ -2604,6 +2610,14 @@ steps:
       valueFrom: batch_image.image
     script: |
       set -ex
+
+      # Use the test identity's credentials instead of CI's
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      export HAIL_TEST_GSA_KEY_FILE=/test-gsa-key/key.json
+      export HAIL_TEST_DEV_GSA_KEY_FILE=/test-dev-gsa-key/key.json
+
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export CI_UTILS_IMAGE={{ ci_utils_image.image }}
       export HAIL_CURL_IMAGE={{ curl_image.image }}
@@ -2615,8 +2629,6 @@ steps:
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
-      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_DOMAIN="{{ global.domain }}"
@@ -2645,18 +2657,14 @@ steps:
     port: 5000
     timeout: 1500
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: test-dev-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /dev-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+      - name: test-dev-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dev-gsa-key
     dependsOn:
       - create_deploy_config
       - create_accounts
@@ -2682,7 +2690,9 @@ steps:
       set -ex
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export HAIL_TEST_DEV_GSA_KEY_FILE=/test-dev-gsa-key/key.json
       export HAIL_TOKEN="{{ test_batch.token }}"
       cd /io/test
       python3 -c '
@@ -2694,10 +2704,10 @@ steps:
       - from: /repo/batch/test
         to: /io/test
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /dev-tokens
+        mountPath: /test-dev-gsa-key
     alwaysRun: true
     dependsOn:
       - create_deploy_config
@@ -2829,6 +2839,8 @@ steps:
     script: |
       set -ex
       export ORGANIZATION=hail-ci-test
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
@@ -2842,10 +2854,10 @@ steps:
               --durations=50 \
               /io/ci/test
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     timeout: 5400
     inputs:
       - from: /repo/ci/test
@@ -2876,6 +2888,7 @@ steps:
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
@@ -2900,10 +2913,6 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -3050,6 +3059,7 @@ steps:
       set -ex
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       cd /io/hailtop/batch
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch_docs/{{ token }}/
@@ -3067,10 +3077,6 @@ steps:
               --timeout=120 \
               --ignore=docs/conf.py
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -3455,16 +3461,18 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl curl {{ default_ns.name }} www / \
               -vvv \
               -fsSL \
               --retry 3 \
               --retry-delay 5
     secrets:
-      - name: test-tokens
+      - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-gsa-key
     dependsOn:
       - default_ns
       - create_accounts
@@ -3515,10 +3523,6 @@ steps:
       - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -3586,6 +3590,8 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
 
       cat >cancel_all_running_test_batches.py <<'EOF'
       from hailtop.batch_client.aioclient import BatchClient
@@ -3607,10 +3613,10 @@ steps:
 
       python3 cancel_all_running_test_batches.py
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     alwaysRun: true
     timeout: 300
     dependsOn:
@@ -3632,6 +3638,8 @@ steps:
     image:
       valueFrom: hail_dev_image.image
     script: |
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
@@ -3652,10 +3660,10 @@ steps:
         to: /io/test
     timeout: 300
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     scopes:
       - test
       - dev
