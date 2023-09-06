@@ -97,7 +97,7 @@ configurations {
 }
 
 dependencies {
-    implementation ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
+    shadow ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude group: 'org.scalanlp'
     }
 
