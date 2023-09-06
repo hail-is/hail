@@ -15,16 +15,10 @@ class GoogleStorageFSSuite extends BlobStorageFSSuite {
     if (System.getenv("HAIL_CLOUD") != "gcp") {
       throw new SkipException("This test suite is only run in GCP.");
     } else {
-      assert(hail_test_storage_uri != null)
+      assert(root != null)
       assert(fsResourcesRoot != null)
     }
   }
-
-  val hail_test_storage_uri: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
-  val root: String = hail_test_storage_uri
-
-  val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
 
   lazy val fs = {
     val gac = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -35,8 +29,6 @@ class GoogleStorageFSSuite extends BlobStorageFSSuite {
         Some(new String(IOUtils.toByteArray(new FileInputStream(gac)))))
     }
   }
-
-  lazy val tmpdir: String = hail_test_storage_uri
 
   @Test def testMakeQualified(): Unit = {
     val qualifiedFileName = "gs://bucket/path"
@@ -53,7 +45,7 @@ class GoogleStorageFSSuite extends BlobStorageFSSuite {
     assert(false)
   }
 
-  // @Test
+  @Test
   def deleteManyFiles(): Unit = {
     val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
     for (i <- 0 until 2000) {

@@ -468,8 +468,8 @@ class GoogleStorageFS(
       )
     }
 
-    blobs.getValues.iterator.asScala
-      .filter(b => b.getName != path) // elide the self-referential entry
+    blobs.iterateAll().iterator.asScala
+      .filter(b => b.getName != path) // elide directory markers created by Hadoop
       .map(b => GoogleStorageFileListEntry(b))
       .toArray
   }

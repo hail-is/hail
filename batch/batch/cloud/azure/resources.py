@@ -1,4 +1,3 @@
-import abc
 from typing import Any, Dict, Optional
 
 from ...driver.billing_manager import ProductVersions
@@ -14,7 +13,7 @@ from ...resources import (
 from .resource_utils import azure_disk_from_storage_in_gib, azure_disks_by_disk_type
 
 
-class AzureResource(Resource, abc.ABC):
+class AzureResource(Resource):
     pass
 
 

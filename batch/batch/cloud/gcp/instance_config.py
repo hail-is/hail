@@ -149,8 +149,8 @@ class GCPSlimInstanceConfig(InstanceConfig):
                 GCPStaticSizedDiskResource('disk/pd-ssd/1', boot_disk_size_gb),
                 data_disk_resource,
                 GCPDynamicSizedDiskResource('disk/pd-ssd/1'),
-                GCPIPFeeResource('service-fee/1'),
-                GCPServiceFeeResource('ip-fee/1024/1'),
+                GCPServiceFeeResource('service-fee/1'),
+                GCPIPFeeResource('ip-fee/1024/1'),
             ]
         else:
             resources = [gcp_resource_from_dict(data) for data in resources]

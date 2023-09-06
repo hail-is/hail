@@ -709,7 +709,7 @@ package object utils extends Logging
 
     assert(n >= 0)
     assert(k > 0)
-    val parts = Array.tabulate(k)(i => (n - i + k - 1) / k)
+    val parts = Array.tabulate(k)(i => n / k + (i < (n % k)).toInt)
     assert(parts.sum == n)
     assert(parts.max - parts.min <= 1)
     parts
@@ -723,7 +723,7 @@ package object utils extends Logging
 
     assert(n >= 0)
     assert(k > 0)
-    val parts = Array.tabulate(k)(i => (n - i + k - 1) / k)
+    val parts = Array.tabulate(k)(i => n / k + (i < (n % k)).toLong)
     assert(parts.sum == n)
     assert(parts.max - parts.min <= 1)
     parts
