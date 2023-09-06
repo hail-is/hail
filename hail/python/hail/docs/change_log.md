@@ -91,6 +91,19 @@ Released 2023-08-31
   example "--foo", are now supported before "--" if and only if they do not conflict with a hailctl
   option.
 - (hail#13422) `hailtop.hail_frozenlist.frozenlist` now has an eval-able `repr`.
+- (hail#13523) `hl.Struct` is now pickle-able.
+- (hail#13505) Fix bug introduced in 0.2.117 by commit `c9de81108` which prevented the passing of
+  keyword arguments to Python jobs. This manifested as "ValueError: too many values to unpack".
+- (hail#13536) Fixed (hail#13535) which prevented the use of Python jobs when the client (e.g. your
+  laptop) Python version is 3.11 or later.
+- (hail#13434) In QoB, Hail's file systems now correctly list all files in a directory, not just the
+  first 1000. This could manifest in an `import_table` or `import_vcf` which used a glob
+  expression. In such a case, only the first 1000 files would have been included in the resulting
+  Table or MatrixTable.
+- (hail#13550) `hl.utils.range_table(n)` now supports all valid 32-bit signed integer values of `n`.
+- (hail#13500) In Query-on-Batch, the client-side Python code will not try to list every job when a
+  QoB batch fails. This could take hours for long-running pipelines or pipelines with many
+  partitions.
 
 
 ### Deprecations
