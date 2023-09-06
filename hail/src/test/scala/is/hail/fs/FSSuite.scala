@@ -339,8 +339,7 @@ trait FSSuite extends TestNGSuite {
     assert(dropTrailingSlash("///") == "")
   }
 
-  // @Test
-  def testSeekMoreThanMaxInt(): Unit = {
+  @Test def testSeekMoreThanMaxInt(): Unit = {
     val f = t()
     using (fs.create(f)) { os =>
       val eight_mib = 8 * 1024 * 1024
