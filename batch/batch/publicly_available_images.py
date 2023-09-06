@@ -9,5 +9,7 @@ def publicly_available_images(docker_prefix: str) -> List[str]:
             'hailtop',
             'genetics',
             'python-dill',
+            'vep-grch37-85',
+            'vep-grch38-95',
         )
     ]
