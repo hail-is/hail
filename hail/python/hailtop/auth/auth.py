@@ -14,6 +14,7 @@ from hailtop.config import get_deploy_config, DeployConfig, get_user_identity_co
 from hailtop.utils import async_to_blocking, retry_transient_errors
 
 from .tokens import get_tokens, Tokens
+from .flow import GoogleFlow, AzureFlow
 
 
 class IdentityProvider(Enum):
@@ -190,24 +191,43 @@ async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str]
     return namespace, username
 
 
-# TODO Logging out should revoke the refresh token and delete the credentials file
 async def async_logout():
     deploy_config = get_deploy_config()
 
+    # Logout any legacy auth tokens that might still exist
     auth_ns = deploy_config.service_ns('auth')
     tokens = get_tokens()
-    if auth_ns not in tokens:
-        print('Not logged in.')
-        return
+    if auth_ns in tokens:
+        await logout_deprecated_token_credentials(deploy_config, tokens[auth_ns])
+        del tokens[auth_ns]
+        tokens.write()
 
-    headers = await hail_credentials().auth_headers()
+    # Logout newer OAuth2-based credentials
+    identity_spec = load_identity_spec()
+    if identity_spec:
+        await logout_oauth2_credentials(identity_spec)
+
+    identity_config_path = get_user_identity_config_path()
+    if os.path.exists(identity_config_path):
+        os.remove(identity_config_path)
+
+
+async def logout_deprecated_token_credentials(deploy_config, token):
+    headers = {'Authorization': f'Bearer {token}'}
     async with httpx.client_session(headers=headers) as session:
         async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
             pass
-    auth_ns = deploy_config.service_ns('auth')
 
-    del tokens[auth_ns]
-    tokens.write()
+
+async def logout_oauth2_credentials(identity_spec: IdentityProviderSpec):
+    if not identity_spec.oauth2_credentials:
+        return
+
+    if identity_spec.idp == IdentityProvider.GOOGLE:
+        await GoogleFlow.logout_installed_app(identity_spec.oauth2_credentials)
+    else:
+        assert identity_spec.idp == IdentityProvider.MICROSOFT
+        await AzureFlow.logout_installed_app(identity_spec.oauth2_credentials)
 
 
 def get_user(username: str, namespace: Optional[str] = None) -> dict:
