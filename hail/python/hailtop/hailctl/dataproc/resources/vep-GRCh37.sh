@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 export PROJECT="$(gcloud config get-value project)"
 export ASSEMBLY=GRCh37
 export VEP_CONFIG_PATH="$(/usr/share/google/get_metadata_value attributes/VEP_CONFIG_PATH)"
@@ -24,12 +26,16 @@ sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debi
 apt-get update
 apt-get install -y --allow-unauthenticated docker-ce
 
+# https://github.com/hail-is/hail/issues/12936
+sleep 60
+sudo service docker restart
+
 # Get VEP cache and LOFTEE data
 gcloud storage cp --billing-project $PROJECT gs://hail-us-vep/vep85-loftee-gcloud.json /vep_data/vep85-gcloud.json
 ln -s /vep_data/vep85-gcloud.json $VEP_CONFIG_PATH
 
-gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data
-gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/homo-sapiens/85_${ASSEMBLY}.tar | tar -xf - -C /vep_data/homo_sapiens
+gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data &
+gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/homo-sapiens/85_${ASSEMBLY}.tar | tar -xf - -C /vep_data/homo_sapiens &
 docker pull ${VEP_DOCKER_IMAGE} &
 wait
 

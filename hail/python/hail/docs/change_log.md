@@ -52,6 +52,67 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.121
+
+Released 2023-08-31
+
+### New Features
+
+- (hail#13385) The VDS combiner now supports arbitrary custom call fields via the `call_fields`
+  parameter.
+- (hail#13224) `hailctl config get`, `set`, and `unset` now support shell auto-completion. Run
+  `hailctl --install-completion zsh` to install the auto-completion for `zsh`. You must already have
+  completion enabled for `zsh`.
+- (hail#13279) Add `hailctl batch init` which helps new users interactively set up `hailctl` for
+  Query-on-Batch and Batch use.
+
+### Bug Fixes
+- (hail#13573) Fix (hail#12936) in which VEP frequently failed (due to Docker not starting up) on
+  clusters with a non-trivial number of workers.
+- (hail#13485) Fix (hail#13479) in which `hl.vds.local_to_global` could produce invalid values when
+  the LA field is too short. There were and are no issues when the LA field has the correct length.
+- (hail#13340) Fix `copy_log` to correctly copy relative file paths.
+- (hail#13364) `hl.import_gvcf_interval` now treats `PGT` as a call field.
+- (hail#13333) Fix interval filtering regression: `filter_rows` or `filter` mentioning the same
+  field twice or using two fields incorrectly read the entire dataset. In 0.2.121, these filters
+  will correctly read only the relevant subset of the data.
+- (hail#13368) In Azure, Hail now uses fewer "list blobs" operations. This should reduce cost on
+  pipelines that import many files, export many of files, or use file glob expressions.
+- (hail#13414) Resolves (hail#13407) in which uses of `union_rows` could reduce parallelism to one
+  partition resulting in severely degraded performance.
+- (hail#13405) `MatrixTable.aggregate_cols` no longer forces a distributed computation. This should
+  be what you want in the majority of cases. In case you know the aggregation is very slow and
+  should be parallelized, use `mt.cols().aggregate` instead.
+- (hail#13460) In Query-on-Spark, restore `hl.read_table` optimization that avoids reading
+  unnecessary data in pipelines that do not reference row fields.
+- (hail#13447) Fix (hail#13446). In all three submit commands (`batch`, `dataproc`, and
+  `hdinsight`), Hail now allows and encourages the use of -- to separate arguments meant for the
+  user script from those meant for hailctl. In hailctl batch submit, option-like arguments, for
+  example "--foo", are now supported before "--" if and only if they do not conflict with a hailctl
+  option.
+- (hail#13422) `hailtop.hail_frozenlist.frozenlist` now has an eval-able `repr`.
+- (hail#13523) `hl.Struct` is now pickle-able.
+- (hail#13505) Fix bug introduced in 0.2.117 by commit `c9de81108` which prevented the passing of
+  keyword arguments to Python jobs. This manifested as "ValueError: too many values to unpack".
+- (hail#13536) Fixed (hail#13535) which prevented the use of Python jobs when the client (e.g. your
+  laptop) Python version is 3.11 or later.
+- (hail#13434) In QoB, Hail's file systems now correctly list all files in a directory, not just the
+  first 1000. This could manifest in an `import_table` or `import_vcf` which used a glob
+  expression. In such a case, only the first 1000 files would have been included in the resulting
+  Table or MatrixTable.
+- (hail#13550) `hl.utils.range_table(n)` now supports all valid 32-bit signed integer values of `n`.
+- (hail#13500) In Query-on-Batch, the client-side Python code will not try to list every job when a
+  QoB batch fails. This could take hours for long-running pipelines or pipelines with many
+  partitions.
+
+
+### Deprecations
+
+- (hail#13275) Hail no longer officially supports Python 3.8.
+- (hail#13508) The `n` parameter of `MatrixTable.tail` is deprecated in favor of a new `n_rows`
+  parameter.
+
+
 ## Version 0.2.120
 
 Released 2023-07-20

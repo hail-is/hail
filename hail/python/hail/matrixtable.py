@@ -17,6 +17,7 @@ from hail.utils.java import warning, Env, info
 from hail.utils.misc import wrap_to_tuple, \
     get_key_by_exprs, \
     get_select_exprs, check_annotate_exprs, process_joins
+import warnings
 
 
 class GroupedMatrixTable(ExprContainer):
@@ -4033,8 +4034,10 @@ class MatrixTable(ExprContainer):
         if n_rows is not None:
             n_rows_name = 'n_rows'
         else:
+            warnings.warn("MatrixTable.head: the 'n' parameter is deprecated in favor of 'n_rows'.")
             n_rows = n
             n_rows_name = 'n'
+        del n
 
         mt = self
         if n_rows is not None:
@@ -4047,8 +4050,8 @@ class MatrixTable(ExprContainer):
             mt = MatrixTable(ir.MatrixColsHead(mt._mir, n_cols))
         return mt
 
-    @typecheck_method(n=nullable(int), n_cols=nullable(int))
-    def tail(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
+    @typecheck_method(n_rows=nullable(int), n_cols=nullable(int), n=nullable(int))
+    def tail(self, n_rows: Optional[int], n_cols: Optional[int] = None, *, n: Optional[int] = None) -> 'MatrixTable':
         """Subset matrix to last `n` rows.
 
         Examples
@@ -4087,21 +4090,34 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        n : :obj:`int`
+        n_rows : :obj:`int`
             Number of rows to include (all rows included if ``None``).
         n_cols : :obj:`int`, optional
             Number of cols to include (all cols included if ``None``).
+        n : :obj:`int`
+            Deprecated in favor of n_rows.
 
         Returns
         -------
         :class:`.MatrixTable`
             Matrix including the last `n` rows and last `n_cols` cols.
         """
+        if n_rows is not None and n is not None:
+            raise ValueError('Both n and n_rows specified. Only one may be specified.')
+
+        if n_rows is not None:
+            n_rows_name = 'n_rows'
+        else:
+            warnings.warn("MatrixTable.tail: the 'n' parameter is deprecated in favor of 'n_rows'.")
+            n_rows = n
+            n_rows_name = 'n'
+        del n
+
         mt = self
-        if n is not None:
-            if n < 0:
-                raise ValueError(f"MatrixTable.tail: expect 'n' to be non-negative or None, found '{n}'")
-            mt = MatrixTable(ir.MatrixRowsTail(mt._mir, n))
+        if n_rows is not None:
+            if n_rows < 0:
+                raise ValueError(f"MatrixTable.tail: expect '{n_rows_name}' to be non-negative or None, found '{n_rows}'")
+            mt = MatrixTable(ir.MatrixRowsTail(mt._mir, n_rows))
         if n_cols is not None:
             if n_cols < 0:
                 raise ValueError(f"MatrixTable.tail: expect 'n_cols' to be non-negative or None, found '{n_cols}'")

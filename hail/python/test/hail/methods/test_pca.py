@@ -139,12 +139,12 @@ dim_triplets = [(20, 1000, 1000), (10, 100, 200)]
 @test_timeout(batch=5 * 60)
 def test_blanczos_T():
     k, m, n = 10, 100, 200
-    sigma = np.diag([spec1(i + 1, k) for i in range(m)])
+    sigma = [spec1(i + 1, k) for i in range(m)]
     seed = 1025
     np.random.seed(seed)
     U = np.linalg.qr(np.random.normal(0, 1, (m, m)))[0]
     V = np.linalg.qr(np.random.normal(0, 1, (n, m)))[0]
-    A = U @ sigma @ V.T
+    A = (U * sigma) @ V.T
     mt_A_T = matrix_table_from_numpy(A.T)
 
     eigenvalues, scores, loadings = hl._blanczos_pca(mt_A_T.ent, k=k, oversampling_param=k, q_iterations=4, compute_loadings=True, transpose=True)
@@ -154,7 +154,43 @@ def test_blanczos_T():
     approx_A = hail_U @ np.diag(singulars) @ hail_V
     norm_of_diff = np.linalg.norm(A - approx_A, 2)
     np.testing.assert_allclose(norm_of_diff, spec1(k + 1, k), rtol=1e-02)
-    np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01)
+    np.testing.assert_allclose(singulars, sigma[:k], rtol=1e-01)
+
+@skip_when_service_backend()
+def test_blanczos_flags():
+    k, m, n = 10, 100, 200
+    sigma = [spec1(i + 1, k) for i in range(m)]
+    seed = 1025
+    np.random.seed(seed)
+    U = np.linalg.qr(np.random.normal(0, 1, (m, m)))[0]
+    V = np.linalg.qr(np.random.normal(0, 1, (n, m)))[0]
+    A = (U * sigma) @ V.T
+    mt_A = matrix_table_from_numpy(A)
+    mt_A_T = matrix_table_from_numpy(A.T)
+    # compare absolute values to account for +-1 indeterminacy factor in singular vectors
+    U = np.abs(U[:, :k])
+    V = np.abs(V[:, :k])
+    Usigma = U * sigma[:k]
+    Vsigma = V * sigma[:k]
+
+    for compute_loadings in [True, False]:
+        for compute_scores in [True, False]:
+            for transpose in [True, False]:
+                mt = mt_A_T if transpose else mt_A
+                eigenvalues, scores, loadings = hl._blanczos_pca(mt.ent, k=k, oversampling_param=k, q_iterations=4, compute_loadings=compute_loadings, compute_scores=compute_scores, transpose=transpose)
+                if compute_loadings:
+                    loadings = np.array(loadings.loadings.collect())
+                    np.testing.assert_allclose(np.abs(loadings), U, rtol=1e-02)
+                else:
+                    assert loadings is None
+                if compute_scores:
+                    scores = np.array(scores.scores.collect())
+                    np.testing.assert_allclose(np.abs(scores), Vsigma, rtol=1e-02)
+                else:
+                    assert scores is None
+                singulars = np.sqrt(eigenvalues)
+                np.testing.assert_allclose(singulars, sigma[:k], rtol=1e-01)
+
 
 def spectra_helper(spec_func, triplet):
     k, m, n = triplet
