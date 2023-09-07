@@ -92,8 +92,10 @@ configurations {
                     details.useVersion(sparkVersion)
                 }
             }
-	    }
+	}
     }
+
+    testCompile.extendsFrom shadow
 }
 
 dependencies {
