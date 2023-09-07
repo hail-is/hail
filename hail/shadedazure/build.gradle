@@ -15,7 +15,7 @@ repositories {
 
 dependencies {
     implementation group: 'com.azure', name: 'azure-storage-blob', version: '12.22.0'
-    implementation group: 'com.azure', name: 'azure-core-http-netty', version: '1.13.3'
+    implementation group: 'com.azure', name: 'azure-core-http-netty', version: '1.13.6'
     implementation group: 'com.azure', name: 'azure-identity', version:'1.8.3'
 }
 
