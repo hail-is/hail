@@ -332,5 +332,6 @@ shadowJar {
 
 task shadowTestJar(type: ShadowJar) {
     archiveClassifier = 'spark-test'
+    from sourceSets.test.output
     configurations = [project.configurations.testRuntimeClasspath]
 }
