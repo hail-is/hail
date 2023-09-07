@@ -108,12 +108,9 @@ object Worker {
     val n = argv(6).toInt
     val timer = new WorkerTimer()
 
-    val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/secrets/deploy-config/deploy-config.json")
-    DeployConfig.set(deployConfig)
     val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
     Tokens.set(userTokens)
-    tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
+    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
 
     log.info(s"is.hail.backend.service.Worker $myRevision")
     log.info(s"running job $i/$n at root $root with scratch directory '$scratchDir'")

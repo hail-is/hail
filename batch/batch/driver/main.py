@@ -25,6 +25,7 @@ from prometheus_async.aio.web import server_stats
 from gear import (
     AuthClient,
     Database,
+    K8sCache,
     check_csrf_token,
     json_request,
     json_response,
@@ -59,7 +60,6 @@ from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
-from .k8s_cache import K8sCache
 
 uvloop.install()
 

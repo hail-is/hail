@@ -111,7 +111,7 @@ object EncodedLiteral {
       case ts: PString => Str(ts.loadString(addr))
       case _ =>
         val etype = EType.defaultFromPType(pt)
-        val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
+        val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.wireSpec)
         val bytes = codec.encodeArrays(ctx, pt, addr)
         EncodedLiteral(codec, bytes)
     }
@@ -520,6 +520,17 @@ object NDArrayInv {
 final case class NDArrayQR(nd: IR, mode: String, errorID: Int) extends IR
 
 final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean, errorID: Int) extends IR
+
+object NDArrayEigh {
+  def pTypes(eigvalsOnly: Boolean, req: Boolean): PType = {
+    if (eigvalsOnly) {
+      PCanonicalNDArray(PFloat64Required, 1, req)
+    } else {
+      PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 1, true), PCanonicalNDArray(PFloat64Required, 2, true))
+    }
+  }
+}
+final case class NDArrayEigh(nd: IR, eigvalsOnly: Boolean, errorID: Int) extends IR
 
 final case class NDArrayInv(nd: IR, errorID: Int) extends IR
 

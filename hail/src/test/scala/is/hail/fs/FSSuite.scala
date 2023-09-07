@@ -162,6 +162,24 @@ trait FSSuite extends TestNGSuite {
       s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/a", "/adir", "/az")}")
   }
 
+  @Test def testGlobFilenameMatchSingleCharacter(): Unit = {
+    val statuses = fs.glob(r("/a?"))
+    assert(pathsRelResourcesRoot(statuses) == Set("/az"),
+      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/az")}")
+  }
+
+  @Test def testGlobFilenameMatchSingleCharacterInMiddleOfName(): Unit = {
+    val statuses = fs.glob(r("/a?ir"))
+    assert(pathsRelResourcesRoot(statuses) == Set("/adir"),
+      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/adir")}")
+  }
+
+  @Test def testGlobDirnameMatchSingleCharacterInMiddleOfName(): Unit = {
+    val statuses = fs.glob(r("/a?ir/x"))
+    assert(pathsRelResourcesRoot(statuses) == Set("/adir/x"),
+      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/adir/x")}")
+  }
+
   @Test def testGlobMatchDir(): Unit = {
     val statuses = fs.glob(r("/*dir/x"))
     assert(pathsRelResourcesRoot(statuses) == Set("/adir/x", "/dir/x"),
