@@ -743,7 +743,6 @@ SELECT frozen_merge_deploy FROM globals;
     app['frozen_merge_deploy'] = row['frozen_merge_deploy']
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    app['task_manager'].ensure_future(update_loop(app))
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()
@@ -766,6 +765,8 @@ SELECT frozen_merge_deploy FROM globals;
             json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]'))
         )
     ]
+
+    app['task_manager'].ensure_future(update_loop(app))
 
 
 async def on_cleanup(app):
