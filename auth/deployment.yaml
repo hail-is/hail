@@ -61,6 +61,12 @@ spec:
           - name: HAIL_SHOULD_PROFILE
             value: "1"
 {% endif %}
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+{% if cloud == "gcp" %}
+             value: "{idp: \"Google\"}"
+{% else %}
+             value: "{idp: \"Microsoft\"}"
+{% endif %}
          resources:
            requests:
              cpu: "50m"

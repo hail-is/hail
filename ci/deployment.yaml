@@ -107,6 +107,12 @@ spec:
              value: "{{ hail_buildkit_image.image }}"
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+{% if cloud == "gcp" %}
+             value: "{idp: \"Google\"}"
+{% else %}
+             value: "{idp: \"Microsoft\"}"
+{% endif %}
           ports:
             - containerPort: 5000
           volumeMounts:
