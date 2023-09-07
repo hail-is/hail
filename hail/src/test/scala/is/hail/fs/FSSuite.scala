@@ -406,7 +406,7 @@ trait FSSuite extends TestNGSuite {
       fs.touch(s"$prefix/$i.suffix")
     }
 
-    assert(fs.listStatus(prefix).size == 2000)
+    assert(fs.listDirectory(prefix).size == 2000)
     assert(fs.glob(prefix + "/" + "*.suffix").size == 2000)
 
     assert(fs.exists(prefix))
@@ -415,7 +415,7 @@ trait FSSuite extends TestNGSuite {
       // NB: TestNGSuite.assert does not have a lazy message argument so we must use an if to protect this list
       //
       // see: https://www.scalatest.org/scaladoc/1.7.2/org/scalatest/testng/TestNGSuite.html
-      assert(false, s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
+      assert(false, s"files not deleted:\n${ fs.listDirectory(prefix).map(_.getPath).mkString("\n") }")
     }
   }
 
