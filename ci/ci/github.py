@@ -8,7 +8,7 @@ import random
 import secrets
 from enum import Enum
 from shlex import quote as shq
-from typing import Any, Dict, List, Optional, Sequence, Set, Union, Iterable
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Union
 
 import aiohttp
 import aiohttp.client_exceptions
