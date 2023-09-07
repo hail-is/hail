@@ -308,5 +308,5 @@ def gcp_resource_from_dict(data: dict) -> GCPResource:
         return GCPServiceFeeResource.from_dict(data)
     if typ == GCPIPFeeResource.TYPE:
         return GCPIPFeeResource.from_dict(data)
-    assert typ == GCPSupportLogsSpecsAndFirewallFees
+    assert typ == GCPSupportLogsSpecsAndFirewallFees.TYPE, typ
     return GCPSupportLogsSpecsAndFirewallFees.from_dict(data)
