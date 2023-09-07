@@ -20,34 +20,25 @@ trait JoinLattice {
 
 trait AbstractLattice extends JoinLattice {
   def bottom: Value
+  def meet(l: Value, r: Value): Value
 }
 
 object AbstactLattice {
-  class Memo(lattice: AbstractLattice) extends AbstractLattice {
+  class Memo(val lattice: AbstractLattice) extends AbstractLattice {
     type Value = lattice.Value
 
     val top = lattice.top
     val bottom = lattice.bottom
 
     private val joinCache: mutable.Map[(RefEquality[Value], RefEquality[Value]), Value] = mutable.Map.empty
+    private val meetCache: mutable.Map[(RefEquality[Value], RefEquality[Value]), Value] = mutable.Map.empty
 
     def combine(l: Value, r: Value): Value =
       joinCache.getOrElseUpdate((RefEquality(l), RefEquality(r)), lattice.combine(l, r))
 
+    def meet(l: Value, r: Value): Value =
+      meetCache.getOrElseUpdate((RefEquality(l), RefEquality(r)), lattice.meet(l, r))
   }
-}
-
-class LatticeFromJoin[T <: JoinLattice](val joinLattice: T) extends AbstractLattice {
-  type Value = Option[joinLattice.Value]
-  def top: Value = Some(joinLattice.top)
-  def bottom: Value = None
-
-  def combine(l: Value, r: Value): Value = (l, r) match {
-    case (None, x) => x
-    case (x, None) => x
-    case (Some(l), Some(r)) => Some(joinLattice.combine(l, r))
-  }
-
 }
 
 object ExtractIntervalFilters {
@@ -98,24 +89,24 @@ object ExtractIntervalFilters {
       else {
         val rw = extract.Rewrites(mutable.Set.empty, mutable.Set.empty)
         extract.analyze(cond, ref.name, Some(rw), trueSet)
-        Some((extract.rewrite(cond, rw), trueSet.intervals))
+        Some((extract.rewrite(cond, rw), trueSet))
       }
     }
   }
 
-  private def intervalsFromLiteral(lit: Any, ordering: Ordering[Any], wrapped: Boolean): IntervalsSet =
+  private def intervalsFromLiteral(lit: Any, ordering: Ordering[Any], wrapped: Boolean): IndexedSeq[Interval] =
     (lit: @unchecked) match {
       case x: Map[_, _] => intervalsFromCollection(x.keys, ordering, wrapped)
       case x: Traversable[_] => intervalsFromCollection(x, ordering, wrapped)
     }
 
-  private def intervalsFromCollection(lit: Traversable[Any], ordering: Ordering[Any], wrapped: Boolean): IntervalsSet =
+  private def intervalsFromCollection(lit: Traversable[Any], ordering: Ordering[Any], wrapped: Boolean): IndexedSeq[Interval] =
     IntervalsSet.reduce(
       lit.toArray.distinct.filter(x => wrapped || x != null).sorted(ordering)
         .map(elt => Interval(endpoint(elt, -1, wrapped), endpoint(elt, 1, wrapped)))
         .toFastIndexedSeq)
 
-  private def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): IntervalsSet = {
+  private def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): IndexedSeq[Interval] = {
     IntervalsSet((contigs: @unchecked) match {
       case x: Map[_, _] => x.keys.asInstanceOf[Iterable[String]].toFastIndexedSeq
         .sortBy(rg.contigsIndex.get(_))(TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]])
@@ -192,35 +183,30 @@ object ExtractIntervalFilters {
 }
 
 object IntervalsSet {
-  def apply(intervals: Interval*): IntervalsSet = {
+  def apply(intervals: Interval*): IndexedSeq[Interval] = {
     apply(intervals.toFastIndexedSeq)
   }
 
-  def apply(intervals: IndexedSeq[Interval]): IntervalsSet = {
+  def apply(intervals: IndexedSeq[Interval]): IndexedSeq[Interval] = {
     assert(intervals.isEmpty || IntervalsSet.intervalIsReduced(intervals.last))
-    new IntervalsSet(intervals)
+    intervals
   }
 
-  val empty: IntervalsSet = new IntervalsSet(FastIndexedSeq())
+  val empty: IndexedSeq[Interval] = FastIndexedSeq()
 
-  def reduce(intervals: IndexedSeq[Interval]): IntervalsSet = intervals match {
+  def reduce(intervals: IndexedSeq[Interval]): IndexedSeq[Interval] = intervals match {
     case Seq() => empty
     case init :+ last =>
       val reducedLast = if (intervalIsReduced(last))
         last
       else
         Interval(last.left, IntervalEndpoint(Row(), 1))
-      new IntervalsSet((init :+ reducedLast).toFastIndexedSeq)
+      (init :+ reducedLast).toFastIndexedSeq
   }
 
   private def intervalIsReduced(interval: Interval): Boolean = {
     interval.right != IntervalEndpoint(Row(null), 1)
   }
-}
-
-class IntervalsSet private (val intervals: IndexedSeq[Interval]) extends AnyVal {
-  def flatMap(f: Interval => GenTraversableOnce[Interval]): IntervalsSet =
-    new IntervalsSet(intervals.flatMap(f))
 }
 
 class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
@@ -230,40 +216,48 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     // FIXME: make this an AnyVal wrapper.
     // Make constructor simplify intervals involving null
     //   IntervalEndpoint(Row(a, b, null, null), -1) == IntervalEndpoint(Row(a, b), -1)
-    type Value = IntervalsSet
+    type Value = IndexedSeq[Interval]
+
+    def specializes(l: Value, r: Value): Boolean = {
+      if (l == KeySet.bottom) true
+      else if (r == KeySet.bottom) true
+      else l.forall { i =>
+        r.containsOrdered[Interval, Interval](i, (h: Interval, n: Interval) => iord.lt(h.right, n.right), (n: Interval, h: Interval) => iord.lt(n.left, h.left))
+      }
+    }
 
     def top: Value = IntervalsSet(Interval(Row(), Row(), true, true))
     def bottom: Value = IntervalsSet.empty
     def combine(l: Value, r: Value): Value = {
       if (l == KeySet.bottom) r
       else if (r == KeySet.bottom) l
-      else IntervalsSet(Interval.union(l.intervals ++ r.intervals, iord))
+      else IntervalsSet(Interval.union(l ++ r, iord))
     }
 
     def combineMulti(vs: Value*): Value = {
-      IntervalsSet(Interval.union(vs.flatMap(_.intervals).toFastIndexedSeq, iord))
+      IntervalsSet(Interval.union(vs.flatten.toFastIndexedSeq, iord))
     }
 
     def meet(l: Value, r: Value): Value = {
       if (l == KeySet.top) r
       else if (r == KeySet.top) l
-      else IntervalsSet(Interval.intersection(l.intervals, r.intervals, iord))
+      else IntervalsSet(Interval.intersection(l, r, iord))
     }
 
     def complement(v: Value): Value = {
-      if (v.intervals.isEmpty) return top
+      if (v.isEmpty) return top
 
       val builder = mutable.ArrayBuilder.make[Interval]()
       var i = 0
-      if (v.intervals.head.left != IntervalEndpoint(Row(), -1)) {
-        builder += Interval(IntervalEndpoint(Row(), -1), v.intervals.head.left)
+      if (v.head.left != IntervalEndpoint(Row(), -1)) {
+        builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
       }
-      while (i + 1 < v.intervals.length) {
-        builder += Interval(v.intervals(i).right, v.intervals(i+1).left)
+      while (i + 1 < v.length) {
+        builder += Interval(v(i).right, v(i+1).left)
         i += 1
       }
-      if (v.intervals.last.right != IntervalEndpoint(Row(), 1)) {
-        builder += Interval(v.intervals.last.right, IntervalEndpoint(Row(), 1))
+      if (v.last.right != IntervalEndpoint(Row(), 1)) {
+        builder += Interval(v.last.right, IntervalEndpoint(Row(), 1))
       }
 
       IntervalsSet(builder.result())
@@ -348,10 +342,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       private def all: KeySet.Value = KeySet.top
       private def none: KeySet.Value = KeySet.bottom
 
-      val allTrue: BoolValue = ConcreteBool(all, none, none)
-      val allFalse: BoolValue = ConcreteBool(none, all, none)
-      val allNA: BoolValue = ConcreteBool(none, none, all)
-      val top: BoolValue = Lattice.top
+      def allTrue(keySet: KeySet.Value = KeySet.top): BoolValue = ConcreteBool(keySet, none, none)
+      def allFalse(keySet: KeySet.Value = KeySet.top): BoolValue = ConcreteBool(none, keySet, none)
+      def allNA(keySet: KeySet.Value = KeySet.top): BoolValue = ConcreteBool(none, none, keySet)
+      def top(keySet: KeySet.Value = KeySet.top): BoolValue = ConcreteBool(keySet, keySet, keySet)
 
       def apply(trueBound: KeySet.Value, falseBound: KeySet.Value, naBound: KeySet.Value): BoolValue = {
         if (trueBound == all && falseBound == all && naBound == all)
@@ -389,6 +383,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case _ => ConcreteBool(x.falseBound, x.trueBound, x.naBound)
       }
 
+      // WIP: push these methods onto BoolValue class, make sure they preserve keySet
       def isNA(x: BoolValue): BoolValue = x match {
         case ConstantBool(x) => ConstantBool(false)
         case _ => ConcreteBool(x.naBound, KeySet.combine(x.trueBound, x.falseBound), KeySet.bottom)
@@ -487,13 +482,19 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       def trueBound: KeySet.Value
       def falseBound: KeySet.Value
       def naBound: KeySet.Value
+
+      def restrict(keySet: KeySet.Value): BoolValue
     }
 
     private case class ConcreteBool(
       trueBound: KeySet.Value,
       falseBound: KeySet.Value,
       naBound: KeySet.Value
-    ) extends BoolValue
+    ) extends BoolValue {
+      def restrict(keySet: KeySet.Value): BoolValue = {
+        ConcreteBool(KeySet.meet(trueBound, keySet), KeySet.meet(falseBound, keySet), KeySet.meet(naBound, keySet))
+      }
+    }
 
     private case class ConstantStruct(value: Row, t: TStruct) extends StructValue with ConstantValue {
       def apply(field: String): Value = this(t.field(field))
@@ -502,12 +503,12 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       def isKeyPrefix: Boolean = false
     }
 
-    private case class ConstantBool(value: Boolean) extends BoolValue with ConstantValue {
+    private case class ConstantBool(value: Boolean, keySet: KeySet.Value) extends BoolValue with ConstantValue {
       override def trueBound: KeySet.Value =
-        if (value) KeySet.top else KeySet.bottom
+        if (value) keySet else KeySet.bottom
 
       override def falseBound: KeySet.Value =
-        if (value) KeySet.bottom else KeySet.top
+        if (value) KeySet.bottom else keySet
 
       override def naBound: KeySet.Value = KeySet.bottom
     }
@@ -539,18 +540,18 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       def apply(field: String): Value = Top
       def values: Iterable[Value] = Iterable.empty
       def isKeyPrefix: Boolean = false
-      override def trueBound: IntervalsSet = KeySet.top
-      override def falseBound: IntervalsSet = KeySet.top
-      override def naBound: IntervalsSet = KeySet.top
+      override def trueBound: KeySet.Value = KeySet.top
+      override def falseBound: KeySet.Value = KeySet.top
+      override def naBound: KeySet.Value = KeySet.top
     }
 
     private case object Bottom extends StructValue with BoolValue {
       def apply(field: String): Value = ???
       def values: Iterable[Value] = ???
       def isKeyPrefix: Boolean = ???
-      override def trueBound: IntervalsSet = KeySet.bottom
-      override def falseBound: IntervalsSet = KeySet.bottom
-      override def naBound: IntervalsSet = KeySet.bottom
+      override def trueBound: KeySet.Value = KeySet.bottom
+      override def falseBound: KeySet.Value = KeySet.bottom
+      override def naBound: KeySet.Value = KeySet.bottom
     }
 
     def top: StructValue with BoolValue = Top
@@ -600,23 +601,23 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       case _ => Top
     }
 
-    def compare(l: Value, r: Value, op: ComparisonOp[_]): BoolValue = {
+    def compare(l: Value, r: Value, op: ComparisonOp[_], keySet: KeySet.Value): BoolValue = {
       if (opIsSupported(op)) (l, r) match {
-        case (ConstantValue(l), r) => compareWithConstant(l, r, op)
+        case (ConstantValue(l), r) => compareWithConstant(l, r, op, keySet)
         case (l, ConstantValue(r)) =>
-          compareWithConstant(r, l, ComparisonOp.swap(op.asInstanceOf[ComparisonOp[Boolean]]))
-        case _ => top
+          compareWithConstant(r, l, ComparisonOp.swap(op.asInstanceOf[ComparisonOp[Boolean]]), keySet)
+        case _ => BoolValue.top(keySet)
       } else {
-        top
+        BoolValue.top(keySet)
       }
     }
 
-    private def compareWithConstant(l: Any, r: Value, op: ComparisonOp[_]): BoolValue = {
-      if (op.strict && l == null) return BoolValue.allNA
+    private def compareWithConstant(l: Any, r: Value, op: ComparisonOp[_], keySet: KeySet.Value): BoolValue = {
+      if (op.strict && l == null) return BoolValue.allNA(keySet)
       r match {
         case r: KeyField if r.idx == 0 =>
           // simple key comparison
-          BoolValue.fromComparison(l, op)
+          BoolValue.fromComparison(l, op, keySet)
         case Contig(rgStr) =>
           // locus contig comparison
           assert(op.isInstanceOf[EQ])
@@ -637,9 +638,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           val posBoolValue = BoolValue.fromComparison(l, op)
           val rg = ctx.getReference(rgStr)
           BoolValue(
-            IntervalsSet(liftPosIntervalsToLocus(posBoolValue.trueBound.intervals, rg, ctx)),
-            IntervalsSet(liftPosIntervalsToLocus(posBoolValue.falseBound.intervals, rg, ctx)),
-            IntervalsSet(liftPosIntervalsToLocus(posBoolValue.naBound.intervals, rg, ctx)))
+            IntervalsSet(liftPosIntervalsToLocus(posBoolValue.trueBound, rg, ctx)),
+            IntervalsSet(liftPosIntervalsToLocus(posBoolValue.falseBound, rg, ctx)),
+            IntervalsSet(liftPosIntervalsToLocus(posBoolValue.naBound, rg, ctx)))
         case s: StructValue if s.isKeyPrefix =>
           BoolValue.fromComparisonKeyPrefix(l.asInstanceOf[Row], op)
         case _ => top
@@ -682,7 +683,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   def keyOrd: ExtendedOrdering = PartitionBoundOrdering(ctx, keyType)
   val iord: IntervalEndpointOrdering = keyOrd.intervalEndpointOrdering
 
-  def analyze(x: IR, rowName: String, rw: Option[Rewrites] = None, constraint: KeySet.Value = KeySet.top): IntervalsSet = {
+  def analyze(x: IR, rowName: String, rw: Option[Rewrites] = None, constraint: KeySet.Value = KeySet.top): KeySet.Value = {
     val env = Env.empty[AbstractValue].bind(
       rowName,
       StructValue(
@@ -729,9 +730,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     case _ => Lattice.top
   }
 
-  private def computeBoolean(x: IR, children: IndexedSeq[AbstractValue]): BoolValue = (x, children) match {
-    case (False(), _) => BoolValue.allFalse
-    case (True(), _) => BoolValue.allTrue
+  private def computeBoolean(x: IR, children: IndexedSeq[AbstractValue], keySet: KeySet.Value): BoolValue = (x, children) match {
+    case (False(), _) => BoolValue.allFalse(keySet)
+    case (True(), _) => BoolValue.allTrue(keySet)
     case (IsNA(_), Seq(KeyField(0))) => BoolValue(
       IntervalsSet(Interval(endpoint(null, -1), posInf)),
       IntervalsSet(Interval(negInf, endpoint(null, -1))),
@@ -740,7 +741,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     // collection contains
     case (ApplyIR("contains", _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
       if (collectionVal == null) {
-        BoolValue.allNA
+        BoolValue.allNA(keySet)
       } else queryVal match {
         case Contig(rgStr) =>
           val rg = ctx.stateManager.referenceGenomes(rgStr)
@@ -752,12 +753,12 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case struct: StructValue if struct.isKeyPrefix =>
           val intervals = intervalsFromLiteral(collectionVal, keyOrd.toOrdering, false)
           BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
-        case _ => BoolValue.top
+        case _ => BoolValue.top(keySet)
       }
     // interval contains
     case (ApplySpecial("contains", _, _, _, _), Seq(ConstantValue(intervalVal), queryVal)) =>
       (intervalVal: @unchecked) match {
-        case null => BoolValue.allNA
+        case null => BoolValue.allNA(keySet)
         case i: Interval => queryVal match {
           case KeyField(0) =>
             val l = IntervalEndpoint(Row(i.left.point), i.left.sign)
@@ -771,18 +772,18 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               IntervalsSet(i),
               IntervalsSet(Interval(negInf, i.left), Interval(i.right, posInf)),
               IntervalsSet.empty)
-          case _ => BoolValue.top
+          case _ => BoolValue.top(keySet)
         }
       }
     case (ApplyComparisonOp(op, _, _), Seq(l, r)) =>
-      Lattice.compare(l, r, op)
+      Lattice.compare(l, r, op, keySet)
     case (ApplySpecial("lor", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
       BoolValue.or(l, r)
     case (ApplySpecial("land", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
       BoolValue.and(l, r)
     case (ApplyUnaryPrimOp(Bang, _), Seq(x: BoolValue)) =>
       BoolValue.not(x)
-    case _ => BoolValue.top
+    case _ => BoolValue.top(keySet)
   }
 
   case class Rewrites(
@@ -841,12 +842,20 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
         val keyOrConstVal = computeKeyOrConst(x, children)
         if (keyOrConstVal == Lattice.top && x.typ == TBoolean)
-          computeBoolean(x, children)
+          computeBoolean(x, children, env.keySet)
         else
           keyOrConstVal
     }
 //    println(s"finished visiting:\n${Pretty(ctx, x)}")
 //    println(s"result: $res")
+
+    res match {
+      case res: BoolValue =>
+        assert(KeySet.specializes(res.trueBound, env.keySet), s"\n  trueBound = ${res.trueBound}\n  env = ${env.keySet}")
+        assert(KeySet.specializes(res.falseBound, env.keySet), s"\n  falseBound = ${res.falseBound}\n  env = ${env.keySet}")
+        assert(KeySet.specializes(res.naBound, env.keySet), s"\n  naBound = ${res.naBound}\n  env = ${env.keySet}")
+      case _ =>
+    }
 
     rewrites.foreach { rw =>
       if (x.typ == TBoolean) {
