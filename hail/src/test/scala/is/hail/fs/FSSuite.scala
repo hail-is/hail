@@ -195,6 +195,18 @@ trait FSSuite extends TestNGSuite {
     assert(pathsRelRoot(root, statuses) == Set(""))
   }
 
+  @Test def testFileEndingWithPeriod: Unit = {
+    f = t()
+    fs.touch(f + "/foo.")
+    val status = fs.fileStatus(f + "/foo.")
+    if (!this.isInstanceOf[AzureStorageFSSuite]) {
+      // https://github.com/Azure/azure-sdk-for-java/issues/36674
+      assert(status.getPath == f + "/foo")
+    } else {
+      assert(status.getPath == f + "/foo.")
+    }
+  }
+
   @Test def testGlobRootWithSlash(): Unit = {
     if (root.endsWith("/"))
       return
@@ -481,7 +493,7 @@ abstract class BlobStorageFSSuite extends FSSuite {
     fs.touch(s"$d/x+")
     fs.touch(s"$d/x,")
     fs.touch(s"$d/x-")
-    fs.touch(s"$d/x.")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
     fs.touch(s"$d/x/file")
 
     TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
@@ -517,7 +529,7 @@ abstract class BlobStorageFSSuite extends FSSuite {
     fs.touch(s"$d/x+")
     fs.touch(s"$d/x,")
     fs.touch(s"$d/x-")
-    fs.touch(s"$d/x.")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
     fs.touch(s"$d/x/file")
 
     val fle = fs.getFileListEntry(s"$d/x")
@@ -554,7 +566,7 @@ abstract class BlobStorageFSSuite extends FSSuite {
     fs.touch(s"$d/x+")
     fs.touch(s"$d/x,")
     fs.touch(s"$d/x-")
-    fs.touch(s"$d/x.")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
 
     val fle = fs.getFileListEntry(s"$d/x")
     assert(!fle.isDirectory)
