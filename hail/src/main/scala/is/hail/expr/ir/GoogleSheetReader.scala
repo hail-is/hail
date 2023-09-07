@@ -189,7 +189,7 @@ object GoogleSheetReader {
     val gsonFactory = GsonFactory.getDefaultInstance()
     // Do not use: GoogleCredentials.getApplicationDefault(). This fail with a completely
     // non-informative error message.
-    val credentials: GoogleCredentials = 
+    val credentials: GoogleCredentials =
       GoogleCredentials.fromStream(new FileInputStream(sys.env("GOOGLE_APPLICATION_CREDENTIALS"))).createScoped(
         List(SheetsScopes.SPREADSHEETS).asJava
       )
@@ -203,12 +203,6 @@ class GoogleSheetReader(
   val params: GoogleSheetReaderParameters
 ) extends TableReaderWithExtraUID {
   override def pathsUsed: Seq[String] = FastSeq(params.spreadsheetID)
-
-  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    val ts = lower(ctx, requestedType)
-    val (broadCastRow, rvd) = TableStageToRVD.apply(ctx, ts)
-    TableValue(ctx, requestedType, broadCastRow, rvd)
-  }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
@@ -266,4 +260,3 @@ class GoogleSheetReader(
     )
   }
 }
-
