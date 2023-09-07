@@ -45,13 +45,13 @@ class PageIterator:
     async def __anext__(self):
         if self._page is None:
             assert 'pageToken' not in self._request_params
-            self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
+            self._page = await retry_transient_errors(self._client.get, self._path, params=self._request_params, **self._request_kwargs)
             return self._page
 
         next_page_token = self._page.get('nextPageToken')
         if next_page_token is not None:
             self._request_params['pageToken'] = next_page_token
-            self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
+            self._page = await retry_transient_errors(self._client.get, self._path, params=self._request_params, **self._request_kwargs)
             return self._page
 
         raise StopAsyncIteration
