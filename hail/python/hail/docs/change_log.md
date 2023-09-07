@@ -52,6 +52,15 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.122
+
+Released 2023-09-07
+
+### Bug Fixes
+- (hail#13585) Fix bug introduced in 0.2.121 where Query-on-Batch
+  users could not make requests to `batch.hail.is` without a domain configuration
+  set.
+
 ## Version 0.2.121
 
 Released 2023-08-31

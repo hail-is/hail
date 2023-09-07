@@ -16,8 +16,6 @@ def env_var_or_default(name: str, defaults: Dict[str, str]) -> str:
 class DeployConfig:
     @staticmethod
     def from_config(config: Dict[str, str]) -> 'DeployConfig':
-        if 'domain' not in config:
-            config['domain'] = 'hail.is'
         return DeployConfig(
             env_var_or_default('location', config),
             env_var_or_default('default_namespace', config),
@@ -48,7 +46,7 @@ class DeployConfig:
             config = {
                 'location': 'external',
                 'default_namespace': 'default',
-                'domain': get_user_config().get('global', 'domain', fallback=None),
+                'domain': get_user_config().get('global', 'domain', fallback='hail.is'),
             }
         return DeployConfig.from_config(config)
 
