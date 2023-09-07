@@ -3272,12 +3272,24 @@ def import_google_sheet(spreadsheet_id, sheetname) -> Table:
     Warning
     -------
 
-    You must set the GOOGLE_APPLICATION_CREDENTIALS environment variable to point at the JSON key file
-    for a *service account*. This method *will not* work with a human user credentials. For example,
-    ``gcloud auth application-default login`` *will not work*.
+    If you are instead inside a Hail Batch job, inside a Dataproc cluster, using Query-on-Batch, on
+    a Google Compute Engine VM, or otherwise using service account credentials,
+    :func:`import_google_sheet` should work without further configuration.
 
-    Instead, you must create a service account, create a key for that service account, download that
-    key to your computer, and set GOOGLE_APPLICATION_CREDENTIALS to the path to that key file.
+    However, if you want to use your (a human being's) application-default credentials, you must
+    both explicitly request access to google sheets and also set a quota project. The following
+    command configures your application-default credentials for use with both Google Cloud Platform
+    and also the Google Sheets API:
+
+        gcloud auth application-default login \
+            --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/spreadsheets
+
+    This command sets a quota project to which Google assigns use of the Sheets API. At the time of
+    writing, there is no cost to using this API, but it `is rate-limited
+    <https://developers.google.com/sheets/api/limits>`__ and the rate-limits are accounted for by a
+    Google Cloud Project.
+
+        gcloud auth application-default set-quota-project YOUR_GCP_PROJECT
 
     Examples
     --------
