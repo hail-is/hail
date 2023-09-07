@@ -63,9 +63,9 @@ spec:
 {% endif %}
           - name: HAIL_IDENTITY_PROVIDER_JSON
 {% if global.cloud == "gcp" %}
-            value: "{idp: \"Google\"}"
+            value: '{"idp": "Google"}'
 {% else %}
-            value: "{idp: \"Microsoft\"}"
+            value: '{"idp": "Microsoft"}'
 {% endif %}
          resources:
            requests:

@@ -109,9 +109,9 @@ spec:
              value: "{{ default_ns.name }}"
            - name: HAIL_IDENTITY_PROVIDER_JSON
 {% if global.cloud == "gcp" %}
-             value: "{idp: \"Google\"}"
+             value: '{"idp": "Google"}'
 {% else %}
-             value: "{idp: \"Microsoft\"}"
+             value: '{"idp": "Microsoft"}'
 {% endif %}
           ports:
             - containerPort: 5000
