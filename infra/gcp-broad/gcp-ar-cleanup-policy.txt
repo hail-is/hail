@@ -121,6 +121,7 @@
                 "hailgenetics/hail",
                 "hailgenetics/hailtop",
                 "hailgenetics/vep-grch37-85",
+                "hailgenetics/vep-grch38-95",
                 "linting",
                 "monitoring",
                 "netcat",
