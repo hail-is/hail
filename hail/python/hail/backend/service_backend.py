@@ -323,7 +323,7 @@ class ServiceBackend(Backend):
 
         self._batch: aiohb.Batch = self._create_batch()
 
-    def _create_batch(self):
+    def _create_batch(self) -> aiohb.Batch:
         return self.async_bc.create_batch(attributes=self.batch_attributes)
 
     def debug_info(self) -> Dict[str, Any]:
@@ -490,8 +490,6 @@ class ServiceBackend(Backend):
                 return result_bytes, timings
 
     async def _read_output(self, ir: Optional[BaseIR], output_uri: str, input_uri: str) -> bytes:
-        assert self._batch
-
         try:
             driver_output = await self._async_fs.open(output_uri)
         except FileNotFoundError as exc:
