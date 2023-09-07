@@ -165,7 +165,6 @@ class GCPAcceleratorPrice(Price):
 
     @property
     def rate(self):
-        # return rate_cpu_hour_to_mcpu_msec(self.cost_per_hour)
         return rate_instance_hour_to_fraction_msec(self.cost_per_hour, 1024)
 
 
@@ -355,7 +354,6 @@ def process_accelerator_sku(sku: dict, regions: List[str]) -> List[GCPAccelerato
     for service_region in service_regions:
         if service_region in regions:
             if accelerator_family == 'l4':
-                log.info(f'SKUID {sku["skuId"]} with description {sku["description"]}')
                 assert sku["skuId"] in NVIDIA_L4_GPUS, sku
             compute_prices.append(
                 GCPAcceleratorPrice(
@@ -469,9 +467,6 @@ async def get_gpu_skus(billing_client: aiogoogle.GoogleBillingClient, currency_c
             and "us-" in sku['serviceRegions'][0]
         ):
             gpu_total.add(sku["skuId"])
-    log.info(f'g2_cpu_total {g2_cpu_total}')
-    log.info(f'g2_ram_total {g2_ram_total}')
-    log.info(f'gpu_total {gpu_total}')
     return [g2_cpu_total, g2_ram_total, gpu_total]
 
 

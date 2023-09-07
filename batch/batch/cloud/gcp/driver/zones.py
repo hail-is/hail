@@ -137,7 +137,6 @@ class ZoneMonitor(CloudLocationMonitor):
             for i, zone in enumerate(zones):
                 if zone in MACHINE_FAMILY_VALID_ZONES[machine_family]:
                     valid_indices.append(i)
-                    log.info(f'adding {zone} as a valid zone for {machine_family}')
             zones = [zones[i] for i in valid_indices]
             zone_weights = [zone_weights[i] for i in valid_indices]
 

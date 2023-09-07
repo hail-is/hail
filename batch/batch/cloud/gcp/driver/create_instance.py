@@ -43,8 +43,8 @@ def create_vm_config(
     _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
 
     region = instance_config.region_for(zone)
-    accelerator_family = machine_type.split("-")[0]
-    docker_run_gpu_args = "--runtime=nvidia --gpus all" if machine_type_to_gpu(accelerator_family) else ""
+    accelerator_family = machine_type.split('-')[0]
+    docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(accelerator_family) else ''
     if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
