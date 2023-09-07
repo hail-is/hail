@@ -25,12 +25,7 @@ object EvalRelationalLets {
           lower(body, letsAbove + (name -> valueLit))
         case RelationalRef(name, _) => letsAbove(name)
         case x =>
-          val children = x.children
-          val newChildren = children.map(lower(_, letsAbove))
-          if (RewriteBottomUp.areObjectEqual(children, newChildren))
-            x
-          else
-            x.copy(newChildren)
+          x.mapChildren(lower(_, letsAbove))
       }
     }
 

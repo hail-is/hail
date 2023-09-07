@@ -14,6 +14,7 @@ app = typer.Typer(
     name='config',
     no_args_is_help=True,
     help='Manage Hail configuration.',
+    pretty_exceptions_show_locals=False,
 )
 
 

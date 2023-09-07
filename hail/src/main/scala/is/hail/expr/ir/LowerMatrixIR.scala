@@ -45,17 +45,13 @@ object LowerMatrixIR {
     ir: BaseIR,
     ab: BoxedArrayBuilder[(String, IR)]
   ): BaseIR = {
-    val loweredChildren = ir.children.map {
+    ir.mapChildren {
       case tir: TableIR => lower(ctx, tir, ab)
       case mir: MatrixIR => throw new RuntimeException(s"expect specialized lowering rule for " +
         s"${ ir.getClass.getName }\n  Found MatrixIR child $mir")
       case bmir: BlockMatrixIR => lower(ctx, bmir, ab)
       case vir: IR => lower(ctx, vir, ab)
     }
-    if ((ir.children, loweredChildren).zipped.forall(_ eq _))
-      ir
-    else
-      ir.copy(loweredChildren)
   }
 
   def colVals(tir: TableIR): IR =

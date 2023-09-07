@@ -12,6 +12,7 @@ app = typer.Typer(
     name='auth',
     no_args_is_help=True,
     help='Manage Hail credentials.',
+    pretty_exceptions_show_locals=False,
 )
 
 

@@ -67,7 +67,7 @@ class PruneSuite extends HailSuite {
     }
     irCopy.children.zipWithIndex.foreach { case (child, i) =>
       if (expected(i) != null && expected(i) != ms.requestedType.lookup(child)) {
-        fatal(s"For base IR $ir\n  Child $i with IR ${irCopy.children(i)}\n  Expected: ${ expected(i) }\n  Actual:   ${ ms.requestedType.lookup(child) }")
+        fatal(s"For base IR $ir\n  Child $i with IR $child\n  Expected: ${ expected(i) }\n  Actual:   ${ ms.requestedType.lookup(child) }")
       }
     }
   }
@@ -978,8 +978,8 @@ class PruneSuite extends HailSuite {
     checkRebuild(tunion, subsetTable(tunion.typ, "row.foo"),
       (_: BaseIR, rebuilt: BaseIR) => {
         val tu = rebuilt.asInstanceOf[TableUnion]
-        val tf = tu.children(0)
-        val tm = tu.children(1)
+        val tf = tu.childrenSeq(0)
+        val tm = tu.childrenSeq(1)
         tf.typ.rowType == tm.typ.rowType &&
           tu.typ == subsetTable(tunion.typ, "row.foo", "global.g1")
       })
@@ -995,7 +995,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(tmwzj, subsetTable(tmwzj.typ, "row.data.2", "global.gbls.g1"),
       (_: BaseIR, rebuilt: BaseIR) => {
         val t = rebuilt.asInstanceOf[TableMultiWayZipJoin]
-        t.children.forall { c => c.typ == childRType }
+        t.childrenSeq.forall { c => c.typ == childRType }
       })
   }
 
@@ -1097,7 +1097,7 @@ class PruneSuite extends HailSuite {
       MatrixUnionRows(FastIndexedSeq(mat, MatrixMapCols(mat2, Ref("sa", mat2.typ.colType), Some(FastIndexedSeq("ck"))))),
       mat.typ.copy(colKey = FastIndexedSeq()),
       (_: BaseIR, r: BaseIR) => {
-        r.asInstanceOf[MatrixUnionRows].children.forall {
+        r.asInstanceOf[MatrixUnionRows].childrenSeq.forall {
           _.typ.colKey.isEmpty
         }
       })

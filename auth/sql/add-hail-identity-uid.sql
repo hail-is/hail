@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD COLUMN `hail_identity_uid` VARCHAR(300) DEFAULT NULL;

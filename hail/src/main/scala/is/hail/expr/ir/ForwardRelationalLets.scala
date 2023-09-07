@@ -60,7 +60,7 @@ object ForwardRelationalLets {
           } else RelationalLetBlockMatrix(name, recur(value).asInstanceOf[IR], recur(body).asInstanceOf[BlockMatrixIR])
         case x@RelationalRef(name, _) =>
           m.getOrElse(name, x)
-        case _ => ir1.copy(ir1.children.map(recur))
+        case _ => ir1.mapChildren(recur)
       }
 
       recur(ir0)

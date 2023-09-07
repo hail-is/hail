@@ -361,6 +361,8 @@ steps:
         script: /io/sql/support-azure-oauth.sql
       - name: change-username-collation
         script: /io/sql/change-username-collation.sql
+      - name: add-hail-identity-uid
+        script: /io/sql/add-hail-identity-uid.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -2251,6 +2253,9 @@ steps:
         online: true
       - name: list-jobs-extra-indices
         script: /io/sql/list-jobs-extra-indices.sql
+        online: true
+      - name: dedup-billing-project-users-by-date
+        script: /io/sql/dedup_billing_project_users_by_date.py
         online: true
     inputs:
       - from: /repo/batch/sql
