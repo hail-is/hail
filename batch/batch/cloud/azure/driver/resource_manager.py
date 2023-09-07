@@ -131,9 +131,6 @@ class AzureResourceManager(CloudResourceManager):
             location,
         )
 
-    def instance_config_from_dict(self, data: dict) -> AzureSlimInstanceConfig:
-        return AzureSlimInstanceConfig.from_dict(data)
-
     async def create_vm(
         self,
         file_store: FileStore,
