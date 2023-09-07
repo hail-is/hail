@@ -2097,6 +2097,11 @@ class JVMJob(Job):
         os.makedirs(f'{self.scratch}/batch-config')
         with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
             config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
+        # Necessary for backward compatibility for Hail Query jars that expect
+        # the deploy config at this path and not at `/deploy-config/deploy-config.json`
+        os.makedirs(f'{self.scratch}/secrets/deploy-config', exist_ok=True)
+        with open(f'{self.scratch}/secrets/deploy-config/deploy-config.json', 'wb') as config:
+            config.write(orjson.dumps(deploy_config.get_config()))
 
     def step(self, name):
         return self.timings.step(name)

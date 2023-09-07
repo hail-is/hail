@@ -174,10 +174,6 @@ resource "google_container_cluster" "vdc" {
     }
   }
 
-  workload_identity_config {
-    workload_pool = "hail-vdc.svc.id.goog"
-  }
-
   timeouts {}
 }
 
@@ -225,10 +221,6 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = false
-    }
-
-    workload_metadata_config {
-      mode = "GKE_METADATA"
     }
   }
 
@@ -284,10 +276,6 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = false
-    }
-
-    workload_metadata_config {
-      mode = "GKE_METADATA"
     }
   }
 
