@@ -2,6 +2,11 @@ from enum import Enum
 from typing import Dict
 
 
+class SaigeInputDataType(Enum):
+    VCF = 'vcf'
+    BGEN = 'bgen'
+
+
 class SaigeTestType(Enum):
     QUANTITATIVE = 'quantitative'
     BINARY = 'binary'

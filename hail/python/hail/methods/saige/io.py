@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 import hailtop.fs as hfs
 import hailtop.batch as hb
@@ -11,7 +11,7 @@ from .constants import SaigeAnalysisType
 class PlinkResourceGroup(AliasedResourceGroup):
     @staticmethod
     def use_checkpoint_if_exists(b: hb.Batch, config: BaseConfig, bfile_root: str) -> Optional['PlinkResourceGroup']:
-        if config.use_checkpoint:
+        if config.use_checkpoints:
             all_files_exist = all(hfs.exists(f'{bfile_root}{ext}') for ext in ['.bed', '.bim', '.fam'])
             if all_files_exist:
                 return PlinkResourceGroup.from_input_files(b, bfile_root)
@@ -31,15 +31,15 @@ class PlinkResourceGroup(AliasedResourceGroup):
                                         'fam': '{root}.fam'})
         return PlinkResourceGroup(j.bfile, aliases={})
 
-    def checkpoint(self, b: hb.Batch, config: BaseConfig, output_file: str):
-        if config.checkpoint:
+    def checkpoint_if_requested(self, b: hb.Batch, config: BaseConfig, output_file: str):
+        if config.checkpoint_output:
             b.write_output(self._rg, output_file)
 
 
 class VCFResourceGroup(AliasedResourceGroup):
     @staticmethod
     def use_checkpoint_if_exists(b: hb.Batch, config: BaseConfig, vcf_root: str) -> Optional['VCFResourceGroup']:
-        if config.use_checkpoint:
+        if config.use_checkpoints:
             all_files_exist = all(hfs.exists(f'{vcf_root}{ext}') for ext in ['.vcf.gz', '.vcf.gz.tbi'])
             if all_files_exist:
                 return VCFResourceGroup.from_input_files(b, vcf_root)
@@ -57,15 +57,15 @@ class VCFResourceGroup(AliasedResourceGroup):
                                       'vcf.gz.tbi': '{root}.vcf.gz.tbi'})
         return VCFResourceGroup(j.vcf, aliases={'vcf.gz': 'vcf', 'vcf.gz.tbi': 'tbi'})
 
-    def checkpoint(self, b: hb.Batch, config: BaseConfig, output_file: str):
-        if config.checkpoint:
+    def checkpoint_if_requested(self, b: hb.Batch, config: BaseConfig, output_file: str):
+        if config.checkpoint_output:
             b.write_output(self._rg, output_file)
 
 
 class BgenResourceGroup(AliasedResourceGroup):
     @staticmethod
     def use_checkpoint_if_exists(b: hb.Batch, config: BaseConfig, bgen_root: str) -> Optional['BgenResourceGroup']:
-        if config.use_checkpoint:
+        if config.use_checkpoints:
             all_files_exist = all(hfs.exists(f'{bgen_root}{ext}') for ext in ['.bgen', '.bgen.bgi', '.sample'])
             if all_files_exist:
                 return BgenResourceGroup.from_input_files(b, bgen_root)
@@ -85,15 +85,15 @@ class BgenResourceGroup(AliasedResourceGroup):
                                        'sample': '{root}.sample'})
         return BgenResourceGroup(j.bgen, aliases={'bgen.bgi': 'bgi'})
 
-    def checkpoint(self, b: hb.Batch, config: BaseConfig, output_file: str):
-        if config.checkpoint:
+    def checkpoint_if_requested(self, b: hb.Batch, config: BaseConfig, output_file: str):
+        if config.checkpoint_output:
             b.write_output(self._rg, output_file)
 
 
 class SaigeSparseGRMResourceGroup(AliasedResourceGroup):
     @staticmethod
     def use_checkpoint_if_exists(b: hb.Batch, config: BaseConfig, grm_root: str) -> Optional['SaigeSparseGRMResourceGroup']:
-        if config.use_checkpoint:
+        if config.use_checkpoints:
             all_files_exist = all(hfs.exists(f'{grm_root}{ext}') for ext in ['.sparseGRM.mtx', '.sparseGRM.mtx.sampleIDs.txt'])
             if all_files_exist:
                 return SaigeSparseGRMResourceGroup.from_input_files(b, grm_root)
@@ -112,8 +112,8 @@ class SaigeSparseGRMResourceGroup(AliasedResourceGroup):
                                       f'{suffix}.sampleIDs.txt': f'{{root}}{suffix}.sparseGRM.mtx.sampleIDs.txt'})
         return SaigeSparseGRMResourceGroup(j.grm, aliases={'grm': suffix, 'sample_ids': f'{suffix}.sampleIDs.txt'})
 
-    def checkpoint(self, b: hb.Batch, config: BaseConfig, output_file: str):
-        if config.checkpoint:
+    def checkpoint_if_requested(self, b: hb.Batch, config: BaseConfig, output_file: str):
+        if config.checkpoint_output:
             b.write_output(self._rg, output_file)
 
 
@@ -124,7 +124,7 @@ class SaigeGlmmResourceGroup(AliasedResourceGroup):
                                  glmm_root: str,
                                  analysis_type: SaigeAnalysisType,
                                  sparse_grm: Optional[SaigeSparseGRMResourceGroup] = None) -> Optional['SaigeGlmmResourceGroup']:
-        if config.use_checkpoint:
+        if config.use_checkpoints:
             exts = ['.rda', '_30markers.SAIGE.results.txt', f'.{analysis_type.value}.varianceRatio.txt']
 
             if analysis_type == SaigeAnalysisType.GENE:
@@ -177,15 +177,15 @@ class SaigeGlmmResourceGroup(AliasedResourceGroup):
         j.declare_resource_group(glmm=output_files)
         return SaigeGlmmResourceGroup(j.glmm, aliases=aliases)
 
-    def checkpoint(self, b: hb.Batch, config: BaseConfig, output_file: str):
-        if config.checkpoint:
+    def checkpoint_if_requested(self, b: hb.Batch, config: BaseConfig, output_file: str):
+        if config.checkpoint_output:
             b.write_output(self._rg, output_file)
 
 
 class SaigeResultResourceGroup(AliasedResourceGroup):
     @staticmethod
     def use_checkpoint_if_exists(b: hb.Batch, config: BaseConfig, output_root: str, analysis_type: SaigeAnalysisType) -> Optional['SaigeResultResourceGroup']:
-        if config.use_checkpoint:
+        if config.use_checkpoints:
             if analysis_type == SaigeAnalysisType.GENE:
                 exts = ['', '_single']
             else:
@@ -214,8 +214,28 @@ class SaigeResultResourceGroup(AliasedResourceGroup):
             outputs = {'single_variant.txt': '{root}'}
 
         j.declare_resource_group(saige=outputs)
-        return SaigeResultResourceGroup(j.saige, aliases={})
+        return SaigeResultResourceGroup(j.saige, aliases={'gene': '.gene.txt', 'single': 'single_variant.txt'})
 
-    def checkpoint(self, b: hb.Batch, config: BaseConfig, output_file: str):
-        if config.checkpoint:
+    def checkpoint_if_requested(self, b: hb.Batch, config: BaseConfig, output_file: str):
+        if config.checkpoint_output:
             b.write_output(self._rg, output_file)
+
+
+class TextFile:
+    @staticmethod
+    def use_checkpoint_if_exists(b: hb.Batch, config: BaseConfig, file: str) -> Optional['TextFile']:
+        if config.use_checkpoints:
+            if hfs.exists(file):
+                return TextFile.from_input_file(b, file)
+        return None
+
+    @staticmethod
+    def from_input_file(b: hb.Batch, file: str) -> 'TextFile':
+        return TextFile(b.read_input(file))
+
+    def __init__(self, resource_file: hb.ResourceFile):
+        self._rf = resource_file
+
+    def checkpoint_if_requested(self, b: hb.Batch, config: BaseConfig, output_file: str):
+        if config.checkpoint_output:
+            b.write_output(self._rf, output_file)
