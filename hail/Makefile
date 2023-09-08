@@ -320,16 +320,17 @@ upload-artifacts: $(WHEEL)
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day. To trigger this target to re-run,
 # > rm upload-qob-test-resources
-upload-qob-test-resources: $(JAR_TEST_SOURCES)
+upload-qob-test-resources: $(shell git ls-files src/test/resources)
+upload-qob-test-resources: $(shell git ls-files python/hail/docs/data)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
 	gcloud storage cp src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
 	gcloud storage cp python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
 	# # In Azure, use the following instead of gcloud storage cp
 	# python3 -m hailtop.aiotools.copy -vvv 'null' '[\
-        #     {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
-        #     {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
+        #      {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
+        #      {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
         # ]'
-	touch $@
+	# touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day if using a dev NAMESPACE.

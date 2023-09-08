@@ -32,7 +32,7 @@ abstract class AzureStorageFSURL(
   val container: String,
   val path: String,
   val sasToken: Option[String]
-) extends FSURL[AzureStorageFSURL] {
+) extends FSURL {
 
   def addPathComponent(c: String): AzureStorageFSURL = {
     if (path == "")
@@ -142,7 +142,8 @@ object AzureStorageFS {
 }
 
 object AzureStorageFileListEntry {
-  def apply(url: AzureStorageFSURL, blobItem: BlobItem): BlobStorageFileListEntry = {
+  def apply(rootUrl: AzureStorageFSURL, blobItem: BlobItem): BlobStorageFileListEntry = {
+    val url = rootUrl.withPath(blobItem.getName)
     if (blobItem.isPrefix) {
       dir(url)
     } else {
@@ -192,7 +193,7 @@ class AzureBlobServiceClientCache(credential: TokenCredential, val httpClientOpt
 class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   type URL = AzureStorageFSURL
 
-  import AzureStorageFS._
+  def parseUrl(filename: String): URL = AzureStorageFS.parseUrl(filename)
 
   def validUrl(filename: String): Boolean = {
     try {
@@ -388,7 +389,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val prefixMatches = blobContainerClient.listBlobsByHierarchy(prefix)
 
     prefixMatches.forEach(blobItem => {
-      statList += AzureStorageFileListEntry(url.withPath(blobItem.getName), blobItem)
+      statList += AzureStorageFileListEntry(url, blobItem)
     })
 
     statList.toArray

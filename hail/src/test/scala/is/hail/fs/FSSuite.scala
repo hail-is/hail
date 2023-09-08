@@ -196,10 +196,12 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def testFileEndingWithPeriod: Unit = {
-    f = t()
+    val f = fs.makeQualified(t())
     fs.touch(f + "/foo.")
-    val status = fs.fileStatus(f + "/foo.")
-    if (!this.isInstanceOf[AzureStorageFSSuite]) {
+    val statuses = fs.listDirectory(f)
+    assert(statuses.length == 1, statuses)
+    val status = statuses(0)
+    if (this.isInstanceOf[AzureStorageFSSuite]) {
       // https://github.com/Azure/azure-sdk-for-java/issues/36674
       assert(status.getPath == f + "/foo")
     } else {

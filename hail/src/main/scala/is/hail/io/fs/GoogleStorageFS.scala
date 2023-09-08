@@ -23,7 +23,7 @@ import scala.{concurrent => scalaConcurrent}
 import scala.reflect.ClassTag
 
 
-case class GoogleStorageFSURL(val bucket: String, val path: String) extends FSURL[GoogleStorageFSURL] {
+case class GoogleStorageFSURL(val bucket: String, val path: String) extends FSURL {
   def addPathComponent(c: String): GoogleStorageFSURL = {
     if (path == "")
       withPath(c)
@@ -114,7 +114,9 @@ class GoogleStorageFS(
 ) extends FS {
   type URL = GoogleStorageFSURL
 
-  import GoogleStorageFS._
+  import GoogleStorageFS.log
+
+  def parseUrl(filename: String): URL = GoogleStorageFS.parseUrl(filename)
 
   def validUrl(filename: String): Boolean = {
     filename.startsWith("gs://")

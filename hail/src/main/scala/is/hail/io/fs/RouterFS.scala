@@ -1,8 +1,30 @@
 package is.hail.io.fs
 
+import scala.language.existentials
+
+case class RouterFSURL(
+  routerFs: RouterFS,
+  url: FSURL
+) extends FSURL {
+  def getPath: String = url.getPath
+  def addPathComponent(component: String): RouterFSURL = {
+    RouterFSURL(routerFs, url.addPathComponent(component))
+  }
+  def fromString(s: String): RouterFSURL = {
+    RouterFSURL(routerFs, url.fromString(s))
+  }
+
+  override def toString(): String = url.toString
+}
+
 class RouterFS(fss: IndexedSeq[FS]) extends FS {
-  // This is never actually used
-  type URL = LocalFSURL
+  type URL = RouterFSURL
+
+  def parseUrl(filename: String): URL = {
+    val fs = lookupFS(filename)
+    val newUrl = fs.parseUrl(filename)
+    RouterFSURL(this, newUrl)
+  }
 
   def lookupFS(path: String): FS = {
     fss.find(_.validUrl(path)) match {

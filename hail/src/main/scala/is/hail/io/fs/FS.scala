@@ -57,10 +57,10 @@ class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Po
   def getPosition: Long = count
 }
 
-trait FSURL[T <: FSURL[T]] {
+trait FSURL {
   def getPath: String
-  def addPathComponent(component: String): T
-  def fromString(s: String): T
+  def addPathComponent(component: String): FSURL
+  def fromString(s: String): FSURL
 
   override def toString(): String
 }
@@ -285,8 +285,8 @@ object FS {
     new RouterFS(Array(cloudSpecificFS, new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration()))))
   }
 
-  def fileListEntryFromIterator[T <: FSURL[T]](
-    url: T,
+  def fileListEntryFromIterator(
+    url: FSURL,
     it: Iterator[FileListEntry],
   ): FileListEntry = {
     val urlStr = url.toString
@@ -331,7 +331,9 @@ object FS {
 }
 
 trait FS extends Serializable {
-  type URL <: FSURL[URL]
+  type URL <: FSURL
+
+  def parseUrl(filename: String): URL
 
   def validUrl(filename: String): Boolean
 
@@ -448,11 +450,11 @@ trait FS extends Serializable {
             val p = dropTrailingSlash(cfs.getPath)
             val d = p.drop(prefix.toString.length + 1)
             if (m.matches(javaFS.getPath(d))) {
-              f(prefix.fromString(p), cfs, i + 1)
+              f(prefix.fromString(p).asInstanceOf[URL], cfs, i + 1)
             }
           }
         } else
-          f(prefix.addPathComponent(c), null, i + 1)
+          f(prefix.addPathComponent(c).asInstanceOf[URL], null, i + 1)
       }
     }
 
