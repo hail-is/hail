@@ -14,7 +14,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, VirtualTypeWithReq}
-import is.hail.utils.{FastIndexedSeq, FastSeq, checkGzippedFile, fatal}
+import is.hail.utils.{FastIndexedSeq, FastSeq, fatal, checkGzipOfGlobbedFiles}
 import org.json4s.{Extraction, Formats, JValue}
 
 case class StringTableReaderParameters(
@@ -26,27 +26,14 @@ case class StringTableReaderParameters(
 
 object StringTableReader {
   def apply(fs: FS, params: StringTableReaderParameters): StringTableReader = {
-    val fileListEntries = getFileListEntries(fs, params.files, params.forceBGZ, params.forceGZ)
+    val fileListEntries = fs.globAll(params.files)
+    checkGzipOfGlobbedFiles(params.files, fileListEntries, params.forceGZ, params.forceBGZ)
     new StringTableReader(params, fileListEntries)
   }
   def fromJValue(fs: FS, jv: JValue): StringTableReader = {
     implicit val formats: Formats = TableReader.formats
     val params = jv.extract[StringTableReaderParameters]
     StringTableReader(fs, params)
-  }
-
-  def getFileListEntries(fs: FS, files: Array[String], forceBGZ: Boolean, forceGZ: Boolean): Array[FileListEntry] = {
-    val status = fs.globAllStatuses(files)
-    if (status.isEmpty)
-      fatal(s"arguments refer to no files: ${files.toIndexedSeq}.")
-    if (!forceBGZ) {
-      status.foreach { status =>
-        val file = status.getPath
-        if (file.endsWith(".gz"))
-          checkGzippedFile(fs, file, forceGZ, forceBGZ)
-      }
-    }
-    status
   }
 }
 

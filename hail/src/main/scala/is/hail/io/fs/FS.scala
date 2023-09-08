@@ -392,10 +392,7 @@ trait FS extends Serializable {
     ab.toArray
   }
 
-  def globAll(filenames: Iterable[String]): Array[String] =
-    globAllStatuses(filenames).map(_.getPath)
-
-  def globAllStatuses(filenames: Iterable[String]): Array[FileListEntry] = filenames.flatMap(glob).toArray
+  def globAll(filenames: Iterable[String]): Array[FileListEntry] = filenames.flatMap(glob).toArray
 
   def fileListEntry(filename: String): FileListEntry
 
