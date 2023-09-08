@@ -113,6 +113,8 @@ spec:
 {% else %}
              value: '{"idp": "Microsoft"}'
 {% endif %}
+           - name: GOOGLE_APPLICATION_CREDENTIALS
+             value: /gsa-key/key.json
           ports:
             - containerPort: 5000
           volumeMounts:
