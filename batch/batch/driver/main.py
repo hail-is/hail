@@ -242,22 +242,6 @@ async def delete_batch(request):
     return web.Response()
 
 
-# deprecated
-async def get_gsa_key_1(instance):
-    log.info(f'returning gsa-key to activating instance {instance}')
-    with open('/gsa-key/key.json', 'r', encoding='utf-8') as f:
-        key = json.loads(f.read())
-    return json_response({'key': key})
-
-
-async def get_credentials_1(instance):
-    log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
-    credentials_file = '/gsa-key/key.json'
-    with open(credentials_file, 'r', encoding='utf-8') as f:
-        key = json.loads(f.read())
-    return json_response({'key': key})
-
-
 async def activate_instance_1(request, instance):
     body = await json_request(request)
     ip_address = body['ip_address']
@@ -268,20 +252,6 @@ async def activate_instance_1(request, instance):
     await instance.mark_healthy()
 
     return json_response({'token': token})
-
-
-# deprecated
-@routes.get('/api/v1alpha/instances/gsa_key')
-@activating_instances_only
-async def get_gsa_key(_, instance: Instance) -> web.Response:
-    return await asyncio.shield(get_gsa_key_1(instance))
-
-
-# deprecated
-@routes.get('/api/v1alpha/instances/credentials')
-@activating_instances_only
-async def get_credentials(_, instance: Instance) -> web.Response:
-    return await asyncio.shield(get_credentials_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')
@@ -1624,9 +1594,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    credentials_file = '/gsa-key/key.json'
     app['driver'] = await get_cloud_driver(
-        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
+        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, task_manager
     )
 
     app['canceller'] = await Canceller.create(app)

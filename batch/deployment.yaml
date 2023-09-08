@@ -403,6 +403,8 @@ spec:
              secretKeyRef:
                name: global-config
                key: internal_ip
+         - name: GOOGLE_APPLICATION_CREDENTIALS
+           value: /gsa-key/key.json
          - name: HAIL_SHA
            value: "{{ code.sha }}"
 {% if scope != "test" %}

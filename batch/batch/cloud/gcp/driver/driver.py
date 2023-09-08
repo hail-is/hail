@@ -25,7 +25,6 @@ class GCPDriver(CloudDriver):
         machine_name_prefix: str,
         namespace: str,
         inst_coll_configs: InstanceCollectionConfigs,
-        credentials_file: str,
         task_manager: aiotools.BackgroundTaskManager,  # BORROWED
     ) -> 'GCPDriver':
         gcp_config = get_gcp_config()
@@ -50,10 +49,9 @@ ON DUPLICATE KEY UPDATE region = region;
         assert max(db_regions.values()) < 64, str(db_regions)
         app['regions'] = db_regions
 
-        compute_client = aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
+        compute_client = aiogoogle.GoogleComputeClient(project)
 
         activity_logs_client = aiogoogle.GoogleLoggingClient(
-            credentials_file=credentials_file,
             # The project-wide logging quota is 60 request/m.  The event
             # loop sleeps 15s per iteration, so the max rate is 4
             # iterations/m.  Note, the event loop could make multiple
@@ -65,7 +63,7 @@ ON DUPLICATE KEY UPDATE region = region;
         )
 
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
-        billing_manager = await GCPBillingManager.create(db, credentials_file, regions)
+        billing_manager = await GCPBillingManager.create(db, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
 
