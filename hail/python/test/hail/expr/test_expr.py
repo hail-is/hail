@@ -1404,6 +1404,35 @@ class Tests(unittest.TestCase):
                      hl.Struct(f1=1, f2=2, f3=3),
                      tstruct(f1=tint32, f2=tint32, f3=tint32))
 
+    def test_shadowed_struct_fields(self):
+        from typing import Callable
+
+        s = hl.struct(foo=1, values=2, collect=3, _ir=4)
+        assert 'foo' not in s._warn_on_shadowed_name
+        assert isinstance(s.foo, hl.Expression)
+        assert 'values' in s._warn_on_shadowed_name
+        assert isinstance(s.values, Callable)
+        assert 'values' not in s._warn_on_shadowed_name
+        assert 'collect' in s._warn_on_shadowed_name
+        assert isinstance(s.collect, Callable)
+        assert 'collect' not in s._warn_on_shadowed_name
+        assert '_ir' in s._warn_on_shadowed_name
+        assert isinstance(s._ir, ir.IR)
+        assert '_ir' not in s._warn_on_shadowed_name
+
+        s = hl.StructExpression._from_fields({'foo': hl.int(1), 'values': hl.int(2), 'collect': hl.int(3), '_ir': hl.int(4)})
+        assert 'foo' not in s._warn_on_shadowed_name
+        assert isinstance(s.foo, hl.Expression)
+        assert 'values' in s._warn_on_shadowed_name
+        assert isinstance(s.values, Callable)
+        assert 'values' not in s._warn_on_shadowed_name
+        assert 'collect' in s._warn_on_shadowed_name
+        assert isinstance(s.collect, Callable)
+        assert 'collect' not in s._warn_on_shadowed_name
+        assert '_ir' in s._warn_on_shadowed_name
+        assert isinstance(s._ir, ir.IR)
+        assert '_ir' not in s._warn_on_shadowed_name
+
     def test_iter(self):
         a = hl.literal([1, 2, 3])
         self.assertRaises(hl.expr.ExpressionException, lambda: hl.eval(list(a)))

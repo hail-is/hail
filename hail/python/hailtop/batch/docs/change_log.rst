@@ -15,6 +15,15 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.122**
+
+- (`#13565 <https://github.com/hail-is/hail/pull/13565>`__) Users can now use VEP images from the `hailgenetics` DockerHub
+  in Hail Batch.
+
+**Version 0.2.121**
+
+- (`#13396 <https://github.com/hail-is/hail/pull/13396>`__) Non-spot instances can be requested via the :meth:`.Job.spot` method.
+
 **Version 0.2.117**
 
 - (`#13007 <https://github.com/hail-is/hail/pull/13007>`__) Memory and storage request strings may now be optionally terminated with a `B` for bytes.
