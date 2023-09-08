@@ -7,7 +7,7 @@ import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR, IRParserEnvironment, Literal, LowerMatrixIR, MakeStruct, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, PartitionReader, ReadPartition, Ref, StreamTake, TableExecuteIntermediate, TableNativeReader, TableReader, TableValue, ToStream}
 import is.hail.io._
-import is.hail.io.fs.{FS, FileStatus, SeekableDataInputStream}
+import is.hail.io.fs.{FS, FileListEntry, SeekableDataInputStream}
 import is.hail.io.index.{IndexReader, StagedIndexReader}
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.RVDPartitioner
@@ -149,7 +149,7 @@ object LoadBgen {
            |  ${ notVersionTwo.mkString("\n  ") }""".stripMargin)
   }
 
-  def getAllFileStatuses(fs: FS, files: Array[String]): Array[FileStatus] = {
+  def getAllFileListEntries(fs: FS, files: Array[String]): Array[FileListEntry] = {
     val badFiles = new BoxedArrayBuilder[String]()
 
     val statuses = files.flatMap { file =>
@@ -179,7 +179,7 @@ object LoadBgen {
   }
 
   def getAllFilePaths(fs: FS, files: Array[String]): Array[String] =
-    getAllFileStatuses(fs, files).map(_.getPath.toString)
+    getAllFileListEntries(fs, files).map(_.getPath.toString)
 
 
   def getBgenFileMetadata(ctx: ExecuteContext, files: Array[String], indexFiles: Array[String]): Array[BgenFileMetadata] = {
@@ -226,7 +226,7 @@ object LoadBgen {
   }
 
   def getIndexFileNames(fs: FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
-    def absolutePath(rel: String): String = fs.fileStatus(rel).getPath.toString
+    def absolutePath(rel: String): String = fs.fileListEntry(rel).getPath.toString
 
     val fileMapping = Option(indexFileMap)
       .getOrElse(Map.empty[String, String])

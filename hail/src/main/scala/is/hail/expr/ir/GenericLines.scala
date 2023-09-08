@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.compress.BGzipInputStream
-import is.hail.io.fs.{FS, FileStatus, Positioned, PositionedInputStream, BGZipCompressionCodec}
+import is.hail.io.fs.{FS, FileListEntry, Positioned, PositionedInputStream, BGZipCompressionCodec}
 import is.hail.io.tabix.{TabixReader, TabixLineIterator}
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.utils._
@@ -252,7 +252,7 @@ object GenericLines {
 
   def read(
     fs: FS,
-    fileStatuses0: IndexedSeq[FileStatus],
+    fileListEntries0: IndexedSeq[FileListEntry],
     nPartitions: Option[Int],
     blockSizeInMB: Option[Int],
     minPartitions: Option[Int],
@@ -260,8 +260,8 @@ object GenericLines {
     allowSerialRead: Boolean,
     filePerPartition: Boolean = false
   ): GenericLines = {
-    val fileStatuses = fileStatuses0.zipWithIndex.filter(_._1.getLen > 0)
-    val totalSize = fileStatuses.map(_._1.getLen).sum
+    val fileListEntries = fileListEntries0.zipWithIndex.filter(_._1.getLen > 0)
+    val totalSize = fileListEntries.map(_._1.getLen).sum
 
     var totalPartitions = nPartitions match {
       case Some(nPartitions) => nPartitions
@@ -276,7 +276,7 @@ object GenericLines {
       case None =>
     }
 
-    val contexts = fileStatuses.flatMap { case (status, fileNum) =>
+    val contexts = fileListEntries.flatMap { case (status, fileNum) =>
       val size = status.getLen
       val codec = fs.getCodecFromPath(status.getPath, gzAsBGZ)
 
