@@ -328,6 +328,7 @@ async def _query_batch_jobs(request, batch_id: int, version: int, q: str, last_j
 
     return (jobs, last_job_id)
 
+
 @routes.get('/api/v1alpha/batches/completed')
 @auth.rest_authenticated_users_only
 async def get_completed_batches_ordered_by_completed_time(request, userdata):
@@ -385,6 +386,7 @@ LIMIT %s;
     if len(batches) == limit:
         body['last_completed_timestamp'] = last_completed_timestamp
     return web.json_response(body)
+
 
 async def _get_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
     db = request.app['db']
