@@ -33,7 +33,7 @@ def create_sparse_grm(b: hb.Batch,
     if checkpointed_output:
         return checkpointed_output
 
-    create_sparse_grm_task = b.new_job(name=config.name, attributes=config.attributes)
+    create_sparse_grm_task = b.new_job(name=config.name(), attributes=config.attributes())
 
     (create_sparse_grm_task
      .cpu(config.cpu)
