@@ -276,9 +276,9 @@ object GenericLines {
       case None =>
     }
 
-    val contexts = fileListEntries.flatMap { case (status, fileNum) =>
-      val size = status.getLen
-      val codec = fs.getCodecFromPath(status.getPath, gzAsBGZ)
+    val contexts = fileListEntries.flatMap { case (fileListEntry, fileNum) =>
+      val size = fileListEntry.getLen
+      val codec = fs.getCodecFromPath(fileListEntry.getPath, gzAsBGZ)
 
       val splittable = codec == null || codec == BGZipCompressionCodec
       if (splittable && !filePerPartition) {
@@ -294,14 +294,14 @@ object GenericLines {
             var end = partScan(i + 1)
             if (codec != null)
               end = makeVirtualOffset(end, 0)
-            Row(i, fileNum, status.getPath, start, end, true)
+            Row(i, fileNum, fileListEntry.getPath, start, end, true)
           }
       } else {
         if (!allowSerialRead && !filePerPartition)
-          fatal(s"Cowardly refusing to read file serially: ${ status.getPath }.")
+          fatal(s"Cowardly refusing to read file serially: ${ fileListEntry.getPath }.")
 
         Iterator.single {
-          Row(0, fileNum, status.getPath, 0L, size, false)
+          Row(0, fileNum, fileListEntry.getPath, 0L, size, false)
         }
       }
     }

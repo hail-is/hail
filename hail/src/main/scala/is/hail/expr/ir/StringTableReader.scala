@@ -26,7 +26,7 @@ case class StringTableReaderParameters(
 
 object StringTableReader {
   def apply(fs: FS, params: StringTableReaderParameters): StringTableReader = {
-     val fileListEntries = getFileListEntries(fs, params.files, params.forceBGZ, params.forceGZ)
+    val fileListEntries = getFileListEntries(fs, params.files, params.forceBGZ, params.forceGZ)
     new StringTableReader(params, fileListEntries)
   }
   def fromJValue(fs: FS, jv: JValue): StringTableReader = {

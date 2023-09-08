@@ -152,21 +152,21 @@ object LoadBgen {
   def getAllFileListEntries(fs: FS, files: Array[String]): Array[FileListEntry] = {
     val badFiles = new BoxedArrayBuilder[String]()
 
-    val statuses = files.flatMap { file =>
+    val fileListEntries = files.flatMap { file =>
       val matches = fs.glob(file)
       if (matches.isEmpty)
         badFiles += file
 
-      matches.flatMap { status =>
-        val file = status.getPath.toString
+      matches.flatMap { fileListEntry =>
+        val file = fileListEntry.getPath.toString
         if (!file.endsWith(".bgen"))
           warn(s"input file does not have .bgen extension: $file")
 
         if (fs.isDir(file))
-          fs.listStatus(file)
-            .filter(status => ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.matches(status.getPath.toString))
+          fs.listFileListEntry(file)
+            .filter(fileListEntry => ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.matches(fileListEntry.getPath.toString))
         else
-          Array(status)
+          Array(fileListEntry)
       }
     }
 
@@ -175,7 +175,7 @@ object LoadBgen {
         s"""The following paths refer to no files:
            |  ${ badFiles.result().mkString("\n  ") }""".stripMargin)
 
-    statuses
+    fileListEntries
   }
 
   def getAllFilePaths(fs: FS, files: Array[String]): Array[String] =
