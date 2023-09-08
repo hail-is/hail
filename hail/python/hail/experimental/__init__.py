@@ -10,7 +10,7 @@ from .datasets import load_dataset
 from .import_gtf import import_gtf, get_gene_intervals
 from .write_multiple import write_matrix_tables, block_matrices_tofiles, export_block_matrices, write_block_matrices
 from .export_entries_by_col import export_entries_by_col
-from .vcf_combiner import sparse_split_multi, run_combiner, lgt_to_gt, densify
+from .sparse_mt import sparse_split_multi, densify
 from .function import define_function
 from .ldscsim import simulate_phenotypes
 from .full_outer_join_mt import full_outer_join_mt
@@ -53,8 +53,6 @@ __all__ = ['ld_score',
            'decode',
            'compile_comparison_binary',
            'compiled_compare',
-           'lgt_to_gt',
-           'run_combiner',
            'sparse_split_multi',
            'densify',
            'loop',

@@ -153,3 +153,91 @@ class TypeConstructor(NodeVisitor):
 
 
 type_node_visitor = TypeConstructor()
+
+vcf_type_grammar = Grammar(
+    r"""
+    type = _ (array / set / int32 / int64 / float32 / float64 / str / bool / call / struct) _
+    int64 = "Int64"
+    int32 = "Int32"
+    float32 = "Float32"
+    float64 = "Float64"
+    bool = "Boolean"
+    call = "Call"
+    str = "String"
+    array = "Array" _ "[" type "]"
+    set = "Set" _ "[" type "]"
+    struct = "Struct" _ "{" (fields / _) "}"
+    fields = field ("," field)*
+    field = identifier ":" type
+    identifier = _ (simple_identifier / escaped_identifier) _
+    simple_identifier = ~r"\w+"
+    escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
+    _ = ~r"\s*"
+    """)
+
+
+class VCFTypeConstructor(NodeVisitor):
+    def generic_visit(self, node, visited_children):
+        return visited_children
+
+    def visit_type(self, node, visited_children):
+        _, [t], _ = visited_children
+        return t
+
+    def visit_int64(self, node, visited_children):
+        return types.tint64
+
+    def visit_int32(self, node, visited_children):
+        return types.tint32
+
+    def visit_float64(self, node, visited_children):
+        return types.tfloat64
+
+    def visit_float32(self, node, visited_children):
+        return types.tfloat32
+
+    def visit_bool(self, node, visited_children):
+        return types.tbool
+
+    def visit_call(self, node, visited_children):
+        return types.tcall
+
+    def visit_str(self, node, visited_children):
+        return types.tstr
+
+    def visit_array(self, node, visited_children):
+        tarray, _, bracket, t, bracket = visited_children
+        return types.tarray(t)
+
+    def visit_set(self, node, visited_children):
+        tarray, _, bracket, t, bracket = visited_children
+        return types.tset(t)
+
+    def visit_struct(self, node, visited_children):
+        tstruct, _, brace, maybe_fields, brace = visited_children
+        if not maybe_fields:
+            return types.tstruct()
+        else:
+            fields = maybe_fields[0]
+            return types.tstruct(**dict(fields))
+
+    def visit_fields(self, node, visited_children):
+        first, rest = visited_children
+        return [first] + [field for comma, field in rest]
+
+    def visit_field(self, node, visited_children):
+        name, comma, type = visited_children
+        return (name, type)
+
+    def visit_identifier(self, node, visited_children):
+        _, [id], _ = visited_children
+        return id
+
+    def visit_simple_identifier(self, node, visited_children):
+        return node.text
+
+    def visit_escaped_identifier(self, node, visited_children):
+        return unescape_parsable(node.text[1:-1])
+
+
+vcf_type_node_visitor = VCFTypeConstructor()

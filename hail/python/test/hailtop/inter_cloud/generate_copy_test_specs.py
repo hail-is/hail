@@ -8,7 +8,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 
 def remove_prefix(s, prefix):
     assert s.startswith(prefix), (prefix, s)
-    return s[len(prefix):]
+    return s.removeprefix(prefix)
 
 
 async def create_test_file(fs, name, base, path):

@@ -491,6 +491,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         iec.consume(cb,
           setElementMissing(cb, addr, idx),
           { sc =>
+            setElementPresent(cb, addr, idx)
             elementType.storeAtAddress(cb, firstElementAddress + idx.toL * elementByteSize, region, sc, deepCopy = deepCopy)
           })
     }

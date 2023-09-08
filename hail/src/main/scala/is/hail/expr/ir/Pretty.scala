@@ -222,6 +222,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     }, prettyIdentifiers(names))
     case StreamZipJoin(streams, key, curKey, curVals, _) if !elideBindings =>
       FastSeq(streams.length.toString, prettyIdentifiers(key), prettyIdentifier(curKey), prettyIdentifier(curVals))
+    case StreamZipJoinProducers(_, ctxName, _, key, curKey, curVals, _) if !elideBindings =>
+      FastSeq(prettyIdentifiers(key), prettyIdentifier(ctxName), prettyIdentifier(curKey), prettyIdentifier(curVals))
     case StreamMultiMerge(_, key) => single(prettyIdentifiers(key))
     case StreamFilter(_, name, _) if !elideBindings => single(prettyIdentifier(name))
     case StreamTakeWhile(_, name, _) if !elideBindings => single(prettyIdentifier(name))

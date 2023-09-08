@@ -213,12 +213,7 @@ class GoogleStorageFS(
     }
   }
 
-  def asCacheable(): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, requesterPaysConfiguration, null)
-
-  def asCacheable(sessionID: String): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, requesterPaysConfiguration, sessionID)
-
-  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = retryTransientErrors {
-    assert(!_debug)
+  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
     val url = parseUrl(filename)
 
     val is: SeekableInputStream = new FSSeekableInputStream {
@@ -471,7 +466,7 @@ class GoogleStorageFS(
       )
     }
 
-    blobs.getValues.iterator.asScala
+    blobs.iterateAll().iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
       .map(b => GoogleStorageFileStatus(b))
       .toArray
@@ -511,11 +506,4 @@ class GoogleStorageFS(
       throw new IllegalArgumentException(s"Invalid path, expected gs://bucket/path $filename")
     filename
   }
-}
-
-class CacheableGoogleStorageFS(
-  serviceAccountKey: Option[String],
-  requesterPaysConfiguration: Option[RequesterPaysConfiguration] = None,
-  @transient val sessionID: String
-) extends GoogleStorageFS(serviceAccountKey, requesterPaysConfiguration) with ServiceCacheableFS {
 }

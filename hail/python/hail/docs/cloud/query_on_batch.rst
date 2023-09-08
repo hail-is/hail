@@ -38,7 +38,7 @@ Getting Started
 
 .. code-block:: text
 
-    hailctl config set batch/tmp_dir gs://my-auto-delete-bucket/hail-query-temporaries
+    hailctl config set batch/remote_tmpdir gs://my-auto-delete-bucket/hail-query-temporaries
 
 4. Specify a Hail Batch billing project (these are different from Google Cloud projects). Every new
    user has a trial billing project loaded with 10 USD. The name is available on the `Hail User

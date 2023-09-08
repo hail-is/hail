@@ -1,12 +1,18 @@
+from typing import Dict
 import asyncio
 import hashlib
 import os
+import logging
 
 import pytest
+from pytest import StashKey, CollectReport
 
 from hail import current_backend, init, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
 from .helpers import hl_init_for_test, hl_stop_for_test
+
+
+log = logging.getLogger(__name__)
 
 
 def pytest_collection_modifyitems(config, items):
@@ -47,6 +53,17 @@ def reset_randomness(init_hail):
     reset_global_randomness()
 
 
+test_results_key = StashKey[Dict[str, CollectReport]]()
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    # from: https://docs.pytest.org/en/latest/example/simple.html#making-test-result-information-available-in-fixtures
+    report = yield
+    item.stash.setdefault(test_results_key, {})[report.when] = report
+    return report
+
+
 @pytest.fixture(autouse=True)
 def set_query_name(init_hail, request):
     backend = current_backend()
@@ -54,6 +71,15 @@ def set_query_name(init_hail, request):
         backend.batch_attributes = dict(name=request.node.name)
         yield
         backend.batch_attributes = dict()
-        backend._batch = None
+        references = list(backend._references.keys())
+        for rg in references:
+            backend.remove_reference(rg)
+        backend.initialize_references()
+        if backend._batch:
+            report: Dict[str, CollectReport] = request.node.stash[test_results_key]
+            if any(r.failed for r in report.values()):
+                log.info(f'cancelling failed test batch {backend._batch.id}')
+                asyncio.get_event_loop().run_until_complete(backend._batch.cancel())
+            backend._batch = None
     else:
         yield

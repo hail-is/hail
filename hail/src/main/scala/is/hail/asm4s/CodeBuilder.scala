@@ -1,6 +1,7 @@
 package is.hail.asm4s
 
 import is.hail.lir
+import is.hail.asm4s._
 
 abstract class SettableBuilder {
   def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T]
@@ -56,6 +57,9 @@ trait CodeBuilderLike {
   def fieldBuilder: SettableBuilder = mb.fieldBuilder
 
   def +=(c: Code[Unit]): Unit = append(c)
+  def updateArray[T](array: Code[Array[T]], index: Code[Int], value: Code[T])(implicit tti: TypeInfo[T]): Unit = {
+    append(array.update(index, value))
+  }
 
   def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = v match {
     case b: ConstCodeBoolean => coerce[T](b.b)

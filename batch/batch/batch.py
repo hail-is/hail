@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Any, Dict, Optional
 
 from gear import transaction
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
@@ -11,7 +12,11 @@ from .utils import coalesce
 log = logging.getLogger('batch')
 
 
-def batch_record_to_dict(record):
+def cost_breakdown_to_dict(cost_breakdown: dict):
+    return [{'resource': resource, 'cost': cost} for resource, cost in cost_breakdown.items()]
+
+
+def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
@@ -38,6 +43,9 @@ def batch_record_to_dict(record):
     else:
         duration = None
 
+    if record['cost_breakdown'] is not None:
+        record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
+
     d = {
         'id': record['id'],
         'user': record['user'],
@@ -56,7 +64,8 @@ def batch_record_to_dict(record):
         'time_completed': time_completed,
         'duration': duration,
         'msec_mcpu': record['msec_mcpu'],
-        'cost': coalesce(record.get('cost'), 0),
+        'cost': coalesce(record['cost'], 0),
+        'cost_breakdown': record['cost_breakdown'],
     }
 
     attributes = json.loads(record['attributes'])
@@ -66,7 +75,7 @@ def batch_record_to_dict(record):
     return d
 
 
-def job_record_to_dict(record, name):
+def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> Dict[str, Any]:
     format_version = BatchFormatVersion(record['format_version'])
 
     db_status = record['status']
@@ -76,6 +85,9 @@ def job_record_to_dict(record, name):
     else:
         exit_code = None
         duration = None
+
+    if record['cost_breakdown'] is not None:
+        record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
     result = {
         'batch_id': record['batch_id'],
@@ -88,6 +100,7 @@ def job_record_to_dict(record, name):
         'duration': duration,
         'cost': coalesce(record.get('cost'), 0),
         'msec_mcpu': record['msec_mcpu'],
+        'cost_breakdown': record['cost_breakdown'],
     }
 
     return result
@@ -112,4 +125,4 @@ FOR UPDATE;
 
         await tx.just_execute('CALL cancel_batch(%s);', (batch_id,))
 
-    await cancel()  # pylint: disable=no-value-for-parameter
+    await cancel()

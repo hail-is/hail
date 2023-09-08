@@ -1,34 +1,9 @@
-from typing import Any, Dict, List, Optional, Union
-import asyncio
-import contextlib
+from typing import Any, Dict, List, Optional
 
+from hailtop.utils import async_to_blocking, ait_to_blocking
 from ..config import DeployConfig
 from . import aioclient
 from .. import httpx
-
-
-def async_to_blocking(coro):
-    loop = asyncio.get_event_loop()
-    task = asyncio.ensure_future(coro)
-    try:
-        return loop.run_until_complete(task)
-    finally:
-        if not task.done():
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                loop.run_until_complete(task)
-
-
-def sync_anext(ait):
-    return async_to_blocking(ait.__anext__())
-
-
-def agen_to_blocking(agen):
-    while True:
-        try:
-            yield sync_anext(agen)
-        except StopAsyncIteration:
-            break
 
 
 class Job:
@@ -56,15 +31,8 @@ class Job:
     def total_duration_msecs(job_status):
         return aioclient.Job.total_duration_msecs(job_status)
 
-    @classmethod
-    def from_async_job(cls, job: aioclient.Job):
-        j = object.__new__(cls)
-        j._async_job = job
-        return j
-
-    def __init__(self, batch: aioclient.Batch, job_id: int, _status=None):
-        j = aioclient.SubmittedJob(batch, job_id, _status)
-        self._async_job: aioclient.Job = aioclient.Job(j)
+    def __init__(self, async_job: aioclient.Job):
+        self._async_job: aioclient.Job = async_job
 
     @property
     def _status(self):
@@ -115,6 +83,9 @@ class Job:
     def wait(self):
         return async_to_blocking(self._async_job.wait())
 
+    def _wait_for_states(self, *states: str):
+        return async_to_blocking(self._async_job._wait_for_states(*states))
+
     def container_log(self, container_name):
         return async_to_blocking(self._async_job.container_log(container_name))
 
@@ -126,14 +97,18 @@ class Job:
 
 
 class Batch:
-    @classmethod
-    def from_async_batch(cls, batch: aioclient.Batch):
-        b = object.__new__(cls)
-        b._async_batch = batch
-        return b
+    @staticmethod
+    def _open_batch(client: 'BatchClient', token: Optional[str] = None) -> 'Batch':
+        async_batch = client.create_batch(token=token)._async_batch
+        async_to_blocking(async_batch._open_batch())
+        return Batch(async_batch)
 
-    def __init__(self, client, id, attributes, token):
-        self._async_batch: aioclient.Batch = aioclient.Batch(client, id, attributes, token)
+    def __init__(self, async_batch: aioclient.Batch):
+        self._async_batch = async_batch
+
+    @property
+    def is_created(self) -> bool:
+        return self._async_batch.is_created
 
     @property
     def id(self) -> int:
@@ -148,8 +123,8 @@ class Batch:
         return self._async_batch.token
 
     @property
-    def submission_info(self):
-        return self._async_batch.submission_info
+    def _submission_info(self):
+        return self._async_batch._submission_info
 
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
@@ -182,13 +157,13 @@ class Batch:
         return async_to_blocking(self._async_batch.last_known_status())
 
     def jobs(self, q=None, version=None):
-        return agen_to_blocking(self._async_batch.jobs(q=q, version=version))
+        return ait_to_blocking(self._async_batch.jobs(q=q, version=version))
 
     def get_job(self, job_id: int) -> Job:
         j = async_to_blocking(self._async_batch.get_job(job_id))
-        return Job.from_async_job(j)
+        return Job(j)
 
-    def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
+    def get_job_log(self, job_id: int) -> Dict[str, Any]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
 
     def wait(self, *args, **kwargs):
@@ -199,34 +174,6 @@ class Batch:
 
     def delete(self):
         async_to_blocking(self._async_batch.delete())
-
-
-class BatchBuilder:
-    @classmethod
-    def from_async_builder(cls, builder: aioclient.BatchBuilder, batch: Optional[Batch] = None) -> 'BatchBuilder':
-        b = object.__new__(cls)
-        b._async_builder = builder
-        b._batch = batch
-        return b
-
-    def __init__(self, client, attributes, callback, token: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None, batch: Optional[Batch] = None):
-        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(
-            client, attributes=attributes, callback=callback, token=token, cancel_after_n_failures=cancel_after_n_failures
-        )
-        self._batch = batch
-
-    @property
-    def attributes(self):
-        return self._async_builder.attributes
-
-    @property
-    def callback(self):
-        return self._async_builder.callback
-
-    @property
-    def token(self):
-        return self._async_builder.token
 
     def create_job(self,
                    image,
@@ -244,7 +191,7 @@ class BatchBuilder:
         if parents:
             parents = [parent._async_job for parent in parents]
 
-        async_job = self._async_builder.create_job(
+        async_job = self._async_batch.create_job(
             image, command, env=env,
             port=port, resources=resources, secrets=secrets,
             service_account=service_account,
@@ -255,26 +202,18 @@ class BatchBuilder:
             network=network, unconfined=unconfined, user_code=user_code,
             regions=regions)
 
-        return Job.from_async_job(async_job)
+        return Job(async_job)
 
     def create_jvm_job(self, command, *, profile: bool = False, parents=None, **kwargs) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 
-        async_job = self._async_builder.create_jvm_job(command, profile=profile, parents=parents, **kwargs)
+        async_job = self._async_batch.create_jvm_job(command, profile=profile, parents=parents, **kwargs)
 
-        return Job.from_async_job(async_job)
+        return Job(async_job)
 
-    def _open_batch(self) -> Batch:
-        async_batch = async_to_blocking(self._async_builder._open_batch())
-        return Batch.from_async_batch(async_batch)
-
-    def submit(self, *args, **kwargs) -> Batch:
-        async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
-        if self._batch is None:
-            batch = Batch.from_async_batch(async_batch)
-            self._batch = batch
-        return self._batch
+    def submit(self, *args, **kwargs):
+        async_to_blocking(self._async_batch.submit(*args, **kwargs))
 
 
 class BatchClient:
@@ -301,13 +240,13 @@ class BatchClient:
     def reset_billing_project(self, billing_project):
         self._async_client.reset_billing_project(billing_project)
 
-    def list_batches(self, q=None, last_batch_id=None, limit=2**64):
-        for b in agen_to_blocking(self._async_client.list_batches(q=q, last_batch_id=last_batch_id, limit=limit)):
-            yield Batch.from_async_batch(b)
+    def list_batches(self, q=None, last_batch_id=None, limit=2**64, version=None):
+        for b in ait_to_blocking(self._async_client.list_batches(q=q, last_batch_id=last_batch_id, limit=limit, version=version)):
+            yield Batch(b)
 
     def get_job(self, batch_id, job_id):
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
-        return Job.from_async_job(j)
+        return Job(j)
 
     def get_job_log(self, batch_id, job_id) -> Optional[Dict[str, Any]]:
         log = async_to_blocking(self._async_client.get_job_log(batch_id, job_id))
@@ -319,24 +258,19 @@ class BatchClient:
 
     def get_batch(self, id):
         b = async_to_blocking(self._async_client.get_batch(id))
-        return Batch.from_async_batch(b)
+        return Batch(b)
 
     def create_batch(self,
                      attributes=None,
                      callback=None,
                      token=None,
                      cancel_after_n_failures=None
-                     ) -> 'BatchBuilder':
-        builder = self._async_client.create_batch(attributes=attributes, callback=callback, token=token,
-                                                  cancel_after_n_failures=cancel_after_n_failures)
-        return BatchBuilder.from_async_builder(builder)
-
-    def update_batch(self, batch: Union[int, Batch]) -> 'BatchBuilder':
-        _batch = batch._async_batch if isinstance(batch, Batch) else batch
-        batch_builder = async_to_blocking(self._async_client.update_batch(_batch))
-        if isinstance(batch, Batch):
-            return BatchBuilder.from_async_builder(batch_builder, batch=batch)
-        return BatchBuilder.from_async_builder(batch_builder, batch=None)
+                     ) -> 'Batch':
+        batch = self._async_client.create_batch(attributes=attributes,
+                                                callback=callback,
+                                                token=token,
+                                                cancel_after_n_failures=cancel_after_n_failures)
+        return Batch(batch)
 
     def get_billing_project(self, billing_project):
         return async_to_blocking(self._async_client.get_billing_project(billing_project))

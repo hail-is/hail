@@ -1134,6 +1134,17 @@ object PruneDeadFields {
           uses(curVals, bodyEnv.eval).map(TIterable.elementType) :+ selectKey(eltType, key)
         )
         unifyEnvsSeq(as.map(memoizeValueIR(ctx, _, TStream(childRequestedEltType), memo)))
+      case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, joinF) =>
+        val baseEltType = tcoerce[TStruct](TIterable.elementType(makeProducer.typ))
+        val requestedEltType = tcoerce[TStream](requestedType).elementType
+        val bodyEnv = memoizeValueIR(ctx, joinF, requestedEltType, memo)
+        val producerRequestedEltType = unifySeq(
+          baseEltType,
+          uses(curVals, bodyEnv.eval).map(TIterable.elementType) :+ selectKey(baseEltType, key)
+        )
+        val producerEnv = memoizeValueIR(ctx, makeProducer, TStream(producerRequestedEltType), memo)
+        val ctxEnv = memoizeValueIR(ctx, contexts, TArray(unifySeq(TIterable.elementType(contexts.typ), uses(ctxName, producerEnv.eval))), memo)
+        unifyEnvsSeq(Array(bodyEnv, producerEnv, ctxEnv))
       case StreamMultiMerge(as, key) =>
         val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
         val requestedEltType = tcoerce[TStream](requestedType).elementType
@@ -1926,6 +1937,16 @@ object PruneDeadFields {
           env.bindEval(curKey -> selectKey(newEltType, key), curVals -> TArray(newEltType)),
           memo)
         StreamZipJoin(newAs, key, curKey, curVals, newJoinF)
+      case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, joinF) =>
+        val newContexts = rebuildIR(ctx, contexts, env, memo)
+        val newCtxType = TIterable.elementType(newContexts.typ)
+        val newMakeProducer = rebuildIR(ctx, makeProducer, env.bindEval(ctxName, newCtxType), memo)
+        val newEltType = TIterable.elementType(newMakeProducer.typ).asInstanceOf[TStruct]
+        val newJoinF = rebuildIR(ctx,
+          joinF,
+          env.bindEval(curKey -> selectKey(newEltType, key), curVals -> TArray(newEltType)),
+          memo)
+        StreamZipJoinProducers(newContexts, ctxName, newMakeProducer,key, curKey, curVals, newJoinF)
       case StreamMultiMerge(as, key) =>
         val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
         val requestedEltType = tcoerce[TStream](requestedType).elementType

@@ -1,0 +1,13 @@
+{% from "job-table.html" import job_table with context %}
+{% macro filtered_jobs(running, failed, pending, completed) %}
+{% if jobs.items()|length %}
+  {% for state, state_jobs in jobs.items() %}
+    {% if state_jobs|length %}
+      <h3>{{ state.capitalize() }}</h3>
+      {{ job_table(state_jobs, "{{ state }}-jobs", "{{ state }}JobsSearchBar") }}
+    {% endif %}
+  {% endfor %}
+{% else %}
+  <div>No jobs found.</div>
+{% endif %}
+{% endmacro %}

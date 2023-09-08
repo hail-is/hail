@@ -350,7 +350,9 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                     if max_regional_maybe_cost is None or maybe_cost > max_regional_maybe_cost:
                         max_regional_maybe_cost = maybe_cost
 
-                if optimal_cost is None or max_regional_maybe_cost < optimal_cost:
+                if optimal_cost is None or (
+                    max_regional_maybe_cost is not None and max_regional_maybe_cost < optimal_cost
+                ):
                     optimal_cost = max_regional_maybe_cost
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result

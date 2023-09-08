@@ -41,9 +41,11 @@ def create_vm_config(
     ssh_public_key: str,
     max_price: Optional[float],
     instance_config: InstanceConfig,
+    feature_flags: dict,
 ) -> dict:
     _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
 
+    hail_azure_oauth_scope = os.environ['HAIL_AZURE_OAUTH_SCOPE']
     region = instance_config.region_for(location)
 
     if max_price is not None and not preemptible:
@@ -204,6 +206,7 @@ BATCH_WORKER_IMAGE=$(jq -r '.batch_worker_image' userdata)
 DOCKER_ROOT_IMAGE=$(jq -r '.docker_root_image' userdata)
 DOCKER_PREFIX=$(jq -r '.docker_prefix' userdata)
 REGION=$(jq -r '.region' userdata)
+HAIL_AZURE_OAUTH_SCOPE=$(jq -r '.hail_azure_oauth_scope' userdata)
 
 INTERNAL_GATEWAY_IP=$(jq -r '.internal_ip' userdata)
 
@@ -245,6 +248,7 @@ BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}
 
 # So here I go it's my shot.
 docker run \
+--name worker \
 -e CLOUD=azure \
 -e CORES=$CORES \
 -e NAME=$NAME \
@@ -257,6 +261,7 @@ docker run \
 -e RESOURCE_GROUP=$RESOURCE_GROUP \
 -e LOCATION=$LOCATION \
 -e REGION=$REGION \
+-e HAIL_AZURE_OAUTH_SCOPE=$HAIL_AZURE_OAUTH_SCOPE \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
@@ -270,7 +275,6 @@ docker run \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \
 -v /usr/bin/docker:/usr/bin/docker \
--v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /global-config:/global-config \
@@ -288,6 +292,7 @@ docker run \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
 --network host \
+--cgroupns host \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 
@@ -312,10 +317,38 @@ done
         'max_idle_time_msecs': max_idle_time_msecs,
         'instance_config': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
         'region': region,
+        'hail_azure_oauth_scope': hail_azure_oauth_scope,
     }
     user_data_str = base64.b64encode(json.dumps(user_data).encode('utf-8')).decode('utf-8')
 
     tags = {'namespace': DEFAULT_NAMESPACE, 'batch-worker': '1'}
+
+    vm_resources = []
+
+    if feature_flags['oms_agent']:
+        vm_resources.append(
+            {
+                'apiVersion': '2018-06-01',
+                'type': 'extensions',
+                'name': 'OMSExtension',
+                'location': "[parameters('location')]",
+                'tags': tags,
+                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
+                'properties': {
+                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
+                    'type': 'OmsAgentForLinux',
+                    'typeHandlerVersion': '1.13',
+                    'autoUpgradeMinorVersion': False,
+                    'enableAutomaticUpgrade': False,
+                    'settings': {
+                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
+                    },
+                    'protectedSettings': {
+                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
+                    },
+                },
+            },
+        )
 
     vm_config: Dict[str, Any] = {
         'apiVersion': '2021-03-01',
@@ -369,29 +402,7 @@ done
             },
             'userData': "[parameters('userData')]",
         },
-        'resources': [
-            {
-                'apiVersion': '2018-06-01',
-                'type': 'extensions',
-                'name': 'OMSExtension',
-                'location': "[parameters('location')]",
-                'tags': tags,
-                'dependsOn': ["[concat('Microsoft.Compute/virtualMachines/', parameters('vmName'))]"],
-                'properties': {
-                    'publisher': 'Microsoft.EnterpriseCloud.Monitoring',
-                    'type': 'OmsAgentForLinux',
-                    'typeHandlerVersion': '1.13',
-                    'autoUpgradeMinorVersion': False,
-                    'enableAutomaticUpgrade': False,
-                    'settings': {
-                        'workspaceId': "[reference(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').customerId]"
-                    },
-                    'protectedSettings': {
-                        'workspaceKey': "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces/', parameters('workspaceName')), '2015-03-20').primarySharedKey]"
-                    },
-                },
-            },
-        ],
+        'resources': vm_resources,
     }
 
     properties = vm_config['properties']
@@ -420,7 +431,7 @@ done
                 'imageReference': {
                     'value': {
                         'id': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/'
-                        f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker/versions/0.0.12'
+                        f'Microsoft.Compute/galleries/{resource_group}_batch/images/batch-worker-22-04/versions/0.0.13'
                     }
                 },
                 'workspaceName': {

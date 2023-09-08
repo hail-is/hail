@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import prometheus_client as pc
 import sortedcontainers
@@ -204,10 +204,10 @@ WHERE removed = 0 AND inst_coll = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
-    def get_instance(self, cores_mcpu: int, regions: List[str]):
+    def get_instance(self, cores_mcpu: int, regions: List[str]) -> Optional[Instance]:
         i = self.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
         while i < len(self.healthy_instances_by_free_cores):
-            instance = self.healthy_instances_by_free_cores[i]
+            instance: Instance = self.healthy_instances_by_free_cores[i]  # type: ignore
             assert cores_mcpu <= instance.free_cores_mcpu
             if instance.region in regions and instance.version == INSTANCE_VERSION:
                 return instance
@@ -375,7 +375,7 @@ LIMIT {self.max_new_instances_per_autoscaler_loop * self.worker_cores};
             query_name='get_job_queue_head',
         )
 
-        def extract_regions(regions_bits_rep):
+        def extract_regions(regions_bits_rep: int):
             if regions_bits_rep is None:
                 return self.all_supported_regions
             return regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
@@ -542,7 +542,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             lowest_total = None
 
             if pending_users_by_running_cores:
-                lowest_running_user = pending_users_by_running_cores[0]
+                lowest_running_user: str = pending_users_by_running_cores[0]  # type: ignore
                 lowest_running = user_running_cores_mcpu[lowest_running_user]
                 if lowest_running == mark:
                     pending_users_by_running_cores.remove(lowest_running_user)
@@ -550,7 +550,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
                     continue
 
             if allocating_users_by_total_cores:
-                lowest_total_user = allocating_users_by_total_cores[0]
+                lowest_total_user: str = allocating_users_by_total_cores[0]  # type: ignore
                 lowest_total = user_total_cores_mcpu[lowest_total_user]
                 if lowest_total == mark:
                     allocating_users_by_total_cores.remove(lowest_total_user)
@@ -621,8 +621,9 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
@@ -638,8 +639,9 @@ LIMIT 300;
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         '''
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
 ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;

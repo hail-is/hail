@@ -1,7 +1,7 @@
 import os
 import warnings
 import re
-from typing import Callable, Optional, Dict, Union, List, Any, Set
+from typing import Callable, Optional, Dict, Union, List, Any, Set, Literal, overload
 from io import BytesIO
 import dill
 
@@ -10,7 +10,7 @@ from hailtop.aiotools import AsyncFS
 from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch_client.client as _bc
-from hailtop.config import configuration_of
+from hailtop.config import ConfigVariable, configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -85,7 +85,11 @@ class Batch:
         any repository prefix and tags if desired (default tag is `latest`).  The image must have
         the `dill` Python package installed and have the same version of Python installed that is
         currently running. If `None`, a compatible Python image with `dill` pre-installed will
-        automatically be used if the current Python version is 3.8, 3.9, or 3.10.
+        automatically be used if the current Python version is 3.9, or 3.10.
+    default_spot:
+        If unspecified or ``True``, jobs will run by default on spot instances. If ``False``, jobs
+        will run by default on non-spot instances. Each job can override this setting with
+        :meth:`.Job.spot`.
     project:
         DEPRECATED: please specify `google_project` on the ServiceBackend instead. If specified,
         the project to use when authenticating with Google Storage. Google Storage is used to
@@ -150,6 +154,7 @@ class Batch:
                  default_timeout: Optional[Union[float, int]] = None,
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
+                 default_spot: Optional[bool] = None,
                  project: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None):
         self._jobs: List[job.Job] = []
@@ -162,7 +167,7 @@ class Batch:
         if backend:
             self._backend = backend
         else:
-            backend_config = configuration_of('batch', 'backend', None, 'local')
+            backend_config = configuration_of(ConfigVariable.BATCH_BACKEND, None, 'local')
             if backend_config == 'service':
                 self._backend = _backend.ServiceBackend()
             else:
@@ -186,6 +191,7 @@ class Batch:
         self._default_timeout = default_timeout
         self._default_shell = default_shell
         self._default_python_image = default_python_image
+        self._default_spot = default_spot
 
         if project is not None:
             warnings.warn(
@@ -310,6 +316,8 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+        if self._default_spot is not None:
+            j.spot(self._default_spot)
 
         if isinstance(self._backend, _backend.ServiceBackend):
             j.regions(self._backend.regions)
@@ -331,7 +339,7 @@ class Batch:
 
         .. code-block:: python
 
-            b = Batch(default_python_image='hailgenetics/python-dill:3.8-slim')
+            b = Batch(default_python_image='hailgenetics/python-dill:3.9-slim')
 
             def hello(name):
                 return f'hello {name}'
@@ -382,6 +390,8 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+        if self._default_spot is not None:
+            j.spot(self._default_spot)
 
         if isinstance(self._backend, _backend.ServiceBackend):
             j.regions(self._backend.regions)
@@ -633,11 +643,15 @@ class Batch:
 
         return [job for job in self._jobs if job.name is not None and re.match(pattern, job.name) is not None]
 
+    @overload
+    def run(self, dry_run: Literal[False] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> _bc.Batch: ...
+    @overload
+    def run(self, dry_run: Literal[True] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> None: ...
     def run(self,
             dry_run: bool = False,
             verbose: bool = False,
             delete_scratch_on_exit: bool = True,
-            **backend_kwargs: Any):
+            **backend_kwargs: Any) -> Optional[_bc.Batch]:
         """
         Execute a batch.
 
@@ -695,6 +709,7 @@ class Batch:
             async_to_blocking(self._DEPRECATED_fs.close())
             self._DEPRECATED_fs = None
         return run_result
+
 
     def __str__(self):
         return self._uid

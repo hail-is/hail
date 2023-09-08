@@ -30,10 +30,30 @@ package object services {
       s
   }
 
-  def sleepAndBackoff(delay: Double): Double = {
-    val t = delay * Random.nextDouble()
-    Thread.sleep((t * 1000).toInt)  // in ms
-    math.min(delay * 2, 60.0)
+  private[this] val LOG_2_MAX_MULTIPLIER = 30  // do not set larger than 30 due to integer overflow calculating multiplier
+  private[this] val DEFAULT_MAX_DELAY_MS = 60000
+  private[this] val DEFAULT_BASE_DELAY_MS = 1000
+
+  def delayMsForTry(
+    tries: Int,
+    baseDelayMs: Int = DEFAULT_BASE_DELAY_MS,
+    maxDelayMs: Int = DEFAULT_MAX_DELAY_MS
+  ): Int = {
+    // Based on AWS' recommendations:
+    // - https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+    // - https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java
+    val multiplier = 1 << math.min(tries, LOG_2_MAX_MULTIPLIER)
+    val ceilingForDelayMs = baseDelayMs * multiplier
+    val proposedDelayMs = ceilingForDelayMs / 2 + Random.nextInt(ceilingForDelayMs / 2 + 1)
+    return math.min(proposedDelayMs, maxDelayMs)
+  }
+
+  def sleepBeforTry(
+    tries: Int,
+    baseDelayMs: Int = DEFAULT_BASE_DELAY_MS,
+    maxDelayMs: Int = DEFAULT_MAX_DELAY_MS
+  ) = {
+    Thread.sleep(delayMsForTry(tries, baseDelayMs, maxDelayMs))
   }
 
   def isLimitedRetriesError(_e: Throwable): Boolean = {
@@ -82,6 +102,28 @@ package object services {
         true
       case e: HttpResponseException
           if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
+        true
+      case e: HttpResponseException
+          if (e.getStatusCode() == 410 &&
+            e.getMessage != null &&
+            e.getMessage.contains("\"code\": 503,") &&
+            e.getMessage.contains("\"message\": \"Backend Error\",")
+          ) =>
+        // hail.utils.java.FatalError: HttpResponseException: 410 Gone
+        // PUT https://storage.googleapis.com/upload/storage/v1/b/hail-test-ezlis/o?name=tmp/hail/nBHPQsrxGvJ4T7Ybdp1IjQ/persist_TableObF6TwC6hv/rows/metadata.json.gz&uploadType=resumable&upload_id=ADPycdsFEtq65NC-ahk6tt6qdD3bKC3asqVSJELnirlpLG_ZDV_637Nn7NourXYTgMRKlX3bQVe9BfD_QfIP_kupTxVQyrJWQJrj
+        // {
+        //   "error": {
+        //     "code": 503,
+        //     "message": "Backend Error",
+        //     "errors": [
+        //       {
+        //         "message": "Backend Error",
+        //         "domain": "global",
+        //         "reason": "backendError"
+        //       }
+        //     ]
+        //   }
+        // }
         true
       case e: ClientResponseException
           if RETRYABLE_HTTP_STATUS_CODES.contains(e.status) =>
@@ -134,26 +176,26 @@ package object services {
   }
 
   def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T = {
-    var delay = 0.1
-    var errors = 0
+    var tries = 0
     while (true) {
       try {
         return f
       } catch {
         case e: Exception =>
-          errors += 1
-          if (errors <= 5 && isLimitedRetriesError(e)) {
+          tries += 1
+          val delay = delayMsForTry(tries)
+          if (tries <= 5 && isLimitedRetriesError(e)) {
             log.warn(
               s"A limited retry error has occured. We will automatically retry " +
-                s"${5 - errors} more times. Do not be alarmed. (current delay: " +
+                s"${5 - tries} more times. Do not be alarmed. (next delay: " +
                 s"$delay). The most recent error was $e.")
           } else if (!isTransientError(e)) {
             throw e
-          } else if (errors % 10 == 0) {
-            log.warn(s"Encountered $errors transient errors, most recent one was $e.")
+          } else if (tries % 10 == 0) {
+            log.warn(s"Encountered $tries transient errors, most recent one was $e.")
           }
+          Thread.sleep(delay)
       }
-      delay = sleepAndBackoff(delay)
       reset.foreach(_())
     }
 

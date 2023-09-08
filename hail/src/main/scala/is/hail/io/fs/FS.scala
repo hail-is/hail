@@ -237,7 +237,7 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
 }
 
 object FS {
-  def cloudSpecificCacheableFS(
+  def cloudSpecificFS(
     credentialsPath: String,
     flags: Option[HailFeatureFlags]
   ): FS = retryTransientErrors {
@@ -250,9 +250,9 @@ object FS {
               flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
             )
           }
-          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()
+          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration)
         case Some("azure") =>
-          new AzureStorageFS(credentialsStr).asCacheable()
+          new AzureStorageFS(credentialsStr)
         case Some(cloud) =>
           throw new IllegalArgumentException(s"Bad cloud: $cloud")
         case None =>
@@ -328,8 +328,7 @@ trait FS extends Serializable {
       ""
   }
 
-  final def openNoCompression(filename: String): SeekableDataInputStream = openNoCompression(filename, false)
-  def openNoCompression(filename: String, _debug: Boolean): SeekableDataInputStream
+  def openNoCompression(filename: String): SeekableDataInputStream
 
   def readNoCompression(filename: String): Array[Byte] = retryTransientErrors {
     using(openNoCompression(filename)) { is =>
@@ -411,8 +410,8 @@ trait FS extends Serializable {
       new Thread(() => delete(filename, recursive = false)))
   }
 
-  def open(path: String, codec: CompressionCodec, _debug: Boolean = false): InputStream = {
-    val is = openNoCompression(path, _debug)
+  def open(path: String, codec: CompressionCodec): InputStream = {
+    val is = openNoCompression(path)
     if (codec != null)
       codec.makeInputStream(is)
     else

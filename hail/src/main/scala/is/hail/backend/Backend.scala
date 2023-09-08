@@ -86,18 +86,28 @@ abstract class Backend {
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
-    rt: RTable
+    rt: RTable,
+    nPartitions: Option[Int]
   ): TableReader
+
+  final def lowerDistributedSort(
+    ctx: ExecuteContext,
+    stage: TableStage,
+    sortFields: IndexedSeq[SortField],
+    rt: RTable
+  ): TableReader =
+    lowerDistributedSort(ctx, stage, sortFields, rt, None)
 
   final def lowerDistributedSort(
     ctx: ExecuteContext,
     inputIR: TableIR,
     sortFields: IndexedSeq[SortField],
-    rt: RTable
+    rt: RTable,
+    nPartitions: Option[Int] = None
   ): TableReader = {
     val analyses = LoweringAnalyses.apply(inputIR, ctx)
     val inputStage = tableToTableStage(ctx, inputIR, analyses)
-    lowerDistributedSort(ctx, inputStage, sortFields, rt)
+    lowerDistributedSort(ctx, inputStage, sortFields, rt, nPartitions)
   }
 
   def tableToTableStage(ctx: ExecuteContext,

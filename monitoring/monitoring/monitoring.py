@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from collections import defaultdict, namedtuple
-from typing import Dict
+from typing import Any, Dict, List
 
 import aiohttp_session
 import prometheus_client as pc  # type: ignore
@@ -65,10 +65,10 @@ def get_last_day_month(dt):
     return datetime.datetime(dt.year, dt.month, last_day)
 
 
-def format_data(records):
+def format_data(records: List[Dict[str, Any]]):
     cost_by_service: Dict[str, int] = defaultdict(int)
     compute_cost_breakdown: Dict[str, int] = defaultdict(int)
-    cost_by_sku_source = []
+    cost_by_sku_source: List[Dict[str, Any]] = []
 
     for record in records:
         cost_by_sku_source.append(record)
@@ -106,7 +106,7 @@ def format_data(records):
     return (str_cost_by_service, str_compute_cost_breakdown, cost_by_sku_source)
 
 
-async def _billing(request):
+async def _billing(request: web.Request):
     app = request.app
     date_format = '%m/%Y'
 
@@ -136,7 +136,7 @@ async def _billing(request):
 
 @routes.get('/api/v1alpha/billing')
 @auth.rest_authenticated_developers_only
-async def get_billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
+async def get_billing(request: web.Request, _) -> web.Response:
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     resp = {
         'cost_by_service': cost_by_service,
@@ -231,7 +231,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
                 records,
             )
 
-        await insert()  # pylint: disable=no-value-for-parameter
+        await insert()
 
     log.info('updating billing information')
     now = datetime.datetime.now()

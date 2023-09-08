@@ -242,4 +242,3 @@ table and their types. The types themselves can be accessed using the fields
 ``ht.row.dtype`` and ``ht.globals.dtype``. The row fields that are part of the
 key can be accessed with :attr:`.Table.key`. The :meth:`.Table.count` method
 returns the number of rows.
-

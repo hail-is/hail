@@ -23,7 +23,8 @@ class ForwardLetsSuite extends HailSuite {
       ToArray(StreamScan(ToStream(a), I32(0), "acc", "y", ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), Ref("acc", TInt32)))),
       MakeStruct(FastSeq("a" -> ApplyBinaryPrimOp(Add(), x, I32(1)), "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)))),
       MakeTuple.ordered(FastSeq(ApplyBinaryPrimOp(Add(), x, I32(1)), ApplyBinaryPrimOp(Add(), x, I32(2)))),
-      ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, x), I32(1))
+      ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, x), I32(1)),
+      StreamAgg(ToStream(a), "y", ApplyAggOp(Sum())(x + y))
     ).map(ir => Array[IR](Let("x", In(0, TInt32) + In(0, TInt32), ir)))
   }
 
@@ -85,8 +86,9 @@ class ForwardLetsSuite extends HailSuite {
   @Test(dataProvider = "nonForwardingOps")
   def testNonForwardingOps(ir: IR): Unit = {
     val after = ForwardLets(ir)
-    assert(after.isInstanceOf[Let])
-    assertEvalSame(ir, args = Array(5 -> TInt32))
+    val normalizedBefore = (new NormalizeNames(_.toString)).apply(ir)
+    val normalizedAfter = (new NormalizeNames(_.toString)).apply(after)
+    assert(normalizedBefore == normalizedAfter)
   }
 
   @Test(dataProvider = "nonForwardingNonEvalOps")

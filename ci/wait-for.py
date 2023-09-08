@@ -32,7 +32,7 @@ async def wait_for_pod_complete(v1, namespace, name):
                         else:
                             print('error: a container failed')
                             sys.exit(1)
-            except client.rest.ApiException as exc:
+            except client.ApiException as exc:
                 if exc.status == 404:
                     print('info: 404', file=sys.stderr)
                 else:

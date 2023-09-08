@@ -1,13 +1,14 @@
 import os
 import sys
-import re
-import warnings
 
-from typing import Optional, Tuple
-from typing_extensions import Annotated as Ann
+from typing import Optional, Tuple, Annotated as Ann
+from rich import print
 
 import typer
 from typer import Argument as Arg
+
+from hailtop.config.variables import ConfigVariable
+from .config_variables import config_variables
 
 
 app = typer.Typer(
@@ -30,7 +31,7 @@ Parameters must contain at most one slash separating the configuration section
 from the configuration parameter, for example: "batch/billing_project".
 
 Parameters may also have no slashes, indicating the parameter is a global
-parameter, for example: "email".
+parameter, for example: "domain".
 
 A parameter with more than one slash is invalid, for example:
 "batch/billing/project".
@@ -42,35 +43,32 @@ A parameter with more than one slash is invalid, for example:
     sys.exit(1)
 
 
+def complete_config_variable(incomplete: str):
+    for var, var_info in config_variables().items():
+        if var.value.startswith(incomplete):
+            yield (var.value, var_info.help_msg)
+
+
 @app.command()
-def set(parameter: str, value: str):
+def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)], value: str):
     '''Set a Hail configuration parameter.'''
-    from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
     from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
+
+    if parameter not in config_variables():
+        print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
+        sys.exit(1)
+
+    section, key, _ = get_section_key_path(parameter.value)
+
+    config_variable_info = config_variables()[parameter]
+    validation_func, error_msg  = config_variable_info.validation
+
+    if not validation_func(value):
+        print(f"Error: bad value {value!r} for parameter {parameter!r} {error_msg}", file=sys.stderr)
+        sys.exit(1)
 
     config = get_user_config()
     config_file = get_user_config_path()
-    section, key, path = get_section_key_path(parameter)
-
-    validations = {
-        ('batch', 'bucket'): (
-            lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,
-            'should be valid Google Bucket identifier, with no gs:// prefix',
-        ),
-        ('batch', 'remote_tmpdir'): (
-            RouterAsyncFS.valid_url,
-            'should be valid cloud storage URI such as gs://my-bucket/batch-tmp/',
-        ),
-        ('email',): (lambda x: re.fullmatch(r'.+@.+', x) is not None, 'should be valid email address'),
-    }
-
-    validation_func, msg = validations.get(path, (lambda _: True, ''))  # type: ignore
-    if not validation_func(value):
-        print(f"Error: bad value {value!r} for parameter {parameter!r} {msg}", file=sys.stderr)
-        sys.exit(1)
-
-    if path == ('batch', 'bucket'):
-        warnings.warn("'batch/bucket' has been deprecated. Use 'batch/remote_tmpdir' instead.")
 
     if section not in config:
         config[section] = {}
@@ -85,8 +83,30 @@ def set(parameter: str, value: str):
         config.write(f)
 
 
+def get_config_variable(incomplete: str):
+    from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel
+
+    config = get_user_config()
+
+    elements = []
+    for section_name, section in config.items():
+        for item_name, value in section.items():
+            if section_name == 'global':
+                path = item_name
+            else:
+                path = f'{section_name}/{item_name}'
+            elements.append((path, value))
+
+    config_items = {var.name: var_info.help_msg for var, var_info in config_variables().items()}
+
+    for name, _ in elements:
+        if name.startswith(incomplete):
+            help_msg = config_items.get(name)
+            yield (name, help_msg)
+
+
 @app.command()
-def unset(parameter: str):
+def unset(parameter: Ann[str, Arg(help="Configuration variable to unset", autocompletion=get_config_variable)]):
     '''Unset a Hail configuration parameter (restore to default behavior).'''
     from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
 
@@ -97,10 +117,12 @@ def unset(parameter: str):
         del config[section][key]
         with open(config_file, 'w', encoding='utf-8') as f:
             config.write(f)
+    else:
+        print(f"WARNING: Unknown parameter {parameter!r}", file=sys.stderr)
 
 
 @app.command()
-def get(parameter: str):
+def get(parameter: Ann[str, Arg(help="Configuration variable to get", autocompletion=get_config_variable)]):
     '''Get the value of a Hail configuration parameter.'''
     from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel
 

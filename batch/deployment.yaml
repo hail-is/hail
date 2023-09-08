@@ -106,6 +106,8 @@ spec:
         app: batch-driver
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
+      annotations:
+        kubectl.kubernetes.io/default-container: batch-driver
     spec:
       serviceAccountName: batch
 {% if deploy %}
@@ -211,6 +213,13 @@ spec:
              secretKeyRef:
                name: global-config
                key: internal_ip
+{% if global.cloud == "azure" %}
+         - name: HAIL_AZURE_OAUTH_SCOPE
+           valueFrom:
+             secretKeyRef:
+               name: auth-oauth2-client-secret
+               key: sp_oauth_scope
+{% endif %}
          - name: HAIL_SHA
            value: "{{ code.sha }}"
 {% if scope != "test" %}
@@ -491,7 +500,7 @@ spec:
            secretName: ssl-config-batch
 {% if deploy %}
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: batch
@@ -506,7 +515,9 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 2500
+       target:
+         type: Utilization
+         averageUtilization: 2500
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

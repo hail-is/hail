@@ -111,8 +111,6 @@ object Worker {
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
-    val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
-    Tokens.set(userTokens)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
 
     log.info(s"is.hail.backend.service.Worker $myRevision")
@@ -121,7 +119,7 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
+    val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
     // FIXME: HACK: working around the memory service until the issue is resolved:
     // https://hail.zulipchat.com/#narrow/stream/223457-Hail-Batch-support/topic/Batch.20Query.3A.20possible.20overloading.20of.20.60memory.60.20service/near/280823230
@@ -162,17 +160,18 @@ object Worker {
         // FIXME: workers should not have backends, but some things do need hail contexts
         new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None))
     }
-    val htc = new ServiceTaskContext(i)
+
     var result: Array[Byte] = null
     var userError: HailException = null
-    try {
-      retryTransientErrors {
-        result = f(context, htc, theHailClassLoader, fs)
+    using(new ServiceTaskContext(i)) { htc =>
+      try {
+        retryTransientErrors {
+          result = f(context, htc, theHailClassLoader, fs)
+        }
+      } catch {
+        case err: HailException => userError = err
       }
-    } catch {
-      case err: HailException => userError = err
     }
-    htc.close()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")

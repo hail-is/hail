@@ -51,10 +51,10 @@ class Locus(object):
         return 'Locus(contig=%s, position=%s, reference_genome=%s)' % (self.contig, self.position, self._rg)
 
     def __eq__(self, other):
-        return (isinstance(other, Locus)
-                and self._contig == other._contig
-                and self._position == other._position
-                and self._rg == other._rg)
+        return ( self._contig   == other._contig and
+                 self._position == other._position and
+                 self._rg       == other._rg
+               ) if isinstance(other, Locus) else NotImplemented
 
     def __hash__(self):
         return hash(self._contig) ^ hash(self._position) ^ hash(self._rg)

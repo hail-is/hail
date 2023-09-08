@@ -15,6 +15,6 @@ if [[ "$(uname)" == 'Linux' ]]; then
 else
 	docker run --rm -it \
         -v ${HAIL_HAIL_DIR}:/hail \
-		python:3.8-slim \
+		python:3.9-slim \
 		/bin/bash -c "pip install 'pip-tools==6.13.0' && cd /hail && pip-compile --upgrade $reqs --output-file=$pinned_reqs"
 fi

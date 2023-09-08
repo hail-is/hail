@@ -904,7 +904,7 @@ def _service_vep(backend: ServiceBackend,
     else:
         vep_typ = vep_config.json_typ
 
-    def build_vep_batch(bb: bc.aioclient.BatchBuilder, vep_input_path: str, vep_output_path: str):
+    def build_vep_batch(b: bc.aioclient.Batch, vep_input_path: str, vep_output_path: str):
         if csq:
             local_output_file = '/io/output'
             vep_command = vep_config.command(
@@ -920,15 +920,15 @@ def _service_vep(backend: ServiceBackend,
                 'VEP_COMMAND': vep_command
             }
             env.update(vep_config.env)
-            bb.create_job(vep_config.image,
-                          vep_config.batch_run_csq_header_command,
-                          attributes={'name': 'csq-header'},
-                          resources={'cpu': '1', 'memory': 'standard'},
-                          cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
-                          output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
-                          regions=vep_config.regions,
-                          requester_pays_project=requester_pays_project,
-                          env=env)
+            b.create_job(vep_config.image,
+                         vep_config.batch_run_csq_header_command,
+                         attributes={'name': 'csq-header'},
+                         resources={'cpu': '1', 'memory': 'standard'},
+                         cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
+                         output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
+                         regions=vep_config.regions,
+                         requester_pays_project=requester_pays_project,
+                         env=env)
 
         for f in hl.hadoop_ls(vep_input_path):
             path = f['path']
@@ -960,25 +960,25 @@ def _service_vep(backend: ServiceBackend,
             }
             env.update(vep_config.env)
 
-            bb.create_job(vep_config.image,
-                          vep_config.batch_run_command,
-                          attributes={'name': f'vep-{part_id}'},
-                          resources={'cpu': '1', 'memory': 'standard'},
-                          input_files=[(path, local_input_file)],
-                          output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
-                          cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
-                          regions=vep_config.regions,
-                          requester_pays_project=requester_pays_project,
-                          env=env)
+            b.create_job(vep_config.image,
+                         vep_config.batch_run_command,
+                         attributes={'name': f'vep-{part_id}'},
+                         resources={'cpu': '1', 'memory': 'standard'},
+                         input_files=[(path, local_input_file)],
+                         output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
+                         cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
+                         regions=vep_config.regions,
+                         requester_pays_project=requester_pays_project,
+                         env=env)
 
     hl.export_vcf(ht, temp_input_directory, parallel='header_per_shard')
 
     starting_job_id = async_to_blocking(backend._batch.status())['n_jobs'] + 1
 
-    bb = backend.bc.update_batch(backend._batch.id)
-    build_vep_batch(bb, temp_input_directory, temp_output_directory)
+    b = bc.client.Batch(backend._batch)
+    build_vep_batch(b, temp_input_directory, temp_output_directory)
 
-    b = bb.submit(disable_progress_bar=True)
+    b.submit(disable_progress_bar=True)
 
     try:
         status = b.wait(description='vep(...)',
@@ -1729,7 +1729,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
                          r_ti_tv=nti / ntv)
 
 
-@typecheck(ds=oneof(hl.MatrixTable, hl.vds.VariantDataset),
+@typecheck(ds=oneof(hl.MatrixTable, lambda: hl.vds.VariantDataset),
            min_af=numeric,
            max_af=numeric,
            min_dp=int,
@@ -1737,7 +1737,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
            min_gq=int,
            ref_AF=nullable(expr_float64))
 def compute_charr(
-        ds: Union[hl.MatrixTable, hl.vds.VariantDataset],
+        ds: Union[hl.MatrixTable, 'hl.vds.VariantDataset'],
         min_af: float = 0.05,
         max_af: float = 0.95,
         min_dp: int = 10,
@@ -1761,7 +1761,11 @@ def compute_charr(
     It is possible to use gnomAD reference allele frequencies with the following:
 
     >>> gnomad_sites = hl.experimental.load_dataset('gnomad_genome_sites', version='3.1.2') # doctest: +SKIP
-    >>> charr_result = hl.compute_charr(mt, ref_af=(1 - gnomad_sites[mt.row_key].freq[1])) # doctest: +SKIP
+    >>> charr_result = hl.compute_charr(mt, ref_af=(1 - gnomad_sites[mt.row_key].freq[0])) # doctest: +SKIP
+
+    If the dataset is loaded from a gvcf and has NON_REF alleles, drop the last allele with the following or load it with the hail vcf combiner:
+
+    >>> mt = mt.key_rows_by(locus=mt.locus, alleles=mt.alleles[:-1])
 
     Parameters
     ----------

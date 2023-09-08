@@ -1054,17 +1054,19 @@ class Tests(unittest.TestCase):
         self.assertTrue(t._same(ref_tab))
 
     def test_union(self):
-        t1 = hl.utils.range_table(5)
+        t1 = hl.utils.range_table(5, 2)
 
-        t2 = hl.utils.range_table(5)
-        t2 = t2.key_by(idx = t2.idx + 5)
+        t2 = hl.utils.range_table(5, 2)
+        t2 = t2.key_by(idx=t2.idx + 5)
 
-        t3 = hl.utils.range_table(5)
-        t3 = t3.key_by(idx = t3.idx + 10)
+        t3 = hl.utils.range_table(5, 2)
+        t3 = t3.key_by(idx=t3.idx + 10)
 
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
-        self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
-                        ._same(hl.utils.range_table(15).key_by()))
+
+        no_key = t1.key_by().union(t2.key_by(), t3.key_by())
+        assert no_key.n_partitions() == 6
+        self.assertTrue(no_key._same(hl.utils.range_table(15).key_by()))
 
     def nested_union(self, N, M):
         t = hl.utils.range_table(N, n_partitions=1)
@@ -1651,7 +1653,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
 
 
 @pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail(strict=True))])
-@test_timeout(3 * 60, local=6 * 60, batch=6 * 60)
+@test_timeout(6 * 60)
 def test_can_process_wide_tables(width):
     path = resource(f'width_scale_tests/{width}.tsv')
     ht = hl.import_table(path, impute=False)
@@ -2502,3 +2504,12 @@ def test_query_table_interval_key():
 def test_large_number_of_partitions():
     ht = hl.utils.range_table(1500, n_partitions=1500)
     ht.collect()
+
+
+def test_range_table_biggest_int():
+    biggest_int32 = (1 << 31) - 1
+    ht = hl.utils.range_table(biggest_int32)
+
+    n = biggest_int32 - 1  # NB: range table is [0, ..., n - 1]
+    expected_sum = n * (n + 1) // 2
+    assert expected_sum == ht.aggregate(hl.agg.sum(hl.int64(ht.idx)))

@@ -1,8 +1,9 @@
 from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict, Iterable, Tuple,
-                    Generic, cast)
-from typing_extensions import Literal
+                    Generic, cast, AsyncIterator, Iterator, Union)
+from typing import Literal, Sequence
+from typing_extensions import ParamSpec
 from types import TracebackType
-import concurrent
+import concurrent.futures
 import contextlib
 import subprocess
 import traceback
@@ -14,8 +15,8 @@ import random
 import logging
 import asyncio
 import aiohttp
-import urllib
-import urllib3
+import urllib.parse
+import urllib3.exceptions
 import secrets
 import socket
 import requests
@@ -44,6 +45,7 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 
 T = TypeVar('T')  # pylint: disable=invalid-name
 U = TypeVar('U')  # pylint: disable=invalid-name
+P = ParamSpec("P")
 
 
 def unpack_comma_delimited_inputs(inputs: List[str]) -> List[str]:
@@ -75,6 +77,10 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
 def cost_str(cost: Optional[int]) -> Optional[str]:
     if cost is None:
         return None
+    if cost == 0.0:
+        return '$0.0000'
+    if cost < 0.0001:
+        return '<$0.0001'
     return f'${cost:.4f}'
 
 
@@ -114,7 +120,7 @@ def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
         yield group
 
 
-def partition(k: int, ls: List[T]) -> Iterable[List[T]]:
+def partition(k: int, ls: Sequence[T]) -> Iterable[Sequence[T]]:
     if k == 0:
         assert not ls
         return []
@@ -155,6 +161,14 @@ def async_to_blocking(coro: Awaitable[T]) -> T:
                 loop.run_until_complete(task)
 
 
+def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
+    while True:
+        try:
+            yield async_to_blocking(ait.__anext__())
+        except StopAsyncIteration:
+            break
+
+
 async def blocking_to_async(thread_pool: concurrent.futures.Executor,
                             fun: Callable[..., T],
                             *args,
@@ -185,7 +199,7 @@ class AsyncThrottledGather(Generic[T]):
         self._done = asyncio.Event()
         self._return_exceptions = return_exceptions
 
-        self._results: List[Optional[T]] = [None] * len(pfs)
+        self._results: List[Union[T, Exception, None]] = [None] * len(pfs)
         self._errors: List[BaseException] = []
 
         self._workers = []
@@ -466,7 +480,7 @@ class OnlineBoundedGather2:
 async def bounded_gather2_return_exceptions(
         sema: asyncio.Semaphore,
         *pfs: Callable[[], Awaitable[T]]
-) -> List[T]:
+) -> List[Union[Tuple[T, None], Tuple[None, Optional[BaseException]]]]:
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the desired level of parallelism.
@@ -476,7 +490,7 @@ async def bounded_gather2_return_exceptions(
     `(None, exc)` if the partial function raised the exception `exc`.
 
     '''
-    async def run_with_sema_return_exceptions(pf):
+    async def run_with_sema_return_exceptions(pf: Callable[[], Awaitable[T]]):
         try:
             async with sema:
                 return (await pf(), None)
@@ -508,7 +522,7 @@ async def bounded_gather2_raise_exceptions(
     cancel_on_error is True, the unfinished tasks are all cancelled.
 
     '''
-    async def run_with_sema(pf):
+    async def run_with_sema(pf: Callable[[], Awaitable[T]]):
         async with sema:
             return await pf()
 
@@ -539,7 +553,7 @@ async def bounded_gather2(
         cancel_on_error: bool = False
 ) -> List[T]:
     if return_exceptions:
-        return await bounded_gather2_return_exceptions(sema, *pfs)
+        return await bounded_gather2_return_exceptions(sema, *pfs)  # type: ignore
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
@@ -665,7 +679,7 @@ def is_transient_error(e):
         return True
     if isinstance(e, asyncio.TimeoutError):
         return True
-    if (isinstance(e, aiohttp.client_exceptions.ClientConnectorError)
+    if (isinstance(e, aiohttp.ClientConnectorError)
             and hasattr(e, 'os_error')
             and is_transient_error(e.os_error)):
         return True
@@ -703,7 +717,8 @@ def is_transient_error(e):
         if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
             return False
         # DockerError(500, "Head https://gcr.io/v2/genomics-tools/samtools/manifests/latest: unknown: Project 'project:genomics-tools' not found or deleted.")
-        if e.status == 500 and 'not found or deleted' in e.message:
+        # DockerError(500, 'unknown: Tag v1.11.2 was deleted or has expired. To pull, revive via time machine')
+        if e.status == 500 and 'unknown' in e.message:
             return False
         return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):
@@ -721,24 +736,44 @@ def is_delayed_warning_error(e):
     return False
 
 
-async def sleep_and_backoff(delay, max_delay=30.0):
-    # exponentially back off, up to (expected) max_delay
-    t = delay * random.uniform(0.9, 1.1)
-    await asyncio.sleep(t)
-    return min(delay * 2, max_delay)
+LOG_2_MAX_MULTIPLIER = 30  # do not set larger than 30 to avoid BigInt arithmetic
+DEFAULT_MAX_DELAY_MS = 60_000
+DEFAULT_BASE_DELAY_MS = 1_000
 
 
-def sync_sleep_and_backoff(delay):
-    # exponentially back off, up to (expected) max of 30s
-    t = delay * random.uniform(0.9, 1.1)
-    time.sleep(t)
-    return min(delay * 2, 30.0)
+def delay_ms_for_try(
+    tries: int,
+    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
+    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+) -> int:
+    # Based on AWS' recommendations:
+    # - https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+    # - https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java
+    multiplier = 1 << min(tries, LOG_2_MAX_MULTIPLIER)
+    ceiling_for_delay_ms = base_delay_ms * multiplier
+    proposed_delay_ms = ceiling_for_delay_ms // 2 + random.randrange(ceiling_for_delay_ms // 2 + 1)
+    return min(proposed_delay_ms, max_delay_ms)
+
+
+async def sleep_before_try(
+    tries: int,
+    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
+    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+):
+    await asyncio.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
+
+
+def sync_sleep_before_try(
+    tries: int,
+    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
+    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+):
+    time.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
 
 
 def retry_all_errors(msg=None, error_logging_interval=10):
     async def _wrapper(f, *args, **kwargs):
-        delay = 0.1
-        errors = 0
+        tries = 0
         while True:
             try:
                 return await f(*args, **kwargs)
@@ -747,17 +782,16 @@ def retry_all_errors(msg=None, error_logging_interval=10):
             except KeyboardInterrupt:
                 raise
             except Exception:
-                errors += 1
-                if msg and errors % error_logging_interval == 0:
+                tries += 1
+                if msg and tries % error_logging_interval == 0:
                     log.exception(msg, stack_info=True)
-            delay = await sleep_and_backoff(delay)
+            await sleep_before_try(tries)
     return _wrapper
 
 
 def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10):
-    async def _wrapper(f, *args, **kwargs):
-        delay = 0.1
-        errors = 0
+    async def _wrapper(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> T:
+        tries = 0
         while True:
             try:
                 return await f(*args, **kwargs)
@@ -766,12 +800,12 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
             except KeyboardInterrupt:
                 raise
             except Exception:
-                errors += 1
-                if msg and errors % error_logging_interval == 0:
+                tries += 1
+                if msg and tries % error_logging_interval == 0:
                     log.exception(msg, stack_info=True)
-                if errors >= max_errors:
+                if tries >= max_errors:
                     raise
-            delay = await sleep_and_backoff(delay)
+            await sleep_before_try(tries)
     return _wrapper
 
 
@@ -785,70 +819,68 @@ async def retry_transient_errors_with_delayed_warnings(warning_delay_msecs: int,
 
 async def retry_transient_errors_with_debug_string(debug_string: str, warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     start_time = time_msecs()
-    delay = 0.1
-    errors = 0
+    tries = 0
     while True:
         try:
             return await f(*args, **kwargs)
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            errors += 1
-            if errors <= 5 and is_limited_retries_error(e):
+            tries += 1
+            delay = delay_ms_for_try(tries) / 1000.0
+            if tries <= 5 and is_limited_retries_error(e):
                 log.warning(
                     f'A limited retry error has occured. We will automatically retry '
-                    f'{5 - errors} more times. Do not be alarmed. (current delay: '
-                    f'{delay}). The most recent error was {type(e)} {e}. {debug_string}'
+                    f'{5 - tries} more times. Do not be alarmed. (next delay: '
+                    f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}'
                 )
             elif not is_transient_error(e):
                 raise
             else:
                 log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
-                if log_warnings and errors == 2:
+                if log_warnings and tries == 2:
                     log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
-                                f'We have thus far seen {errors} transient errors (current delay: '
-                                f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
-                elif log_warnings and errors % 10 == 0:
+                                f'We have thus far seen {tries} transient errors (next delay: '
+                                f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}')
+                elif log_warnings and tries % 10 == 0:
                     st = ''.join(traceback.format_stack())
                     log.warning(f'A transient error occured. We will automatically retry. '
-                                f'We have thus far seen {errors} transient errors (current delay: '
-                                f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
-        delay = await sleep_and_backoff(delay)
+                                f'We have thus far seen {tries} transient errors (next delay: '
+                                f'{delay}s). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
+        await asyncio.sleep(delay)
 
 
 def sync_retry_transient_errors(f, *args, **kwargs):
-    delay = 0.1
-    errors = 0
+    tries = 0
     while True:
         try:
             return f(*args, **kwargs)
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            errors += 1
-            if errors % 10 == 0:
+            tries += 1
+            if tries % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'Encountered {tries} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
             if is_transient_error(e):
                 pass
             else:
                 raise
-        delay = sync_sleep_and_backoff(delay)
+        sync_sleep_before_try(tries)
 
 
 def retry_response_returning_functions(fun, *args, **kwargs):
-    delay = 0.1
-    errors = 0
+    tries = 0
     response = sync_retry_transient_errors(
         fun, *args, **kwargs)
     while response.status_code in RETRYABLE_HTTP_STATUS_CODES:
-        errors += 1
-        if errors % 10 == 0:
-            log.warning(f'encountered {errors} bad status codes, most recent '
+        tries += 1
+        if tries % 10 == 0:
+            log.warning(f'encountered {tries} bad status codes, most recent '
                         f'one was {response.status_code}')
         response = sync_retry_transient_errors(
             fun, *args, **kwargs)
-        delay = sync_sleep_and_backoff(delay)
+        sync_sleep_before_try(tries)
     return response
 
 
@@ -877,8 +909,8 @@ class TimeoutHTTPAdapter(HTTPAdapter):
             timeout=self.timeout)
 
 
-async def collect_agen(agen):
-    return [x async for x in agen]
+async def collect_aiter(aiter: AsyncIterator[T]) -> List[T]:
+    return [x async for x in aiter]
 
 
 def dump_all_stacktraces():
@@ -887,7 +919,7 @@ def dump_all_stacktraces():
         t.print_stack()
 
 
-async def retry_long_running(name, f, *args, **kwargs):
+async def retry_long_running(name: str, f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> T:
     delay_secs = 0.1
     while True:
         start_time = time_msecs()

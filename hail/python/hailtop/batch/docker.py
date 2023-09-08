@@ -34,7 +34,7 @@ def build_python_image(fullname: str,
     requirements:
         List of pip packages to install.
     python_version:
-        String in the format of `major_version.minor_version` (ex: `3.8`). Defaults to
+        String in the format of `major_version.minor_version` (ex: `3.9`). Defaults to
         current version of Python that is running.
     _tmp_dir:
         Location to place local temporary files used while building the image.
@@ -54,9 +54,9 @@ def build_python_image(fullname: str,
         major_version = int(version[0])
         minor_version = int(version[1])
 
-    if major_version != 3 or minor_version < 8:
+    if major_version != 3 or minor_version < 9:
         raise ValueError(
-            f'Python versions older than 3.8 (you are using {major_version}.{minor_version}) are not supported')
+            f'Python versions older than 3.9 (you are using {major_version}.{minor_version}) are not supported')
 
     base_image = f'hailgenetics/python-dill:{major_version}.{minor_version}-slim'
 

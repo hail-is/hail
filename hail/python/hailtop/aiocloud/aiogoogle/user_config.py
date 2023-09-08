@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 
 from hailtop.config.user_config import configuration_of
+from hailtop.config.variables import ConfigVariable
 
 
 GCSRequesterPaysConfiguration = Union[str, Tuple[str, List[str]]]
@@ -19,8 +20,8 @@ def get_gcs_requester_pays_configuration(
     if gcs_requester_pays_configuration:
         return gcs_requester_pays_configuration
 
-    project = configuration_of('gcs_requester_pays', 'project', None, None)
-    buckets = configuration_of('gcs_requester_pays', 'buckets', None, None)
+    project = configuration_of(ConfigVariable.GCS_REQUESTER_PAYS_PROJECT, None, None)
+    buckets = configuration_of(ConfigVariable.GCS_REQUESTER_PAYS_BUCKETS, None, None)
 
     spark_conf = get_spark_conf_gcs_requester_pays_configuration()
 

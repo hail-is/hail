@@ -6,7 +6,7 @@ import is.hail.annotations.SafeNDArray
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, TableStage}
 import is.hail.methods.ForceCountTable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
@@ -826,7 +826,9 @@ class TableIRSuite extends HailSuite {
 
       def pathsUsed: Seq[String] = FastSeq()
 
-      override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
+      override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = ???
+
+      override def lowerGlobals(ctx: ExecuteContext, requestedType: TStruct): IR = ???
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 
