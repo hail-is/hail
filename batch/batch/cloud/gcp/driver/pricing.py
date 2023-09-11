@@ -318,7 +318,6 @@ def process_compute_sku(sku: dict, regions: List[str]) -> List[GCPComputePrice]:
     for service_region in service_regions:
         if service_region in regions:
             if instance_family == 'g2':
-                log.info(f'SKUID {sku["skuId"]} with description {sku["description"]}')
                 assert sku["skuId"] in G2_CPU_SKUS, sku
             compute_prices.append(
                 GCPComputePrice(instance_family, preemptible, service_region, cost_per_hour, effective_start_date)
@@ -387,7 +386,6 @@ def process_memory_sku(sku: dict, regions: List[str]) -> List[GCPMemoryPrice]:
     for service_region in service_regions:
         if service_region in regions:
             if instance_family == 'g2':
-                log.info(f'SKUID {sku["skuId"]} with description {sku["description"]}')
                 assert sku["skuId"] in G2_RAM_SKUS, sku
             memory_prices.append(
                 GCPMemoryPrice(instance_family, preemptible, service_region, cost_per_hour, effective_start_date)
