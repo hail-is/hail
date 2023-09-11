@@ -269,7 +269,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
     object ConstantValue {
       def apply(v: Any, t: Type): ConstantValue = t match {
-        case TBoolean => ConstantBool(v.asInstanceOf[Boolean])
+        case TBoolean => ConstantBool(v.asInstanceOf[Boolean], KeySet.top)
         case t: TStruct => ConstantStruct(v.asInstanceOf[Row], t)
         case _ => ConcreteConstant(v)
       }
@@ -286,7 +286,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
     object KeyField {
       def apply(idx: Int): KeyField = keyType.types(idx) match {
-        case TBoolean => KeyFieldBool(idx)
+        case TBoolean => KeyFieldBool(idx, KeySet.top)
         case _: TStruct => KeyFieldStruct(idx)
         case _ => ConcreteKeyField(idx)
       }
@@ -357,7 +357,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       }
 
       def or(l: BoolValue, r: BoolValue): BoolValue = (l, r) match {
-        case (ConstantBool(l), ConstantBool(r)) => ConstantBool(l || r)
+        case (ConstantBool(l, lKeySet), ConstantBool(r, rKeySet)) =>
+          assert(lKeySet eq rKeySet)
+          ConstantBool(l || r, lKeySet)
         case _ => ConcreteBool(
           KeySet.combine(l.trueBound, r.trueBound),
           KeySet.meet(l.falseBound, r.falseBound),
@@ -368,7 +370,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       }
 
       def and(l: BoolValue, r: BoolValue): BoolValue = (l, r) match {
-        case (ConstantBool(l), ConstantBool(r)) => ConstantBool(l && r)
+        case (ConstantBool(l, lKeySet), ConstantBool(r, rKeySet)) =>
+          assert(lKeySet eq rKeySet)
+          ConstantBool(l && r, lKeySet)
         case _ => ConcreteBool(
           KeySet.meet(l.trueBound, r.trueBound),
           KeySet.combine(l.falseBound, r.falseBound),
@@ -379,13 +383,13 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       }
 
       def not(x: BoolValue): BoolValue = x match {
-        case ConstantBool(x) => ConstantBool(!x)
+        case ConstantBool(x, keySet) => ConstantBool(!x, keySet)
         case _ => ConcreteBool(x.falseBound, x.trueBound, x.naBound)
       }
 
       // WIP: push these methods onto BoolValue class, make sure they preserve keySet
       def isNA(x: BoolValue): BoolValue = x match {
-        case ConstantBool(x) => ConstantBool(false)
+        case ConstantBool(x, keySet) => ConstantBool(false, keySet)
         case _ => ConcreteBool(x.naBound, KeySet.combine(x.trueBound, x.falseBound), KeySet.bottom)
       }
 
@@ -484,6 +488,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       def naBound: KeySet.Value
 
       def restrict(keySet: KeySet.Value): BoolValue
+
+      def isNA(): BoolValue = ConcreteBool(naBound, KeySet.combine(trueBound, falseBound), KeySet.bottom)
     }
 
     private case class ConcreteBool(
@@ -491,7 +497,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       falseBound: KeySet.Value,
       naBound: KeySet.Value
     ) extends BoolValue {
-      def restrict(keySet: KeySet.Value): BoolValue = {
+      override def restrict(keySet: KeySet.Value): BoolValue = {
         ConcreteBool(KeySet.meet(trueBound, keySet), KeySet.meet(falseBound, keySet), KeySet.meet(naBound, keySet))
       }
     }
@@ -511,23 +517,29 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         if (value) KeySet.bottom else keySet
 
       override def naBound: KeySet.Value = KeySet.bottom
+
+      override def restrict(keySet: KeySet.Value): BoolValue = ConstantBool(value, keySet)
+
+      override def isNA(): BoolValue = ConstantBool(false, keySet)
     }
 
-    private case class KeyFieldBool(idx: Int) extends BoolValue with KeyField {
+    private case class KeyFieldBool(idx: Int, keySet: KeySet.Value) extends BoolValue with KeyField {
       override def trueBound: KeySet.Value = if (idx == 0)
         IntervalsSet(Interval(true, true, includesStart = true, includesEnd = true))
       else
-        KeySet.top
+        keySet
 
       override def falseBound: KeySet.Value = if (idx == 0)
         IntervalsSet(Interval(false, false, includesStart = true, includesEnd = true))
       else
-        KeySet.top
+        keySet
 
       override def naBound: KeySet.Value = if (idx == 0)
         IntervalsSet(Interval(null, null, includesStart = true, includesEnd = true))
       else
-        KeySet.top
+        keySet
+
+      override def restrict(keySet: KeySet.Value): BoolValue = KeyFieldBool(idx, keySet)
     }
 
     private case class KeyFieldStruct(idx: Int) extends StructValue with KeyField {
@@ -543,6 +555,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       override def trueBound: KeySet.Value = KeySet.top
       override def falseBound: KeySet.Value = KeySet.top
       override def naBound: KeySet.Value = KeySet.top
+      override def restrict(keySet: KeySet.Value): BoolValue = BoolValue(keySet, keySet, keySet)
+      override def isNA(): BoolValue = Top
     }
 
     private case object Bottom extends StructValue with BoolValue {
@@ -552,6 +566,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       override def trueBound: KeySet.Value = KeySet.bottom
       override def falseBound: KeySet.Value = KeySet.bottom
       override def naBound: KeySet.Value = KeySet.bottom
+      override def restrict(keySet: KeySet.Value): BoolValue = Bottom
+      override def isNA(): BoolValue = Bottom
     }
 
     def top: StructValue with BoolValue = Top
@@ -617,7 +633,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       r match {
         case r: KeyField if r.idx == 0 =>
           // simple key comparison
-          BoolValue.fromComparison(l, op, keySet)
+          BoolValue.fromComparison(l, op)
         case Contig(rgStr) =>
           // locus contig comparison
           assert(op.isInstanceOf[EQ])
