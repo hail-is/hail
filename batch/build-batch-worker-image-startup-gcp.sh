@@ -5,6 +5,10 @@ set -ex
 curl --silent --show-error --remote-name --fail https://dl.google.com/cloudagents/add-logging-agent-repo.sh
 bash add-logging-agent-repo.sh
 
+"""
+The nvidia toolkit must be installed in this startup script to be able to configure docker with the command nvidia-ctk runtime configure --runtime=docker. This command cannot be run from Dockerfile.worker
+The toolkit also has to be installed in Dockerfile.worker since to execute the nvidia hook, the toolkit needs to be installed in the container from which crun is invoked. 
+"""
 
 # Get the latest GPG key as it might not always be up to date
 # https://cloud.google.com/compute/docs/troubleshooting/known-issues#keyexpired

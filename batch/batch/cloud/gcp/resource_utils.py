@@ -8,7 +8,7 @@ GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
 GCP_MACHINE_FAMILY = 'n1'
 
-GPU_VERSIONS = {"g2": "l4"}
+MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {"g2": "l4"}
 
 gcp_valid_cores_from_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
@@ -125,4 +125,8 @@ def gcp_local_ssd_size() -> int:
 
 
 def machine_type_to_gpu(machine_family: str) -> Optional[str]:
-    return GPU_VERSIONS.get(machine_family)
+    return MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS.get(machine_family)
+
+
+def is_gpu(machine_family: str) -> bool:
+    return machine_type_to_gpu(machine_family) is not None

@@ -20,31 +20,7 @@ MACHINE_FAMILY_VALID_ZONES = {
         "us-east4-a",
         "us-west1-a",
         "us-west1-b",
-    ],
-    "n1": [
-        "us-central1-a",
-        "us-central1-b",
-        "us-central1-c",
-        "us-central1-f",
-        "us-east1-b",
-        "us-east1-c",
-        "us-east1-d",
-        "us-east4-a",
-        "us-east4-b",
-        "us-east4-c",
-        "us-west1-a",
-        "us-west1-b",
-        "us-west1-c",
-        "us-west2-a",
-        "us-west2-b",
-        "us-west2-c",
-        "us-west3-a",
-        "us-west3-b",
-        "us-west3-c",
-        "us-west4-a",
-        "us-west4-b",
-        "us-west4-c",
-    ],
+    ]
 }
 
 
@@ -132,13 +108,10 @@ class ZoneMonitor(CloudLocationMonitor):
         zones = [zw.zone for zw in zone_weights]
 
         machine_family = machine_type.split("-")[0]
-        if MACHINE_FAMILY_VALID_ZONES.get(machine_family):
-            valid_indices = []
-            for i, zone in enumerate(zones):
-                if zone in MACHINE_FAMILY_VALID_ZONES[machine_family]:
-                    valid_indices.append(i)
-            zones = [zones[i] for i in valid_indices]
-            zone_weights = [zone_weights[i] for i in valid_indices]
+        if machine_family in MACHINE_FAMILY_VALID_ZONES:
+            valid_zones = MACHINE_FAMILY_VALID_ZONES[machine_family]
+            zones = [z for z in zones if z in valid_zones]
+            zone_weights = [zw for zw in zone_weights if zw.zone in valid_zones]
 
         if len(zones) == 0:
             raise RegionsNotSupportedError(regions, self._regions)
