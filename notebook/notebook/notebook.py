@@ -448,14 +448,12 @@ async def get_notebook(request, userdata):
 
 
 @routes.post('/notebook/delete')
-@check_csrf_token
 @auth.web_authenticated_users_only(redirect=False)
 async def delete_notebook(request, userdata):  # pylint: disable=unused-argument
     return await _delete_notebook('notebook', request, userdata)
 
 
 @routes.post('/notebook')
-@check_csrf_token
 @auth.web_authenticated_users_only(redirect=False)
 async def post_notebook(request, userdata):
     return await _post_notebook('notebook', request, userdata)
@@ -509,7 +507,6 @@ async def workshop_admin(request, userdata):
 
 
 @routes.post('/workshop-admin-create')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     dbpool = request.app['dbpool']
@@ -542,7 +539,6 @@ INSERT INTO workshops (name, image, cpu, memory, password, active, token) VALUES
 
 
 @routes.post('/workshop-admin-update')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -575,7 +571,6 @@ UPDATE workshops SET name = %s, image = %s, cpu = %s, memory = %s, password = %s
 
 
 @routes.post('/workshop-admin-delete')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -623,7 +618,6 @@ async def workshop_get_login(request, userdata):
 
 
 @workshop_routes.post('/login')
-@check_csrf_token
 async def workshop_post_login(request):
     session = await aiohttp_session.get_session(request)
     dbpool = request.app['dbpool']
@@ -659,7 +653,6 @@ WHERE name = %s AND password = %s AND active = 1;
 
 
 @workshop_routes.post('/logout')
-@check_csrf_token
 @web_authenticated_workshop_guest_only(redirect=True)
 async def workshop_post_logout(request, userdata):
     app = request.app
@@ -696,7 +689,6 @@ async def workshop_get_notebook(request, userdata):
 
 
 @workshop_routes.post('/notebook')
-@check_csrf_token
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_post_notebook(request, userdata):
     return await _post_notebook('workshop', request, userdata)
@@ -709,7 +701,6 @@ async def workshop_get_auth(request, userdata):
 
 
 @workshop_routes.post('/notebook/delete')
-@check_csrf_token
 @web_authenticated_workshop_guest_only(redirect=False)
 async def workshop_delete_notebook(request, userdata):
     return await _delete_notebook('workshop', request, userdata)
@@ -750,7 +741,7 @@ async def on_cleanup(app):
 
 
 def init_app(routes):
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[check_csrf_token, monitor_endpoints_middleware])
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     setup_aiohttp_jinja2(app, 'notebook')

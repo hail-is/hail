@@ -455,7 +455,6 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
 
 
 @routes.post('/copy-paste-token')
-@check_csrf_token
 @authenticated_users_only
 async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
@@ -476,7 +475,6 @@ async def get_copy_paste_token_api(request: web.Request, userdata: UserData) -> 
 
 
 @routes.post('/logout')
-@check_csrf_token
 @maybe_authenticated_user
 async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn:
     if not userdata:
@@ -521,7 +519,6 @@ async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/roles')
-@check_csrf_token
 @authenticated_devs_only
 async def post_create_role(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -552,7 +549,6 @@ async def get_users(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/users')
-@check_csrf_token
 @authenticated_devs_only
 async def post_create_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -632,7 +628,6 @@ WHERE {' AND '.join(where_conditions)};
 
 
 @routes.post('/users/delete')
-@check_csrf_token
 @authenticated_devs_only
 async def delete_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -889,7 +884,7 @@ class AuthAccessLogger(AccessLogger):
 def run():
     install_profiler_if_requested('auth')
 
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[check_csrf_token, monitor_endpoints_middleware])
 
     setup_aiohttp_jinja2(app, 'auth')
     setup_aiohttp_session(app)
