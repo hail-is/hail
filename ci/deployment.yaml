@@ -109,20 +109,20 @@ spec:
              value: "{{ default_ns.name }}"
            - name: HAIL_IDENTITY_PROVIDER_JSON
 {% if global.cloud == "gcp" %}
-          - name: GOOGLE_APPLICATION_CREDENTIALS
-            value: /gsa-key/key.json
-          - name: HAIL_IDENTITY_PROVIDER_JSON
-            value: '{"idp": "Google"}'
+           - name: GOOGLE_APPLICATION_CREDENTIALS
+             value: /gsa-key/key.json
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+             value: '{"idp": "Google"}'
 {% else %}
-          - name: AZURE_APPLICATION_CREDENTIALS
-            value: /gsa-key/key.json
-          - name: HAIL_IDENTITY_PROVIDER_JSON
-            value: '{"idp": "Microsoft"}'
-          - name: HAIL_AZURE_OAUTH_SCOPE
-            valueFrom:
-              secretKeyRef:
-                name: auth-oauth2-client-secret
-                key: sp_oauth_scope
+           - name: AZURE_APPLICATION_CREDENTIALS
+             value: /gsa-key/key.json
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+             value: '{"idp": "Microsoft"}'
+           - name: HAIL_AZURE_OAUTH_SCOPE
+             valueFrom:
+               secretKeyRef:
+                 name: auth-oauth2-client-secret
+                 key: sp_oauth_scope
 {% endif %}
           ports:
             - containerPort: 5000
