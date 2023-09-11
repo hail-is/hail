@@ -185,7 +185,7 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/check_invariants')
-@auth.rest_authenticated_developers_only
+@auth.authenticated_developers_only()
 async def get_check_invariants(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     incremental_result, resource_agg_result = await asyncio.gather(
@@ -307,7 +307,7 @@ async def deactivate_instance(_, instance: Instance) -> web.Response:
 
 @routes.post('/instances/{instance_name}/kill')
 @check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def kill_instance(request: web.Request, _) -> NoReturn:
     instance_name = request.match_info['instance_name']
 
@@ -449,7 +449,7 @@ async def billing_update(request, instance):
 
 @routes.get('/')
 @routes.get('')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -480,7 +480,7 @@ FROM user_inst_coll_resources;
 
 
 @routes.get('/quotas')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
         return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": None})
@@ -570,7 +570,7 @@ def validate_int(session, name, value, predicate, description):
 
 @routes.post('/configure-feature-flags')
 @check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def configure_feature_flags(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -594,7 +594,7 @@ UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
 
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def pool_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -800,7 +800,7 @@ async def pool_config_update(request: web.Request, _) -> NoReturn:
 
 @routes.post('/config-update/jpim')
 @check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def job_private_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -878,7 +878,7 @@ async def job_private_config_update(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/inst_coll/pool/{pool}')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -915,7 +915,7 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -945,7 +945,7 @@ async def get_job_private_inst_manager(request, userdata):
 
 @routes.post('/freeze')
 @check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def freeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -970,7 +970,7 @@ UPDATE globals SET frozen = 1;
 
 @routes.post('/unfreeze')
 @check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def unfreeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -994,7 +994,7 @@ UPDATE globals SET frozen = 0;
 
 
 @routes.get('/user_resources')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']
