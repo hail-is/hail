@@ -4,7 +4,12 @@ from typing import Dict, List
 from gear import Database
 from hailtop.aiocloud import aiogoogle
 
-from ....driver.billing_manager import CloudBillingManager, ProductVersions, refresh_product_versions_from_db
+from ....driver.billing_manager import (
+    CloudBillingManager,
+    ProductVersionInfo,
+    ProductVersions,
+    refresh_product_versions_from_db,
+)
 from .pricing import fetch_prices
 
 log = logging.getLogger('billing_manager')
@@ -23,7 +28,7 @@ class GCPBillingManager(CloudBillingManager):
     def __init__(
         self,
         db: Database,
-        product_versions_dict: Dict[str, str],
+        product_versions_dict: Dict[str, ProductVersionInfo],
         billing_client: aiogoogle.GoogleBillingClient,
         regions: List[str],
     ):

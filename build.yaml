@@ -2295,6 +2295,9 @@ steps:
       - name: add-gcp-support-logs-specs-and-firewall-fees
         script: /io/sql/add-gcp-support-logs-specs-and-firewall-fees.py
         online: true
+      - name: add-product-sku
+        script: /io/sql/add-product-sku.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

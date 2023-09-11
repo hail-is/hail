@@ -9,6 +9,7 @@ class Price(abc.ABC):
     effective_start_date: int
     effective_end_date: Optional[int]
     time_updated: int
+    sku: str
 
     def is_current_price(self):
         now = time_msecs()
