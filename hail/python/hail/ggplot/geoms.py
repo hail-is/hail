@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional
 import abc
+import math
 import numpy as np
 import plotly.graph_objects as go
 
@@ -484,6 +485,102 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
     return GeomHistogram(mapping, min_val=min_val, max_val=max_val, bins=bins, fill=fill, color=color, alpha=alpha, position=position, size=size)
 
 
+def _max_entropy_cdf(min_x, max_x, x, y, e):
+    def compare(x1, y1, x2, y2):
+        return x1 * y2 - x2 * y1
+
+    new_y = np.full_like(x, 0.0, dtype=np.float64)
+    keep = np.full_like(x, False, dtype=np.bool_)
+
+    fx = min_x  # fixed x
+    fy = 0  # fixed y
+    li = 0  # index of lower slope
+    ui = 0  # index of upper slope
+    ldx = x[li] - fx
+    udx = x[ui] - fx
+    ldy = y[li + 1] - e - fy
+    udy = y[ui] + e - fy
+    j = 1
+    while ui < len(x) and li < len(x):
+        if j == len(x):
+            ub = 1
+            lb = 1
+            xj = max_x
+        else:
+            ub = y[j] + e
+            lb = y[j + 1] - e
+            xj = x[j]
+        dx = xj - fx
+        judy = ub - fy
+        jldy = lb - fy
+        if compare(ldx, ldy, dx, judy) < 0:
+            # line must bend down at j
+            fx = x[li]
+            fy = y[li + 1] - e
+            new_y[li] = fy
+            keep[li] = True
+            j = li + 1
+            if j >= len(x):
+                break
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li + 1] - e - fy
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+            j += 1
+            continue
+        elif compare(udx, udy, dx, jldy) > 0:
+            # line must bend up at j
+            fx = x[ui]
+            fy = y[ui] + e
+            new_y[ui] = fy
+            keep[ui] = True
+            j = ui + 1
+            if j >= len(x):
+                break
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li + 1] - e - fy
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+            j += 1
+            continue
+        if j >= len(x):
+            break
+        if compare(udx, udy, dx, judy) < 0:
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+        if compare(ldx, ldy, dx, jldy) > 0:
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li + 1] - e - fy
+        j += 1
+    return new_y, keep
+
+
+def _cdf_error(cdf, failure_prob):
+    s = 0
+    for i in range(len(cdf._compaction_counts)):
+        s += cdf._compaction_counts[i] << (2 * i)
+    s = s / (cdf.ranks[-1] ** 2)
+
+    if s == 0:
+        # no compactions ergo no error
+        return 0
+
+    def update_grid_size(p):
+        return 4 * math.sqrt(math.log(2 * p / failure_prob) / (2 * s))
+
+    p = 1 / failure_prob
+    for i in range(5):
+        p = update_grid_size(p)
+
+    return 1 / p + math.sqrt(math.log(2 * p / failure_prob) * s / 2)
+
+
 class GeomDensity(Geom):
     aes_to_arg = {
         "fill": ("marker_color", "black"),
@@ -493,46 +590,79 @@ class GeomDensity(Geom):
         "alpha": ("marker_opacity", None)
     }
 
-    def __init__(self, aes, k=1000, smoothing=0.5, fill=None, color=None, alpha=None):
+    def __init__(self, aes, k=1000, smoothing=0.5, fill=None, color=None, alpha=None, smoothed=False):
         super().__init__(aes)
         self.k = k
         self.smoothing = smoothing
         self.fill = fill
         self.color = color
         self.alpha = alpha
+        self.smoothed = smoothed
 
     def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
         def plot_group(df, idx):
-            slope = 1.0 / (df.attrs['max'] - df.attrs['min'])
-            n = df.attrs['n']
-            min = df.attrs['min']
-            max = df.attrs['max']
-            values = df.value.to_numpy()
-            weights = df.weight.to_numpy()
+            data = df.attrs['data']
 
-            def f(x, prev):
-                inv_scale = (np.sqrt(n * slope) / self.smoothing) * np.sqrt(prev / weights)
-                diff = x[:, np.newaxis] - values
-                grid = (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
-                return np.sum(grid, axis=1)
+            if self.smoothed:
+                n = data['ranks'][-1]
+                weights = np.diff(data['ranks'][1:-1])
+                min = data['values'][0]
+                max = data['values'][-1]
+                values = np.array(data['values'][1:-1])
+                slope = 1 / (max - min)
 
-            round1 = f(values, np.full(len(values), slope))
-            x_d = np.linspace(min, max, 1000)
-            final = f(x_d, round1)
+                def f(x, prev):
+                    inv_scale = (np.sqrt(n * slope) / self.smoothing) * np.sqrt(prev / weights)
+                    diff = x[:, np.newaxis] - values
+                    grid = (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
+                    return np.sum(grid, axis=1)
 
-            trace_args = {
-                "x": x_d,
-                "y": final,
-                "mode": "lines",
-                "fill": "tozeroy",
-                "row": facet_row,
-                "col": facet_col
-            }
+                round1 = f(values, np.full(len(values), slope))
+                x_d = np.linspace(min, max, 1000)
+                final = f(x_d, round1)
 
-            self._add_aesthetics_to_trace_args(trace_args, df)
-            self._update_legend_trace_args(trace_args, legend_cache)
+                trace_args = {
+                    "x": x_d,
+                    "y": final,
+                    "mode": "lines",
+                    "fill": "tozeroy",
+                    "row": facet_row,
+                    "col": facet_col
+                }
 
-            fig_so_far.add_scatter(**trace_args)
+                self._add_aesthetics_to_trace_args(trace_args, df)
+                self._update_legend_trace_args(trace_args, legend_cache)
+
+                fig_so_far.add_scatter(**trace_args)
+            else:
+                confidence = 5
+
+                y = np.array(data['ranks'][1:-1]) / data['ranks'][-1]
+                x = np.array(data['values'][1:-1])
+                min_x = data['values'][0]
+                max_x = data['values'][-1]
+                err = _cdf_error(data, 10 ** (-confidence))
+
+                new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
+                slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
+
+                left = np.concatenate([[min_x], x[keep]])
+                right = np.concatenate([x[keep], [max_x]])
+                widths = right - left
+
+                trace_args = {
+                    "x": [min_x, *x[keep]],
+                    "y": slopes,
+                    "row": facet_row,
+                    "col": facet_col,
+                    "width": widths,
+                    "offset": 0
+                }
+
+                self._add_aesthetics_to_trace_args(trace_args, df)
+                self._update_legend_trace_args(trace_args, legend_cache)
+
+                fig_so_far.add_bar(**trace_args)
 
         for idx, group_df in enumerate(grouped_data):
             plot_group(group_df, idx)
@@ -541,7 +671,7 @@ class GeomDensity(Geom):
         return StatCDF(self.k)
 
 
-def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None, alpha=None):
+def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None, alpha=None, smoothed=False):
     """Creates a smoothed density plot.
 
     This method uses the `hl.agg.approx_cdf` aggregator to compute a sketch
@@ -568,13 +698,17 @@ def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None,
         A single line color for all density plots, overrides ``color`` aesthetic.
     alpha: `float`
         A measure of transparency between 0 and 1.
+    smoothed: `boolean`
+        If true, attempts to fit a smooth kernel density estimator.
+        If false, uses a custom method do generate a variable width histogram
+        directly from the approx_cdf results.
 
-    Returns
+   Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomDensity(mapping, k, smoothing, fill, color, alpha)
+    return GeomDensity(mapping, k, smoothing, fill, color, alpha, smoothed)
 
 
 class GeomHLine(Geom):

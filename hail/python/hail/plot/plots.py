@@ -223,7 +223,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
     def compare(x1, y1, x2, y2):
         return x1 * y2 - x2 * y1
 
-    new_y = np.full_like(x, 0)
+    new_y = np.full_like(x, 0.0, dtype=np.float64)
     keep = np.full_like(x, False, dtype=np.bool_)
 
     fx = min_x  # fixed x
