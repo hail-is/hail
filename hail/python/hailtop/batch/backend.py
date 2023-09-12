@@ -48,11 +48,12 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     """
     Abstract class for backends.
     """
-
     _closed = False
 
     def __init__(self):
         self._requester_pays_fses: Dict[GCSRequesterPaysConfiguration, RouterAsyncFS] = {}
+        import nest_asyncio  # pylint: disable=import-outside-toplevel
+        nest_asyncio.apply()
 
     def requester_pays_fs(self, requester_pays_config: GCSRequesterPaysConfiguration) -> RouterAsyncFS:
         try:
@@ -486,11 +487,7 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
     ):
-
-        import nest_asyncio  # pylint: disable=import-outside-toplevel
-
         super().__init__()
-        nest_asyncio.apply()
 
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
