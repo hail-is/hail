@@ -47,6 +47,30 @@ steps:
     dependsOn:
       - merge_code
   - kind: buildImage2
+    name: hail_ubuntu_image_python_3_10
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    buildArgs:
+      - name: PYTHON_VERSION
+        value: "3.10"
+      - name: DOCKER_PREFIX
+        value:
+          valueFrom: global.docker_prefix
+    publishAs: hail-ubuntu-py-3-10
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+  - kind: runImage
+    name: test_build_image_build_args_override_default
+    image:
+      valueFrom: hail_ubuntu_image_python_3_10.image
+    script: |
+      python3 --version | grep '3.10'
+    dependsOn:
+      - hail_ubuntu_image_python_3_10
+  - kind: buildImage2
     name: base_image
     dockerFile: /io/repo/docker/Dockerfile.base
     contextPath: /io/repo
