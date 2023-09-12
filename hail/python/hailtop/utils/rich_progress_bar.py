@@ -142,11 +142,3 @@ class BatchProgressBarTask:
 
     def update(self, advance: Optional[int] = None, **kwargs):
         self.progress.update(self.tid, advance=advance, **kwargs)
-
-
-def is_notebook() -> bool:
-    try:
-        from IPython.core.getipython import get_ipython  # pylint: disable=import-error,import-outside-toplevel
-        return get_ipython().__class__.__name__ == 'ZMQInteractiveShell'
-    except (NameError, ModuleNotFoundError):
-        return False
