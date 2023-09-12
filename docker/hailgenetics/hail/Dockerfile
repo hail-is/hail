@@ -1,13 +1,10 @@
-FROM {{ hail_ubuntu_image.image }}
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
 
 RUN hail-apt-get-install \
-    curl \
     git \
-    jq \
     liblapack3 \
-    openjdk-8-jre-headless \
-    rsync \
-    vim
+    openjdk-8-jre-headless
 
 COPY hail/python/pinned-requirements.txt requirements.txt
 RUN hail-pip-install -r requirements.txt scikit-learn ipython
