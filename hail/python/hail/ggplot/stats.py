@@ -5,7 +5,6 @@ import abc
 from pandas import DataFrame
 
 import pandas as pd
-import numpy as np
 
 import hail as hl
 from hail.utils.java import warning
