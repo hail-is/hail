@@ -11,17 +11,6 @@ from ....utils import WindowFractionCounter
 
 log = logging.getLogger('zones')
 
-MACHINE_FAMILY_VALID_ZONES = {
-    "g2": [
-        "us-central1-a",
-        "us-central1-b",
-        "us-east1-b",
-        "us-east1-d",
-        "us-east4-a",
-        "us-west1-a",
-        "us-west1-b",
-    ]
-}
 
 
 class ZoneWeight:
@@ -86,7 +75,7 @@ class ZoneMonitor(CloudLocationMonitor):
         self._regions = regions
         self.zones: List[str] = initial_zones
         self._default_zone = default_zone
-        self._machine_family_valid_zones: Dict[str, Set[str, Any]] = machine_family_valid_zones
+        self._machine_family_valid_zones: Dict[str, Set[str]] = machine_family_valid_zones
 
         self.zone_success_rate = ZoneSuccessRate()
 
@@ -169,7 +158,7 @@ class ZoneMonitor(CloudLocationMonitor):
 
 async def fetch_machine_valid_zones(
     compute_client: aiogoogle.GoogleComputeClient, regions: Set[str]
-) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+) -> Dict[str, Set[str]]:
     region_info = {name: await compute_client.get(f'/regions/{name}') for name in regions}
     zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
     machine_family_valid_zones = {}
