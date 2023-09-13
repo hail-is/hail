@@ -12,7 +12,6 @@ from ....utils import WindowFractionCounter
 log = logging.getLogger('zones')
 
 
-
 class ZoneWeight:
     def __init__(self, zone, weight):
         self.zone = zone
