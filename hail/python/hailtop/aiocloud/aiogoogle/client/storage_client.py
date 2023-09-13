@@ -307,10 +307,18 @@ class GoogleStorageClient(GoogleBaseClient):
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
-        gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        self._gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
-        self._gcs_requester_pays_configuration = gcs_requester_pays_configuration
+
+    async def bucket_info(self, bucket: str) -> Dict[str, Any]:
+        """
+        See `the GCS API docs https://cloud.google.com/storage/docs/json_api/v1/buckets`_ for the list of bucket
+        properties in the response.
+        """
+        kwargs: Dict[str, Any] = {}
+        self._update_params_with_user_project(kwargs, bucket)
+        return await self.get(f'/b/{bucket}', **kwargs)
 
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
@@ -588,10 +596,34 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     def __init__(self, *,
                  storage_client: Optional[GoogleStorageClient] = None,
+                 bucket_allow_list: Optional[List[str]] = None,
                  **kwargs):
         if not storage_client:
             storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
+        if bucket_allow_list is None:
+            bucket_allow_list = []
+        self.allowed_storage_locations = bucket_allow_list
+
+    def storage_location(self, uri: str) -> str:
+        return self.get_bucket_and_name(uri)[0]
+
+    async def is_hot_storage(self, location: str) -> bool:
+        """
+        See `the GCS API docs https://cloud.google.com/storage/docs/storage-classes`_ for a list of possible storage
+        classes.
+
+        Raises
+        ------
+        :class:`aiohttp.ClientResponseError`
+            If the specified bucket does not exist, or if the account being used to access GCS does not have permission
+            to read the bucket's default storage policy.
+        """
+        return (await self._storage_client.bucket_info(location))["storageClass"].lower() in (
+            "standard",
+            "regional",
+            "multi_regional",
+        )
 
     @staticmethod
     def valid_url(url: str) -> bool:

@@ -20,6 +20,7 @@ Contents
     Hail on the Cloud <hail_on_the_cloud>
     Tutorials <tutorials-landing>
     Reference (Python API) <root_api>
+    Configuration Reference <configuration_reference>
     Overview <overview/index>
     How-To Guides <guides>
     Cheatsheets <cheatsheets>

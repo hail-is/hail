@@ -19,6 +19,7 @@ from ..expr.types import HailType
 
 from hailtop.utils import find_spark_home
 from hailtop.fs.router_fs import RouterFS
+from hailtop.aiotools.validators import validate_file
 
 
 _installed = False
@@ -181,6 +182,9 @@ class LocalBackend(Py4JBackend):
 
         self._initialize_flags({})
 
+    def validate_file(self, uri: str) -> None:
+        validate_file(uri, self._fs.afs)
+
     def jvm(self):
         return self._jvm
 
@@ -212,9 +216,6 @@ class LocalBackend(Py4JBackend):
 
     def _is_registered_ir_function_name(self, name: str) -> bool:
         return name in self._registered_ir_function_names
-
-    def validate_file_scheme(self, url):
-        pass
 
     def stop(self):
         self._jhc.stop()

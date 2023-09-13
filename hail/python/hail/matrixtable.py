@@ -2677,7 +2677,7 @@ class MatrixTable(ExprContainer):
         --------
         >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
         """
-        hl.current_backend().validate_file_scheme(output)
+        hl.current_backend().validate_file(output)
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
@@ -2727,7 +2727,7 @@ class MatrixTable(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        hl.current_backend().validate_file_scheme(output)
+        hl.current_backend().validate_file(output)
 
         if _partitions is not None:
             _partitions, _partitions_type = hl.utils._dumps_partitions(_partitions, self.row_key.dtype)

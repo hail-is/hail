@@ -18,6 +18,8 @@ from hail.fs.hadoop_fs import HadoopFS
 from hail.ir.renderer import CSERenderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.validators import validate_file
 
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
@@ -242,6 +244,13 @@ class SparkBackend(Py4JBackend):
 
         self._initialize_flags({})
 
+        self._router_async_fs = RouterAsyncFS(
+            gcs_kwargs={"gcs_requester_pays_configuration": gcs_requester_pays_project}
+        )
+
+    def validate_file(self, uri: str) -> None:
+        validate_file(uri, self._router_async_fs)
+
     def jvm(self):
         return self._jvm
 
@@ -250,9 +259,6 @@ class SparkBackend(Py4JBackend):
 
     def utils_package_object(self):
         return self._utils_package_object
-
-    def validate_file_scheme(self, url):
-        pass
 
     def stop(self):
         self._jbackend.close()
