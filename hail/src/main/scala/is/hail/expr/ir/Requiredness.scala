@@ -269,6 +269,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinf, joinType) =>
         addElementBinding(l, left, makeOptional = (joinType == "outer" || joinType == "right"))
         addElementBinding(r, right, makeOptional = (joinType == "outer" || joinType == "left"))
+      case StreamLeftIntervalJoin(left, right, _, _, lEltName, rEltName, _) =>
+        addElementBinding(lEltName, left)
+        addElementBinding(rEltName, right, makeOptional = true)
       case StreamAgg(a, name, query) =>
         addElementBinding(name, a)
       case StreamAggScan(a, name, query) =>

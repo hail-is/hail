@@ -23,6 +23,21 @@ import scala.collection.mutable
 import scala.language.existentials
 
 class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
+
+  def getOrEmitNewClass[C: TypeInfo](name: String, sourceFile: Option[String] = None)
+                                    (body: EmitClassBuilder[C] => Unit)
+  : EmitClassBuilder[C] =
+    modb
+      .classes
+      .find(kb => kb.className == name && kb.sourceFile == sourceFile)
+      .map(kb => new EmitClassBuilder[C](this, kb.asInstanceOf[ClassBuilder[C]]))
+      .getOrElse {
+        val kb = newEmitClass[C](name, sourceFile)
+        body(kb)
+        kb
+      }
+
+
   def newEmitClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     new EmitClassBuilder(this, modb.newClass(name, sourceFile))
 
@@ -810,16 +825,21 @@ class EmitClassBuilder[C](
 
   private[this] val methodMemo: mutable.Map[Any, EmitMethodBuilder[C]] = mutable.Map()
 
-  def getOrGenEmitMethod(
-    baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
-  )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = {
+  def getOrGenEmitMethod(baseName: String,
+                         key: Any,
+                         argsInfo: IndexedSeq[ParamType],
+                         returnInfo: ParamType
+                        )(body: EmitMethodBuilder[C] => Unit)
+  : EmitMethodBuilder[C] =
     methodMemo.getOrElse(key, {
       val mb = genEmitMethod(baseName, argsInfo, returnInfo)
       methodMemo(key) = mb
       body(mb)
       mb
     })
-  }
+
+  def getEmitMethod(key: Any): EmitMethodBuilder[C] =
+    methodMemo.getOrElse(key, throw new NoSuchMethodError(s"No such method '$key' in '$className'"))
 
   def genEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     newEmitMethod(genName("m", baseName), argsInfo, returnInfo)

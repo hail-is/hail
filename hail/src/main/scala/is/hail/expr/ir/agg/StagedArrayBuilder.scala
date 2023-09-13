@@ -121,10 +121,15 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   def elementOffset(cb: EmitCodeBuilder, idx: Value[Int]): Value[Long] =
     cb.memoize(eltArray.elementOffset(data, capacity, idx))
 
-
   def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {
     val m = eltArray.isElementMissing(data, idx)
     EmitCode(Code._empty, m, eltType.loadCheapSCode(cb, eltArray.loadElement(data, capacity, idx)))
+  }
+
+  def swap(cb: EmitCodeBuilder, p: Value[Int], q: Value[Int]): Unit = {
+    val tmp = loadElement(cb, p).memoize(cb, "tmp")
+    overwrite(cb, loadElement(cb, q).memoize(cb, ""), p)
+    overwrite(cb, tmp, q)
   }
 
   private def resize(cb: EmitCodeBuilder): Unit = {

@@ -99,6 +99,10 @@ object NestingDepth {
           computeIR(left, depth)
           computeIR(right, depth)
           computeIR(joinF, depth.incrementEval)
+        case StreamLeftIntervalJoin(left, right, _, _, _, _, body) =>
+          computeIR(left, depth)
+          computeIR(right, depth)
+          computeIR(body, depth.incrementEval)
         case TailLoop(_, params, body) =>
           params.foreach { case (_, p) => computeIR(p, depth) }
           computeIR(body, depth.incrementEval)

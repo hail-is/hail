@@ -1008,4 +1008,30 @@ class EmitStreamSuite extends HailSuite {
     assert(evalStream(takeWhile(iota(0, 2))(elt => elt < 10)) == IndexedSeq(0, 2, 4, 6, 8))
     assert(evalStream(StreamTake(iota(5, -5), 3)) == IndexedSeq(5, 0, -5))
   }
+
+  @Test def testStreamIntervalJoin(): Unit = {
+
+    val keys: IR =
+      mapIR(rangeIR(0, 7))(i => MakeStruct(FastSeq("i" -> i)))
+
+    val keyTy: TStruct =
+      TIterable.elementType(keys.typ).asInstanceOf[TStruct]
+
+    val intervals: IR =
+      ToStream(
+        Literal(
+          TArray(TInterval(keyTy)),
+          for {(start, end) <- Array(1 -> 4, 3 -> 5)}
+            yield Interval(IntervalEndpoint(Row(start), -1), IntervalEndpoint(Row(end), -1))
+        )
+      )
+
+    val join =
+      StreamIntervalJoin(
+        keys,
+        intervals,
+        keyTy.fieldNames,
+
+    )
+  }
 }

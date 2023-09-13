@@ -1947,6 +1947,18 @@ object PruneDeadFields {
           env.bindEval(curKey -> selectKey(newEltType, key), curVals -> TArray(newEltType)),
           memo)
         StreamZipJoinProducers(newContexts, ctxName, newMakeProducer,key, curKey, curVals, newJoinF)
+      case StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lEltName, rEltName, body) =>
+        val newL = rebuildIR(ctx, left, env, memo)
+        val newR = rebuildIR(ctx, right, env, memo)
+        StreamLeftIntervalJoin(newL, newR, lKeyNames, rIntrvlName, lEltName, rEltName, rebuildIR(
+          ctx,
+          body,
+          env.bindEval(
+            lEltName -> TIterable.elementType(newL.typ),
+            rEltName -> TIterable.elementType(newR.typ)
+          ),
+          memo
+        ))
       case StreamMultiMerge(as, key) =>
         val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
         val requestedEltType = tcoerce[TStream](requestedType).elementType

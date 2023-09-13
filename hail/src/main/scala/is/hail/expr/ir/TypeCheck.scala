@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.expr.Nat
 import is.hail.backend.ExecuteContext
+import is.hail.expr.Nat
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
@@ -399,6 +399,23 @@ object TypeCheck {
             lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
           })
         }
+      case StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, _, _, body) =>
+        assert(left.typ.isInstanceOf[TStream])
+        assert(right.typ.isInstanceOf[TStream])
+
+        val lEltTy =
+          TIterable.elementType(left.typ).asInstanceOf[TStruct]
+
+        val rPointTys =
+          TIterable.elementType(right.typ)
+            .asInstanceOf[TStruct]
+            .fieldType(rIntrvlName)
+            .asInstanceOf[TInterval]
+            .pointType
+            .children
+
+        assert((lKeyNames, rPointTys).zipped.forall((name, ty) => lEltTy.fieldType(name) == ty))
+        assert(body.typ.isInstanceOf[TStruct])
       case x@StreamFor(a, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(body.typ == TVoid)

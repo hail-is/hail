@@ -238,6 +238,19 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), joinType)
     else
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), prettyIdentifier(l), prettyIdentifier(r), joinType)
+    case StreamLeftIntervalJoin(_, _, lKeyNames, rIntrvlName, lEltName, rEltName, _) =>
+      val buffer =
+        new mutable.ArrayBuffer[Doc](if (elideBindings) 2 else 4) +=
+          prettyIdentifiers(lKeyNames) +=
+          prettyIdentifier(rIntrvlName)
+
+      if (!elideBindings) {
+        buffer +=
+          prettyIdentifier(lEltName) +=
+          prettyIdentifier(rEltName)
+      }
+
+      buffer.result()
     case StreamFor(_, valueName, _) if !elideBindings => single(prettyIdentifier(valueName))
     case StreamAgg(a, name, query) if !elideBindings => single(prettyIdentifier(name))
     case StreamAggScan(a, name, query) if !elideBindings => single(prettyIdentifier(name))
@@ -527,6 +540,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       case StreamAggScan(a, name, _) =>
         if (i == 1) Some(FastIndexedSeq(name -> "elt")) else None
       case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) =>
+        if (i == 2) Some(Array(l -> "l_elt", r -> "r_elt")) else None
+      case StreamLeftIntervalJoin(ll, rr, _, _, l, r, _) =>
         if (i == 2) Some(Array(l -> "l_elt", r -> "r_elt")) else None
       case ArraySort(a, left, right, _) =>
         if (i == 1) Some(Array(left -> "l", right -> "r")) else None
