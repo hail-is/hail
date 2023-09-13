@@ -633,11 +633,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       r match {
         case r: KeyField if r.idx == 0 =>
           // simple key comparison
-          BoolValue.fromComparison(l, op)
+          BoolValue.fromComparison(l, op).restrict(keySet)
         case Contig(rgStr) =>
           // locus contig comparison
           assert(op.isInstanceOf[EQ])
-          getIntervalFromContig(l.asInstanceOf[String], ctx.getReference(rgStr)) match {
+          val b = getIntervalFromContig(l.asInstanceOf[String], ctx.getReference(rgStr)) match {
             case Some(i) =>
               BoolValue(
                 IntervalsSet(i),
@@ -649,17 +649,19 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
                 IntervalsSet(Interval(negInf, endpoint(null, -1))),
                 IntervalsSet(Interval(endpoint(null, -1), posInf)))
           }
+          b.restrict(keySet)
         case Position(rgStr) =>
           // locus position comparison
           val posBoolValue = BoolValue.fromComparison(l, op)
           val rg = ctx.getReference(rgStr)
-          BoolValue(
+          val b = BoolValue(
             IntervalsSet(liftPosIntervalsToLocus(posBoolValue.trueBound, rg, ctx)),
             IntervalsSet(liftPosIntervalsToLocus(posBoolValue.falseBound, rg, ctx)),
             IntervalsSet(liftPosIntervalsToLocus(posBoolValue.naBound, rg, ctx)))
+          b.restrict(keySet)
         case s: StructValue if s.isKeyPrefix =>
-          BoolValue.fromComparisonKeyPrefix(l.asInstanceOf[Row], op)
-        case _ => top
+          BoolValue.fromComparisonKeyPrefix(l.asInstanceOf[Row], op).restrict(keySet)
+        case _ => BoolValue.top(keySet)
       }
     }
 
@@ -812,7 +814,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
 //    println(s"visiting:\n${Pretty(ctx, x)}")
 //    println(s"env: ${env}")
-    val res: Lattice.Value = if (env.keySet == KeySet.bottom)
+    var res: Lattice.Value = if (env.keySet == KeySet.bottom)
       Lattice.bottom
     else x match {
       case Let(name, value, body) => recur(body, env.bind(name -> recur(value)))
@@ -826,9 +828,13 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         StructValue(fields.view.map(name => name -> oldVal.asInstanceOf[StructValue](name)))
       case If(cond, cnsq, altr) =>
         val c = recur(cond).asInstanceOf[BoolValue]
-        Lattice.combine(
+        val res = Lattice.combine(
           recur(cnsq, env.restrict(c.trueBound)),
           recur(altr, env.restrict(c.falseBound)))
+        if (x.typ == TBoolean)
+          Lattice.combine(res, BoolValue(KeySet.bottom, KeySet.bottom, c.naBound))
+        else
+          res
       case ToStream(a, _) => recur(a)
       case StreamFold(a, zero, accumName, valueName, body) => recur(a) match {
           case ConstantValue(array) => array.asInstanceOf[Iterable[Any]]
@@ -857,13 +863,22 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       case _ =>
         val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
         val keyOrConstVal = computeKeyOrConst(x, children)
-        if (keyOrConstVal == Lattice.top && x.typ == TBoolean)
-          computeBoolean(x, children, env.keySet)
-        else
+        if (x.typ == TBoolean) {
+          if (keyOrConstVal == Lattice.top)
+            computeBoolean(x, children, env.keySet)
+          else
+            keyOrConstVal.asInstanceOf[BoolValue].restrict(env.keySet)
+        } else {
           keyOrConstVal
+        }
     }
 //    println(s"finished visiting:\n${Pretty(ctx, x)}")
 //    println(s"result: $res")
+
+    res = res match {
+      case res: BoolValue => res.restrict(env.keySet)
+      case _ => res
+    }
 
     res match {
       case res: BoolValue =>
