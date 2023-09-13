@@ -337,10 +337,11 @@ object Simplify {
     case ToArray(ToStream(a, _)) if a.typ.isInstanceOf[TSet] || a.typ.isInstanceOf[TDict] =>
       CastToArray(a)
 
-    case ToStream(ToArray(s), _) if s.typ.isInstanceOf[TStream] => s
-
-    case ToStream(Let(name, value, ToArray(x)), _) if x.typ.isInstanceOf[TStream] =>
-      Let(name, value, x)
+    // // These rules need to a way to preserve the memory management semantics of the given ToStream
+    // case ToStream(ToArray(s), _) if s.typ.isInstanceOf[TStream] => s
+    //
+    // case ToStream(Let(name, value, ToArray(x)), _) if x.typ.isInstanceOf[TStream] =>
+    //   Let(name, value, x)
 
     case MakeNDArray(ToArray(someStream), shape, rowMajor, errorId) => MakeNDArray(someStream, shape, rowMajor, errorId)
     case MakeNDArray(ToStream(someArray, _), shape, rowMajor, errorId) => MakeNDArray(someArray, shape, rowMajor, errorId)
