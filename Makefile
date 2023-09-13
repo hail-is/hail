@@ -214,3 +214,15 @@ vep-grch38-image: hail-ubuntu-image
 	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
 		./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(VEP_GRCH38_IMAGE)
 	echo $(VEP_GRCH38_IMAGE) > $@
+
+.PHONY: sass-compile-watch
+sass-compile-watch:
+	cd web_common/web_common && sass --watch -I styles --style=compressed styles:static/css
+
+.PHONY: run-dev-proxy
+run-dev-proxy:
+	SERVICE=$(SERVICE) adev runserver --root . devbin/dev_proxy.py
+
+.PHONY: devserver
+devserver:
+	$(MAKE) -j 2 sass-compile-watch run-dev-proxy

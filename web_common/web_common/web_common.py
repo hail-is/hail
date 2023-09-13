@@ -74,8 +74,18 @@ def base_context(session, userdata, service):
 
 
 async def render_template(
-    service: str, request: web.Request, userdata: Optional[UserData], file: str, page_context: Dict[str, Any]
+    service: str,
+    request: web.Request,
+    userdata: Optional[UserData],
+    file: str,
+    page_context: Dict[str, Any],
+    *,
+    cookie_domain: Optional[str] = None,
 ) -> web.Response:
+
+    if request.headers.get('x-hail-return-jinja-context'):
+        return web.json_response({'file': file, 'page_context': page_context, 'userdata': userdata})
+
     if '_csrf' in request.cookies:
         csrf_token = request.cookies['_csrf']
     else:
@@ -87,5 +97,6 @@ async def render_template(
     context['csrf_token'] = csrf_token
 
     response = aiohttp_jinja2.render_template(file, request, context)
-    response.set_cookie('_csrf', csrf_token, domain=os.environ['HAIL_DOMAIN'], secure=True, httponly=True)
+    domain = cookie_domain or os.environ['HAIL_DOMAIN']
+    response.set_cookie('_csrf', csrf_token, domain=domain, secure=True, httponly=True)
     return response
