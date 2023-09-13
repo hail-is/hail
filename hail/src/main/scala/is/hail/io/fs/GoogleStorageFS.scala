@@ -60,13 +60,13 @@ object GoogleStorageFS {
   }
 }
 
-object GoogleStorageFileStatus {
-  def apply(blob: Blob): BlobStorageFileStatus = {
+object GoogleStorageFileListEntry {
+  def apply(blob: Blob): BlobStorageFileListEntry = {
     val isDir = blob.isDirectory
 
     val name = dropTrailingSlash(blob.getName)
 
-    new BlobStorageFileStatus(
+    new BlobStorageFileListEntry(
       s"gs://${ blob.getBucket }/$name",
       if (isDir)
         null
@@ -445,14 +445,14 @@ class GoogleStorageFS(
     }
   }
 
-  def glob(filename: String): Array[FileStatus] = retryTransientErrors {
+  def glob(filename: String): Array[FileListEntry] = retryTransientErrors {
     val url = parseUrl(filename)
     globWithPrefix(url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
-  def listStatus(filename: String): Array[FileStatus] = listStatus(parseUrl(filename))
+  def listStatus(filename: String): Array[FileListEntry] = listStatus(parseUrl(filename))
 
-  override def listStatus(url: GoogleStorageFSURL): Array[FileStatus] = retryTransientErrors {
+  override def listStatus(url: GoogleStorageFSURL): Array[FileListEntry] = retryTransientErrors {
     val path = if (url.path.endsWith("/")) url.path else url.path + "/"
 
     val blobs = retryTransientErrors {
@@ -465,17 +465,17 @@ class GoogleStorageFS(
 
     blobs.iterateAll().iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
-      .map(b => GoogleStorageFileStatus(b))
+      .map(b => GoogleStorageFileListEntry(b))
       .toArray
   }
 
-  def fileStatus(filename: String): FileStatus = fileStatus(parseUrl(filename))
+  def fileListEntry(filename: String): FileListEntry = fileListEntry(parseUrl(filename))
 
-  override def fileStatus(url: GoogleStorageFSURL): FileStatus = retryTransientErrors {
+  override def fileListEntry(url: GoogleStorageFSURL): FileListEntry = retryTransientErrors {
     val path = dropTrailingSlash(url.path)
 
     if (url.path == "")
-      return new BlobStorageFileStatus(s"gs://${url.bucket}", null, 0, true)
+      return new BlobStorageFileListEntry(s"gs://${url.bucket}", null, 0, true)
 
     val blobs = retryTransientErrors {
       handleRequesterPays(
@@ -492,7 +492,7 @@ class GoogleStorageFS(
       while (name.endsWith("/"))
         name = name.dropRight(1)
       if (name == path)
-        return GoogleStorageFileStatus(b)
+        return GoogleStorageFileListEntry(b)
     }
 
     throw new FileNotFoundException(url.toString())

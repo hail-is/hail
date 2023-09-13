@@ -2441,9 +2441,9 @@ class Emit[C](
               (gname, decodedGlobal)), FastIndexedSeq())
 
             if (ctx.executeContext.getFlag("print_ir_on_worker") != null)
-              cb.consoleInfo(cb.strValue(decodedContext))
-            if (ctx.executeContext.getFlag("print_inputs_on_worker") != null)
               cb.consoleInfo(Pretty(ctx.executeContext, body, elideLiterals = true))
+            if (ctx.executeContext.getFlag("print_inputs_on_worker") != null)
+              cb.consoleInfo(cb.strValue(decodedContext))
 
             val bodyResult = wrapInTuple(cb,
               region,

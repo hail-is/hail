@@ -3,7 +3,7 @@ package is.hail.expr.ir.analyses
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.io.fs.{FS, FakeFS, FileStatus}
+import is.hail.io.fs.{FS, FakeFS, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.TableType
@@ -288,8 +288,8 @@ class SemanticHashSuite extends HailSuite {
       override def eTag(filename: String): Option[String] =
         Some(filename)
 
-      override def glob(filename: String): Array[FileStatus] =
-        Array(new FileStatus {
+      override def glob(filename: String): Array[FileListEntry] =
+        Array(new FileListEntry {
           override def getPath: String = filename
           override def getModificationTime: lang.Long = ???
           override def getLen: Long = ???

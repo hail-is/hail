@@ -583,6 +583,17 @@ steps:
       - merge_code
       - hail_ubuntu_image
   - kind: buildImage2
+    name: hailgenetics_vep_grch38_95_image
+    dockerFile: /io/repo/docker/hailgenetics/vep/grch38/95/Dockerfile
+    contextPath: /io/repo/docker/vep/
+    publishAs: hailgenetics/vep-grch38-95
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
+  - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile
     contextPath: /io/repo
@@ -1604,22 +1615,6 @@ steps:
       - default_ns
       - create_certs
       - copy_third_party_images
-  - kind: runImage
-    name: create_dummy_oauth2_client_secret
-    resources:
-      memory: standard
-      cpu: '0.25'
-    image:
-      valueFrom: ci_utils_image.image
-    script: |
-      set -ex
-      kubectl -n {{ default_ns.name }} create secret generic auth-oauth2-client-secret || true
-    scopes:
-      - test
-      - dev
-    dependsOn:
-      - default_ns
-      - ci_utils_image
   - kind: deploy
     name: deploy_auth
     namespace:
@@ -1638,7 +1633,6 @@ steps:
       - create_session_key
       - auth_database
       - auth_image
-      - create_dummy_oauth2_client_secret
       - create_certs
       - create_accounts
   - kind: runImage
@@ -2384,28 +2378,16 @@ steps:
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
-      {% if global.cloud == "gcp" %}
       export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
-      {% elif global.cloud == "azure" %}
-      export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
-      export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
-      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
-      {% endif %}
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
       export HAIL_QUERY_BACKEND=batch
-      {% if global.cloud == "azure" %}
-      export HAIL_BATCH_REGIONS={{ global.azure_location }}
-      {% elif global.cloud == "gcp" %}
       export HAIL_BATCH_REGIONS={{ global.gcp_region }}
-      {% else %}
-      echo "unknown cloud {{ global.cloud }}"
-      exit 1
-      {% endif %}
       export HAIL_BATCH_BILLING_PROJECT=test
       export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
 
@@ -2442,6 +2424,7 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
     clouds:
       - gcp
   - kind: runImage
@@ -2465,27 +2448,17 @@ steps:
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
-      {% if global.cloud == "gcp" %}
-      export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
-      {% elif global.cloud == "azure" %}
       export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
       export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
-      {% endif %}
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
       export HAIL_QUERY_BACKEND=batch
-      {% if global.cloud == "azure" %}
       export HAIL_BATCH_REGIONS={{ global.azure_location }}
-      {% elif global.cloud == "gcp" %}
-      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
-      {% else %}
-      echo "unknown cloud {{ global.cloud }}"
-      exit 1
-      {% endif %}
       export HAIL_BATCH_BILLING_PROJECT=test
       export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
 
@@ -2511,10 +2484,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: auth-oauth2-client-secret
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /oauth-secret
     dependsOn:
       - default_ns
       - merge_code
@@ -2527,6 +2496,7 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
     scopes:
       - deploy
       - dev
@@ -2940,11 +2910,8 @@ steps:
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
 
       {% if global.cloud == "gcp" %}
-      export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Google"}'
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       {% elif global.cloud == "azure" %}
-      export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Microsoft"}'
-      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       {% else %}
       echo "unknown cloud {{ global.cloud }}"
@@ -3039,10 +3006,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: auth-oauth2-client-secret
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /oauth-secret
     dependsOn:
       - hailgenetics_hail_image
       - upload_query_jar
@@ -3210,7 +3173,7 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3252,7 +3215,7 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3316,6 +3279,7 @@ steps:
                              docker://{{ hailgenetics_hail_image.image }} \
                              docker://{{ hailgenetics_hailtop_image.image }} \
                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+                             docker://{{ hailgenetics_vep_grch38_95_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
@@ -3360,6 +3324,7 @@ steps:
       - hailgenetics_hail_image
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
       - build_wheel_for_azure
       - make_docs
     clouds:
@@ -3548,9 +3513,6 @@ steps:
 
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-      {% if global.cloud == "azure" %}
-      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
-      {% endif %}
 
       cd /io
       mkdir -p src/test
@@ -3572,10 +3534,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: auth-oauth2-client-secret
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /oauth-secret
     timeout: 1200
     dependsOn:
       - default_ns

@@ -10,7 +10,7 @@ import java.security.MessageDigest
 import java.util.Base64
 import scala.util.Try
 
-class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
+class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
   val normalizedPath = fs.getPath
 
   def getPath: String = fs.getPath.toString
@@ -123,7 +123,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
-  def listStatus(filename: String): Array[FileStatus] = {
+  def listStatus(filename: String): Array[FileListEntry] = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     var statuses = fs.globStatus(hPath)
@@ -132,7 +132,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     } else {
       statuses.par.map(_.getPath)
         .flatMap(fs.listStatus(_))
-        .map(new HadoopFileStatus(_))
+        .map(new HadoopFileListEntry(_))
         .toArray
     }
   }
@@ -164,7 +164,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
       }.toArray
   }
 
-  override def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = {
+  override def globAllStatuses(filenames: Iterable[String]): Array[FileListEntry] = {
     filenames.flatMap { filename =>
       val statuses = glob(filename)
       if (statuses.isEmpty)
@@ -173,7 +173,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     }.toArray
   }
 
-  def glob(filename: String): Array[FileStatus] = {
+  def glob(filename: String): Array[FileListEntry] = {
     val fs = getFileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
@@ -181,12 +181,12 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     if (files == null)
       files = Array.empty
     log.info(s"globbing path $filename returned ${ files.length } files: ${ files.map(_.getPath.getName).mkString(",") }")
-    files.map(fileStatus => new HadoopFileStatus(fileStatus))
+    files.map(fileListEntry => new HadoopFileListEntry(fileListEntry))
   }
 
-  def fileStatus(filename: String): FileStatus = {
+  def fileListEntry(filename: String): FileListEntry = {
     val p = new hadoop.fs.Path(filename)
-    new HadoopFileStatus(p.getFileSystem(conf.value).getFileStatus(p))
+    new HadoopFileListEntry(p.getFileSystem(conf.value).getFileStatus(p))
   }
 
   override def eTag(filename: String): Option[String] = {

@@ -28,11 +28,11 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   def delete(filename: String, recursive: Boolean) = lookupFS(filename).delete(filename, recursive)
 
-  def listStatus(filename: String): Array[FileStatus] = lookupFS(filename).listStatus(filename)
+  def listStatus(filename: String): Array[FileListEntry] = lookupFS(filename).listStatus(filename)
 
-  def glob(filename: String): Array[FileStatus] = lookupFS(filename).glob(filename)
+  def glob(filename: String): Array[FileListEntry] = lookupFS(filename).glob(filename)
 
-  def fileStatus(filename: String): FileStatus = lookupFS(filename).fileStatus(filename)
+  def fileListEntry(filename: String): FileListEntry = lookupFS(filename).fileListEntry(filename)
 
   override def eTag(filename: String): Option[String] = lookupFS(filename).eTag(filename)
 

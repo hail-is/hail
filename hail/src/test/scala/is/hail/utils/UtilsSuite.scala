@@ -86,13 +86,13 @@ class UtilsSuite extends HailSuite {
     assert(!rdd1.exists(_ < 0))
   }
 
-  @Test def testSortFileStatus() {
+  @Test def testSortFileListEntry() {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
     val partFileNames = fs.glob("src/test/resources/part-*")
-      .map { fileStatus =>
-        (fileStatus, new hadoop.fs.Path(fileStatus.getPath))
-      }.sortBy { case (fileStatus, path) =>
+      .map { fileListEntry =>
+        (fileListEntry, new hadoop.fs.Path(fileListEntry.getPath))
+      }.sortBy { case (fileListEntry, path) =>
         getPartNumber(path.getName)
       }.map(_._2.getName)
 

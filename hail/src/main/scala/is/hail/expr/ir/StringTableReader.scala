@@ -5,7 +5,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.{FS, FileListEntry}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
@@ -26,8 +26,8 @@ case class StringTableReaderParameters(
 
 object StringTableReader {
   def apply(fs: FS, params: StringTableReaderParameters): StringTableReader = {
-     val fileStatuses = getFileStatuses(fs, params.files, params.forceBGZ, params.forceGZ)
-    new StringTableReader(params, fileStatuses)
+    val fileListEntries = getFileListEntries(fs, params.files, params.forceBGZ, params.forceGZ)
+    new StringTableReader(params, fileListEntries)
   }
   def fromJValue(fs: FS, jv: JValue): StringTableReader = {
     implicit val formats: Formats = TableReader.formats
@@ -35,7 +35,7 @@ object StringTableReader {
     StringTableReader(fs, params)
   }
 
-  def getFileStatuses(fs: FS, files: Array[String], forceBGZ: Boolean, forceGZ: Boolean): Array[FileStatus] = {
+  def getFileListEntries(fs: FS, files: Array[String], forceBGZ: Boolean, forceGZ: Boolean): Array[FileListEntry] = {
     val status = fs.globAllStatuses(files)
     if (status.isEmpty)
       fatal(s"arguments refer to no files: ${files.toIndexedSeq}.")
@@ -141,7 +141,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
 
 case class StringTableReader(
   val params: StringTableReaderParameters,
-  fileStatuses: IndexedSeq[FileStatus]
+  fileListEntries: IndexedSeq[FileListEntry]
 ) extends TableReaderWithExtraUID {
 
   override def uidType = TTuple(TInt64, TInt64)
@@ -157,7 +157,7 @@ case class StringTableReader(
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val fs = ctx.fs
-    val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
+    val lines = GenericLines.read(fs, fileListEntries, None, None, params.minPartitions, params.forceBGZ, params.forceGZ,
       params.filePerPartition)
     TableStage(globals = MakeStruct(FastSeq()),
       partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
