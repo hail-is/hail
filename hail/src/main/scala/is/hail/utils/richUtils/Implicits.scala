@@ -121,6 +121,4 @@ trait Implicits {
   implicit def toRichCodeIterator[T](it: Code[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
 
   implicit def valueToRichCodeIterator[T](it: Value[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
-
-  implicit def toRichVal[A](a: A): RichVal[A] = new RichVal[A](a)
 }
