@@ -9,7 +9,7 @@ from hail.backend.service_backend import ServiceBackend
 @skip_unless_service_backend()
 def test_tiny_driver_has_tiny_memory():
     try:
-        hl.eval(hl.range(1024 * 1024).map(lambda x: hl.range(1024 * 1024)))
+        hl.eval(hl.range(1024 * 1024).map(lambda _: hl.range(1024 * 1024)))
     except hl.utils.FatalError as exc:
         assert "HailException: Hail off-heap memory exceeded maximum threshold: limit " in exc.args[0]
     else:
