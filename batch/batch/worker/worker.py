@@ -1189,7 +1189,7 @@ class Container:
                 'uidMappings': [],
                 'gidMappings': [],
                 'resources': {
-                    "devices": [{"allow": True, "type": "c", "major": 195, "minor": 0, "access": "rwm"}],
+                    "devices": [{"allow": False, "access": "rwm"}],
                     'cpu': {'shares': weight},
                     'memory': {
                         'limit': self.memory_in_bytes,

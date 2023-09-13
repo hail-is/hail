@@ -69,7 +69,8 @@ class ZoneMonitor(CloudLocationMonitor):
         default_zone: str,
     ) -> 'ZoneMonitor':
         region_info, zones = await fetch_region_quotas(compute_client, regions)
-        return ZoneMonitor(compute_client, region_info, zones, regions, default_zone)
+        machine_family_valid_zones = await fetch_machine_valid_zones(compute_client, regions)
+        return ZoneMonitor(compute_client, region_info, zones, regions, default_zone, machine_family_valid_zones)
 
     def __init__(
         self,
@@ -78,12 +79,14 @@ class ZoneMonitor(CloudLocationMonitor):
         initial_zones: List[str],
         regions: Set[str],
         default_zone: str,
+        machine_family_valid_zones: Dict[str, Set[str]],
     ):
         self._compute_client = compute_client
         self._region_info: Dict[str, Dict[str, Any]] = initial_region_info
         self._regions = regions
         self.zones: List[str] = initial_zones
         self._default_zone = default_zone
+        self._machine_family_valid_zones: Dict[str, Set[str, Any]] = machine_family_valid_zones
 
         self.zone_success_rate = ZoneSuccessRate()
 
@@ -106,10 +109,9 @@ class ZoneMonitor(CloudLocationMonitor):
         zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         zones = [zw.zone for zw in zone_weights]
-
         machine_family = machine_type.split("-")[0]
-        if machine_family in MACHINE_FAMILY_VALID_ZONES:
-            valid_zones = MACHINE_FAMILY_VALID_ZONES[machine_family]
+        if machine_family in self._machine_family_valid_zones:
+            valid_zones = self._machine_family_valid_zones[machine_family]
             zones = [z for z in zones if z in valid_zones]
             zone_weights = [zw for zw in zone_weights if zw.zone in valid_zones]
 
@@ -163,6 +165,22 @@ class ZoneMonitor(CloudLocationMonitor):
     async def update_region_quotas(self):
         self._region_info, self.zones = await fetch_region_quotas(self._compute_client, self._regions)
         log.info('updated region quotas')
+
+
+async def fetch_machine_valid_zones(
+    compute_client: aiogoogle.GoogleComputeClient, regions: Set[str]
+) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
+    region_info = {name: await compute_client.get(f'/regions/{name}') for name in regions}
+    zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
+    machine_family_valid_zones = {}
+    for zone in zones:
+        async for machine_type in await compute_client.list(f'/zones/{zone}/machineTypes'):
+            machine_family = machine_type['name'].split('-')[0]
+            if machine_family in machine_family_valid_zones:
+                machine_family_valid_zones[machine_family].add(machine_type['zone'])
+            else:
+                machine_family_valid_zones[machine_family] = {machine_type['zone']}
+    return machine_family_valid_zones
 
 
 async def fetch_region_quotas(
