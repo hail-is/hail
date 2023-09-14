@@ -514,24 +514,7 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
 # new_y is an array the same length as x. For each i in keep, new_y[i] is the
 # y coordinate of the point on the max-ent cdf.
 def _max_entropy_cdf(min_x, max_x, x, y, e):
-    # equivalent to compare(x1 / y1, x2 / y2)
-    def compare(x1, y1, x2, y2):
-        return x1 * y2 - x2 * y1
-
-    new_y = np.full_like(x, 0.0, dtype=np.float64)
-    keep = np.full_like(x, False, dtype=np.bool_)
-
-    # (fx, fy) is most recently fixed point on max-ent cdf
-    fx = min_x
-    fy = 0
-    li = 0  # index of lower slope
-    ui = 0  # index of upper slope
-    ldx = x[li] - fx
-    udx = x[ui] - fx
-    ldy = y[li + 1] - e - fy
-    udy = y[ui] + e - fy
-    j = 1
-    while ui < len(x) and li < len(x):
+    def get_upper_lower_slopes(j, fx, fy):
         if j == len(x):
             ub = 1
             lb = 1
@@ -541,9 +524,24 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
             lb = y[j + 1] - e
             xj = x[j]
         dx = xj - fx
-        judy = ub - fy
-        jldy = lb - fy
-        if compare(ldx, ldy, dx, judy) < 0:
+        lower_slope = (lb - fy) / dx
+        upper_slope = (ub - fy) / dx
+        return lower_slope, upper_slope
+
+    new_y = np.full_like(x, 0.0, dtype=np.float64)
+    keep = np.full_like(x, False, dtype=np.bool_)
+
+    # (fx, fy) is most recently fixed point on max-ent cdf
+    fx = min_x
+    fy = 0
+    li = 0  # index of lower slope
+    ui = 0  # index of upper slope
+    min_slope = (y[li+1] - e - fy) / (x[li] - fx)
+    max_slope = (y[ui] + e - fy) / (x[ui] - fx)
+    j = 1
+    while ui < len(x) and li < len(x):
+        lower_slope, upper_slope = get_upper_lower_slopes(j, fx, fy)
+        if upper_slope < min_slope:
             # line must bend down at j
             fx = x[li]
             fy = y[li + 1] - e
@@ -553,14 +551,12 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
             if j >= len(x):
                 break
             li = j
-            ldx = x[li] - fx
-            ldy = y[li + 1] - e - fy
             ui = j
-            udx = x[ui] - fx
-            udy = y[ui] + e - fy
+            min_slope = (y[li+1] - e - fy) / (x[li] - fx)
+            max_slope = (y[ui] + e - fy) / (x[ui] - fx)
             j += 1
             continue
-        elif compare(udx, udy, dx, jldy) > 0:
+        elif lower_slope > max_slope:
             # line must bend up at j
             fx = x[ui]
             fy = y[ui] + e
@@ -570,23 +566,19 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
             if j >= len(x):
                 break
             li = j
-            ldx = x[li] - fx
-            ldy = y[li + 1] - e - fy
             ui = j
-            udx = x[ui] - fx
-            udy = y[ui] + e - fy
+            min_slope = (y[li+1] - e - fy) / (x[li] - fx)
+            max_slope = (y[ui] + e - fy) / (x[ui] - fx)
             j += 1
             continue
         if j >= len(x):
             break
-        if compare(udx, udy, dx, judy) < 0:
+        if upper_slope < max_slope:
             ui = j
-            udx = x[ui] - fx
-            udy = y[ui] + e - fy
-        if compare(ldx, ldy, dx, jldy) > 0:
+            max_slope = upper_slope
+        if lower_slope > min_slope:
             li = j
-            ldx = x[li] - fx
-            ldy = y[li + 1] - e - fy
+            min_slope = lower_slope
         j += 1
     return new_y, keep
 
