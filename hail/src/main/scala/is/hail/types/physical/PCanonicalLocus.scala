@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerValue, SStackStruct}
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerValue, SCompactLocus, SCompactLocusValue, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils.FastSeq
 import is.hail.variant._
@@ -142,11 +142,9 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
     addr
   }
 
-  def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SCanonicalLocusPointerValue = {
+  def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SLocusValue = {
     val position = cb.memoize(pos)
-    val contigType = representation.fieldType("contig").asInstanceOf[PCanonicalString]
-    val contigCode = contigType.sType.constructFromString(cb, r, contig)
-    val repr = representation.constructFromFields(cb, r, FastSeq(EmitCode.present(cb.emb, contigCode), EmitCode.present(cb.emb, primitive(position))), deepCopy = false)
-    new SCanonicalLocusPointerValue(SCanonicalLocusPointer(setRequired(false)), repr.a, contigCode.a, position)
+    val contigIdx = cb.memoize(cb.emb.getReferenceGenome(rg).invoke[String, Int]("getContigIdx", contig))
+    new SCompactLocusValue(SCompactLocus(rg), contigIdx, position)
   }
 }

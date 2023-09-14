@@ -387,8 +387,11 @@ abstract class RegistryFunctions {
   ) {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnType) {
-        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: SValue*): SValue =
-          impl(r, cb, typeParameters, returnSType, args.toArray, errorID)
+        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: SValue*): SValue = {
+          val res = impl(r, cb, typeParameters, returnSType, args.toArray, errorID)
+          assert(res.st == returnSType, s"function $name: implementation returned unexpected SType")
+          res
+        }
       })
   }
 

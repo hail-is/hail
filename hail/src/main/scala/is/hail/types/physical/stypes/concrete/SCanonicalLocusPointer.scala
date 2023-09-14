@@ -2,11 +2,12 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitSettable, EmitValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{SSettable, SType, SValue}
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Settable, SInt32Value}
+import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalLocus, PType}
-import is.hail.types.virtual.Type
+import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils.FastSeq
 
 
@@ -25,10 +26,7 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
     value match {
       case value: SLocusValue =>
         val locusCopy = pType.store(cb, region, value, deepCopy)
-        val contigCopy = if (deepCopy)
-          cb.memoize(pType.contigAddr(locusCopy))
-        else
-          value.contigLong(cb)
+        val contigCopy = cb.memoize(pType.contigAddr(locusCopy))
         new SCanonicalLocusPointerValue(this, locusCopy, contigCopy, value.position(cb))
     }
 
@@ -71,7 +69,9 @@ class SCanonicalLocusPointerValue(
     pt.contigType.loadCheapSCode(cb, _contig).asString
   }
 
-  override def contigLong(cb: EmitCodeBuilder): Value[Long] = _contig
+  override def contigIdx(cb: EmitCodeBuilder): Value[Int] = {
+    cb.memoize(cb.emb.getReferenceGenome(st.rg).invoke[String, Int]("getContigIdx", contig(cb).loadString(cb)))
+  }
 
   override def position(cb: EmitCodeBuilder): Value[Int] = _position
 
@@ -105,4 +105,88 @@ final class SCanonicalLocusPointerSettable(
 
   override def structRepr(cb: EmitCodeBuilder): SBaseStructPointerSettable = new SBaseStructPointerSettable(
     SBaseStructPointer(st.pType.representation), a)
+}
+
+
+final case class SCompactLocus(rg: String) extends SLocus {
+  lazy val virtualType: TLocus = TLocus(rg)
+  lazy val pType: PCanonicalLocus = PCanonicalLocus(rg)
+  override def contigType: SString = SJavaString
+
+  override def containsPointers = false
+
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
+    value match {
+      case value: SLocusValue =>
+        val contig = cb.memoize(cb.emb.getReferenceGenome(rg).invoke[String, Int]("getContigIndex", value.contig(cb).loadString(cb)))
+        new SCompactLocusValue(this, contig, value.position(cb))
+    }
+
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(IntInfo, IntInfo)
+
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SCompactLocusSettable = {
+    val IndexedSeq(contig: Settable[Int@unchecked], position: Settable[Int@unchecked]) = settables
+    assert(contig.ti == IntInfo)
+    assert(position.ti == IntInfo)
+    new SCompactLocusSettable(this, contig, position)
+  }
+
+  override def fromValues(values: IndexedSeq[Value[_]]): SCompactLocusValue = {
+    val IndexedSeq(contig: Value[Int@unchecked], position: Value[Int@unchecked]) = values
+    assert(contig.ti == IntInfo)
+    assert(position.ti == IntInfo)
+    new SCompactLocusValue(this, contig, position)
+  }
+
+  override def storageType(): PType = pType
+
+  override def copiedType: SType = this
+
+  override def castRename(t: Type): SType = this
+}
+
+class SCompactLocusValue(
+  val st: SCompactLocus,
+  val _contig: Value[Int],
+  val _position: Value[Int]
+) extends SLocusValue {
+  override def contig(cb: EmitCodeBuilder): SStringValue = {
+    val contig = cb.memoize(cb.emb.getReferenceGenome(st.rg).invoke[Int, String]("getContig", _contig))
+    new SJavaStringValue(contig)
+  }
+
+  override def contigIdx(cb: EmitCodeBuilder): Value[Int] = _contig
+
+  override def position(cb: EmitCodeBuilder): Value[Int] = _position
+
+  override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = new SStackStructValue(
+    SStackStruct(
+      st.virtualType.representation,
+      FastSeq(EmitType(SJavaString, true), EmitType(SInt32, true))),
+    FastSeq(
+      EmitValue.present(contig(cb)),
+      EmitValue.present(new SInt32Value(_position))))
+
+  override def valueTuple: IndexedSeq[Value[_]] = FastSeq(_contig, _position)
+}
+
+final class SCompactLocusSettable(
+  st: SCompactLocus,
+  override val _contig: Settable[Int],
+  override val _position: Settable[Int]
+) extends SCompactLocusValue(st, _contig, _position) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(_contig, _position)
+
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SCompactLocusValue =>
+      cb.assign(_contig, v._contig)
+      cb.assign(_position, v._position)
+  }
+
+  override def structRepr(cb: EmitCodeBuilder): SStackStructSettable = new SStackStructSettable(
+    SStackStruct(
+      st.virtualType.representation,
+      FastSeq(EmitType(SInt32, true), EmitType(SInt32, true))),
+    FastSeq(EmitSettable.present(new SInt32Settable(_contig)),
+            EmitSettable.present(new SInt32Settable(_position))))
 }

@@ -23,7 +23,7 @@ object LocusFunctions extends RegistryFunctions {
 
   def tinterval(name: String): TInterval = TInterval(tlocus(name))
 
-  def emitLocus(cb: EmitCodeBuilder, r: Value[Region], locus: Code[Locus], rt: PCanonicalLocus): SCanonicalLocusPointerValue = {
+  def emitLocus(cb: EmitCodeBuilder, r: Value[Region], locus: Code[Locus], rt: PCanonicalLocus): SLocusValue = {
     val loc = cb.newLocal[Locus]("emit_locus_memo", locus)
     rt.constructFromPositionAndString(cb, r,
       loc.invoke[String]("contig"),
@@ -106,8 +106,8 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCodePredicate("inXNonPar")
     registerLocusCodePredicate("inYNonPar")
 
-    registerSCode2("add_on_contig", tlocus("T"), TInt32, tlocus("T"), (tl: Type, _:SType, _: SType) => SCanonicalLocusPointer(PCanonicalLocus(tl.asInstanceOf[TLocus].rg))) {
-      case (r: EmitRegion, cb: EmitCodeBuilder, rt: SCanonicalLocusPointer, inputLocus: SLocusValue, basePairsToAdd: SInt32Value, errorID) =>
+    registerSCode2("add_on_contig", tlocus("T"), TInt32, tlocus("T"), (tl: Type, _:SType, _: SType) => SCompactLocus(tl.asInstanceOf[TLocus].rg)) {
+      case (r: EmitRegion, cb: EmitCodeBuilder, rt: SCompactLocus, inputLocus: SLocusValue, basePairsToAdd: SInt32Value, errorID) =>
 
         val contig = inputLocus.contig(cb).loadString(cb)
         val basePos = inputLocus.position(cb)
@@ -230,22 +230,22 @@ object LocusFunctions extends RegistryFunctions {
     }
 
     registerSCode1("Locus", TString, tlocus("T"), {
-      (returnType: Type, _: SType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
+      (returnType: Type, _: SType) => SCompactLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), str: SStringValue, _) =>
+      case (r, cb, rt: SCompactLocus, str: SStringValue, _) =>
         val slocus = str.loadString(cb)
         emitLocus(cb,
           r.region,
           Code.invokeScalaObject2[String, ReferenceGenome, Locus](locusClass, "parse", slocus, rgCode(r.mb, rt.rg)),
-          rt)
+          rt.pType)
     }
 
     registerSCode2("Locus", TString, TInt32, tlocus("T"), {
-      (returnType: Type, _: SType, _: SType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
+      (returnType: Type, _: SType, _: SType) => SCompactLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), contig, pos, _) =>
+      case (r, cb, rt: SCompactLocus, contig, pos, _) =>
         cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contig.asString.loadString(cb), pos.asInt.value)
-        rt.constructFromPositionAndString(cb, r.region, contig.asString.loadString(cb), pos.asInt.value)
+        rt.pType.constructFromPositionAndString(cb, r.region, contig.asString.loadString(cb), pos.asInt.value)
     }
 
     registerSCode1("LocusAlleles", TString, tvariant("T"), {
@@ -348,12 +348,12 @@ object LocusFunctions extends RegistryFunctions {
 
     registerSCode1("globalPosToLocus", TInt64, tlocus("T"), {
       (returnType: Type, _: SType) =>
-        PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
+        SCompactLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), globalPos, _) =>
+      case (r, cb, rt: SCompactLocus, globalPos, _) =>
         val locus = cb.newLocal[Locus]("global_pos_locus",
           rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPos.asLong.value))
-        rt.constructFromPositionAndString(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position"))
+        rt.pType.constructFromPositionAndString(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position"))
     }
 
     registerSCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: SType) => SInt64) {

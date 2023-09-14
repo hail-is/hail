@@ -50,6 +50,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends Serializable {
 
   @transient lazy val broadcastRG: BroadcastRG = new BroadcastRG(this)
+
+  def getContig(i: Int): String = contigs(i)
+
+  def getContigIdx(contig: String): Int = contigsIndex.get(contig)
+
   val nContigs = contigs.length
 
   if (nContigs <= 0)
