@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.15
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 120
+HAIL_PATCH_VERSION := 122
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -125,9 +125,9 @@ services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
-fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	[ -n $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
-	[ -n $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
+fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-qob-test-resources
+	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
+	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
@@ -320,11 +320,17 @@ upload-artifacts: $(WHEEL)
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day. To trigger this target to re-run,
 # > rm upload-qob-test-resources
-upload-qob-test-resources: $(JAR_TEST_SOURCES)
+upload-qob-test-resources: $(shell git ls-files src/test/resources)
+upload-qob-test-resources: $(shell git ls-files python/hail/docs/data)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
 	gcloud storage cp src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
 	gcloud storage cp python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
-	touch $@
+	# # In Azure, use the following instead of gcloud storage cp
+	# python3 -m hailtop.aiotools.copy -vvv 'null' '[\
+        #      {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
+        #      {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
+        # ]'
+	# touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day if using a dev NAMESPACE.

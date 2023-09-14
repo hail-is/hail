@@ -105,9 +105,6 @@ class GCPResourceManager(CloudResourceManager):
             location,
         )
 
-    def instance_config_from_dict(self, data: dict) -> GCPSlimInstanceConfig:
-        return GCPSlimInstanceConfig.from_dict(data)
-
     async def create_vm(
         self,
         file_store: FileStore,

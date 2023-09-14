@@ -5,7 +5,7 @@ import is.hail.fs.azure.AzureStorageFSSuite
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.io.fs.{FS, FileStatus, GoogleStorageFS, Seekable}
+import is.hail.io.fs.{FS, FileListEntry, GoogleStorageFS, Seekable}
 import is.hail.utils._
 import org.apache.commons.codec.binary.Hex
 import org.apache.commons.io.IOUtils
@@ -13,13 +13,13 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 trait FSSuite extends TestNGSuite {
-  def root: String
+  val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
-  def fsResourcesRoot: String
+  def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
+
+  def tmpdir: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
   def fs: FS
-
-  def tmpdir: String
 
   /* Structure of src/test/resources/fs:
      /a
@@ -34,7 +34,7 @@ trait FSSuite extends TestNGSuite {
 
   def t(extension: String = null): String = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fs-suite-tmp", extension)
 
-  def pathsRelRoot(root: String, statuses: Array[FileStatus]): Set[String] = {
+  def pathsRelRoot(root: String, statuses: Array[FileListEntry]): Set[String] = {
     statuses.map { status =>
       var p = status.getPath
       assert(p.startsWith(root), s"$p $root")
@@ -42,7 +42,7 @@ trait FSSuite extends TestNGSuite {
     }.toSet
   }
 
-  def pathsRelResourcesRoot(statuses: Array[FileStatus]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
+  def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
 
   @Test def testExists(): Unit = {
     assert(fs.exists(r("/a")))
@@ -57,37 +57,37 @@ trait FSSuite extends TestNGSuite {
     assert(!fs.exists(r("/does_not_exist_dir/")))
   }
 
-  @Test def testFileStatusOnFile(): Unit = {
+  @Test def testFileListEntryOnFile(): Unit = {
     // file
     val f = r("/a")
-    val s = fs.fileStatus(f)
+    val s = fs.fileListEntry(f)
     assert(s.getPath == f)
     assert(s.isFile)
     assert(!s.isDirectory)
     assert(s.getLen == 12)
   }
 
-  @Test def testFileStatusOnDir(): Unit = {
+  @Test def testFileListEntryOnDir(): Unit = {
     // file
     val f = r("/dir")
-    val s = fs.fileStatus(f)
+    val s = fs.fileListEntry(f)
     assert(s.getPath == f)
     assert(!s.isFile)
     assert(s.isDirectory)
   }
 
-  @Test def testFileStatusOnDirWithSlash(): Unit = {
+  @Test def testFileListEntryOnDirWithSlash(): Unit = {
     // file
     val f = r("/dir/")
-    val s = fs.fileStatus(f)
+    val s = fs.fileListEntry(f)
     assert(s.getPath == f.dropRight(1))
     assert(!s.isFile)
     assert(s.isDirectory)
   }
 
-  @Test def testFileStatusOnMissingFile(): Unit = {
+  @Test def testFileListEntryOnMissingFile(): Unit = {
     try {
-      fs.fileStatus(r("/does_not_exist"))
+      fs.fileListEntry(r("/does_not_exist"))
     } catch {
       case _: FileNotFoundException =>
         return
@@ -95,16 +95,16 @@ trait FSSuite extends TestNGSuite {
     assert(false)
   }
 
-  @Test def testFileStatusRoot(): Unit = {
-    val s = fs.fileStatus(root)
+  @Test def testFileListEntryRoot(): Unit = {
+    val s = fs.fileListEntry(root)
     assert(s.getPath == root)
   }
 
-  @Test def testFileStatusRootWithSlash(): Unit = {
+  @Test def testFileListEntryRootWithSlash(): Unit = {
     if (root.endsWith("/"))
       return
 
-    val s = fs.fileStatus(s"$root/")
+    val s = fs.fileListEntry(s"$root/")
     assert(s.getPath == root)
   }
 
@@ -396,12 +396,51 @@ trait FSSuite extends TestNGSuite {
       }
     }
   }
+
+  @Test def largeDirectoryOperations(): Unit = {
+    val prefix = s"$tmpdir/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    for (i <- 0 until 2000) {
+      fs.touch(s"$prefix/$i.suffix")
+    }
+
+    assert(fs.listStatus(prefix).size == 2000)
+    assert(fs.glob(prefix + "/" + "*.suffix").size == 2000)
+
+    assert(fs.exists(prefix))
+    fs.delete(prefix, recursive = true)
+    if (fs.exists(prefix)) {
+      // NB: TestNGSuite.assert does not have a lazy message argument so we must use an if to protect this list
+      //
+      // see: https://www.scalatest.org/scaladoc/1.7.2/org/scalatest/testng/TestNGSuite.html
+      assert(false, s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
+    }
+  }
+
+  @Test def testSeekAfterEOF(): Unit = {
+    val prefix = s"$tmpdir/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    val p = s"$prefix/seek_file"
+    using(fs.createCachedNoCompression(p)) { os =>
+      os.write(1.toByte)
+      os.write(2.toByte)
+      os.write(3.toByte)
+      os.write(4.toByte)
+    }
+
+    using(fs.openNoCompression(p)) { is =>
+      assert(is.read() == 1.toByte)
+      is.seek(3)
+      assert(is.read() == 4.toByte)
+      assert(is.read() == (-1).toByte)
+      is.seek(0)
+      assert(is.read() == 1.toByte)
+    }
+  }
 }
 
 class HadoopFSSuite extends HailSuite with FSSuite {
-  val root: String = "file:/"
+  override val root: String = "file:/"
 
-  lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
+  override lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
 
-  lazy val tmpdir: String = ctx.tmpdir
+  override lazy val tmpdir: String = ctx.tmpdir
 }

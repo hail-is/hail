@@ -31,6 +31,16 @@ def config_variables():
                     lambda x: re.fullmatch(r'[^:/\s]+(,[^:/\s]+)*', x) is not None,
                     'should be comma separated list of bucket names'),
             ),
+            ConfigVariable.GCS_BUCKET_ALLOW_LIST: ConfigVariableInfo(
+                help_msg=(
+                    'Allows Hail to access the given buckets, even if their default policy is to use cold storage.'
+                ),
+                validation=(
+                    # See https://cloud.google.com/storage/docs/buckets#naming for bucket naming requirements.
+                    lambda x: re.fullmatch(r'^[-\.\w]+(,[-\.\w]+)*$', x) is not None,
+                    "should match the pattern 'bucket1,bucket2,bucket3'."
+                ),
+            ),
             ConfigVariable.BATCH_BUCKET: ConfigVariableInfo(
                 help_msg='Deprecated - Name of GCS bucket to use as a temporary scratch directory',
                 validation=(lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,

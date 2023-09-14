@@ -8,7 +8,7 @@ import random
 import secrets
 from enum import Enum
 from shlex import quote as shq
-from typing import Any, Dict, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Union
 
 import aiohttp
 import aiohttp.client_exceptions
@@ -202,6 +202,7 @@ ASSIGN_COMPILER = '#assign compiler'
 HIGH_PRIORITY = 'prio:high'
 STACKED_PR = 'stacked PR'
 WIP = 'WIP'
+DO_NOT_TEST = 'do-not-test'
 
 DO_NOT_MERGE = {STACKED_PR, WIP}
 
@@ -307,6 +308,9 @@ class PR(Code):
 
     def build_failed_on_at_least_one_platform(self):
         return any(gh_status == GithubStatus.FAILURE for gh_status in self.last_known_github_status.values())
+
+    def testable(self):
+        return DO_NOT_TEST not in self.labels
 
     def merge_priority(self):
         # passed > unknown > failed
@@ -637,6 +641,9 @@ mkdir -p {shq(repo_dir)}
         if not await self.authorized(db):
             return
 
+        if not self.testable():
+            return
+
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
             if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
@@ -707,6 +714,9 @@ class WatchedBranch(Code):
         self.n_running_batches: int = 0
 
         self.merge_candidate: Optional[PR] = None
+
+    def prs_in_merge_priority_order(self) -> Iterable[PR]:
+        return sorted(self.prs.values(), key=lambda pr: pr.merge_priority(), reverse=True)
 
     @property
     def deploy_state(self):
@@ -784,7 +794,7 @@ class WatchedBranch(Code):
 
     async def try_to_merge(self, gh):
         assert self.mergeable
-        for pr in self.prs.values():
+        for pr in self.prs_in_merge_priority_order():
             if pr.is_mergeable():
                 if await pr.merge(gh):
                     self.github_changed = True
@@ -923,7 +933,7 @@ url: {url}
 
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
-        prs_by_prio = sorted(self.prs.values(), key=lambda pr: pr.merge_priority(), reverse=True)
+        prs_by_prio = self.prs_in_merge_priority_order()
 
         for pr in prs_by_prio:
             await pr._heal(batch_client, db, pr == merge_candidate, gh)

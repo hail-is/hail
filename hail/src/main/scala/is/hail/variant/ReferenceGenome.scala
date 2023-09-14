@@ -408,7 +408,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (!fs.exists(chainFile))
       fatal(s"Chain file '$chainFile' does not exist.")
 
-    val chainFilePath = fs.fileStatus(chainFile).getPath
+    val chainFilePath = fs.fileListEntry(chainFile).getPath
     val lo = LiftOver(fs, chainFilePath)
     val destRG = ctx.getReference(destRGName)
     lo.checkChainFile(this, destRG)
@@ -446,7 +446,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     // since removeLiftover updates both maps, so we don't check to see if liftoverMap has
     // keys that are not in chainFiles
     for ((destRGName, chainFile) <- chainFiles) {
-      val chainFilePath = fs.fileStatus(chainFile).getPath
+      val chainFilePath = fs.fileListEntry(chainFile).getPath
       liftoverMap.get(destRGName) match {
         case Some(lo) if lo.chainFile == chainFilePath => // do nothing
         case _ => liftoverMap += destRGName -> LiftOver(fs, chainFilePath)
@@ -455,8 +455,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     // add sequence
     if (fastaFilePath != null) {
-      val fastaPath = fs.fileStatus(fastaFilePath).getPath
-      val indexPath = fs.fileStatus(fastaIndexPath).getPath
+      val fastaPath = fs.fileListEntry(fastaFilePath).getPath
+      val indexPath = fs.fileListEntry(fastaIndexPath).getPath
       if (fastaReaderCfg == null || fastaReaderCfg.fastaFile != fastaPath || fastaReaderCfg.indexFile != indexPath) {
         fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
       }

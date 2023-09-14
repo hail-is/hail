@@ -16,18 +16,10 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
     if (System.getenv("HAIL_CLOUD") != "azure") {
       throw new SkipException("This test suite is only run in Azure.");
     } else {
-      assert(hail_test_storage_uri != null)
+      assert(root != null)
       assert(fsResourcesRoot != null)
     }
   }
-
-  val hail_test_storage_uri: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
-  val root: String = hail_test_storage_uri
-
-  val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
-
-  lazy val tmpdir: String = hail_test_storage_uri
 
   lazy val fs = {
     val aac = System.getenv("AZURE_APPLICATION_CREDENTIALS")

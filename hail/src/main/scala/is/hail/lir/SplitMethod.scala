@@ -526,6 +526,7 @@ class SplitMethod(
         assert(r.start == r.end)
         regionSize(i) = blockSize(blockPartitions.find(r.start))
       }
+      // The PST no longer computes loop regions. See PR #13566 for the removed code.
       /*
       if (i != pst.root && pst.loopRegion.get(i)) {
         splitSlice(r.start, r.end)
