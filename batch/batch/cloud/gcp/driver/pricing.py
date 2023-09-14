@@ -1,10 +1,9 @@
 import logging
 from typing import AsyncGenerator, List, Optional
 
-import dateutil.parser
-
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec
+from hailtop.utils.time import parse_timestamp_msecs
 
 from ....driver.pricing import Price
 from ..resources import (
@@ -126,7 +125,8 @@ class GCPDiskPrice(Price):
 
 
 def parse_effective_start_date(sku: dict) -> int:
-    return int(dateutil.parser.isoparse(sku['pricingInfo'][0]['effectiveTime']).timestamp() * 1000 + 0.5)
+    time_str = sku['pricingInfo'][0]['effectiveTime']
+    return parse_timestamp_msecs(time_str)
 
 
 def pricing_expression_to_price_per_unit(pricing_expression: dict) -> float:
