@@ -16,7 +16,7 @@ def new_csrf_token():
 async def check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
     # CSRF prevention is only relevant to requests that use browser
     # cookies for authentication.
-    if request.cookies and request.method in request.POST_METHODS:
+    if request.cookies and request.method not in {'GET', 'HEAD', 'OPTIONS'}:
         token1 = request.cookies.get('_csrf')
         post = await request.post()
         token2 = post.get('_csrf')
