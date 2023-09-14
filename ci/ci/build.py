@@ -3,7 +3,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Optional, TypedDict
+from typing import Dict, List, Optional, Sequence, TypedDict
 
 import jinja2
 import yaml
@@ -96,7 +96,15 @@ class BuildConfigurationError(Exception):
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, *, requested_step_names=(), excluded_step_names=()):
+    def __init__(
+        self,
+        code: Code,
+        config_str: str,
+        scope: str,
+        *,
+        requested_step_names: Sequence[str] = (),
+        excluded_step_names: Sequence[str] = (),
+    ):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 

@@ -95,8 +95,8 @@ def simulate_phenotypes(mt, genotype, h2, pi=None, rg=None, annot=None, popstrat
         :class:`.MatrixTable` with simulated betas and phenotypes, simulated according
         to specified model.
     """
-    h2 = h2.tolist() if type(h2) is np.ndarray else ([h2] if type(h2) is not list else h2)
-    pi = pi.tolist() if type(pi) is np.ndarray else pi
+    h2 = h2.tolist() if isinstance(h2, np.ndarray) else ([h2] if not isinstance(h2, list) else h2)
+    pi = pi.tolist() if isinstance(pi, np.ndarray) else pi
     uid = Env.get_uid(base=100)
     mt = annotate_all(mt=mt,
                       row_exprs={} if annot is None else {'annot_' + uid: annot},
@@ -178,12 +178,12 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
         covariance matrix for multitrait simulation was not positive semi-definite.
 
     """
-    h2 = h2.tolist() if type(h2) is np.ndarray else (
-        [h2] if type(h2) is not list else h2)
-    pi = pi.tolist() if type(pi) is np.ndarray else (
-        [pi] if type(pi) is not list else pi)
-    rg = rg.tolist() if type(rg) is np.ndarray else (
-        [rg] if type(rg) is not list else rg)
+    h2 = h2.tolist() if isinstance(h2, np.ndarray) else (
+        [h2] if not isinstance(h2, list) else h2)
+    pi = pi.tolist() if isinstance(pi, np.ndarray) else (
+        [pi] if not isinstance(pi, list) else pi)
+    rg = rg.tolist() if isinstance(rg, np.ndarray) else (
+        [rg] if not isinstance(rg, list) else rg)
     assert (all(x >= 0 and x <= 1 for x in h2)
             ), 'h2 values must be between 0 and 1'
     assert (pi is not [None]) or all(
@@ -193,7 +193,7 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
     if annot is not None:  # multi-trait annotation-informed
         assert rg == [
             None], 'Correlated traits not supported for annotation-informed model'
-        h2 = h2 if type(h2) is list else [h2]
+        h2 = h2 if isinstance(h2, list) else [h2]
         annot_sum = mt.aggregate_rows(hl.agg.sum(annot))
         mt = mt.annotate_rows(beta=hl.literal(h2).map(
             lambda x: hl.rand_norm(0, hl.sqrt(annot * x / (annot_sum * M)))))
@@ -260,8 +260,8 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
         covariance matrix was not positive semi-definite.
     """
     uid = Env.get_uid(base=100)
-    h2 = (h2.tolist() if type(h2) is np.ndarray else ([h2] if type(h2) is not list else h2))
-    rg = rg.tolist() if type(rg) is np.ndarray else ([rg] if type(rg) is not list else rg)
+    h2 = (h2.tolist() if isinstance(h2, np.ndarray) else ([h2] if not isinstance(h2, list) else h2))
+    rg = rg.tolist() if isinstance(rg, np.ndarray) else ([rg] if not isinstance(rg, list) else rg)
     assert (all(x >= 0 and x <= 1 for x in h2)), 'h2 values must be between 0 and 1'
     assert h2 is not [None] or cov_matrix is not None, 'h2 and cov_matrix cannot both be None'
     M = mt.count_rows()
@@ -473,7 +473,7 @@ def get_cov_matrix(h2, rg, psd_rg=False):
             ), 'h2 values must be between 0 and 1'
     assert (all(x >= -1 and x <= 1 for x in rg)
             ), 'rg values must be between -1 and 1'
-    rg = np.asarray(rg) if type(rg) is list else rg
+    rg = np.asarray(rg) if isinstance(rg, list) else rg
     n_rg = len(rg)
     n_h2 = len(h2)
     # expected number of rg values, given number of traits
@@ -570,8 +570,8 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
         :class:`.MatrixTable` with simulated phenotype as column field.
     """
     print('calculating phenotype')
-    h2 = h2.tolist() if type(h2) is np.ndarray else (
-        [h2] if type(h2) is not list else h2)
+    h2 = h2.tolist() if isinstance(h2, np.ndarray) else (
+        [h2] if not isinstance(h2, list) else h2)
     assert popstrat_var is None or (
         popstrat_var >= 0), 'popstrat_var must be non-negative'
     uid = Env.get_uid(base=100)
@@ -669,7 +669,7 @@ def annotate_all(mt, row_exprs={}, col_exprs={}, entry_exprs={}, global_exprs={}
     r"""Equivalent of _annotate_all, but checks source MatrixTable of exprs"""
     exprs = {**row_exprs, **col_exprs, **entry_exprs, **global_exprs}
     for key, value in exprs.items():
-        if type(value) == expr_float64 or type(value) == expr_int32:
+        if value.dtype in (hl.tfloat64, hl.tint32):
             assert value._indices.source == mt, 'Cannot combine expressions from different source objects.'
     return mt._annotate_all(row_exprs, col_exprs, entry_exprs, global_exprs)
 
@@ -708,8 +708,8 @@ def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
     coef_dict = get_coef_dict(tb=tb, str_expr=str_expr,
                               ref_coef_dict=coef_dict, axis=axis)
     axis_field = 'annot' if axis == 'rows' else 'cov'
-    annotate_fn = (MatrixTable.annotate_rows if axis == 'rows' else MatrixTable.annotate_cols) if type(
-        tb) is MatrixTable else Table.annotate
+    annotate_fn = (MatrixTable.annotate_rows if axis == 'rows' else MatrixTable.annotate_cols
+                   ) if isinstance(tb, MatrixTable) else Table.annotate
     tb = annotate_fn(self=tb, **{'agg_' + axis_field: 0})
     print(
         f'Fields and associated coefficients used in {axis_field} aggregation: {coef_dict}')
@@ -750,8 +750,7 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
     """
     assert (str_expr is not None or ref_coef_dict is not None), "str_expr and ref_coef_dict cannot both be None"
     assert axis == 'rows' or axis == 'cols', "axis must be 'rows' or 'cols'"
-    fields_to_search = (tb.row if axis == 'rows' or type(tb)
-                        is Table else tb.col)
+    fields_to_search = (tb.row if axis == 'rows' or isinstance(tb, Table) else tb.col)
     # when axis='rows' we're searching for annotations, axis='cols' searching for covariates
     axis_field = 'annotation' if axis == 'rows' else 'covariate'
     if str_expr is None:

@@ -387,9 +387,10 @@ class AzureAsyncFS(AsyncFS):
         permissions: str = "rw",
         valid_interval: timedelta = timedelta(hours=1)
     ) -> str:
-        mgmt_client = StorageManagementClient(self._credential, subscription_id)
+        assert self._credential
+        mgmt_client = StorageManagementClient(self._credential, subscription_id)  # type: ignore
         storage_keys = await mgmt_client.storage_accounts.list_keys(resource_group, account)
-        storage_key = storage_keys.keys[0].value
+        storage_key = storage_keys.keys[0].value  # type: ignore
 
         token = generate_account_sas(
             account,
@@ -457,7 +458,7 @@ class AzureAsyncFS(AsyncFS):
         if k not in self._blob_service_clients:
             #  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob#other-client--per-operation-configuration
             self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net',
-                                                              credential=credential,
+                                                              credential=credential,  # type: ignore
                                                               connection_timeout=5,
                                                               read_timeout=5)
         return self._blob_service_clients[k]
@@ -584,7 +585,7 @@ class AzureAsyncFS(AsyncFS):
                 return False
             return True
 
-        async def cons(first_entry, it):
+        async def cons(first_entry, it) -> AsyncIterator[FileListEntry]:
             if await should_yield(first_entry):
                 yield first_entry
             try:

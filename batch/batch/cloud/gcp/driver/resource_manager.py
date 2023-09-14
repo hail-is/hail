@@ -43,7 +43,7 @@ class GCPResourceManager(CloudResourceManager):
         self,
         project: str,
         compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
-        billing_manager: GCPBillingManager,
+        billing_manager: GCPBillingManager,  # BORROWED
     ):
         self.compute_client = compute_client
         self.project = project
@@ -104,9 +104,6 @@ class GCPResourceManager(CloudResourceManager):
             job_private,
             location,
         )
-
-    def instance_config_from_dict(self, data: dict) -> GCPSlimInstanceConfig:
-        return GCPSlimInstanceConfig.from_dict(data)
 
     async def create_vm(
         self,

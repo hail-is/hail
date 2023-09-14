@@ -128,7 +128,7 @@ tag jvm-{idx}.log
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-12',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-13',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
@@ -238,6 +238,17 @@ enable_ruby
 </filter>
 EOF
 
+sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
+<source>
+@type tail
+format syslog
+path /var/log/syslog
+pos_file /var/lib/google-fluentd/pos/syslog.pos
+read_from_head true
+tag syslog
+</source>
+EOF
+
 sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
 <source>
 @type tail
@@ -326,6 +337,7 @@ BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}
 
 # So here I go it's my shot.
 docker run \
+--name worker \
 -e CLOUD=gcp \
 -e CORES=$CORES \
 -e NAME=$NAME \
@@ -350,7 +362,6 @@ docker run \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \
 -v /usr/bin/docker:/usr/bin/docker \
--v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /global-config:/global-config \
@@ -368,6 +379,7 @@ docker run \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
 --network host \
+--cgroupns host \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 

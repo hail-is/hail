@@ -5,7 +5,8 @@ import re
 import textwrap
 import warnings
 from shlex import quote as shq
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast, Literal
+from typing_extensions import Self
 
 import hailtop.batch_client.client as bc
 
@@ -132,7 +133,7 @@ class Job:
     def _add_inputs(self, resource: '_resource.Resource') -> None:
         _add_resource_to_set(self._inputs, resource, include_rg=False)
 
-    def depends_on(self, *jobs: 'Job') -> 'Job':
+    def depends_on(self, *jobs: 'Job') -> Self:
         """
         Explicitly set dependencies on other jobs.
 
@@ -182,7 +183,7 @@ class Job:
     def env(self, variable: str, value: str):
         self._env[variable] = value
 
-    def storage(self, storage: Optional[Union[str, int]]) -> 'Job':
+    def storage(self, storage: Optional[Union[str, int]]) -> Self:
         """
         Set the job's storage size.
 
@@ -231,7 +232,7 @@ class Job:
         self._storage = opt_str(storage)
         return self
 
-    def memory(self, memory: Optional[Union[str, int]]) -> 'Job':
+    def memory(self, memory: Optional[Union[str, int]]) -> Self:
         """
         Set the job's memory requirements.
 
@@ -274,7 +275,7 @@ class Job:
         self._memory = opt_str(memory)
         return self
 
-    def cpu(self, cores: Optional[Union[str, int, float]]) -> 'Job':
+    def cpu(self, cores: Optional[Union[str, int, float]]) -> Self:
         """
         Set the job's CPU requirements.
 
@@ -314,7 +315,7 @@ class Job:
         self._cpu = opt_str(cores)
         return self
 
-    def always_run(self, always_run: bool = True) -> 'Job':
+    def always_run(self, always_run: bool = True) -> Self:
         """
         Set the job to always run, even if dependencies fail.
 
@@ -342,7 +343,33 @@ class Job:
         self._always_run = always_run
         return self
 
-    def regions(self, regions: Optional[List[str]]) -> 'Job':
+    def spot(self, is_spot: bool) -> Self:
+        """
+        Set whether a job is run on spot instances. By default, all jobs run on spot instances.
+
+        Examples
+        --------
+
+        Ensure a job only runs on non-spot instances:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> j = j.spot(False)
+        >>> j = j.command(f'echo "hello"')
+
+        Parameters
+        ----------
+        is_spot:
+            If False, this job will be run on non-spot instances.
+
+        Returns
+        -------
+        Same job object.
+        """
+        self._preemptible = is_spot
+        return self
+
+    def regions(self, regions: Optional[List[str]]) -> Self:
         """
         Set the cloud regions a job can run in.
 
@@ -389,7 +416,7 @@ class Job:
         self._regions = regions
         return self
 
-    def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':
+    def timeout(self, timeout: Optional[Union[float, int]]) -> Self:
         """
         Set the maximum amount of time this job can run for in seconds.
 
@@ -422,7 +449,7 @@ class Job:
         self._timeout = timeout
         return self
 
-    def gcsfuse(self, bucket, mount_point, read_only=True):
+    def gcsfuse(self, bucket, mount_point, read_only=True) -> Self:
         """
         Add a bucket to mount with gcsfuse.
 
@@ -462,7 +489,7 @@ class Job:
         warnings.warn("The 'gcsfuse' method has been deprecated. Use the 'cloudfuse' method instead.")
         return self.cloudfuse(bucket, mount_point, read_only=read_only)
 
-    def cloudfuse(self, bucket: str, mount_point: str, *, read_only: bool = True):
+    def cloudfuse(self, bucket: str, mount_point: str, *, read_only: bool = True) -> Self:
         """
         Add a bucket to mount with gcsfuse in GCP or a storage container with blobfuse in Azure.
 
@@ -521,7 +548,7 @@ class Job:
         self._cloudfuse.append((bucket, mount_point, read_only))
         return self
 
-    def always_copy_output(self, always_copy_output: bool = True) -> 'Job':
+    def always_copy_output(self, always_copy_output: bool = True) -> Self:
         """
         Set the job to always copy output to cloud storage, even if the job failed.
 
@@ -719,11 +746,11 @@ class BashJob(Job):
         Examples
         --------
 
-        Set the job's docker image to `ubuntu:20.04`:
+        Set the job's docker image to `ubuntu:22.04`:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> (j.image('ubuntu:20.04')
+        >>> (j.image('ubuntu:22.04')
         ...   .command(f'echo "hello"'))
         >>> b.run()  # doctest: +SKIP
 
@@ -851,6 +878,19 @@ source {code}
         return True
 
 
+UnpreparedArg = Union['_resource.ResourceType', List['UnpreparedArg'], Tuple['UnpreparedArg', ...], Dict[str, 'UnpreparedArg'], Any]
+
+PreparedArg = Union[
+    Tuple[Literal['py_path'], str],
+    Tuple[Literal['path'], str],
+    Tuple[Literal['dict_path'], Dict[str, str]],
+    Tuple[Literal['list'], List['PreparedArg']],
+    Tuple[Literal['dict'], Dict[str, 'PreparedArg']],
+    Tuple[Literal['tuple'], Tuple['PreparedArg', ...]],
+    Tuple[Literal['value'], Any]
+]
+
+
 class PythonJob(Job):
     """
     Object representing a single Python job to execute.
@@ -897,7 +937,7 @@ class PythonJob(Job):
         super().__init__(batch, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
-        self._function_calls: List[Tuple[_resource.PythonResult, int, Tuple[Any, ...], Dict[str, Any]]] = []
+        self._function_calls: List[Tuple[_resource.PythonResult, int, Tuple[UnpreparedArg, ...], Dict[str, UnpreparedArg]]] = []
         self.n_results = 0
 
     def _get_python_resource(self, item: str) -> '_resource.PythonResult':
@@ -943,7 +983,7 @@ class PythonJob(Job):
         self._image = image
         return self
 
-    def call(self, unapplied: Callable, *args, **kwargs) -> '_resource.PythonResult':
+    def call(self, unapplied: Callable, *args: UnpreparedArg, **kwargs: UnpreparedArg) -> '_resource.PythonResult':
         """Execute a Python function.
 
         Examples
@@ -1121,7 +1161,7 @@ class PythonJob(Job):
         return result
 
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
-        def prepare_argument_for_serialization(arg):
+        def preserialize(arg: UnpreparedArg) -> PreparedArg:
             if isinstance(arg, _resource.PythonResult):
                 return ('py_path', arg._get_path(local_tmpdir))
             if isinstance(arg, _resource.ResourceFile):
@@ -1129,20 +1169,24 @@ class PythonJob(Job):
             if isinstance(arg, _resource.ResourceGroup):
                 return ('dict_path', {name: resource._get_path(local_tmpdir)
                                       for name, resource in arg._resources.items()})
-            if isinstance(arg, (list, tuple)):
-                return ('value', [prepare_argument_for_serialization(elt) for elt in arg])
+            if isinstance(arg, list):
+                return ('list', [preserialize(elt) for elt in arg])
+            if isinstance(arg, tuple):
+                return ('tuple', tuple((preserialize(elt) for elt in arg)))
             if isinstance(arg, dict):
-                return ('value', {k: prepare_argument_for_serialization(v) for k, v in arg.items()})
+                return ('dict', {k: preserialize(v) for k, v in arg.items()})
             return ('value', arg)
 
         for i, (result, unapplied_id, args, kwargs) in enumerate(self._function_calls):
             func_file = self._batch._python_function_files[unapplied_id]
 
-            prepared_args = prepare_argument_for_serialization(args)[1]
-            prepared_kwargs = prepare_argument_for_serialization(kwargs)[1]
+            preserialized_args = [preserialize(arg) for arg in args]
+            del args
+            preserialized_kwargs = {keyword: preserialize(arg) for keyword, arg in kwargs.items()}
+            del kwargs
 
             args_file = await self._batch._serialize_python_to_input_file(
-                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (prepared_args, prepared_kwargs), dry_run
+                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (preserialized_args, preserialized_kwargs), dry_run
             )
 
             json_write, str_write, repr_write = [
@@ -1164,14 +1208,16 @@ import sys
 
 def deserialize_argument(arg):
     typ, val = arg
-    if typ == 'value' and isinstance(val, dict):
-        return {{k: deserialize_argument(v) for k, v in val.items()}}
-    if typ == 'value' and isinstance(val, (list, tuple)):
-        return [deserialize_argument(elt) for elt in val]
     if typ == 'py_path':
         return dill.load(open(val, 'rb'))
     if typ in ('path', 'dict_path'):
         return val
+    if typ == 'list':
+        return [deserialize_argument(elt) for elt in val]
+    if typ == 'tuple':
+        return tuple((deserialize_argument(elt) for elt in val))
+    if typ == 'dict':
+        return {{k: deserialize_argument(v) for k, v in val.items()}}
     assert typ == 'value'
     return val
 
@@ -1199,8 +1245,8 @@ with open('{result}', 'wb') as dill_out:
 
             unapplied = self._batch._python_function_defs[unapplied_id]
             self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
-            args_str = ', '.join([f'{arg!r}' for _, arg in prepared_args])
-            kwargs_str = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
+            args_str = ', '.join([f'{arg!r}' for _, arg in preserialized_args])
+            kwargs_str = ', '.join([f'{k}={v!r}' for k, (_, v) in preserialized_kwargs.items()])
             separator = ', ' if args_str and kwargs_str else ''
             func_call = f'{unapplied.__name__}({args_str}{separator}{kwargs_str})'
             self._user_code.append(self._interpolate_command(func_call, allow_python_results=True))

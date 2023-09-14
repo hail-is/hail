@@ -22,8 +22,9 @@ charset-normalizer==3.2.0
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   -c hail/ci/../web_common/pinned-requirements.txt
     #   requests
-click==8.1.6
+click==8.1.7
     # via
+    #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   zulip
@@ -62,6 +63,7 @@ requests[security]==2.31.0
     #   zulip
 typing-extensions==4.7.1
     # via
+    #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   zulip

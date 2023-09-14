@@ -3,8 +3,9 @@ import json
 import logging
 import os
 import re
+import typing
 from functools import wraps
-from typing import List, Optional
+from typing import List, NoReturn, Optional
 
 import aiohttp_session
 import kubernetes_asyncio.client
@@ -32,6 +33,7 @@ from gear.auth import AIOHTTPHandler, AuthenticatedAIOHTTPHandler, MaybeAuthenti
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
+from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -50,7 +52,6 @@ from .exceptions import (
     PreviouslyDeletedUser,
     UnknownUser,
 )
-from .flow import get_flow_client
 
 log = logging.getLogger('auth')
 
@@ -102,10 +103,10 @@ def maybe_authenticated_user(fun: MaybeAuthenticatedAIOHTTPHandler) -> AIOHTTPHa
     return wrapped
 
 
-async def user_from_login_id(db, login_id):
+async def user_from_login_id(db: Database, login_id: str) -> Optional[UserData]:
     users = [x async for x in db.select_and_fetchall("SELECT * FROM users WHERE login_id = %s;", login_id)]
     if len(users) == 1:
-        return users[0]
+        return typing.cast(UserData, users[0])
     assert len(users) == 0, users
     return None
 
@@ -241,7 +242,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]) -
 
         if user is None:
             set_message(session, f'Account does not exist for login id {login_id}.', 'error')
-            return web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
 
@@ -252,7 +253,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]) -
             session_id = await create_session(db, user['id'])
             session['session_id'] = session_id
             set_message(session, f'Account has been created for {user["username"]}.', 'info')
-            return web.HTTPFound(next_page)
+            raise web.HTTPFound(next_page)
 
         assert user['state'] == 'creating'
         session['pending'] = True
@@ -277,24 +278,18 @@ async def _wait_websocket(request, login_id):
 
     user = await user_from_login_id(db, login_id)
     if not user:
-        return web.HTTPNotFound()
+        raise web.HTTPNotFound()
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
     try:
         count = 0
-        while count < 10:
-            try:
-                user = await user_from_login_id(db, login_id)
-                assert user
-                if user['state'] != 'creating':
-                    log.info(f"user {user['username']} is no longer creating")
-                    break
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception(f"/creating/wait: error while updating status for user {user['username']}")
+        user = await user_from_login_id(db, login_id)
+        assert user
+        while count < 10 and user['state'] == 'creating':
+            user = await user_from_login_id(db, login_id)
+            assert user
             await asyncio.sleep(1)
             count += 1
 
@@ -310,7 +305,7 @@ async def _wait_websocket(request, login_id):
 
 
 @routes.get('/signup')
-async def signup(request):
+async def signup(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
@@ -321,11 +316,11 @@ async def signup(request):
     session['caller'] = 'signup'
     session['flow'] = flow_data
 
-    return web.HTTPFound(flow_data['authorization_url'])
+    raise web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/login')
-async def login(request):
+async def login(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
@@ -336,11 +331,11 @@ async def login(request):
     session['caller'] = 'login'
     session['flow'] = flow_data
 
-    return web.HTTPFound(flow_data['authorization_url'])
+    raise web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/oauth2callback')
-async def callback(request):
+async def callback(request) -> web.Response:
     session = await aiohttp_session.get_session(request)
     if 'flow' not in session:
         raise web.HTTPUnauthorized()
@@ -370,7 +365,7 @@ async def callback(request):
     if user is None:
         if caller == 'login':
             set_message(session, f'Account does not exist for login id {login_id}', 'error')
-            return web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         assert caller == 'signup'
 
@@ -384,12 +379,12 @@ async def callback(request):
             await insert_new_user(db, username, login_id, is_developer=False, is_service_account=False)
         except AuthUserError as e:
             set_message(session, e.message, 'error')
-            return web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         session['pending'] = True
         session['login_id'] = login_id
 
-        return web.HTTPFound(creating_url)
+        raise web.HTTPFound(creating_url)
 
     if user['state'] in ('deleting', 'deleted'):
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
@@ -402,14 +397,14 @@ async def callback(request):
             set_message(session, f'Account for login id {login_id} is still being created.', 'error')
         session['pending'] = True
         session['login_id'] = user['login_id']
-        return web.HTTPFound(creating_url)
+        raise web.HTTPFound(creating_url)
 
     assert user['state'] == 'active'
     if caller == 'signup':
         set_message(session, f'Account has already been created for {user["username"]}.', 'info')
     session_id = await create_session(db, user['id'])
     session['session_id'] = session_id
-    return web.HTTPFound(next_page)
+    raise web.HTTPFound(next_page)
 
 
 @routes.post('/api/v1alpha/users/{user}/create')
@@ -427,14 +422,6 @@ async def create_user(request: web.Request, _) -> web.Response:
     hail_credentials_secret_name = body.get('hail_credentials_secret_name')
     if (hail_identity or hail_credentials_secret_name) and not is_test_deployment:
         raise web.HTTPBadRequest(text='Cannot specify an existing hail identity for a new user')
-    if hail_credentials_secret_name:
-        try:
-            k8s_cache: K8sCache = request.app['k8s_cache']
-            await k8s_cache.read_secret(hail_credentials_secret_name, DEFAULT_NAMESPACE)
-        except kubernetes_asyncio.client.rest.ApiException as e:
-            raise web.HTTPBadRequest(
-                text=f'hail credentials secret name specified but was not found in namespace {DEFAULT_NAMESPACE}: {hail_credentials_secret_name}'
-            ) from e
 
     try:
         await insert_new_user(
@@ -491,9 +478,9 @@ async def get_copy_paste_token_api(request: web.Request, userdata: UserData) -> 
 @routes.post('/logout')
 @check_csrf_token
 @maybe_authenticated_user
-async def logout(request: web.Request, userdata: Optional[UserData]) -> web.HTTPFound:
+async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn:
     if not userdata:
-        return web.HTTPFound(deploy_config.external_url('auth', ''))
+        raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
     db = request.app['db']
     session_id = userdata['session_id']
@@ -502,7 +489,7 @@ async def logout(request: web.Request, userdata: Optional[UserData]) -> web.HTTP
     session = await aiohttp_session.get_session(request)
     cleanup_session(session)
 
-    return web.HTTPFound(deploy_config.external_url('auth', ''))
+    raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
 
 @routes.get('/api/v1alpha/login')
@@ -518,6 +505,12 @@ async def rest_login(request: web.Request) -> web.Response:
     )
 
 
+@routes.get('/api/v1alpha/oauth2-client')
+async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
+    idp = IdentityProvider.GOOGLE if CLOUD == 'gcp' else IdentityProvider.MICROSOFT
+    return json_response({'idp': idp.value, 'oauth2_client': request.app['hailctl_client_config']})
+
+
 @routes.get('/roles')
 @authenticated_devs_only
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
@@ -530,7 +523,7 @@ async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
 @routes.post('/roles')
 @check_csrf_token
 @authenticated_devs_only
-async def post_create_role(request: web.Request, _) -> web.HTTPFound:
+async def post_create_role(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -546,7 +539,7 @@ VALUES (%s);
 
     set_message(session, f'Created role {role_id} {name}.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/roles'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/roles'))
 
 
 @routes.get('/users')
@@ -561,7 +554,7 @@ async def get_users(request: web.Request, userdata: UserData) -> web.Response:
 @routes.post('/users')
 @check_csrf_token
 @authenticated_devs_only
-async def post_create_user(request: web.Request, _) -> web.HTTPFound:
+async def post_create_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -574,19 +567,22 @@ async def post_create_user(request: web.Request, _) -> web.HTTPFound:
         created_user = await insert_new_user(db, username, login_id, is_developer, is_service_account)
     except AuthUserError as e:
         set_message(session, e.message, 'error')
-        return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+        raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
     if created_user:
         set_message(session, f'Created user {username} {login_id}.', 'info')
     else:
         set_message(session, f'User {username} {login_id} already exists.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
 
 @routes.get('/api/v1alpha/users')
-@authenticated_devs_only
-async def rest_get_users(request: web.Request, _) -> web.Response:
+@authenticated_users_only
+async def rest_get_users(request: web.Request, userdata: UserData) -> web.Response:
+    if userdata['is_developer'] != 1 and userdata['username'] != 'ci':
+        raise web.HTTPUnauthorized()
+
     db: Database = request.app['db']
     _query = '''
 SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity
@@ -638,7 +634,7 @@ WHERE {' AND '.join(where_conditions)};
 @routes.post('/users/delete')
 @check_csrf_token
 @authenticated_devs_only
-async def delete_user(request: web.Request, _) -> web.HTTPFound:
+async def delete_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
@@ -651,7 +647,7 @@ async def delete_user(request: web.Request, _) -> web.HTTPFound:
     except UnknownUser:
         set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
 
 @routes.delete('/api/v1alpha/users/{user}')
@@ -742,11 +738,51 @@ async def rest_logout(request: web.Request, userdata: UserData) -> web.Response:
     return web.Response(status=200)
 
 
-async def get_userinfo(request: web.Request, session_id: str) -> UserData:
+async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
+    flow_client: Flow = request.app['flow_client']
+    client_session = request.app['client_session']
+
+    userdata = await get_userinfo_from_hail_session_id(request, auth_token)
+    if userdata:
+        return userdata
+
+    hailctl_oauth_client = request.app['hailctl_client_config']
+    uid = await flow_client.get_identity_uid_from_access_token(
+        client_session, auth_token, oauth2_client=hailctl_oauth_client
+    )
+    if uid:
+        return await get_userinfo_from_login_id_or_hail_identity_id(request, uid)
+
+    raise web.HTTPUnauthorized()
+
+
+async def get_userinfo_from_login_id_or_hail_identity_id(
+    request: web.Request, login_id_or_hail_idenity_uid: str
+) -> UserData:
+    db = request.app['db']
+
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            '''
+SELECT users.*
+FROM users
+WHERE (users.login_id = %s OR users.hail_identity_uid = %s) AND users.state = 'active'
+''',
+            (login_id_or_hail_idenity_uid, login_id_or_hail_idenity_uid),
+        )
+    ]
+
+    if len(users) != 1:
+        log.info('Unknown login id')
+        raise web.HTTPUnauthorized()
+    return users[0]
+
+
+async def get_userinfo_from_hail_session_id(request: web.Request, session_id: str) -> Optional[UserData]:
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
-        log.info('Session id != 44 bytes')
-        raise web.HTTPUnauthorized()
+        return None
 
     db = request.app['db']
     users = [
@@ -763,8 +799,7 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
     ]
 
     if len(users) != 1:
-        log.info(f'Unknown session id: {session_id}')
-        raise web.HTTPUnauthorized()
+        return None
     return users[0]
 
 
@@ -775,7 +810,7 @@ async def userinfo(_, userdata: UserData) -> web.Response:
 
 
 async def get_session_id(request: web.Request) -> Optional[str]:
-    if 'X-Hail-Internal-Authorization' in request.headers:
+    if 'X-Hail-Internal-Authorization' in request.headers and DEFAULT_NAMESPACE == 'default':
         return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
 
     if 'Authorization' in request.headers:
@@ -806,7 +841,16 @@ async def on_startup(app):
     await db.async_init(maxsize=50)
     app['db'] = db
     app['client_session'] = httpx.client_session()
-    app['flow_client'] = get_flow_client('/auth-oauth2-client-secret/client_secret.json')
+
+    credentials_file = '/auth-oauth2-client-secret/client_secret.json'
+    if CLOUD == 'gcp':
+        app['flow_client'] = GoogleFlow(credentials_file)
+    else:
+        assert CLOUD == 'azure'
+        app['flow_client'] = AzureFlow(credentials_file)
+
+    with open('/auth-oauth2-client-secret/hailctl_client_secret.json', 'r', encoding='utf-8') as f:
+        app['hailctl_client_config'] = json.loads(f.read())
 
     kubernetes_asyncio.config.load_incluster_config()
     app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()

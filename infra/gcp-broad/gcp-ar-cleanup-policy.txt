@@ -1,0 +1,140 @@
+[
+    {
+        "name": "delete_untagged",
+        "action": {
+            "type": "Delete"
+        },
+        "condition": {
+            "tagState": "untagged"
+        }
+    },
+    {
+        "name": "delete_dev",
+        "action": {
+            "type": "Delete"
+        },
+        "condition": {
+            "tagState": "tagged",
+            "tagPrefixes": [
+                "dev-"
+            ],
+            "olderThan": "3d"
+        }
+    },
+    {
+        "name": "delete_test_pr",
+        "action": {
+            "type": "Delete"
+        },
+        "condition": {
+            "tagState": "tagged",
+            "tagPrefixes": [
+                "test-pr-"
+            ],
+            "olderThan": "3d"
+        }
+    },
+    {
+        "name": "delete_test_deploy",
+        "action": {
+            "type": "Delete"
+        },
+        "condition": {
+            "tagState": "tagged",
+            "tagPrefixes": [
+                "test-deploy-"
+            ],
+            "olderThan": "3d"
+        }
+    },
+    {
+        "name": "delete_pr_cache",
+        "action": {
+            "type": "Delete"
+        },
+        "condition": {
+            "tagState": "tagged",
+            "tagPrefixes": [
+                "cache-pr-"
+            ],
+            "olderThan": "7d"
+        }
+    },
+    {
+        "name": "delete_cache",
+        "action": {
+            "type": "Delete"
+        },
+        "condition": {
+            "tagState": "tagged",
+            "tagPrefixes": [
+                "cache-"
+            ],
+            "olderThan": "30d"
+        }
+    },
+    {
+        "name": "keep_third_party",
+        "action": {
+            "type": "Keep"
+        },
+        "condition": {
+            "tagState": "any",
+            "packageNamePrefixes": [
+                "alpine",
+                "debian",
+                "envoyproxy/envoy",
+                "ghost",
+                "google/cloud-sdk",
+                "grafana/grafana",
+                "jupyter/scipy-notebook",
+                "moby/buildkit",
+                "python",
+                "redis",
+                "ubuntu"
+            ]
+        }
+    },
+    {
+        "name": "keep_most_recent_deploy",
+        "action": {
+            "type": "Keep"
+        },
+        "mostRecentVersions": {
+            "packageNamePrefixes": [
+                "admin-pod",
+                "auth",
+                "base",
+                "batch",
+                "batch-worker",
+                "blog_nginx",
+                "ci",
+                "ci-hello",
+                "ci-utils",
+                "create_certs_image",
+                "curl",
+                "git-make-bash",
+                "hail-buildkit",
+                "hail-dev",
+                "hail-run",
+                "hail-ubuntu",
+                "hailgenetics/hail",
+                "hailgenetics/hailtop",
+                "hailgenetics/vep-grch37-85",
+                "hailgenetics/vep-grch38-95",
+                "linting",
+                "monitoring",
+                "netcat",
+                "notebook",
+                "notebook_nginx",
+                "query-build",
+                "test-ci-utils",
+                "test_hello_create_certs_image",
+                "volume",
+                "website",
+                "workdir"
+            ],
+            "keepCount": 10
+        }
+    }
+]

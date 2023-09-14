@@ -4,13 +4,18 @@
 #
 #    pip-compile --output-file=hail/gear/pinned-requirements.txt hail/gear/requirements.txt
 #
+aioconsole==0.6.2
+    # via aiomonitor
 aiohttp==3.8.5
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp-session
+    #   aiomonitor
     #   kubernetes-asyncio
 aiohttp-session==2.12.0
+    # via -r hail/gear/requirements.txt
+aiomonitor==0.6.0
     # via -r hail/gear/requirements.txt
 aiomysql==0.2.0
     # via -r hail/gear/requirements.txt
@@ -19,7 +24,7 @@ aiosignal==1.3.1
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
-async-timeout==4.0.2
+async-timeout==4.0.3
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -30,6 +35,9 @@ attrs==23.1.0
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
+    #   aiomonitor
+backports-strenum==1.2.4
+    # via aiomonitor
 cachetools==5.3.1
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -49,6 +57,12 @@ charset-normalizer==3.2.0
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   requests
+click==8.1.7
+    # via
+    #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/pinned-requirements.txt
+    #   aiomonitor
 frozenlist==1.4.0
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -60,7 +74,7 @@ google-api-core==2.11.1
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   google-api-python-client
-google-api-python-client==2.99.0
+google-api-python-client==2.97.0
     # via google-cloud-profiler
 google-auth==2.22.0
     # via
@@ -70,13 +84,13 @@ google-auth==2.22.0
     #   google-api-python-client
     #   google-auth-httplib2
     #   google-cloud-profiler
-google-auth-httplib2==0.1.1
+google-auth-httplib2==0.1.0
     # via
     #   google-api-python-client
     #   google-cloud-profiler
 google-cloud-profiler==3.1.0
     # via -r hail/gear/requirements.txt
-googleapis-common-protos==1.59.1
+googleapis-common-protos==1.60.0
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -92,15 +106,30 @@ idna==3.4
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   requests
     #   yarl
+janus==1.0.0
+    # via
+    #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/pinned-requirements.txt
+    #   aiomonitor
+jinja2==3.1.2
+    # via
+    #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/pinned-requirements.txt
+    #   aiomonitor
 kubernetes-asyncio==19.15.1
     # via -r hail/gear/requirements.txt
+markupsafe==2.1.3
+    # via
+    #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/pinned-requirements.txt
+    #   jinja2
 multidict==6.0.4
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-orjson==3.9.2
+orjson==3.9.5
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -112,6 +141,10 @@ prometheus-client==0.17.1
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -r hail/gear/requirements.txt
     #   prometheus-async
+prompt-toolkit==3.0.39
+    # via
+    #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
+    #   aiomonitor
 protobuf==3.20.2
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -133,7 +166,7 @@ pymysql==1.1.0
     # via
     #   -r hail/gear/requirements.txt
     #   aiomysql
-pyparsing==3.1.1
+pyparsing==3.0.9
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   httplib2
@@ -167,6 +200,7 @@ six==1.16.0
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   google-auth
+    #   google-auth-httplib2
     #   kubernetes-asyncio
     #   python-dateutil
 sortedcontainers==2.4.0
@@ -174,6 +208,17 @@ sortedcontainers==2.4.0
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   -r hail/gear/requirements.txt
+terminaltables==3.1.10
+    # via aiomonitor
+trafaret==2.1.1
+    # via aiomonitor
+typing-extensions==4.7.1
+    # via
+    #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c hail/gear/../hail/python/pinned-requirements.txt
+    #   aiomonitor
+    #   janus
 uritemplate==4.1.1
     # via google-api-python-client
 urllib3==1.26.16
@@ -184,6 +229,10 @@ urllib3==1.26.16
     #   google-auth
     #   kubernetes-asyncio
     #   requests
+wcwidth==0.2.6
+    # via
+    #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
+    #   prompt-toolkit
 wrapt==1.15.0
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt

@@ -481,9 +481,23 @@ trait TableReaderWithExtraUID extends TableReader {
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
+  final def lower(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableStage = {
+    if (dropRows) {
+      val globals = lowerGlobals(ctx, requestedType.globalType)
+
+      TableStage(
+        globals,
+        RVDPartitioner.empty(ctx, requestedType.keyType),
+        TableStageDependency.none,
+        MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
+        (_: Ref) => MakeStream(FastIndexedSeq(), TStream(requestedType.rowType)))
+    } else {
+      lower(ctx, requestedType)
+    }
+  }
+
   def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
-    assert(!dropRows)
-    TableExecuteIntermediate(lower(ctx, requestedType))
+    TableExecuteIntermediate(lower(ctx, requestedType, dropRows))
   }
 
   def partitionCounts: Option[IndexedSeq[Long]]
@@ -1608,6 +1622,7 @@ case class TableFromBlockMatrixNativeReader(
     VirtualTypeWithReq(PCanonicalStruct.empty(required = true))
 
   override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
+    assert(!dropRows)
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(
       ctx.fsBc, params.path, partitionRanges, requestedType.rowType, metadata,
       maybeMaximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes)

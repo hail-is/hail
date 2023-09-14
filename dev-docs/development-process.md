@@ -29,7 +29,7 @@ develop effectively.
 
 Hail currently supports Python version 3.9 or greater.
 
-```
+```bash
 make install-dev-requirements
 ```
 
@@ -37,7 +37,7 @@ to install the full set of python dependencies across the Hail repo.
 
 To make sure that certain formatting requirements are caught early, run
 
-```
+```bash
 pre-commit install --install-hooks
 ```
 
@@ -50,7 +50,7 @@ Sometimes large formatting or refactoring commits can muddle the git history
 for a file. If your change is one of these, follow up by adding the commit SHA to
 `.git-blame-ignore-revs`. To configure `git blame` to ignore these commits, run
 
-```
+```bash
 git config blame.ignoreRevsFile $HAIL/.git-blame-ignore-revs
 ```
 
@@ -62,7 +62,7 @@ Install and configure tools necessary for working on the Hail Services:
 2. Install [`kubectl`](https://kubernetes.io/docs/tasks/tools/install-kubectl/), if not already installed. (To test installation, run `kubectl` in a terminal window)
 3. Install [`gcloud`](https://cloud.google.com/sdk/docs/install)
 4. Configure gcloud and Docker for Hail:
-```
+```bash
 gcloud auth login
 gcloud config set project hail-vdc
 gcloud container clusters get-credentials vdc --zone=us-central1-a
@@ -76,19 +76,20 @@ export DOCKER_BUILDKIT=1
 # Shell utilities for managing the Hail kubernetes cluster
 source /path/to/hail-repository/devbin/functions.sh
 ```
+
 6. Run `brew install fswatch`
 
 ### Testing / Debugging
 There are different strategies for debugging depending on whether you are
 working on a compiler project or a services project.
 
-#### Compiler:
+#### Compiler
 
 For a compiler project, you can build and run the tests locally on your
 computer. To build hail for development purposes, you should run the following
 command in the hail/hail directory:
 
-```
+```bash
 make install-editable
 ```
 
@@ -96,47 +97,127 @@ There are tests written in Python and tests written in Scala. For the python
 tests, we use pytest.
 
 
-#### Services:
+#### Services
+
+Production, test and development versions of Hail Batch share one Kubernetes
+cluster, but are able to coexist without interference because they are isolated
+in different [namespaces](https://kubernetes.io/docs/tasks/administer-cluster/namespaces-walkthrough/).
+The different kinds of namespaces are:
+
+- The `default` namespace. This is where Production lives.
+- Test namespaces. These are ephemeral namespaces used to test PRs. Every CI
+  pipeline for a PR creates a namespace and deletes it when the tests finish.
+- Dev namespaces. These are long-lived namespaces for developing new features.
+  Each developer has their own namespace. It's name is the same as the developer's
+  hail username.
 
 For a services project, you can push your branch to GitHub and then run what we
-call “dev deploy”. The command to invoke this is
+call a “dev deploy”. The command to invoke a dev deploy is
 
-```
-hailctl dev deploy -b <github_user_name>/hail:<branch_name> -s <step1>,<step2>,...
+```bash
+HAIL_DEFAULT_NAMESPACE=default hailctl dev deploy -b <github_user_name>/hail:<branch_name> -s <step1>,<step2>,...
 ```
 
 Dev deploy creates a batch that deploys the build steps specified by the `-s` in
-your own Kubernetes namespace, MySQL database. For example, if we want to test
+your Kubernetes dev namespace. For example, if we want to test
 whether the Batch tests still pass, we would specify -s test_batch. This will
 run all the dependent steps for testing Batch such as creating credentials,
 a live Auth service, a MySQL database for Batch, and a live Batch deployment.
-Your namespace name is the same as your username.
+
 Submitting a dev deploy with hailctl will give you the link to a UI
 where you can monitor the progress of everything deploying and get the logs for
 any steps that fail. You can also see a recent history of your dev deploys at
 [ci.hail.is/me](https://ci.hail.is/me).
 
+The first time a namespace is used, the Auth service in that namespace won't
+have any users. In order submit jobs to the namespace, make sure to include
+the `add_developers` step to the dev deploy. So a first dev deploy might look like:
 
-If the tests fail, you can then examine the Kubernetes logs for the service
-using something like
-
+```bash
+HAIL_DEFAULT_NAMESPACE=default hailctl dev deploy -b <github_user_name>/hail:<branch_name> -s deploy_batch,add_developers
 ```
+
+After this dev deploy completes, you should be able to access your namespace
+by navigating to https://internal.hail.is/<username>/batch.
+
+To submit jobs to your dev namespace, you need to configure your local hail
+installation to point to the dev namespace. You can do this by running
+
+```bash
+hailctl dev config set default_namespace <my_namespace>
+hailctl auth login
+```
+Then, any Hail Batch or Query-on-Batch script will submit to your dev namespace.
+
+You can also use the `HAIL_DEFAULT_NAMESPACE` environment variable to alter
+the namespace for individual terminal sessions or commands.
+
+NOTE: The dev deploy command above sets `HAIL_DEFAULT_NAMESPACE=default`. That's
+because `hailctl dev deploy` submits a request to the production CI service that
+lives in the `default` namespace. This does *not* mean that your branch will be deployed
+to the `default` namespace, it will always be deployed into your dev namespace.
+
+To examine the Kubernetes logs for the service in your namespace, use something like
+
+```bash
 kubectl -n <my_namespace> logs -l app=batch-driver --tail=999999 | less
 ```
 
-To check the MySQL database, you first need to find the name of the specific pod
-running an “admin-pod” and then log into that pod:
+To check the MySQL database in your namespace, you can log in to the database
+pod like so:
 
 ```
-kubectl -n <my_namespace> get pods -l app=admin-pod
-kubectl -n <my_namespace> exec -it <admin_pod_name> /bin/bash
+kubectl -n <my_namespace> exec -it db-0 /bin/bash
 $ mysql
 ```
+
+##### Alternatives to dev deploy
+
+There are three ways to deploy code into a dev namespace:
+1. dev deploy
+2. make deploy
+3. sync.py
+
+These are listed in order of broadest scope to narrowest scope, so it is never
+wrong to do something higher on the list, but it might be a slower feedback loop.
+
+A dev deploy is necessary under the following conditions:
+- A dev namespace has not been used before
+- You have added a migration that must be run against a service's database
+- Not all necessary services (like Auth) are deployed in the namespace and you
+  do not want to `make` deploy them individually.
+
+If you just want to redeploy a single service, you can do so with the following:
+
+```bash
+make -C batch deploy NAMESPACE=<my_namespace>
+```
+
+If you only want to make a Python code change to an already-running service
+in Kubernetes, you can run `devbin/sync.py` like the following:
+
+```bash
+python3 devbin/sync.py \
+    --namespace <my_namespace> \
+    --app batch --app batch-driver \
+    --path batch/batch /usr/local/lib/python3.9/dist-packages/ \
+    --path gear/gear /usr/local/lib/python3.9/dist-packages/ \
+    --path web_common/web_common /usr/local/lib/python3.9/dist-packages/ \
+    --path hail/python/hailtop /usr/local/lib/python3.9/dist-packages/
+```
+
+This will create a long-running process that watches the files in the `batch`
+and `gear` modules. When changes to those files are saved it will upload those
+changes to currently running pods in the namespace and restart those pods. Note
+that Batch Workers are not running as pods in Kubernetes, and are immutable. So
+if you want to update code running on a Batch Worker, you will need to `make`
+deploy and then delete existing workers in your namespace.
 
 ## PR
 
 Once you have a branch that you are happy with, then you create a Pull Request
-on the GitHub UI.
+on the GitHub UI. For an overview of our practices around git and pull requests,
+see [this doc](git-practices.md)
 
 You’ll want to add an appropriate reviewer in the "Reviewers" box on the
 right hand side of the page. If you are an outside contributor and cannot
@@ -212,7 +293,7 @@ If your review is requested on a PR submitted by an outside contributor, you sho
 responsible for ensuring that the PR does not go stale and is eventually
 merged or closed.
 
-![](dismiss_review.png)
+![](dismiss-review.png)
 
 
 ## Merge / Deploy
@@ -232,7 +313,7 @@ retry strategy.
 If a Batch database migration is involved in the PR, then we’ll need to wait for
 the database to be migrated and then redeploy the Batch service by hand using
 
-```
+```bash
 make -c batch deploy
 ```
 

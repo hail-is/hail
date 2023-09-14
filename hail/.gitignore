@@ -52,12 +52,14 @@ python/hail/docs/vds/hail.vds.filter_chromosomes.rst
 python/hail/docs/vds/hail.vds.filter_intervals.rst
 python/hail/docs/vds/hail.vds.filter_samples.rst
 python/hail/docs/vds/hail.vds.filter_variants.rst
+python/hail/docs/vds/hail.vds.impute_sex_chr_ploidy_from_interval_coverage.rst
 python/hail/docs/vds/hail.vds.impute_sex_chromosome_ploidy.rst
 python/hail/docs/vds/hail.vds.interval_coverage.rst
 python/hail/docs/vds/hail.vds.lgt_to_gt.rst
 python/hail/docs/vds/hail.vds.read_vds.rst
 python/hail/docs/vds/hail.vds.sample_qc.rst
 python/hail/docs/vds/hail.vds.split_multi.rst
+python/hail/docs/vds/hail.vds.store_ref_block_max_length.rst
 python/hail/docs/vds/hail.vds.to_dense_mt.rst
 python/hail/docs/vds/hail.vds.to_merged_sparse_mt.rst
 python/hail/docs/vds/hail.vds.local_to_global.rst

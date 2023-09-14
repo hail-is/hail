@@ -1,5 +1,6 @@
 from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable, TypeVar,
-                    Generic, List)
+                    Generic, List, Awaitable, Union, Tuple)
+from typing_extensions import ParamSpec
 from types import TracebackType
 import abc
 import asyncio
@@ -7,6 +8,17 @@ import datetime
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
 from .stream import EmptyReadableStream, ReadableStream, WritableStream
 from .exceptions import FileAndDirectoryError
+
+
+T = TypeVar("T")
+P = ParamSpec("P")
+
+
+async def with_exception(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> Union[Tuple[T, None], Tuple[None, Exception]]:
+    try:
+        return (await f(*args, **kwargs)), None
+    except Exception as e:
+        return None, e
 
 
 class FileStatus(abc.ABC):
@@ -199,12 +211,6 @@ class AsyncFS(abc.ABC):
 
     async def _staturl_parallel_isfile_isdir(self, url: str) -> str:
         assert not url.endswith('/')
-
-        async def with_exception(f, *args, **kwargs):
-            try:
-                return (await f(*args, **kwargs)), None
-            except Exception as e:
-                return None, e
 
         [(is_file, isfile_exc), (is_dir, isdir_exc)] = await asyncio.gather(
             with_exception(self.isfile, url), with_exception(self.isdir, url + '/'))

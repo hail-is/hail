@@ -3,16 +3,12 @@ from typing import Dict
 
 
 class CloudCredentials(abc.ABC):
-    @staticmethod
-    def from_file(credentials_file):
-        raise NotImplementedError
-
-    @staticmethod
-    def default_credentials():
+    @abc.abstractmethod
+    async def auth_headers(self) -> Dict[str, str]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def auth_headers(self) -> Dict[str, str]:
+    async def access_token(self) -> str:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -20,7 +16,7 @@ class CloudCredentials(abc.ABC):
         raise NotImplementedError
 
 
-class AnonymousCloudCredentials(CloudCredentials):
+class AnonymousCloudCredentials:
     async def auth_headers(self) -> Dict[str, str]:
         return {}
 
