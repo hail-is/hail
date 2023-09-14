@@ -514,14 +514,16 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
 # new_y is an array the same length as x. For each i in keep, new_y[i] is the
 # y coordinate of the point on the max-ent cdf.
 def _max_entropy_cdf(min_x, max_x, x, y, e):
+    # equivalent to compare(x1 / y1, x2 / y2)
     def compare(x1, y1, x2, y2):
         return x1 * y2 - x2 * y1
 
     new_y = np.full_like(x, 0.0, dtype=np.float64)
     keep = np.full_like(x, False, dtype=np.bool_)
 
-    fx = min_x  # fixed x
-    fy = 0  # fixed y
+    # (fx, fy) is most recently fixed point on max-ent cdf
+    fx = min_x
+    fy = 0
     li = 0  # index of lower slope
     ui = 0  # index of upper slope
     ldx = x[li] - fx
