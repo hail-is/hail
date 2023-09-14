@@ -197,7 +197,7 @@ download-configmap() {
 }
 
 get_global_config_field() {
-    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
+    kubectl -n ${2:-default} get secret global-config --template={{.data.$1}} | base64 --decode
 }
 
 gcpsetcluster() {
@@ -235,10 +235,6 @@ azsshworker() {
         | jq -jr '.[0].virtualMachine.network.publicIpAddresses[0].ipAddress')
 
     ssh -i ~/.ssh/batch_worker_ssh_rsa batch-worker@$worker_ip
-}
-
-get_global_config_field() {
-    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
 }
 
 confirm() {

@@ -481,7 +481,7 @@ object BGENFunctions extends RegistryFunctions {
         val bufferSize = _bufferSize.asInt.value
 
         val cbfis = cb.memoize(Code.newInstance[HadoopFSDataBinaryReader, SeekableDataInputStream](
-          mb.getFS.invoke[String, Boolean, SeekableDataInputStream]("openNoCompression", path, false)))
+          mb.getFS.invoke[String, SeekableDataInputStream]("openNoCompression", path)))
 
         val header = cb.memoize(Code.invokeScalaObject3[HadoopFSDataBinaryReader, String, Long, BgenHeader](
           LoadBgen.getClass, "readState", cbfis, path, mb.getFS.invoke[String, Long]("getFileSize", path)))

@@ -4,7 +4,7 @@ import pandas
 import numpy as np
 import pyspark
 import pprint
-from typing import Optional, Dict, Callable, Sequence, Union
+from typing import Optional, Dict, Callable, Sequence, Union, List, overload
 
 from hail.expr.expressions import Expression, StructExpression, \
     BooleanExpression, expr_struct, expr_any, expr_bool, analyze, Indices, \
@@ -1146,7 +1146,7 @@ class Table(ExprContainer):
         delimiter : :class:`str`
             Field delimiter.
         """
-        hl.current_backend().validate_file_scheme(output)
+        hl.current_backend().validate_file(output)
 
         parallel = ir.ExportType.default(parallel)
         Env.backend().execute(
@@ -1325,7 +1325,7 @@ class Table(ExprContainer):
         >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
 
         """
-        hl.current_backend().validate_file_scheme(output)
+        hl.current_backend().validate_file(output)
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
@@ -1372,7 +1372,7 @@ class Table(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        hl.current_backend().validate_file_scheme(output)
+        hl.current_backend().validate_file(output)
 
         Env.backend().execute(ir.TableWrite(self._tir, ir.TableNativeWriter(output, overwrite, stage_locally, _codec_spec)))
 
@@ -1500,7 +1500,7 @@ class Table(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        hl.current_backend().validate_file_scheme(output)
+        hl.current_backend().validate_file(output)
 
         Env.backend().execute(
             ir.TableWrite(
@@ -2127,6 +2127,12 @@ class Table(ExprContainer):
         """
         return Env.backend().unpersist(self)
 
+    @overload
+    def collect(self) -> List[hl.Struct]:
+        ...
+    @overload
+    def collect(self, _localize=False) -> hl.ArrayExpression:
+        ...
     @typecheck_method(_localize=bool, _timed=bool)
     def collect(self, _localize=True, *, _timed=False):
         """Collect the rows of the table into a local list.

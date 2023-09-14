@@ -7,13 +7,13 @@ import functools
 import glob
 import fnmatch
 
-from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
+from hailtop.aiotools.fs import Copier, Transfer, FileListEntry as AIOFileListEntry, ReadableStream, WritableStream
 from hailtop.aiotools.local_fs import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import bounded_gather2, async_to_blocking
 
 from .fs import FS
-from .stat_result import FileType, StatResult
+from .stat_result import FileType, FileListEntry
 
 
 class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://github.com/python/typeshed/blob/a40d79a4e63c4e750a8d3a8012305da942251eb4/stdlib/http/client.pyi#L81
@@ -152,14 +152,14 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
         return async_to_blocking(self.aws.write(b))
 
 
-def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int, float]], path: str) -> StatResult:
+def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int, float]], path: str) -> FileListEntry:
     if size_bytes_and_time_modified:
         size_bytes, time_modified = size_bytes_and_time_modified
     else:
         size_bytes = 0
         time_modified = None
 
-    return StatResult(
+    return FileListEntry(
         path=path.rstrip('/'),
         size=size_bytes,
         typ=FileType.DIRECTORY if is_dir else FileType.FILE,
@@ -238,7 +238,7 @@ class RouterFS(FS):
     def is_dir(self, path: str) -> bool:
         return async_to_blocking(self._async_is_dir(path))
 
-    def stat(self, path: str) -> StatResult:
+    def stat(self, path: str) -> FileListEntry:
         maybe_sb_and_t, is_dir = async_to_blocking(asyncio.gather(
             self._size_bytes_and_time_modified_or_none(path), self._async_is_dir(path)))
         if maybe_sb_and_t is None:
@@ -255,7 +255,7 @@ class RouterFS(FS):
         except FileNotFoundError:
             return None
 
-    async def _fle_to_dict(self, fle: FileListEntry) -> StatResult:
+    async def _aiofle_to_fle(self, fle: AIOFileListEntry) -> FileListEntry:
         async def maybe_status() -> Optional[Tuple[int, float]]:
             try:
                 file_status = await fle.status()
@@ -269,7 +269,7 @@ class RouterFS(FS):
            path: str,
            *,
            error_when_file_and_directory: bool = True,
-           _max_simultaneous_files: int = 50) -> List[StatResult]:
+           _max_simultaneous_files: int = 50) -> List[FileListEntry]:
         return async_to_blocking(self._async_ls(
             path,
             error_when_file_and_directory=error_when_file_and_directory,
@@ -279,10 +279,10 @@ class RouterFS(FS):
                         path: str,
                         *,
                         error_when_file_and_directory: bool = True,
-                        _max_simultaneous_files: int = 50) -> List[StatResult]:
+                        _max_simultaneous_files: int = 50) -> List[FileListEntry]:
         sema = asyncio.Semaphore(_max_simultaneous_files)
 
-        async def ls_no_glob(path) -> List[StatResult]:
+        async def ls_no_glob(path) -> List[FileListEntry]:
             try:
                 return await self._ls_no_glob(path,
                                               error_when_file_and_directory=error_when_file_and_directory,
@@ -320,7 +320,7 @@ class RouterFS(FS):
             else:
                 first_prefix = []
 
-        cached_stats_for_each_cumulative_prefix: Optional[List[StatResult]] = None
+        cached_stats_for_each_cumulative_prefix: Optional[List[FileListEntry]] = None
         cumulative_prefixes = [first_prefix]
 
         for intervening_components, single_component_glob_pattern in glob_components:
@@ -370,12 +370,12 @@ class RouterFS(FS):
                           path: str,
                           *,
                           error_when_file_and_directory: bool = True,
-                          sema: asyncio.Semaphore) -> List[StatResult]:
-        async def ls_as_dir() -> Optional[List[StatResult]]:
+                          sema: asyncio.Semaphore) -> List[FileListEntry]:
+        async def ls_as_dir() -> Optional[List[FileListEntry]]:
             try:
                 return await bounded_gather2(
                     sema,
-                    *[functools.partial(self._fle_to_dict, fle)
+                    *[functools.partial(self._aiofle_to_fle, fle)
                       async for fle in await self.afs.listfiles(path)],
                     cancel_on_error=True
                 )

@@ -45,13 +45,13 @@ class PageIterator:
     async def __anext__(self):
         if self._page is None:
             assert 'pageToken' not in self._request_params
-            self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
+            self._page = await retry_transient_errors(self._client.get, self._path, params=self._request_params, **self._request_kwargs)
             return self._page
 
         next_page_token = self._page.get('nextPageToken')
         if next_page_token is not None:
             self._request_params['pageToken'] = next_page_token
-            self._page = await self._client.get(self._path, params=self._request_params, **self._request_kwargs)
+            self._page = await retry_transient_errors(self._client.get, self._path, params=self._request_params, **self._request_kwargs)
             return self._page
 
         raise StopAsyncIteration
@@ -307,10 +307,18 @@ class GoogleStorageClient(GoogleBaseClient):
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
-        gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        self._gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
-        self._gcs_requester_pays_configuration = gcs_requester_pays_configuration
+
+    async def bucket_info(self, bucket: str) -> Dict[str, Any]:
+        """
+        See `the GCS API docs https://cloud.google.com/storage/docs/json_api/v1/buckets`_ for the list of bucket
+        properties in the response.
+        """
+        kwargs: Dict[str, Any] = {}
+        self._update_params_with_user_project(kwargs, bucket)
+        return await self.get(f'/b/{bucket}', **kwargs)
 
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
@@ -588,10 +596,34 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     def __init__(self, *,
                  storage_client: Optional[GoogleStorageClient] = None,
+                 bucket_allow_list: Optional[List[str]] = None,
                  **kwargs):
         if not storage_client:
             storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
+        if bucket_allow_list is None:
+            bucket_allow_list = []
+        self.allowed_storage_locations = bucket_allow_list
+
+    def storage_location(self, uri: str) -> str:
+        return self.get_bucket_and_name(uri)[0]
+
+    async def is_hot_storage(self, location: str) -> bool:
+        """
+        See `the GCS API docs https://cloud.google.com/storage/docs/storage-classes`_ for a list of possible storage
+        classes.
+
+        Raises
+        ------
+        :class:`aiohttp.ClientResponseError`
+            If the specified bucket does not exist, or if the account being used to access GCS does not have permission
+            to read the bucket's default storage policy.
+        """
+        return (await self._storage_client.bucket_info(location))["storageClass"].lower() in (
+            "standard",
+            "regional",
+            "multi_regional",
+        )
 
     @staticmethod
     def valid_url(url: str) -> bool:
@@ -615,16 +647,20 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise ValueError(f'Google Cloud Storage URI must be of the form: gs://bucket/path, found: {url}')
 
         end_of_bucket = rest.find('/', 2)
-        bucket = rest[2:end_of_bucket]
-        name = rest[(end_of_bucket + 1):]
+        if end_of_bucket != -1:
+            bucket = rest[2:end_of_bucket]
+            name = rest[(end_of_bucket + 1):]
+        else:
+            bucket = rest[2:]
+            name = ''
 
         return (bucket, name)
 
-    async def open(self, url: str) -> ReadableStream:
+    async def open(self, url: str) -> GetObjectStream:
         bucket, name = self.get_bucket_and_name(url)
         return await self._storage_client.get_object(bucket, name)
 
-    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> GetObjectStream:
         bucket, name = self.get_bucket_and_name(url)
         range_str = f'bytes={start}-'
         if length is not None:
@@ -730,7 +766,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                 return False
             return True
 
-        async def cons(first_entry, it):
+        async def cons(first_entry, it) -> AsyncIterator[FileListEntry]:
             if await should_yield(first_entry):
                 yield first_entry
             try:

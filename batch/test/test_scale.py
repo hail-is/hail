@@ -21,7 +21,7 @@ def test_scale(client):
         sleep_time = random.uniform(0, 30)
         batch.create_job('alpine:3.8', command=['sleep', str(round(sleep_time))])
 
-    batch = batch.submit()
+    batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
 

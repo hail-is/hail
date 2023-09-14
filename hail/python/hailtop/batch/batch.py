@@ -1,7 +1,7 @@
 import os
 import warnings
 import re
-from typing import Callable, Optional, Dict, Union, List, Any, Set
+from typing import Callable, Optional, Dict, Union, List, Any, Set, Literal, overload
 from io import BytesIO
 import dill
 
@@ -10,7 +10,7 @@ from hailtop.aiotools import AsyncFS
 from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch_client.client as _bc
-from hailtop.config import configuration_of
+from hailtop.config import ConfigVariable, configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -167,7 +167,7 @@ class Batch:
         if backend:
             self._backend = backend
         else:
-            backend_config = configuration_of('batch', 'backend', None, 'local')
+            backend_config = configuration_of(ConfigVariable.BATCH_BACKEND, None, 'local')
             if backend_config == 'service':
                 self._backend = _backend.ServiceBackend()
             else:
@@ -407,7 +407,7 @@ class Batch:
         return jrf
 
     def _new_input_resource_file(self, input_path, root=None):
-        self._backend.validate_file_scheme(input_path)
+        self._backend.validate_file(input_path, self.requester_pays_project)
 
         # Take care not to include an Azure SAS token query string in the local name.
         if AzureAsyncFS.valid_url(input_path):
@@ -559,19 +559,23 @@ class Batch:
 
         Write a single job intermediate to a permanent location in GCS:
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
-        >>> b.run()  # doctest: +SKIP
+        .. code-block:: python
+
+            b = Batch()
+            j = b.new_job()
+            j.command(f'echo "hello" > {j.ofile}')
+            b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
+            b.run()
 
         Write a single job intermediate to a permanent location in Azure:
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
-        >>> b.run()  # doctest: +SKIP
+        .. code-block:: python
+
+            b = Batch()
+            j = b.new_job()
+            j.command(f'echo "hello" > {j.ofile}')
+            b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
+            b.run()  # doctest: +SKIP
 
         .. warning::
 
@@ -619,6 +623,8 @@ class Batch:
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
+        self._backend.validate_file(dest, self.requester_pays_project)
+
         resource._add_output_path(dest)
 
     def select_jobs(self, pattern: str) -> List[job.Job]:
@@ -643,11 +649,15 @@ class Batch:
 
         return [job for job in self._jobs if job.name is not None and re.match(pattern, job.name) is not None]
 
+    @overload
+    def run(self, dry_run: Literal[False] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> _bc.Batch: ...
+    @overload
+    def run(self, dry_run: Literal[True] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> None: ...
     def run(self,
             dry_run: bool = False,
             verbose: bool = False,
             delete_scratch_on_exit: bool = True,
-            **backend_kwargs: Any):
+            **backend_kwargs: Any) -> Optional[_bc.Batch]:
         """
         Execute a batch.
 
@@ -705,6 +715,7 @@ class Batch:
             async_to_blocking(self._DEPRECATED_fs.close())
             self._DEPRECATED_fs = None
         return run_result
+
 
     def __str__(self):
         return self._uid

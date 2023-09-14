@@ -191,7 +191,7 @@ def test_unzip():
     assert unzip([(123, 456), ('abc', 'def')]) == ([123, 'abc'], [456, 'def'])
     assert unzip([(123, 'abc'), (456, 'def'), (789, 'ghi')]) == ([123, 456, 789], ['abc', 'def', 'ghi'])
 
-    
+
 def test_digits_needed():
     assert digits_needed(0) == 1
     assert digits_needed(1) == 1

@@ -19,7 +19,7 @@ from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
-from hailtop.config import (configuration_of, get_remote_tmpdir)
+from hailtop.config import (ConfigVariable, configuration_of, get_remote_tmpdir)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
@@ -36,6 +36,7 @@ from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
 from ..ir import BaseIR
 from ..utils import ANY_REGION
+from hailtop.aiotools.validators import validate_file
 
 
 ReferenceGenomeConfig = Dict[str, Any]
@@ -205,8 +206,9 @@ class ServiceBackend(Backend):
                      name_prefix: Optional[str] = None,
                      token: Optional[str] = None,
                      regions: Optional[List[str]] = None,
-                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None):
-        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
+                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+                     gcs_bucket_allow_list: Optional[List[str]] = None):
+        billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
         if billing_project is None:
             raise ValueError(
                 "No billing project.  Call 'init_batch' with the billing "
@@ -216,7 +218,10 @@ class ServiceBackend(Backend):
         gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         )
-        async_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
+        async_fs = RouterAsyncFS(
+            gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration},
+            gcs_bucket_allow_list=gcs_bucket_allow_list
+        )
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
             batch_client = await aiohb.BatchClient.create(billing_project, _token=token)
@@ -224,17 +229,17 @@ class ServiceBackend(Backend):
         batch_attributes: Dict[str, str] = dict()
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
-        jar_url = configuration_of('query', 'jar_url', jar_url, None)
+        jar_url = configuration_of(ConfigVariable.QUERY_JAR_URL, jar_url, None)
         jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
 
-        driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
-        driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
-        worker_cores = configuration_of('query', 'batch_worker_cores', worker_cores, None)
-        worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
-        name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
+        driver_cores = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_CORES, driver_cores, None)
+        driver_memory = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_MEMORY, driver_memory, None)
+        worker_cores = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, None)
+        worker_memory = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None)
+        name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
 
         if regions is None:
-            regions_from_conf = configuration_of('batch', 'regions', regions, None)
+            regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, None)
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
@@ -245,7 +250,7 @@ class ServiceBackend(Backend):
         assert len(regions) > 0, regions
 
         if disable_progress_bar is None:
-            disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, None)
+            disable_progress_bar_str = configuration_of(ConfigVariable.QUERY_DISABLE_PROGRESS_BAR, None, None)
             if disable_progress_bar_str is None:
                 disable_progress_bar = not am_i_interactive()
             else:
@@ -279,7 +284,7 @@ class ServiceBackend(Backend):
             worker_cores=worker_cores,
             worker_memory=worker_memory,
             name_prefix=name_prefix or '',
-            regions=regions,
+            regions=regions
         )
         sb._initialize_flags(flags)
         return sb
@@ -321,6 +326,9 @@ class ServiceBackend(Backend):
         self.name_prefix = name_prefix
         self.regions = regions
 
+    def validate_file(self, uri: str) -> None:
+        validate_file(uri, self._async_fs, validate_scheme=True)
+
     def debug_info(self) -> Dict[str, Any]:
         return {
             'jar_spec': str(self.jar_spec),
@@ -342,12 +350,6 @@ class ServiceBackend(Backend):
     @property
     def logger(self):
         return log
-
-    def validate_file_scheme(self, url):
-        assert isinstance(self._async_fs, RouterAsyncFS)
-        if self._async_fs.get_scheme(url) == 'file':
-            raise ValueError(
-                f'Found local filepath {url} when using Query on Batch. Specify a remote filepath instead.')
 
     def stop(self):
         async_to_blocking(self._async_fs.close())
@@ -432,9 +434,7 @@ class ServiceBackend(Backend):
                 if 'name' not in batch_attributes:
                     batch_attributes = {**batch_attributes, 'name': self.name_prefix}
                 if self._batch is None:
-                    bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
-                else:
-                    bb = await self.async_bc.update_batch(self._batch)
+                    self._batch = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
                 if driver_cores is not None:
@@ -450,7 +450,7 @@ class ServiceBackend(Backend):
                 if storage_requirement_bytes != 0:
                     resources['storage'] = storage_gib_str
 
-                j = bb.create_jvm_job(
+                j = self._batch.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
@@ -465,7 +465,7 @@ class ServiceBackend(Backend):
                     cloudfuse=cloudfuse_config,
                     profile=self.flags['profile'] is not None,
                 )
-                self._batch = await bb.submit(disable_progress_bar=True)
+                await self._batch.submit(disable_progress_bar=True)
 
             with timings.step("wait driver"):
                 try:
@@ -495,7 +495,10 @@ class ServiceBackend(Backend):
         except FileNotFoundError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(
+                    _jobs_query_string='failed',
+                    _max_jobs=10
+                ),
                 'input_uri': await self._async_fs.read(input_uri),
             })) from exc
 
@@ -516,7 +519,10 @@ class ServiceBackend(Backend):
         except UnexpectedEOFError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(
+                    _jobs_query_string='failed',
+                    _max_jobs=10
+                ),
                 'in': await self._async_fs.read(input_uri),
                 'out': await self._async_fs.read(output_uri),
             })) from exc
@@ -659,7 +665,7 @@ class ServiceBackend(Backend):
     def add_sequence(self, name, fasta_file, index_file):  # pylint: disable=unused-argument
         # FIXME Not only should this be in the cloud, it should be in the *right* cloud
         for blob in (fasta_file, index_file):
-            self.validate_file_scheme(blob)
+            self.validate_file(blob)
 
     def remove_sequence(self, name):  # pylint: disable=unused-argument
         pass

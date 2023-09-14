@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple, List
+from typing import Optional, Union, Tuple, List, Dict
 import warnings
 import sys
 import os
@@ -170,7 +170,8 @@ class HailContext(object):
            worker_cores=nullable(oneof(str, int)),
            worker_memory=nullable(str),
            gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
-           regions=nullable(sequenceof(str)))
+           regions=nullable(sequenceof(str)),
+           gcs_bucket_allow_list=nullable(dictof(str, sequenceof(str))))
 def init(sc=None,
          app_name=None,
          master=None,
@@ -195,7 +196,8 @@ def init(sc=None,
          worker_cores=None,
          worker_memory=None,
          gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
-         regions: Optional[List[str]] = None):
+         regions: Optional[List[str]] = None,
+         gcs_bucket_allow_list: Optional[Dict[str, List[str]]] = None):
     """Initialize and configure Hail.
 
     This function will be called with default arguments if any Hail functionality is used. If you
@@ -311,7 +313,9 @@ def init(sc=None,
         List of regions to run jobs in when using the Batch backend. Use :data:`.ANY_REGION` to specify any region is allowed
         or use `None` to use the underlying default regions from the hailctl environment configuration. For example, use
         `hailctl config set batch/regions region1,region2` to set the default regions to use.
-
+    gcs_bucket_allow_list:
+        A list of buckets that Hail should be permitted to read from or write to, even if their default policy is to
+        use "cold" storage. Should look like ``["bucket1", "bucket2"]``.
     """
     if Env._hc:
         if idempotent:
@@ -347,7 +351,8 @@ def init(sc=None,
             worker_memory=worker_memory,
             name_prefix=app_name,
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-            regions=regions
+            regions=regions,
+            gcs_bucket_allow_list=gcs_bucket_allow_list
         ))
     if backend == 'spark':
         return init_spark(
@@ -469,7 +474,8 @@ def init_spark(sc=None,
     name_prefix=nullable(str),
     token=nullable(str),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
-    regions=nullable(sequenceof(str))
+    regions=nullable(sequenceof(str)),
+    gcs_bucket_allow_list=nullable(sequenceof(str))
 )
 async def init_batch(
         *,
@@ -492,6 +498,7 @@ async def init_batch(
         token: Optional[str] = None,
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         regions: Optional[List[str]] = None,
+        gcs_bucket_allow_list: Optional[List[str]] = None
 ):
     from hail.backend.service_backend import ServiceBackend
     # FIXME: pass local_tmpdir and use on worker and driver
@@ -506,7 +513,8 @@ async def init_batch(
                                           name_prefix=name_prefix,
                                           token=token,
                                           regions=regions,
-                                          gcs_requester_pays_configuration=gcs_requester_pays_configuration)
+                                          gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+                                          gcs_bucket_allow_list=gcs_bucket_allow_list)
 
     log = _get_log(log)
     if tmpdir is None:

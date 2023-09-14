@@ -1,8 +1,9 @@
 from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict, Iterable, Tuple,
-                    Generic, cast)
-from typing import Literal
+                    Generic, cast, AsyncIterator, Iterator, Union)
+from typing import Literal, Sequence
+from typing_extensions import ParamSpec
 from types import TracebackType
-import concurrent
+import concurrent.futures
 import contextlib
 import subprocess
 import traceback
@@ -14,8 +15,8 @@ import random
 import logging
 import asyncio
 import aiohttp
-import urllib
-import urllib3
+import urllib.parse
+import urllib3.exceptions
 import secrets
 import socket
 import requests
@@ -44,6 +45,7 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 
 T = TypeVar('T')  # pylint: disable=invalid-name
 U = TypeVar('U')  # pylint: disable=invalid-name
+P = ParamSpec("P")
 
 
 def unpack_comma_delimited_inputs(inputs: List[str]) -> List[str]:
@@ -72,9 +74,13 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
     return None
 
 
-def cost_str(cost: Optional[int]) -> Optional[str]:
+def cost_str(cost: Optional[float]) -> Optional[str]:
     if cost is None:
         return None
+    if cost == 0.0:
+        return '$0.0000'
+    if cost < 0.0001:
+        return '<$0.0001'
     return f'${cost:.4f}'
 
 
@@ -114,7 +120,7 @@ def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
         yield group
 
 
-def partition(k: int, ls: List[T]) -> Iterable[List[T]]:
+def partition(k: int, ls: Sequence[T]) -> Iterable[Sequence[T]]:
     if k == 0:
         assert not ls
         return []
@@ -155,6 +161,14 @@ def async_to_blocking(coro: Awaitable[T]) -> T:
                 loop.run_until_complete(task)
 
 
+def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
+    while True:
+        try:
+            yield async_to_blocking(ait.__anext__())
+        except StopAsyncIteration:
+            break
+
+
 async def blocking_to_async(thread_pool: concurrent.futures.Executor,
                             fun: Callable[..., T],
                             *args,
@@ -185,7 +199,7 @@ class AsyncThrottledGather(Generic[T]):
         self._done = asyncio.Event()
         self._return_exceptions = return_exceptions
 
-        self._results: List[Optional[T]] = [None] * len(pfs)
+        self._results: List[Union[T, Exception, None]] = [None] * len(pfs)
         self._errors: List[BaseException] = []
 
         self._workers = []
@@ -466,7 +480,7 @@ class OnlineBoundedGather2:
 async def bounded_gather2_return_exceptions(
         sema: asyncio.Semaphore,
         *pfs: Callable[[], Awaitable[T]]
-) -> List[T]:
+) -> List[Union[Tuple[T, None], Tuple[None, Optional[BaseException]]]]:
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the desired level of parallelism.
@@ -476,7 +490,7 @@ async def bounded_gather2_return_exceptions(
     `(None, exc)` if the partial function raised the exception `exc`.
 
     '''
-    async def run_with_sema_return_exceptions(pf):
+    async def run_with_sema_return_exceptions(pf: Callable[[], Awaitable[T]]):
         try:
             async with sema:
                 return (await pf(), None)
@@ -508,7 +522,7 @@ async def bounded_gather2_raise_exceptions(
     cancel_on_error is True, the unfinished tasks are all cancelled.
 
     '''
-    async def run_with_sema(pf):
+    async def run_with_sema(pf: Callable[[], Awaitable[T]]):
         async with sema:
             return await pf()
 
@@ -539,7 +553,7 @@ async def bounded_gather2(
         cancel_on_error: bool = False
 ) -> List[T]:
     if return_exceptions:
-        return await bounded_gather2_return_exceptions(sema, *pfs)
+        return await bounded_gather2_return_exceptions(sema, *pfs)  # type: ignore
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
@@ -665,7 +679,7 @@ def is_transient_error(e):
         return True
     if isinstance(e, asyncio.TimeoutError):
         return True
-    if (isinstance(e, aiohttp.client_exceptions.ClientConnectorError)
+    if (isinstance(e, aiohttp.ClientConnectorError)
             and hasattr(e, 'os_error')
             and is_transient_error(e.os_error)):
         return True
@@ -703,7 +717,8 @@ def is_transient_error(e):
         if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
             return False
         # DockerError(500, "Head https://gcr.io/v2/genomics-tools/samtools/manifests/latest: unknown: Project 'project:genomics-tools' not found or deleted.")
-        if e.status == 500 and 'not found or deleted' in e.message:
+        # DockerError(500, 'unknown: Tag v1.11.2 was deleted or has expired. To pull, revive via time machine')
+        if e.status == 500 and 'unknown' in e.message:
             return False
         return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):
@@ -775,7 +790,7 @@ def retry_all_errors(msg=None, error_logging_interval=10):
 
 
 def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10):
-    async def _wrapper(f, *args, **kwargs):
+    async def _wrapper(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> T:
         tries = 0
         while True:
             try:
@@ -894,8 +909,8 @@ class TimeoutHTTPAdapter(HTTPAdapter):
             timeout=self.timeout)
 
 
-async def collect_agen(agen):
-    return [x async for x in agen]
+async def collect_aiter(aiter: AsyncIterator[T]) -> List[T]:
+    return [x async for x in aiter]
 
 
 def dump_all_stacktraces():
@@ -904,7 +919,7 @@ def dump_all_stacktraces():
         t.print_stack()
 
 
-async def retry_long_running(name, f, *args, **kwargs):
+async def retry_long_running(name: str, f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> T:
     delay_secs = 0.1
     while True:
         start_time = time_msecs()

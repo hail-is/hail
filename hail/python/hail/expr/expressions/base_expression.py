@@ -1,4 +1,4 @@
-from typing import Tuple, Mapping
+from typing import Tuple, Mapping, overload, Any, List
 import numpy as np
 import pandas as pd
 
@@ -1101,6 +1101,12 @@ class Expression(object):
             return hl.eval(e)
         return e
 
+    @overload
+    def collect(self) -> List[Any]:
+        ...
+    @overload
+    def collect(self, _localize=False) -> 'Expression':
+        ...
     @typecheck_method(_localize=bool)
     def collect(self, _localize=True):
         """Collect all records of an expression into a local list.

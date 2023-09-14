@@ -97,6 +97,13 @@ class InstanceCollectionManager:
         )
 
     @property
+    def global_current_version_live_schedulable_free_cores_mcpu(self):
+        return sum(
+            inst_coll.current_worker_version_stats.live_schedulable_free_cores_mcpu
+            for inst_coll in self.name_inst_coll.values()
+        )
+
+    @property
     def global_n_instances_by_state(self) -> Counter[str]:
         return sum(
             (inst_coll.all_versions_instances_by_state for inst_coll in self.name_inst_coll.values()),

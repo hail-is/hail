@@ -10,7 +10,6 @@ import is.hail.expr.ir.MatrixValue
 import is.hail.expr.ir.functions.MatrixToValueFunction
 import is.hail.types.{MatrixType, RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{TVoid, Type}
-import is.hail.io.fs.FileStatus
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
@@ -151,8 +150,8 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       val newFiles = mv.sparkContext.parallelize(0 until ns, numSlices = ns)
         .map { sampleIdx =>
           val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
-          val fileStatuses = partFolders.map(pf => fsBc.value.fileStatus(pf + s"/$sampleIdx" + extension))
-          fsBc.value.copyMergeList(fileStatuses, partFilePath, deleteSource = false)
+          val fileListEntries = partFolders.map(pf => fsBc.value.fileListEntry(pf + s"/$sampleIdx" + extension))
+          fsBc.value.copyMergeList(fileListEntries, partFilePath, deleteSource = false)
           partFilePath
         }.collect()
 
