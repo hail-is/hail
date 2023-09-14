@@ -1858,6 +1858,7 @@ def test_empty_tree_aggregate():
     assert ht.aggregate(hl.agg.counter(ht.idx)) == {}
 
 
+@qobtest
 def test_interval_filter_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()

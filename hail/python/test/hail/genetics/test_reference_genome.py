@@ -195,6 +195,7 @@ def test_custom_reference_read_write():
         assert actual._same(expected)
 
 
+@qobtest
 def test_locus_from_global_position():
     rg = hl.get_reference('GRCh37')
     max_length = rg.global_positions_dict[rg.contigs[-1]] + rg.lengths[rg.contigs[-1]]
