@@ -9,12 +9,13 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, new_temp_file
 from hail.utils.java import choose_backend, Env
-from ..helpers import resource, fails_service_backend, skip_when_service_backend, test_timeout
+from ..helpers import resource, fails_service_backend, skip_when_service_backend, test_timeout, qobtest
 
 import unittest
 
 
 class Tests(unittest.TestCase):
+    @qobtest
     @pytest.mark.skipif('HAIL_TEST_SKIP_PLINK' in os.environ, reason='Skipping tests requiring plink')
     @fails_service_backend()
     def test_impute_sex_same_as_plink(self):
@@ -56,6 +57,7 @@ class Tests(unittest.TestCase):
     # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
 
+    @qobtest
     @test_timeout(4 * 60)
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),

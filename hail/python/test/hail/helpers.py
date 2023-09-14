@@ -195,6 +195,9 @@ fails_spark_backend = pytest.mark.xfail(
     strict=True)
 
 
+qobtest = pytest.mark.qobtest
+
+
 def test_timeout(overall=None, *, batch=None, local=None, spark=None):
     backend = choose_backend()
     specific_timeout = {'batch': batch, 'local': local, 'spark': spark}[backend]

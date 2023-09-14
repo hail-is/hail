@@ -2,10 +2,11 @@ import os
 
 import hail as hl
 
-from ..helpers import skip_unless_service_backend, test_timeout
+from ..helpers import skip_unless_service_backend, test_timeout, qobtest
 from hail.backend.service_backend import ServiceBackend
 
 
+@qobtest
 @skip_unless_service_backend()
 def test_tiny_driver_has_tiny_memory():
     try:
@@ -16,6 +17,7 @@ def test_tiny_driver_has_tiny_memory():
         assert False
 
 
+@qobtest
 @skip_unless_service_backend()
 @test_timeout(batch=6 * 60)
 def test_big_driver_has_big_memory():
@@ -31,6 +33,7 @@ def test_big_driver_has_big_memory():
     )
 
 
+@qobtest
 @skip_unless_service_backend()
 def test_tiny_worker_has_tiny_memory():
     try:
@@ -43,6 +46,7 @@ def test_tiny_worker_has_tiny_memory():
         assert False
 
 
+@qobtest
 @skip_unless_service_backend()
 @test_timeout(batch=10 * 60)
 def test_big_worker_has_big_memory():
@@ -58,6 +62,7 @@ def test_big_worker_has_big_memory():
     )
 
 
+@qobtest
 @skip_unless_service_backend()
 @test_timeout(batch=24 * 60)
 def test_regions():
