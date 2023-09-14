@@ -484,7 +484,35 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
     """
     return GeomHistogram(mapping, min_val=min_val, max_val=max_val, bins=bins, fill=fill, color=color, alpha=alpha, position=position, size=size)
 
-
+# Computes the maximum entropy distribution whose cdf is within +- e of the
+# staircase-shaped cdf encoded by min_x, max_x, x, y.
+#
+# x is an array of n x-coordinates between min_x and max_x, and y is an array
+# of (n+1) y-coordinates between 0 and 1, both sorted. Together they encode a
+# staircase-shaped cdf.
+# For example, if min_x = 1, max_x=4, x=[2], y=[.2, .6], then the cdf is the
+# staircase tracing the points
+# (1, 0) - (1, .2) - (2, .2) - (2, .6) - (4, .6) - (4, 1)
+#
+# Now consider the set of all possible cdfs within +-e of the one above. In
+# other words, shift the staircase both up and down by e, capping above and
+# below at 1 and 0, and consider all possible cdfs that lie in between. The
+# distribution with maximum entropy whose cdf is between the two staircases
+# is the one whose cdf is the graph constructed as follows: tie a rubber band
+# to the points (min_x, 0) and (max_x, 1), place the middle between the two
+# staircases, and let it contract. In other words, it will be the shortest
+# path between the staircases.
+#
+# It's easy to see this path must be piecewise linear, and the points where the
+# slopes change will be either
+# * bending up at a point of the form (x[i], y[i]+e), or
+# * bending down at a point of the form (x[i], y[i+1]-e)
+#
+# Returns (new_y, keep).
+# keep is the array of indices i at which the piecewise linear max-ent cdf
+# changes slope, as described in the previous paragraph.
+# new_y is an array the same length as x. For each i in keep, new_y[i] is the
+# y coordinate of the point on the max-ent cdf.
 def _max_entropy_cdf(min_x, max_x, x, y, e):
     def compare(x1, y1, x2, y2):
         return x1 * y2 - x2 * y1
