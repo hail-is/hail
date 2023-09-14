@@ -27,7 +27,7 @@ def humanize_timedelta_msecs(delta_msecs):
 
 
 _EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
-_MS = datetime.timedelta(microseconds=1)
+_MS = datetime.timedelta(milliseconds=1)
 
 
 @overload
