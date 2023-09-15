@@ -175,6 +175,8 @@ spec:
         env:
          - name: PORT
            value: "5000"
+         - name: GOOGLE_APPLICATION_CREDENTIALS
+           value: /gsa-key/key.json
          - name: HAIL_DOMAIN
            valueFrom:
              secretKeyRef:
