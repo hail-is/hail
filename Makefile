@@ -181,7 +181,7 @@ docs:
 
 website-image: docs
 
-$(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* -- . ':!:deployment.yaml')
+$(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
 	$(eval IMAGE := $(DOCKER_PREFIX)/$*:$(TOKEN))
 	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' $*/Dockerfile $*/Dockerfile.out
 	./docker-build.sh . $*/Dockerfile.out $(IMAGE)
