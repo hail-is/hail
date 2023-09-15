@@ -9,7 +9,7 @@ steps:
   - kind: buildImage2
     name: git_make_bash_image
     buildArgs:
-      - name: DOCKER_ROOT_IMAGE
+      - name: BASE_IMAGE
         value:
           valueFrom: global.docker_root_image
     publishAs: git-make-bash
