@@ -1,5 +1,6 @@
 from typing import Mapping, List, Union, TypeVar, Tuple, Dict, Optional, Any, AbstractSet
 import abc
+import warnings
 import orjson
 import pkg_resources
 import zipfile
@@ -31,6 +32,42 @@ Java stack trace:
 Hail version: {__version__}
 Error summary: {short_message}''',
                       error_id)
+
+
+class LocalJarInformation:
+    def __init__(self, development_mode: bool, local_jar_path: str, extra_classpath: List[str]):
+        self.development_mode = development_mode
+        self.path = local_jar_path
+        self.extra_classpath = extra_classpath
+
+
+def resource_exists(f: str) -> bool:
+    return pkg_resources.resource_exists(__name__, f)
+
+
+def resource_filename(f: str) -> str:
+    return pkg_resources.resource_filename(__name__, f)
+
+
+def local_jar_information() -> LocalJarInformation:
+    if resource_exists('hail.jar'):
+        warnings.warn('!!! THIS IS A DEVELOPMENT VERSION OF HAIL !!!')
+        with open(pkg_resources.resource_filename(__name__, 'extra_classpath')) as fobj:
+            return LocalJarInformation(
+                True,
+                resource_filename('hail.jar'),
+                [fobj.read()],
+            )
+    elif resource_exists('hail-all-spark.jar'):
+        return LocalJarInformation(
+            False,
+            resource_filename("hail-all-spark.jar"),
+            [],
+        )
+    else:
+        raise ValueError(
+            f'Hail requires either {resource_filename("hail.jar")} or {resource_filename("hail-all-spark.jar")}.'
+        )
 
 
 class Backend(abc.ABC):
@@ -116,7 +153,7 @@ class Backend(abc.ABC):
 
     def initialize_references(self):
         from hail.genetics.reference_genome import ReferenceGenome
-        jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
+        jar_path = local_jar_information().path
         for path_in_jar in BUILTIN_REFERENCE_RESOURCE_PATHS.values():
             rg_config = orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
             rg = ReferenceGenome._from_config(rg_config, _builtin=True)
