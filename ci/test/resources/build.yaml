@@ -11,7 +11,8 @@ steps:
     publishAs: git-make-bash
     dockerFile:
       inline: |
-        FROM {{ global.docker_root_image }}
+        ARG BASE_IMAGE={{ global.docker_root_image }}
+        FROM $BASE_IMAGE
         RUN apt-get update && apt-get install -y git make bash
   - kind: runImage
     name: merge_code

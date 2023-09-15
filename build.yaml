@@ -8,7 +8,8 @@ steps:
       memory: standard
     dockerFile:
       inline: |
-        FROM {{ global.docker_root_image }}
+        ARG BASE_IMAGE={{ global.docker_root_image }}
+        FROM $BASE_IMAGE
         RUN apt-get update && apt-get install -y git make bash
   - kind: runImage
     name: merge_code
@@ -1417,7 +1418,8 @@ steps:
     contextPath: /io/repo
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install make
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
@@ -2540,7 +2542,8 @@ steps:
     publishAs: netcat
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install netcat
     dependsOn:
       - hail_ubuntu_image
@@ -2549,7 +2552,8 @@ steps:
     publishAs: volume
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         VOLUME ["/data"]
         WORKDIR "/tmp"
         VOLUME ["relative_volume"]
@@ -2560,7 +2564,8 @@ steps:
     publishAs: workdir
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         WORKDIR ["/work"]
     dependsOn:
       - hail_ubuntu_image
@@ -2569,7 +2574,8 @@ steps:
     publishAs: curl
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install curl
     dependsOn:
       - hail_ubuntu_image
