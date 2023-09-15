@@ -280,6 +280,8 @@ steps:
       valueFrom: ci_utils_image.image
     script: |
       set -ex
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl curl {{ default_ns.name }} \
           hello /healthcheck \
           -fsSL \
@@ -287,10 +289,10 @@ steps:
           --retry-delay 30 \
           -XGET
     secrets:
-      - name: test-tokens
+      - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-gsa-key
     dependsOn:
       - ci_utils_image
       - default_ns
