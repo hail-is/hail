@@ -532,19 +532,26 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
     keep = np.full_like(x, False, dtype=np.bool_)
 
     # (fx, fy) is most recently fixed point on max-ent cdf
-    fx = min_x
-    fy = 0
-    li = 0  # index of lower slope
-    ui = 0  # index of upper slope
+    fx, fy = min_x, 0
+    li = 0
+    ui = 0
     min_slope = (y[li+1] - e - fy) / (x[li] - fx)
     max_slope = (y[ui] + e - fy) / (x[ui] - fx)
     j = 1
-    while ui < len(x) and li < len(x):
+    # Consider a line l from (fx, fy) to (x[j], y?). As we increase y?, l first
+    # bumps into the upper staircase at (x[ui], y[ui] + e), and as we decrease
+    # y?, l first bumps into the lower staircase at (x[li], y[li+1] - e).
+    # We track the min and max slopes l can have while staying between the
+    # staircases, as well as the points li and ui where the line must bend if
+    # forced too high or too low.
+    while True:
         lower_slope, upper_slope = get_upper_lower_slopes(j, fx, fy)
         if upper_slope < min_slope:
-            # line must bend down at j
-            fx = x[li]
-            fy = y[li + 1] - e
+            # Line must bend down at x[li]. We know the max-entropy cdf passes
+            # through this point, so record it in new_y, keep.
+            # This becomes the new fixed point, and we must restart the scan
+            # from there.
+            fx, fy = x[li], y[li + 1] - e
             new_y[li] = fy
             keep[li] = True
             j = li + 1
@@ -557,7 +564,10 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
             j += 1
             continue
         elif lower_slope > max_slope:
-            # line must bend up at j
+            # Line must bend up at x[ui]. We know the max-entropy cdf passes
+            # through this point, so record it in new_y, keep.
+            # This becomes the new fixed point, and we must restart the scan
+            # from there.
             fx = x[ui]
             fy = y[ui] + e
             new_y[ui] = fy
@@ -583,26 +593,6 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
     return new_y, keep
 
 
-def _cdf_error(cdf, failure_prob):
-    s = 0
-    for i in range(len(cdf._compaction_counts)):
-        s += cdf._compaction_counts[i] << (2 * i)
-    s = s / (cdf.ranks[-1] ** 2)
-
-    if s == 0:
-        # no compactions ergo no error
-        return 0
-
-    def update_grid_size(p):
-        return 4 * math.sqrt(math.log(2 * p / failure_prob) / (2 * s))
-
-    p = 1 / failure_prob
-    for i in range(5):
-        p = update_grid_size(p)
-
-    return 1 / p + math.sqrt(math.log(2 * p / failure_prob) * s / 2)
-
-
 class GeomDensity(Geom):
     aes_to_arg = {
         "fill": ("marker_color", "black"),
@@ -622,6 +612,7 @@ class GeomDensity(Geom):
         self.smoothed = smoothed
 
     def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+        from hail.expr.functions import _error_from_cdf_python
         def plot_group(df, idx):
             data = df.attrs['data']
 
@@ -663,7 +654,7 @@ class GeomDensity(Geom):
                 x = np.array(data['values'][1:-1])
                 min_x = data['values'][0]
                 max_x = data['values'][-1]
-                err = _cdf_error(data, 10 ** (-confidence))
+                err = _error_from_cdf_python(data, 10 ** (-confidence), all_quantiles=True)
 
                 new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
                 slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
