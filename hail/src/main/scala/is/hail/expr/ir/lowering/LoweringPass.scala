@@ -3,7 +3,17 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.utils._
+
+final case class IrMetadata(semhash: Option[SemanticHash.Type]) {
+  private[this] var hashCounter: Int = 0
+  def nextHash: Option[SemanticHash.Type] = {
+    hashCounter += 1
+    semhash.map(SemanticHash.extend(_, SemanticHash.Bytes.fromInt(hashCounter)))
+  }
+
+}
 
 trait LoweringPass {
   val before: IRState

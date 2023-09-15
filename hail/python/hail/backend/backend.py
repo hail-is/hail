@@ -58,6 +58,8 @@ class Backend(abc.ABC):
         "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
         "rng_nonce": ("HAIL_RNG_NONCE", "0x0"),
         "profile": ("HAIL_PROFILE", None),
+        "use_fast_restarts": ("HAIL_USE_FAST_RESTARTS", None),
+        "cachedir": ("HAIL_CACHE_DIR", None),
     }
 
     def _valid_flags(self) -> AbstractSet[str]:

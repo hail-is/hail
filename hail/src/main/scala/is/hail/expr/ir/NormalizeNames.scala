@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
 import is.hail.utils.StackSafe._
 
 class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
@@ -30,7 +29,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val newName = gen()
         for {
           newValue <- normalize(value)
-          newBody <- normalize(body, env.copy(eval = env.eval.bind(name, newName)))
+          newBody <- normalize(body, env.bindEval(name, newName))
         } yield Let(newName, newValue, newBody)
       case Ref(name, typ) =>
         val newName = env.eval.lookupOption(name) match {
@@ -241,10 +240,18 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newDynamicID <- normalize(dynamicID)
         } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody, newDynamicID, staticID, tsd)
       case RelationalLet(name, value, body) =>
+        val newName = gen()
         for {
-          newValue <- normalize(value, BindingEnv.empty)
-          newBody <- normalize(body)
-        } yield RelationalLet(name, newValue, newBody)
+          newValue <- normalize(value, env)
+          newBody <- normalize(body, env.noAgg.noScan.bindRelational(name, newName))
+        } yield RelationalLet(newName, newValue, newBody)
+      case RelationalRef(name, typ) =>
+        val newName = env.relational.lookupOption(name).getOrElse(
+          if (!allowFreeVariables) throw new RuntimeException(s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}")
+          else name
+        )
+        done(RelationalRef(newName, typ))
+
       case x =>
         x.mapChildrenWithIndexStackSafe { (child, i) =>
           normalizeBaseIR(child, ChildBindings.transformed(x, i, env, { case (name, _) => name }))

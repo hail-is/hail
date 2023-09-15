@@ -1,7 +1,5 @@
-package is.hail.fs.azure
+package is.hail.io.fs
 
-import is.hail.fs.FSSuite
-import is.hail.io.fs.AzureStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
@@ -45,5 +43,10 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
         return
     }
     assert(false)
+  }
+
+  @Test def testETag(): Unit = {
+    val etag = fs.eTag(s"$fsResourcesRoot/a")
+    assert(etag.nonEmpty)
   }
 }

@@ -61,8 +61,6 @@ trait FSURL[T <: FSURL[T]] {
   def getPath: String
   def addPathComponent(component: String): T
   def fromString(s: String): T
-
-  override def toString(): String
 }
 
 trait FileListEntry {
@@ -401,7 +399,11 @@ trait FS extends Serializable {
 
   def fileListEntry(filename: String): FileListEntry
 
-  def fileListEntry(url: URL): FileListEntry = fileListEntry(url.toString)
+  /** Return the file's HTTP etag, if the underlying file system supports etags. */
+  def eTag(filename: String): Option[String]
+
+  def fileListEntry(url: URL): FileListEntry =
+    fileListEntry(url.toString)
 
   def makeQualified(path: String): String
 
