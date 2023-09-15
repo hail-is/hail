@@ -38,6 +38,3 @@ Indices and tables
 * :ref:`genindex`
 
 If you would like to refer to our Hail v0.1 (deprecated) docs, please view `Hail 0.1 docs </docs/0.1/index.html>`_
-
-
-
