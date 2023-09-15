@@ -1,4 +1,4 @@
-ARG BASE_IMAGE
+ARG BASE_IMAGE={{ base_image.image }}
 FROM $BASE_IMAGE AS base
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux

@@ -1,4 +1,4 @@
-ARG DOCKER_PREFIX=docker.io
+ARG DOCKER_PREFIX={{ global.docker_prefix }}
 FROM $DOCKER_PREFIX/ubuntu:jammy-20230624
 
 ENV LANG C.UTF-8
