@@ -7,7 +7,7 @@ import socket
 from urllib.parse import urlencode
 import jwt
 
-from hailtop.utils import retry_transient_errors
+from hailtop.utils import first_extant_file, retry_transient_errors
 from hailtop import httpx
 from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
 
@@ -79,13 +79,10 @@ class GoogleCredentials(CloudCredentials):
 
     @staticmethod
     def default_credentials(scopes: Optional[List[str]] = None, *, anonymous_ok: bool = True) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
-        credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-
-        if credentials_file is None:
-            if "HOME" in os.environ:
-                application_default_credentials_file = f'{os.environ["HOME"]}/.config/gcloud/application_default_credentials.json'
-                if os.path.exists(application_default_credentials_file):
-                    credentials_file = application_default_credentials_file
+        credentials_file = first_extant_file(
+            os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'),
+            f'{os.environ["HOME"]}/.config/gcloud/application_default_credentials.json' if 'HOME' in os.environ else None,
+        )
 
         if credentials_file:
             creds = GoogleCredentials.from_file(credentials_file, scopes=scopes)

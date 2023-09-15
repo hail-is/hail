@@ -27,16 +27,6 @@ principals:
   domains:
     - ci
   kind: json
-- name: notebook-python
-  domains:
-    - notebook
-    - workshop
-  kind: json
-- name: notebook
-  domains:
-    - notebook
-    - workshop
-  kind: nginx
 - name: gateway
   domains:
     - gateway

@@ -1,6 +1,9 @@
 import hail as hl
 
+from .helpers import qobtest
 
+
+@qobtest
 def test_table_explode():
     hl.reset_global_randomness()
     ht = hl.utils.range_table(5)

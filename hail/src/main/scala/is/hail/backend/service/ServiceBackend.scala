@@ -64,9 +64,8 @@ class ServiceBackend(
   import ServiceBackend.log
 
   private[this] var stageCount = 0
-  private[this] val executor = Executors.newCachedThreadPool()
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 1000
-  private[this] val availableGCSConnections = new Semaphore(MAX_AVAILABLE_GCS_CONNECTIONS, true)
+  private[this] val executor = Executors.newFixedThreadPool(MAX_AVAILABLE_GCS_CONNECTIONS)
 
   override def shouldCacheQueryInfo: Boolean = false
 
@@ -223,21 +222,16 @@ class ServiceBackend(
       collection.map { case (_, i) =>
         (
           () => {
-            availableGCSConnections.acquire()
-            try {
-              val bytes = fs.readNoCompression(s"$root/result.$i")
-              if (bytes(0) != 0) {
-                bytes.slice(1, bytes.length)
-              } else {
-                val errorInformationBytes = bytes.slice(1, bytes.length)
-                val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-                val shortMessage = readString(is)
-                val expandedMessage = readString(is)
-                val errorId = is.readInt()
-                throw new HailWorkerException(shortMessage, expandedMessage, errorId)
-              }
-            } finally {
-              availableGCSConnections.release()
+            val bytes = fs.readNoCompression(s"$root/result.$i")
+            if (bytes(0) != 0) {
+              bytes.slice(1, bytes.length)
+            } else {
+              val errorInformationBytes = bytes.slice(1, bytes.length)
+              val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+              val shortMessage = readString(is)
+              val expandedMessage = readString(is)
+              val errorId = is.readInt()
+              throw new HailWorkerException(shortMessage, expandedMessage, errorId)
             }
           },
           i

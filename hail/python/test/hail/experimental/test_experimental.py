@@ -7,6 +7,7 @@ from hail.utils import new_temp_file
 
 
 class Tests(unittest.TestCase):
+    @qobtest
     def get_ld_score_mt(self):
         ht = hl.import_table(doctest_resource('ldsc.annot'),
                              types={'BP': hl.tint,

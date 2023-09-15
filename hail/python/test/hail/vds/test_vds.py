@@ -4,7 +4,7 @@ import pytest
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, fails_local_backend, fails_service_backend, test_timeout
+from ..helpers import resource, test_timeout, qobtest
 
 
 # run this method to regenerate the combined VDS from 5 samples
@@ -43,6 +43,7 @@ def test_validate():
             vds.variant_data).validate()
 
 
+@qobtest
 def test_multi_write():
     vds1 = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     to_keep = vds1.variant_data.filter_cols(vds1.variant_data.s == 'HG00187').cols()
@@ -637,6 +638,7 @@ def test_combiner_max_len():
     assert hl.vds.VariantDataset.ref_block_max_length_field not in combined2.globals
 
 
+@qobtest
 @test_timeout(4 * 60, local=6 * 60)
 def test_split_sparse_roundtrip():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
