@@ -224,7 +224,6 @@ async def retry_pr(wb, pr, request):
 
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
-@check_csrf_token
 @auth.authenticated_developers_only(redirect=False)
 async def post_retry_pr(request: web.Request, _) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
@@ -327,7 +326,6 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/authorize_source_sha')
-@check_csrf_token
 @auth.authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -529,7 +527,6 @@ async def batch_callback(request):
 
 
 @routes.post('/freeze_merge_deploy')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def freeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -554,7 +551,6 @@ UPDATE globals SET frozen_merge_deploy = 1;
 
 
 @routes.post('/unfreeze_merge_deploy')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -602,7 +598,6 @@ GROUP BY active_namespaces.namespace'''
 
 
 @routes.post('/namespaces/{namespace}/services/add')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def add_namespaced_service(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -631,7 +626,6 @@ WHERE namespace = %s AND service = %s
 
 
 @routes.post('/namespaces/add')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def add_namespace(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -781,7 +775,7 @@ async def on_cleanup(app):
 def run():
     install_profiler_if_requested('ci')
 
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[check_csrf_token, monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)
 

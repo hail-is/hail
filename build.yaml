@@ -536,6 +536,8 @@ steps:
       set -ex
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_SCOPE={{ scope }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/auth-gsa-key/key.json
+
       python3 /io/bootstrap_create_accounts.py
     serviceAccount:
       name: admin

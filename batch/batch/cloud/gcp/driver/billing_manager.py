@@ -12,8 +12,8 @@ log = logging.getLogger('billing_manager')
 
 class GCPBillingManager(CloudBillingManager):
     @staticmethod
-    async def create(db: Database, credentials_file: str, regions: List[str]):
-        billing_client = aiogoogle.GoogleBillingClient(credentials_file=credentials_file)
+    async def create(db: Database, regions: List[str]):
+        billing_client = aiogoogle.GoogleBillingClient()
         product_versions_dict = await refresh_product_versions_from_db(db)
         bm = GCPBillingManager(db, product_versions_dict, billing_client, regions)
         await bm.refresh_resources()

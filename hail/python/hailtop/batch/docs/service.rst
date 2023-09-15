@@ -91,13 +91,14 @@ has the following prefix `us-docker.pkg.dev/<MY_PROJECT>`:
     gcloud artifacts repositories add-iam-policy-binding <REPO> \
            --member=<SERVICE_ACCOUNT_NAME> --role=roles/artifactregistry.repoAdmin
 
-If you want to run gcloud commands within your Batch jobs, the service account file is available at
-`/gsa-key/key.json` in the main container. You can authenticate using the service account by adding
+If you want to run gcloud commands within your Batch jobs, the service account file is available in
+the main container with its path specified in the `$GOOGLE_APPLICATION_CREDENTIALS` environment
+variable. You can authenticate using the service account by adding
 the following line to your user code and using a Docker image that has gcloud installed.
 
 .. code-block:: sh
 
-    gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
+    gcloud -q auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
 
 Billing

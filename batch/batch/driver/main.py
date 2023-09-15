@@ -242,22 +242,6 @@ async def delete_batch(request):
     return web.Response()
 
 
-# deprecated
-async def get_gsa_key_1(instance):
-    log.info(f'returning gsa-key to activating instance {instance}')
-    with open('/gsa-key/key.json', 'r', encoding='utf-8') as f:
-        key = json.loads(f.read())
-    return json_response({'key': key})
-
-
-async def get_credentials_1(instance):
-    log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
-    credentials_file = '/gsa-key/key.json'
-    with open(credentials_file, 'r', encoding='utf-8') as f:
-        key = json.loads(f.read())
-    return json_response({'key': key})
-
-
 async def activate_instance_1(request, instance):
     body = await json_request(request)
     ip_address = body['ip_address']
@@ -268,20 +252,6 @@ async def activate_instance_1(request, instance):
     await instance.mark_healthy()
 
     return json_response({'token': token})
-
-
-# deprecated
-@routes.get('/api/v1alpha/instances/gsa_key')
-@activating_instances_only
-async def get_gsa_key(_, instance: Instance) -> web.Response:
-    return await asyncio.shield(get_gsa_key_1(instance))
-
-
-# deprecated
-@routes.get('/api/v1alpha/instances/credentials')
-@activating_instances_only
-async def get_credentials(_, instance: Instance) -> web.Response:
-    return await asyncio.shield(get_credentials_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')
@@ -306,7 +276,6 @@ async def deactivate_instance(_, instance: Instance) -> web.Response:
 
 
 @routes.post('/instances/{instance_name}/kill')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def kill_instance(request: web.Request, _) -> NoReturn:
     instance_name = request.match_info['instance_name']
@@ -569,7 +538,6 @@ def validate_int(session, name, value, predicate, description):
 
 
 @routes.post('/configure-feature-flags')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def configure_feature_flags(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -593,7 +561,6 @@ UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
 
 
 @routes.post('/config-update/pool/{pool}')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def pool_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -799,7 +766,6 @@ async def pool_config_update(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/config-update/jpim')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def job_private_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -944,7 +910,6 @@ async def get_job_private_inst_manager(request, userdata):
 
 
 @routes.post('/freeze')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def freeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -969,7 +934,6 @@ UPDATE globals SET frozen = 1;
 
 
 @routes.post('/unfreeze')
-@check_csrf_token
 @auth.authenticated_developers_only()
 async def unfreeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -1624,9 +1588,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    credentials_file = '/gsa-key/key.json'
     app['driver'] = await get_cloud_driver(
-        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
+        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, task_manager
     )
 
     app['canceller'] = await Canceller.create(app)
@@ -1674,7 +1637,9 @@ async def on_cleanup(app):
 def run():
     install_profiler_if_requested('batch-driver')
 
-    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
+    app = web.Application(
+        client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[check_csrf_token, monitor_endpoints_middleware]
+    )
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')

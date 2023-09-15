@@ -1670,7 +1670,6 @@ async def ui_batch(request, userdata, batch_id):
 
 
 @routes.post('/batches/{batch_id}/cancel')
-@check_csrf_token
 @billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
 async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
@@ -1689,7 +1688,6 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
 
 
 @routes.post('/batches/{batch_id}/delete')
-@check_csrf_token
 @billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
 async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
@@ -2261,7 +2259,6 @@ async def post_edit_billing_limits(request: web.Request) -> web.Response:
 
 
 @routes.post('/billing_limits/{billing_project}/edit')
-@check_csrf_token
 @auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
@@ -2487,7 +2484,6 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
-@check_csrf_token
 @auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn:
@@ -2557,7 +2553,6 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
-@check_csrf_token
 @auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
@@ -2615,7 +2610,6 @@ VALUES (%s, %s);
 
 
 @routes.post('/billing_projects/create')
-@check_csrf_token
 @auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_create_billing_projects(request: web.Request, _) -> NoReturn:
@@ -2676,7 +2670,6 @@ FOR UPDATE;
 
 
 @routes.post('/billing_projects/{billing_project}/close')
-@check_csrf_token
 @auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_close_billing_projects(request: web.Request, _) -> NoReturn:
@@ -2721,7 +2714,6 @@ async def _reopen_billing_project(db, billing_project):
 
 
 @routes.post('/billing_projects/{billing_project}/reopen')
-@check_csrf_token
 @auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_reopen_billing_projects(request: web.Request, _) -> NoReturn:
@@ -2924,7 +2916,8 @@ def run():
     install_profiler_if_requested('batch')
 
     app = web.Application(
-        client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[unavailable_if_frozen, monitor_endpoints_middleware]
+        client_max_size=HTTP_CLIENT_MAX_SIZE,
+        middlewares=[check_csrf_token, unavailable_if_frozen, monitor_endpoints_middleware],
     )
     setup_aiohttp_session(app)
 
