@@ -11,3 +11,10 @@ def version() -> str:
 
 def pip_version() -> str:
     return version().split('-')[0]
+
+
+try:
+    from IPython.core.getipython import get_ipython
+    IS_NOTEBOOK = get_ipython().__class__.__name__ == 'ZMQInteractiveShell'
+except (NameError, ModuleNotFoundError):
+    IS_NOTEBOOK = False
