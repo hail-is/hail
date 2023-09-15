@@ -124,9 +124,9 @@ def gcp_local_ssd_size() -> int:
     return 375
 
 
-def machine_type_to_gpu(machine_family: str) -> Optional[str]:
+def machine_family_to_gpu(machine_family: str) -> Optional[str]:
     return MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS.get(machine_family)
 
 
 def is_gpu(machine_family: str) -> bool:
-    return machine_type_to_gpu(machine_family) is not None
+    return machine_family_to_gpu(machine_family) is not None

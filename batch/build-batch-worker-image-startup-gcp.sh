@@ -71,10 +71,11 @@ export HOME=/root
 docker-credential-gcr configure-docker --include-artifact-registry
 docker pull {{ global.docker_root_image }}
 
-systemctl restart docker
 
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
+
+systemctl restart docker
 
 shutdown -h now

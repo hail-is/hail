@@ -36,7 +36,7 @@ create_build_image_instance() {
     gcloud -q compute instances create ${BUILDER} \
         --project ${PROJECT}  \
         --zone=${ZONE} \
-        --machine-type=n1-standard-4 \
+        --machine-type=n1-standard-1 \
         --network=default \
         --subnet=default \
         --network-tier=PREMIUM \

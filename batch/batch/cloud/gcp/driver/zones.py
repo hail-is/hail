@@ -1,5 +1,6 @@
 import logging
 import random
+import collections
 from typing import Any, Dict, List, Set, Tuple
 
 from hailtop.aiocloud import aiogoogle
@@ -157,17 +158,14 @@ class ZoneMonitor(CloudLocationMonitor):
 
 async def fetch_machine_valid_zones(
     compute_client: aiogoogle.GoogleComputeClient, regions: Set[str]
-) -> Dict[str, Set[str]]:
+) -> collections.defaultdict(set):
     region_info = {name: await compute_client.get(f'/regions/{name}') for name in regions}
     zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
-    machine_family_valid_zones = {}
+    machine_family_valid_zones = collections.defaultdict(set)
     for zone in zones:
         async for machine_type in await compute_client.list(f'/zones/{zone}/machineTypes'):
             machine_family = machine_type['name'].split('-')[0]
-            if machine_family in machine_family_valid_zones:
-                machine_family_valid_zones[machine_family].add(machine_type['zone'])
-            else:
-                machine_family_valid_zones[machine_family] = {machine_type['zone']}
+            machine_family_valid_zones[machine_family].add(machine_type['zone'])
     return machine_family_valid_zones
 
 

@@ -1353,10 +1353,9 @@ class Container:
         env = (
             self.image.image_config['Config']['Env'] + self.env + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
         )
-        gpu_env = ["NVIDIA_VISIBLE_DEVICES=all"]
         machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
         if is_gpu(machine_family):
-            env += gpu_env
+            env += ["NVIDIA_VISIBLE_DEVICES=all"]
         if self.port is not None:
             assert self.host_port is not None
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
