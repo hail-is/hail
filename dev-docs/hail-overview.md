@@ -100,7 +100,6 @@ Services (see below for descriptions):
 * $HAIL/ci
 * $HAIL/gateway
 * $HAIL/internal-gateway
-* $HAIL/notebook: notebook and workshop services
 * $HAIL/site
 
 Libraries for services:
@@ -195,7 +194,7 @@ Some services rely on 3rd party services.  Those include:
 
 * ci depends on GitHub
 
-* batch, ci and notebook depend on K8s
+* batch, ci and auth depend on K8s
 
 * batch depends on K8s and GCP
 
@@ -245,12 +244,6 @@ There is a collection of libraries to facilitate service development:
   internal-gateway is an nginx reverse proxy that terminates
   connections from the Google Virtual Private Cloud (VPC) network and
   connections to the services in K8s.
-
-* notebook: The notebook service is a simple Jupyter notebook service
-  similar to Google Colab.  It is available both at
-  https://notebook.hail.is/ and https://workshop.hail.is/.  workshop
-  is used for running Hail workshops and tutorials.  The notebook
-  service is not currently used.
 
 * site: site implements the main Hail website https://hail.is/
   including the landing page and Hail Query and Hail Batch

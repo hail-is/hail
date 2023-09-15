@@ -2,7 +2,7 @@ import io
 from typing import List
 
 from .router_fs import RouterFS
-from .stat_result import StatResult
+from .stat_result import FileListEntry
 
 _router_fs = None
 
@@ -150,7 +150,7 @@ def is_dir(path: str) -> bool:
     return _fs().is_dir(path)
 
 
-def stat(path: str) -> StatResult:
+def stat(path: str) -> FileListEntry:
     """Returns information about the file or directory at a given path.
 
     Notes
@@ -177,7 +177,7 @@ def stat(path: str) -> StatResult:
     return _fs().stat(path)
 
 
-def ls(path: str) -> List[StatResult]:
+def ls(path: str) -> List[FileListEntry]:
     """Returns information about files at `path`.
 
     Notes

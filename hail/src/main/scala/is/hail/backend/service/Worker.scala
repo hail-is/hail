@@ -111,8 +111,6 @@ object Worker {
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
-    val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
-    Tokens.set(userTokens)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
 
     log.info(s"is.hail.backend.service.Worker $myRevision")

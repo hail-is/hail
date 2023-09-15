@@ -1,7 +1,7 @@
 import abc
 import os
 import tempfile
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import aiohttp
 
@@ -23,15 +23,21 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
         subscription_id = os.environ['SUBSCRIPTION_ID']
         resource_group = os.environ['RESOURCE_GROUP']
         acr_url = os.environ['DOCKER_PREFIX']
+        hail_oauth_scope = os.environ['HAIL_AZURE_OAUTH_SCOPE']
         assert acr_url.endswith('azurecr.io'), acr_url
-        return AzureWorkerAPI(subscription_id, resource_group, acr_url)
+        return AzureWorkerAPI(subscription_id, resource_group, acr_url, hail_oauth_scope)
 
-    def __init__(self, subscription_id: str, resource_group: str, acr_url: str):
+    def __init__(self, subscription_id: str, resource_group: str, acr_url: str, hail_oauth_scope: str):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
+        self.hail_oauth_scope = hail_oauth_scope
         self.azure_credentials = aioazure.AzureCredentials.default_credentials()
         self.acr_refresh_token = AcrRefreshToken(acr_url, self.azure_credentials)
         self._blobfuse_credential_files: Dict[str, str] = {}
+
+    @property
+    def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
+        return [f'HAIL_AZURE_OAUTH_SCOPE={self.hail_oauth_scope}']
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
         return AzureDisk(disk_name, instance_name, size_in_gb, mount_path)
@@ -151,7 +157,7 @@ class AcrRefreshToken(LazyShortLivedToken):
         data = {
             'grant_type': 'access_token',
             'service': self.acr_url,
-            'access_token': (await self.credentials.access_token()).token,
+            'access_token': await self.credentials.access_token(),
         }
         resp_json = await retry_transient_errors(
             session.post_read_json,

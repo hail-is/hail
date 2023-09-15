@@ -65,7 +65,7 @@ trait FSURL[T <: FSURL[T]] {
   override def toString(): String
 }
 
-trait FileStatus {
+trait FileListEntry {
   def getPath: String
   def getModificationTime: java.lang.Long
   def getLen: Long
@@ -75,7 +75,7 @@ trait FileStatus {
   def getOwner: String
 }
 
-class BlobStorageFileStatus(path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean) extends FileStatus {
+class BlobStorageFileListEntry(path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean) extends FileListEntry {
   def getPath: String = path
   def getModificationTime: java.lang.Long = modificationTime
   def getLen: Long = size
@@ -342,11 +342,11 @@ trait FS extends Serializable {
 
   def delete(filename: String, recursive: Boolean)
 
-  def listStatus(filename: String): Array[FileStatus]
+  def listStatus(filename: String): Array[FileListEntry]
 
-  def listStatus(url: URL): Array[FileStatus] = listStatus(url.toString)
+  def listStatus(url: URL): Array[FileListEntry] = listStatus(url.toString)
 
-  def glob(filename: String): Array[FileStatus]
+  def glob(filename: String): Array[FileListEntry]
 
   def globWithPrefix(prefix: URL, path: String) = {
     val components =
@@ -357,15 +357,15 @@ trait FS extends Serializable {
 
     val javaFS = FileSystems.getDefault
 
-    val ab = new mutable.ArrayBuffer[FileStatus]()
-    def f(prefix: URL, fs: FileStatus, i: Int): Unit = {
+    val ab = new mutable.ArrayBuffer[FileListEntry]()
+    def f(prefix: URL, fs: FileListEntry, i: Int): Unit = {
       assert(!prefix.getPath.endsWith("/"), prefix)
 
       if (i == components.length) {
         var t = fs
         if (t == null) {
           try {
-            t = fileStatus(prefix)
+            t = fileListEntry(prefix)
           } catch {
             case _: FileNotFoundException =>
           }
@@ -397,11 +397,11 @@ trait FS extends Serializable {
   def globAll(filenames: Iterable[String]): Array[String] =
     globAllStatuses(filenames).map(_.getPath)
 
-  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
+  def globAllStatuses(filenames: Iterable[String]): Array[FileListEntry] = filenames.flatMap(glob).toArray
 
-  def fileStatus(filename: String): FileStatus
+  def fileListEntry(filename: String): FileListEntry
 
-  def fileStatus(url: URL): FileStatus = fileStatus(url.toString)
+  def fileListEntry(url: URL): FileListEntry = fileListEntry(url.toString)
 
   def makeQualified(path: String): String
 
@@ -441,11 +441,11 @@ trait FS extends Serializable {
   def writePDOS(filename: String)(writer: PositionedDataOutputStream => Unit) =
     using(create(filename))(os => writer(outputStreamToPositionedDataOutputStream(os)))
 
-  def getFileSize(filename: String): Long = fileStatus(filename).getLen
+  def getFileSize(filename: String): Long = fileListEntry(filename).getLen
 
   def isFile(filename: String): Boolean = {
     try {
-      fileStatus(filename).isFile
+      fileListEntry(filename).isFile
     } catch {
       case _: FileNotFoundException => false
     }
@@ -453,7 +453,7 @@ trait FS extends Serializable {
 
   def isDir(filename: String): Boolean = {
     try {
-      fileStatus(filename).isDirectory
+      fileListEntry(filename).isDirectory
     } catch {
       case _: FileNotFoundException => false
     }
@@ -461,7 +461,7 @@ trait FS extends Serializable {
 
   def exists(filename: String): Boolean = {
     try {
-      fileStatus(filename)
+      fileListEntry(filename)
       true
     } catch {
       case _: FileNotFoundException => false
@@ -529,25 +529,25 @@ trait FS extends Serializable {
 
     delete(destinationFile, recursive = true) // overwriting by default
 
-    val headerFileStatus = glob(sourceFolder + "/header")
+    val headerFileListEntry = glob(sourceFolder + "/header")
 
-    if (header && headerFileStatus.isEmpty)
+    if (header && headerFileListEntry.isEmpty)
       fatal(s"Missing header file")
-    else if (!header && headerFileStatus.nonEmpty)
+    else if (!header && headerFileListEntry.nonEmpty)
       fatal(s"Found unexpected header file")
 
-    val partFileStatuses = partFilesOpt match {
+    val partFileListEntries = partFilesOpt match {
       case None => glob(sourceFolder + "/part-*")
-      case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
+      case Some(files) => files.map(f => fileListEntry(sourceFolder + "/" + f)).toArray
     }
-    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(new hadoop.fs.Path(fs.getPath).getName))
-    if (sortedPartFileStatuses.length != numPartFilesExpected)
-      fatal(s"Expected $numPartFilesExpected part files but found ${ sortedPartFileStatuses.length }")
+    val sortedPartFileListEntries = partFileListEntries.sortBy(fs => getPartNumber(new hadoop.fs.Path(fs.getPath).getName))
+    if (sortedPartFileListEntries.length != numPartFilesExpected)
+      fatal(s"Expected $numPartFilesExpected part files but found ${ sortedPartFileListEntries.length }")
 
-    val filesToMerge = headerFileStatus ++ sortedPartFileStatuses
+    val filesToMerge = headerFileListEntry ++ sortedPartFileListEntries
 
     info(s"merging ${ filesToMerge.length } files totalling " +
-      s"${ readableBytes(sortedPartFileStatuses.map(_.getLen).sum) }...")
+      s"${ readableBytes(sortedPartFileListEntries.map(_.getLen).sum) }...")
 
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
@@ -562,26 +562,26 @@ trait FS extends Serializable {
     }
   }
 
-  def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
+  def copyMergeList(srcFileListEntries: Array[FileListEntry], destFilename: String, deleteSource: Boolean = true) {
     val codec = Option(getCodecFromPath(destFilename))
     val isBGzip = codec.exists(_ == BGZipCompressionCodec)
 
-    require(srcFileStatuses.forall {
-      fileStatus => fileStatus.getPath != destFilename && fileStatus.isFile
+    require(srcFileListEntries.forall {
+      fileListEntry => fileListEntry.getPath != destFilename && fileListEntry.isFile
     })
 
     using(createNoCompression(destFilename)) { os =>
 
       var i = 0
-      while (i < srcFileStatuses.length) {
-        val fileStatus = srcFileStatuses(i)
-        val lenAdjust: Long = if (isBGzip && i < srcFileStatuses.length - 1)
+      while (i < srcFileListEntries.length) {
+        val fileListEntry = srcFileListEntries(i)
+        val lenAdjust: Long = if (isBGzip && i < srcFileListEntries.length - 1)
           -28
         else
           0
-        using(openNoCompression(fileStatus.getPath)) { is =>
+        using(openNoCompression(fileListEntry.getPath)) { is =>
           hadoop.io.IOUtils.copyBytes(is, os,
-            fileStatus.getLen + lenAdjust,
+            fileListEntry.getLen + lenAdjust,
             false)
         }
         i += 1
@@ -589,19 +589,19 @@ trait FS extends Serializable {
     }
 
     if (deleteSource) {
-      srcFileStatuses.foreach { fileStatus =>
-        delete(fileStatus.getPath.toString, recursive = true)
+      srcFileListEntries.foreach { fileListEntry =>
+        delete(fileListEntry.getPath.toString, recursive = true)
       }
     }
   }
 
   def concatenateFiles(sourceNames: Array[String], destFilename: String): Unit = {
-    val fileStatuses = sourceNames.map(fileStatus(_))
+    val fileListEntries = sourceNames.map(fileListEntry(_))
 
-    info(s"merging ${ fileStatuses.length } files totalling " +
-      s"${ readableBytes(fileStatuses.map(_.getLen).sum) }...")
+    info(s"merging ${ fileListEntries.length } files totalling " +
+      s"${ readableBytes(fileListEntries.map(_.getLen).sum) }...")
 
-    val (_, timing) = time(copyMergeList(fileStatuses, destFilename, deleteSource = false))
+    val (_, timing) = time(copyMergeList(fileListEntries, destFilename, deleteSource = false))
 
     info(s"while writing:\n    $destFilename\n  merge time: ${ formatTime(timing) }")
   }

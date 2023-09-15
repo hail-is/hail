@@ -88,7 +88,7 @@ python-dateutil==2.8.2
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas
-pytz==2023.3
+pytz==2023.3.post1
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas

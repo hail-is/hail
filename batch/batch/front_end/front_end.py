@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union, cast
 
 import aiohttp
 import aiohttp.web_exceptions
@@ -45,6 +45,7 @@ from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, version
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
+from hailtop.batch_client.types import GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -252,7 +253,9 @@ async def _handle_api_error(f: Callable[P, Awaitable[T]], *args: P.args, **kwarg
         raise e.http_response()
 
 
-async def _query_batch_jobs(request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
+async def _query_batch_jobs(
+    request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]
+) -> Tuple[List[JobListEntryV1Alpha], Optional[int]]:
     db: Database = request.app['db']
     if version == 1:
         sql, sql_args = parse_batch_jobs_query_v1(batch_id, q, last_job_id)
@@ -270,7 +273,9 @@ async def _query_batch_jobs(request: web.Request, batch_id: int, version: int, q
     return (jobs, last_job_id)
 
 
-async def _get_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
+async def _get_jobs(
+    request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]
+) -> GetJobsResponseV1Alpha:
     db = request.app['db']
 
     record = await db.select_and_fetchone(
@@ -1680,7 +1685,6 @@ async def ui_batch(request, userdata, batch_id):
 
 
 @routes.post('/batches/{batch_id}/cancel')
-@check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
 async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
@@ -1699,7 +1703,6 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
 
 
 @routes.post('/batches/{batch_id}/delete')
-@check_csrf_token
 @web_billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
 async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
@@ -1739,7 +1742,7 @@ async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
-async def _get_job(app, batch_id, job_id):
+async def _get_job(app, batch_id, job_id) -> GetJobResponseV1Alpha:
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
@@ -1786,9 +1789,11 @@ GROUP BY usage_t.batch_id, usage_t.job_id
         _get_full_job_status(app, record), _get_full_job_spec(app, record), _get_attributes(app, record)
     )
 
-    job = job_record_to_dict(record, attributes.get('name'))
-    job['status'] = full_status
-    job['spec'] = full_spec
+    job: GetJobResponseV1Alpha = {
+        **job_record_to_dict(record, attributes.get('name')),
+        'status': full_status,
+        'spec': full_spec,
+    }
     if attributes:
         job['attributes'] = attributes
     return job
@@ -2072,6 +2077,8 @@ async def ui_get_job(request, userdata, batch_id):
         _get_job_resource_usage(app, batch_id, job_id),
     )
 
+    job = cast(Dict[str, Any], job)
+
     job['duration'] = humanize_timedelta_msecs(job['duration'])
     job['cost'] = cost_str(job['cost'])
 
@@ -2131,21 +2138,22 @@ async def ui_get_job(request, userdata, batch_id):
     non_io_storage_limit_bytes = None
     memory_limit_bytes = None
 
-    resources = job_specification['resources']
-    if 'memory_bytes' in resources:
-        memory_limit_bytes = resources['memory_bytes']
-        resources['actual_memory'] = humanize.naturalsize(memory_limit_bytes, binary=True)
-        del resources['memory_bytes']
-    if 'storage_gib' in resources:
-        io_storage_limit_bytes = resources['storage_gib'] * 1024**3
-        resources['actual_storage'] = humanize.naturalsize(io_storage_limit_bytes, binary=True)
-        del resources['storage_gib']
-    if 'cores_mcpu' in resources:
-        cores = resources['cores_mcpu'] / 1000
-        non_io_storage_limit_gb = min(cores * RESERVED_STORAGE_GB_PER_CORE, RESERVED_STORAGE_GB_PER_CORE)
-        non_io_storage_limit_bytes = int(non_io_storage_limit_gb * 1024**3 + 1)
-        resources['actual_cpu'] = cores
-        del resources['cores_mcpu']
+    if job_specification is not None:
+        resources = job_specification['resources']
+        if 'memory_bytes' in resources:
+            memory_limit_bytes = resources['memory_bytes']
+            resources['actual_memory'] = humanize.naturalsize(memory_limit_bytes, binary=True)
+            del resources['memory_bytes']
+        if 'storage_gib' in resources:
+            io_storage_limit_bytes = resources['storage_gib'] * 1024**3
+            resources['actual_storage'] = humanize.naturalsize(io_storage_limit_bytes, binary=True)
+            del resources['storage_gib']
+        if 'cores_mcpu' in resources:
+            cores = resources['cores_mcpu'] / 1000
+            non_io_storage_limit_gb = min(cores * RESERVED_STORAGE_GB_PER_CORE, RESERVED_STORAGE_GB_PER_CORE)
+            non_io_storage_limit_bytes = int(non_io_storage_limit_gb * 1024**3 + 1)
+            resources['actual_cpu'] = cores
+            del resources['cores_mcpu']
 
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''
@@ -2266,7 +2274,6 @@ async def post_edit_billing_limits(request: web.Request) -> web.Response:
 
 
 @routes.post('/billing_limits/{billing_project}/edit')
-@check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
@@ -2492,7 +2499,6 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
-@check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn:
@@ -2562,7 +2568,6 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
-@check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
@@ -2620,7 +2625,6 @@ VALUES (%s, %s);
 
 
 @routes.post('/billing_projects/create')
-@check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_create_billing_projects(request: web.Request, _) -> NoReturn:
@@ -2681,7 +2685,6 @@ FOR UPDATE;
 
 
 @routes.post('/billing_projects/{billing_project}/close')
-@check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_close_billing_projects(request: web.Request, _) -> NoReturn:
@@ -2726,7 +2729,6 @@ async def _reopen_billing_project(db, billing_project):
 
 
 @routes.post('/billing_projects/{billing_project}/reopen')
-@check_csrf_token
 @auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_reopen_billing_projects(request: web.Request) -> NoReturn:
@@ -2929,7 +2931,8 @@ def run():
     install_profiler_if_requested('batch')
 
     app = web.Application(
-        client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[unavailable_if_frozen, monitor_endpoints_middleware]
+        client_max_size=HTTP_CLIENT_MAX_SIZE,
+        middlewares=[check_csrf_token, unavailable_if_frozen, monitor_endpoints_middleware],
     )
     setup_aiohttp_session(app)
 
