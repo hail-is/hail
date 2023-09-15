@@ -8,13 +8,13 @@ class SQLConfig(NamedTuple):
     port: int
     user: str
     password: str
-    instance: str
-    connection_name: str
+    instance: Optional[str]
+    connection_name: Optional[str]
     db: Optional[str]
-    ssl_ca: str
+    ssl_ca: Optional[str]
     ssl_cert: Optional[str]
     ssl_key: Optional[str]
-    ssl_mode: str
+    ssl_mode: Optional[str]
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict())
@@ -56,8 +56,6 @@ ssl-mode={self.ssl_mode}
         assert self.port is not None
         assert self.user is not None
         assert self.password is not None
-        assert self.instance is not None
-        assert self.connection_name is not None
         if self.ssl_cert is not None:
             assert self.ssl_key is not None
             if not os.path.isfile(self.ssl_cert):
@@ -66,9 +64,11 @@ ssl-mode={self.ssl_mode}
                 raise ValueError(f'specified ssl-key, {self.ssl_key}, does not exist')
         else:
             assert self.ssl_key is None
-        assert self.ssl_ca is not None
-        if not os.path.isfile(self.ssl_ca):
-            raise ValueError(f'specified ssl-ca, {self.ssl_ca}, does not exist')
+        if self.host != 'localhost':
+            assert self.ssl_ca is not None
+            assert self.ssl_mode is not None
+            if not os.path.isfile(self.ssl_ca):
+                raise ValueError(f'specified ssl-ca, {self.ssl_ca}, does not exist')
 
     def using_mtls(self) -> bool:
         if self.ssl_cert is not None:
@@ -99,6 +99,22 @@ ssl-mode={self.ssl_mode}
                          ssl_cert=d.get('ssl-cert'),
                          ssl_key=d.get('ssl-key'),
                          ssl_mode=d['ssl-mode'])
+
+    @staticmethod
+    def local_insecure_config() -> 'SQLConfig':
+        return SQLConfig(
+            host='localhost',
+            port=3306,
+            user='root',
+            password='pw',
+            db=os.environ.get('HAIL_SQL_DATABASE'),
+            instance=None,
+            connection_name=None,
+            ssl_ca=None,
+            ssl_cert=None,
+            ssl_key=None,
+            ssl_mode=None,
+        )
 
 
 def create_secret_data_from_config(config: SQLConfig,

@@ -14,8 +14,7 @@ from gear import Database, resolve_test_db_endpoint
 from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
 from hailtop.utils import check_shell, check_shell_output
 
-assert len(sys.argv) == 1
-create_database_config = json.load(sys.stdin)
+create_database_config = None
 
 
 def generate_token(size=12):
@@ -62,6 +61,7 @@ async def create_database():
     with open('/sql-config/sql-config.json', 'r', encoding='utf-8') as f:
         sql_config = SQLConfig.from_json(f.read())
 
+    assert create_database_config
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     scope = create_database_config['scope']
@@ -144,6 +144,7 @@ async def shutdown():
     if did_shutdown:
         return
 
+    assert create_database_config
     shutdowns = create_database_config['shutdowns']
     if shutdowns:
         for s in shutdowns:
@@ -157,7 +158,7 @@ kubectl -n {s["namespace"]} delete --ignore-not-found=true deployment {s["name"]
     did_shutdown = True
 
 
-async def migrate(database_name, db, i, migration):
+async def migrate(database_name, db, mysql_cnf_file, i, migration):
     print(f'applying migration {i} {migration}')
 
     # version to migrate to
@@ -185,7 +186,7 @@ async def migrate(database_name, db, i, migration):
         else:
             await check_shell(
                 f'''
-mysql --defaults-extra-file=/sql-config.cnf <{script}
+mysql --defaults-extra-file={mysql_cnf_file} <{script}
 '''
             )
 
@@ -212,6 +213,9 @@ VALUES (%s, %s, %s);
 
 
 async def async_main():
+    global create_database_config
+    create_database_config = json.load(sys.stdin)
+
     await create_database()
 
     namespace = create_database_config['namespace']
@@ -245,6 +249,13 @@ kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
     db = Database()
     await db.async_init()
 
+    await create_migration_tables(db, database_name)
+    migrations = create_database_config['migrations']
+    for i, m in enumerate(migrations):
+        await migrate(database_name, db, '/sql-config.cnf', i, m)
+
+
+async def create_migration_tables(db: Database, database_name: str):
     rows = db.execute_and_fetchall(f"SHOW TABLES LIKE '{database_name}_migration_version';")
     rows = [row async for row in rows]
     if len(rows) == 0:
@@ -264,10 +275,7 @@ CREATE TABLE `{database_name}_migrations` (
 '''
         )
 
-    migrations = create_database_config['migrations']
-    for i, m in enumerate(migrations):
-        await migrate(database_name, db, i, m)
 
-
-loop = asyncio.get_event_loop()
-loop.run_until_complete(async_main())
+if __name__ == '__main__':
+    assert len(sys.argv) == 1
+    asyncio.run(async_main())

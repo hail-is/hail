@@ -5,6 +5,7 @@ include config.mk
 SERVICES := auth batch ci monitoring website
 SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
+SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
 
@@ -219,3 +220,8 @@ vep-grch38-image: hail-ubuntu-image
 	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
 		./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(VEP_GRCH38_IMAGE)
 	echo $(VEP_GRCH38_IMAGE) > $@
+
+.PHONY: $(SERVICES_DATABASES)
+$(SERVICES_DATABASES): %-db:
+	cd docker/mysql && docker compose up -d
+	python3 ci/create_local_database.py $* local-$*
