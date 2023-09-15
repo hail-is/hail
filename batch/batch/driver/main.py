@@ -306,7 +306,6 @@ async def deactivate_instance(_, instance: Instance) -> web.Response:
 
 
 @routes.post('/instances/{instance_name}/kill')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def kill_instance(request: web.Request, _) -> NoReturn:
     instance_name = request.match_info['instance_name']
@@ -569,7 +568,6 @@ def validate_int(session, name, value, predicate, description):
 
 
 @routes.post('/configure-feature-flags')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def configure_feature_flags(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -593,7 +591,6 @@ UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
 
 
 @routes.post('/config-update/pool/{pool}')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def pool_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -799,7 +796,6 @@ async def pool_config_update(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/config-update/jpim')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def job_private_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -944,7 +940,6 @@ async def get_job_private_inst_manager(request, userdata):
 
 
 @routes.post('/freeze')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def freeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -969,7 +964,6 @@ UPDATE globals SET frozen = 1;
 
 
 @routes.post('/unfreeze')
-@check_csrf_token
 @auth.web_authenticated_developers_only()
 async def unfreeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -1674,7 +1668,9 @@ async def on_cleanup(app):
 def run():
     install_profiler_if_requested('batch-driver')
 
-    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
+    app = web.Application(
+        client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[check_csrf_token, monitor_endpoints_middleware]
+    )
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')
