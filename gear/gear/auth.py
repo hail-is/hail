@@ -61,13 +61,8 @@ class AuthClient:
             async def wrapped(request: web.Request) -> web.StreamResponse:
                 userdata = await self._userdata_from_request(request)
                 if not userdata:
-                    if redirect is None:
-                        # Only web routes should redirect by default
-                        should_redirect = '/api/' not in request.path
-                    else:
-                        should_redirect = redirect
-
-                    if should_redirect:
+                    # Only web routes should redirect by default
+                    if redirect or (redirect is None and '/api/' not in request.path):
                         raise login_redirect(request)
                     raise web.HTTPUnauthorized()
                 return await fun(request, userdata)
