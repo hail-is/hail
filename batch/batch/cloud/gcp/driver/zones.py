@@ -1,6 +1,6 @@
+import collections
 import logging
 import random
-import collections
 from typing import Any, Dict, List, Set, Tuple
 
 from hailtop.aiocloud import aiogoogle
