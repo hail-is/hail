@@ -8,6 +8,10 @@ steps:
         optional: true
   - kind: buildImage2
     name: git_make_bash_image
+    buildArgs:
+      - name: DOCKER_ROOT_IMAGE
+        value:
+          valueFrom: global.docker_root_image
     publishAs: git-make-bash
     dockerFile:
       inline: |
