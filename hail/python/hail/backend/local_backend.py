@@ -5,7 +5,6 @@ import socketserver
 import sys
 from threading import Thread
 
-import pkg_resources
 import py4j
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 
@@ -13,6 +12,7 @@ from hail.utils.java import scala_package_object
 from hail.ir.renderer import CSERenderer
 from hail.ir import finalize_randomness
 from .py4j_backend import Py4JBackend, handle_java_exception
+from .backend import local_jar_information
 from ..hail_logging import Logger
 from ..expr import Expression
 from ..expr.types import HailType
@@ -126,9 +126,9 @@ class LocalBackend(Py4JBackend):
         spark_home = find_spark_home()
         hail_jar_path = os.environ.get('HAIL_JAR')
         if hail_jar_path is None:
-            if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
-                hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
-            else:
+            try:
+                hail_jar_path = local_jar_information().path
+            except ValueError:
                 raise RuntimeError('local backend requires a packaged jar or HAIL_JAR to be set')
 
         jvm_opts = []
