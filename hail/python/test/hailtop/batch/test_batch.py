@@ -26,7 +26,11 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.test_utils import skip_in_azure
 from hailtop.httpx import ClientResponseError
 
+from configparser import ConfigParser
+from hailtop.config import get_user_config, user_config
 from hailtop.config.variables import ConfigVariable
+from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
+from _pytest.monkeypatch import MonkeyPatch
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
@@ -491,6 +495,9 @@ class LocalTests(unittest.TestCase):
 
 class ServiceTests(unittest.TestCase):
     def setUp(self):
+        # https://stackoverflow.com/questions/42332030/pytest-monkeypatch-setattr-inside-of-test-class-method
+        self.monkeypatch = MonkeyPatch()
+
         self.backend = ServiceBackend()
 
         remote_tmpdir = get_remote_tmpdir('hailtop_test_batch_service_tests')
@@ -680,14 +687,6 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
-
-    def test_local_paths_error(self):
-        b = self.batch()
-        b.new_job()
-        for input in ["hi.txt", "~/hello.csv", "./hey.tsv", "/sup.json", "file://yo.yaml"]:
-            with pytest.raises(ValueError) as e:
-                b.read_input(input)
-            assert str(e.value).startswith("Local filepath detected")
 
     def test_dry_run(self):
         b = self.batch()
@@ -1424,3 +1423,80 @@ class ServiceTests(unittest.TestCase):
         assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
         assert res.get_job(2).status()['spec']['resources']['preemptible'] == False
         assert res.get_job(3).status()['spec']['resources']['preemptible'] == True
+
+    def test_local_file_paths_error(self):
+        b = self.batch()
+        j = b.new_job()
+        for input in ["hi.txt", "~/hello.csv", "./hey.tsv", "/sup.json", "file://yo.yaml"]:
+            with pytest.raises(ValueError) as e:
+                b.read_input(input)
+            assert str(e.value).startswith("Local filepath detected")
+
+    @skip_in_azure
+    def test_validate_cloud_storage_policy(self):
+        # buckets do not exist (bucket names can't contain the string "google" per
+        # https://cloud.google.com/storage/docs/buckets)
+        fake_bucket1 = "google"
+        fake_bucket2 = "google1"
+        no_bucket_error = "bucket does not exist"
+        # bucket exists, but account does not have permissions on it
+        no_perms_bucket = "test"
+        no_perms_error = "does not have storage.buckets.get access"
+        # bucket exists and account has permissions, but is set to use cold storage by default
+        cold_bucket = "hail-test-cold-storage"
+        cold_error = "configured to use cold storage by default"
+        fake_uri1, fake_uri2, no_perms_uri, cold_uri = [
+            f"gs://{bucket}/test" for bucket in [fake_bucket1, fake_bucket2, no_perms_bucket, cold_bucket]
+        ]
+
+        def _test_raises(exception_type, exception_msg, func):
+            with pytest.raises(exception_type) as e:
+                func()
+            assert exception_msg in str(e.value)
+
+        def _test_raises_no_bucket_error(remote_tmpdir, arg = None):
+            _test_raises(ClientResponseError, no_bucket_error, lambda: ServiceBackend(remote_tmpdir=remote_tmpdir, gcs_bucket_allow_list=arg))
+
+        def _test_raises_cold_error(func):
+            _test_raises(ValueError, cold_error, func)
+
+        # no configuration, nonexistent buckets error
+        _test_raises_no_bucket_error(fake_uri1)
+        _test_raises_no_bucket_error(fake_uri2)
+
+        # no configuration, no perms bucket errors
+        _test_raises(ClientResponseError, no_perms_error, lambda: ServiceBackend(remote_tmpdir=no_perms_uri))
+
+        # no configuration, cold bucket errors
+        _test_raises_cold_error(lambda: ServiceBackend(remote_tmpdir=cold_uri))
+        b = self.batch()
+        _test_raises_cold_error(lambda: b.read_input(cold_uri))
+        j = b.new_job()
+        j.command(f"echo hello > {j.ofile}")
+        _test_raises_cold_error(lambda: b.write_output(j.ofile, cold_uri))
+
+        # hailctl config, allowlisted nonexistent buckets don't error
+        base_config = get_user_config()
+        local_config = ConfigParser()
+        local_config.read_dict({
+            **{
+                section: {key: val for key, val in base_config[section].items()}
+                for section in base_config.sections()
+            },
+            **{"gcs": {"bucket_allow_list": f"{fake_bucket1},{fake_bucket2}"}}
+        })
+        def _get_user_config():
+            return local_config
+        self.monkeypatch.setattr(user_config, "get_user_config", _get_user_config)
+        ServiceBackend(remote_tmpdir=fake_uri1)
+        ServiceBackend(remote_tmpdir=fake_uri2)
+
+        # environment variable config, only allowlisted nonexistent buckets don't error
+        self.monkeypatch.setenv("HAIL_GCS_BUCKET_ALLOW_LIST", fake_bucket2)
+        _test_raises_no_bucket_error(fake_uri1)
+        ServiceBackend(remote_tmpdir=fake_uri2)
+
+        # arg to constructor config, only allowlisted nonexistent buckets don't error
+        arg = [fake_bucket1]
+        ServiceBackend(remote_tmpdir=fake_uri1, gcs_bucket_allow_list=arg)
+        _test_raises_no_bucket_error(fake_uri2, arg)

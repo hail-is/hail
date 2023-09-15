@@ -5,7 +5,7 @@ import is.hail.fs.azure.AzureStorageFSSuite
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.io.fs.{FS, FileStatus, GoogleStorageFS, Seekable}
+import is.hail.io.fs.{FS, FileListEntry, GoogleStorageFS, Seekable}
 import is.hail.utils._
 import org.apache.commons.codec.binary.Hex
 import org.apache.commons.io.IOUtils
@@ -34,7 +34,7 @@ trait FSSuite extends TestNGSuite {
 
   def t(extension: String = null): String = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fs-suite-tmp", extension)
 
-  def pathsRelRoot(root: String, statuses: Array[FileStatus]): Set[String] = {
+  def pathsRelRoot(root: String, statuses: Array[FileListEntry]): Set[String] = {
     statuses.map { status =>
       var p = status.getPath
       assert(p.startsWith(root), s"$p $root")
@@ -42,7 +42,7 @@ trait FSSuite extends TestNGSuite {
     }.toSet
   }
 
-  def pathsRelResourcesRoot(statuses: Array[FileStatus]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
+  def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
 
   @Test def testExists(): Unit = {
     assert(fs.exists(r("/a")))
@@ -57,37 +57,37 @@ trait FSSuite extends TestNGSuite {
     assert(!fs.exists(r("/does_not_exist_dir/")))
   }
 
-  @Test def testFileStatusOnFile(): Unit = {
+  @Test def testFileListEntryOnFile(): Unit = {
     // file
     val f = r("/a")
-    val s = fs.fileStatus(f)
+    val s = fs.fileListEntry(f)
     assert(s.getPath == f)
     assert(s.isFile)
     assert(!s.isDirectory)
     assert(s.getLen == 12)
   }
 
-  @Test def testFileStatusOnDir(): Unit = {
+  @Test def testFileListEntryOnDir(): Unit = {
     // file
     val f = r("/dir")
-    val s = fs.fileStatus(f)
+    val s = fs.fileListEntry(f)
     assert(s.getPath == f)
     assert(!s.isFile)
     assert(s.isDirectory)
   }
 
-  @Test def testFileStatusOnDirWithSlash(): Unit = {
+  @Test def testFileListEntryOnDirWithSlash(): Unit = {
     // file
     val f = r("/dir/")
-    val s = fs.fileStatus(f)
+    val s = fs.fileListEntry(f)
     assert(s.getPath == f.dropRight(1))
     assert(!s.isFile)
     assert(s.isDirectory)
   }
 
-  @Test def testFileStatusOnMissingFile(): Unit = {
+  @Test def testFileListEntryOnMissingFile(): Unit = {
     try {
-      fs.fileStatus(r("/does_not_exist"))
+      fs.fileListEntry(r("/does_not_exist"))
     } catch {
       case _: FileNotFoundException =>
         return
@@ -95,16 +95,16 @@ trait FSSuite extends TestNGSuite {
     assert(false)
   }
 
-  @Test def testFileStatusRoot(): Unit = {
-    val s = fs.fileStatus(root)
+  @Test def testFileListEntryRoot(): Unit = {
+    val s = fs.fileListEntry(root)
     assert(s.getPath == root)
   }
 
-  @Test def testFileStatusRootWithSlash(): Unit = {
+  @Test def testFileListEntryRootWithSlash(): Unit = {
     if (root.endsWith("/"))
       return
 
-    val s = fs.fileStatus(s"$root/")
+    val s = fs.fileListEntry(s"$root/")
     assert(s.getPath == root)
   }
 

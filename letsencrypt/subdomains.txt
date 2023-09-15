@@ -1,5 +1,4 @@
 ci
-notebook
 www
 batch
 batch-driver
@@ -8,7 +7,6 @@ memory
 monitoring
 auth
 ukbb-rg
-workshop
 grafana
 prometheus
 hello

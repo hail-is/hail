@@ -407,7 +407,7 @@ class Batch:
         return jrf
 
     def _new_input_resource_file(self, input_path, root=None):
-        self._backend.validate_file_scheme(input_path)
+        self._backend.validate_file(input_path, self.requester_pays_project)
 
         # Take care not to include an Azure SAS token query string in the local name.
         if AzureAsyncFS.valid_url(input_path):
@@ -559,19 +559,23 @@ class Batch:
 
         Write a single job intermediate to a permanent location in GCS:
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
-        >>> b.run()  # doctest: +SKIP
+        .. code-block:: python
+
+            b = Batch()
+            j = b.new_job()
+            j.command(f'echo "hello" > {j.ofile}')
+            b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
+            b.run()
 
         Write a single job intermediate to a permanent location in Azure:
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
-        >>> b.run()  # doctest: +SKIP
+        .. code-block:: python
+
+            b = Batch()
+            j = b.new_job()
+            j.command(f'echo "hello" > {j.ofile}')
+            b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
+            b.run()  # doctest: +SKIP
 
         .. warning::
 
@@ -618,6 +622,8 @@ class Batch:
             dest_scheme = url_scheme(dest)
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
+
+        self._backend.validate_file(dest, self.requester_pays_project)
 
         resource._add_output_path(dest)
 

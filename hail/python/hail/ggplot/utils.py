@@ -36,7 +36,7 @@ def should_use_scale_for_grouping(scale):
 
 def continuous_nums_to_colors(min_color, max_color, continuous_color_scale):
     def adjust_color(input_color):
-        return (input_color - min_color) / max_color - min_color
+        return (input_color - min_color) / (max_color - min_color)
 
     def transform_color(input_color):
         return plotly.colors.sample_colorscale(continuous_color_scale, adjust_color(input_color))[0]

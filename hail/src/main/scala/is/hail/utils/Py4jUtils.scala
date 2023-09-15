@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.io.fs.{FS, FileStatus, SeekableDataInputStream}
+import is.hail.io.fs.{FS, FileListEntry, SeekableDataInputStream}
 import is.hail.types.virtual.Type
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
@@ -52,15 +52,15 @@ trait Py4jUtils {
 
   def ls(fs: FS, path: String): String = {
     val statuses = fs.listStatus(path)
-    JsonMethods.compact(JArray(statuses.map(fs => statusToJson(fs)).toList))
+    JsonMethods.compact(JArray(statuses.map(fs => fileListEntryToJson(fs)).toList))
   }
 
-  def stat(fs: FS, path: String): String = {
-    val stat = fs.fileStatus(path)
-    JsonMethods.compact(statusToJson(stat))
+  def fileListEntry(fs: FS, path: String): String = {
+    val stat = fs.fileListEntry(path)
+    JsonMethods.compact(fileListEntryToJson(stat))
   }
 
-  private def statusToJson(fs: FileStatus): JObject = {
+  private def fileListEntryToJson(fs: FileListEntry): JObject = {
     JObject(
       "path" -> JString(fs.getPath.toString),
       "size" -> JInt(fs.getLen),
@@ -103,7 +103,7 @@ trait Py4jUtils {
   }
 
   def readFile(fs: FS, path: String, buffSize: Int): HadoopSeekablePyReader =
-    new HadoopSeekablePyReader(fs.fileStatus(path), fs.openNoCompression(path), buffSize)
+    new HadoopSeekablePyReader(fs.fileListEntry(path), fs.openNoCompression(path), buffSize)
 
   def readFileCodec(fs: FS, path: String, buffSize: Int): HadoopPyReader =
     new HadoopPyReader(fs.open(path), buffSize)
@@ -163,7 +163,7 @@ class HadoopPyReader(in: InputStream, buffSize: Int) {
   }
 }
 
-class HadoopSeekablePyReader(status: FileStatus, in: SeekableDataInputStream, buffSize: Int) extends HadoopPyReader(in, buffSize) {
+class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream, buffSize: Int) extends HadoopPyReader(in, buffSize) {
   def seek(pos: Long, whence: Int): Long = {
     // whence corresponds to python arguments to seek
     // it is validated in python

@@ -107,6 +107,23 @@ spec:
              value: "{{ hail_buildkit_image.image }}"
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+{% if global.cloud == "gcp" %}
+           - name: GOOGLE_APPLICATION_CREDENTIALS
+             value: /gsa-key/key.json
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+             value: '{"idp": "Google"}'
+{% else %}
+           - name: AZURE_APPLICATION_CREDENTIALS
+             value: /gsa-key/key.json
+           - name: HAIL_IDENTITY_PROVIDER_JSON
+             value: '{"idp": "Microsoft"}'
+           - name: HAIL_AZURE_OAUTH_SCOPE
+             valueFrom:
+               secretKeyRef:
+                 name: auth-oauth2-client-secret
+                 key: sp_oauth_scope
+{% endif %}
           ports:
             - containerPort: 5000
           volumeMounts:
@@ -125,8 +142,8 @@ spec:
            - mountPath: /secrets/oauth-token
              name: hail-ci-0-1-github-oauth-token
              readOnly: true
-           - mountPath: /user-tokens
-             name: ci-tokens
+           - name: gsa-key
+             mountPath: /gsa-key
              readOnly: true
            - mountPath: /zulip-config
              name: zulip-config
@@ -162,9 +179,9 @@ spec:
        - name: hail-ci-0-1-github-oauth-token
          secret:
            secretName: hail-ci-0-1-github-oauth-token
-       - name: ci-tokens
+       - name: gsa-key
          secret:
-           secretName: ci-tokens
+           secretName: ci-gsa-key
        - name: zulip-config
          secret:
            secretName: zulip-config

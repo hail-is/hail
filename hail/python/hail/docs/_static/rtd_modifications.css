@@ -83,7 +83,7 @@ hr {
   border-color: #ddd;
 }
 
-#hail-navbar.documentation-view {
+#hail-navbar {
   position: fixed;
   min-height: 60px;
   z-index: 999;
@@ -98,7 +98,7 @@ hr {
   padding-top: calc(60px + .4045em);
 }
 
-#hail-navbar.documentation-view #hail-container-fluid {
+#hail-navbar #hail-container-fluid {
   padding-left: 0px; /*bootstrap enforced style*/
   padding-right: 0px;
 }
@@ -114,7 +114,7 @@ hr {
   }
 
   /* Fixed navbar obscures valuable vertical real estate on mobile */
-  #hail-navbar.documentation-view {
+  #hail-navbar {
     position: relative;
   }
 }
