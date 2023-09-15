@@ -1,6 +1,5 @@
 import pytest
 import asyncio
-from contextlib import contextmanager
 
 import hail as hl
 from hail.utils.java import Env, scala_object
@@ -51,43 +50,29 @@ def all_values_table_fixture(init_hail):
 # create an event loop when `get_event_loop()` is called if and only if the current thread is the
 # main thread. We therefore manually create an event loop which is used only for collecting the
 # files.
-@contextmanager
-def fresh_event_loop():
+try:
+    old_loop = asyncio.get_running_loop()
+except RuntimeError as err:
+    assert 'no running event loop' in err.args[0]
+    old_loop = None
+loop = asyncio.new_event_loop()
+try:
+    asyncio.set_event_loop(loop)
+    resource_dir = resource('backward_compatability')
+    fs = hl.current_backend().fs
     try:
-        old_loop = asyncio.get_running_loop()
-    except RuntimeError as err:
-        assert 'no running event loop' in err.args[0]
-        old_loop = None
-    loop = asyncio.new_event_loop()
-    try:
-        asyncio.set_event_loop(loop)
-        yield
-        hl.stop()
+        ht_paths = [x.path for x in fs.ls(resource_dir + '/*/table/')]
+        mt_paths = [x.path for x in fs.ls(resource_dir + '/*/matrix_table/')]
     finally:
-        loop.stop()
-        loop.close()
-        asyncio.set_event_loop(old_loop)
+        hl.stop()
+finally:
+    loop.stop()
+    loop.close()
+    asyncio.set_event_loop(old_loop)
 
 
-resource_dir = resource('backward_compatability')
-
-@pytest.fixture(scope='module', autouse=True)
-def ht_paths():
-    with fresh_event_loop():
-        fs = hl.current_backend().fs
-        return [x.path for x in fs.ls(resource_dir + '/*/table/')]
-
-
-@pytest.fixture(scope='module', autouse=True)
-def mt_paths():
-    with fresh_event_loop():
-        fs = hl.current_backend().fs
-        return [x.path for x in fs.ls(resource_dir + '/*/matrix_table/')]
-
-
-@pytest.mark.parametrize("path", "mt_paths")
-def test_backward_compatability_mt(path, all_values_matrix_table_fixture, ht_paths, request):
-    mt_paths = request.getfixturevalue(all_values_matrix_table_fixture)
+@pytest.mark.parametrize("path", mt_paths)
+def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
     assert len(mt_paths) == 56, str((resource_dir, ht_paths))
 
     old = hl.read_matrix_table(path)
@@ -101,9 +86,8 @@ def test_backward_compatability_mt(path, all_values_matrix_table_fixture, ht_pat
     assert current._same(old)
 
 
-@pytest.mark.parametrize("path", "ht_paths")
-def test_backward_compatability_ht(path, all_values_table_fixture, request):
-    ht_paths = request.getfixturevalue(all_values_matrix_table_fixture)
+@pytest.mark.parametrize("path", ht_paths)
+def test_backward_compatability_ht(path, all_values_table_fixture):
     assert len(ht_paths) == 52, str((resource_dir, ht_paths))
 
     old = hl.read_table(path)
