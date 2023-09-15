@@ -158,7 +158,7 @@ class ZoneMonitor(CloudLocationMonitor):
 
 async def fetch_machine_valid_zones(
     compute_client: aiogoogle.GoogleComputeClient, regions: Set[str]
-) -> collections.defaultdict(set):
+) -> Dict[str, Set[str]]:
     region_info = {name: await compute_client.get(f'/regions/{name}') for name in regions}
     zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
     machine_family_valid_zones = collections.defaultdict(set)
