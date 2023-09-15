@@ -9,7 +9,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical._
