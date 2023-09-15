@@ -2340,6 +2340,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              -m qobtest \
               --timeout=600 \
               test
     timeout: 5400
@@ -2411,6 +2412,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              -m qobtest \
               --timeout=600 \
               test
     timeout: 5400

@@ -7,6 +7,7 @@ from ..helpers import *
 from hail.utils import FatalError
 
 
+@qobtest
 def test_reference_genome():
     rg = hl.get_reference('GRCh37')
     assert rg.name == "GRCh37"
@@ -38,6 +39,7 @@ def test_reference_genome():
     with hl.TemporaryFilename() as filename:
         gr2.write(filename)
 
+@qobtest
 def test_reference_genome_sequence():
     gr3 = ReferenceGenome.read(resource("fake_ref_genome.json"))
     assert gr3.name == "my_reference_genome"
@@ -65,6 +67,7 @@ def test_reference_genome_sequence():
     assert gr4._sequence_files == (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"))
 
 
+@qobtest
 def test_reference_genome_liftover():
     grch37 = hl.get_reference('GRCh37')
     grch38 = hl.get_reference('GRCh38')
@@ -149,6 +152,7 @@ def test_liftover_strand():
         grch37.remove_liftover("GRCh38")
 
 
+@qobtest
 def test_read_custom_reference_genome():
     # this test doesn't behave properly if these reference genomes are already defined in scope.
     available_rgs = set(hl.current_backend()._references.keys())
@@ -191,6 +195,7 @@ def test_custom_reference_read_write():
         assert actual._same(expected)
 
 
+@qobtest
 def test_locus_from_global_position():
     rg = hl.get_reference('GRCh37')
     max_length = rg.global_positions_dict[rg.contigs[-1]] + rg.lengths[rg.contigs[-1]]

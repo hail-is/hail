@@ -394,6 +394,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
 
+    @qobtest
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=hl.agg.count(),
@@ -607,6 +608,7 @@ class Tests(unittest.TestCase):
                                               None]),
         ]
 
+    @qobtest
     @with_flags(distributed_scan_comb_op='1')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)
@@ -939,6 +941,7 @@ class Tests(unittest.TestCase):
         assert t.annotate(x=hl.bind(lambda i: hl.scan.sum(t.idx + i), 1, _ctx='scan')).x.collect() == [0, 1, 3, 6, 10]
         assert t.aggregate(hl.bind(lambda i: hl.agg.collect(i), t.idx * t.idx, _ctx='agg')) == [0, 1, 4, 9, 16]
 
+    @qobtest
     def test_scan(self):
         table = hl.utils.range_table(10)
 

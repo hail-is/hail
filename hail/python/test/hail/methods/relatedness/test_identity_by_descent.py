@@ -5,7 +5,7 @@ import unittest
 
 import hail as hl
 import hail.utils as utils
-from ...helpers import get_dataset, test_timeout
+from ...helpers import get_dataset, test_timeout, qobtest
 
 
 def plinkify(ds, min=None, max=None):
@@ -45,6 +45,7 @@ def plinkify(ds, min=None, max=None):
     return results
 
 
+@qobtest
 @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
 @test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_default_arguments():
