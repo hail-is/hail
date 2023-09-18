@@ -8,7 +8,6 @@ Prerequisites:
 
 - You must have `jq`, `terraform` installed.
 - Export `HAIL` as the root of the checked out Hail repository
-- Generate a public-private SSH (using RSA) key at `~/.ssh/batch_worker_ssh_rsa`.
 
 ## Authenticating with the Azure CLI
 
@@ -132,7 +131,7 @@ withing a 24hr period, or it may fail if the specified certs already exist.
 If this happens it will retrieve the exiting certs, but the deploy_unmanaged step will fail.
 
 If the final letsencrypt step in deploy_unmanaged fails, you will have to
-comment out the "set +x" line in letsencrypt.sh. Then set the environment 
+comment out the "set +x" line in letsencrypt.sh. Then set the environment
 variable `DRY_RUN=1`. Re-run the deploy_unmanaged step again and copy the
 kubectl secret from stdout.
 
