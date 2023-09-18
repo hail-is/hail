@@ -181,7 +181,7 @@ docs:
 
 website-image: docs
 
-$(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$*)
+$(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
 	$(eval IMAGE := $(DOCKER_PREFIX)/$*:$(TOKEN))
 	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
 		./docker-build.sh . $*/Dockerfile $(IMAGE)
