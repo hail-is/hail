@@ -379,7 +379,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
-  def listStatus(filename: String): Array[FileListEntry] = handlePublicAccessError(filename) {
+  def listDirectory(filename: String): Array[FileListEntry] = handlePublicAccessError(filename) {
     val url = AzureStorageFS.parseUrl(filename)
 
     val blobContainerClient: BlobContainerClient = getContainerClient(url)
