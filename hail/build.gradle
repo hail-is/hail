@@ -167,7 +167,7 @@ dependencies {
     }
 
     implementation group: 'org.ow2.asm', name: 'asm', version: '7.3.1'
-    implementation group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
+    implementation group: 'org.ow2.asm', name: 'asm-util', version: '9.5'
     implementation group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
     implementation 'net.java.dev.jna:jna:5.13.0'
