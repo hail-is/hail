@@ -867,11 +867,11 @@ class Emit[C](
         presentPC(primitive(const(x)))
       case s@Str(x) =>
         presentPC(mb.addLiteral(cb, x, typeWithReq))
-      case x@UUID4(_) =>
+      case x@UUID4() =>
         val pt = PCanonicalString()
         presentPC(pt.loadCheapSCode(cb, pt.
           allocateAndStoreString(cb, region, Code.invokeScalaObject0[String](
-            Class.forName("is.hail.expr.ir.package$"), "uuid4"))))
+            Class.forName("is.hail.expr.ir.package$"), "randBase64String"))))
       case x@Literal(t, v) =>
         presentPC(mb.addLiteral(cb, v, typeWithReq))
       case x@EncodedLiteral(codec, value) =>

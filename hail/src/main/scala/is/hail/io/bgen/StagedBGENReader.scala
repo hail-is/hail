@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.functions.{RegistryFunctions, StringFunctions}
 import is.hail.expr.ir.streams.StreamUtils
-import is.hail.expr.ir.{ArraySorter, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitSettable, IEmitCode, LowerMatrixIR, ParamType, StagedArrayBuilder, uuid4}
+import is.hail.expr.ir.{ArraySorter, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitSettable, IEmitCode, LowerMatrixIR, ParamType, StagedArrayBuilder, randBase64String}
 import is.hail.io._
 import is.hail.io.fs.SeekableDataInputStream
 import is.hail.io.index.{StagedIndexReader, StagedIndexWriter}
@@ -464,7 +464,7 @@ object StagedBGENReader {
 
 object BGENFunctions extends RegistryFunctions {
 
-  def uuid(): String = uuid4()
+  def uuid(): String = s"[${randBase64String()}]"
 
   override def registerAll(): Unit = {
     registerSCode("index_bgen", Array(TString, TString, TDict(TString, TString), TBoolean, TInt32), TInt64, (_, _) => SInt64, Array(TVariable("locusType"))) {
@@ -472,7 +472,7 @@ object BGENFunctions extends RegistryFunctions {
         val mb = cb.emb
 
         val ctx = cb.emb.ecb.ctx
-        val localTmpBase = ExecuteContext.createTmpPathNoCleanup(ctx.localTmpdir, "index_bgen_")
+        val localTmpBase = ExecuteContext.createTmpPathNoCleanup(ctx.localTmpdir, "index_bgen")
 
         val path = _path.asString.loadString(cb)
         val idxPath = _idxPath.asString.loadString(cb)
@@ -538,8 +538,8 @@ object BGENFunctions extends RegistryFunctions {
             cb.emb.ecb.getOrdering(lv.st, rv.st).ltNonnull(cb, lv, rv)
           })
 
-          val path = cb.newLocal[String]("currFile", const(localTmpBase).concat(groupIndex.toS)
-            .concat("-").concat(Code.invokeScalaObject0[String](BGENFunctions.getClass, "uuid")))
+          val path = cb.memoize(const(localTmpBase).concat(Code.invokeScalaObject0[String](BGENFunctions.getClass, "uuid"))
+            .concat(groupIndex.toS))
           val ob = cb.newLocal[OutputBuffer]("currFile", spec.buildCodeOutputBuffer(mb.create(path)))
 
           val i = cb.newLocal[Int]("i", 0)

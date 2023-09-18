@@ -11,7 +11,7 @@ object Children {
     case F32(x) => none
     case F64(x) => none
     case Str(x) => none
-    case UUID4(_) => none
+    case UUID4() => none
     case True() => none
     case False() => none
     case Literal(_, _) => none
