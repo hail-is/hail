@@ -514,20 +514,6 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
 # new_y is an array the same length as x. For each i in keep, new_y[i] is the
 # y coordinate of the point on the max-ent cdf.
 def _max_entropy_cdf(min_x, max_x, x, y, e):
-    def get_upper_lower_slopes(j, fx, fy):
-        if j == len(x):
-            ub = 1
-            lb = 1
-            xj = max_x
-        else:
-            ub = y[j] + e
-            lb = y[j + 1] - e
-            xj = x[j]
-        dx = xj - fx
-        lower_slope = (lb - fy) / dx
-        upper_slope = (ub - fy) / dx
-        return lower_slope, upper_slope
-
     new_y = np.full_like(x, 0.0, dtype=np.float64)
     keep = np.full_like(x, False, dtype=np.bool_)
 
@@ -535,32 +521,54 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
     fx, fy = min_x, 0
     li = 0
     ui = 0
-    min_slope = (y[li+1] - e - fy) / (x[li] - fx)
-    max_slope = (y[ui] + e - fy) / (x[ui] - fx)
-    j = 1
     # Consider a line l from (fx, fy) to (x[j], y?). As we increase y?, l first
     # bumps into the upper staircase at (x[ui], y[ui] + e), and as we decrease
     # y?, l first bumps into the lower staircase at (x[li], y[li+1] - e).
     # We track the min and max slopes l can have while staying between the
     # staircases, as well as the points li and ui where the line must bend if
     # forced too high or too low.
+
+    def point_on_bound(i, upper):
+        if i == len(x):
+            return max_x, 1
+        else:
+            yi = y[i] + e if upper else y[i+1] - e
+            return x[i], yi
+
+    def slope_from_fixed(i, upper):
+        xi, yi = point_on_bound(i, upper)
+        return (yi - fy) / (xi - fx)
+
+    def update_min_max_slopes():
+        nonlocal min_slope, max_slope
+        min_slope = slope_from_fixed(li, upper=False)
+        max_slope = slope_from_fixed(ui, upper=True)
+
+    def fix_point_on_result(i, upper):
+        nonlocal fx, fy, new_y, keep
+        yi = point_on_bound(i, upper)
+        fx, fy = x[i], yi
+        new_y[i] = fy
+        keep[i] = True
+
+    min_slope, max_slope = 0, 0
+    update_min_max_slopes()
+    j = 1
+
     while True:
-        lower_slope, upper_slope = get_upper_lower_slopes(j, fx, fy)
+        lower_slope = slope_from_fixed(j, upper=False)
+        upper_slope = slope_from_fixed(j, upper=True)
         if upper_slope < min_slope:
             # Line must bend down at x[li]. We know the max-entropy cdf passes
             # through this point, so record it in new_y, keep.
             # This becomes the new fixed point, and we must restart the scan
             # from there.
-            fx, fy = x[li], y[li + 1] - e
-            new_y[li] = fy
-            keep[li] = True
+            fix_point_on_result(li, upper=False)
             j = li + 1
             if j >= len(x):
                 break
-            li = j
-            ui = j
-            min_slope = (y[li+1] - e - fy) / (x[li] - fx)
-            max_slope = (y[ui] + e - fy) / (x[ui] - fx)
+            li, ui = j, j
+            update_min_max_slopes()
             j += 1
             continue
         elif lower_slope > max_slope:
@@ -568,17 +576,12 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
             # through this point, so record it in new_y, keep.
             # This becomes the new fixed point, and we must restart the scan
             # from there.
-            fx = x[ui]
-            fy = y[ui] + e
-            new_y[ui] = fy
-            keep[ui] = True
+            fix_point_on_result(ui, upper=True)
             j = ui + 1
             if j >= len(x):
                 break
-            li = j
-            ui = j
-            min_slope = (y[li+1] - e - fy) / (x[li] - fx)
-            max_slope = (y[ui] + e - fy) / (x[ui] - fx)
+            li, ui = j, j
+            update_min_max_slopes()
             j += 1
             continue
         if j >= len(x):
