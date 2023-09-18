@@ -119,6 +119,8 @@
                 "hail-run",
                 "hail-ubuntu",
                 "hail-ubuntu-py-3-10",
+                "hail-ubuntu-python-3-10",
+                "hail-ubuntu-python-3-11",
                 "hailgenetics/hail",
                 "hailgenetics/hailtop",
                 "hailgenetics/vep-grch37-85",
