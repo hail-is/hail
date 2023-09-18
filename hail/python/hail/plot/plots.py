@@ -22,6 +22,7 @@ from hail.expr.expressions import Expression, NumericExpression, \
     Float32Expression, Float64Expression, \
     expr_numeric, expr_float64, expr_any, expr_locus, expr_str, \
     check_row_indexed
+from hail.expr.functions import _error_from_cdf_python
 from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
     sequenceof, dictof
 from hail import Table, MatrixTable
@@ -131,34 +132,6 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False) -> figu
     return p
 
 
-def _cdf_single_error(cdf, failure_prob):
-    s = 0
-    for i in range(len(cdf._compaction_counts)):
-        s += cdf._compaction_counts[i] << (2 * i)
-    s = s / (cdf.ranks[-1] ** 2)
-    return math.sqrt(math.log(2 / failure_prob) * s / 2)
-
-
-def _cdf_error(cdf, failure_prob):
-    s = 0
-    for i in range(len(cdf._compaction_counts)):
-        s += cdf._compaction_counts[i] << (2 * i)
-    s = s / (cdf.ranks[-1] ** 2)
-
-    if s == 0:
-        # no compactions ergo no error
-        return 0
-
-    def update_grid_size(p):
-        return 4 * math.sqrt(math.log(2 * p / failure_prob) / (2 * s))
-
-    p = 1 / failure_prob
-    for i in range(5):
-        p = update_grid_size(p)
-
-    return 1 / p + math.sqrt(math.log(2 * p / failure_prob) * s / 2)
-
-
 def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False) -> Union[figure, Tuple[figure, Callable]]:
     if isinstance(data, Expression):
         if data._indices is None:
@@ -189,7 +162,7 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
     x = np.array(data['values'][1:-1])
     min_x = data['values'][0]
     max_x = data['values'][-1]
-    err = _cdf_error(data, 10 ** (-confidence))
+    err = _error_from_cdf_python(data, 10 ** (-confidence), all_quantiles=True)
 
     new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
     slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
@@ -201,7 +174,7 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
     if interactive:
         def mk_interact(handle):
             def update(confidence=confidence):
-                err = _cdf_error(data, 10 ** (-confidence)) / 1.8
+                err = _error_from_cdf_python(data, 10 ** (-confidence), all_quantiles=True) / 1.8
                 new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
                 slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
                 if log:
