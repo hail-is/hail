@@ -43,7 +43,6 @@ class AzureResourceManager(CloudResourceManager):
         app,
         subscription_id: str,
         resource_group: str,
-        ssh_public_key: str,
         arm_client: aioazure.AzureResourceManagerClient,  # BORROWED
         compute_client: aioazure.AzureComputeClient,  # BORROWED
         billing_manager: AzureBillingManager,
@@ -51,7 +50,6 @@ class AzureResourceManager(CloudResourceManager):
         self.app = app
         self.subscription_id = subscription_id
         self.resource_group = resource_group
-        self.ssh_public_key = ssh_public_key
         self.arm_client = arm_client
         self.compute_client = compute_client
         self.billing_manager = billing_manager
@@ -173,7 +171,6 @@ class AzureResourceManager(CloudResourceManager):
             job_private,
             self.subscription_id,
             self.resource_group,
-            self.ssh_public_key,
             max_price,
             instance_config,
             self.app['feature_flags'],

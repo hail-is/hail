@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import os
 from typing import Dict
 
 from gear import Database
@@ -52,9 +51,6 @@ ON DUPLICATE KEY UPDATE region = region;
         assert max(db_regions.values()) < 64, str(db_regions)
         app['regions'] = db_regions
 
-        with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
-            ssh_public_key = f.read()
-
         arm_client = aioazure.AzureResourceManagerClient(subscription_id, resource_group)
         compute_client = aioazure.AzureComputeClient(subscription_id, resource_group)
         resources_client = aioazure.AzureResourcesClient(subscription_id)
@@ -65,7 +61,7 @@ ON DUPLICATE KEY UPDATE region = region;
         billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region, regions)
         resource_manager = AzureResourceManager(
-            app, subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
+            app, subscription_id, resource_group, arm_client, compute_client, billing_manager
         )
 
         create_pools_coros = [

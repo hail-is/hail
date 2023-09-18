@@ -188,8 +188,6 @@ spec:
            value: "{{ batch_worker_image.image }}"
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
-         - name: HAIL_SSH_PUBLIC_KEY
-           value: /ssh-public-key/ssh_rsa.pub
          - name: HAIL_DOCKER_ROOT_IMAGE
            valueFrom:
              secretKeyRef:
@@ -279,9 +277,6 @@ spec:
          - name: ssl-config-batch-driver
            mountPath: /ssl-config
            readOnly: true
-         - name: ssh-public-key
-           mountPath: /ssh-public-key
-           readOnly: true
         readinessProbe:
           tcpSocket:
             port: 5000
@@ -311,10 +306,6 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-batch-driver-nginx
-       - name: ssh-public-key
-         secret:
-           secretName: batch-worker-ssh-public-key
-           optional: true
        - name: tls-sidecar-envoy-config
          configMap:
            name: tls-sidecar-envoy-config

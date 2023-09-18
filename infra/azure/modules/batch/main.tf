@@ -56,16 +56,6 @@ resource "azurerm_shared_image" "batch_worker_22_04" {
   }
 }
 
-resource "kubernetes_secret" "batch_worker_ssh_public_key" {
-  metadata {
-    name = "batch-worker-ssh-public-key"
-  }
-
-  data = {
-    "ssh_rsa.pub" = file("~/.ssh/batch_worker_ssh_rsa.pub")
-  }
-}
-
 resource "azurerm_storage_account" "batch" {
   name                     = "${var.resource_group.name}batch${var.storage_account_suffix}"
   resource_group_name      = var.resource_group.name

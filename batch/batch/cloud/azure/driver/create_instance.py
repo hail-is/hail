@@ -38,7 +38,6 @@ def create_vm_config(
     job_private: bool,
     subscription_id: str,
     resource_group: str,
-    ssh_public_key: str,
     max_price: Optional[float],
     instance_config: InstanceConfig,
     feature_flags: dict,
@@ -420,7 +419,6 @@ done
             'parameters': {
                 'location': {'value': location},
                 'vmName': {'value': machine_name},
-                'sshKey': {'value': ssh_public_key},
                 'subnetId': {
                     'value': f'/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.Network/virtualNetworks/default/subnets/batch-worker-subnet'
                 },
