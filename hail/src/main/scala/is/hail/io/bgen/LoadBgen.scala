@@ -163,7 +163,7 @@ object LoadBgen {
           warn(s"input file does not have .bgen extension: $file")
 
         if (fs.isDir(file))
-          fs.listStatus(file)
+          fs.listDirectory(file)
             .filter(fileListEntry => ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.matches(fileListEntry.getPath.toString))
         else
           Array(fileListEntry)

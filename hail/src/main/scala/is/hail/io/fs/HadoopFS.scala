@@ -123,7 +123,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
-  def listStatus(filename: String): Array[FileListEntry] = {
+  def listDirectory(filename: String): Array[FileListEntry] = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     var statuses = fs.globStatus(hPath)

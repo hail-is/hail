@@ -28,7 +28,7 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   def delete(filename: String, recursive: Boolean) = lookupFS(filename).delete(filename, recursive)
 
-  def listStatus(filename: String): Array[FileListEntry] = lookupFS(filename).listStatus(filename)
+  def listDirectory(filename: String): Array[FileListEntry] = lookupFS(filename).listDirectory(filename)
 
   def glob(filename: String): Array[FileListEntry] = lookupFS(filename).glob(filename)
 

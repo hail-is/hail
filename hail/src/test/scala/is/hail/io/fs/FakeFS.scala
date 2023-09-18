@@ -6,7 +6,7 @@ abstract class FakeFS extends FS {
   override def openNoCompression(filename: String): SeekableDataInputStream = ???
   override def createNoCompression(filename: String): PositionedDataOutputStream = ???
   override def delete(filename: String, recursive: Boolean): Unit = ???
-  override def listStatus(filename: String): Array[FileListEntry] = ???
+  override def listDirectory(filename: String): Array[FileListEntry] = ???
   override def glob(filename: String): Array[FileListEntry] = ???
   override def fileListEntry(filename: String): FileListEntry = ???
   override def eTag(filename: String): Option[String] = ???
