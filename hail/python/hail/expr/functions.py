@@ -165,7 +165,10 @@ def _error_from_cdf_python(cdf, failure_prob, all_quantiles=False):
     def compute_single_error(s, failure_prob=failure_prob):
         return math.sqrt(math.log(2 / failure_prob) * s / 2)
 
-    if all_quantiles:
+    if s == 0:
+        # no compactions ergo no error
+        return 0
+    elif all_quantiles:
         p = compute_grid_size(s)
         return 1 / p + compute_single_error(s, failure_prob / p)
     else:
