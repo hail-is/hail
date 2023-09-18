@@ -3,7 +3,7 @@ package is.hail.expr.ir.analyses
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.io.fs.{FS, FakeFS, FileListEntry, HadoopFSURL}
+import is.hail.io.fs.{FS, FakeFS, FileListEntry, FakeURL}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.TableType
@@ -285,10 +285,10 @@ class SemanticHashSuite extends HailSuite {
 
   val fakeFs: FS =
     new FakeFS {
-      override def eTag(url: HadoopFSURL): Option[String] =
+      override def eTag(url: FakeURL): Option[String] =
         Some(url.getPath)
 
-      override def glob(url: HadoopFSURL): Array[FileListEntry] =
+      override def glob(url: FakeURL): Array[FileListEntry] =
         Array(new FileListEntry {
           override def getPath: String = url.getPath
           override def getModificationTime: lang.Long = ???

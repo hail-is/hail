@@ -1,7 +1,9 @@
 package is.hail.io.fs
 
 
-case class FakeURL(path: String)
+case class FakeURL(path: String) extends FSURL {
+  def getPath(): String = path
+}
 
 abstract class FakeFS extends FS {
   override type URL = FakeURL
