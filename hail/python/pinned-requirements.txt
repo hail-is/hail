@@ -57,11 +57,11 @@ azure-storage-blob==12.17.0
     #   -r hail/hail/python/hailtop/requirements.txt
 bokeh==3.2.2
     # via -r hail/hail/python/requirements.txt
-boto3==1.28.39
+boto3==1.28.41
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.39
+botocore==1.31.41
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -286,7 +286,7 @@ python-json-logger==2.0.7
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-pytz==2023.3
+pytz==2023.3.post1
     # via pandas
 pyyaml==6.0.1
     # via
@@ -322,7 +322,7 @@ s3transfer==0.6.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   boto3
-scipy==1.9.3
+scipy==1.11.2
     # via -r hail/hail/python/requirements.txt
 six==1.16.0
     # via

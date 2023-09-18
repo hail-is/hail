@@ -1,4 +1,5 @@
-FROM {{ hail_ubuntu_image.image }}
+ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+FROM $BASE_IMAGE
 
 COPY hail/python/hailtop/pinned-requirements.txt hailtop-requirements.txt
 COPY gear/pinned-requirements.txt gear-requirements.txt

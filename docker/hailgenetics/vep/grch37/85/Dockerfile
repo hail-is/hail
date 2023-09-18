@@ -1,4 +1,5 @@
-FROM {{ hail_ubuntu_image.image }}
+ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+FROM $BASE_IMAGE
 
 ENV VEP_VERSION 85
 ENV VEP_DIR /vep

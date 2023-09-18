@@ -455,7 +455,6 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
 
 
 @routes.post('/copy-paste-token')
-@check_csrf_token
 @authenticated_users_only
 async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
@@ -476,7 +475,6 @@ async def get_copy_paste_token_api(request: web.Request, userdata: UserData) -> 
 
 
 @routes.post('/logout')
-@check_csrf_token
 @maybe_authenticated_user
 async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn:
     if not userdata:
@@ -521,7 +519,6 @@ async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/roles')
-@check_csrf_token
 @authenticated_devs_only
 async def post_create_role(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -552,7 +549,6 @@ async def get_users(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/users')
-@check_csrf_token
 @authenticated_devs_only
 async def post_create_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -632,7 +628,6 @@ WHERE {' AND '.join(where_conditions)};
 
 
 @routes.post('/users/delete')
-@check_csrf_token
 @authenticated_devs_only
 async def delete_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -820,7 +815,7 @@ async def get_session_id(request: web.Request) -> Optional[str]:
     return session.get('session_id')
 
 
-@routes.route('*', '/api/v1alpha/verify_dev_credentials')
+@routes.route('*', '/api/v1alpha/verify_dev_credentials', name='verify_dev')
 @authenticated_users_only
 async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1:
@@ -828,7 +823,7 @@ async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
     return web.Response(status=200)
 
 
-@routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials')
+@routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials', name='verify_dev_or_sa')
 @authenticated_users_only
 async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1 and userdata['is_service_account'] != 1:
@@ -886,10 +881,28 @@ class AuthAccessLogger(AccessLogger):
         super().log(request, response, time)
 
 
+@web.middleware
+async def auth_check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
+    # The below are used by gateway / Envoy reverse proxies for auth checks, but
+    # Envoy calls those auth endpoints with the same HTTP method as the original
+    # user's request. In the case where a user is trying to POST to a protected
+    # service, that will additionally trigger a CSRF check on the auth endpoint
+    # which cannot always be conducted if, for example, the backend service is
+    # Grafana which conducts its own CSRF mitigations separate from our own.
+    # These auth endpoints are not CSRF-vulnerable so we opt out of CSRF-token
+    # validation.
+    # See: https://github.com/envoyproxy/envoy/issues/5357
+    envoy_auth_endpoints = {request.app.router[name].canonical for name in ('verify_dev', 'verify_dev_or_sa')}
+    if request.path in envoy_auth_endpoints:
+        return await handler(request)
+
+    return await check_csrf_token(request, handler)
+
+
 def run():
     install_profiler_if_requested('auth')
 
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[auth_check_csrf_token, monitor_endpoints_middleware])
 
     setup_aiohttp_jinja2(app, 'auth')
     setup_aiohttp_session(app)

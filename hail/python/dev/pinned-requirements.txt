@@ -16,7 +16,7 @@ arrow==1.2.3
     # via isoduration
 astroid==2.15.6
     # via pylint
-asttokens==2.2.1
+asttokens==2.4.0
     # via stack-data
 async-lru==2.0.4
     # via jupyterlab
@@ -130,7 +130,7 @@ importlib-resources==6.0.1
     # via matplotlib
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.25.1
+ipykernel==6.25.2
     # via
     #   jupyter
     #   jupyter-console
@@ -312,7 +312,7 @@ platformdirs==3.10.0
     #   virtualenv
 pluggy==1.3.0
     # via pytest
-pre-commit==3.3.3
+pre-commit==3.4.0
     # via -r hail/hail/python/dev/requirements.txt
 prometheus-client==0.17.1
     # via jupyter-server
@@ -348,7 +348,7 @@ pyparsing==3.0.9
     # via matplotlib
 pyright==1.1.325
     # via -r hail/hail/python/dev/requirements.txt
-pytest==7.4.0
+pytest==7.4.1
     # via
     #   -r hail/hail/python/dev/requirements.txt
     #   pytest-asyncio
@@ -395,7 +395,7 @@ pyzmq==25.1.1
     #   jupyter-console
     #   jupyter-server
     #   qtconsole
-qtconsole==5.4.3
+qtconsole==5.4.4
     # via jupyter
 qtpy==2.4.0
     # via qtconsole
@@ -417,11 +417,11 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.10.0
+rpds-py==0.10.2
     # via
     #   jsonschema
     #   referencing
-ruff==0.0.286
+ruff==0.0.287
     # via -r hail/hail/python/dev/requirements.txt
 send2trash==1.8.2
     # via jupyter-server
@@ -436,7 +436,7 @@ sniffio==1.3.0
     # via anyio
 snowballstemmer==2.2.0
     # via sphinx
-soupsieve==2.4.1
+soupsieve==2.5
     # via beautifulsoup4
 sphinx==6.2.1
     # via

@@ -24,7 +24,7 @@ async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]
     _bcs = []
 
     async def factory(project: str):
-        bc = await BatchClient.create(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
+        bc = await BatchClient.create(project, cloud_credentials_file=os.environ['HAIL_TEST_GSA_KEY_FILE'])
         _bcs.append(bc)
         return bc
 
@@ -36,7 +36,8 @@ async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]
 @pytest.fixture
 async def dev_client() -> AsyncGenerator[BatchClient, Any]:
     bc = await BatchClient.create(
-        'billing-project-not-needed-but-required-by-BatchClient', token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE']
+        'billing-project-not-needed-but-required-by-BatchClient',
+        cloud_credentials_file=os.environ['HAIL_TEST_DEV_GSA_KEY_FILE'],
     )
     yield bc
     await bc.close()

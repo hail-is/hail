@@ -36,6 +36,7 @@ from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
 from ..ir import BaseIR
 from ..utils import ANY_REGION
+from hailtop.aiotools.validators import validate_file
 
 
 ReferenceGenomeConfig = Dict[str, Any]
@@ -205,7 +206,8 @@ class ServiceBackend(Backend):
                      name_prefix: Optional[str] = None,
                      credentials_token: Optional[str] = None,
                      regions: Optional[List[str]] = None,
-                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None):
+                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+                     gcs_bucket_allow_list: Optional[List[str]] = None):
         billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
         if billing_project is None:
             raise ValueError(
@@ -216,7 +218,10 @@ class ServiceBackend(Backend):
         gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         )
-        async_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
+        async_fs = RouterAsyncFS(
+            gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration},
+            gcs_bucket_allow_list=gcs_bucket_allow_list
+        )
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
             batch_client = await aiohb.BatchClient.create(billing_project, _token=credentials_token)
@@ -279,7 +284,7 @@ class ServiceBackend(Backend):
             worker_cores=worker_cores,
             worker_memory=worker_memory,
             name_prefix=name_prefix or '',
-            regions=regions,
+            regions=regions
         )
         sb._initialize_flags(flags)
         return sb
@@ -288,7 +293,7 @@ class ServiceBackend(Backend):
                  *,
                  billing_project: str,
                  sync_fs: FS,
-                 async_fs: AsyncFS,
+                 async_fs: RouterAsyncFS,
                  bc: hb.BatchClient,
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
@@ -326,6 +331,9 @@ class ServiceBackend(Backend):
     def _create_batch(self) -> aiohb.Batch:
         return self.async_bc.create_batch(attributes=self.batch_attributes)
 
+    def validate_file(self, uri: str) -> None:
+        validate_file(uri, self._async_fs, validate_scheme=True)
+
     def debug_info(self) -> Dict[str, Any]:
         return {
             'jar_spec': str(self.jar_spec),
@@ -347,12 +355,6 @@ class ServiceBackend(Backend):
     @property
     def logger(self):
         return log
-
-    def validate_file_scheme(self, url):
-        assert isinstance(self._async_fs, RouterAsyncFS)
-        if self._async_fs.get_scheme(url) == 'file':
-            raise ValueError(
-                f'Found local filepath {url} when using Query on Batch. Specify a remote filepath instead.')
 
     def stop(self):
         async_to_blocking(self._async_fs.close())
@@ -495,7 +497,10 @@ class ServiceBackend(Backend):
         except FileNotFoundError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(
+                    _jobs_query_string='failed',
+                    _max_jobs=10
+                ),
                 'input_uri': await self._async_fs.read(input_uri),
             })) from exc
 
@@ -516,7 +521,10 @@ class ServiceBackend(Backend):
         except UnexpectedEOFError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(
+                    _jobs_query_string='failed',
+                    _max_jobs=10
+                ),
                 'in': await self._async_fs.read(input_uri),
                 'out': await self._async_fs.read(output_uri),
             })) from exc
@@ -660,7 +668,7 @@ class ServiceBackend(Backend):
     def add_sequence(self, name, fasta_file, index_file):  # pylint: disable=unused-argument
         # FIXME Not only should this be in the cloud, it should be in the *right* cloud
         for blob in (fasta_file, index_file):
-            self.validate_file_scheme(blob)
+            self.validate_file(blob)
 
     def remove_sequence(self, name):  # pylint: disable=unused-argument
         pass

@@ -1,7 +1,6 @@
 import hail as hl
-import hail.utils as utils
 
-from ...helpers import resource, skip_when_service_backend, test_timeout, skip_when_service_backend_in_azure
+from ...helpers import resource, skip_when_service_backend, test_timeout, skip_when_service_backend_in_azure, qobtest
 
 
 @test_timeout(local=6 * 60, batch=14 * 60)
@@ -27,6 +26,7 @@ def test_pc_relate_against_R_truth():
             assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
 
 
+@qobtest
 def test_pc_relate_simple_example():
     gs = hl.literal([[0, 0, 0, 0, 1, 1, 1, 1],
                      [0, 0, 1, 1, 0, 0, 1, 1],

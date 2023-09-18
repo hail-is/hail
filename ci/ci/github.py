@@ -8,7 +8,7 @@ import random
 import secrets
 from enum import Enum
 from shlex import quote as shq
-from typing import Any, Dict, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Union
 
 import aiohttp
 import aiohttp.client_exceptions
@@ -715,6 +715,9 @@ class WatchedBranch(Code):
 
         self.merge_candidate: Optional[PR] = None
 
+    def prs_in_merge_priority_order(self) -> Iterable[PR]:
+        return sorted(self.prs.values(), key=lambda pr: pr.merge_priority(), reverse=True)
+
     @property
     def deploy_state(self):
         return self._deploy_state
@@ -791,7 +794,7 @@ class WatchedBranch(Code):
 
     async def try_to_merge(self, gh):
         assert self.mergeable
-        for pr in self.prs.values():
+        for pr in self.prs_in_merge_priority_order():
             if pr.is_mergeable():
                 if await pr.merge(gh):
                     self.github_changed = True
@@ -930,7 +933,7 @@ url: {url}
 
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
-        prs_by_prio = sorted(self.prs.values(), key=lambda pr: pr.merge_priority(), reverse=True)
+        prs_by_prio = self.prs_in_merge_priority_order()
 
         for pr in prs_by_prio:
             await pr._heal(batch_client, db, pr == merge_candidate, gh)

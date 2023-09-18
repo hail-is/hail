@@ -19,6 +19,7 @@ def touch(filename):
         fobj.write('hello world')
 
 
+@qobtest
 class Tests(unittest.TestCase):
 
     def test_hadoop_methods(self):

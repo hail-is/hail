@@ -1743,16 +1743,18 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         x = ir.MakeStruct([(n, expr._ir) for (n, expr) in fields.items()])
         indices, aggregations = unify_all(*fields.values())
         s = StructExpression.__new__(cls)
+        super(StructExpression, s).__init__(x, t, indices, aggregations)
+        s._warn_on_shadowed_name = set()
         s._fields = {}
         for k, v in fields.items():
             s._set_field(k, v)
-        super(StructExpression, s).__init__(x, t, indices, aggregations)
         return s
 
     @typecheck_method(x=ir.IR, type=HailType, indices=Indices, aggregations=LinkedList)
     def __init__(self, x, type, indices=Indices(), aggregations=LinkedList(Aggregation)):
         super(StructExpression, self).__init__(x, type, indices, aggregations)
         self._fields: Dict[str, Expression] = {}
+        self._warn_on_shadowed_name = set()
 
         for i, (f, t) in enumerate(self.dtype.items()):
             if isinstance(self._ir, ir.MakeStruct):
@@ -1778,9 +1780,14 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
             self._set_field(f, expr)
 
     def _set_field(self, key, value):
-        self._fields[key] = value
-        if key not in self.__dict__:
-            self.__dict__[key] = value
+        if key not in self._fields:
+            # Avoid using hasattr on self. Each new field added will fall through to __getattr__,
+            # which has to build a nice error message.
+            if key in self.__dict__ or hasattr(super(), key):
+                self._warn_on_shadowed_name.add(key)
+            else:
+                self.__dict__[key] = value
+            self._fields[key] = value
 
     def _get_field(self, item):
         if item in self._fields:
@@ -1788,11 +1795,15 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         else:
             raise KeyError(get_nice_field_error(self, item))
 
+    def __getattribute__(self, item):
+        if item in super().__getattribute__('_warn_on_shadowed_name'):
+            warning(f'Field {item} is shadowed by another method or attribute. '
+                    f'Use ["{item}"] syntax to access the field.')
+            self._warn_on_shadowed_name.remove(item)
+        return super().__getattribute__(item)
+
     def __getattr__(self, item):
-        if item in self.__dict__:
-            return self.__dict__[item]
-        else:
-            raise AttributeError(get_nice_attr_error(self, item))
+        raise AttributeError(get_nice_attr_error(self, item))
 
     def __len__(self):
         return len(self._fields)

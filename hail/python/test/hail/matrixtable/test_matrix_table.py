@@ -15,6 +15,7 @@ class Tests(unittest.TestCase):
     def get_mt(self, min_partitions=None) -> hl.MatrixTable:
         return hl.import_vcf(resource("sample.vcf"), min_partitions=min_partitions)
 
+    @qobtest
     def test_range_count(self):
         self.assertEqual(hl.utils.range_matrix_table(7, 13).count(), (7, 13))
 
@@ -404,6 +405,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(result.entries()._same(expected))
 
+    @qobtest
     def test_collect_cols_by_key(self):
         mt = hl.utils.range_matrix_table(3, 3)
         col_dict = hl.literal({0: [1], 1: [2, 3], 2: [4, 5, 6]})
@@ -562,6 +564,7 @@ class Tests(unittest.TestCase):
         rows = left.rows()
         self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
+    @qobtest
     def test_naive_coalesce(self):
         mt = self.get_mt(min_partitions=8)
         self.assertEqual(mt.n_partitions(), 8)

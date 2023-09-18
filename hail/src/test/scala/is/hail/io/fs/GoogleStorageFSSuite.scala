@@ -1,13 +1,11 @@
-package is.hail.fs.gs
+package is.hail.io.fs
 
-import java.io.FileInputStream
-import is.hail.fs.FSSuite
-import is.hail.io.fs.GoogleStorageFS
-import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.{BeforeClass, Test}
 import org.testng.SkipException
+import org.testng.annotations.{BeforeClass, Test}
+
+import java.io.FileInputStream
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
   @BeforeClass
@@ -44,4 +42,10 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     }
     assert(false)
   }
+
+  @Test def testETag(): Unit = {
+    val etag = fs.eTag(s"$fsResourcesRoot/a")
+    assert(etag.nonEmpty)
+  }
+
 }

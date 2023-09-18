@@ -18,18 +18,18 @@ from hailtop import pip_version
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_python_dill_image_for_current_python_version
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
-from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
+from hailtop.aiotools.validators import validate_file
 
 
 HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{pip_version()}')
@@ -48,8 +48,32 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     """
     Abstract class for backends.
     """
-
     _closed = False
+
+    def __init__(self):
+        self._requester_pays_fses: Dict[GCSRequesterPaysConfiguration, RouterAsyncFS] = {}
+        import nest_asyncio  # pylint: disable=import-outside-toplevel
+        nest_asyncio.apply()
+
+    def requester_pays_fs(self, requester_pays_config: GCSRequesterPaysConfiguration) -> RouterAsyncFS:
+        try:
+            return self._requester_pays_fses[requester_pays_config]
+        except KeyError:
+            if requester_pays_config is not None:
+                self._requester_pays_fses[requester_pays_config] = RouterAsyncFS(
+                    gcs_kwargs={"gcs_requester_pays_configuration": requester_pays_config}
+                )
+                return self._requester_pays_fses[requester_pays_config]
+            return self._fs
+
+    def validate_file(self, uri: str, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> None:
+        self._validate_file(
+            uri, self.requester_pays_fs(requester_pays_config) if requester_pays_config is not None else self._fs
+        )
+
+    @abc.abstractmethod
+    def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
+        raise NotImplementedError
 
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
@@ -64,7 +88,7 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
 
     @property
     @abc.abstractmethod
-    def _fs(self) -> AsyncFS:
+    def _fs(self) -> RouterAsyncFS:
         raise NotImplementedError()
 
     def _close(self):
@@ -82,9 +106,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         if not self._closed:
             self._close()
             self._closed = True
-
-    def validate_file_scheme(self, uri: str) -> None:
-        pass
 
     def __del__(self):
         self.close()
@@ -124,6 +145,7 @@ class LocalBackend(Backend[None]):
                  tmp_dir: str = '/tmp/',
                  gsa_key_file: Optional[str] = None,
                  extra_docker_run_flags: Optional[str] = None):
+        super().__init__()
         self._tmp_dir = tmp_dir.rstrip('/')
 
         flags = ''
@@ -139,11 +161,14 @@ class LocalBackend(Backend[None]):
             flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
-        self.__fs: AsyncFS = RouterAsyncFS()
+        self.__fs = RouterAsyncFS()
 
     @property
-    def _fs(self):
+    def _fs(self) -> RouterAsyncFS:
         return self.__fs
+
+    def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
+        validate_file(uri, fs)
 
     def _run(self,
              batch: 'batch.Batch',
@@ -429,7 +454,9 @@ class ServiceBackend(Backend[bc.Batch]):
         available regions to choose from. Use py:attribute:`.ServiceBackend.ANY_REGION` to signify the default is jobs
         can run in any available region. The default is jobs can run in any region unless a default value has
         been set with hailctl. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
-
+    gcs_bucket_allow_list:
+        A list of buckets that the :class:`.ServiceBackend` should be permitted to read from or write to, even if their
+        default policy is to use "cold" storage. Should look like ``["bucket1", "bucket2"]``.
     """
 
     @staticmethod
@@ -448,18 +475,19 @@ class ServiceBackend(Backend[bc.Batch]):
         with BatchClient('dummy') as dummy_client:
             return dummy_client.supported_regions()
 
-    def __init__(self,
-                 *args,
-                 billing_project: Optional[str] = None,
-                 bucket: Optional[str] = None,
-                 remote_tmpdir: Optional[str] = None,
-                 google_project: Optional[str] = None,
-                 token: Optional[str] = None,
-                 regions: Optional[List[str]] = None,
-                 gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
-                 ):
-        import nest_asyncio  # pylint: disable=import-outside-toplevel
-        nest_asyncio.apply()
+    def __init__(
+        self,
+        *args,
+        billing_project: Optional[str] = None,
+        bucket: Optional[str] = None,
+        remote_tmpdir: Optional[str] = None,
+        google_project: Optional[str] = None,
+        token: Optional[str] = None,
+        regions: Optional[List[str]] = None,
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+        gcs_bucket_allow_list: Optional[List[str]] = None,
+    ):
+        super().__init__()
 
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -498,7 +526,9 @@ class ServiceBackend(Backend[bc.Batch]):
             gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
         else:
             gcs_kwargs = {'gcs_requester_pays_configuration': gcs_requester_pays_configuration}
-        self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
+        self.__fs = RouterAsyncFS(gcs_kwargs=gcs_kwargs, gcs_bucket_allow_list=gcs_bucket_allow_list)
+
+        self.validate_file(self.remote_tmpdir)
 
         if regions is None:
             regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, None, None)
@@ -510,8 +540,11 @@ class ServiceBackend(Backend[bc.Batch]):
         self.regions = regions
 
     @property
-    def _fs(self):
+    def _fs(self) -> RouterAsyncFS:
         return self.__fs
+
+    def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
+        validate_file(uri, fs, validate_scheme=True)
 
     def _close(self):
         if hasattr(self, '_batch_client'):
@@ -648,7 +681,7 @@ class ServiceBackend(Backend[bc.Batch]):
         pyjobs = [j for j in unsubmitted_jobs if isinstance(j, _job.PythonJob)]
         for pyjob in pyjobs:
             if pyjob._image is None:
-                pyjob._image = hailgenetics_python_dill_image_for_current_python_version()
+                pyjob._image = hailgenetics_hail_image_for_current_python_version()
         await batch._serialize_python_functions_to_input_files(
             batch_remote_tmpdir, dry_run=dry_run
         )
@@ -807,12 +840,3 @@ class ServiceBackend(Backend[bc.Batch]):
         batch._python_function_defs.clear()
         batch._python_function_files.clear()
         return batch_handle
-
-    def validate_file_scheme(self, uri: str) -> None:
-        scheme = self.__fs.get_scheme(uri)
-        if scheme == "file":
-            raise ValueError(
-                f"Local filepath detected: '{uri}'. "
-                "ServiceBackend does not support the use of local filepaths. "
-                "Please specify a remote URI instead (e.g. gs://bucket/folder)."
-            )

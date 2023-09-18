@@ -9,7 +9,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.ir.{CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines, GenericTableValue, IEmitCode, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixReader, TableExecuteIntermediate, PartitionReader, TableValue}
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.{FS, FileListEntry}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader}
 import is.hail.io.{VCFAttributes, VCFMetadata}
@@ -1257,7 +1257,7 @@ object LoadVCF {
   def globAllVCFs(arguments: Array[String],
     fs: FS,
     forceGZ: Boolean = false,
-    gzAsBGZ: Boolean = false): Array[FileStatus] = {
+    gzAsBGZ: Boolean = false): Array[FileListEntry] = {
     val statuses = fs.globAllStatuses(arguments)
 
     if (statuses.isEmpty)
@@ -1689,25 +1689,25 @@ object MatrixVCFReader {
 
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
-    val fileStatuses = LoadVCF.globAllVCFs(fs.globAll(params.files), fs, params.forceGZ, params.gzAsBGZ)
+    val fileListEntries = LoadVCF.globAllVCFs(fs.globAll(params.files), fs, params.forceGZ, params.gzAsBGZ)
 
     val entryFloatType = LoadVCF.getEntryFloatType(params.entryFloatTypeName)
 
-    val headerLines1 = getHeaderLines(fs, params.headerFile.getOrElse(fileStatuses.head.getPath), params.filterAndReplace)
+    val headerLines1 = getHeaderLines(fs, params.headerFile.getOrElse(fileListEntries.head.getPath), params.filterAndReplace)
     val header1 = parseHeader(headerLines1)
 
-    if (fileStatuses.length > 1) {
+    if (fileListEntries.length > 1) {
       if (params.headerFile.isEmpty) {
         val header1Bc = backend.broadcast(header1)
 
         val localCallFields = params.callFields
         val localFloatType = entryFloatType
-        val files = fileStatuses.map(_.getPath)
+        val files = fileListEntries.map(_.getPath)
         val localArrayElementsRequired = params.arrayElementsRequired
         val localFilterAndReplace = params.filterAndReplace
 
         val fsConfigBC = backend.broadcast(fs.getConfiguration())
-        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), "load_vcf_parse_header", None) { (bytes, htc, _, fs) =>
+        val (err, _) = backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes).zipWithIndex, "load_vcf_parse_header", None) { (bytes, htc, _, fs) =>
           val fsConfig = fsConfigBC.value
           fs.setConfiguration(fsConfig)
           val file = new String(bytes)
@@ -1750,6 +1750,7 @@ object MatrixVCFReader {
           bytes
         }
 
+        err.foreach(throw _)
       }
     }
 
@@ -1757,7 +1758,7 @@ object MatrixVCFReader {
 
     LoadVCF.warnDuplicates(sampleIDs)
 
-    new MatrixVCFReader(params, fileStatuses, referenceGenome, header1)
+    new MatrixVCFReader(params, fileListEntries, referenceGenome, header1)
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixVCFReader = {
@@ -1791,11 +1792,11 @@ case class MatrixVCFReaderParameters(
 
 class MatrixVCFReader(
   val params: MatrixVCFReaderParameters,
-  fileStatuses: IndexedSeq[FileStatus],
+  fileListEntries: IndexedSeq[FileListEntry],
   referenceGenome: Option[ReferenceGenome],
   header: VCFHeaderInfo
 ) extends MatrixHybridReader {
-  require(params.partitionsJSON.isEmpty || fileStatuses.length == 1, "reading with partitions can currently only read a single path")
+  require(params.partitionsJSON.isEmpty || fileListEntries.length == 1, "reading with partitions can currently only read a single path")
 
   val sampleIDs = params.sampleIDs.map(_.toArray).getOrElse(header.sampleIds)
 
@@ -1887,9 +1888,9 @@ class MatrixVCFReader(
     val part = partitioner(ctx.stateManager)
     val lines = part match {
       case Some(partitioner) =>
-        GenericLines.readTabix(fs, fileStatuses(0).getPath, localContigRecoding, partitioner.rangeBounds)
+        GenericLines.readTabix(fs, fileListEntries(0).getPath, localContigRecoding, partitioner.rangeBounds)
       case None =>
-        GenericLines.read(fs, fileStatuses, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
+        GenericLines.read(fs, fileListEntries, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
     }
 
     val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastIndexedSeq)

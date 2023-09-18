@@ -394,6 +394,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
 
+    @qobtest
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=hl.agg.count(),
@@ -607,6 +608,7 @@ class Tests(unittest.TestCase):
                                               None]),
         ]
 
+    @qobtest
     @with_flags(distributed_scan_comb_op='1')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)
@@ -939,6 +941,7 @@ class Tests(unittest.TestCase):
         assert t.annotate(x=hl.bind(lambda i: hl.scan.sum(t.idx + i), 1, _ctx='scan')).x.collect() == [0, 1, 3, 6, 10]
         assert t.aggregate(hl.bind(lambda i: hl.agg.collect(i), t.idx * t.idx, _ctx='agg')) == [0, 1, 4, 9, 16]
 
+    @qobtest
     def test_scan(self):
         table = hl.utils.range_table(10)
 
@@ -1403,6 +1406,35 @@ class Tests(unittest.TestCase):
         assert_typed(s.annotate(),
                      hl.Struct(f1=1, f2=2, f3=3),
                      tstruct(f1=tint32, f2=tint32, f3=tint32))
+
+    def test_shadowed_struct_fields(self):
+        from typing import Callable
+
+        s = hl.struct(foo=1, values=2, collect=3, _ir=4)
+        assert 'foo' not in s._warn_on_shadowed_name
+        assert isinstance(s.foo, hl.Expression)
+        assert 'values' in s._warn_on_shadowed_name
+        assert isinstance(s.values, Callable)
+        assert 'values' not in s._warn_on_shadowed_name
+        assert 'collect' in s._warn_on_shadowed_name
+        assert isinstance(s.collect, Callable)
+        assert 'collect' not in s._warn_on_shadowed_name
+        assert '_ir' in s._warn_on_shadowed_name
+        assert isinstance(s._ir, ir.IR)
+        assert '_ir' not in s._warn_on_shadowed_name
+
+        s = hl.StructExpression._from_fields({'foo': hl.int(1), 'values': hl.int(2), 'collect': hl.int(3), '_ir': hl.int(4)})
+        assert 'foo' not in s._warn_on_shadowed_name
+        assert isinstance(s.foo, hl.Expression)
+        assert 'values' in s._warn_on_shadowed_name
+        assert isinstance(s.values, Callable)
+        assert 'values' not in s._warn_on_shadowed_name
+        assert 'collect' in s._warn_on_shadowed_name
+        assert isinstance(s.collect, Callable)
+        assert 'collect' not in s._warn_on_shadowed_name
+        assert '_ir' in s._warn_on_shadowed_name
+        assert isinstance(s._ir, ir.IR)
+        assert '_ir' not in s._warn_on_shadowed_name
 
     def test_iter(self):
         a = hl.literal([1, 2, 3])

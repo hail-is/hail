@@ -8,7 +8,8 @@ steps:
       memory: standard
     dockerFile:
       inline: |
-        FROM {{ global.docker_root_image }}
+        ARG BASE_IMAGE={{ global.docker_root_image }}
+        FROM $BASE_IMAGE
         RUN apt-get update && apt-get install -y git make bash
   - kind: runImage
     name: merge_code
@@ -109,6 +110,42 @@ steps:
     dockerFile: /io/hail-ubuntu/Dockerfile
     contextPath: /io/hail-ubuntu
     publishAs: hail-ubuntu
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+      - copy_third_party_images
+  - kind: buildImage2
+    name: hail_ubuntu_image_python_3_10
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    publishAs: hail-ubuntu-python-3-10
+    buildArgs:
+      - name: PYTHON_VERSION
+        value: "3.10"
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+      - copy_third_party_images
+  - kind: buildImage2
+    name: hail_ubuntu_image_python_3_11
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    publishAs: hail-ubuntu-python-3-11
+    buildArgs:
+      - name: PYTHON_VERSION
+        value: "3.11"
     resources:
       storage: 10Gi
       cpu: "2"
@@ -536,6 +573,8 @@ steps:
       set -ex
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_SCOPE={{ scope }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/auth-gsa-key/key.json
+
       python3 /io/bootstrap_create_accounts.py
     serviceAccount:
       name: admin
@@ -576,6 +615,17 @@ steps:
     dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
     contextPath: /io/repo/docker/vep/
     publishAs: hailgenetics/vep-grch37-85
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
+  - kind: buildImage2
+    name: hailgenetics_vep_grch38_95_image
+    dockerFile: /io/repo/docker/hailgenetics/vep/grch38/95/Dockerfile
+    contextPath: /io/repo/docker/vep/
+    publishAs: hailgenetics/vep-grch38-95
     inputs:
       - from: /repo
         to: /io/repo
@@ -944,68 +994,6 @@ steps:
       - create_test_gsa_keys
       - build_hail_debug_jar_and_wheel
       - build_hail_test_artifacts
-  - kind: buildImage2
-    name: notebook_image
-    dockerFile: /io/repo/notebook/Dockerfile
-    contextPath: /io/repo/
-    publishAs: notebook
-    inputs:
-      - from: /repo/notebook
-        to: /io/repo/notebook
-      - from: /repo/hail/python/setup-hailtop.py
-        to: /io/repo/hail/python/setup-hailtop.py
-      - from: /repo/hail/python/MANIFEST.in
-        to: /io/repo/hail/python/MANIFEST.in
-      - from: /repo/hail/python/hailtop
-        to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
-      - from: /repo/gear
-        to: /io/repo/gear
-      - from: /repo/web_common
-        to: /io/repo/web_common
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: runImage
-    name: render_notebook_nginx_conf
-    image:
-      valueFrom: ci_utils_image.image
-    script: |
-      set -ex
-      cd /io/repo/notebook
-      {% if deploy %}
-      DEPLOY=true
-      {% else %}
-      DEPLOY=false
-      {% endif %}
-      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
-    inputs:
-      - from: /repo/ci/jinja2_render.py
-        to: /io/repo/ci/jinja2_render.py
-      - from: /repo/notebook
-        to: /io/repo/notebook
-    outputs:
-      - from: /io/repo/notebook/nginx.conf.out
-        to: /notebook/nginx.conf.out
-    dependsOn:
-      - default_ns
-      - ci_utils_image
-      - merge_code
-  - kind: buildImage2
-    name: notebook_nginx_image
-    dockerFile: /io/notebook/Dockerfile.nginx
-    contextPath: /io/notebook
-    publishAs: notebook_nginx
-    inputs:
-      - from: /repo/notebook
-        to: /io/notebook
-      - from: /notebook/nginx.conf.out
-        to: /io/notebook/nginx.conf.out
-    dependsOn:
-      - hail_ubuntu_image
-      - render_notebook_nginx_conf
-      - merge_code
   - kind: runImage
     name: test_hail_python
     numSplits: 28
@@ -1088,6 +1076,7 @@ steps:
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
@@ -1213,6 +1202,7 @@ steps:
       # The test should use the test credentials, not CI's credentials
       sed -i 's/gsa-key/test-gsa-key/g' ${SPARK_HOME}/conf/core-site.xml
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
       export HAIL_QUERY_N_CORES=2
       export OMP_NUM_THREADS=2
@@ -1365,6 +1355,10 @@ steps:
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
     publishAs: hailgenetics/hail
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image.image
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
@@ -1376,16 +1370,79 @@ steps:
       - merge_code
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
+  - kind: buildImage2
+    name: hailgenetics_hail_image_python_3_10
+    dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hail
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image_python_3_10.image
+    inputs:
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /wheel-container.tar
+        to: /io/repo/wheel-container.tar
+    dependsOn:
+      - merge_code
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image_python_3_10
+  - kind: buildImage2
+    name: hailgenetics_hail_image_python_3_11
+    dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hail
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image_python_3_11.image
+    inputs:
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /wheel-container.tar
+        to: /io/repo/wheel-container.tar
+    dependsOn:
+      - merge_code
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image_python_3_11
   - kind: runImage
     name: test_hailgenetics_hail_image
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
       set -ex
+      python3 --version | grep '3.9'
       python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
       python3 -c 'import numpy; import pandas; import sklearn; import scipy'
     dependsOn:
       - hailgenetics_hail_image
+  - kind: runImage
+    name: test_hailgenetics_hail_image_python_3_10
+    image:
+      valueFrom: hailgenetics_hail_image_python_3_10.image
+    script: |
+      set -ex
+      python3 --version | grep '3.10'
+      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+      python3 -c 'import numpy; import pandas; import sklearn; import scipy'
+    dependsOn:
+      - hailgenetics_hail_image_python_3_10
+  - kind: runImage
+    name: test_hailgenetics_hail_image_python_3_11
+    image:
+      valueFrom: hailgenetics_hail_image_python_3_11.image
+    script: |
+      set -ex
+      python3 --version | grep '3.11'
+      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+      python3 -c 'import numpy; import pandas; import sklearn; import scipy'
+    dependsOn:
+      - hailgenetics_hail_image_python_3_11
   - kind: buildImage2
     name: hail_dev_image
     dockerFile: /io/repo/docker/Dockerfile.hail-dev
@@ -1404,7 +1461,8 @@ steps:
     contextPath: /io/repo
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install make
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
@@ -1602,22 +1660,6 @@ steps:
       - default_ns
       - create_certs
       - copy_third_party_images
-  - kind: runImage
-    name: create_dummy_oauth2_client_secret
-    resources:
-      memory: standard
-      cpu: '0.25'
-    image:
-      valueFrom: ci_utils_image.image
-    script: |
-      set -ex
-      kubectl -n {{ default_ns.name }} create secret generic auth-oauth2-client-secret || true
-    scopes:
-      - test
-      - dev
-    dependsOn:
-      - default_ns
-      - ci_utils_image
   - kind: deploy
     name: deploy_auth
     namespace:
@@ -1636,7 +1678,6 @@ steps:
       - create_session_key
       - auth_database
       - auth_image
-      - create_dummy_oauth2_client_secret
       - create_certs
       - create_accounts
   - kind: runImage
@@ -1646,6 +1687,8 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
 
       {% if default_ns.name == "default" %}
@@ -1658,10 +1701,10 @@ steps:
         {{ code.username }} {{ code.login_id }}
       {% endif %}
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
@@ -1747,6 +1790,8 @@ steps:
       valueFrom: hail_dev_image.image
     script: |
       set -ex
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
 
       python3 -m pytest \
@@ -1760,10 +1805,10 @@ steps:
               --timeout=120 \
               /io/monitoring/test
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     timeout: 300
     inputs:
       - from: /repo/monitoring/test
@@ -1786,6 +1831,9 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+
+      # Or else hailctl will try to authenticate as CI
+      unset HAIL_IDENTITY_PROVIDER_JSON
 
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
@@ -1845,6 +1893,9 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+
+      # Or else hailctl will try to authenticate as CI
+      unset HAIL_IDENTITY_PROVIDER_JSON
 
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
@@ -2293,6 +2344,8 @@ steps:
     script: |
       set -ex
 
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       {% for user in code.get("developers", []) %}
       {% if user['username'] != 'test-dev' %}
@@ -2304,10 +2357,10 @@ steps:
       {% endif %}
       {% endfor %}
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     scopes:
       - dev
       - test
@@ -2370,28 +2423,16 @@ steps:
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
-      {% if global.cloud == "gcp" %}
       export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
-      {% elif global.cloud == "azure" %}
-      export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
-      export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
-      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
-      {% endif %}
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
       export HAIL_QUERY_BACKEND=batch
-      {% if global.cloud == "azure" %}
-      export HAIL_BATCH_REGIONS={{ global.azure_location }}
-      {% elif global.cloud == "gcp" %}
       export HAIL_BATCH_REGIONS={{ global.gcp_region }}
-      {% else %}
-      echo "unknown cloud {{ global.cloud }}"
-      exit 1
-      {% endif %}
       export HAIL_BATCH_BILLING_PROJECT=test
       export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
 
@@ -2404,6 +2445,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              -m qobtest \
               --timeout=600 \
               test
     timeout: 5400
@@ -2417,10 +2459,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
     dependsOn:
       - default_ns
       - merge_code
@@ -2432,6 +2470,7 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
     clouds:
       - gcp
   - kind: runImage
@@ -2455,27 +2494,17 @@ steps:
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
-      {% if global.cloud == "gcp" %}
-      export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
-      {% elif global.cloud == "azure" %}
       export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
       export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
-      {% endif %}
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
       export HAIL_QUERY_BACKEND=batch
-      {% if global.cloud == "azure" %}
       export HAIL_BATCH_REGIONS={{ global.azure_location }}
-      {% elif global.cloud == "gcp" %}
-      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
-      {% else %}
-      echo "unknown cloud {{ global.cloud }}"
-      exit 1
-      {% endif %}
       export HAIL_BATCH_BILLING_PROJECT=test
       export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
 
@@ -2488,6 +2517,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              -m qobtest \
               --timeout=600 \
               test
     timeout: 5400
@@ -2501,14 +2531,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: auth-oauth2-client-secret
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /oauth-secret
     dependsOn:
       - default_ns
       - merge_code
@@ -2521,6 +2543,7 @@ steps:
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
     scopes:
       - deploy
       - dev
@@ -2564,7 +2587,8 @@ steps:
     publishAs: netcat
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install netcat
     dependsOn:
       - hail_ubuntu_image
@@ -2573,7 +2597,8 @@ steps:
     publishAs: volume
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         VOLUME ["/data"]
         WORKDIR "/tmp"
         VOLUME ["relative_volume"]
@@ -2584,7 +2609,8 @@ steps:
     publishAs: workdir
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         WORKDIR ["/work"]
     dependsOn:
       - hail_ubuntu_image
@@ -2593,7 +2619,8 @@ steps:
     publishAs: curl
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install curl
     dependsOn:
       - hail_ubuntu_image
@@ -2604,6 +2631,14 @@ steps:
       valueFrom: batch_image.image
     script: |
       set -ex
+
+      # Use the test identity's credentials instead of CI's
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      export HAIL_TEST_GSA_KEY_FILE=/test-gsa-key/key.json
+      export HAIL_TEST_DEV_GSA_KEY_FILE=/test-dev-gsa-key/key.json
+
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export CI_UTILS_IMAGE={{ ci_utils_image.image }}
       export HAIL_CURL_IMAGE={{ curl_image.image }}
@@ -2615,8 +2650,6 @@ steps:
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
-      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_DOMAIN="{{ global.domain }}"
@@ -2645,18 +2678,14 @@ steps:
     port: 5000
     timeout: 1500
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: test-dev-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /dev-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+      - name: test-dev-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dev-gsa-key
     dependsOn:
       - create_deploy_config
       - create_accounts
@@ -2682,7 +2711,9 @@ steps:
       set -ex
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export HAIL_TEST_DEV_GSA_KEY_FILE=/test-dev-gsa-key/key.json
       export HAIL_TOKEN="{{ test_batch.token }}"
       cd /io/test
       python3 -c '
@@ -2694,10 +2725,10 @@ steps:
       - from: /repo/batch/test
         to: /io/test
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /dev-tokens
+        mountPath: /test-dev-gsa-key
     alwaysRun: true
     dependsOn:
       - create_deploy_config
@@ -2829,6 +2860,8 @@ steps:
     script: |
       set -ex
       export ORGANIZATION=hail-ci-test
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
@@ -2842,10 +2875,10 @@ steps:
               --durations=50 \
               /io/ci/test
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     timeout: 5400
     inputs:
       - from: /repo/ci/test
@@ -2876,6 +2909,7 @@ steps:
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
@@ -2900,10 +2934,6 @@ steps:
         to: /io/hailtop
     timeout: 1200
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -2931,11 +2961,8 @@ steps:
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
 
       {% if global.cloud == "gcp" %}
-      export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Google"}'
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       {% elif global.cloud == "azure" %}
-      export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Microsoft"}'
-      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       {% else %}
       echo "unknown cloud {{ global.cloud }}"
@@ -3030,10 +3057,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: auth-oauth2-client-secret
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /oauth-secret
     dependsOn:
       - hailgenetics_hail_image
       - upload_query_jar
@@ -3050,7 +3073,7 @@ steps:
       set -ex
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      cd /io/hailtop/batch
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch_docs/{{ token }}/
       python3 -m pytest \
@@ -3065,12 +3088,9 @@ steps:
               --doctest-glob='*.rst' \
               --ignore=docs/cookbook/files/ \
               --timeout=120 \
-              --ignore=docs/conf.py
+              --ignore=docs/conf.py \
+              /io/hailtop/batch
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -3086,47 +3106,6 @@ steps:
     inputs:
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
-  - kind: createDatabase2
-    name: notebook_database
-    databaseName: notebook
-    image:
-      valueFrom: ci_utils_image.image
-    migrations:
-      - name: initial
-        script: /io/sql/initial.sql
-    inputs:
-      - from: /repo/notebook/sql
-        to: /io/sql
-    namespace:
-      valueFrom: default_ns.name
-    shutdowns:
-      - kind: Deployment
-        namespace:
-          valueFrom: default_ns.name
-        name: notebook
-    dependsOn:
-      - default_ns
-      - merge_code
-      - ci_utils_image
-      - create_test_database_server_config
-      - deploy_test_db
-  - kind: deploy
-    name: deploy_notebook
-    namespace:
-      valueFrom: default_ns.name
-    config: notebook/deployment.yaml
-    dependsOn:
-      - default_ns
-      - create_session_key
-      - notebook_image
-      - notebook_nginx_image
-      - deploy_auth
-      - notebook_database
-      - create_certs
-    wait:
-      - kind: Service
-        name: notebook
-        for: alive
   - kind: runImage
     name: cleanup_ci_test_repo
     resources:
@@ -3204,7 +3183,7 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3246,7 +3225,7 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3309,7 +3288,10 @@ steps:
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
                              docker://{{ hailgenetics_hailtop_image.image }} \
+                             docker://{{ hailgenetics_hail_image_python_3_10.image }} \
+                             docker://{{ hailgenetics_hail_image_python_3_11.image }} \
                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+                             docker://{{ hailgenetics_vep_grch38_95_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
@@ -3352,8 +3334,11 @@ steps:
       - ci_utils_image
       - merge_code
       - hailgenetics_hail_image
+      - hailgenetics_hail_image_python_3_10
+      - hailgenetics_hail_image_python_3_11
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
       - build_wheel_for_azure
       - make_docs
     clouds:
@@ -3455,16 +3440,18 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       set -ex
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl curl {{ default_ns.name }} www / \
               -vvv \
               -fsSL \
               --retry 3 \
               --retry-delay 5
     secrets:
-      - name: test-tokens
+      - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-gsa-key
     dependsOn:
       - default_ns
       - create_accounts
@@ -3515,10 +3502,6 @@ steps:
       - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
     secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -3544,9 +3527,6 @@ steps:
 
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-      {% if global.cloud == "azure" %}
-      export HAIL_AZURE_OAUTH_SCOPE=$(cat /oauth-secret/sp_oauth_scope)
-      {% endif %}
 
       cd /io
       mkdir -p src/test
@@ -3568,10 +3548,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: auth-oauth2-client-secret
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /oauth-secret
     timeout: 1200
     dependsOn:
       - default_ns
@@ -3586,6 +3562,8 @@ steps:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
 
       cat >cancel_all_running_test_batches.py <<'EOF'
       from hailtop.batch_client.aioclient import BatchClient
@@ -3607,10 +3585,10 @@ steps:
 
       python3 cancel_all_running_test_batches.py
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     alwaysRun: true
     timeout: 300
     dependsOn:
@@ -3632,6 +3610,8 @@ steps:
     image:
       valueFrom: hail_dev_image.image
     script: |
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
@@ -3652,10 +3632,10 @@ steps:
         to: /io/test
     timeout: 300
     secrets:
-      - name: test-dev-tokens
+      - name: test-dev-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
+        mountPath: /test-dev-gsa-key
     scopes:
       - test
       - dev

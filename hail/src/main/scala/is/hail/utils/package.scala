@@ -1,33 +1,35 @@
 package is.hail
 
-import java.io._
-import java.lang.reflect.Method
-import java.net.{URI, URLClassLoader}
-import java.security.SecureRandom
-import java.text.SimpleDateFormat
-import java.util.{Base64, Date}
-import java.util.zip.{Deflater, Inflater}
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import is.hail.expr.ir.ByteArrayBuilder
+import is.hail.io.fs.FS
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.log4j.Level
+import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
 import org.json4s.JsonAST.{JArray, JString}
 import org.json4s.jackson.Serialization
 import org.json4s.reflect.TypeInfo
 import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
 
+import java.io._
+import java.lang.reflect.Method
+import java.net.{URI, URLClassLoader}
+import java.security.SecureRandom
+import java.text.SimpleDateFormat
+import java.util.concurrent.ExecutorService
+import java.util.{Base64, Date}
 import scala.collection.generic.CanBuildFrom
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
-import is.hail.io.fs.FS
-import org.apache.spark.sql.Row
+import scala.util.{Failure, Success, Try}
 
 package utils {
   trait Truncatable {
@@ -939,6 +941,74 @@ package object utils extends Logging
     }
     offset
   }
+
+  /**
+   * Merge the sorted `IndexedSeq`s `xs` and `ys` using comparison function `lt`.
+   */
+  def merge[A](xs: IndexedSeq[A], ys: IndexedSeq[A], lt: (A, A) => Boolean): IndexedSeq[A] =
+    (xs.length, ys.length) match {
+      case (0, _) => ys
+      case (_, 0) => xs
+      case (n, m) =>
+
+        val res = new ArrayBuffer[A](n + m)
+
+        var i = 0
+        var j = 0
+        while (i < n && j < m) {
+          if (lt(xs(i), ys(j))) {
+            res += xs(i)
+            i += 1
+          } else {
+            res += ys(j)
+            j += 1
+          }
+        }
+
+        for (k <- i until n) {
+          res += xs(k)
+        }
+
+        for (k <- j until m) {
+          res += ys(k)
+        }
+
+        res
+    }
+
+
+  /**
+   * Run (task, key) pairs on the `executor`, returning some `F` of the
+   * failures and an `IndexedSeq` of the successes with their corresponding
+   * key.
+   */
+  def runAll[F[_], A](executor: ExecutorService)
+                     (accum: (F[Throwable], (Throwable, Int)) => F[Throwable])
+                     (init: F[Throwable])
+                     (tasks: IndexedSeq[(() => A, Int)])
+  : (F[Throwable], IndexedSeq[(A, Int)]) = {
+
+    var err = init
+    val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
+
+    tasks
+      .map { case (t, k) => (executor.submit(() => Try(t())), k) }
+      .foreach { case (f, k) =>
+        f.get() match {
+          case Success(v) =>
+            buffer += ((v, k))
+
+          case Failure(t) =>
+            err = accum(err, (t, k))
+        }
+      }
+
+    (err, buffer)
+  }
+
+  def runAllKeepFirstError[A](executor: ExecutorService)
+  : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
+    runAll[Option, A](executor) { case (opt, (e, _)) => opt.orElse(Some(e)) } (None)
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
