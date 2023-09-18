@@ -9,7 +9,7 @@ import aiohttp
 import orjson
 import secrets
 
-from hailtop import IS_NOTEBOOK
+from hailtop import is_notebook
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
@@ -446,7 +446,7 @@ class Batch:
         url = deploy_config.external_url('batch', f'/batches/{self.id}')
         i = 0
         status = await self.status()
-        if IS_NOTEBOOK:
+        if is_notebook():
             description += f'[link={url}]{self.id}[/link]'
         else:
             description += url
