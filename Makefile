@@ -99,7 +99,6 @@ install-dev-requirements:
 		-r hail/python/dev/pinned-requirements.txt \
 		-r gear/pinned-requirements.txt \
 		-r web_common/pinned-requirements.txt \
-		-r auth/pinned-requirements.txt \
 		-r batch/pinned-requirements.txt \
 		-r ci/pinned-requirements.txt
 
@@ -118,9 +117,6 @@ gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/de
 web_common/pinned-requirements.txt: gear/pinned-requirements.txt web_common/requirements.txt
 	./generate-linux-pip-lockfile.sh web_common
 
-auth/pinned-requirements.txt: web_common/pinned-requirements.txt auth/requirements.txt
-	./generate-linux-pip-lockfile.sh auth
-
 batch/pinned-requirements.txt: web_common/pinned-requirements.txt batch/requirements.txt
 	./generate-linux-pip-lockfile.sh batch
 
@@ -133,7 +129,6 @@ generate-pip-lockfiles: hail/python/pinned-requirements.txt
 generate-pip-lockfiles: hail/python/dev/pinned-requirements.txt
 generate-pip-lockfiles: gear/pinned-requirements.txt
 generate-pip-lockfiles: web_common/pinned-requirements.txt
-generate-pip-lockfiles: auth/pinned-requirements.txt
 generate-pip-lockfiles: batch/pinned-requirements.txt
 generate-pip-lockfiles: ci/pinned-requirements.txt
 
