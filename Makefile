@@ -2,7 +2,7 @@
 
 include config.mk
 
-SERVICES := auth batch ci notebook monitoring website
+SERVICES := auth batch ci monitoring website
 SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_MODULES := $(SERVICES) gear web_common
@@ -142,21 +142,21 @@ $(HAILTOP_VERSION):
 
 hail-ubuntu-image: $(shell git ls-files docker/hail-ubuntu)
 	$(eval HAIL_UBUNTU_IMAGE := $(DOCKER_PREFIX)/hail-ubuntu:$(TOKEN))
-	python3 ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' docker/hail-ubuntu/Dockerfile docker/hail-ubuntu/Dockerfile.out
-	./docker-build.sh docker/hail-ubuntu Dockerfile.out $(HAIL_UBUNTU_IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)' \
+		./docker-build.sh docker/hail-ubuntu Dockerfile $(HAIL_UBUNTU_IMAGE)
 	echo $(HAIL_UBUNTU_IMAGE) > $@
 
 base-image: hail-ubuntu-image docker/Dockerfile.base
 	$(eval BASE_IMAGE := $(DOCKER_PREFIX)/base:$(TOKEN))
-	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' docker/Dockerfile.base docker/Dockerfile.base.out
-	./docker-build.sh . docker/Dockerfile.base.out $(BASE_IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
+		./docker-build.sh . docker/Dockerfile.base $(BASE_IMAGE)
 	echo $(BASE_IMAGE) > $@
 
 hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt docker/core-site.xml
 	$(eval BASE_IMAGE := $(DOCKER_PREFIX)/hail-run:$(TOKEN))
 	$(MAKE) -C hail wheel
-	python3 ci/jinja2_render.py '{"base_image":{"image":"'$$(cat base-image)'"}}' hail/Dockerfile.hail-run hail/Dockerfile.hail-run.out
-	./docker-build.sh . hail/Dockerfile.hail-run.out $(BASE_IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat base-image) \
+		./docker-build.sh . hail/Dockerfile.hail-run $(BASE_IMAGE)
 	echo $(BASE_IMAGE) > $@
 
 private-repo-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
@@ -165,8 +165,8 @@ private-repo-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail
 	tar -cvf wheel-container.tar \
 		-C hail/build/deploy/dist \
 		hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl
-	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' docker/hailgenetics/hail/Dockerfile docker/hailgenetics/hail/Dockerfile.out
-	./docker-build.sh . docker/hailgenetics/hail/Dockerfile.out $(PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
+		./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE)
 	rm wheel-container.tar
 	echo $(PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE) > $@
 
@@ -183,20 +183,20 @@ website-image: docs
 
 $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$*)
 	$(eval IMAGE := $(DOCKER_PREFIX)/$*:$(TOKEN))
-	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' $*/Dockerfile $*/Dockerfile.out
-	./docker-build.sh . $*/Dockerfile.out $(IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
+		./docker-build.sh . $*/Dockerfile $(IMAGE)
 	echo $(IMAGE) > $@
 
 ci-utils-image: base-image $(SERVICES_IMAGE_DEPS) $(shell git ls-files ci)
 	$(eval CI_UTILS_IMAGE := $(DOCKER_PREFIX)/ci-utils:$(TOKEN))
-	python3 ci/jinja2_render.py '{"base_image":{"image":"'$$(cat base-image)'"}}' ci/Dockerfile.ci-utils ci/Dockerfile.ci-utils.out
-	./docker-build.sh . ci/Dockerfile.ci-utils.out $(CI_UTILS_IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat base-image) \
+		./docker-build.sh . ci/Dockerfile.ci-utils $(CI_UTILS_IMAGE)
 	echo $(CI_UTILS_IMAGE) > $@
 
 hail-buildkit-image: ci/buildkit/Dockerfile
 	$(eval HAIL_BUILDKIT_IMAGE := $(DOCKER_PREFIX)/hail-buildkit:$(TOKEN))
-	python3 ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' ci/buildkit/Dockerfile ci/buildkit/Dockerfile.out
-	./docker-build.sh ci buildkit/Dockerfile.out $(HAIL_BUILDKIT_IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)' \
+		./docker-build.sh ci buildkit/Dockerfile $(HAIL_BUILDKIT_IMAGE)
 	echo $(HAIL_BUILDKIT_IMAGE) > $@
 
 batch/jvm-entryway/build/libs/jvm-entryway.jar: $(shell git ls-files batch/jvm-entryway)
@@ -210,12 +210,12 @@ batch-worker-image: batch/jvm-entryway/build/libs/jvm-entryway.jar $(SERVICES_IM
 
 vep-grch37-image: hail-ubuntu-image
 	$(eval VEP_GRCH37_IMAGE := $(DOCKER_PREFIX)/hailgenetics/vep-grch37-85:$(TOKEN))
-	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' vep/grch37/85/Dockerfile vep/grch37/85/Dockerfile.out
-	./docker-build.sh docker/vep/grch37/85/Dockerfile.out $(VEP_GRCH37_IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
+		./docker-build.sh docker/vep docker/vep/grch37/85/Dockerfile $(VEP_GRCH37_IMAGE)
 	echo $(VEP_GRCH37_IMAGE) > $@
 
 vep-grch38-image: hail-ubuntu-image
 	$(eval VEP_GRCH38_IMAGE := $(DOCKER_PREFIX)/hailgenetics/vep-grch38-95:$(TOKEN))
-	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"}}' vep/grch38/95/Dockerfile vep/grch38/95/Dockerfile.out
-	./docker-build.sh docker/vep/grch38/95/Dockerfile.out $(VEP_GRCH38_IMAGE)
+	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
+		./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(VEP_GRCH38_IMAGE)
 	echo $(VEP_GRCH38_IMAGE) > $@

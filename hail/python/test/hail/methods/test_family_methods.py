@@ -5,6 +5,7 @@ from ..helpers import *
 
 
 class Tests(unittest.TestCase):
+    @qobtest
     @test_timeout(local=3 * 60, batch=6 * 60)
     def test_trio_matrix_1(self):
         """

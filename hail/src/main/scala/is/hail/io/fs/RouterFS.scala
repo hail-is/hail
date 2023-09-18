@@ -11,9 +11,8 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
     }
   }
 
-  def validUrl(filename: String): Boolean = {
+  override def validUrl(filename: String): Boolean =
     fss.exists(_.validUrl(filename))
-  }
 
   override def openCachedNoCompression(filename: String): SeekableDataInputStream = lookupFS(filename).openCachedNoCompression(filename)
 
@@ -34,6 +33,8 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
   def glob(filename: String): Array[FileListEntry] = lookupFS(filename).glob(filename)
 
   def fileListEntry(filename: String): FileListEntry = lookupFS(filename).fileListEntry(filename)
+
+  override def eTag(filename: String): Option[String] = lookupFS(filename).eTag(filename)
 
   def makeQualified(path: String): String = lookupFS(path).makeQualified(path)
 

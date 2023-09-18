@@ -7,7 +7,7 @@ from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from hail.vds.combiner import combine_variant_datasets, new_combiner, load_combiner, transform_gvcf
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, skip_when_service_backend, test_timeout
+from ..helpers import resource, skip_when_service_backend, test_timeout, qobtest
 
 all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
                'NA18530', 'HG03805', 'HG02223', 'HG00637', 'NA12249',
@@ -21,6 +21,7 @@ all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
                'NA20796', 'HG00323', 'HG01384', 'NA18613', 'NA20802']
 
 
+@qobtest
 def test_combiner_works():
     _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
     paths = [resource(p) for p in _paths]

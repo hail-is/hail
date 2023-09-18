@@ -2,8 +2,11 @@ import unittest
 
 import hail as hl
 
+from ..helpers import qobtest
+
 
 class GroupedTableTests(unittest.TestCase):
+    @qobtest
     def test_aggregate_by(self):
         ht = hl.utils.range_table(4)
         ht = ht.annotate(foo=0, group=ht.idx < 2, bar='hello').annotate_globals(glob=5)

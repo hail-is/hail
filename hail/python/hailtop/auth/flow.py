@@ -51,6 +51,12 @@ class Flow(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
+        """Revokes the OAuth2 credentials on the user's machine."""
+        raise NotImplementedError
+
+    @staticmethod
+    @abc.abstractmethod
     async def get_identity_uid_from_access_token(session: httpx.ClientSession, access_token: str, *, oauth2_client: dict) -> Optional[str]:
         """
         Validate a user-provided access token. If the token is valid, return the identity
@@ -105,6 +111,14 @@ class GoogleFlow(Flow):
             'type': 'authorized_user',
         }
 
+    @staticmethod
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
+        async with httpx.client_session() as session:
+            await session.post(
+                'https://oauth2.googleapis.com/revoke',
+                params={'token': oauth2_credentials['refresh_token']},
+                headers={'content-type': 'application/x-www-form-urlencoded'}
+            )
 
     @staticmethod
     async def get_identity_uid_from_access_token(session: httpx.ClientSession, access_token: str, *, oauth2_client: dict) -> Optional[str]:
@@ -179,6 +193,15 @@ class AzureFlow(Flow):
         app = msal.PublicClientApplication(oauth2_client['appId'], authority=authority)
         credentials = app.acquire_token_interactive([oauth2_client['userOauthScope']])
         return {**oauth2_client, 'refreshToken': credentials['refresh_token']}
+
+    @staticmethod
+    async def logout_installed_app(_: Dict[str, Any]):
+        # AAD does not support revocation of a single refresh token,
+        # only all refresh tokens issued to all applications for a particular
+        # user, which we neither wish nor should have the permissions
+        # to perform.
+        # See: https://learn.microsoft.com/en-us/answers/questions/1158831/invalidate-old-refresh-token-after-using-it-to-get
+        pass
 
     @staticmethod
     async def get_identity_uid_from_access_token(session: httpx.ClientSession, access_token: str, *, oauth2_client: dict) -> Optional[str]:

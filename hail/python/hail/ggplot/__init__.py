@@ -1,3 +1,9 @@
+from hailtop import IS_NOTEBOOK
+
+if IS_NOTEBOOK:
+    from plotly.io import renderers
+    renderers.default='iframe'
+
 from .coord_cartesian import coord_cartesian
 from .ggplot import ggplot, GGPlot # noqa F401
 from .aes import aes, Aesthetic # noqa F401

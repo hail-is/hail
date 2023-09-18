@@ -1,13 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.TableStage
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.types._
-import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -110,23 +107,8 @@ class PruneSuite extends HailSuite {
     false).analyzeAndExecute(ctx).asTableValue(ctx),
     theHailClassLoader)
 
-  lazy val tr = TableRead(tab.typ, false, new TableReader {
-    override def renderShort(): String = ???
-
-    def pathsUsed: IndexedSeq[String] = FastSeq()
-
-    override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = ???
-    
-    override def lowerGlobals(ctx: ExecuteContext, requestedType: TStruct): IR = ???
-
-    def partitionCounts: Option[IndexedSeq[Long]] = ???
-
-    override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-      ???
-
-    override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
-      ???
-
+  lazy val tr = TableRead(tab.typ, false, new FakeTableReader {
+    override def pathsUsed: Seq[String] = Seq.empty
     override def fullType: TableType = tab.typ
   })
 

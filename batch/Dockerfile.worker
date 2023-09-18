@@ -1,4 +1,5 @@
-FROM {{ hail_ubuntu_image.image }} AS base
+ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+FROM $BASE_IMAGE AS base
 
 # libyajl-dev: crun runtime dependency
 RUN hail-apt-get-install \

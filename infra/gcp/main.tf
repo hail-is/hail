@@ -479,7 +479,7 @@ module "testns_batch_gsa_secret" {
 }
 
 resource "google_storage_bucket_iam_member" "testns_batch_bucket_admin" {
-  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.testns_batch_gsa_secret.email}"
 }
@@ -497,7 +497,7 @@ module "testns_ci_gsa_secret" {
 }
 
 resource "google_storage_bucket_iam_member" "testns_ci_bucket_admin" {
-  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
 }
@@ -596,7 +596,7 @@ module "test_dev_gsa_secret" {
 }
 
 resource "google_storage_bucket_iam_member" "test_dev_bucket_admin" {
-  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.test_dev_gsa_secret.email}"
 }
@@ -617,7 +617,7 @@ module "testns_test_dev_gsa_secret" {
 }
 
 resource "google_storage_bucket_iam_member" "testns_test_dev_bucket_admin" {
-  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.testns_test_dev_gsa_secret.email}"
 }

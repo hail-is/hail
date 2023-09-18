@@ -69,7 +69,7 @@ docs_pages = set(
 
 
 @routes.get('/docs/{tail:.*}')
-@auth.web_maybe_authenticated_user
+@auth.maybe_authenticated_user
 async def serve_docs(request, userdata):
     tail = request.match_info['tail']
     if tail in docs_pages:
@@ -81,7 +81,7 @@ async def serve_docs(request, userdata):
 
 
 def make_template_handler(template_fname):
-    @auth.web_maybe_authenticated_user
+    @auth.maybe_authenticated_user
     async def serve(request, userdata):
         return await render_template('www', request, userdata, template_fname, {})
 

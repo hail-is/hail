@@ -1,15 +1,13 @@
 package is.hail.backend
 
-import is.hail.asm4s.HailClassLoader
-import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
+import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
-import is.hail.expr.ir.Threefry
+import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
 import is.hail.utils._
-import is.hail.types.MapTypes
-import is.hail.types.virtual.{TLocus, Type}
 import is.hail.variant.ReferenceGenome
+import is.hail.{HailContext, HailFeatureFlags}
 
 import java.io._
 import java.security.SecureRandom
@@ -57,6 +55,7 @@ object ExecuteContext {
     theHailClassLoader: HailClassLoader,
     referenceGenomes: Map[String, ReferenceGenome],
     flags: HailFeatureFlags,
+    backendContext: BackendContext,
   )(
     f: ExecuteContext => T
   ): T = {
@@ -71,7 +70,9 @@ object ExecuteContext {
         tempFileManager,
         theHailClassLoader,
         referenceGenomes,
-        flags
+        flags,
+        backendContext,
+        IrMetadata(None)
       ))(f(_))
     }
   }
@@ -108,10 +109,11 @@ class ExecuteContext(
   val timer: ExecutionTimer,
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
-  private[this] val referenceGenomes: Map[String, ReferenceGenome],
-  private[this] val flags: HailFeatureFlags
+  val referenceGenomes: Map[String, ReferenceGenome],
+  val flags: HailFeatureFlags,
+  val backendContext: BackendContext,
+  var irMetadata: IrMetadata
 ) extends Closeable {
-  var backendContext: BackendContext = _
 
   val rngNonce: Long = try {
     java.lang.Long.decode(getFlag("rng_nonce"))
@@ -122,10 +124,8 @@ class ExecuteContext(
 
   val stateManager = HailStateManager(referenceGenomes)
 
-  private val tempFileManager: TempFileManager = if (_tempFileManager != null)
-    _tempFileManager
-  else
-    new OwningTempFileManager(fs)
+  val tempFileManager: TempFileManager =
+    if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
 
   def fsBc: BroadcastValue[FS] = fs.broadcast
 

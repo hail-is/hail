@@ -6,7 +6,7 @@ import is.hail.annotations.SafeNDArray
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, TableStage}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.ForceCountTable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
@@ -15,7 +15,7 @@ import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll
-import org.scalatest.{Failed, Outcome, Succeeded}
+import org.scalatest.{Failed, Succeeded}
 import org.testng.annotations.{DataProvider, Test}
 
 class TableIRSuite extends HailSuite {
@@ -821,21 +821,9 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testPartitionCountsWithDropRows() {
-    val tr = new TableReader {
-      override def renderShort(): String = ???
-
-      def pathsUsed: Seq[String] = FastSeq()
-
-      override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = ???
-
-      override def lowerGlobals(ctx: ExecuteContext, requestedType: TStruct): IR = ???
-
+    val tr = new FakeTableReader {
+      override def pathsUsed: Seq[String] = Seq.empty
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
-
-      override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
-
-      override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
-
       override def fullType: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct.empty)
     }
     val tir = TableRead(tr.fullType, true, tr)
