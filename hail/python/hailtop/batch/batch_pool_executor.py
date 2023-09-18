@@ -8,7 +8,7 @@ import dill
 import functools
 
 from hailtop.utils import secret_alnum_string, partition
-from hailtop.batch.hail_genetics_images import hailgenetics_python_dill_image_for_current_python_version
+from hailtop.batch.hail_genetics_images import hailgenetics_hail_image_for_current_python_version
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -136,7 +136,7 @@ class BatchPoolExecutor:
         self.finished_future_count = 0
         self._shutdown = False
         if image is None:
-            self.image = hailgenetics_python_dill_image_for_current_python_version()
+            self.image = hailgenetics_hail_image_for_current_python_version()
         else:
             self.image = image
         self.cpus_per_job = cpus_per_job

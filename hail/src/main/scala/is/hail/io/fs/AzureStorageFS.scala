@@ -197,14 +197,13 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   import AzureStorageFS.log
 
-  def validUrl(filename: String): Boolean = {
+  override def validUrl(filename: String): Boolean =
     try {
       AzureStorageFS.parseUrl(filename)
       true
     } catch {
       case _: IllegalArgumentException => false
     }
-  }
 
   def getConfiguration(): Unit = ()
 
@@ -380,7 +379,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
-  def listStatus(filename: String): Array[FileListEntry] = handlePublicAccessError(filename) {
+  def listDirectory(filename: String): Array[FileListEntry] = handlePublicAccessError(filename) {
     val url = AzureStorageFS.parseUrl(filename)
 
     val blobContainerClient: BlobContainerClient = getContainerClient(url)
@@ -437,6 +436,12 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   def fileListEntry(filename: String): FileListEntry = handlePublicAccessError(filename) {
     fileListEntry(AzureStorageFS.parseUrl(filename))
   }
+
+  override def eTag(filename: String): Some[String] =
+    handlePublicAccessError(filename) {
+      Some(getBlobClient(AzureStorageFS.parseUrl(filename)).getProperties.getETag)
+    }
+
 
   def makeQualified(filename: String): String = {
     AzureStorageFS.parseUrl(filename)

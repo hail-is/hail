@@ -1,16 +1,14 @@
-package is.hail.fs
+package is.hail.io.fs
 
-import java.io.FileNotFoundException
-import is.hail.fs.azure.AzureStorageFSSuite
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.io.fs.{FS, FileListEntry, GoogleStorageFS, Seekable}
 import is.hail.utils._
-import org.apache.commons.codec.binary.Hex
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
+
+import java.io.FileNotFoundException
 
 trait FSSuite extends TestNGSuite {
   val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
@@ -136,13 +134,13 @@ trait FSSuite extends TestNGSuite {
     fs.delete(s"$d/foo", recursive = true)
   }
 
-  @Test def testListStatusDir(): Unit = {
-    val statuses = fs.listStatus(r(""))
+  @Test def testListDirectory(): Unit = {
+    val statuses = fs.listDirectory(r(""))
     assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))
   }
 
-  @Test def testListStatusDirWithSlash(): Unit = {
-    val statuses = fs.listStatus(r("/"))
+  @Test def testListDirectoryWithSlash(): Unit = {
+    val statuses = fs.listDirectory(r("/"))
     assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))
   }
 
@@ -403,7 +401,7 @@ trait FSSuite extends TestNGSuite {
       fs.touch(s"$prefix/$i.suffix")
     }
 
-    assert(fs.listStatus(prefix).size == 2000)
+    assert(fs.listDirectory(prefix).size == 2000)
     assert(fs.glob(prefix + "/" + "*.suffix").size == 2000)
 
     assert(fs.exists(prefix))
@@ -412,7 +410,7 @@ trait FSSuite extends TestNGSuite {
       // NB: TestNGSuite.assert does not have a lazy message argument so we must use an if to protect this list
       //
       // see: https://www.scalatest.org/scaladoc/1.7.2/org/scalatest/testng/TestNGSuite.html
-      assert(false, s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
+      assert(false, s"files not deleted:\n${ fs.listDirectory(prefix).map(_.getPath).mkString("\n") }")
     }
   }
 
@@ -443,4 +441,9 @@ class HadoopFSSuite extends HailSuite with FSSuite {
   override lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
 
   override lazy val tmpdir: String = ctx.tmpdir
+
+  @Test def testETag(): Unit = {
+    val etag = fs.eTag(s"$fsResourcesRoot/a")
+    assert(etag.isEmpty)
+  }
 }

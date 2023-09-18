@@ -135,7 +135,7 @@ async def _billing(request: web.Request):
 
 
 @routes.get('/api/v1alpha/billing')
-@auth.rest_authenticated_developers_only
+@auth.authenticated_developers_only()
 async def get_billing(request: web.Request, _) -> web.Response:
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     resp = {
@@ -148,7 +148,7 @@ async def get_billing(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/billing')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     context = {

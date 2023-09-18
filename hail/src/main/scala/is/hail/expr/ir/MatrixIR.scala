@@ -352,7 +352,7 @@ object MatrixRangeReader {
 
 case class MatrixRangeReaderParameters(nRows: Int, nCols: Int, nPartitions: Option[Int])
 
-class MatrixRangeReader(
+case class MatrixRangeReader(
   val params: MatrixRangeReaderParameters,
   nPartitionsAdj: Int
 ) extends MatrixReader {

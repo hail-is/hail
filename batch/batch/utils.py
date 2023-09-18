@@ -1,6 +1,5 @@
 import json
 import logging
-import secrets
 from collections import deque
 from functools import wraps
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple, overload
@@ -28,21 +27,6 @@ def authorization_token(request):
     if not session_id:
         return None
     return session_id
-
-
-def batch_only(fun):
-    @wraps(fun)
-    async def wrapped(request):
-        token = authorization_token(request)
-        if not token:
-            raise web.HTTPUnauthorized()
-
-        if not secrets.compare_digest(token, request.app['internal_token']):
-            raise web.HTTPUnauthorized()
-
-        return await fun(request)
-
-    return wrapped
 
 
 def add_metadata_to_request(fun):

@@ -2,7 +2,7 @@ package is.hail.backend
 
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
@@ -23,7 +23,9 @@ object Backend {
 
 abstract class BroadcastValue[T] { def value: T }
 
-abstract class BackendContext
+trait BackendContext {
+  def executionCache: ExecutionCache
+}
 
 abstract class Backend {
   def defaultParallelism: Int
@@ -43,12 +45,11 @@ abstract class Backend {
   def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    collection: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]]
+  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
+  : (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
 
   def stop(): Unit
 
