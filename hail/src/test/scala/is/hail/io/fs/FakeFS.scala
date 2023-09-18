@@ -1,17 +1,20 @@
 package is.hail.io.fs
 
+
+case class FakeURL(path: String)
+
 abstract class FakeFS extends FS {
-  override type URL = HadoopFSURL
+  override type URL = FakeURL
   override def validUrl(filename: String): Boolean = ???
-  override def parseUrl(filename: String): HadoopFSURL = ???
-  override def urlAddPathComponent(url: HadoopFSURL,component: String): HadoopFSURL = ???
-  override def openNoCompression(url: HadoopFSURL): SeekableDataInputStream = ???
-  override def createNoCompression(url: HadoopFSURL): PositionedDataOutputStream = ???
-  override def delete(url: HadoopFSURL,recursive: Boolean): Unit = ???
-  override def eTag(url: HadoopFSURL): Option[String] = ???
-  override def fileListEntry(url: HadoopFSURL): FileListEntry = ???
-  override def glob(url: HadoopFSURL): Array[FileListEntry] = ???
-  override def listStatus(url: HadoopFSURL): Array[FileListEntry] = ???
+  override def parseUrl(filename: String): FakeURL = FakeURL(filename)
+  override def urlAddPathComponent(url: FakeURL,component: String): FakeURL = ???
+  override def openNoCompression(url: FakeURL): SeekableDataInputStream = ???
+  override def createNoCompression(url: FakeURL): PositionedDataOutputStream = ???
+  override def delete(url: FakeURL,recursive: Boolean): Unit = ???
+  override def eTag(url: FakeURL): Option[String] = ???
+  override def fileListEntry(url: FakeURL): FileListEntry = ???
+  override def glob(url: FakeURL): Array[FileListEntry] = ???
+  override def listStatus(url: FakeURL): Array[FileListEntry] = ???
   override def makeQualified(path: String): String = ???
   override def getConfiguration(): Any = ???
   override def setConfiguration(config: Any): Unit = ???
