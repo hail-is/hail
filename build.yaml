@@ -1355,6 +1355,10 @@ steps:
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
     publishAs: hailgenetics/hail
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image.image
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail

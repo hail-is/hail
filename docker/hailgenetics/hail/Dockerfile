@@ -1,4 +1,4 @@
-ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+ARG BASE_IMAGE
 FROM $BASE_IMAGE
 
 RUN hail-apt-get-install \
