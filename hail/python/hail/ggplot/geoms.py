@@ -546,8 +546,8 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
 
     def fix_point_on_result(i, upper):
         nonlocal fx, fy, new_y, keep
-        yi = point_on_bound(i, upper)
-        fx, fy = x[i], yi
+        xi, yi = point_on_bound(i, upper)
+        fx, fy = xi, yi
         new_y[i] = fy
         keep[i] = True
 
