@@ -57,10 +57,8 @@ class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Po
   def getPosition: Long = count
 }
 
-trait FSURL[T <: FSURL[T]] {
+trait FSURL {
   def getPath: String
-  def addPathComponent(component: String): T
-  def fromString(s: String): T
 }
 
 trait FileListEntry {
@@ -263,15 +261,25 @@ object FS {
 }
 
 trait FS extends Serializable {
-  type URL <: FSURL[URL]
+  type URL <: FSURL
+
+  def parseUrl(filename: String): URL
 
   def validUrl(filename: String): Boolean
 
-  def openCachedNoCompression(filename: String): SeekableDataInputStream = openNoCompression(filename)
+  def urlAddPathComponent(url: URL, component: String): URL
 
-  def createCachedNoCompression(filename: String): PositionedDataOutputStream = createNoCompression(filename)
+  final def openCachedNoCompression(filename: String): SeekableDataInputStream = openNoCompression(filename)
 
-  def writeCached(filename: String)(writer: PositionedDataOutputStream => Unit) = writePDOS(filename)(writer)
+  def openCachedNoCompression(url: URL): SeekableDataInputStream = openNoCompression(url)
+
+  final def createCachedNoCompression(filename: String): PositionedDataOutputStream = createNoCompression(filename)
+
+  def createCachedNoCompression(url: URL): PositionedDataOutputStream = createNoCompression(url)
+
+  final def writeCached(filename: String)(writer: PositionedDataOutputStream => Unit) = writePDOS(filename)(writer)
+
+  def writeCached(url: URL)(writer: PositionedDataOutputStream => Unit) = writePDOS(url)(writer)
 
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
@@ -326,25 +334,37 @@ trait FS extends Serializable {
       ""
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream
+  final def openNoCompression(filename: String): SeekableDataInputStream = openNoCompression(parseUrl(filename))
 
-  def readNoCompression(filename: String): Array[Byte] = retryTransientErrors {
-    using(openNoCompression(filename)) { is =>
+  def openNoCompression(url: URL): SeekableDataInputStream
+
+  final def readNoCompression(filename: String): Array[Byte] = readNoCompression(parseUrl(filename))
+
+  def readNoCompression(url: URL): Array[Byte] = retryTransientErrors {
+    using(openNoCompression(url)) { is =>
       IOUtils.toByteArray(is)
     }
   }
 
-  def createNoCompression(filename: String): PositionedDataOutputStream
+  final def createNoCompression(filename: String): PositionedDataOutputStream = createNoCompression(parseUrl(filename))
 
-  def mkDir(dirname: String): Unit = ()
+  def createNoCompression(url: URL): PositionedDataOutputStream
 
-  def delete(filename: String, recursive: Boolean)
+  final def mkDir(dirname: String): Unit = mkDir(parseUrl(dirname))
 
-  def listStatus(filename: String): Array[FileListEntry]
+  def mkDir(url: URL): Unit = ()
 
-  def listStatus(url: URL): Array[FileListEntry] = listStatus(url.toString)
+  final def delete(filename: String, recursive: Boolean): Unit = delete(parseUrl(filename), recursive)
 
-  def glob(filename: String): Array[FileListEntry]
+  def delete(url: URL, recursive: Boolean): Unit
+
+  final def listStatus(filename: String): Array[FileListEntry] = listStatus(parseUrl(filename))
+
+  def listStatus(url: URL): Array[FileListEntry]
+
+  final def glob(filename: String): Array[FileListEntry] = glob(parseUrl(filename))
+
+  def glob(url: URL): Array[FileListEntry]
 
   def globWithPrefix(prefix: URL, path: String) = {
     val components =
@@ -357,8 +377,6 @@ trait FS extends Serializable {
 
     val ab = new mutable.ArrayBuffer[FileListEntry]()
     def f(prefix: URL, fs: FileListEntry, i: Int): Unit = {
-      assert(!prefix.getPath.endsWith("/"), prefix)
-
       if (i == components.length) {
         var t = fs
         if (t == null) {
@@ -376,15 +394,15 @@ trait FS extends Serializable {
         val c = components(i)
         if (containsWildcard(c)) {
           val m = javaFS.getPathMatcher(s"glob:$c")
-          for (cfs <- listStatus(prefix)) {
-            val p = dropTrailingSlash(cfs.getPath)
+          for (directoryEntry <- listStatus(prefix)) {
+            val p = dropTrailingSlash(directoryEntry.getPath)
             val d = p.drop(prefix.toString.length + 1)
             if (m.matches(javaFS.getPath(d))) {
-              f(prefix.fromString(p), cfs, i + 1)
+              f(parseUrl(p), directoryEntry, i + 1)
             }
           }
         } else
-          f(prefix.addPathComponent(c), null, i + 1)
+          f(urlAddPathComponent(prefix, c), null, i + 1)
       }
     }
 
@@ -395,25 +413,31 @@ trait FS extends Serializable {
   def globAll(filenames: Iterable[String]): Array[String] =
     globAllStatuses(filenames).map(_.getPath)
 
-  def globAllStatuses(filenames: Iterable[String]): Array[FileListEntry] = filenames.flatMap(glob).toArray
+  def globAllStatuses(filenames: Iterable[String]): Array[FileListEntry] =
+    filenames.flatMap(x => glob(x)).toArray
 
-  def fileListEntry(filename: String): FileListEntry
+  final def eTag(filename: String): Option[String] = eTag(parseUrl(filename))
 
   /** Return the file's HTTP etag, if the underlying file system supports etags. */
-  def eTag(filename: String): Option[String]
+  def eTag(url: URL): Option[String]
 
-  def fileListEntry(url: URL): FileListEntry =
-    fileListEntry(url.toString)
+  final def fileListEntry(filename: String): FileListEntry = fileListEntry(parseUrl(filename))
+
+  def fileListEntry(url: URL): FileListEntry
 
   def makeQualified(path: String): String
 
-  def deleteOnExit(filename: String): Unit = {
+  final def deleteOnExit(filename: String): Unit = deleteOnExit(parseUrl(filename))
+
+  def deleteOnExit(url: URL): Unit = {
     Runtime.getRuntime.addShutdownHook(
-      new Thread(() => delete(filename, recursive = false)))
+      new Thread(() => delete(url, recursive = false)))
   }
 
-  def open(path: String, codec: CompressionCodec): InputStream = {
-    val is = openNoCompression(path)
+  final def open(filename: String, codec: CompressionCodec): InputStream = open(parseUrl(filename), codec)
+
+  def open(url: URL, codec: CompressionCodec): InputStream = {
+    val is = openNoCompression(url)
     if (codec != null)
       codec.makeInputStream(is)
     else
@@ -421,56 +445,78 @@ trait FS extends Serializable {
 
   }
 
-  def open(path: String): InputStream =
-    open(path, gzAsBGZ = false)
+  final def open(filename: String): InputStream = open(parseUrl(filename))
 
-  def open(path: String, gzAsBGZ: Boolean): InputStream =
-    open(path, getCodecFromPath(path, gzAsBGZ))
+  def open(url: URL): InputStream =
+    open(url, gzAsBGZ = false)
 
-  def create(path: String): OutputStream = {
-    val os = createNoCompression(path)
+  final def open(filename: String, gzAsBGZ: Boolean): InputStream = open(parseUrl(filename), gzAsBGZ)
 
-    val codec = getCodecFromPath(path, gzAsBGZ = false)
+  def open(url: URL, gzAsBGZ: Boolean): InputStream =
+    open(url, getCodecFromPath(url.getPath, gzAsBGZ))
+
+  final def create(filename: String): OutputStream = create(parseUrl(filename))
+
+  def create(url: URL): OutputStream = {
+    val os = createNoCompression(url)
+
+    val codec = getCodecFromPath(url.getPath, gzAsBGZ = false)
     if (codec != null)
       codec.makeOutputStream(os)
     else
       os
   }
 
-  def write(filename: String)(writer: OutputStream => Unit) =
-    using(create(filename))(writer)
+  final def write(filename: String)(writer: OutputStream => Unit): Unit = write(parseUrl(filename))(writer)
 
-  def writePDOS(filename: String)(writer: PositionedDataOutputStream => Unit) =
-    using(create(filename))(os => writer(outputStreamToPositionedDataOutputStream(os)))
+  def write(url: URL)(writer: OutputStream => Unit): Unit =
+    using(create(url))(writer)
 
-  def getFileSize(filename: String): Long = fileListEntry(filename).getLen
+  final def writePDOS(filename: String)(writer: PositionedDataOutputStream => Unit): Unit = writePDOS(parseUrl(filename))(writer)
 
-  def isFile(filename: String): Boolean = {
+  def writePDOS(url: URL)(writer: PositionedDataOutputStream => Unit): Unit =
+    using(create(url))(os => writer(outputStreamToPositionedDataOutputStream(os)))
+
+  final def getFileSize(filename: String): Long = getFileSize(parseUrl(filename))
+
+  def getFileSize(url: URL): Long = fileListEntry(url).getLen
+
+  final def isFile(filename: String): Boolean = isFile(parseUrl(filename))
+
+  final def isFile(url: URL): Boolean = {
     try {
-      fileListEntry(filename).isFile
+      fileListEntry(url).isFile
     } catch {
       case _: FileNotFoundException => false
     }
   }
 
-  def isDir(filename: String): Boolean = {
+  final def isDir(filename: String): Boolean = isDir(parseUrl(filename))
+
+  final def isDir(url: URL): Boolean = {
     try {
-      fileListEntry(filename).isDirectory
+      fileListEntry(url).isDirectory
     } catch {
       case _: FileNotFoundException => false
     }
   }
 
-  def exists(filename: String): Boolean = {
+  final def exists(filename: String): Boolean = exists(parseUrl(filename))
+
+  final def exists(url: URL): Boolean = {
     try {
-      fileListEntry(filename)
+      fileListEntry(url)
       true
     } catch {
       case _: FileNotFoundException => false
     }
   }
 
-  def copy(src: String, dst: String, deleteSource: Boolean = false) {
+  final def copy(src: String, dst: String): Unit = copy(src, dst, false)
+
+  final def copy(src: String, dst: String, deleteSource: Boolean): Unit = copy(parseUrl(src), parseUrl(dst), deleteSource)
+
+  def copy(src: URL, dst: URL, deleteSource: Boolean = false): Unit = {
     using(openNoCompression(src)) { is =>
       using(createNoCompression(dst)) { os =>
         IOUtils.copy(is, os)
@@ -480,7 +526,11 @@ trait FS extends Serializable {
       delete(src, recursive = false)
   }
 
-  def copyRecode(src: String, dst: String, deleteSource: Boolean = false) {
+  final def copyRecode(src: String, dst: String): Unit = copyRecode(src, dst, false)
+
+  final def copyRecode(src: String, dst: String, deleteSource: Boolean): Unit = copyRecode(parseUrl(src), parseUrl(dst), deleteSource)
+
+  def copyRecode(src: URL, dst: URL, deleteSource: Boolean = false): Unit = {
     using(open(src)) { is =>
       using(create(dst)) { os =>
         IOUtils.copy(is, os)
@@ -608,8 +658,10 @@ trait FS extends Serializable {
     info(s"while writing:\n    $destFilename\n  merge time: ${ formatTime(timing) }")
   }
 
-  def touch(filename: String): Unit = {
-    using(createNoCompression(filename))(_ => ())
+  final def touch(filename: String): Unit = touch(parseUrl(filename))
+
+  def touch(url: URL): Unit = {
+    using(createNoCompression(url))(_ => ())
   }
 
   lazy val broadcast: BroadcastValue[FS] = HailContext.backend.broadcast(this)

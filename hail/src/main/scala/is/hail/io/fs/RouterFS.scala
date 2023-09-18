@@ -1,8 +1,21 @@
 package is.hail.io.fs
 
+object RouterFSURL {
+  def apply(fs: FS)(_url: fs.URL): RouterFSURL = RouterFSURL(_url, fs)
+}
+
+case class RouterFSURL private (_url: FSURL, val fs: FS) extends FSURL {
+  val url = _url.asInstanceOf[fs.URL]
+
+  def getPath: String = url.getPath
+  def addPathComponent(component: String): RouterFSURL = {
+    RouterFSURL(fs)(fs.urlAddPathComponent(url, component))
+  }
+  override def toString(): String = url.toString
+}
+
 class RouterFS(fss: IndexedSeq[FS]) extends FS {
-  // This is never actually used
-  type URL = LocalFSURL
+  type URL = RouterFSURL
 
   def lookupFS(path: String): FS = {
     fss.find(_.validUrl(path)) match {
@@ -11,30 +24,38 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
     }
   }
 
+  override def parseUrl(filename: String): URL = {
+    val fs = lookupFS(filename)
+
+    RouterFSURL(fs)(fs.parseUrl(filename))
+  }
+
   override def validUrl(filename: String): Boolean =
     fss.exists(_.validUrl(filename))
 
-  override def openCachedNoCompression(filename: String): SeekableDataInputStream = lookupFS(filename).openCachedNoCompression(filename)
+  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
 
-  override def createCachedNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createCachedNoCompression(filename)
+  override def openCachedNoCompression(url: URL): SeekableDataInputStream = url.fs.openCachedNoCompression(url.url)
 
-  def openNoCompression(filename: String): SeekableDataInputStream = lookupFS(filename).openNoCompression(filename)
+  override def createCachedNoCompression(url: URL): PositionedDataOutputStream = url.fs.createCachedNoCompression(url.url)
 
-  def createNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createNoCompression(filename)
+  def openNoCompression(url: URL): SeekableDataInputStream = url.fs.openNoCompression(url.url)
 
-  override def readNoCompression(filename: String): Array[Byte] = lookupFS(filename).readNoCompression(filename)
+  def createNoCompression(url: URL): PositionedDataOutputStream = url.fs.createNoCompression(url.url)
 
-  override def mkDir(dirname: String): Unit = lookupFS(dirname).mkDir(dirname)
+  override def readNoCompression(url: URL): Array[Byte] = url.fs.readNoCompression(url.url)
 
-  def delete(filename: String, recursive: Boolean) = lookupFS(filename).delete(filename, recursive)
+  override def mkDir(url: URL): Unit = url.fs.mkDir(url.url)
 
-  def listStatus(filename: String): Array[FileListEntry] = lookupFS(filename).listStatus(filename)
+  def delete(url: URL, recursive: Boolean) = url.fs.delete(url.url, recursive)
 
-  def glob(filename: String): Array[FileListEntry] = lookupFS(filename).glob(filename)
+  def listStatus(url: URL): Array[FileListEntry] = url.fs.listStatus(url.url)
 
-  def fileListEntry(filename: String): FileListEntry = lookupFS(filename).fileListEntry(filename)
+  def glob(url: URL): Array[FileListEntry] = url.fs.glob(url.url)
 
-  override def eTag(filename: String): Option[String] = lookupFS(filename).eTag(filename)
+  def fileListEntry(url: URL): FileListEntry = url.fs.fileListEntry(url.url)
+
+  override def eTag(url: URL): Option[String] = url.fs.eTag(url.url)
 
   def makeQualified(path: String): String = lookupFS(path).makeQualified(path)
 
