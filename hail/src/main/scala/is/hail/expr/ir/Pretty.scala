@@ -652,6 +652,9 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         case Ref(name, _) =>
           val body = blockBindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref"))
           concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
+        case RelationalRef(name, _) =>
+          val body = blockBindings.lookupOption(name).getOrElse(uniqueify("%undefined_relational_ref"))
+          concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
         case _ =>
           val (pre, body) = pretty(ir, blockBindings)
           concat(openBlock, nest(2, vsep(pre, body)), line, "}")
