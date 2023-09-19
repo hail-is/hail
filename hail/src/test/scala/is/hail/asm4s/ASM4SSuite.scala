@@ -433,12 +433,21 @@ class ASM4SSuite extends HailSuite {
     assert(f(false) == 5)
   }
 
-  @Test def testConstructor(): Unit = {
+  @Test def testInit(): Unit = {
     val Main = FunctionBuilder[Int]("Main")
     val a = Main.genFieldThisRef[Int]("a")
     Main.emitInit { a := 1 }
     Main.emit { a }
 
+    val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    assert(test() == 1)
+  }
+
+  @Test def testClinit(): Unit = {
+    val Main = FunctionBuilder[Int]("Main")
+    val a = Main.newStaticField[Int]("a")
+    Main.emitClinit { a.put(1) }
+    Main.emit { a.get() }
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(test() == 1)
   }
