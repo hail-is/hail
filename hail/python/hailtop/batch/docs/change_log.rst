@@ -15,6 +15,15 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.123**
+
+- (`#13643 <https://github.com/hail-is/hail/pull/13643>`__) Python jobs in Hail Batch that use the default image now support
+  all supported python versions and include the hail python package.
+- (`#13614 <https://github.com/hail-is/hail/pull/13614>`__) Fixed a bug that broke the `LocalBackend` when run inside a
+  Jupyter notebook.
+- (`#13200 <https://github.com/hail-is/hail/pull/13200>`__) `hailtop.batch` will now raise an error by default if a pipeline
+  attempts to read or write files from or two cold storage buckets in GCP.
+
 **Version 0.2.122**
 
 - (`#13565 <https://github.com/hail-is/hail/pull/13565>`__) Users can now use VEP images from the `hailgenetics` DockerHub
