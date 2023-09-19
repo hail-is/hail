@@ -566,6 +566,7 @@ async def prod_deploy(request, userdata):
         branch=FQBranch.from_short_str('populationgenomics/hail:main'),
         deployable=True,
         mergeable=False,
+        developers=[],
     )
     watched_branch.sha = params['sha']
     await watched_branch._start_deploy(db=app['db'], batch_client=app['batch_client'], steps=steps)
