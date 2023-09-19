@@ -782,16 +782,12 @@ class Batch:
                       max_bunch_bytesize: int,
                       max_bunch_size: int,
                       disable_progress_bar: bool,
-                      min_bunches_for_progress_bar: Optional[int],
                       progress: BatchProgressBar) -> Optional[int]:
         n_jobs = len(self._jobs)
         byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(self._job_specs, max_bunch_bytesize, max_bunch_size)
         n_job_bunches = len(byte_job_specs_bunches)
 
-        if min_bunches_for_progress_bar is not None and n_job_bunches < 100:
-            progress.progress.disable = True
-
-        with progress.with_task('submit job bunches', total=n_jobs, disable=disable_progress_bar) as job_progress_task:
+        with progress.with_task('submit job bunches', total=n_jobs, disable=(disable_progress_bar or n_job_bunches < 100)) as job_progress_task:
             if not self.is_created:
                 if n_job_bunches == 0:
                     await self._open_batch()
