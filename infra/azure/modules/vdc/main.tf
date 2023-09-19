@@ -50,6 +50,8 @@ resource "azurerm_kubernetes_cluster" "vdc" {
   location            = var.resource_group.location
   dns_prefix          = "example"
 
+  automatic_channel_upgrade = "stable"
+
   default_node_pool {
     name           = "nonpreempt"
     vm_size        = var.k8s_default_node_pool_machine_type
@@ -156,19 +158,4 @@ resource "azurerm_public_ip" "gateway_ip" {
   location            = var.resource_group.location
   sku                 = "Standard"
   allocation_method   = "Static"
-}
-
-resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
-  metadata {
-    name = "kube-dns"
-    namespace = "kube-system"
-  }
-  spec {
-    max_unavailable = "1"
-    selector {
-      match_labels = {
-        k8s-app = "kube-dns"
-      }
-    }
-  }
 }

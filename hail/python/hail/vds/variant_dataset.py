@@ -12,7 +12,8 @@ extra_ref_globals_file = 'extra_reference_globals.json'
 
 
 def read_vds(path, *, intervals=None, n_partitions=None,
-             _assert_reference_type=None, _assert_variant_type=None) -> 'VariantDataset':
+             _assert_reference_type=None, _assert_variant_type=None,
+             _warn_no_ref_block_max_length=True) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
     Parameters
@@ -42,7 +43,7 @@ def read_vds(path, *, intervals=None, n_partitions=None,
             with fs.open(metadata_file, 'r') as f:
                 metadata = json.load(f)
                 vds.reference_data = vds.reference_data.annotate_globals(**metadata)
-        else:
+        elif _warn_no_ref_block_max_length:
             warning("You are reading a VDS written with an older version of Hail."
                     "\n  Hail now supports much faster interval filters on VDS, but you'll need to run either"
                     "\n  `hl.vds.truncate_reference_blocks(vds, ...)` and write a copy (see docs) or patch the"

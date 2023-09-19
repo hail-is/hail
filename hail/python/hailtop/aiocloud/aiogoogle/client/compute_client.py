@@ -3,7 +3,7 @@ from typing import Mapping, Any, Optional, MutableMapping, List, Dict
 import logging
 import aiohttp
 
-from hailtop.utils import retry_transient_errors, sleep_and_backoff
+from hailtop.utils import retry_transient_errors, sleep_before_try
 
 from .base_client import GoogleBaseClient
 
@@ -100,7 +100,7 @@ class GoogleComputeClient(GoogleBaseClient):
             operation_id = resp['id']
             zone = resp['zone'].rsplit('/', 1)[1]
 
-            delay = 2
+            tries = 0
             while True:
                 result = await self.post(f'/zones/{zone}/operations/{operation_id}/wait',
                                          timeout=aiohttp.ClientTimeout(total=150))
@@ -120,7 +120,7 @@ class GoogleComputeClient(GoogleBaseClient):
                                                 result)
 
                     return result
-
-                delay = await sleep_and_backoff(delay, max_delay=15)
+                tries += 1
+                await sleep_before_try(tries, base_delay_ms=2_000, max_delay_ms=15_000)
 
         return await retry_transient_errors(request_and_wait)

@@ -35,6 +35,11 @@ _FLOAT_INFO_FIELDS = [
 _FLOAT_ARRAY_INFO_FIELDS = ['AF', 'MLEAF']
 
 
+def _vcf_unsorted_alleles():
+    mt = hl.import_vcf(resource('sample.pksorted.vcf'), n_partitions=4)
+    mt.rows()._force_count()
+
+
 class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
@@ -208,8 +213,10 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt.entries()._same(expected))
 
     def test_vcf_unsorted_alleles(self):
-        mt = hl.import_vcf(resource('sample.pksorted.vcf'), n_partitions=4)
-        mt.rows()._force_count()
+        _vcf_unsorted_alleles()
+
+    def test_vcf_unsorted_alleles_no_codegen(self):
+        with_flags(no_whole_stage_codegen="1")(_vcf_unsorted_alleles)()
 
     def test_import_vcf_skip_invalid_loci(self):
         mt = hl.import_vcf(resource('skip_invalid_loci.vcf'), reference_genome='GRCh37',
@@ -370,36 +377,14 @@ class VCFTests(unittest.TestCase):
         path = resource('sample.vcf.bgz')
         self.import_gvcfs_sample_vcf(path)
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_import_gvcfs_subset(self):
-        path = resource('sample.vcf.bgz')
-        parts = [
-            hl.Interval(start=hl.Struct(locus=hl.Locus('20', 13509136)),
-                        end=hl.Struct(locus=hl.Locus('20', 16493533)),
-                        includes_end=True)
-        ]
-        vcf1 = hl.import_vcf(path).key_rows_by('locus')
-        vcf2 = hl.import_gvcfs([path], parts)[0]
-        interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
-        filter1 = hl.filter_intervals(vcf1, interval)
-        self.assertTrue(vcf2._same(filter1))
-        self.assertEqual(len(parts), vcf2.n_partitions())
-
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_gvcfs_long_line(self):
         import bz2
+        fs = hl.current_backend().fs
         path = resource('gvcfs/long_line.g.vcf.gz')
-        parts = [
-            hl.Interval(start=hl.Struct(locus=hl.Locus('1', 1)),
-                        end=hl.Struct(locus=hl.Locus('1', 1_000_000)),
-                        includes_end=True)
-        ]
-        [vcf] = hl.import_gvcfs([path], parts)
+        vcf = hl.import_vcf(path, force_bgz=True)
         [data] = vcf.info.Custom.collect()
-        with bz2.open(resource('gvcfs/long_line.ref.bz2')) as ref:
-            ref_str = ref.read().decode('utf-8')
+        with fs.open(resource('gvcfs/long_line.ref.bz2'), 'rb') as ref:
+            ref_str = bz2.open(ref).read().decode('utf-8')
             self.assertEqual(ref_str, data)
 
     def test_vcf_parser_golden_master__ex_GRCh37(self):
@@ -421,62 +406,24 @@ class VCFTests(unittest.TestCase):
         mt = hl.read_matrix_table(vcf_path + '.mt')
         self.assertTrue(mt._same(vcf))
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_import_multiple_vcfs(self):
-        _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
-        paths = [resource(p) for p in _paths]
-        parts = [
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
-                        end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
-                        includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
-                        end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
-                        includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
-                        end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
-                        includes_end=True)
-        ]
-        int0 = hl.parse_locus_interval('[chr20:17821257-18708366]', reference_genome='GRCh38')
-        int1 = hl.parse_locus_interval('[chr20:18708367-19776611]', reference_genome='GRCh38')
-        hg00096, hg00268 = hl.import_gvcfs(paths, parts, reference_genome='GRCh38')
-        filt096 = hl.filter_intervals(hg00096, [int0])
-        filt268 = hl.filter_intervals(hg00268, [int1])
-        self.assertEqual(1, filt096.n_partitions())
-        self.assertEqual(1, filt268.n_partitions())
-        pos096 = set(filt096.locus.position.collect())
-        pos268 = set(filt268.locus.position.collect())
-        self.assertFalse(pos096 & pos268)
-
-    @fails_service_backend()
-    @fails_local_backend()
     def test_combiner_works(self):
-        from hail.experimental.vcf_combiner.vcf_combiner import transform_one, combine_gvcfs
+        from hail.vds.combiner.combine import transform_gvcf, combine_variant_datasets
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
-        parts = [
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
-                        end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
-                        includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
-                        end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
-                        includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
-                        end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
-                        includes_end=True)
-        ]
-        vcfs = [transform_one(mt.annotate_rows(info=mt.info.annotate(
-            MQ_DP=hl.missing(hl.tint32),
-            VarDP=hl.missing(hl.tint32),
-            QUALapprox=hl.missing(hl.tint32))))
-                for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
-                                         array_elements_required=False)]
-        comb = combine_gvcfs(vcfs)
-        self.assertEqual(len(parts), comb.n_partitions())
-        comb._force_count_rows()
+        vdses = []
+        for path in paths:
+            mt = hl.import_vcf(path, reference_genome='GRCh38', array_elements_required=False, force_bgz=True)
+            mt = transform_gvcf(mt.annotate_rows(info=mt.info.annotate(
+                MQ_DP=hl.missing(hl.tint32),
+                VarDP=hl.missing(hl.tint32),
+                QUALapprox=hl.missing(hl.tint32))), reference_entry_fields_to_keep=[])
+            vdses.append(mt)
+        comb = combine_variant_datasets(vdses)
+        assert comb.reference_data._force_count_rows() == 458646
+        assert comb.variant_data._force_count_rows() == 14346
 
     def test_haploid_combiner_ok(self):
-        from hail.experimental.vcf_combiner.vcf_combiner import transform_gvcf
+        from hail.vds.combiner.combine import transform_gvcf
         # make a combiner table
         mt = hl.utils.range_matrix_table(2, 1)
         mt = mt.annotate_cols(s='S01')
@@ -492,10 +439,12 @@ class VCFTests(unittest.TestCase):
         mt = mt.annotate_rows(info=hl.struct(END=mt.locus.position))
         mt = mt.annotate_rows(rsid=hl.missing(hl.tstr))
         mt = mt.drop('row_idx')
-        transform_gvcf(mt)._force_count()
+        vds = transform_gvcf(mt, [])
+        vds.reference_data._force_count_rows()
+        vds.variant_data._force_count_rows()
 
     def test_combiner_parse_as_annotations(self):
-        from hail.experimental.vcf_combiner.vcf_combiner import parse_as_fields
+        from hail.vds.combiner.combine import parse_as_fields
         infos = hl.array([
             hl.struct(
                 AS_QUALapprox="|1171|",

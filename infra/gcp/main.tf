@@ -57,7 +57,7 @@ locals {
     "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" :
     "gcr.io/${var.gcp_project}"
   )
-  docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
+  docker_root_image = "${local.docker_prefix}/ubuntu:22.04"
 }
 
 data "sops_file" "terraform_sa_key_sops" {
@@ -438,6 +438,15 @@ module "auth_gsa_secret" {
   ]
 }
 
+module "testns_auth_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "testns-auth"
+  project = var.gcp_project
+  iam_roles = [
+    "iam.serviceAccountViewer",
+  ]
+}
+
 module "batch_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "batch"
@@ -456,10 +465,48 @@ resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_vie
   member = "serviceAccount:${module.batch_gsa_secret.email}"
 }
 
+module "testns_batch_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "testns-batch"
+  project = var.gcp_project
+  iam_roles = [
+    "compute.instanceAdmin.v1",
+    "iam.serviceAccountUser",
+    "logging.viewer",
+  ]
+}
+
+resource "google_storage_bucket_iam_member" "testns_batch_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.testns_batch_gsa_secret.email}"
+}
+
 module "ci_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "ci"
   project = var.gcp_project
+}
+
+module "testns_ci_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "testns-ci"
+  project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "testns_ci_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_ci_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
@@ -483,6 +530,14 @@ module "grafana_gsa_secret" {
   project = var.gcp_project
 }
 
+module "testns_grafana_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "testns-grafana"
+  project = var.gcp_project
+}
+
+# FIXME Now that there are test identities for each service, the test user no longer
+# needs this many permissions. Perform an audit to see which can be removed
 module "test_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test"
@@ -501,16 +556,77 @@ resource "google_storage_bucket_iam_member" "test_bucket_admin" {
   member = "serviceAccount:${module.test_gsa_secret.email}"
 }
 
-resource "google_storage_bucket_iam_member" "test_gcr_viewer" {
-  bucket = google_container_registry.registry.id
-  role = "roles/storage.objectViewer"
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
   member = "serviceAccount:${module.test_gsa_secret.email}"
 }
+
+module "testns_test_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "testns-test"
+  project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "testns_test_gsa_bucket_admin" {
+  bucket = module.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.testns_test_gsa_secret.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_test_gsa_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${module.testns_test_gsa_secret.email}"
+}
+
 
 module "test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-dev"
   project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "test_dev_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_dev_gsa_secret.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_test_dev_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${module.test_dev_gsa_secret.email}"
+}
+
+module "testns_test_dev_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "testns-test-dev"
+  project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "testns_test_dev_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_gcs_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.testns_test_dev_gsa_secret.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_test_dev_viewer" {
+  provider = google-beta
+  project = var.gcp_project
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${module.testns_test_dev_gsa_secret.email}"
 }
 
 resource "google_service_account" "batch_agent" {

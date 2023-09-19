@@ -1,5 +1,4 @@
-from typing import Optional, Dict, Any, TypeVar, Generic, List, Union
-import sys
+from typing import Optional, Dict, Any, TypeVar, Generic, List, Union, ClassVar
 import abc
 import asyncio
 import collections
@@ -16,10 +15,11 @@ import warnings
 from rich.progress import track
 
 from hailtop import pip_version
-from hailtop.config import configuration_of, get_deploy_config, get_user_config, get_remote_tmpdir
+from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_python_dill_image_for_current_python_version
+
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
@@ -380,7 +380,7 @@ class LocalBackend(Backend[None]):
 
 
 class ServiceBackend(Backend[bc.Batch]):
-    ANY_REGION = ['any_region']
+    ANY_REGION: ClassVar[List[str]] = ['any_region']
 
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
@@ -474,7 +474,7 @@ class ServiceBackend(Backend[bc.Batch]):
             warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
             bucket = args[1]
 
-        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
+        billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
         if billing_project is None:
             raise ValueError(
                 'the billing_project parameter of ServiceBackend must be set '
@@ -482,8 +482,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project, _token=token)
 
-        user_config = get_user_config()
-        self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir, user_config=user_config)
+        self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir)
 
         gcs_kwargs: Dict[str, Any]
         if google_project is not None:
@@ -502,7 +501,7 @@ class ServiceBackend(Backend[bc.Batch]):
         self.__fs: RouterAsyncFS = RouterAsyncFS(gcs_kwargs=gcs_kwargs)
 
         if regions is None:
-            regions_from_conf = user_config.get('batch', 'regions', fallback=None)
+            regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, None, None)
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
@@ -529,7 +528,7 @@ class ServiceBackend(Backend[bc.Batch]):
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
              token: Optional[str] = None,
-             **backend_kwargs) -> bc.Batch:  # pylint: disable-msg=too-many-statements
+             **backend_kwargs) -> Optional[bc.Batch]:  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
@@ -582,18 +581,18 @@ class ServiceBackend(Backend[bc.Batch]):
         batch_remote_tmpdir = f'{self.remote_tmpdir}{uid}'
         local_tmpdir = f'/io/batch/{uid}'
 
-        default_image = 'ubuntu:20.04'
+        default_image = 'ubuntu:22.04'
 
         attributes = copy.deepcopy(batch.attributes)
         if batch.name is not None:
             attributes['name'] = batch.name
 
         if batch._batch_handle is None:
-            bc_batch_builder = self._batch_client.create_batch(
+            batch._batch_handle = self._batch_client.create_batch(
                 attributes=attributes, callback=callback, token=token, cancel_after_n_failures=batch._cancel_after_n_failures
             )
-        else:
-            bc_batch_builder = self._batch_client.update_batch(batch._batch_handle)
+
+        batch_handle = batch._batch_handle
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
@@ -638,9 +637,9 @@ class ServiceBackend(Backend[bc.Batch]):
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
-                j = bc_batch_builder.create_job(image=HAIL_GENETICS_HAILTOP_IMAGE,
-                                                command=write_cmd,
-                                                attributes={'name': 'write_external_inputs'})
+                j = batch._batch_handle.create_job(image=HAIL_GENETICS_HAILTOP_IMAGE,
+                                                   command=write_cmd,
+                                                   attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
                 n_jobs_submitted += 1
 
@@ -649,12 +648,7 @@ class ServiceBackend(Backend[bc.Batch]):
         pyjobs = [j for j in unsubmitted_jobs if isinstance(j, _job.PythonJob)]
         for pyjob in pyjobs:
             if pyjob._image is None:
-                version = sys.version_info
-                if version.major != 3 or version.minor not in (8, 9, 10):
-                    raise BatchException(
-                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.8, 3.9 or 3.10 (you are using {version})")
-                pyjob._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
-
+                pyjob._image = hailgenetics_python_dill_image_for_current_python_version()
         await batch._serialize_python_functions_to_input_files(
             batch_remote_tmpdir, dry_run=dry_run
         )
@@ -744,22 +738,22 @@ class ServiceBackend(Backend[bc.Batch]):
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 
-            j = bc_batch_builder.create_job(image=image,
-                                            command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
-                                            parents=parents,
-                                            attributes=attributes,
-                                            resources=resources,
-                                            input_files=inputs if len(inputs) > 0 else None,
-                                            output_files=outputs if len(outputs) > 0 else None,
-                                            always_run=job._always_run,
-                                            timeout=job._timeout,
-                                            cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
-                                            env=env,
-                                            requester_pays_project=batch.requester_pays_project,
-                                            mount_tokens=True,
-                                            user_code=user_code,
-                                            regions=job._regions,
-                                            always_copy_output=job._always_copy_output)
+            j = batch_handle.create_job(image=image,
+                                        command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
+                                        parents=parents,
+                                        attributes=attributes,
+                                        resources=resources,
+                                        input_files=inputs if len(inputs) > 0 else None,
+                                        output_files=outputs if len(outputs) > 0 else None,
+                                        always_run=job._always_run,
+                                        timeout=job._timeout,
+                                        cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
+                                        env=env,
+                                        requester_pays_project=batch.requester_pays_project,
+                                        mount_tokens=True,
+                                        user_code=user_code,
+                                        regions=job._regions,
+                                        always_copy_output=job._always_copy_output)
 
             n_jobs_submitted += 1
 
@@ -772,25 +766,21 @@ class ServiceBackend(Backend[bc.Batch]):
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
-            j = bc_batch_builder.create_job(
+            j = batch_handle.create_job(
                 image=HAIL_GENETICS_HAILTOP_IMAGE,
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
                 attributes={'name': 'remove_tmpdir'},
                 always_run=True)
-            jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
         if verbose:
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        batch_handle = bc_batch_builder.submit(disable_progress_bar=disable_progress_bar)
+        batch_handle.submit(disable_progress_bar=disable_progress_bar)
 
-        if batch._batch_handle is None:
-            batch._batch_handle = batch_handle
-        else:
-            assert batch._batch_handle == batch_handle
+        batch_id = batch_handle.id
 
         for job in batch._unsubmitted_jobs:
             job._submitted = True
@@ -803,19 +793,20 @@ class ServiceBackend(Backend[bc.Batch]):
         if not wait:
             print(f'Submitted batch {batch_handle.id}, see {url}')
         if verbose:
-            print(f'Batch consists of {n_jobs_submitted} jobs, submitted in {round(time.time() - submit_batch_start, 3)} seconds:')
+            print(f'Submitted batch {batch_id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
             print('')
+
         if open:
             webbrowser.open(url)
         if wait and len(unsubmitted_jobs) > 0:
             if verbose:
-                print(f'Waiting for batch {batch_handle.id}...')
-            starting_job_id = min(j._client_job.job_id for j in unsubmitted_jobs)
+                print(f'Waiting for batch {batch_id}...')
+            starting_job_id: int = min(j._client_job.job_id for j in unsubmitted_jobs)  # type: ignore
             await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
             status = await batch_handle._async_batch.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
-            print(f'batch {batch_handle.id} complete: {status["state"]}')
+            print(f'batch {batch_id} complete: {status["state"]}')
 
         batch._python_function_defs.clear()
         batch._python_function_files.clear()

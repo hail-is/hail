@@ -1,9 +1,13 @@
 package is.hail.expr.ir.functions
 
-import java.util.IllegalFormatConversionException
+import is.hail.annotations.Region
 
+import java.util.IllegalFormatConversionException
 import is.hail.asm4s.{coerce => _, _}
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir._
+import is.hail.io.fs.FS
+import is.hail.io.vcf.{LoadVCF, VCFHeaderInfo}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
@@ -395,6 +399,37 @@ object UtilFunctions extends RegistryFunctions {
             })
 
           IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.cne(0))))
+        }
+    }
+
+    registerIEmitCode4("getVCFHeader", TString, TString, TString, TString,
+      VCFHeaderInfo.headerType, (_, fileET, _, _, _) => EmitType(VCFHeaderInfo.headerTypePType.sType, fileET.required)) {
+      case (cb, r, rt, errID, file, filter, find, replace) =>
+        file.toI(cb).map(cb) { case filePath: SStringValue =>
+          val filterVar = cb.newLocal[String]("filterVar")
+          val findVar = cb.newLocal[String]("findVar")
+          val replaceVar = cb.newLocal[String]("replaceVar")
+          filter.toI(cb).consume(cb, {
+            cb.assign(filterVar, Code._null)
+          }, { filt =>
+            cb.assign(filterVar, filt.asString.loadString(cb))
+          })
+          find.toI(cb).consume(cb, {
+            cb.assign(findVar, Code._null)
+          }, { find =>
+            cb.assign(findVar, find.asString.loadString(cb))
+          })
+          replace.toI(cb).consume(cb, {
+            cb.assign(replaceVar, Code._null)
+          }, { replace =>
+            cb.assign(replaceVar, replace.asString.loadString(cb))
+          })
+          val hd = Code.invokeScalaObject5[FS, String, String, String, String, VCFHeaderInfo](
+            LoadVCF.getClass, "getVCFHeaderInfo", cb.emb.getFS,
+            filePath.loadString(cb), filterVar, findVar, replaceVar)
+          val addr = cb.memoize(hd.invoke[HailStateManager, Region, Boolean, Long]("writeToRegion",
+            cb.emb.getObject(cb.emb.ecb.ctx.stateManager), r, const(false)))
+          VCFHeaderInfo.headerTypePType.loadCheapSCode(cb, addr)
         }
     }
   }

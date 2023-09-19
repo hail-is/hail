@@ -25,6 +25,16 @@ object Bindings {
               curVals -> TArray(eltType))
       else
         empty
+    case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, _) =>
+      val contextType = TIterable.elementType(contexts.typ)
+      val eltType = tcoerce[TStruct](tcoerce[TStream](makeProducer.typ).elementType)
+      if (i == 1)
+        Array(ctxName -> contextType)
+      else if (i == 2)
+        Array(curKey -> eltType.typeAfterSelectNames(key),
+          curVals -> TArray(eltType))
+      else
+        empty
     case StreamFor(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamFlatMap(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamFilter(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty

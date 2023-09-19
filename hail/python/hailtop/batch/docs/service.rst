@@ -313,6 +313,9 @@ button next to the row for that batch. You can also delete a batch with the "Del
 
     Deleting a batch only removes it from the UI. You will still be billed for a deleted batch.
 
+The UI has an advanced search mode with a custom query language to find batches and jobs.
+Learn more on the :ref:`Advanced Search Help <sec-advanced_search_help>` page.
+
 
 Important Notes
 ---------------

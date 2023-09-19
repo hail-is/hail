@@ -15,6 +15,28 @@
   <li>Cost: {% if 'cost' in job and job['cost'] is not none %}{{ job['cost'] }}{% endif %}</li>
 </ul>
 
+<h2>Cost Breakdown</h2>
+{% if job['cost_breakdown'] %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Resource</th>
+      <th>Cost</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for resource_cost in job['cost_breakdown'] %}
+    <tr>
+      <td>{{ resource_cost['resource'] }}</td>
+      <td>{{ resource_cost['cost'] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No accrued costs</p>
+{% endif %}
+
 <h2>Attempts</h2>
 {% if attempts %}
 <table class="data-table">

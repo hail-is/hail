@@ -27,6 +27,11 @@
 	<a rel="noopener" href="{{ base_path }}/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
 	{% endif %}
       </div>
+      <div>Merge Candidate:
+    {% if wb.merge_candidate is not none %}
+    {{ wb.merge_candidate }}
+    {% endif %}
+      </div>
     </div>
 
     <div>

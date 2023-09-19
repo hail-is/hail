@@ -133,7 +133,7 @@ class LocalBatchBuilder:
                     assert src.startswith(prefix), (prefix, src)
                     files.append(
                         {
-                            'from': f'/shared{src[len(prefix):]}',
+                            'from': f'/shared{src.removeprefix(prefix)}',
                             'to': dest,
                         }
                     )
@@ -270,7 +270,7 @@ users:
                         files.append(
                             {
                                 'from': src,
-                                'to': f'/shared{dest[len(prefix):]}',
+                                'to': f'/shared{dest.removeprefix(prefix)}',
                             }
                         )
                     output_cid, output_ok = await docker_run(

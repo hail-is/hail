@@ -4,18 +4,17 @@ import json
 import os
 import sys
 import uuid
-
+from itertools import chain
 from math import floor, log
 from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
-
 from hail.expr import HailType, tmatrix
 from hail.utils import Interval
 from hail.utils.java import info, warning
-from hail.experimental.vcf_combiner.vcf_combiner import calculate_even_genome_partitioning, \
-    calculate_new_intervals
-from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields
+from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields, make_variant_stream, \
+    make_reference_stream, combine_r, calculate_even_genome_partitioning, \
+    calculate_new_intervals, combine
 
 
 class VDSMetadata(NamedTuple):
@@ -157,8 +156,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         A list of intervals defining how to partition the GVCF files. The same partitioning is used
         for all GVCF files. Finer partitioning yields more parallelism but less work per task.
     gvcf_info_to_keep : :class:`list` of :class:`str` or :obj:`None`
-        GVCF ``INFO`` fields to keep in the ``gvcf_info`` entry field. By default, all fields are
-        kept except ``END`` and ``DP`` are kept.
+        GVCF ``INFO`` fields to keep in the ``gvcf_info`` entry field. By default, all fields
+        except ``END`` and ``DP`` are kept.
     gvcf_reference_entry_fields_to_keep : :class:`list` of :class:`str` or :obj:`None`
         Genotype fields to keep in the reference table. If empty, the first 10,000 reference block
         rows of ``mt`` will be sampled and all fields found to be defined other than ``GT``, ``AD``,
@@ -198,6 +197,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_gvcf_import_intervals',
         '_gvcf_info_to_keep',
         '_gvcf_reference_entry_fields_to_keep',
+        '_call_fields',
     ]
 
     __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id', '__intervals_cache'])
@@ -214,6 +214,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  target_records: int = _default_target_records,
                  gvcf_batch_size: int = _default_gvcf_batch_size,
                  contig_recoding: Optional[Dict[str, str]] = None,
+                 call_fields: Collection[str],
                  vdses: List[VDSMetadata],
                  gvcfs: List[str],
                  gvcf_sample_names: Optional[List[str]] = None,
@@ -250,6 +251,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self._branch_factor = branch_factor
         self._target_records = target_records
         self._contig_recoding = contig_recoding
+        self._call_fields = list(call_fields)
         self._vdses = collections.defaultdict(list)
         for vds in vdses:
             self._vdses[max(1, floor(log(vds.n_samples, self._branch_factor)))].append(vds)
@@ -369,6 +371,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 'gvcf_reference_entry_fields_to_keep': None
                 if self._gvcf_reference_entry_fields_to_keep is None
                 else list(self._gvcf_reference_entry_fields_to_keep),
+                'call_fields': self._call_fields,
                 'vdses': [md for i in sorted(self._vdses, reverse=True) for md in self._vdses[i]],
                 'gvcfs': self._gvcfs,
                 'gvcf_sample_names': self._gvcf_sample_names,
@@ -434,7 +437,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         largest_vds = max(files_to_merge, key=lambda vds: vds.n_samples)
         vds = hl.vds.read_vds(largest_vds.path,
                               _assert_reference_type=self._dataset_type.reference_type,
-                              _assert_variant_type=self._dataset_type.variant_type)
+                              _assert_variant_type=self._dataset_type.variant_type,
+                              _warn_no_ref_block_max_length=False)
 
         interval_bin = floor(log(new_n_samples, self._branch_factor))
         intervals = self.__intervals_cache.get(interval_bin)
@@ -475,21 +479,81 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             self._gvcf_sample_names = self._gvcf_sample_names[self._gvcf_batch_size * step:]
         else:
             sample_names = None
+        header_file = self._gvcf_external_header or files_to_merge[0]
+        header_info = hl.eval(hl.get_vcf_header_info(header_file))
         merge_vds = []
         merge_n_samples = []
-        vcfs = [transform_gvcf(vcf,
-                               reference_entry_fields_to_keep=self._gvcf_reference_entry_fields_to_keep,
-                               info_to_keep=self._gvcf_info_to_keep)
-                for vcf in hl.import_gvcfs(files_to_merge,
-                                           self._gvcf_import_intervals,
-                                           array_elements_required=False,
-                                           _external_header=self._gvcf_external_header,
-                                           _external_sample_ids=[[name] for name in sample_names] if sample_names is not None else None,
-                                           reference_genome=self._reference_genome,
-                                           contig_recoding=self._contig_recoding)]
-        while vcfs:
-            merging, vcfs = vcfs[:step], vcfs[step:]
-            merge_vds.append(combine_variant_datasets(merging))
+
+        intervals_literal = hl.literal([hl.Struct(contig=i.start.contig, start=i.start.position, end=i.end.position) for
+                                        i in self._gvcf_import_intervals])
+
+        partition_interval_point_type = hl.tstruct(locus=hl.tlocus(self._reference_genome))
+        partition_intervals = [hl.Interval(start=hl.Struct(locus=i.start),
+                                           end=hl.Struct(locus=i.end),
+                                           includes_start=i.includes_start,
+                                           includes_end=i.includes_end,
+                                           point_type=partition_interval_point_type) for i in
+                               self._gvcf_import_intervals]
+        vcfs = files_to_merge
+        if sample_names is None:
+            vcfs_lit = hl.literal(vcfs)
+            range_ht = hl.utils.range_table(len(vcfs), n_partitions=min(len(vcfs), 32))
+
+            range_ht = range_ht.annotate(sample_id=hl.rbind(hl.get_vcf_header_info(vcfs_lit[range_ht.idx]),
+                                                            lambda header: header.sampleIDs[0]))
+
+            sample_ids = range_ht.aggregate(hl.agg.collect(range_ht.sample_id))
+        else:
+            sample_ids = sample_names
+        for start in range(0, len(vcfs), step):
+            ids = sample_ids[start:start + step]
+            merging = vcfs[start:start + step]
+
+            reference_ht = hl.Table._generate(contexts=intervals_literal,
+                                              partitions=partition_intervals,
+                                              rowfn=lambda interval, globals:
+                                              hl._zip_join_producers(hl.enumerate(hl.literal(merging)),
+                                                                     lambda idx_and_path: make_reference_stream(
+                                                                         hl.import_gvcf_interval(
+                                                                             idx_and_path[1], idx_and_path[0],
+                                                                             interval.contig,
+                                                                             interval.start, interval.end, header_info,
+                                                                             call_fields=self._call_fields,
+                                                                             array_elements_required=False,
+                                                                             reference_genome=self._reference_genome,
+                                                                             contig_recoding=self._contig_recoding),
+                                                                         self._gvcf_reference_entry_fields_to_keep),
+                                                                     ['locus'],
+                                                                     lambda k, v: k.annotate(data=v)),
+                                              globals=hl.struct(
+                                                  g=hl.literal(ids).map(lambda s: hl.struct(__cols=[hl.struct(s=s)]))))
+            reference_ht = combine_r(reference_ht, ref_block_max_len_field=None)  # compute max length at the end
+
+            variant_ht = hl.Table._generate(contexts=intervals_literal,
+                                            partitions=partition_intervals,
+                                            rowfn=lambda interval, globals:
+                                            hl._zip_join_producers(hl.enumerate(hl.literal(merging)),
+                                                                   lambda idx_and_path: make_variant_stream(
+                                                                       hl.import_gvcf_interval(
+                                                                           idx_and_path[1], idx_and_path[0],
+                                                                           interval.contig,
+                                                                           interval.start, interval.end, header_info,
+                                                                           call_fields=self._call_fields,
+                                                                           array_elements_required=False,
+                                                                           reference_genome=self._reference_genome,
+                                                                           contig_recoding=self._contig_recoding),
+                                                                       self._gvcf_info_to_keep),
+                                                                   ['locus'],
+                                                                   lambda k, v: k.annotate(data=v)),
+                                            globals=hl.struct(
+                                                g=hl.literal(ids).map(lambda s: hl.struct(__cols=[hl.struct(s=s)]))))
+            variant_ht = combine(variant_ht)
+            vds = hl.vds.VariantDataset(reference_ht._unlocalize_entries('__entries', '__cols', ['s']),
+                                        variant_ht._unlocalize_entries('__entries', '__cols',
+                                                                       ['s'])._key_rows_by_assert_sorted('locus',
+                                                                                                         'alleles'))
+
+            merge_vds.append(vds)
             merge_n_samples.append(len(merging))
         if self.finished and len(merge_vds) == 1:
             self._write_final(merge_vds[0])
@@ -513,7 +577,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         variant_type = self._dataset_type.variant_type
         return [hl.vds.read_vds(path, intervals=intervals,
                                 _assert_reference_type=reference_type,
-                                _assert_variant_type=variant_type)
+                                _assert_variant_type=variant_type,
+                                _warn_no_ref_block_max_length=False)
                 for path in inputs]
 
 
@@ -532,6 +597,7 @@ def new_combiner(*,
                  gvcf_sample_names: Optional[List[str]] = None,
                  gvcf_info_to_keep: Optional[Collection[str]] = None,
                  gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
+                 call_fields: Collection[str] = ['PGT'],
                  branch_factor: int = VariantDatasetCombiner._default_branch_factor,
                  target_records: int = VariantDatasetCombiner._default_target_records,
                  gvcf_batch_size: Optional[int] = None,
@@ -636,12 +702,28 @@ def new_combiner(*,
     vds = None
     gvcf_type = None
     if vds_paths:
-        vds = hl.vds.read_vds(vds_paths[0])
-        ref_entry_tmp = set(vds.reference_data.entry) - {'END'}
-        if gvcf_reference_entry_fields_to_keep is not None and ref_entry_tmp != gvcf_reference_entry_fields_to_keep:
+        # sync up gvcf_reference_entry_fields_to_keep and they reference entry types from the VDS
+        vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False)
+        vds_ref_entry = set(vds.reference_data.entry) - {'END'}
+        if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning("Mismatch between 'gvcf_reference_entry_fields' to keep and VDS reference data "
-                    "entry types. Overwriting with types from supplied VDS.")
-        gvcf_reference_entry_fields_to_keep = ref_entry_tmp
+                    "entry types. Overwriting with reference entry fields from supplied VDS.\n"
+                    f"    VDS reference entry fields      : {sorted(vds_ref_entry)}\n"
+                    f"    requested reference entry fields: {sorted(gvcf_reference_entry_fields_to_keep)}")
+        gvcf_reference_entry_fields_to_keep = vds_ref_entry
+
+        # sync up call_fields and call fields present in the VDS
+        all_entry_types = chain(vds.reference_data._type.entry_type.items(),
+                                vds.variant_data._type.entry_type.items())
+        vds_call_fields = {name for name, typ in all_entry_types if typ == hl.tcall} - {'LGT', 'GT'}
+        if 'LPGT' in vds_call_fields:
+            vds_call_fields = (vds_call_fields - {'LPGT'}) | {'PGT'}
+        if set(call_fields) != vds_call_fields:
+            warning("Mismatch between 'call_fields' and VDS call fields. "
+                    "Overwriting with call fields from supplied VDS.\n"
+                    f"    VDS call fields      : {sorted(vds_call_fields)}\n"
+                    f"    requested call fields: {sorted(call_fields)}\n")
+        call_fields = vds_call_fields
 
     if gvcf_paths:
         mt = hl.import_vcf(gvcf_paths[0], header_file=gvcf_external_header, force_bgz=True,
@@ -681,6 +763,8 @@ def new_combiner(*,
         if gvcf_reference_entry_fields_to_keep is not None:
             for field in sorted(gvcf_reference_entry_fields_to_keep):
                 sha.update(field.encode())
+        for call_field in sorted(call_fields):
+            sha.update(call_field.encode())
         if contig_recoding is not None:
             for key, value in sorted(contig_recoding.items()):
                 sha.update(key.encode())
@@ -701,7 +785,8 @@ def new_combiner(*,
         vdses = []
         for path in vds_paths:
             vds = hl.vds.read_vds(path, _assert_reference_type=dataset_type.reference_type,
-                                  _assert_variant_type=dataset_type.variant_type)
+                                  _assert_variant_type=dataset_type.variant_type,
+                                  _warn_no_ref_block_max_length=False)
             n_samples = vds.n_samples()
             vdses.append(VDSMetadata(path, n_samples))
 
@@ -716,6 +801,7 @@ def new_combiner(*,
                                   target_records=target_records,
                                   gvcf_batch_size=gvcf_batch_size,
                                   contig_recoding=contig_recoding,
+                                  call_fields=call_fields,
                                   vdses=vdses,
                                   gvcfs=gvcf_paths,
                                   gvcf_import_intervals=intervals,

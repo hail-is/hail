@@ -486,7 +486,8 @@ async def delete_user(app, user):
         await hail_identity_secret.delete()
 
     namespace_name = user['namespace_name']
-    if namespace_name is not None and namespace_name != DEFAULT_NAMESPACE:
+    # auth services in test namespaces cannot/should not be creating and deleting namespaces
+    if namespace_name is not None and namespace_name != DEFAULT_NAMESPACE and not is_test_deployment:
         assert user['is_developer'] == 1
 
         # don't bother deleting database-server-config since we're
@@ -547,7 +548,10 @@ async def update_users(app):
         await delete_user(app, user)
 
     users_without_hail_identity_uid = [
-        x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE hail_identity_uid IS NULL')
+        x
+        async for x in db.execute_and_fetchall(
+            "SELECT * FROM users WHERE state = 'active' AND hail_identity_uid IS NULL"
+        )
     ]
     for user in users_without_hail_identity_uid:
         await resolve_identity_uid(app, user['hail_identity'])

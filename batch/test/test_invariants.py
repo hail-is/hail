@@ -17,7 +17,8 @@ log = logging.getLogger(__name__)
 async def test_invariants():
     deploy_config = get_deploy_config()
     url = deploy_config.url('batch-driver', '/check_invariants')
-    headers = await hail_credentials().auth_headers()
+    async with hail_credentials() as credentials:
+        headers = await credentials.auth_headers()
     async with client_session(timeout=aiohttp.ClientTimeout(total=60)) as session:
 
         data = await retry_transient_errors(session.get_read_json, url, headers=headers)

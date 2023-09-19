@@ -1,7 +1,5 @@
 import abc
-from typing import Any, Dict, Optional
-
-from typing_extensions import TypedDict
+from typing import Any, Dict, Optional, TypedDict
 
 
 class QuantifiedResource(TypedDict):
@@ -35,7 +33,7 @@ class Resource(abc.ABC):
         raise NotImplementedError
 
 
-class StaticSizedDiskResourceMixin(Resource, abc.ABC):
+class StaticSizedDiskResourceMixin(Resource):
     storage_in_gib: int
 
     def to_quantified_resource(
@@ -46,7 +44,7 @@ class StaticSizedDiskResourceMixin(Resource, abc.ABC):
         return {'name': self.name, 'quantity': self.storage_in_gib * worker_fraction_in_1024ths}
 
 
-class DynamicSizedDiskResourceMixin(Resource, abc.ABC):
+class DynamicSizedDiskResourceMixin(Resource):
     @abc.abstractmethod
     def to_quantified_resource(
         self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
@@ -54,7 +52,7 @@ class DynamicSizedDiskResourceMixin(Resource, abc.ABC):
         raise NotImplementedError
 
 
-class ComputeResourceMixin(Resource, abc.ABC):
+class ComputeResourceMixin(Resource):
     def to_quantified_resource(
         self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
     ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
@@ -62,7 +60,7 @@ class ComputeResourceMixin(Resource, abc.ABC):
         return {'name': self.name, 'quantity': cpu_in_mcpu}
 
 
-class VMResourceMixin(Resource, abc.ABC):
+class VMResourceMixin(Resource):
     def to_quantified_resource(
         self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
     ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
@@ -70,7 +68,7 @@ class VMResourceMixin(Resource, abc.ABC):
         return {'name': self.name, 'quantity': worker_fraction_in_1024ths}
 
 
-class MemoryResourceMixin(Resource, abc.ABC):
+class MemoryResourceMixin(Resource):
     def to_quantified_resource(
         self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
     ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
@@ -78,7 +76,7 @@ class MemoryResourceMixin(Resource, abc.ABC):
         return {'name': self.name, 'quantity': memory_in_bytes // 1024 // 1024}
 
 
-class IPFeeResourceMixin(Resource, abc.ABC):
+class IPFeeResourceMixin(Resource):
     def to_quantified_resource(
         self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
     ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
@@ -86,7 +84,7 @@ class IPFeeResourceMixin(Resource, abc.ABC):
         return {'name': self.name, 'quantity': worker_fraction_in_1024ths}
 
 
-class ServiceFeeResourceMixin(Resource, abc.ABC):
+class ServiceFeeResourceMixin(Resource):
     def to_quantified_resource(
         self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
     ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument

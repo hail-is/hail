@@ -3,6 +3,8 @@ import asyncio
 from types import TracebackType
 import orjson
 import aiohttp
+import aiohttp.abc
+import aiohttp.typedefs
 
 from .utils import async_to_blocking
 from .tls import internal_client_ssl_context, external_client_ssl_context
@@ -114,7 +116,7 @@ class ClientSession:
         )
 
     def request(
-        self, method: str, url: aiohttp.client.StrOrURL, **kwargs: Any
+        self, method: str, url: aiohttp.typedefs.StrOrURL, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
 
@@ -156,7 +158,7 @@ class ClientSession:
         return self.client_session.ws_connect(*args, **kwargs)
 
     def get(
-        self, url: aiohttp.client.StrOrURL, *, allow_redirects: bool = True, **kwargs: Any
+        self, url: aiohttp.typedefs.StrOrURL, *, allow_redirects: bool = True, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
         return self.request('GET', url, allow_redirects=allow_redirects, **kwargs)
 
@@ -173,17 +175,17 @@ class ClientSession:
             return await resp.read()
 
     def options(
-        self, url: aiohttp.client.StrOrURL, *, allow_redirects: bool = True, **kwargs: Any
+        self, url: aiohttp.typedefs.StrOrURL, *, allow_redirects: bool = True, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
         return self.request('OPTIONS', url, allow_redirects=allow_redirects, **kwargs)
 
     def head(
-        self, url: aiohttp.client.StrOrURL, *, allow_redirects: bool = False, **kwargs: Any
+        self, url: aiohttp.typedefs.StrOrURL, *, allow_redirects: bool = False, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
         return self.request('HEAD', url, allow_redirects=allow_redirects, **kwargs)
 
     def post(
-        self, url: aiohttp.client.StrOrURL, *, data: Any = None, **kwargs: Any
+        self, url: aiohttp.typedefs.StrOrURL, *, data: Any = None, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
         return self.request('POST', url, data=data, **kwargs)
 
@@ -200,17 +202,17 @@ class ClientSession:
             return await resp.read()
 
     def put(
-        self, url: aiohttp.client.StrOrURL, *, data: Any = None, **kwargs: Any
+        self, url: aiohttp.typedefs.StrOrURL, *, data: Any = None, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
         return self.request('PUT', url, data=data, **kwargs)
 
     def patch(
-        self, url: aiohttp.client.StrOrURL, *, data: Any = None, **kwargs: Any
+        self, url: aiohttp.typedefs.StrOrURL, *, data: Any = None, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
         return self.request('PATCH', url, data=data, **kwargs)
 
     def delete(
-        self, url: aiohttp.client.StrOrURL, **kwargs: Any
+        self, url: aiohttp.typedefs.StrOrURL, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
         return self.request('DELETE', url, **kwargs)
 

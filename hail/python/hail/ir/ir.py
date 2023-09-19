@@ -1,13 +1,15 @@
+from typing import Callable, TypeVar, cast
+from typing_extensions import ParamSpec
 import copy
 import json
 from collections import defaultdict
 
-import decorator
+from hailtop.hail_decorator import decorator
 
 import hail
 from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
     tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
-    tstruct, ttuple, tinterval, tvoid, trngstate
+    tstruct, ttuple, tinterval, tvoid, trngstate, tlocus, tcall
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
@@ -1368,6 +1370,70 @@ class ToStream(IR):
         return tstream(self.a.typ.element_type)
 
 
+class StreamZipJoinProducers(IR):
+    @typecheck_method(contexts=IR,
+                      ctx_name=str,
+                      make_producer=IR,
+                      key=sequenceof(str),
+                      cur_key=str,
+                      cur_vals=str,
+                      join_f=IR)
+    def __init__(self, contexts, ctx_name, make_producer, key, cur_key, cur_vals, join_f):
+        super().__init__(contexts, make_producer, join_f)
+        self.contexts = contexts
+        self.ctx_name = ctx_name
+        self.make_producer = make_producer
+        self.key = key
+        self.cur_key = cur_key
+        self.cur_vals = cur_vals
+        self.join_f = join_f
+
+    def _handle_randomness(self, create_uids):
+        assert not create_uids
+        return self
+
+    @typecheck_method(new_ir=IR)
+    def copy(self, *new_irs):
+        assert len(new_irs) == 3
+        return StreamZipJoinProducers(new_irs[0], self.ctx_name, new_irs[1],
+                                      self.key, self.cur_key, self.cur_vals, new_irs[2])
+
+    def head_str(self):
+        return '({}) {} {} {}'.format(' '.join([escape_id(x) for x in self.key]), self.ctx_name,
+                                      self.cur_key, self.cur_vals)
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.contexts.compute_type(env, agg_env, deep_typecheck)
+        ctx_elt_type = self.contexts.typ.element_type
+        self.make_producer.compute_type({**env, self.ctx_name: ctx_elt_type}, agg_env, deep_typecheck)
+        stream_t = self.make_producer.typ
+        struct_t = stream_t.element_type
+        new_env = {**env}
+        new_env[self.cur_key] = tstruct(**{k: struct_t[k] for k in self.key})
+        new_env[self.cur_vals] = tarray(struct_t)
+        self.join_f.compute_type(new_env, agg_env, deep_typecheck)
+        return tstream(self.join_f.typ)
+
+    def renderable_bindings(self, i, default_value=None):
+        if i == 1:
+            if default_value is None:
+                ctx_t = self.contexts.typ.element_type
+            else:
+                ctx_t = default_value
+            return {self.ctx_name: ctx_t}
+        elif i == 2:
+            if default_value is None:
+                struct_t = self.make_producer.typ.element_type
+                key_x = tstruct(**{k: struct_t[k] for k in self.key})
+                vals_x = tarray(struct_t)
+            else:
+                key_x = default_value
+                vals_x = default_value
+            return {self.cur_key: key_x, self.cur_vals: vals_x}
+        else:
+            return {}
+
+
 class StreamZipJoin(IR):
     @typecheck_method(streams=sequenceof(IR), key=sequenceof(str), cur_key=str, cur_vals=str, join_f=IR)
     def __init__(self, streams, key, cur_key, cur_vals, join_f):
@@ -2164,9 +2230,6 @@ class StreamAgg(IR):
         else:
             return {}
 
-    def renderable_uses_agg_context(self, i: int):
-        return i == 0
-
     def renderable_new_block(self, i: int) -> bool:
         return i == 1
 
@@ -2911,19 +2974,23 @@ def register_seeded_function(name, param_types, ret_type):
     _register(_seeded_function_registry, name, (param_types, ret_type))
 
 
-def udf(*param_types):
+T = TypeVar('T')
+P = ParamSpec('P')
+
+
+def udf(*param_types: HailType) -> Callable[[Callable[P, T]], Callable[P, T]]:
 
     uid = Env.get_uid()
 
-    @decorator.decorator
-    def wrapper(__original_func, *args, **kwargs):
+    @decorator
+    def wrapper(__original_func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         registry = hail.ir.ir._udf_registry
         if uid in registry:
             f = registry[uid]
         else:
             f = hail.experimental.define_function(__original_func, *param_types, _name=uid)
             registry[uid] = f
-        return f(*args, **kwargs)
+        return cast(Callable[P, T], f)(*args, **kwargs)
 
     return wrapper
 
@@ -3181,6 +3248,100 @@ class PartitionReader(object):
         pass
 
 
+class GVCFPartitionReader(PartitionReader):
+
+    entries_field_name = '__entries'
+    def __init__(self, header, call_fields, entry_float_type, array_elements_required, rg, contig_recoding,
+                 skip_invalid_loci, filter, find, replace, uid_field):
+        self.header = header
+        self.call_fields = call_fields
+        self.entry_float_type = entry_float_type
+        self.array_elements_required = array_elements_required
+        self.rg = rg
+        self.contig_recoding = contig_recoding
+        self.skip_invalid_loci = skip_invalid_loci
+        self.filter = filter
+        self.find = find
+        self.replace = replace
+        self.uid_field = uid_field
+
+    def with_uid_field(self, uid_field):
+        return GVCFPartitionReader(self.header,
+                                   self.call_fields,
+                                   self.entry_float_type,
+                                   self.array_elements_required,
+                                   self.rg,
+                                   self.contig_recoding,
+                                   self.skip_invalid_loci,
+                                   self.filter,
+                                   self.find,
+                                   self.replace,
+                                   uid_field)
+
+    def render(self):
+        return escape_str(json.dumps({"name": "GVCFPartitionReader",
+                                      "header": {"name": "VCFHeaderInfo", **self.header},
+                                      "callFields": list(self.call_fields),
+                                      "entryFloatType": "Float64" if self.entry_float_type == tfloat64 else "Float32",
+                                      "arrayElementsRequired": self.array_elements_required,
+                                      "rg": self.rg.name if self.rg is not None else None,
+                                      "contigRecoding": self.contig_recoding,
+                                      "filterAndReplace": {
+                                          "name": "TextInputFilterAndReplace",
+                                          "filter": self.filter,
+                                          "find": self.find,
+                                          "replace": self.replace,
+                                      },
+                                      "skipInvalidLoci": self.skip_invalid_loci,
+                                      "entriesFieldName": GVCFPartitionReader.entries_field_name,
+                                      "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy'}))
+
+    def _eq(self, other):
+        return isinstance(other, GVCFPartitionReader) \
+               and self.header == other.header \
+               and self.call_fields == other.call_fields \
+               and self.entry_float_type == other.entry_float_type \
+               and self.array_elements_required == other.array_elements_required \
+               and self.rg == other.rg \
+               and self.contig_recoding == other.contig_recoding \
+               and self.skip_invalid_loci == other.skip_invalid_loci \
+               and self.filter == other.filter \
+               and self.find == other.find \
+               and self.replace == other.replace \
+               and self.uid_field == other.uid_field
+
+    def row_type(self):
+        if self.uid_field is not None:
+            uid_fd = {self.uid_field: ttuple(tint64, tint64)}
+        else:
+            uid_fd = {}
+
+        from hail.expr.type_parsing import vcf_type_grammar, vcf_type_node_visitor
+
+        def parse_type(t):
+            tree = vcf_type_grammar.parse(t)
+            return vcf_type_node_visitor.visit(tree)
+
+        def subst_format(name, t):
+            if t == tfloat64:
+                return self.entry_float_type
+            if name in self.call_fields or name == 'GT':
+                return tcall
+            elif isinstance(t, tarray):
+                return tarray(subst_format(name, t.element_type))
+            return t
+
+        return tstruct(locus=tstruct(contig=tstr, position=tint32) if self.rg is None else tlocus(self.rg),
+                       alleles=tarray(tstr),
+                       rsid=tstr,
+                       qual=tfloat64,
+                       filters=tset(tstr),
+                       info=tstruct(**{k: parse_type(v) for k, v in self.header['infoFields']}),
+                       **{GVCFPartitionReader.entries_field_name: tarray(
+                           tstruct(**{k: subst_format(k, parse_type(v)) for k, v in self.header['formatFields']}))},
+                       **uid_fd)
+
+
 class PartitionNativeIntervalReader(PartitionReader):
     def __init__(self, path, table_row_type, uid_field=None):
         self.path = path
@@ -3188,7 +3349,7 @@ class PartitionNativeIntervalReader(PartitionReader):
         self.uid_field = uid_field
 
     def with_uid_field(self, uid_field):
-        return PartitionNativeIntervalReader(self.path, uid_field)
+        return PartitionNativeIntervalReader(self.path, self.table_row_type, uid_field)
 
     def render(self):
         return escape_str(json.dumps({"name": "PartitionNativeIntervalReader",

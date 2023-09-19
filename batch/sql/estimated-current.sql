@@ -5,6 +5,11 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `frozen` BOOLEAN NOT NULL DEFAULT FALSE
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `feature_flags` (
+  `compact_billing_tables` BOOLEAN NOT NULL,
+  `oms_agent` BOOLEAN NOT NULL DEFAULT TRUE
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `resources` (
   `resource` VARCHAR(100) NOT NULL,
   `rate` DOUBLE NOT NULL,
@@ -274,6 +279,14 @@ CREATE INDEX `jobs_batch_id_update_id` ON `jobs` (`batch_id`, `update_id`);
 CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 
+CREATE TABLE IF NOT EXISTS `jobs_telemetry` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `time_ready` BIGINT DEFAULT NULL,
+  PRIMARY KEY (`batch_id`, `job_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,
   `start_job_id` INT NOT NULL,
@@ -344,6 +357,7 @@ CREATE TABLE IF NOT EXISTS `batch_attributes` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
+CREATE INDEX batch_attributes_value ON `batch_attributes` (`value`(256));
 
 DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v2`;
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_v2` (
@@ -410,6 +424,7 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_v3` (
   FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX aggregated_billing_project_user_resources_v3 ON `aggregated_billing_project_user_resources_v3` (`user`);
+CREATE INDEX aggregated_billing_project_user_resources_v3_token ON `aggregated_billing_project_user_resources_v3` (`token`);
 
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date_v3` (
   `billing_date` DATE NOT NULL,
@@ -423,6 +438,7 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date_v3
   FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX aggregated_billing_project_user_resources_by_date_v3_user ON `aggregated_billing_project_user_resources_by_date_v3` (`billing_date`, `user`);
+CREATE INDEX aggregated_billing_project_user_resources_by_date_v3_token ON `aggregated_billing_project_user_resources_by_date_v3` (`token`);
 
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_v3` (
   `batch_id` BIGINT NOT NULL,
@@ -638,6 +654,42 @@ BEGIN
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
+  DECLARE always_run boolean;
+  DECLARE cores_mcpu bigint;
+
+  DECLARE was_marked_cancelled boolean;
+  DECLARE was_cancelled        boolean;
+  DECLARE was_cancellable      boolean;
+
+  DECLARE now_marked_cancelled boolean;
+  DECLARE now_cancelled        boolean;
+  DECLARE now_cancellable      boolean;
+
+  DECLARE was_ready boolean;
+  DECLARE now_ready boolean;
+
+  DECLARE was_running boolean;
+  DECLARE now_running boolean;
+
+  DECLARE was_creating boolean;
+  DECLARE now_creating boolean;
+
+  DECLARE delta_n_ready_cancellable_jobs          int;
+  DECLARE delta_ready_cancellable_cores_mcpu   bigint;
+  DECLARE delta_n_ready_jobs                      int;
+  DECLARE delta_ready_cores_mcpu               bigint;
+  DECLARE delta_n_cancelled_ready_jobs            int;
+
+  DECLARE delta_n_running_cancellable_jobs        int;
+  DECLARE delta_running_cancellable_cores_mcpu bigint;
+  DECLARE delta_n_running_jobs                    int;
+  DECLARE delta_running_cores_mcpu             bigint;
+  DECLARE delta_n_cancelled_running_jobs          int;
+
+  DECLARE delta_n_creating_cancellable_jobs       int;
+  DECLARE delta_n_creating_jobs                   int;
+  DECLARE delta_n_cancelled_creating_jobs         int;
+
   SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
 
   SET cur_batch_cancelled = EXISTS (SELECT TRUE
@@ -648,154 +700,92 @@ BEGIN
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
-  IF OLD.state = 'Ready' THEN
-    IF NOT (OLD.always_run OR OLD.cancelled OR cur_batch_cancelled) THEN
-      # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-      VALUES (OLD.batch_id, NEW.update_id, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
-      ON DUPLICATE KEY UPDATE
-        n_ready_cancellable_jobs = n_ready_cancellable_jobs - 1,
-        ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - OLD.cores_mcpu;
-    END IF;
+  SET always_run = old.always_run; # always_run is immutable
+  SET cores_mcpu = old.cores_mcpu; # cores_mcpu is immutable
 
-    IF NOT OLD.always_run AND (OLD.cancelled OR cur_batch_cancelled) THEN
-      # cancelled
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_ready_jobs)
-      VALUES (cur_user, OLD.inst_coll, rand_token, -1)
-      ON DUPLICATE KEY UPDATE
-        n_cancelled_ready_jobs = n_cancelled_ready_jobs - 1;
-    ELSE
-      # runnable
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
-      VALUES (cur_user, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
-      ON DUPLICATE KEY UPDATE
-        n_ready_jobs = n_ready_jobs - 1,
-        ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
-    END IF;
-  ELSEIF OLD.state = 'Running' THEN
-    IF NOT (OLD.always_run OR cur_batch_cancelled) THEN
-      # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_running_cancellable_jobs, running_cancellable_cores_mcpu)
-      VALUES (OLD.batch_id, NEW.update_id, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
-      ON DUPLICATE KEY UPDATE
-        n_running_cancellable_jobs = n_running_cancellable_jobs - 1,
-        running_cancellable_cores_mcpu = running_cancellable_cores_mcpu - OLD.cores_mcpu;
-    END IF;
+  SET was_marked_cancelled = old.cancelled OR cur_batch_cancelled;
+  SET was_cancelled        = NOT always_run AND was_marked_cancelled;
+  SET was_cancellable      = NOT always_run AND NOT was_marked_cancelled;
 
-    # state = 'Running' jobs cannot be cancelled at the job level
-    IF NOT OLD.always_run AND cur_batch_cancelled THEN
-      # cancelled
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_running_jobs)
-      VALUES (cur_user, OLD.inst_coll, rand_token, -1)
-      ON DUPLICATE KEY UPDATE
-        n_cancelled_running_jobs = n_cancelled_running_jobs - 1;
-    ELSE
-      # running
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_running_jobs, running_cores_mcpu)
-      VALUES (cur_user, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
-      ON DUPLICATE KEY UPDATE
-        n_running_jobs = n_running_jobs - 1,
-        running_cores_mcpu = running_cores_mcpu - OLD.cores_mcpu;
-    END IF;
-  ELSEIF OLD.state = 'Creating' THEN
-    IF NOT (OLD.always_run OR cur_batch_cancelled) THEN
-      # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_creating_cancellable_jobs)
-      VALUES (OLD.batch_id, NEW.update_id, OLD.inst_coll, rand_token, -1)
-      ON DUPLICATE KEY UPDATE
-        n_creating_cancellable_jobs = n_creating_cancellable_jobs - 1;
-    END IF;
+  SET now_marked_cancelled = new.cancelled or cur_batch_cancelled;
+  SET now_cancelled        = NOT always_run AND now_marked_cancelled;
+  SET now_cancellable      = NOT always_run AND NOT now_marked_cancelled;
 
-    # state = 'Creating' jobs cannot be cancelled at the job level
-    IF NOT OLD.always_run AND cur_batch_cancelled THEN
-      # cancelled
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_creating_jobs)
-      VALUES (cur_user, OLD.inst_coll, rand_token, -1)
-      ON DUPLICATE KEY UPDATE
-        n_cancelled_creating_jobs = n_cancelled_creating_jobs - 1;
-    ELSE
-      # creating
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_creating_jobs)
-      VALUES (cur_user, OLD.inst_coll, rand_token, -1)
-      ON DUPLICATE KEY UPDATE
-        n_creating_jobs = n_creating_jobs - 1;
-    END IF;
+  # NB: was_cancelled => now_cancelled b/c you cannot be uncancelled
 
-  END IF;
+  SET was_ready    = old.state = 'Ready';
+  SET now_ready    = new.state = 'Ready';
+  SET was_running  = old.state = 'Running';
+  SET now_running  = new.state = 'Running';
+  SET was_creating = old.state = 'Creating';
+  SET now_creating = new.state = 'Creating';
 
-  IF NEW.state = 'Ready' THEN
-    IF NOT (NEW.always_run OR NEW.cancelled OR cur_batch_cancelled) THEN
-      # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-      VALUES (NEW.batch_id, NEW.update_id, NEW.inst_coll, rand_token, 1, NEW.cores_mcpu)
-      ON DUPLICATE KEY UPDATE
-        n_ready_cancellable_jobs = n_ready_cancellable_jobs + 1,
-        ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + NEW.cores_mcpu;
-    END IF;
+  SET delta_n_ready_cancellable_jobs        = (-1 * was_ready    *  was_cancellable  )     + (now_ready    *  now_cancellable  ) ;
+  SET delta_n_ready_jobs                    = (-1 * was_ready    * (NOT was_cancelled))    + (now_ready    * (NOT now_cancelled));
+  SET delta_n_cancelled_ready_jobs          = (-1 * was_ready    *  was_cancelled    )     + (now_ready    *  now_cancelled    ) ;
 
-    IF NOT NEW.always_run AND (NEW.cancelled OR cur_batch_cancelled) THEN
-      # cancelled
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_ready_jobs)
-      VALUES (cur_user, NEW.inst_coll, rand_token, 1)
-      ON DUPLICATE KEY UPDATE
-        n_cancelled_ready_jobs = n_cancelled_ready_jobs + 1;
-    ELSE
-      # runnable
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
-      VALUES (cur_user, NEW.inst_coll, rand_token, 1, NEW.cores_mcpu)
-      ON DUPLICATE KEY UPDATE
-        n_ready_jobs = n_ready_jobs + 1,
-        ready_cores_mcpu = ready_cores_mcpu + NEW.cores_mcpu;
-    END IF;
-  ELSEIF NEW.state = 'Running' THEN
-    IF NOT (NEW.always_run OR cur_batch_cancelled) THEN
-      # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_running_cancellable_jobs, running_cancellable_cores_mcpu)
-      VALUES (NEW.batch_id, NEW.update_id, NEW.inst_coll, rand_token, 1, NEW.cores_mcpu)
-      ON DUPLICATE KEY UPDATE
-        n_running_cancellable_jobs = n_running_cancellable_jobs + 1,
-        running_cancellable_cores_mcpu = running_cancellable_cores_mcpu + NEW.cores_mcpu;
-    END IF;
+  SET delta_n_running_cancellable_jobs      = (-1 * was_running  *  was_cancellable  )     + (now_running  *  now_cancellable  ) ;
+  SET delta_n_running_jobs                  = (-1 * was_running  * (NOT was_cancelled))    + (now_running  * (NOT now_cancelled));
+  SET delta_n_cancelled_running_jobs        = (-1 * was_running  *  was_cancelled    )     + (now_running  *  now_cancelled    ) ;
 
-    # state = 'Running' jobs cannot be cancelled at the job level
-    IF NOT NEW.always_run AND cur_batch_cancelled THEN
-      # cancelled
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_running_jobs)
-      VALUES (cur_user, NEW.inst_coll, rand_token, 1)
-      ON DUPLICATE KEY UPDATE
-        n_cancelled_running_jobs = n_cancelled_running_jobs + 1;
-    ELSE
-      # running
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_running_jobs, running_cores_mcpu)
-      VALUES (cur_user, NEW.inst_coll, rand_token, 1, NEW.cores_mcpu)
-      ON DUPLICATE KEY UPDATE
-        n_running_jobs = n_running_jobs + 1,
-        running_cores_mcpu = running_cores_mcpu + NEW.cores_mcpu;
-    END IF;
-  ELSEIF NEW.state = 'Creating' THEN
-    IF NOT (NEW.always_run OR cur_batch_cancelled) THEN
-      # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_creating_cancellable_jobs)
-      VALUES (NEW.batch_id, NEW.update_id, NEW.inst_coll, rand_token, 1)
-      ON DUPLICATE KEY UPDATE
-        n_creating_cancellable_jobs = n_creating_cancellable_jobs + 1;
-    END IF;
+  SET delta_n_creating_cancellable_jobs     = (-1 * was_creating *  was_cancellable  )     + (now_creating *  now_cancellable  ) ;
+  SET delta_n_creating_jobs                 = (-1 * was_creating * (NOT was_cancelled))    + (now_creating * (NOT now_cancelled));
+  SET delta_n_cancelled_creating_jobs       = (-1 * was_creating *  was_cancelled    )     + (now_creating *  now_cancelled    ) ;
 
-    # state = 'Creating' jobs cannot be cancelled at the job level
-    IF NOT NEW.always_run AND cur_batch_cancelled THEN
-      # cancelled
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_creating_jobs)
-      VALUES (cur_user, NEW.inst_coll, rand_token, 1)
-      ON DUPLICATE KEY UPDATE
-        n_cancelled_creating_jobs = n_cancelled_creating_jobs + 1;
-    ELSE
-      # creating
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_creating_jobs)
-      VALUES (cur_user, NEW.inst_coll, rand_token, 1)
-      ON DUPLICATE KEY UPDATE
-        n_creating_jobs = n_creating_jobs + 1;
-    END IF;
-  END IF;
+  SET delta_ready_cancellable_cores_mcpu    = delta_n_ready_cancellable_jobs * cores_mcpu;
+  SET delta_ready_cores_mcpu                = delta_n_ready_jobs * cores_mcpu;
+
+  SET delta_running_cancellable_cores_mcpu  = delta_n_running_cancellable_jobs * cores_mcpu;
+  SET delta_running_cores_mcpu              = delta_n_running_jobs * cores_mcpu;
+
+  INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token,
+    n_ready_cancellable_jobs,
+    ready_cancellable_cores_mcpu,
+    n_creating_cancellable_jobs,
+    n_running_cancellable_jobs,
+    running_cancellable_cores_mcpu)
+  VALUES (NEW.batch_id, NEW.update_id, NEW.inst_coll, rand_token,
+    delta_n_ready_cancellable_jobs,
+    delta_ready_cancellable_cores_mcpu,
+    delta_n_creating_cancellable_jobs,
+    delta_n_running_cancellable_jobs,
+    delta_running_cancellable_cores_mcpu)
+  ON DUPLICATE KEY UPDATE
+    n_ready_cancellable_jobs = n_ready_cancellable_jobs + delta_n_ready_cancellable_jobs,
+    ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + delta_ready_cancellable_cores_mcpu,
+    n_creating_cancellable_jobs = n_creating_cancellable_jobs + delta_n_creating_cancellable_jobs,
+    n_running_cancellable_jobs = n_running_cancellable_jobs + delta_n_running_cancellable_jobs,
+    running_cancellable_cores_mcpu = running_cancellable_cores_mcpu + delta_running_cancellable_cores_mcpu;
+
+  INSERT INTO user_inst_coll_resources (user, inst_coll, token,
+    n_ready_jobs,
+    n_running_jobs,
+    n_creating_jobs,
+    ready_cores_mcpu,
+    running_cores_mcpu,
+    n_cancelled_ready_jobs,
+    n_cancelled_running_jobs,
+    n_cancelled_creating_jobs
+  )
+  VALUES (cur_user, NEW.inst_coll, rand_token,
+    delta_n_ready_jobs,
+    delta_n_running_jobs,
+    delta_n_creating_jobs,
+    delta_ready_cores_mcpu,
+    delta_running_cores_mcpu,
+    delta_n_cancelled_ready_jobs,
+    delta_n_cancelled_running_jobs,
+    delta_n_cancelled_creating_jobs
+  )
+  ON DUPLICATE KEY UPDATE
+    n_ready_jobs = n_ready_jobs + delta_n_ready_jobs,
+    n_running_jobs = n_running_jobs + delta_n_running_jobs,
+    n_creating_jobs = n_creating_jobs + delta_n_creating_jobs,
+    ready_cores_mcpu = ready_cores_mcpu + delta_ready_cores_mcpu,
+    running_cores_mcpu = running_cores_mcpu + delta_running_cores_mcpu,
+    n_cancelled_ready_jobs = n_cancelled_ready_jobs + delta_n_cancelled_ready_jobs,
+    n_cancelled_running_jobs = n_cancelled_running_jobs + delta_n_cancelled_running_jobs,
+    n_cancelled_creating_jobs = n_cancelled_creating_jobs + delta_n_cancelled_creating_jobs;
 END $$
 
 DROP TRIGGER IF EXISTS attempt_resources_after_insert $$
@@ -994,85 +984,6 @@ BEGIN
   END IF;
 END $$
 
-DROP PROCEDURE IF EXISTS recompute_incremental $$
-CREATE PROCEDURE recompute_incremental(
-) BEGIN
-
-  DELETE FROM batches_inst_coll_staging;
-  DELETE FROM batch_inst_coll_cancellable_resources;
-  DELETE FROM user_inst_coll_resources;
-
-  DROP TEMPORARY TABLE IF EXISTS `tmp_batch_inst_coll_resources`;
-
-  CREATE TEMPORARY TABLE `tmp_batch_inst_coll_resources` AS (
-    SELECT batch_id, batch_state, batch_cancelled, user, job_inst_coll,
-      COALESCE(SUM(1), 0) as n_jobs,
-      COALESCE(SUM(job_state = 'Ready' AND cancellable), 0) as n_ready_cancellable_jobs,
-      COALESCE(SUM(IF(job_state = 'Ready' AND cancellable, cores_mcpu, 0)), 0) as ready_cancellable_cores_mcpu,
-      COALESCE(SUM(job_state = 'Running' AND cancellable), 0) as n_running_cancellable_jobs,
-      COALESCE(SUM(IF(job_state = 'Running' AND cancellable, cores_mcpu, 0)), 0) as running_cancellable_cores_mcpu,
-      COALESCE(SUM(job_state = 'Creating' AND cancellable), 0) as n_creating_cancellable_jobs,
-      COALESCE(SUM(job_state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
-      COALESCE(SUM(IF(job_state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
-      COALESCE(SUM(job_state = 'Ready' AND runnable), 0) as n_ready_jobs,
-      COALESCE(SUM(IF(job_state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
-      COALESCE(SUM(job_state = 'Creating' AND NOT cancelled), 0) as n_creating_jobs,
-      COALESCE(SUM(job_state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
-      COALESCE(SUM(job_state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs,
-      COALESCE(SUM(job_state = 'Creating' AND cancelled), 0) as n_cancelled_creating_jobs
-    FROM (
-      SELECT batches.user,
-        batches.id as batch_id,
-        batches.state as batch_state,
-        batches.cancelled as batch_cancelled,
-        jobs.inst_coll as job_inst_coll,
-        jobs.state as job_state,
-        jobs.cores_mcpu,
-        NOT (jobs.always_run OR jobs.cancelled OR batches.cancelled) AS cancellable,
-        (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
-        (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled
-      FROM jobs
-      INNER JOIN batches
-        ON batches.id = jobs.batch_id
-      LOCK IN SHARE MODE) as t
-    GROUP BY batch_id, batch_state, batch_cancelled, user, job_inst_coll
-  );
-
-  INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-  SELECT batch_id, job_inst_coll, 0, n_jobs, n_ready_jobs, ready_cores_mcpu
-  FROM tmp_batch_inst_coll_resources
-  WHERE batch_state = 'open';
-
-  INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs,
-    ready_cancellable_cores_mcpu, n_running_cancellable_jobs, running_cancellable_cores_mcpu, n_creating_cancellable_jobs)
-  SELECT batch_id, job_inst_coll, 0, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
-    n_running_cancellable_jobs, running_cancellable_cores_mcpu, n_creating_cancellable_jobs
-  FROM tmp_batch_inst_coll_resources
-  WHERE NOT batch_cancelled;
-
-  INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu,
-    n_running_jobs, running_cores_mcpu, n_creating_jobs,
-    n_cancelled_ready_jobs, n_cancelled_running_jobs, n_cancelled_creating_jobs)
-  SELECT t.user, t.job_inst_coll, 0, t.n_ready_jobs, t.ready_cores_mcpu,
-    t.n_running_jobs, t.running_cores_mcpu, t.n_creating_jobs,
-    t.n_cancelled_ready_jobs, t.n_cancelled_running_jobs, t.n_cancelled_creating_jobs
-  FROM (SELECT user, job_inst_coll,
-      COALESCE(SUM(n_running_jobs), 0) as n_running_jobs,
-      COALESCE(SUM(running_cores_mcpu), 0) as running_cores_mcpu,
-      COALESCE(SUM(n_ready_jobs), 0) as n_ready_jobs,
-      COALESCE(SUM(ready_cores_mcpu), 0) as ready_cores_mcpu,
-      COALESCE(SUM(n_creating_jobs), 0) as n_creating_jobs,
-      COALESCE(SUM(n_cancelled_ready_jobs), 0) as n_cancelled_ready_jobs,
-      COALESCE(SUM(n_cancelled_running_jobs), 0) as n_cancelled_running_jobs,
-      COALESCE(SUM(n_cancelled_creating_jobs), 0) as n_cancelled_creating_jobs
-    FROM tmp_batch_inst_coll_resources
-    WHERE batch_state != 'open'
-    GROUP by user, job_inst_coll) as t;
-
-  DROP TEMPORARY TABLE IF EXISTS `tmp_batch_inst_coll_resources`;
-
-END $$
-
 CREATE PROCEDURE activate_instance(
   IN in_instance_name VARCHAR(100),
   IN in_ip_address VARCHAR(100),
@@ -1219,6 +1130,7 @@ BEGIN
         SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
         UPDATE jobs
+          LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
           LEFT JOIN (
             SELECT `job_parents`.batch_id, `job_parents`.job_id,
               COALESCE(SUM(1), 0) AS n_parents,
@@ -1236,7 +1148,8 @@ BEGIN
                jobs.job_id = t.job_id
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
-              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
+              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
+              jobs_telemetry.time_ready = IF(COALESCE(t.n_pending_parents, 0) = 0 AND jobs_telemetry.time_ready IS NULL, in_timestamp, jobs_telemetry.time_ready)
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
@@ -1246,67 +1159,6 @@ BEGIN
     ELSE
       ROLLBACK;
       SELECT 1 as rc, expected_n_jobs, staging_n_jobs as actual_n_jobs, 'wrong number of jobs' as message;
-    END IF;
-  END IF;
-END $$
-
-DROP PROCEDURE IF EXISTS close_batch $$
-CREATE PROCEDURE close_batch(
-  IN in_batch_id BIGINT,
-  IN in_timestamp BIGINT
-)
-BEGIN
-  DECLARE cur_batch_state VARCHAR(40);
-  DECLARE expected_n_jobs INT;
-  DECLARE staging_n_jobs INT;
-  DECLARE staging_n_ready_jobs INT;
-  DECLARE staging_ready_cores_mcpu BIGINT;
-  DECLARE cur_user VARCHAR(100);
-
-  START TRANSACTION;
-
-  SELECT `state`, n_jobs INTO cur_batch_state, expected_n_jobs FROM batches
-  WHERE id = in_batch_id AND NOT deleted
-  FOR UPDATE;
-
-  IF cur_batch_state != 'open' THEN
-    COMMIT;
-    SELECT 0 as rc;
-  ELSE
-    SELECT COALESCE(SUM(n_jobs), 0), COALESCE(SUM(n_ready_jobs), 0), COALESCE(SUM(ready_cores_mcpu), 0)
-    INTO staging_n_jobs, staging_n_ready_jobs, staging_ready_cores_mcpu
-    FROM batches_inst_coll_staging
-    WHERE batch_id = in_batch_id
-    FOR UPDATE;
-
-    SELECT user INTO cur_user FROM batches WHERE id = in_batch_id;
-
-    IF staging_n_jobs = expected_n_jobs THEN
-      IF expected_n_jobs = 0 THEN
-        UPDATE batches SET `state` = 'complete', time_completed = in_timestamp, time_closed = in_timestamp
-          WHERE id = in_batch_id;
-      ELSE
-        UPDATE batches SET `state` = 'running', time_closed = in_timestamp
-          WHERE id = in_batch_id;
-      END IF;
-
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
-      SELECT user, inst_coll, 0, @n_ready_jobs := COALESCE(SUM(n_ready_jobs), 0), @ready_cores_mcpu := COALESCE(SUM(ready_cores_mcpu), 0)
-      FROM batches_inst_coll_staging
-      JOIN batches ON batches.id = batches_inst_coll_staging.batch_id
-      WHERE batch_id = in_batch_id
-      GROUP BY `user`, inst_coll
-      ON DUPLICATE KEY UPDATE
-        n_ready_jobs = n_ready_jobs + @n_ready_jobs,
-        ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
-
-      DELETE FROM batches_inst_coll_staging WHERE batch_id = in_batch_id;
-
-      COMMIT;
-      SELECT 0 as rc;
-    ELSE
-      ROLLBACK;
-      SELECT 2 as rc, expected_n_jobs, staging_n_jobs as actual_n_jobs, 'wrong number of jobs' as message;
     END IF;
   END IF;
 END $$
@@ -1711,12 +1563,14 @@ BEGIN
     END IF;
 
     UPDATE jobs
+      LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
       INNER JOIN `job_parents`
         ON jobs.batch_id = `job_parents`.batch_id AND
            jobs.job_id = `job_parents`.job_id
       SET jobs.state = IF(jobs.n_pending_parents = 1, 'Ready', 'Pending'),
           jobs.n_pending_parents = jobs.n_pending_parents - 1,
-          jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1)
+          jobs.cancelled = IF(new_state = 'Success', jobs.cancelled, 1),
+          jobs_telemetry.time_ready = IF(jobs.n_pending_parents = 1, new_timestamp, jobs_telemetry.time_ready)
       WHERE jobs.batch_id = in_batch_id AND
             `job_parents`.batch_id = in_batch_id AND
             `job_parents`.parent_id = in_job_id;

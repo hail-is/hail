@@ -77,9 +77,9 @@ async def test_bad_token():
     token = session_id_encode_to_str(secrets.token_bytes(32))
     bc = await BatchClient.create('test', _token=token)
     try:
-        bb = create_batch(bc)
-        bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
-        b = await bb.submit()
+        b = create_batch(bc)
+        b.create_job(DOCKER_ROOT_IMAGE, ['false'])
+        await b.submit()
         assert False, str(await b.debug_info())
     except httpx.ClientResponseError as e:
         assert e.status == 401
@@ -180,10 +180,10 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
     project = new_billing_project
     await dev_client.add_user("test", project)
     client = await make_client(project)
-    bb = create_batch(client)
-    bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    b = await bb._open_batch()
-    update_id = await bb._create_update(b.id)
+    b = create_batch(client)
+    b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    await b._open_batch()
+    update_id = await b._create_update()
     with BatchProgressBar() as pbar:
         process = {
             'type': 'docker',
@@ -193,7 +193,7 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
         }
         spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
         with pbar.with_task('submitting jobs', total=1) as pbar_task:
-            await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar_task)
+            await b._submit_jobs(update_id, [orjson.dumps(spec)], 1, pbar_task)
     try:
         await dev_client.close_billing_project(project)
     except httpx.ClientResponseError as e:
@@ -355,15 +355,15 @@ async def test_billing_project_accrued_costs(
     def approx_equal(x, y, tolerance=1e-10):
         return abs(x - y) <= tolerance
 
-    bb = create_batch(client)
-    j1_1 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    j1_2 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    b1 = await bb.submit()
+    b1 = create_batch(client)
+    j1_1 = b1.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    j1_2 = b1.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    await b1.submit()
 
-    bb = create_batch(client)
-    j2_1 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    j2_2 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    b2 = await bb.submit()
+    b2 = create_batch(client)
+    j2_1 = b2.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    j2_2 = b2.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    await b2.submit()
 
     await b1.wait()
     await b2.wait()
@@ -409,8 +409,8 @@ async def test_billing_limit_zero(
     client = await make_client(project)
 
     try:
-        bb = create_batch(client)
-        b = await bb.submit()
+        b = create_batch(client)
+        await b.submit()
     except httpx.ClientResponseError as e:
         assert e.status == 403 and 'has exceeded the budget' in e.body
     else:
@@ -434,20 +434,20 @@ async def test_billing_limit_tiny(
 
     client = await make_client(project)
 
-    bb = create_batch(client)
-    j1 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    j2 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j1])
-    j3 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j2])
-    j4 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j3])
-    j5 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j4])
-    j6 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j5])
-    j7 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j6])
-    j8 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j7])
-    j9 = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j8])
-    bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
-    batch = await bb.submit()
-    batch_status = await batch.wait()
-    assert batch_status['state'] == 'cancelled', str(await batch.debug_info())
+    b = create_batch(client)
+    j1 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    j2 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j1])
+    j3 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j2])
+    j4 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j3])
+    j5 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j4])
+    j6 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j5])
+    j7 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j6])
+    j8 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j7])
+    j9 = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j8])
+    b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
+    await b.submit()
+    batch_status = await b.wait()
+    assert batch_status['state'] == 'cancelled', str(await b.debug_info())
 
 
 async def search_batches(client, expected_batch_id, q) -> Tuple[bool, List[int]]:
@@ -476,10 +476,10 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     user1_client = await make_client(project)
     b = create_batch(user1_client)
     j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    b_handle = await b.submit()
+    await b.submit()
 
     user2_client = dev_client
-    user2_batch = await user2_client.get_batch(b_handle.id)
+    user2_batch = await user2_client.get_batch(b.id)
     user2_job = await user2_client.get_job(j.batch_id, j.job_id)
 
     await user2_job.attempts()
@@ -487,50 +487,50 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     await user2_job.status()
 
     # list batches results for user1
-    found, batches = await search_batches(user1_client, b_handle.id, q='')
-    assert found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user1_client, b.id, q='')
+    assert found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user1_client, b_handle.id, q=f'billing_project:{project}')
-    assert found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user1_client, b.id, q=f'billing_project:{project}')
+    assert found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user1_client, b_handle.id, q='user:test')
-    assert found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user1_client, b.id, q='user:test')
+    assert found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user1_client, b_handle.id, q='billing_project:foo')
-    assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user1_client, b.id, q='billing_project:foo')
+    assert not found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user1_client, b_handle.id, q=None)
-    assert found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user1_client, b.id, q=None)
+    assert found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user1_client, b_handle.id, q='user:test-dev')
-    assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user1_client, b.id, q='user:test-dev')
+    assert not found, str((b.id, batches, await b.debug_info()))
 
     # list batches results for user2
-    found, batches = await search_batches(user2_client, b_handle.id, q='')
-    assert found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user2_client, b.id, q='')
+    assert found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user2_client, b_handle.id, q=f'billing_project:{project}')
-    assert found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
+    assert found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user2_client, b_handle.id, q='user:test')
-    assert found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user2_client, b.id, q='user:test')
+    assert found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user2_client, b_handle.id, q='billing_project:foo')
-    assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user2_client, b.id, q='billing_project:foo')
+    assert not found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user2_client, b_handle.id, q=None)
-    assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user2_client, b.id, q=None)
+    assert not found, str((b.id, batches, await b.debug_info()))
 
-    found, batches = await search_batches(user2_client, b_handle.id, q='user:test-dev')
-    assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user2_client, b.id, q='user:test-dev')
+    assert not found, str((b.id, batches, await b.debug_info()))
 
     await user2_batch.status()
     await user2_batch.cancel()
     await user2_batch.delete()
 
     # make sure deleted batches don't show up
-    found, batches = await search_batches(user1_client, b_handle.id, q='')
-    assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+    found, batches = await search_batches(user1_client, b.id, q='')
+    assert not found, str((b.id, batches, await b.debug_info()))
 
 
 async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
@@ -543,12 +543,12 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
     assert r['billing_project'] == project
 
     user1_client = await make_client(project)
-    bb = create_batch(user1_client)
-    j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    b = await bb.submit()
+    b = create_batch(user1_client)
+    j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    await b.submit()
 
     user2_client = dev_client
-    user2_batch = Batch(user2_client, b.id, b.attributes, b.token)
+    user2_batch = Batch(user2_client, b.id, attributes=b.attributes, token=b.token)
 
     try:
         try:
@@ -621,7 +621,8 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
     try:
         await dev_client.add_user('test', project)
         client = await make_client(project)
-        open_batch = await create_batch(client)._open_batch()
+        open_batch = create_batch(client)
+        await open_batch._open_batch()
         await open_batch.delete()
     finally:
         await dev_client.close_billing_project(project)
@@ -637,17 +638,17 @@ async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billi
     dev_client.reset_billing_project(new_billing_project)
 
     # create one batch with the correct billing project
-    bb = create_batch(dev_client)
-    bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    await bb.submit()
+    b = create_batch(dev_client)
+    b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    await b.submit()
 
     dev_client.reset_billing_project(upper_case_project)
 
     # create batch
     try:
-        bb = create_batch(dev_client)
-        bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-        await bb.submit()
+        b = create_batch(dev_client)
+        b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+        await b.submit()
     except aiohttp.ClientResponseError as e:
         assert e.status == 403, e
     else:

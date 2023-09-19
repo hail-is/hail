@@ -9,10 +9,15 @@ At present, the experimental module is organized into a few freestanding
 modules, linked immediately below, and many freestanding functions, documented
 on this page.
 
+.. warning::
+
+   The functionality in this module may change or disappear entirely between different versions of
+   Hail. If you critically depend on functionality in this module, please create an issue to request
+   promotion of that functionality to non-experimental. Otherwise, that functionality may disappear!
+
 .. toctree::
     :maxdepth: 1
 
-    vcf_combiner
     ldscsim
 
 Contribution Guidelines

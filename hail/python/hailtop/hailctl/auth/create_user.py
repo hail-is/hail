@@ -1,6 +1,6 @@
 from typing import Optional
 
-from hailtop.utils import sleep_and_backoff
+from hailtop.utils import sleep_before_try
 from hailtop.auth import async_create_user, async_get_user
 
 
@@ -26,14 +26,15 @@ async def polling_create_user(
             return
 
         async def _poll():
-            delay = 5
+            tries = 0
             while True:
                 user = await async_get_user(username, namespace)
                 if user['state'] == 'active':
                     print(f"Created user '{username}'")
                     return
                 assert user['state'] == 'creating'
-                delay = await sleep_and_backoff(delay)
+                tries += 1
+                await sleep_before_try(tries, base_delay_ms = 5_000)
 
         await _poll()
     except Exception as e:

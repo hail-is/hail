@@ -1,4 +1,4 @@
-{% from "job-table.html" import job_table with context %}
+{% from "filtered-jobs.html" import filtered_jobs with context %}
 {% extends "layout.html" %}
 {% block title %}PR {{ number }}{% endblock %}
 {% block head %}
@@ -25,7 +25,7 @@
       <button type="submit">Retry</button>
     </form>
     <h2>Jobs</h2>
-    {{ job_table(jobs, "jobs", "jobsSearchBar") }}
+    {{ filtered_jobs(running, failed, pending, completed) }}
     {% elif exception is defined %}
     <p>Build error:</p>
     <pre>
@@ -62,7 +62,4 @@
     {% else %}
     No builds.
     {% endif %}
-    <script type="text/javascript">
-      focusOnSlash("jobsSearchBar");
-    </script>
 {% endblock %}

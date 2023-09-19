@@ -2,6 +2,7 @@
     <test name="TestAll">
         <packages>
           <package name="is.hail.*">
+            <exclude name="is.hail.shadedazure.*"></exclude>
             <exclude name="is.hail.fs.azure"></exclude>
             <exclude name="is.hail.fs.gs"></exclude>
             <exclude name="is.hail.services.*"></exclude>

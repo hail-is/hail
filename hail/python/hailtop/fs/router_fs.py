@@ -10,7 +10,7 @@ import fnmatch
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
 from hailtop.aiotools.local_fs import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.utils import bounded_gather, async_to_blocking
+from hailtop.utils import bounded_gather2, async_to_blocking
 
 from .fs import FS
 from .stat_result import FileType, StatResult
@@ -280,11 +280,13 @@ class RouterFS(FS):
                         *,
                         error_when_file_and_directory: bool = True,
                         _max_simultaneous_files: int = 50) -> List[StatResult]:
+        sema = asyncio.Semaphore(_max_simultaneous_files)
+
         async def ls_no_glob(path) -> List[StatResult]:
             try:
                 return await self._ls_no_glob(path,
                                               error_when_file_and_directory=error_when_file_and_directory,
-                                              _max_simultaneous_files=_max_simultaneous_files)
+                                              sema=sema)
             except FileNotFoundError:
                 return []
 
@@ -317,22 +319,47 @@ class RouterFS(FS):
                 first_prefix = ['file:', '', '']
             else:
                 first_prefix = []
+
+        cached_stats_for_each_cumulative_prefix: Optional[List[StatResult]] = None
         cumulative_prefixes = [first_prefix]
 
         for intervening_components, single_component_glob_pattern in glob_components:
-            cumulative_prefixes = [
-                stat.path.split('/')
-                for cumulative_prefix in cumulative_prefixes
-                for stat in await ls_no_glob('/'.join([*cumulative_prefix, *intervening_components]))
+            stats_grouped_by_prefix = await bounded_gather2(
+                sema,
+                *[
+                    functools.partial(ls_no_glob, '/'.join([*cumulative_prefix, *intervening_components]))
+                    for cumulative_prefix in cumulative_prefixes
+                ],
+                cancel_on_error=True
+            )
+            cached_stats_for_each_cumulative_prefix = [
+                stat
+                for stats_for_one_prefix, cumulative_prefix in zip(stats_grouped_by_prefix, cumulative_prefixes)
+                for stat in stats_for_one_prefix
                 if fnmatch.fnmatch(stat.path,
                                    '/'.join([*cumulative_prefix, *intervening_components, single_component_glob_pattern]))
             ]
+            cumulative_prefixes = [
+                stat.path.split('/')
+                for stat in cached_stats_for_each_cumulative_prefix
+            ]
 
-        found_stats = [
-            stat
-            for cumulative_prefix in cumulative_prefixes
-            for stat in await ls_no_glob('/'.join([*cumulative_prefix, *suffix_components]))
-        ]
+        if len(suffix_components) == 0 and cached_stats_for_each_cumulative_prefix is not None:
+            found_stats = cached_stats_for_each_cumulative_prefix
+        else:
+            found_stats_grouped_by_prefix = await bounded_gather2(
+                sema,
+                *[
+                    functools.partial(ls_no_glob, '/'.join([*cumulative_prefix, *suffix_components]))
+                        for cumulative_prefix in cumulative_prefixes
+                ],
+                cancel_on_error=True
+            )
+            found_stats = [
+                stat
+                for stats in found_stats_grouped_by_prefix
+                for stat in stats
+            ]
 
         if len(glob_components) == 0 and len(found_stats) == 0:
             # Unless we are using a glob pattern, a path referring to no files should error
@@ -343,13 +370,15 @@ class RouterFS(FS):
                           path: str,
                           *,
                           error_when_file_and_directory: bool = True,
-                          _max_simultaneous_files: int = 50) -> List[StatResult]:
+                          sema: asyncio.Semaphore) -> List[StatResult]:
         async def ls_as_dir() -> Optional[List[StatResult]]:
             try:
-                return await bounded_gather(
+                return await bounded_gather2(
+                    sema,
                     *[functools.partial(self._fle_to_dict, fle)
                       async for fle in await self.afs.listfiles(path)],
-                    parallelism=_max_simultaneous_files)
+                    cancel_on_error=True
+                )
             except (FileNotFoundError, NotADirectoryError):
                 return None
         maybe_sb_and_t, maybe_contents = await asyncio.gather(

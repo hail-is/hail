@@ -3,11 +3,10 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, TypedDict
 
 import jinja2
 import yaml
-from typing_extensions import TypedDict
 
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
@@ -97,7 +96,15 @@ class BuildConfigurationError(Exception):
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, *, requested_step_names=(), excluded_step_names=()):
+    def __init__(
+        self,
+        code: Code,
+        config_str: str,
+        scope: str,
+        *,
+        requested_step_names: Sequence[str] = (),
+        excluded_step_names: Sequence[str] = (),
+    ):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
@@ -415,8 +422,8 @@ cat /home/user/trace
 
         if CLOUD == 'azure':
             image = 'mcr.microsoft.com/azure-cli'
-            assert self.image.startswith(DOCKER_PREFIX)
-            image_name = self.image[len(f'{DOCKER_PREFIX}/') :]
+            assert self.image.startswith(DOCKER_PREFIX + '/')
+            image_name = self.image.removeprefix(DOCKER_PREFIX + '/')
             script = f'''
 set -x
 date

@@ -41,6 +41,7 @@ object Interpretable {
         _: ReadValue |
         _: WriteValue |
         _: NDArrayWrite |
+        _: StreamZipJoinProducers |
         _: RNGStateLiteral => false
       case x: ApplyIR =>
         !Exists(x.body, {

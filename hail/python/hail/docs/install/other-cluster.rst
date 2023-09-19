@@ -11,7 +11,7 @@ Hail needs to be built from source on the leader node. Building Hail from source
 requires:
 
 - Java 8 or 11 JDK.
-- Python 3.8 or later.
+- Python 3.9 or later.
 - A recent C and a C++ compiler, GCC 5.0, LLVM 3.4, or later versions of either
   suffice.
 - The LZ4 library.

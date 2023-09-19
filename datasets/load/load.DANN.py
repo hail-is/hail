@@ -33,7 +33,7 @@ ht = ht.rename({'DANN_score': 'score'})
 ht = ht.select('score')
 
 ht = ht.annotate_globals(metadata=hl.struct(name=name,
-                                            version=hl.null(hl.tstr),
+                                            version=hl.missing(hl.tstr),
                                             reference_genome=build,
                                             n_rows=n_rows,
                                             n_partitions=n_partitions))

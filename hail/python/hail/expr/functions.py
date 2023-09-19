@@ -233,11 +233,17 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     -------
     :class:`.Expression`
     """
-    wrapper = {'has_expr': False}
+    wrapper = {'has_expr': False, 'has_free_vars': False}
 
     def typecheck_expr(t, x):
         if isinstance(x, Expression):
             wrapper['has_expr'] = True
+            wrapper['has_free_vars'] |= (
+                builtins.len(x._ir.free_vars) > 0 or
+                builtins.len(x._ir.free_agg_vars) > 0 or
+                builtins.len(x._ir.free_scan_vars) > 0
+            )
+
             if x.dtype != t:
                 raise TypeError(f"'literal': type mismatch: expected '{t}', found '{x.dtype}'")
             elif x._indices.source is not None:
@@ -264,6 +270,13 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         except TypeError as e:
             raise TypeError("'literal': object did not match the passed type '{}'"
                             .format(dtype)) from e
+
+    if wrapper['has_free_vars']:
+        raise ValueError(
+            "'literal' cannot be used with hail expressions that depend "
+            "on other expressions. Use expression 'x' directly "
+            "instead of passing it to 'literal'."
+        )
 
     if wrapper['has_expr']:
         return literal(hl.eval(to_expr(x, dtype)), dtype)
@@ -5056,6 +5069,32 @@ def _union_intersection_base(name, arrays, key, join_f, result_f):
 
     zj = ir.ToArray(ir.StreamZipJoin(irs, key, key_uid, vals_uid, join_ir._ir))
     return result_f(construct_expr(zj, zj.typ, indices, aggs))
+
+
+def _zip_join_producers(contexts, stream_f, key, join_f):
+    ctx_uid = Env.get_uid()
+
+    ctx_var = construct_variable(ctx_uid, contexts.dtype.element_type)
+    stream_req = stream_f(ctx_var)
+    make_prod_ir = stream_req._ir
+    if isinstance(make_prod_ir.typ, hl.tarray):
+        make_prod_ir = ir.ToStream(make_prod_ir)
+    t = stream_req.dtype.element_type
+
+    key_typ = hl.tstruct(**{k: t[k] for k in key})
+    vals_typ = hl.tarray(t)
+
+    key_uid = Env.get_uid()
+    vals_uid = Env.get_uid()
+
+    key_var = construct_variable(key_uid, key_typ)
+    vals_var = construct_variable(vals_uid, vals_typ)
+
+    join_ir = join_f(key_var, vals_var)
+    zj = ir.ToArray(
+        ir.StreamZipJoinProducers(contexts._ir, ctx_uid, make_prod_ir, key, key_uid, vals_uid, join_ir._ir))
+    indices, aggs = unify_all(contexts, stream_req, join_ir)
+    return construct_expr(zj, zj.typ, indices, aggs)
 
 
 @typecheck(arrays=expr_oneof(expr_stream(expr_any), expr_array(expr_any)), key=sequenceof(builtins.str))

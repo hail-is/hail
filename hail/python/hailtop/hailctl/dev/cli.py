@@ -2,8 +2,7 @@ import asyncio
 import typer
 import webbrowser
 
-from typing import List, Optional
-from typing_extensions import Annotated as Ann
+from typing import List, Optional, Annotated as Ann
 from typer import Option as Opt
 
 

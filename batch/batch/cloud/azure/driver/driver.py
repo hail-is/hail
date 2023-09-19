@@ -1,6 +1,8 @@
 import asyncio
+import json
 import logging
 import os
+from typing import Dict
 
 from gear import Database
 from gear.cloud_config import get_azure_config
@@ -44,7 +46,7 @@ ON DUPLICATE KEY UPDATE region = region;
             region_args,
         )
 
-        db_regions = {
+        db_regions: Dict[str, int] = {
             record['region']: record['region_id']
             async for record in db.select_and_fetchall('SELECT region_id, region from regions')
         }
@@ -66,7 +68,7 @@ ON DUPLICATE KEY UPDATE region = region;
         billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region, regions)
         resource_manager = AzureResourceManager(
-            subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
+            app, subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
         )
 
         create_pools_coros = [
@@ -184,6 +186,7 @@ ON DUPLICATE KEY UPDATE region = region;
         async for nic_name in self.resources_client.list_nic_names(self.machine_name_prefix):
             if self._resource_is_orphaned(nic_name):
                 try:
+                    log.info(f'deleting orphaned nic {nic_name}')
                     await self.network_client.delete_nic(nic_name, ignore_not_found=True)
                 except asyncio.CancelledError:
                     raise
@@ -195,6 +198,7 @@ ON DUPLICATE KEY UPDATE region = region;
         async for public_ip_name in self.resources_client.list_public_ip_names(self.machine_name_prefix):
             if self._resource_is_orphaned(public_ip_name):
                 try:
+                    log.info(f'deleting orphaned public ip {public_ip_name}')
                     await self.network_client.delete_public_ip(public_ip_name, ignore_not_found=True)
                 except asyncio.CancelledError:
                     raise
@@ -209,6 +213,8 @@ ON DUPLICATE KEY UPDATE region = region;
                 deployment_name = deployment['name']
                 if deployment_name.startswith(self.machine_name_prefix):
                     try:
+                        deployment.pop('parameters', None)
+                        log.info(f'deleting deployment {deployment_name} {json.dumps(deployment)}')
                         await self.arm_client.delete(f'/deployments/{deployment_name}')
                     except asyncio.CancelledError:
                         raise

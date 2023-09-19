@@ -70,9 +70,9 @@ class Call(object):
         return 'Call(alleles=%s, phased=%s)' % (self._alleles, self._phased)
 
     def __eq__(self, other):
-        return (isinstance(other, Call)
-                and self._phased == other._phased
-                and self._alleles == other._alleles)
+        return ( self._phased == other._phased and
+                 self._alleles == other._alleles
+               ) if isinstance(other, Call) else NotImplemented
 
     def __hash__(self):
         return hash(self._phased) ^ hash(tuple(self._alleles))

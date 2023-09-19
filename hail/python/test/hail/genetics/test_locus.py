@@ -1,14 +1,17 @@
-import unittest
-
+from hail.genetics import Locus
 import hail as hl
-from hail.genetics import *
-from ..helpers import *
 
-class Tests(unittest.TestCase):
+def test_constructor():
+    l = Locus.parse('1:100')
 
-    def test_constructor(self):
-        l = Locus.parse('1:100')
+    assert l == Locus('1', 100)
+    assert l == Locus(1, 100)
+    assert l.reference_genome == hl.default_reference()
 
-        self.assertEqual(l, Locus('1', 100))
-        self.assertEqual(l, Locus(1, 100))
-        self.assertEqual(l.reference_genome, hl.default_reference())
+
+def test_call_rich_comparison():
+    val = Locus(1, 1)
+    expr = hl.locus('1', 1)
+
+    assert hl.eval(val == expr)
+    assert hl.eval(expr == val)

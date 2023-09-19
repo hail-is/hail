@@ -204,9 +204,20 @@ class Tests(unittest.TestCase):
 
         qs = mt.aggregate_cols(agg.count())
         self.assertEqual(qs, 100)
+        qs = hl.eval(mt.aggregate_cols(agg.count(), _localize=False))
+        self.assertEqual(qs, 100)
 
         mt.aggregate_cols(hl.Struct(x=agg.collect(mt.s),
                                     y=agg.collect(mt.y1)))
+
+    def test_aggregate_cols_order(self):
+        path = new_temp_file(extension='mt')
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.choose_cols([2, 1, 0])
+        mt = mt.checkpoint(path)
+        assert mt.aggregate_cols(hl.agg.collect(mt.col_idx)) == [0, 1, 2]
+        mt = mt.key_cols_by()
+        assert mt.aggregate_cols(hl.agg.collect(mt.col_idx)) == [2, 1, 0]
 
     def test_aggregate_entries(self):
         mt = self.get_mt()
@@ -1566,37 +1577,39 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.select_rows(result = aggregation).result.collect()[0], expected)
 
-    def localize_entries_with_both_none_is_rows_table(self):
+    def test_localize_entries_with_both_none_is_rows_table(self):
         mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
         localized = mt.localize_entries(entries_array_field_name=None,
                                         columns_array_field_name=None)
         rows_table = mt.rows()
-        assert rows_table.collect() == localized.collect()
-        assert rows_table.globals_table().collect() == localized.globals_table().collect()
+        assert rows_table._same(localized)
 
-    def localize_entries_with_none_cols_adds_no_globals(self):
+    def test_localize_entries_with_none_cols_adds_no_globals(self):
         mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
         localized = mt.localize_entries(entries_array_field_name=Env.get_uid(),
                                         columns_array_field_name=None)
-        assert mt.globals_table().collect() == localized.globals_table().collect()
+        assert hl.eval(mt.globals) == hl.eval(localized.globals)
 
-    def localize_entries_with_none_entries_changes_no_rows(self):
+    def test_localize_entries_with_none_entries_changes_no_rows(self):
         mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
         localized = mt.localize_entries(entries_array_field_name=None,
                                         columns_array_field_name=Env.get_uid())
         rows_table = mt.rows()
-        assert rows_table.collect() == localized.collect()
+        assert rows_table.select_globals()._same(localized.select_globals())
 
-    def localize_entries_creates_arrays_of_entries_and_array_of_cols(self):
+    def test_localize_entries_creates_arrays_of_entries_and_array_of_cols(self):
         mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
         localized = mt.localize_entries(entries_array_field_name='entries',
                                         columns_array_field_name='cols')
-        assert [[x * y for x in range(0, 10)] for y in range(0, 10)] == localized.entries.collect()
-        assert range(0, 10) == localized.cols.collect()
+        t = hl.utils.range_table(10)
+        t = t.select(entries=hl.range(10).map(lambda y: hl.struct(x=t.idx * y)))
+        t = t.select_globals(cols=hl.range(10).map(lambda y: hl.struct(col_idx=y)))
+        t = t.rename({'idx': 'row_idx'})
+        assert localized._same(t)
 
     def test_multi_write(self):
         mt = self.get_mt()

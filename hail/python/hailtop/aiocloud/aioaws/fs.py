@@ -1,5 +1,5 @@
 from typing import (Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional,
-                    Set, Tuple, Type)
+                    Set, Tuple, Type, ClassVar)
 from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -297,7 +297,7 @@ class S3AsyncFSURL(AsyncFSURL):
 
 
 class S3AsyncFS(AsyncFS):
-    schemes: Set[str] = {'s3'}
+    schemes: ClassVar[Set[str]] = {'s3'}
 
     def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None, *, max_pool_connections: int = 10):
         if not thread_pool:
@@ -486,7 +486,7 @@ class S3AsyncFS(AsyncFS):
                 return False
             return True
 
-        async def cons(first_entry, it):
+        async def cons(first_entry, it) -> AsyncIterator[FileListEntry]:
             if await should_yield(first_entry):
                 yield first_entry
             try:

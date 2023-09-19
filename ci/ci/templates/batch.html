@@ -1,4 +1,4 @@
-{% from "job-table.html" import job_table with context %}
+{% from "filtered-jobs.html" import filtered_jobs with context %}
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
 {% block head %}
@@ -29,8 +29,5 @@
     {% endif %}
 
     <h2>Jobs</h2>
-    {{ job_table(jobs, "jobs", "jobsSearchBar") }}
-    <script type="text/javascript">
-      focusOnSlash("jobsSearchBar");
-    </script>
+    {{ filtered_jobs(running, failed, pending, completed) }}
 {% endblock %}

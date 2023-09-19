@@ -2,8 +2,8 @@ from .time import (
     time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs,
     time_ns)
 from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool, bounded_gather,
-                    grouped, sync_sleep_and_backoff, sleep_and_backoff, is_transient_error,
-                    collect_agen, retry_all_errors, retry_transient_errors,
+                    grouped, sync_sleep_before_try, sleep_before_try, is_transient_error,
+                    collect_aiter, retry_all_errors, retry_transient_errors,
                     retry_transient_errors_with_debug_string, retry_long_running, run_if_changed,
                     run_if_changed_idempotent, LoggingTimer, WaitableSharedPool,
                     RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
@@ -15,7 +15,7 @@ from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool
                     unpack_comma_delimited_inputs, unpack_key_value_inputs,
                     retry_all_errors_n_times, Timings, is_limited_retries_error, am_i_interactive,
                     is_delayed_warning_error, retry_transient_errors_with_delayed_warnings,
-                    periodically_call_with_dynamic_sleep)
+                    periodically_call_with_dynamic_sleep, delay_ms_for_try, ait_to_blocking)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output, sync_check_exec)
@@ -34,6 +34,7 @@ __all__ = [
     'flatten',
     'filter_none',
     'async_to_blocking',
+    'ait_to_blocking',
     'blocking_to_async',
     'AsyncWorkerPool',
     'CalledProcessError',
@@ -47,8 +48,9 @@ __all__ = [
     'grouped',
     'is_transient_error',
     'is_delayed_warning_error',
-    'sync_sleep_and_backoff',
-    'sleep_and_backoff',
+    'sync_sleep_before_try',
+    'sleep_before_try',
+    'delay_ms_for_try',
     'retry_all_errors',
     'retry_transient_errors',
     'retry_transient_errors_with_debug_string',
@@ -58,7 +60,7 @@ __all__ = [
     'run_if_changed_idempotent',
     'LoggingTimer',
     'WaitableSharedPool',
-    'collect_agen',
+    'collect_aiter',
     'RETRY_FUNCTION_SCRIPT',
     'sync_retry_transient_errors',
     'retry_response_returning_functions',
@@ -75,7 +77,6 @@ __all__ = [
     'external_requests_client_session',
     'url_basename',
     'url_join',
-    'validate',
     'url_scheme',
     'url_and_params',
     'serialization',

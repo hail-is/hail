@@ -1,7 +1,6 @@
 import asyncio
 import orjson
-from typing import List, Optional
-from typing_extensions import Annotated as Ann
+from typing import List, Optional, Union, Annotated as Ann
 from os import path
 from zlib import decompress, MAX_WBITS
 from statistics import median, mean, stdev
@@ -72,7 +71,7 @@ def key_str(k):
 
 
 def get_partitions_info_str(j):
-    partitions = j['components']['partition_counts']['counts']
+    partitions: List[Union[int, float]] = j['components']['partition_counts']['counts']
     partitions_info = {
         'Partitions': len(partitions),
         'Rows': sum(partitions),
@@ -120,7 +119,7 @@ async def async_describe(
         j = orjson.loads(decompress(await fs.read(path.join(file, 'metadata.json.gz')), 16 + MAX_WBITS))
 
         # Get the file schema
-        file_schema = parse_schema(j[[k for k in j.keys() if k.endswith('type')][0]])
+        file_schema = parse_schema(j[next(k for k in j.keys() if k.endswith('type'))])
 
         # Print file information
         print(SECTION_SEPARATOR)

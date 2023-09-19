@@ -3124,19 +3124,6 @@ class IRSuite extends HailSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testContextSavedMatrixIR() {
-    val cached = MatrixIR.range(3, 8, None)
-    val id = hc.addIrVector(Array(cached))
-    val s = s"(JavaMatrixVectorRef $id 0)"
-    val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = Map.empty))
-    }
-    assert(cached eq x2)
-
-    is.hail.HailContext.pyRemoveIrVector(id)
-    assert(hc.irVectors.get(id) eq None)
-  }
-
   @Test def testArrayContinuationDealsWithIfCorrectly() {
     val ir = ToArray(StreamMap(
       If(IsNA(In(0, TBoolean)),
