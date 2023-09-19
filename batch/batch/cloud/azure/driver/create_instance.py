@@ -389,14 +389,6 @@ done
                 'customData': "[parameters('startupScript')]",
                 'linuxConfiguration': {
                     'disablePasswordAuthentication': True,
-                    'ssh': {
-                        'publicKeys': [
-                            {
-                                'keyData': "[parameters('sshKey')]",
-                                'path': "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
-                            }
-                        ]
-                    },
                 },
             },
             'userData': "[parameters('userData')]",
@@ -442,7 +434,6 @@ done
                 'parameters': {
                     'location': {'type': 'string', 'defaultValue': '[resourceGroup().location]'},
                     'vmName': {'type': 'string'},
-                    'sshKey': {'type': 'securestring'},
                     'subnetId': {'type': 'string'},
                     'adminUsername': {'type': 'string', 'defaultValue': 'admin'},
                     'userAssignedIdentityName': {'type': 'string', 'defaultValue': 'batch-worker'},
