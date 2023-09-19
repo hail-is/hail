@@ -385,7 +385,7 @@ object StagedBGENReader {
               .concat(nExpectedBytesProbs.toS)
               .concat("'.")))
 
-          cb.invokeVoid(memoMB)
+          cb.invokeVoid(memoMB, cb._this)
 
           val (pushElement, finish) = entriesArrayType.constructFromFunctions(cb, region, nSamples, deepCopy = false)
 
@@ -424,7 +424,7 @@ object StagedBGENReader {
 
       cb.define(Lfinish)
     }
-    cb.invokeVoid(emb, region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding)
+    cb.invokeVoid(emb, cb._this, region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding)
     out
   }
 
@@ -432,7 +432,7 @@ object StagedBGENReader {
     val fb = EmitFunctionBuilder[String, Array[Long], Array[AnyRef]](ctx, "bgen_query_index")
 
     fb.emitWithBuilder { cb =>
-      val mb = fb.apply_method
+      val mb = fb.apply
       val path = mb.getCodeParam[String](1)
       val indices = mb.getCodeParam[Array[Long]](2)
       val index = new StagedIndexReader(mb, leafSpec, internalSpec)

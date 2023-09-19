@@ -84,21 +84,22 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
     builder.initialize(cb)
   }
 
-  def gc(cb: EmitCodeBuilder): Unit = {
-    cb.invokeVoid(cb.emb.ecb.getOrGenEmitMethod("reservoir_sample_gc",
-      (this, "gc"), FastIndexedSeq(), UnitInfo) { mb =>
-      mb.voidWithBuilder { cb =>
-        cb.ifx(garbage > (maxSize.toL * 2L + 1024L), {
-          val oldRegion = mb.newLocal[Region]("old_region")
-          cb.assign(oldRegion, region)
-          cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
-          builder.reallocateData(cb)
-          cb.assign(garbage, 0L)
-          cb += oldRegion.invoke[Unit]("invalidate")
-        })
-      }
-    })
-  }
+  def gc(cb: EmitCodeBuilder): Unit =
+    cb.invokeVoid(
+      cb.emb.ecb.getOrGenEmitMethod("reservoir_sample_gc", (this, "gc"), FastIndexedSeq(), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          cb.ifx(garbage > (maxSize.toL * 2L + 1024L), {
+            val oldRegion = mb.newLocal[Region]("old_region")
+            cb.assign(oldRegion, region)
+            cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
+            builder.reallocateData(cb)
+            cb.assign(garbage, 0L)
+            cb += oldRegion.invoke[Unit]("invalidate")
+          })
+        }
+      },
+      cb._this
+    )
 
   def seqOp(cb: EmitCodeBuilder, elt: EmitCode): Unit = {
     val eltVal = cb.memoize(elt)

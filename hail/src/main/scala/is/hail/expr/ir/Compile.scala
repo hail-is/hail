@@ -181,7 +181,7 @@ object CompileIterator {
     val setF = fb.newEmitMethod("setRegions", FastIndexedSeq(CodeParamType(typeInfo[Region]), CodeParamType(typeInfo[Region])), CodeParamType(typeInfo[Unit]))
     setF.emit(Code(outerRegionField := setF.getCodeParam[Region](1), eltRegionField := setF.getCodeParam[Region](2)))
 
-    val stepF = fb.apply_method
+    val stepF = fb.apply
     val stepFECB = stepF.ecb
 
     val outerRegion = outerRegionField

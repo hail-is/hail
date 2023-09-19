@@ -15,7 +15,7 @@ class CodeSuite extends HailSuite {
 
   @Test def testForLoop() {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
-    val mb = fb.apply_method
+    val mb = fb.apply
     val i = mb.newLocal[Int]()
     val sum = mb.newLocal[Int]()
     val code = Code(
@@ -36,7 +36,7 @@ class CodeSuite extends HailSuite {
 
     def testSizeHelper(v: SValue): Long = {
       val fb = EmitFunctionBuilder[Long](ctx, "test_size_in_bytes")
-      val mb = fb.apply_method
+      val mb = fb.apply
       mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
         v.sizeToStoreInBytes(cb).value
       })
@@ -51,7 +51,7 @@ class CodeSuite extends HailSuite {
 
   @Test def testArraySizeInBytes(): Unit = {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
-    val mb = fb.apply_method
+    val mb = fb.apply
     val ptype = PCanonicalArray(PInt32())
     val stype = SIndexablePointer(ptype)
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
@@ -66,7 +66,7 @@ class CodeSuite extends HailSuite {
 
   @Test def testIntervalSizeInBytes(): Unit = {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
-    val mb = fb.apply_method
+    val mb = fb.apply
 
     val structL = new SStackStructValue(
       SStackStruct(TStruct("x" -> TInt64, "y" -> TInt32), IndexedSeq(EmitType(SInt64, true), EmitType(SInt32, false))),
@@ -104,7 +104,7 @@ class CodeSuite extends HailSuite {
 
   def hashTestNumHelper(v: SValue): Int = {
     val fb = EmitFunctionBuilder[Int](ctx, "test_hash")
-    val mb = fb.apply_method
+    val mb = fb.apply
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val hash = v.hash(cb)
       hash.value
@@ -115,7 +115,7 @@ class CodeSuite extends HailSuite {
   def hashTestStringHelper(toHash: String): Int = {
     val pstring = PCanonicalString()
     val fb = EmitFunctionBuilder[Region, Int](ctx, "test_hash")
-    val mb = fb.apply_method
+    val mb = fb.apply
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val region = fb.emb.getCodeParam[Region](1)
       val st = SStringPointer(pstring)
@@ -131,7 +131,7 @@ class CodeSuite extends HailSuite {
   def hashTestArrayHelper(toHash: IndexedSeq[Int]): Int = {
     val pArray = PCanonicalArray(PInt32(true))
     val fb = EmitFunctionBuilder[Long, Int](ctx, "test_hash")
-    val mb = fb.apply_method
+    val mb = fb.apply
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val arrayPointer = fb.emb.getCodeParam[Long](1)
       val arrayToHash = pArray.loadCheapSCode(cb, arrayPointer)
@@ -146,7 +146,7 @@ class CodeSuite extends HailSuite {
   def hashTestStructHelper(toHash: Row, fields : IndexedSeq[PField]): Int = {
     val pStruct = PCanonicalStruct(fields)
     val fb = EmitFunctionBuilder[Long, Int](ctx, "test_hash")
-    val mb = fb.apply_method
+    val mb = fb.apply
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val structPointer = fb.emb.getCodeParam[Long](1)
       val structToHash = pStruct.loadCheapSCode(cb, structPointer)

@@ -19,7 +19,7 @@ class LIRSplitSuite extends HailSuite {
           cb.ifx(arg.cne(1000L), cb._fatal(s"bad split at $i!"))
         }
       }
-      cb.invokeVoid(mb, const(1L))
+      cb.invokeVoid(mb, cb._this, const(1L))
       Code._empty
     }
     f.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()

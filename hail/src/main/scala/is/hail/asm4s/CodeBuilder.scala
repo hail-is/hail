@@ -32,6 +32,9 @@ object CodeBuilder {
 trait CodeBuilderLike {
   def mb: MethodBuilder[_]
 
+  def _this: Value[_] =
+    mb._this
+
   def isOpenEnded: Boolean
 
   // def code: Code[Unit] // debugging only

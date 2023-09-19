@@ -206,14 +206,20 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   private def _invoke[T](callee: EmitMethodBuilder[_], _args: Param*): Value[T] = {
-    val expectedArgs = callee.emitParamTypes
+
+    // Instance methods must supply `this` in first position.
+    val expectedArgs =
+      if (callee.mb.isStatic) callee.emitParamTypes
+      else CodeParamType(callee.ecb.cb.ti) +: callee.emitParamTypes
+
     val args = _args.toArray
+
     if (expectedArgs.size != args.length)
-      throw new RuntimeException(s"invoke ${ callee.mb.methodName }: wrong number of parameters: " +
-        s"expected ${ expectedArgs.size }, found ${ args.length }")
-    val codeArgs = args.indices.flatMap { i =>
-      val arg = args(i)
-      val pt = expectedArgs(i)
+      throw new RuntimeException(s"invoke ${callee.mb.methodName}: wrong number of parameters: " +
+        s"expected ${expectedArgs.size}, found ${args.length}"
+      )
+
+    val codeArgs = args.zip(expectedArgs).zipWithIndex.flatMap { case ((arg, pt), i) =>
       (arg, pt) match {
         case (CodeParam(c), cpt: CodeParamType) =>
           if (c.ti != cpt.ti)
@@ -249,7 +255,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             s"\n  expected ${ expected }")
       }
     }
-    callee.mb.invoke(this, codeArgs: _*)
+
+    callee.mb.invoke[T](this, codeArgs: _*)
   }
 
   def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {

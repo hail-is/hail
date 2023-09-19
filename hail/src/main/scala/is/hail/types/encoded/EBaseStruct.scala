@@ -1,7 +1,7 @@
 package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
-import is.hail.asm4s._
+import is.hail.asm4s.{Field => _, _}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.BaseStruct

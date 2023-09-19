@@ -49,11 +49,11 @@ class ETypeSuite extends HailSuite {
 
   def encodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Annotation = {
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
-    val enc = eType.buildEncoderMethod(inPType.sType, fb.apply_method.ecb)
+    val enc = eType.buildEncoderMethod(inPType.sType, fb.apply.ecb)
     fb.emitWithBuilder { cb =>
-      val arg1 = inPType.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](1))
-      val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
-      cb.invokeVoid(enc, arg1, arg2)
+      val arg1 = inPType.loadCheapSCode(cb, fb.apply.getCodeParam[Long](1))
+      val arg2 = fb.apply.getCodeParam[OutputBuffer](2)
+      cb.invokeVoid(enc, cb._this, arg1, arg2)
       Code._empty
     }
 
@@ -67,11 +67,11 @@ class ETypeSuite extends HailSuite {
     buffer.clearPos()
 
     val fb2 = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "fb2")
-    val regArg = fb2.apply_method.getCodeParam[Region](1)
-    val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
-    val dec = eType.buildDecoderMethod(outPType.virtualType, fb2.apply_method.ecb)
+    val regArg = fb2.apply.getCodeParam[Region](1)
+    val ibArg = fb2.apply.getCodeParam[InputBuffer](2)
+    val dec = eType.buildDecoderMethod(outPType.virtualType, fb2.apply.ecb)
     fb2.emitWithBuilder[Long] { cb =>
-      val decoded = cb.invokeSCode(dec, regArg, ibArg)
+      val decoded = cb.invokeSCode(dec, cb._this, regArg, ibArg)
       outPType.store(cb, regArg, decoded, deepCopy = false)
     }
 

@@ -1,15 +1,13 @@
 package is.hail.io.avro
 
 import is.hail.annotations.Region
-import is.hail.asm4s._
+import is.hail.asm4s.{Field => _, _}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode, PartitionReader}
-import is.hail.types.physical.{PCanonicalTuple, PInt64Required}
-import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue, primitive}
-import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
+import is.hail.types.physical.{PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
 import is.hail.types.{RField, RStruct, TypeWithRequiredness}
 import org.apache.avro.Schema

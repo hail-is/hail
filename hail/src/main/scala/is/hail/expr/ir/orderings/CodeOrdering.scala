@@ -100,7 +100,7 @@ abstract class CodeOrdering {
         f(cb, arg1, arg2)
       }
     }
-    cb.memoize(cb.invokeCode[T](mb, arg1, arg2))
+    cb.memoize(cb.invokeCode[T](mb, cb._this, arg1, arg2))
   }
 
   final def checkedEmitCode[T](cb: EmitCodeBuilder, arg1: EmitValue, arg2: EmitValue, missingEqual: Boolean, context: String,
@@ -120,7 +120,7 @@ abstract class CodeOrdering {
         f(cb, arg1, arg2, missingEqual)
       }
     }
-    cb.memoize(cb.invokeCode[T](mb, arg1, arg2))
+    cb.memoize(cb.invokeCode[T](mb, cb._this, arg1, arg2))
   }
 
 

@@ -8,6 +8,7 @@ import is.hail.expr.ir.functions.IntervalFunctions
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
+import is.hail.lir.ValueX
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
@@ -1461,13 +1462,10 @@ object EmitStream {
             val rElemSTy = rProd.element.st.asInstanceOf[SBaseStruct]
 
             val intrvlParamTy: ParamType =
-              SCodeParamType(rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName)))
+              rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName)).paramType
 
-            val k: EmitClassBuilder[Unit] =
-              mb.genEmitClass[Unit]("RightEndpointComparator")
-
-            val loadInterval: EmitMethodBuilder[Unit] =
-              k.getOrGenEmitMethod("loadInterval", "loadInterval", Array.empty, intrvlParamTy) { mb =>
+            val loadInterval: EmitMethodBuilder[_] =
+              mb.ecb.defineEmitMethod("loadInterval", FastSeq(), intrvlParamTy) { mb =>
                 mb.emitSCode { cb =>
                   mb.getEmitParam(cb, 0)
                     .get(cb)
@@ -1477,25 +1475,38 @@ object EmitStream {
                 }
               }
 
-            val minHeap =
-              StagedPriorityQueue(mb.ecb.emodb, rElemSTy,
-                new EmitFunctionBuilder[Unit](
-                  k.getOrGenEmitMethod("compare", "compare", FastSeq(intrvlParamTy, intrvlParamTy), IntInfo) { mb =>
-                    mb.emitWithBuilder[Int] { cb =>
-                      val l = cb.invokeSCode(loadInterval, mb.getEmitParam(cb, 0)).asInterval
-                      val r = cb.invokeSCode(loadInterval, mb.getEmitParam(cb, 1)).asInterval
-                      IntervalFunctions.intervalEndpointCompare(cb,
-                        l.loadEnd(cb).get(cb), l.includesEnd,
-                        r.loadEnd(cb).get(cb), r.includesEnd
-                      )
-                    }
-                  }
-                )
-              )
-
             val leftStructField = mb.newPField(lProd.element.st)
             val intervalResultField = mb.newPField(PCanonicalArray(rProd.element.st.storageType(), required = true).sType)
             val eltRegion = mb.genFieldThisRef[Region]("interval_join_region")
+            val minHeap = mb.genFieldThisRef[EmitPriorityQueue.RuntimeClass]("min_heap")
+            val _this = mb.genFieldThisRef[Unit]("_this")
+
+            val MinHeapClass: CGenPriorityQueueClass =
+              EmitPriorityQueue(mb.ecb.emodb, rElemSTy) { ecb =>
+                new StagedFunction2[SValue, SValue, Value[Int]] {
+
+                  val parent: ThisFieldRef[Unit] =
+                    ecb.genFieldThisRef[Unit]("parent")
+
+                  val compare: EmitMethodBuilder[_] =
+                    ecb.defineEmitMethod("intervalRightEndpointCompare", FastSeq(rElemSTy.paramType, rElemSTy.paramType), IntInfo) { emb =>
+                      emb.emitWithBuilder[Int] { cb =>
+                        val l = cb.invokeSCode(loadInterval, parent, cb.emb.getEmitParam(cb, 0)).asInterval
+                        val r = cb.invokeSCode(loadInterval, parent, cb.emb.getEmitParam(cb, 1)).asInterval
+                        IntervalFunctions.intervalEndpointCompare(cb,
+                          l.loadEnd(cb).get(cb), l.includesEnd,
+                          r.loadEnd(cb).get(cb), r.includesEnd
+                        )
+                      }
+                    }
+
+                  override def initialize(cb: EmitCodeBuilder): Unit =
+                    cb.assign(this.parent, _this) // fixme: ref `this` from outer context
+
+                  override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] =
+                    cb.invokeCode(compare, cb._this, a, b)
+                }
+              }
 
             SStreamValue {
               new StreamProducer {
@@ -1508,7 +1519,7 @@ object EmitStream {
                 override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   lProd.initialize(cb, outerRegion)
                   rProd.initialize(cb, outerRegion)
-                  minHeap.initialize(cb)
+                  MinHeapClass.initialize(cb, minHeap)
                 }
 
                 override val elementRegion: Settable[Region] =
@@ -1525,14 +1536,14 @@ object EmitStream {
                     val key = row.subset(lKeyNames: _*)
 
                     cb.whileLoop(
-                      minHeap.nonEmpty(cb) && {
-                        val interval = cb.invokeSCode(loadInterval, minHeap.peek(cb)).asInterval
+                      MinHeapClass.nonEmpty(cb, minHeap) && {
+                        val interval = cb.invokeSCode(loadInterval, cb._this, MinHeapClass.peek(cb, minHeap)).asInterval
                         IntervalFunctions.intervalContains(cb, interval, key).get(cb).asBoolean.value
                       },
-                      minHeap.poll(cb)
+                      MinHeapClass.poll(cb, minHeap)
                     )
 
-                    minHeap.realloc(cb)
+                    MinHeapClass.realloc(cb, minHeap)
 
                     // now pull from the interval stream and insert into minheap while
                     // the most-recent interval left endpoint is greater than the current key
@@ -1541,7 +1552,7 @@ object EmitStream {
                     cb.define(rProd.LproduceElementDone)
 
                     val rElem: SValue = rProd.element.toI(cb).get(cb)
-                    val rInterval = cb.invokeSCode(loadInterval, rElem).asInterval
+                    val rInterval = cb.invokeSCode(loadInterval, cb._this, rElem).asInterval
 
                     cb.ifx(
                       IntervalFunctions.pointGTIntervalEndpoint(cb, key, rInterval.loadEnd(cb).get(cb), rInterval.includesEnd),
@@ -1557,12 +1568,12 @@ object EmitStream {
 
                     // we've found the first interval that contains key
                     // add interval to minheap
-                    minHeap.add(cb, rElem)
+                    MinHeapClass.add(cb, minHeap, rElem)
                     cb.goto(rProd.LproduceElement)
 
                     cb.define(LallIntervalsFound)
                     cb.assign(leftStructField, row)
-                    cb.assign(intervalResultField, minHeap.toArray(cb, eltRegion))
+                    cb.assign(intervalResultField, MinHeapClass.toArray(cb, minHeap, eltRegion))
                     cb.goto(LproduceElementDone)
 
                     cb.define(lProd.LendOfStream)
@@ -1578,7 +1589,7 @@ object EmitStream {
                   }
 
                 override def close(cb: EmitCodeBuilder): Unit = {
-                  minHeap.close(cb)
+                  MinHeapClass.close(cb, minHeap)
                   rProd.close(cb)
                   lProd.close(cb)
                 }

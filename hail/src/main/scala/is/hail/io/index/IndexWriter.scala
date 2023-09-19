@@ -290,93 +290,94 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
   private val utils = new StagedIndexWriterUtils(cb.genFieldThisRef[IndexWriterUtils]())
 
   private val leafBuilder = new StagedLeafNodeBuilder(branchingFactor, keyType, annotationType, cb.fieldBuilder)
-  private val writeInternalNode: EmitMethodBuilder[_] = {
-    val m = cb.genEmitMethod[Int, Boolean, Unit]("writeInternalNode")
+  private val writeInternalNode: EmitMethodBuilder[_] =
+    cb.defineEmitMethod(genName("m", "writeInternalNode"), FastSeq(IntInfo, BooleanInfo), UnitInfo) { m =>
 
-    val internalBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
-    val parentBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
+      val internalBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
+      val parentBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
 
-    m.emitWithBuilder { cb =>
       val level = m.getCodeParam[Int](1)
       val isRoot = m.getCodeParam[Boolean](2)
-      val idxOff = cb.newLocal[Long]("indexOff")
-      cb.assign(idxOff, utils.bytesWritten)
-      internalBuilder.loadFrom(cb, utils, level)
-      cb += ob.writeByte(1.toByte)
-      internalBuilder.encode(cb, ob)
-      cb += ob.flush()
 
-      val next = m.newLocal[Int]("next")
-      cb.assign(next, level + 1)
-      cb.ifx(!isRoot, {
-        cb.ifx(utils.size.ceq(next),
-          parentBuilder.create(cb), {
-            cb.ifx(utils.getLength(next).ceq(branchingFactor),
-              m.invokeCode[Unit](cb, CodeParam(next), CodeParam(false)))
-            parentBuilder.loadFrom(cb, utils, next)
-          })
-        internalBuilder.loadChild(cb, 0)
-        parentBuilder.add(cb, idxOff, internalBuilder.getLoadedChild)
-        parentBuilder.store(cb, utils, next)
-      })
+      m.emitWithBuilder { cb =>
+        val idxOff = cb.newLocal[Long]("indexOff")
+        cb.assign(idxOff, utils.bytesWritten)
+        internalBuilder.loadFrom(cb, utils, level)
+        cb += ob.writeByte(1.toByte)
+        internalBuilder.encode(cb, ob)
+        cb += ob.flush()
 
-      internalBuilder.reset(cb)
-      internalBuilder.store(cb, utils, level)
-      Code._empty
+        val next = m.newLocal[Int]("next")
+        cb.assign(next, level + 1)
+        cb.ifx(!isRoot, {
+          cb.ifx(utils.size.ceq(next),
+            parentBuilder.create(cb), {
+              cb.ifx(utils.getLength(next).ceq(branchingFactor),
+                cb.invokeVoid(m, cb._this, CodeParam(next), CodeParam(false)))
+              parentBuilder.loadFrom(cb, utils, next)
+            })
+          internalBuilder.loadChild(cb, 0)
+          parentBuilder.add(cb, idxOff, internalBuilder.getLoadedChild)
+          parentBuilder.store(cb, utils, next)
+        })
+
+        internalBuilder.reset(cb)
+        internalBuilder.store(cb, utils, level)
+        Code._empty
+      }
     }
-    m
-  }
 
-  private val writeLeafNode: EmitMethodBuilder[_] = {
-    val m = cb.genEmitMethod[Unit]("writeLeafNode")
+  private val writeLeafNode: EmitMethodBuilder[_] =
+    cb.defineEmitMethod(genName("m", "writeLeafNode"), FastSeq(), UnitInfo) { m =>
+      val parentBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
+      m.voidWithBuilder { cb =>
+        val idxOff = cb.newLocal[Long]("indexOff")
+        cb.assign(idxOff, utils.bytesWritten)
+        cb += ob.writeByte(0.toByte)
+        leafBuilder.encode(cb, ob)
+        cb += ob.flush()
 
-    val parentBuilder = new StagedInternalNodeBuilder(branchingFactor, keyType, annotationType, m.localBuilder)
-    m.voidWithBuilder { cb =>
-      val idxOff = cb.newLocal[Long]("indexOff")
-      cb.assign(idxOff, utils.bytesWritten)
-      cb += ob.writeByte(0.toByte)
-      leafBuilder.encode(cb, ob)
-      cb += ob.flush()
+        cb.ifx(utils.getLength(0).ceq(branchingFactor),
+          cb.invokeVoid(writeInternalNode, cb._this, CodeParam(0), CodeParam(false))
+        )
+        parentBuilder.loadFrom(cb, utils, 0)
 
-      cb.ifx(utils.getLength(0).ceq(branchingFactor),
-        writeInternalNode.invokeCode[Unit](cb, CodeParam(0), CodeParam(false)))
-      parentBuilder.loadFrom(cb, utils, 0)
-
-      leafBuilder.loadChild(cb, 0)
-      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.value, leafBuilder.getLoadedChild)
-      parentBuilder.store(cb, utils, 0)
-      leafBuilder.reset(cb, elementIdx)
+        leafBuilder.loadChild(cb, 0)
+        parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.value, leafBuilder.getLoadedChild)
+        parentBuilder.store(cb, utils, 0)
+        leafBuilder.reset(cb, elementIdx)
+      }
     }
-    m
-  }
 
-  private val flush: EmitMethodBuilder[_] = {
-    val m = cb.genEmitMethod[Long]("flush")
-    m.emitWithBuilder { cb =>
-      val idxOff = cb.newLocal[Long]("indexOff")
-      val level = m.newLocal[Int]("level")
-      cb.ifx(leafBuilder.ab.length > 0, writeLeafNode.invokeCode[Unit](cb))
-      cb.assign(level, 0)
-      cb.whileLoop(level < utils.size - 1, {
-        cb.ifx(utils.getLength(level) > 0,
-          writeInternalNode.invokeCode[Unit](cb, CodeParam(level), CodeParam(false)))
-        cb.assign(level, level + 1)
-      })
-      cb.assign(idxOff, utils.bytesWritten)
-      writeInternalNode.invokeCode[Unit](cb, CodeParam(level), CodeParam(true))
-      idxOff.load()
+  private val flush: EmitMethodBuilder[_] =
+    cb.defineEmitMethod(genName("m", "flush"), FastSeq(), LongInfo) { m =>
+      m.emitWithBuilder { cb =>
+        val idxOff = cb.newLocal[Long]("indexOff")
+        val level = m.newLocal[Int]("level")
+        cb.ifx(leafBuilder.ab.length > 0, cb.invokeVoid(writeLeafNode, cb._this))
+        cb.assign(level, 0)
+        cb.whileLoop(level < utils.size - 1, {
+          cb.ifx(utils.getLength(level) > 0,
+            cb.invokeVoid(writeInternalNode, cb._this, CodeParam(level), CodeParam(false))
+          )
+          cb.assign(level, level + 1)
+        })
+        cb.assign(idxOff, utils.bytesWritten)
+        cb.invokeVoid(writeInternalNode, cb._this, CodeParam(level), CodeParam(true))
+        idxOff.load()
+      }
     }
-    m
-  }
 
   def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode) {
     cb.ifx(leafBuilder.ab.length.ceq(branchingFactor),
-      writeLeafNode.invokeCode[Unit](cb))
+      cb.invokeVoid(writeLeafNode, cb._this)
+    )
     leafBuilder.add(cb, key, offset, annotation)
     cb.assign(elementIdx, elementIdx + 1L)
   }
+
   def close(cb: EmitCodeBuilder): Unit = {
-    val off = flush.invokeCode[Long](cb)
+    val off = cb.invokeCode[Long](flush, cb._this)
     leafBuilder.close(cb)
     utils.close(cb)
     utils.writeMetadata(cb, utils.size + 1, off, elementIdx)

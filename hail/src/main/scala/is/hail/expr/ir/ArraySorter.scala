@@ -100,11 +100,11 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         cb.ifx(end - begin > 1, {
           val mid = cb.newLocal[Int]("splitMerge_mid", (begin + end) / 2)
 
-          cb.invokeVoid(splitMergeMB, r, begin, mid, arrayA, arrayB)
-          cb.invokeVoid(splitMergeMB, r, mid, end, arrayA, arrayB)
+          cb.invokeVoid(splitMergeMB, cb._this, r, begin, mid, arrayA, arrayB)
+          cb.invokeVoid(splitMergeMB, cb._this,  r, mid, end, arrayA, arrayB)
 
           // result goes in A
-          cb.invokeVoid(mergeMB, r, begin, mid, end, arrayB, arrayA)
+          cb.invokeVoid(mergeMB, cb._this, r, begin, mid, end, arrayB, arrayA)
         })
       }
 
@@ -122,7 +122,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       })
 
       // elements are sorted in workingArray2 after calling splitMergeMB
-      cb.invokeVoid(splitMergeMB, sortMB.getCodeParam[Region](1), const(0), newEnd, workingArray1, workingArray2)
+      cb.invokeVoid(splitMergeMB, cb._this, sortMB.getCodeParam[Region](1), const(0), newEnd, workingArray1, workingArray2)
 
       cb.assign(i, 0)
       cb.whileLoop(i < newEnd, {
@@ -131,9 +131,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       })
 
     }
-    cb.invokeVoid(sortMB, region)
-
-
+    cb.invokeVoid(sortMB, cb._this, region)
   }
 
   def toRegion(cb: EmitCodeBuilder, t: Type): SIndexableValue = {
@@ -205,6 +203,6 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       cb += array.setSize(n)
     }
 
-    cb.invokeVoid(distinctMB, region)
+    cb.invokeVoid(distinctMB, cb._this, region)
   }
 }

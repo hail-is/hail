@@ -47,7 +47,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildEncoder(st: SType, kb: EmitClassBuilder[_]): StagedEncoder = {
     val mb = buildEncoderMethod(st, kb);
-    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, sv, ob) }
+    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, cb._this, sv, ob) }
   }
 
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
@@ -67,7 +67,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildDecoder(t: Type, kb: EmitClassBuilder[_]): StagedDecoder = {
     val mb = buildDecoderMethod(t: Type, kb);
     { (cb: EmitCodeBuilder, r: Value[Region], ib: Value[InputBuffer]) =>
-      cb.invokeSCode(mb, r, ib)
+      cb.invokeSCode(mb, cb._this, r, ib)
     }
   }
 
@@ -92,7 +92,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildInplaceDecoder(pt: PType, kb: EmitClassBuilder[_]): StagedInplaceDecoder = {
     val mb = buildInplaceDecoderMethod(pt, kb);
     { (cb: EmitCodeBuilder, r: Value[Region], addr: Value[Long], ib: Value[InputBuffer]) =>
-      cb.invokeVoid(mb, r, addr, ib)
+      cb.invokeVoid(mb, cb._this, r, addr, ib)
     }
   }
 
@@ -123,7 +123,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       }
     })
 
-    { (cb, r, in) => cb.invokeVoid(mb, r, in) }
+    { (cb, r, in) => cb.invokeVoid(mb, cb._this, r, in) }
   }
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
@@ -203,7 +203,7 @@ object EType {
       val fb = EmitFunctionBuilder[EncoderAsmFunction](ctx, "etypeEncode",
         Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
         NotGenericTypeInfo[Unit])
-      val mb = fb.apply_method
+      val mb = fb.apply
 
       mb.voidWithBuilder { cb =>
         val addr: Value[Long] = mb.getCodeParam[Long](1)
@@ -237,7 +237,7 @@ object EType {
       val fb = EmitFunctionBuilder[DecoderAsmFunction](ctx, "etypeDecode",
         Array(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
         NotGenericTypeInfo[Long])
-      val mb = fb.apply_method
+      val mb = fb.apply
       val pt = et.decodedPType(t)
       val f = et.buildDecoder(t, mb.ecb)
 

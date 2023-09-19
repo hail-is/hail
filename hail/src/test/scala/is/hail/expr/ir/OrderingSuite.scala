@@ -463,12 +463,12 @@ class OrderingSuite extends HailSuite {
         val cset = fb.getCodeParam[Long](2)
         val cetuple = fb.getCodeParam[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), {
+        val bs = new BinarySearch(fb.apply, pset.sType, EmitType(pset.elementType.sType, true), {
           (cb, elt) => elt
         })
         fb.emitWithBuilder(cb =>
           bs.search(cb, pset.loadCheapSCode(cb, cset),
-            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0))))))
+            EmitCode.fromI(fb.apply)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0))))))
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
@@ -500,7 +500,7 @@ class OrderingSuite extends HailSuite {
         val cdict = fb.getCodeParam[Long](2)
         val cktuple = fb.getCodeParam[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), { (cb, elt) =>
+        val bs = new BinarySearch(fb.apply, pDict.sType, EmitType(pDict.keyType.sType, false), { (cb, elt) =>
           cb.memoize(elt.toI(cb).flatMap(cb) {
             case x: SBaseStructValue =>
               x.loadField(cb, 0)
@@ -509,7 +509,7 @@ class OrderingSuite extends HailSuite {
 
         fb.emitWithBuilder(cb =>
           bs.search(cb, pDict.loadCheapSCode(cb, cdict),
-            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))
+            EmitCode.fromI(fb.apply)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 

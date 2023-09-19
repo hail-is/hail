@@ -100,20 +100,19 @@ class FunctionSuite extends HailSuite {
   def testFunctionBuilderGetOrDefine() {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
-    val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastIndexedSeq[ParamType](), UnitInfo) { mb =>
+    val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastSeq(), UnitInfo) { mb =>
       mb.emit(i := i + 1)
     }
-    val mb2 = fb.getOrGenEmitMethod("foo", "foo", FastIndexedSeq[ParamType](), UnitInfo) { mb =>
+    val mb2 = fb.getOrGenEmitMethod("foo", "foo", FastSeq(), UnitInfo) { mb =>
       mb.emit(i := i - 100)
     }
-    fb.emitWithBuilder(cb => {
+    fb.emitWithBuilder { cb => 
       cb.assign(i, 0)
-      mb1.invokeCode(cb)
-      mb2.invokeCode(cb)
+      cb.invokeVoid(mb1, cb._this)
+      cb.invokeVoid(mb2, cb._this)
       i
-    })
+    }
     pool.scopedRegion { r =>
-
       assert(fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, ctx.taskContext, r)() == 2)
     }
   }

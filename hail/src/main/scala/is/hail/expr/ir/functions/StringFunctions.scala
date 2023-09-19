@@ -125,7 +125,7 @@ object StringFunctions extends RegistryFunctions {
           sv.forEachDefined(cb) { case (cb, idx, sc) => cb += (m(idx) = sc.asString.loadString(cb)) }
           m
         }
-        cb.newLocal[Array[String]]("missing_arr", cb.invokeCode(mb, missingSV))
+        cb.newLocal[Array[String]]("missing_arr", cb.invokeCode(mb, cb._this, missingSV))
     }
 
     // lazy field reused across calls to split functions

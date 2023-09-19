@@ -73,7 +73,7 @@ object Emit {
   def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
     TypeCheck(ctx.executeContext, ir)
 
-    val mb = fb.apply_method
+    val mb = fb.apply
     val container = aggs.map { a =>
       val c = fb.addAggStates(a)
       AggContainer(a, c, () => ())
@@ -81,7 +81,7 @@ object Emit {
     val emitter = new Emit[C](ctx, fb.ecb)
     val region = mb.getCodeParam[Region](1)
     val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
-      fb.apply_method.voidWithBuilder { cb =>
+      fb.apply.voidWithBuilder { cb =>
         val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
         emitter.emitVoid(cb, ir, region, env, container, None)
       }
@@ -594,7 +594,7 @@ class Emit[C](
       ctx.tryingToSplit.bind(ir, ())
       emitVoid(cb, ir, r, env, container, loopEnv)
     }
-    cb.invokeVoid(mb)
+    cb.invokeVoid(mb, cb._this)
   }
 
   def emitSplitMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): (EmitSettable, EmitMethodBuilder[_]) = {
@@ -620,7 +620,7 @@ class Emit[C](
 
     assert(!ctx.inLoopCriticalPath.contains(ir))
     val (ev, mb) = emitSplitMethod(context, cb, ir, region, env, container, loopEnv)
-    cb.invokeVoid(mb)
+    cb.invokeVoid(mb, cb._this)
     ev.toI(cb)
   }
 
@@ -659,7 +659,7 @@ class Emit[C](
             mb.voidWithBuilder { cb =>
               group.foreach(x => emitVoid(x, cb, mb.getCodeParam[Region](1), env, container, loopEnv))
             }
-            cb.invokeVoid(mb, region)
+            cb.invokeVoid(mb, cb._this, region)
           }
         } else
           xs.foreach(x => emitVoid(x))
@@ -1043,7 +1043,7 @@ class Emit[C](
 
               }
             })
-            cb.invokeVoid(bcMb, index, len, const(errorID))
+            cb.invokeVoid(bcMb, cb._this, index, len, const(errorID))
         }
 
         emitI(a).flatMap(cb) { case av: SIndexableValue =>
@@ -2715,7 +2715,7 @@ class Emit[C](
         EmitCode.fromI(mb) { cb =>
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
-            cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
+            cb.invokeSCode(meth, FastSeq[Param](cb._this, CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
           }
         }
 
@@ -2786,7 +2786,8 @@ class Emit[C](
       val iec = emitter.emitI(ir, cb, newEnv, None)
       iec.get(cb, "Result of sorting function cannot be missing").asBoolean.value
     }
-    (cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]) => cb.memoize(cb.invokeCode[Boolean](sort, region, l, r))
+    (cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]) =>
+      cb.memoize(cb.invokeCode[Boolean](sort, cb._this, region, l, r))
   }
 }
 

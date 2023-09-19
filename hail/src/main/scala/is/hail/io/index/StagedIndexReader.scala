@@ -218,7 +218,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
           cb.assign(queryResultStartLeaf, startLeaf)
           Code._empty
         }
-      }, endpoint, leansRight, rootLevel, rootOffset, rootSuccessorIndex, rootSuccessorLeaf)
+      }, cb._this, endpoint, leansRight, rootLevel, rootOffset, rootSuccessorIndex, rootSuccessorLeaf)
   }
 
   // Supports both point and interval queries. If `isPointQuery`, end key
@@ -367,19 +367,24 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     cb.ifx(cached cne 0L, {
       cb.assign(ret, internalPType.loadCheapSCode(cb, cached))
     }, {
-      cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readInternalNode", ("readInternalNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
-        emb.emitSCode { cb =>
-          val offset = emb.getCodeParam[Long](1)
-          cb += is.invoke[Long, Unit]("seek", offset)
-          val ib = cb.memoize(internalCodec.buildCodeInputBuffer(is))
-          cb.ifx(ib.readByte() cne 1, cb._fatal("bad buffer at internal!"))
-          val region = cb.memoize(cb.emb.ecb.pool().invoke[Region.Size, Region]("getRegion", Region.TINIER))
-          val internalNode = internalDec.apply(cb, region, ib)
-          val internalNodeAddr = internalPType.store(cb, region, internalNode, false)
-          cb += cache.invoke[Long, Region, Long, Unit]("put", offset, region, internalNodeAddr)
-          internalNode
-        }
-      }, offset))
+      cb.assign(ret,
+        cb.invokeSCode(
+          cb.emb.ecb.getOrGenEmitMethod("readInternalNode", ("readInternalNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
+            emb.emitSCode { cb =>
+              val offset = emb.getCodeParam[Long](1)
+              cb += is.invoke[Long, Unit]("seek", offset)
+              val ib = cb.memoize(internalCodec.buildCodeInputBuffer(is))
+              cb.ifx(ib.readByte() cne 1, cb._fatal("bad buffer at internal!"))
+              val region = cb.memoize(cb.emb.ecb.pool().invoke[Region.Size, Region]("getRegion", Region.TINIER))
+              val internalNode = internalDec.apply(cb, region, ib)
+              val internalNodeAddr = internalPType.store(cb, region, internalNode, false)
+              cb += cache.invoke[Long, Region, Long, Unit]("put", offset, region, internalNodeAddr)
+              internalNode
+            }
+          },
+          cb._this,
+          offset
+        ))
     })
 
     ret.asBaseStruct
@@ -395,19 +400,23 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     cb.ifx(cached cne 0L, {
       cb.assign(ret, leafPType.loadCheapSCode(cb, cached))
     }, {
-      cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readLeafNode", ("readLeafNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
-        emb.emitSCode { cb =>
-          val offset = emb.getCodeParam[Long](1)
-          cb += is.invoke[Long, Unit]("seek", offset)
-          val ib = cb.memoize(leafCodec.buildCodeInputBuffer(is))
-          cb.ifx(ib.readByte() cne 0, cb._fatal("bad buffer at leaf!"))
-          val region = cb.memoize(cb.emb.ecb.pool().invoke[Region.Size, Region]("getRegion", Region.TINIER))
-          val leafNode = leafDec.apply(cb, region, ib)
-          val leafNodeAddr = leafPType.store(cb, region, leafNode, false)
-          cb += cache.invoke[Long, Region, Long, Unit]("put", offset, region, leafNodeAddr)
-          leafPType.loadCheapSCode(cb, leafNodeAddr)
-        }
-      }, offset))
+      cb.assign(ret, cb.invokeSCode(
+        cb.emb.ecb.getOrGenEmitMethod("readLeafNode", ("readLeafNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
+          emb.emitSCode { cb =>
+            val offset = emb.getCodeParam[Long](1)
+            cb += is.invoke[Long, Unit]("seek", offset)
+            val ib = cb.memoize(leafCodec.buildCodeInputBuffer(is))
+            cb.ifx(ib.readByte() cne 0, cb._fatal("bad buffer at leaf!"))
+            val region = cb.memoize(cb.emb.ecb.pool().invoke[Region.Size, Region]("getRegion", Region.TINIER))
+            val leafNode = leafDec.apply(cb, region, ib)
+            val leafNodeAddr = leafPType.store(cb, region, leafNode, false)
+            cb += cache.invoke[Long, Region, Long, Unit]("put", offset, region, leafNodeAddr)
+            leafPType.loadCheapSCode(cb, leafNodeAddr)
+          }
+        },
+        cb._this,
+        offset
+      ))
     })
     ret.asBaseStruct
   }
@@ -450,6 +459,10 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
 
           leafChildType.coerceOrCopy(cb, region, result, false)
         }
-      }, region, absIndex).asBaseStruct
+      },
+      cb._this,
+      region,
+      absIndex
+    ).asBaseStruct
   }
 }

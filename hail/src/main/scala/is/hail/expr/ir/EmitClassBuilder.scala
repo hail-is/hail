@@ -24,8 +24,8 @@ import scala.language.existentials
 
 class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
-  def getOrEmitNewClass[C: TypeInfo](name: String, sourceFile: Option[String] = None)
-                                    (body: EmitClassBuilder[C] => Unit)
+  def getOrEmitClass[C: TypeInfo](name: String, sourceFile: Option[String] = None)
+                                 (body: EmitClassBuilder[C] => Unit)
   : EmitClassBuilder[C] =
     modb
       .classes
@@ -449,7 +449,7 @@ class EmitClassBuilder[C](
     }
 
     getF.emitWithBuilder { cb =>
-      storeF.invokeCode[Unit](cb)
+      cb.invokeVoid(storeF, cb._this)
       _aggOff
     }
 
@@ -626,6 +626,12 @@ class EmitClassBuilder[C](
 
     (codeArgsInfo, codeReturnInfo, asmTuple)
   }
+
+  def ctor: EmitMethodBuilder[C] =
+    new EmitMethodBuilder[C](FastIndexedSeq(), CodeParamType(UnitInfo), this, cb.ctor, null)
+
+  def emitInitI(f: EmitCodeBuilder => Unit): Unit =
+    EmitCodeBuilder.scopedVoid(ctor)(f)
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {
     val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(argsInfo, returnInfo)
@@ -838,8 +844,26 @@ class EmitClassBuilder[C](
       mb
     })
 
-  def getEmitMethod(key: Any): EmitMethodBuilder[C] =
-    methodMemo.getOrElse(key, throw new NoSuchMethodError(s"No such method '$key' in '$className'"))
+  def defineEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
+                      (body: EmitMethodBuilder[C] => Unit)
+  : EmitMethodBuilder[C] = {
+    val mb = newEmitMethod(name, paramTys, retTy)
+    body(mb)
+    mb
+  }
+
+  def getEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType): EmitMethodBuilder[C] = {
+    val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
+
+    val mb: MethodBuilder[C] =
+      cb.lookupMethod(name, codeArgsInfo, codeReturnInfo, isStatic = false)
+        .getOrElse {
+          val signature = s"${codeArgsInfo.mkString("(", ",", ")")} => $codeReturnInfo"
+          throw new NoSuchMethodError(s"No method found in '$className' matching '$name: $signature.")
+        }
+
+    new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple)
+  }
 
   def genEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     newEmitMethod(genName("m", baseName), argsInfo, returnInfo)
@@ -873,22 +897,40 @@ class EmitClassBuilder[C](
 }
 
 object EmitFunctionBuilder {
-  def apply[F](
-    ctx: ExecuteContext, baseName: String, paramTypes: IndexedSeq[ParamType], returnType: ParamType, sourceFile: Option[String] = None
-  )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
+  def apply[F: TypeInfo](ctx: ExecuteContext,
+                         baseName: String,
+                         paramTypes: IndexedSeq[ParamType],
+                         returnType: ParamType,
+                         sourceFile: Option[String] = None
+  ): EmitFunctionBuilder[F] = {
     val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName, sourceFile)
     val apply = cb.newEmitMethod("apply", paramTypes, returnType)
     new EmitFunctionBuilder(apply)
   }
 
-  def apply[F](
-    ctx: ExecuteContext, baseName: String, argInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]
-  )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
+  def apply[F: TypeInfo](ctx: ExecuteContext,
+                         baseName: String,
+                         argInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
+                         returnInfo: MaybeGenericTypeInfo[_]
+                        ): EmitFunctionBuilder[F] = {
     val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName)
-        val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
+    val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
     new EmitFunctionBuilder(apply)
+  }
+
+  def define[F: TypeInfo](ctx: ExecuteContext,
+                          baseName: String,
+                          paramTypes: IndexedSeq[ParamType],
+                          returnType: ParamType,
+                          sourceFile: Option[String] = None
+                         )
+                         (use: EmitFunctionBuilder[F] => Unit)
+  : EmitFunctionBuilder[F] = {
+    val efb = EmitFunctionBuilder[F](ctx, baseName, paramTypes, returnType, sourceFile)
+    use(efb)
+    efb
   }
 
   def apply[R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction0[R]] =
@@ -1077,18 +1119,6 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def invokeCode[T](cb: CodeBuilderLike, args: Param*): Value[T] = {
-    assert(emitReturnType.isInstanceOf[CodeParamType])
-    assert(args.forall(_.isInstanceOf[CodeParam]))
-    mb.invoke(cb, args.flatMap {
-      case CodeParam(c) => FastIndexedSeq(c)
-      // If you hit this assertion, it means that an EmitParam was passed to
-      // invokeCode. Code with EmitParams must be invoked using the EmitCodeBuilder
-      // interface to ensure that setup is run and missingness is evaluated for the
-      // EmitCode
-      case EmitParam(ec) => fatal("EmitParam passed to invokeCode")
-    }: _*)
-  }
   def newPLocal(st: SType): SSettable = newPSettable(localBuilder, st)
 
   def newPLocal(name: String, st: SType): SSettable = newPSettable(localBuilder, st, name)
@@ -1174,6 +1204,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   def newEmitLocal(name: String, pt: SType, required: Boolean): EmitSettable = emb.newEmitLocal(name, pt, required)
 }
 
-class EmitFunctionBuilder[F](val apply_method: EmitMethodBuilder[F]) extends WrappedEmitMethodBuilder[F] {
-  def emb: EmitMethodBuilder[F] = apply_method
+final case class EmitFunctionBuilder[F] private(apply: EmitMethodBuilder[F])
+  extends WrappedEmitMethodBuilder[F] {
+  def emb: EmitMethodBuilder[F] = apply
 }
