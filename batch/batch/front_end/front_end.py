@@ -24,6 +24,23 @@ import plotly.graph_objects as go
 import pymysql
 import uvloop
 from aiohttp import web
+from hailtop import aiotools, dictfix, httpx, version
+from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
+from hailtop.batch_client.types import GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import (
+    cost_str,
+    dump_all_stacktraces,
+    humanize_timedelta_msecs,
+    periodically_call,
+    retry_long_running,
+    retry_transient_errors,
+    run_if_changed,
+    time_msecs,
+    time_msecs_str,
+)
 from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
@@ -43,23 +60,6 @@ from gear import (
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
-from hailtop import aiotools, dictfix, httpx, version
-from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-from hailtop.batch_client.types import GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
-from hailtop.config import get_deploy_config
-from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import (
-    cost_str,
-    dump_all_stacktraces,
-    humanize_timedelta_msecs,
-    periodically_call,
-    retry_long_running,
-    retry_transient_errors,
-    run_if_changed,
-    time_msecs,
-    time_msecs_str,
-)
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import batch_record_to_dict, cancel_batch_in_db, job_record_to_dict
@@ -361,6 +361,7 @@ async def _query_batch_jobs(
 
     return (jobs, last_job_id)
 
+
 @routes.get('/api/v1alpha/batches/completed')
 @auth.rest_authenticated_users_only
 async def get_completed_batches_ordered_by_completed_time(request, userdata):
@@ -418,6 +419,7 @@ LIMIT %s;
     if len(batches) == limit:
         body['last_completed_timestamp'] = last_completed_timestamp
     return web.json_response(body)
+
 
 async def _get_jobs(
     request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]

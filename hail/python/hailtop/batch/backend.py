@@ -798,9 +798,6 @@ class ServiceBackend(Backend[bc.Batch]):
                 print(f'{jid}: {cmd}')
             print('')
 
-        deploy_config = get_deploy_config()
-        url = deploy_config.external_url('batch', f'/batches/{batch_id}')
-
         if open:
             webbrowser.open(url)
         if wait and len(unsubmitted_jobs) > 0:
