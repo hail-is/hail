@@ -14,7 +14,7 @@ argon2-cffi-bindings==21.2.0
     # via argon2-cffi
 arrow==1.2.3
     # via isoduration
-astroid==2.15.7
+astroid==2.15.8
     # via pylint
 asttokens==2.4.0
     # via stack-data
@@ -498,7 +498,7 @@ tornado==6.3.3
     #   jupyterlab
     #   notebook
     #   terminado
-traitlets==5.10.0
+traitlets==5.10.1
     # via
     #   comm
     #   ipykernel

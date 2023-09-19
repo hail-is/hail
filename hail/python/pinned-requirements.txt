@@ -26,7 +26,7 @@ attrs==23.1.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
-avro==1.11.2
+avro==1.11.3
     # via -r hail/hail/python/requirements.txt
 azure-common==1.1.28
     # via
@@ -51,17 +51,17 @@ azure-mgmt-storage==20.1.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-azure-storage-blob==12.18.1
+azure-storage-blob==12.18.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
 bokeh==3.2.2
     # via -r hail/hail/python/requirements.txt
-boto3==1.28.53
+boto3==1.28.54
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.53
+botocore==1.31.54
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -118,43 +118,15 @@ frozenlist==1.4.0
     #   -r hail/hail/python/requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.11.1
-    # via
-    #   -c hail/hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-core
-    #   google-cloud-storage
 google-auth==2.23.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-    #   google-api-core
     #   google-auth-oauthlib
-    #   google-cloud-core
-    #   google-cloud-storage
 google-auth-oauthlib==0.8.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-google-cloud-core==2.3.3
-    # via
-    #   -c hail/hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-storage
-google-cloud-storage==2.11.0
-    # via
-    #   -c hail/hail/python/hailtop/pinned-requirements.txt
-    #   -r hail/hail/python/hailtop/requirements.txt
-google-crc32c==1.5.0
-    # via
-    #   -c hail/hail/python/hailtop/pinned-requirements.txt
-    #   google-resumable-media
-google-resumable-media==2.6.0
-    # via
-    #   -c hail/hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-storage
-googleapis-common-protos==1.60.0
-    # via
-    #   -c hail/hail/python/hailtop/pinned-requirements.txt
-    #   google-api-core
 humanize==1.1.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
@@ -246,8 +218,6 @@ protobuf==3.20.2
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
     #   -r hail/hail/python/requirements.txt
-    #   google-api-core
-    #   googleapis-common-protos
 py4j==0.10.9.5
     # via pyspark
 pyasn1==0.5.0
@@ -300,8 +270,6 @@ requests==2.31.0
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/requirements.txt
     #   azure-core
-    #   google-api-core
-    #   google-cloud-storage
     #   msal
     #   msrest
     #   requests-oauthlib
