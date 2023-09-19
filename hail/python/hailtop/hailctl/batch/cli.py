@@ -4,7 +4,7 @@ import typer
 from typer import Option as Opt, Argument as Arg
 import json
 
-from typing import Optional, List, Annotated as Ann
+from typing import Optional, List, Annotated as Ann, cast, Dict, Any
 
 from . import list_batches
 from . import billing
@@ -146,7 +146,12 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
 
         if job is not None:
             assert job._status
-            print(make_formatter(output)([job._status]))
+            print(make_formatter(output)([
+                cast(
+                    Dict[str, Any],  # https://stackoverflow.com/q/71986632/6823256
+                    job._status
+                )
+            ]))
         else:
             print(f"Job with ID {job_id} on batch {batch_id} not found")
 

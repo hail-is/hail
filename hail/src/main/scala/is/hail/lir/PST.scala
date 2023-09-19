@@ -481,52 +481,13 @@ class PSTBuilder(
 
     val newBlocks = new Blocks(newBlocksB.result())
     val newRegions = newRegionsB.result()
-    val nNewRegions = newRegions.length
     val newRoot = regionNewRegion(root)
 
     val newCFG = CFG(m, newBlocks)
 
-    val loopRegion = new java.util.BitSet(nNewRegions)
-
-    // returns sources of backedges that end in region i
-    // but are not contained in region i
-    def findLoopRegions(i: Int): Array[Int] = {
-      val r = newRegions(i)
-      val backEdgeSourcesB = new IntArrayBuilder()
-      if (r.children.nonEmpty) {
-        var c = 0
-        while (c < r.children.length) {
-          val ci = r.children(c)
-          val childBackEdgeSources = findLoopRegions(ci)
-          var j = 0
-          while (j < childBackEdgeSources.length) {
-            val s = childBackEdgeSources(j)
-            if (s <= r.end)
-              loopRegion.set(i)
-            else
-              backEdgeSourcesB += s
-            j += 1
-          }
-          c += 1
-        }
-      } else {
-        assert(r.start == r.end)
-        for (s <- newCFG.pred(r.start)) {
-          if (s == r.end)
-            loopRegion.set(i)
-          else if (s > r.end)
-            backEdgeSourcesB += s
-        }
-      }
-      backEdgeSourcesB.result()
-    }
-
-    findLoopRegions(newRoot)
-
     val pst = new PST(
       newSplitBlock.result(),
       newRegions,
-      loopRegion,
       newRoot)
     new PSTResult(newBlocks, newCFG, pst)
   }
@@ -542,7 +503,6 @@ object PST {
 class PST(
   val splitBlock: Array[Boolean],
   val regions: Array[PSTRegion],
-  val loopRegion: java.util.BitSet,
   val root: Int
 ) {
   def nBlocks: Int = splitBlock.length

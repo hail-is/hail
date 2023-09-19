@@ -11,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union, cast
 
 import aiohttp
 import aiohttp.web_exceptions
@@ -24,6 +24,23 @@ import plotly.graph_objects as go
 import pymysql
 import uvloop
 from aiohttp import web
+from hailtop import aiotools, dictfix, httpx, version
+from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
+from hailtop.batch_client.types import GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import (
+    cost_str,
+    dump_all_stacktraces,
+    humanize_timedelta_msecs,
+    periodically_call,
+    retry_long_running,
+    retry_transient_errors,
+    run_if_changed,
+    time_msecs,
+    time_msecs_str,
+)
 from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
@@ -43,22 +60,6 @@ from gear import (
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
-from hailtop import aiotools, dictfix, httpx, version
-from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-from hailtop.config import get_deploy_config
-from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import (
-    cost_str,
-    dump_all_stacktraces,
-    humanize_timedelta_msecs,
-    periodically_call,
-    retry_long_running,
-    retry_transient_errors,
-    run_if_changed,
-    time_msecs,
-    time_msecs_str,
-)
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import batch_record_to_dict, cancel_batch_in_db, job_record_to_dict
@@ -341,7 +342,9 @@ async def _query_batch_jobs_for_billing(request, batch_id):
     return jobs, last_job_id
 
 
-async def _query_batch_jobs(request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
+async def _query_batch_jobs(
+    request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]
+) -> Tuple[List[JobListEntryV1Alpha], Optional[int]]:
     db: Database = request.app['db']
     if version == 1:
         sql, sql_args = parse_batch_jobs_query_v1(batch_id, q, last_job_id)
@@ -418,7 +421,9 @@ LIMIT %s;
     return web.json_response(body)
 
 
-async def _get_jobs(request, batch_id: int, version: int, q: str, last_job_id: Optional[int]):
+async def _get_jobs(
+    request: web.Request, batch_id: int, version: int, q: str, last_job_id: Optional[int]
+) -> GetJobsResponseV1Alpha:
     db = request.app['db']
 
     record = await db.select_and_fetchone(
@@ -1947,7 +1952,7 @@ async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
-async def _get_job(app, batch_id, job_id):
+async def _get_job(app, batch_id, job_id) -> GetJobResponseV1Alpha:
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
@@ -1994,9 +1999,11 @@ GROUP BY usage_t.batch_id, usage_t.job_id
         _get_full_job_status(app, record), _get_full_job_spec(app, record), _get_attributes(app, record)
     )
 
-    job = job_record_to_dict(record, attributes.get('name'))
-    job['status'] = full_status
-    job['spec'] = full_spec
+    job: GetJobResponseV1Alpha = {
+        **job_record_to_dict(record, attributes.get('name')),
+        'status': full_status,
+        'spec': full_spec,
+    }
     if attributes:
         job['attributes'] = attributes
     return job
@@ -2280,6 +2287,8 @@ async def ui_get_job(request, userdata, batch_id):
         _get_job_resource_usage(app, batch_id, job_id),
     )
 
+    job = cast(Dict[str, Any], job)
+
     job['duration'] = humanize_timedelta_msecs(job['duration'])
     job['cost'] = cost_str(job['cost'])
 
@@ -2339,21 +2348,22 @@ async def ui_get_job(request, userdata, batch_id):
     non_io_storage_limit_bytes = None
     memory_limit_bytes = None
 
-    resources = job_specification['resources']
-    if 'memory_bytes' in resources:
-        memory_limit_bytes = resources['memory_bytes']
-        resources['actual_memory'] = humanize.naturalsize(memory_limit_bytes, binary=True)
-        del resources['memory_bytes']
-    if 'storage_gib' in resources:
-        io_storage_limit_bytes = resources['storage_gib'] * 1024**3
-        resources['actual_storage'] = humanize.naturalsize(io_storage_limit_bytes, binary=True)
-        del resources['storage_gib']
-    if 'cores_mcpu' in resources:
-        cores = resources['cores_mcpu'] / 1000
-        non_io_storage_limit_gb = min(cores * RESERVED_STORAGE_GB_PER_CORE, RESERVED_STORAGE_GB_PER_CORE)
-        non_io_storage_limit_bytes = int(non_io_storage_limit_gb * 1024**3 + 1)
-        resources['actual_cpu'] = cores
-        del resources['cores_mcpu']
+    if job_specification is not None:
+        resources = job_specification['resources']
+        if 'memory_bytes' in resources:
+            memory_limit_bytes = resources['memory_bytes']
+            resources['actual_memory'] = humanize.naturalsize(memory_limit_bytes, binary=True)
+            del resources['memory_bytes']
+        if 'storage_gib' in resources:
+            io_storage_limit_bytes = resources['storage_gib'] * 1024**3
+            resources['actual_storage'] = humanize.naturalsize(io_storage_limit_bytes, binary=True)
+            del resources['storage_gib']
+        if 'cores_mcpu' in resources:
+            cores = resources['cores_mcpu'] / 1000
+            non_io_storage_limit_gb = min(cores * RESERVED_STORAGE_GB_PER_CORE, RESERVED_STORAGE_GB_PER_CORE)
+            non_io_storage_limit_bytes = int(non_io_storage_limit_gb * 1024**3 + 1)
+            resources['actual_cpu'] = cores
+            del resources['cores_mcpu']
 
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''

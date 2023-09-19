@@ -74,7 +74,7 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
     return None
 
 
-def cost_str(cost: Optional[int]) -> Optional[str]:
+def cost_str(cost: Optional[float]) -> Optional[str]:
     if cost is None:
         return None
     if cost == 0.0:
