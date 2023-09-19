@@ -111,19 +111,14 @@ def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
     return sql_config
 
 
-database_ssl_context = None
-
-
 def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLContext:
-    global database_ssl_context
-    if database_ssl_context is None:
-        if sql_config is None:
-            sql_config = get_sql_config()
-        database_ssl_context = ssl.create_default_context(cafile=sql_config.ssl_ca)
-        if sql_config.ssl_cert is not None and sql_config.ssl_key is not None:
-            database_ssl_context.load_cert_chain(sql_config.ssl_cert, keyfile=sql_config.ssl_key, password=None)
-        database_ssl_context.verify_mode = ssl.CERT_REQUIRED
-        database_ssl_context.check_hostname = False
+    if sql_config is None:
+        sql_config = get_sql_config()
+    database_ssl_context = ssl.create_default_context(cafile=sql_config.ssl_ca)
+    if sql_config.ssl_cert is not None and sql_config.ssl_key is not None:
+        database_ssl_context.load_cert_chain(sql_config.ssl_cert, keyfile=sql_config.ssl_key, password=None)
+    database_ssl_context.verify_mode = ssl.CERT_REQUIRED
+    database_ssl_context.check_hostname = False
     return database_ssl_context
 
 
