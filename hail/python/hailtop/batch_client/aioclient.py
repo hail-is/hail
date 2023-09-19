@@ -832,10 +832,10 @@ class Batch:
         assert max_bunch_size > 0
 
         if progress:
-            start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, None, progress)
+            start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress)
         else:
             with BatchProgressBar(disable=disable_progress_bar) as progress2:
-                start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, 100, progress2)
+                start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress2)
 
         assert self.is_created
 
