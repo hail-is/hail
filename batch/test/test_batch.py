@@ -1433,6 +1433,20 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@skip_in_azure
+def test_gpu_accesibility_g2(client: BatchClient):
+    b = create_batch(client)
+    resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
+    j = b.create_job(
+        os.environ['HAIL_GPU_IMAGE'],
+        ['python', '-c', 'import torch; assert torch.cuda.is_available()'],
+        resources=resources,
+    )
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+
 def test_job_private_instance_preemptible(client: BatchClient):
     b = create_batch(client)
     resources = {'machine_type': smallest_machine_type()}

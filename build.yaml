@@ -2605,6 +2605,15 @@ steps:
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2
+    name: gpu_image
+    publishAs: gpu
+    resources:
+      storage: 10Gi
+    dockerFile:
+      inline: |
+        FROM python:3.9
+        RUN pip install torch torchvision -f https://download.pytorch.org/whl/cu113/torch_stable.html
+  - kind: buildImage2
     name: workdir_image
     publishAs: workdir
     dockerFile:
@@ -2653,6 +2662,7 @@ steps:
       export HAIL_TOKEN="{{ token }}"
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_DOMAIN="{{ global.domain }}"
+      export HAIL_GPU_IMAGE="{{ gpu_image.image }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
 
       hail-pip-install -r /io/dev-requirements.txt
@@ -2700,6 +2710,7 @@ steps:
       - volume_image
       - workdir_image
       - curl_image
+      - gpu_image
   - kind: runImage
     name: delete_test_billing_projects
     resources:
