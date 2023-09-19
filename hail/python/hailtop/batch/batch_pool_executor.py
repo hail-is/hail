@@ -8,13 +8,12 @@ import dill
 import functools
 
 from hailtop.utils import secret_alnum_string, partition
-from hailtop.batch.hail_genetics_images import hailgenetics_hail_image_for_current_python_version
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from .batch import Batch
-from .backend import ServiceBackend
+from .backend import ServiceBackend, HAIL_GENETICS_HAIL_IMAGE
 
 
 def cpu_spec_to_float(spec: Union[int, str]) -> float:
@@ -136,7 +135,7 @@ class BatchPoolExecutor:
         self.finished_future_count = 0
         self._shutdown = False
         if image is None:
-            self.image = hailgenetics_hail_image_for_current_python_version()
+            self.image = HAIL_GENETICS_HAIL_IMAGE
         else:
             self.image = image
         self.cpus_per_job = cpus_per_job
