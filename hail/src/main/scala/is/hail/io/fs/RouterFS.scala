@@ -1,6 +1,8 @@
 package is.hail.io.fs
 
 class RouterFS(fss: IndexedSeq[FS]) extends FS {
+  // This is never actually used
+  type URL = LocalFSURL
 
   def lookupFS(path: String): FS = {
     fss.find(_.validUrl(path)) match {

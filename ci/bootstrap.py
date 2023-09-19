@@ -9,11 +9,11 @@ from typing import Dict, List, Optional, Tuple
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 
-from batch.driver.k8s_cache import K8sCache
 from ci.build import BuildConfiguration, Code
 from ci.environment import KUBERNETES_SERVER_URL, STORAGE_URI
 from ci.github import clone_or_fetch_script
 from ci.utils import generate_token
+from gear import K8sCache
 from hailtop.utils import check_shell_output
 
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']

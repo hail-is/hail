@@ -174,10 +174,6 @@ resource "google_container_cluster" "vdc" {
     }
   }
 
-  workload_identity_config {
-    workload_pool = "hail-vdc.svc.id.goog"
-  }
-
   timeouts {}
 }
 
@@ -225,10 +221,6 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = false
-    }
-
-    workload_metadata_config {
-      mode = "GKE_METADATA"
     }
   }
 
@@ -284,10 +276,6 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = false
-    }
-
-    workload_metadata_config {
-      mode = "GKE_METADATA"
     }
   }
 
@@ -527,6 +515,18 @@ resource "google_storage_bucket_iam_member" "test_bucket_admin" {
   bucket = google_storage_bucket.hail_test_bucket.name
   role = "roles/storage.admin"
   member = "serviceAccount:${module.test_gsa_secret.email}"
+}
+
+module "test_dev_gsa_secret" {
+  source = "./gsa"
+  name = "test-dev"
+  project = var.gcp_project
+}
+
+resource "google_storage_bucket_iam_member" "test_dev_bucket_admin" {
+  bucket = google_storage_bucket.hail_test_bucket.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${module.test_dev_gsa_secret.email}"
 }
 
 resource "google_service_account" "batch_agent" {

@@ -148,9 +148,17 @@ ON DUPLICATE KEY UPDATE region = region;
         self.resource_group = resource_group
         self.namespace = namespace
         self.region_monitor = region_monitor
-        self.inst_coll_manager = inst_coll_manager
         self.job_private_inst_manager = job_private_inst_manager
-        self.billing_manager = billing_manager
+        self._billing_manager = billing_manager
+        self._inst_coll_manager = inst_coll_manager
+
+    @property
+    def billing_manager(self) -> AzureBillingManager:
+        return self._billing_manager
+
+    @property
+    def inst_coll_manager(self) -> InstanceCollectionManager:
+        return self._inst_coll_manager
 
     async def shutdown(self) -> None:
         try:

@@ -1327,22 +1327,6 @@ class Table(ExprContainer):
         """
         hl.current_backend().validate_file_scheme(output)
 
-        if _codec_spec is None:
-            _codec_spec = """{
-  "name": "LEB128BufferSpec",
-  "child": {
-    "name": "BlockingBufferSpec",
-    "blockSize": 32768,
-    "child": {
-      "name": "LZ4FastBlockBufferSpec",
-      "blockSize": 32768,
-      "child": {
-        "name": "StreamBlockBufferSpec"
-      }
-    }
-  }
-}"""
-
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
             _assert_type = self._type

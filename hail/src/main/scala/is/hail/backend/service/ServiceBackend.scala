@@ -442,8 +442,7 @@ object ServiceBackendSocketAPI2 {
     DeployConfig.set(deployConfig)
     val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
     Tokens.set(userTokens)
-    tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
-    log.info("TLS configured.")
+    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
 
     val sessionId = userTokens.namespaceToken(deployConfig.defaultNamespace)
     log.info("Namespace token acquired.")

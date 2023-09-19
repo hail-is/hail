@@ -155,7 +155,7 @@ spec:
             name: grafana-envoy-sidecar-config
       initContainers:
        - name: setup-tokens
-         image: {{ base_image.image }}
+         image: {{ hail_ubuntu_image.image }}
          command: ["/bin/bash"]
          args: ["-c", "jq -r '.{{ default_ns.name }}' /grafana-tokens/tokens.json > /grafana-shared/token"]
          volumeMounts:

@@ -562,34 +562,6 @@ steps:
       - deploy_auth_driver_service_account
       - create_test_gsa_keys
       - create_test_database_server_config
-  - kind: runImage
-    name: create_initial_user
-    runIfRequested: true
-    image:
-      valueFrom: auth_image.image
-    script: |
-      set -ex
-      export NAMESPACE={{ default_ns.name }}
-      export CLOUD={{ global.cloud }}
-      python3 /io/create_initial_account.py {{ code.username }} {{ code.login_id }}
-    serviceAccount:
-      name: admin
-      namespace:
-        valueFrom: default_ns.name
-    secrets:
-      - name:
-          valueFrom: auth_database.user_secret_name
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /sql-config
-    inputs:
-      - from: /repo/ci/create_initial_account.py
-        to: /io/create_initial_account.py
-    dependsOn:
-      - default_ns
-      - auth_image
-      - merge_code
-      - auth_database
   - kind: buildImage2
     name: hailgenetics_vep_grch37_85_image
     dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
@@ -1659,7 +1631,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - base_image
+      - hail_ubuntu_image
       - create_certs
       - copy_third_party_images
   - kind: deploy
@@ -1711,6 +1683,36 @@ steps:
       - create_dummy_oauth2_client_secret
       - create_certs
       - create_accounts
+  - kind: runImage
+    name: create_initial_user
+    runIfRequested: true
+    image:
+      valueFrom: hailgenetics_hailtop_image.image
+    script: |
+      set -ex
+      {% if default_ns.name == "default" %}
+      hailctl auth create-user --developer {{ code.username }} {{ code.login_id }}
+      {% else %}
+      hailctl auth create-user \
+        --developer \
+        --hail-identity {{ code.hail_identity }} \
+        --hail-credentials-secret-name {{ code.username }}-gsa-key \
+        {{ code.username }} {{ code.login_id }}
+      {% endif %}
+    secrets:
+      - name: worker-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-dev-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+    dependsOn:
+      - default_ns
+      - hailgenetics_hailtop_image
+      - merge_code
+      - deploy_auth
   - kind: runImage
     name: delete_monitoring_tables
     image:
@@ -1805,10 +1807,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-monitoring-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     timeout: 300
     inputs:
       - from: /repo/monitoring/test
@@ -2248,6 +2246,12 @@ steps:
       - name: set-test-min-pool-size-to-1
         script: /io/sql/set-test-min-pool-size-to-1.py
         online: true
+      - name: dedup-billing-project-users-v2
+        script: /io/sql/dedup_billing_project_users_v2.py
+        online: true
+      - name: list-jobs-extra-indices
+        script: /io/sql/list-jobs-extra-indices.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2423,11 +2427,14 @@ steps:
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
-      if [[ "$HAIL_CLOUD" = "gcp" ]]
-      then
-          export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
-      fi
+      {% if global.cloud == "gcp" %}
+      export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
+      {% elif global.cloud == "azure" %}
+      export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
+      export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
+      {% endif %}
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
       export HAIL_SHUFFLE_CUTOFF=1000000
@@ -2473,10 +2480,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     dependsOn:
       - default_ns
       - merge_code
@@ -2596,10 +2599,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-memory-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -2674,10 +2673,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /dev-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -2726,10 +2721,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /dev-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     alwaysRun: true
     dependsOn:
       - create_deploy_config
@@ -2881,10 +2872,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-ci-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     timeout: 5400
     inputs:
       - from: /repo/ci/test
@@ -2950,10 +2937,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     dependsOn:
       - hailgenetics_hail_image
       - hailgenetics_hailtop_image
@@ -3071,10 +3054,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     dependsOn:
       - hailgenetics_hail_image
       - upload_query_jar
@@ -3615,10 +3594,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
-      - name: ssl-config-services-java-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
@@ -3665,10 +3640,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config
-      - name: ssl-config-services-java-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     timeout: 1200
     dependsOn:
       - default_ns
@@ -3710,10 +3681,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     alwaysRun: true
     timeout: 300
     dependsOn:
@@ -3761,10 +3728,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: ssl-config-batch-tests
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config
     scopes:
       - test
       - dev

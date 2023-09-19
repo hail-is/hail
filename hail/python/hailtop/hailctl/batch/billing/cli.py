@@ -1,52 +1,31 @@
-import sys
-import argparse
+import typer
 
-from . import list_billing_projects
-from . import get
+from ..batch_cli_utils import make_formatter, StructuredFormat, StructuredFormatOption
 
 
-def init_parser():
-    main_parser = argparse.ArgumentParser(
-        prog='hailctl batch billing',
-        description='Manage billing on the service managed by the Hail team.')
-    subparsers = main_parser.add_subparsers()
-
-    list_parser = subparsers.add_parser(
-        'list',
-        help="List billing projects",
-        description="List billing projects")
-    get_parser = subparsers.add_parser(
-        'get',
-        help='Get a particular billing project\'s info',
-        description='Get a particular billing project\'s info')
-
-    list_parser.set_defaults(module='list')
-    list_billing_projects.init_parser(list_parser)
-
-    get_parser.set_defaults(module='get')
-    get.init_parser(get_parser)
-
-    return main_parser
+app = typer.Typer(
+    name='billing',
+    no_args_is_help=True,
+    help='Manage billing on the service managed by the Hail team.',
+)
 
 
-def main(args, pass_through_args, client):
-    if not args:
-        init_parser().print_help()
-        sys.exit(0)
-    jmp = {
-        'list': list_billing_projects,
-        'get': get
-    }
+@app.command()
+def get(billing_project: str, output: StructuredFormatOption = StructuredFormat.YAML):
+    '''Get the billing information for BILLING_PROJECT.'''
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
-    args, pass_through_args = init_parser().parse_known_args(args=pass_through_args)
+    with BatchClient('') as client:
+        billing_project_data = client.get_billing_project(billing_project)
+        print(make_formatter(output.value)(billing_project_data))
 
-    if not args or 'module' not in args:
-        init_parser().print_help()
-        sys.exit(0)
 
-    if args.module not in jmp:
-        sys.stderr.write(f"ERROR: no such module: {args.module!r}")
-        init_parser().print_help()
-        sys.exit(1)
+@app.command()
+def list(output: StructuredFormatOption = StructuredFormat.YAML):
+    '''List billing projects.'''
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
-    jmp[args.module].main(args, pass_through_args, client)
+    with BatchClient('') as client:
+        billing_projects = client.list_billing_projects()
+        format = make_formatter(output.value)
+        print(format(billing_projects))

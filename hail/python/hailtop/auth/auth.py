@@ -117,6 +117,25 @@ async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str]
     return namespace, username
 
 
+async def async_logout():
+    deploy_config = get_deploy_config()
+
+    auth_ns = deploy_config.service_ns('auth')
+    tokens = get_tokens()
+    if auth_ns not in tokens:
+        print('Not logged in.')
+        return
+
+    headers = await hail_credentials().auth_headers()
+    async with httpx.client_session(headers=headers) as session:
+        async with session.post(deploy_config.url('auth', '/api/v1alpha/logout')):
+            pass
+    auth_ns = deploy_config.service_ns('auth')
+
+    del tokens[auth_ns]
+    tokens.write()
+
+
 def get_user(username: str, namespace: Optional[str] = None) -> dict:
     return async_to_blocking(async_get_user(username, namespace))
 
@@ -133,17 +152,24 @@ async def async_get_user(username: str, namespace: Optional[str] = None) -> dict
         )
 
 
-def create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
-    return async_to_blocking(async_create_user(username, login_id, is_developer, is_service_account, namespace=namespace))
-
-
-async def async_create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
+async def async_create_user(
+    username: str,
+    login_id: str,
+    is_developer: bool,
+    is_service_account: bool,
+    hail_identity: Optional[str],
+    hail_credentials_secret_name: Optional[str],
+    *,
+    namespace: Optional[str] = None
+):
     deploy_config, headers, _ = deploy_config_and_headers_from_namespace(namespace)
 
     body = {
         'login_id': login_id,
         'is_developer': is_developer,
         'is_service_account': is_service_account,
+        'hail_identity': hail_identity,
+        'hail_credentials_secret_name': hail_credentials_secret_name,
     }
 
     async with httpx.client_session(
