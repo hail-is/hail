@@ -12,32 +12,35 @@ import scala.collection.mutable
 
 object QoBOutputStreamManager {
   private[this] var _instances: mutable.Map[Layout[_], QoBOutputStreamManager] = mutable.Map()
+  private[this] var _filename: String = null
 
-  def getInstance(layout: Layout[_]): QoBOutputStreamManager = synchronized {
-    _instances.getOrElseUpdate(layout, new QoBOutputStreamManager(layout))
+  private def getInstance(layout: Layout[_]): QoBOutputStreamManager = synchronized {
+    _instances.getOrElseUpdate(layout, new QoBOutputStreamManager(layout, _filename))
   }
 
   def changeFileInAllAppenders(newFilename: String): Unit = synchronized {
+    _filename = newFilename
     _instances.values.foreach(_.changeFile(newFilename))
   }
 
-  def remove(layout: Layout[_]): Unit = synchronized {
+  private def remove(layout: Layout[_]): Unit = synchronized {
     _instances.remove(layout)
   }
 
-  def flushAllAppenders(): Unit = synchronized {
+  private def flushAllAppenders(): Unit = synchronized {
     _instances.values.foreach(_.flush())
   }
 }
 
-class QoBOutputStreamManager(layout: Layout[_]) extends OutputStreamManager(
+class QoBOutputStreamManager(
+  layout: Layout[_],
+  private[this] var filename: String
+) extends OutputStreamManager(
   null,
   "QoBOutputStreamManager",
   layout,
   true
 ) {
-  private[this] var filename: String = null
-
   override def createOutputStream(): OutputStream = {
     assert(filename != null)
     new BufferedOutputStream(new FileOutputStream(filename))
