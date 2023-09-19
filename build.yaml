@@ -2295,6 +2295,9 @@ steps:
       - name: cleanup-deprecated-functions
         script: /io/sql/cleanup-deprecated-functions.sql
         online: true
+      - name: set-test-pools-to-known-parameters
+        script: /io/sql/set-test-pools-to-known-parameters.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
