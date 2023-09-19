@@ -48,7 +48,7 @@ spec:
           - containerPort: 80
           - containerPort: 443
 ---
-apiVersion: autoscaling/v2beta1
+apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: gateway
@@ -63,7 +63,9 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 500
+       target:
+         type: Utilization
+         averageUtilization: 500
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
