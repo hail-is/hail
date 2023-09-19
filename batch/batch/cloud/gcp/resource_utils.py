@@ -8,7 +8,7 @@ GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
 GCP_MACHINE_FAMILY = 'n1'
 
-MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {"g2": "l4"}
+MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4'}
 
 gcp_valid_cores_from_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
@@ -17,8 +17,7 @@ gcp_valid_cores_from_worker_type = {
 }
 
 
-gcp_valid_machine_types = []
-gcp_valid_machine_types.append("g2-standard-4")
+gcp_valid_machine_types = ['g2-standard-4']
 for typ in ('highcpu', 'standard', 'highmem'):
     possible_cores = gcp_valid_cores_from_worker_type[typ]
     for cores in possible_cores:

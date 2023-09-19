@@ -24,7 +24,7 @@ class RegionMonitor(CloudLocationMonitor):
         data_disk_size_gb: int,  # pylint: disable=unused-argument
         preemptible: bool,  # pylint: disable=unused-argument
         regions: List[str],
-        machine_type,
+        machine_type: str,
     ) -> str:
         if len(set(regions).intersection(self.supported_regions)) == 0:
             raise RegionsNotSupportedError(regions, self.supported_regions)

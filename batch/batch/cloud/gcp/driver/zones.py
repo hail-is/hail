@@ -93,7 +93,7 @@ class ZoneMonitor(CloudLocationMonitor):
         data_disk_size_gb: int,
         preemptible: bool,
         regions: List[str],
-        machine_type,
+        machine_type: str,
     ) -> str:
         zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
@@ -103,6 +103,9 @@ class ZoneMonitor(CloudLocationMonitor):
             valid_zones = self._machine_family_valid_zones[machine_family]
             zones = [z for z in zones if z in valid_zones]
             zone_weights = [zw for zw in zone_weights if zw.zone in valid_zones]
+        else:
+            zones = []
+            zone_weights = []
 
         if len(zones) == 0:
             raise RegionsNotSupportedError(regions, self._regions)
