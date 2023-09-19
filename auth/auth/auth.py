@@ -467,8 +467,8 @@ async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.
 
 @routes.post('/api/v1alpha/copy-paste-token')
 @authenticated_users_only
-async def get_copy_paste_token_api(request: web.Request, userdata: UserData) -> web.Response:
-    session_id = userdata['session_id']
+async def get_copy_paste_token_api(request: web.Request, _) -> web.Response:
+    session_id = await get_session_id(request)
     db = request.app['db']
     copy_paste_token = await create_copy_paste_token(db, session_id)
     return web.Response(body=copy_paste_token)
@@ -481,7 +481,7 @@ async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn
         raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
     db = request.app['db']
-    session_id = userdata['session_id']
+    session_id = await get_session_id(request)
     await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     session = await aiohttp_session.get_session(request)
@@ -725,8 +725,8 @@ WHERE copy_paste_tokens.id = %s
 
 @routes.post('/api/v1alpha/logout')
 @authenticated_users_only
-async def rest_logout(request: web.Request, userdata: UserData) -> web.Response:
-    session_id = userdata['session_id']
+async def rest_logout(request: web.Request, _) -> web.Response:
+    session_id = await get_session_id(request)
     db = request.app['db']
     await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
@@ -784,9 +784,10 @@ async def get_userinfo_from_hail_session_id(request: web.Request, session_id: st
         x
         async for x in db.select_and_fetchall(
             '''
-SELECT users.*, sessions.session_id FROM users
+SELECT users.*
+FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
-WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
+WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 ''',
             session_id,
             'get_userinfo',

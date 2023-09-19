@@ -718,8 +718,7 @@ async def _create_jobs(
     file_store: FileStore = app['file_store']
     user = userdata['username']
 
-    # restrict to what's necessary; in particular, drop the session
-    # which is sensitive
+    # restrict to what's necessary
     userdata = {
         'username': user,
         'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
