@@ -171,7 +171,6 @@ steps:
           hail/python/dev \
           gear \
           web_common \
-          auth \
           batch \
           ci
     inputs:
