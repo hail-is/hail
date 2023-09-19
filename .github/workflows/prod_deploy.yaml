@@ -13,7 +13,7 @@ jobs:
           DEPLOY_BATCH_URL_GCP=$(curl --fail --silent --show-error -X POST \
               -H "Authorization: Bearer ${{ secrets.CI_TOKEN }}" \
               -H "Content-Type:application/json" \
-              -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_hailgenetics_image", "deploy_memory", "deploy_wheel", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
+              -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_hailgenetics_image", "deploy_wheel", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
               https://ci.hail.populationgenomics.org.au/api/v1alpha/prod_deploy || echo "failed")
           echo DEPLOY_BATCH_URL_GCP="$DEPLOY_BATCH_URL_GCP" >> $GITHUB_ENV
 
@@ -23,7 +23,7 @@ jobs:
           DEPLOY_BATCH_URL_AZURE=$(curl --fail --silent --show-error -X POST \
               -H "Authorization: Bearer ${{ secrets.CI_TOKEN_AZURE }}" \
               -H "Content-Type:application/json" \
-              -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "deploy_memory", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
+              -d '{"steps": ["deploy_auth", "deploy_batch", "deploy_ci", "upload_query_jar"], "sha": "${{ github.sha }}"}' \
               https://ci.azhail.populationgenomics.org.au/api/v1alpha/prod_deploy || echo "failed")
           echo DEPLOY_BATCH_URL_AZURE="$DEPLOY_BATCH_URL_AZURE" >> $GITHUB_ENV
 
