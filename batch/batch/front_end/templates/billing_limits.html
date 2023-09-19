@@ -2,8 +2,10 @@
 {% block title %}Billing Limits{% endblock %}
 {% block content %}
 <h1>Billing Project Limits</h1>
+{% if open_billing_projects %}
 <div class='flex-col' style="overflow: auto;">
-  <table class="data-table" id="billing_limits">
+  <h2>Open Projects</h2>
+  <table class="data-table" id="open-billing-limits">
     <thead>
     <tr>
       <th>Billing Project</th>
@@ -12,7 +14,7 @@
     </tr>
     </thead>
     <tbody>
-    {% for row in billing_projects %}
+    {% for row in open_billing_projects %}
     <tr>
       <td>{{ row['billing_project'] }}</td>
       <td>{{ row['accrued_cost'] }}</td>
@@ -34,4 +36,40 @@
     </tbody>
   </table>
 </div>
+{% endif %}
+{% if closed_billing_projects %}
+<div class='flex-col' style="overflow: auto;">
+  <h2>Closed Projects</h2>
+  <table class="data-table" id="closed-billing-limits">
+    <thead>
+    <tr>
+      <th>Billing Project</th>
+      <th>Accrued Cost</th>
+      <th>Limit</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for row in closed_billing_projects %}
+    <tr>
+      <td>{{ row['billing_project'] }}</td>
+      <td>{{ row['accrued_cost'] }}</td>
+      {% if is_developer %}
+      <td>
+        <form action="{{ base_path }}/billing_limits/{{ row['billing_project'] }}/edit" method="POST">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <input type="text" required name="limit" value="{{ row['limit'] }}">
+          <button>
+            Edit
+          </button>
+        </form>
+      </td>
+      {% else %}
+      <td>{{ row['limit'] }}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 {% endblock %}

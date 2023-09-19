@@ -27,6 +27,7 @@ app = typer.Typer(
     name='batch',
     no_args_is_help=True,
     help='Manage batches running on the batch service managed by the Hail team.',
+    pretty_exceptions_show_locals=False,
 )
 app.add_typer(billing.cli.app)
 

@@ -12,11 +12,7 @@ def get_identity_client(credentials_file: Optional[str] = None):
     cloud = get_global_config()['cloud']
 
     if cloud == 'azure':
-        scopes = ['https://graph.microsoft.com/.default']
-        return aioazure.AzureGraphClient(
-            credentials_file=credentials_file,
-            scopes=scopes,
-        )
+        return aioazure.AzureGraphClient(credentials_file=credentials_file)
 
     assert cloud == 'gcp', cloud
     project = get_gcp_config().project

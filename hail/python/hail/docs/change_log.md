@@ -33,6 +33,33 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.119
+
+Released 2023-06-28
+
+### New Features
+- (hail#12081) Hail now uses [Zstandard](https://facebook.github.io/zstd/) as
+  the default compression algorithm for table and matrix table storage. Reducing
+  file size around 20% in most cases.
+- (hail#12988) Arbitrary aggregations can now be used on arrays via
+  `ArrayExpression.aggregate`. This method is useful for accessing
+  functionality that exists in the aggregator library but not the
+  basic expression library, for instance, `call_stats`.
+- (hail#13166) Add an `eigh` ndarray method, for finding eigenvalues
+  of symmetric matrices ("h" is for Hermitian, the complex analogue of
+  symmetric).
+
+### Bug Fixes
+- (hail#13184) The `vds.to_dense_mt` no longer densifies past the end of
+  contig boundaries. A logic bug in `to_dense_mt` could lead to reference data
+  toward's the end of one contig being applied to the following contig up until
+  the first reference block of the contig.
+- (hail#13173) Fix globbing in scala blob storage filesystem implementations.
+
+### File Format
+- The native file format version is now 1.7.0. Older versions of hail will not
+  be able to read tables or matrix tables written by this version of hail.
+
 ## Version 0.2.118
 
 Released 2023-05-30

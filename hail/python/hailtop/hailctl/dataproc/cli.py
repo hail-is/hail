@@ -49,7 +49,12 @@ NumSecondaryWorkersOption = Ann[
 ]
 
 
-app = typer.Typer(name='dataproc', no_args_is_help=True, help='Manage Hail Dataproc clusters.')
+app = typer.Typer(
+    name='dataproc',
+    no_args_is_help=True,
+    help='Manage Hail Dataproc clusters.',
+    pretty_exceptions_show_locals=False,
+)
 
 
 @app.callback()
