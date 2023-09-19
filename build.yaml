@@ -2535,7 +2535,6 @@ steps:
       - default_ns
       - merge_code
       - deploy_batch
-      - deploy_memory
       - create_deploy_config
       - create_accounts
       - hail_run_image
