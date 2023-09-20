@@ -53,8 +53,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
 
     def __init__(self):
         self._requester_pays_fses: Dict[GCSRequesterPaysConfiguration, RouterAsyncFS] = {}
-        import nest_asyncio  # pylint: disable=import-outside-toplevel
-        nest_asyncio.apply()
 
     def requester_pays_fs(self, requester_pays_config: GCSRequesterPaysConfiguration) -> RouterAsyncFS:
         try:

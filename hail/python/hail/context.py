@@ -335,8 +335,6 @@ def init(sc=None,
         backend = 'batch'
 
     if backend == 'batch':
-        import nest_asyncio
-        nest_asyncio.apply()
         import asyncio
         return asyncio.get_event_loop().run_until_complete(init_batch(
             log=log,

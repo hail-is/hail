@@ -1,3 +1,6 @@
+import nest_asyncio
+nest_asyncio.apply()
+
 _VERSION = None
 
 
