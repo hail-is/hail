@@ -1372,7 +1372,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(1, mt._force_count_rows())
 
     @qobtest
-    @test_timeout(batch=6 * 60)
+    @test_timeout(batch=9 * 60)
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5

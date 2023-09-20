@@ -70,7 +70,7 @@ curlylint==0.13.1
     # via -r hail/hail/python/dev/requirements.txt
 cycler==0.11.0
     # via matplotlib
-debugpy==1.6.7.post1
+debugpy==1.7.0
     # via ipykernel
 decorator==4.4.2
     # via
@@ -346,9 +346,9 @@ pylint==2.17.5
     # via -r hail/hail/python/dev/requirements.txt
 pyparsing==3.0.9
     # via matplotlib
-pyright==1.1.325
+pyright==1.1.326
     # via -r hail/hail/python/dev/requirements.txt
-pytest==7.4.1
+pytest==7.4.2
     # via
     #   -r hail/hail/python/dev/requirements.txt
     #   pytest-asyncio
@@ -530,7 +530,7 @@ types-pyyaml==6.0.12.11
     # via -r hail/hail/python/dev/requirements.txt
 types-requests==2.31.0.2
     # via -r hail/hail/python/dev/requirements.txt
-types-setuptools==68.1.0.1
+types-setuptools==68.2.0.0
     # via -r hail/hail/python/dev/requirements.txt
 types-six==1.16.21.9
     # via -r hail/hail/python/dev/requirements.txt

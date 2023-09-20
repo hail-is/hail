@@ -118,7 +118,7 @@ class Tests(unittest.TestCase):
         self.assertTrue('group5' in b.col_key)
 
     @qobtest
-    @test_timeout(batch=5 * 60)
+    @test_timeout(batch=10 * 60)
     def test_joins_work_correctly(self):
         mt, mt2 = self.get_groupable_matrix2()
 

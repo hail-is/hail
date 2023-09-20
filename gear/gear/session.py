@@ -20,6 +20,7 @@ def setup_aiohttp_session(app):
                 cookie_name=cookie_name,
                 secure=True,
                 httponly=True,
+                samesite='Lax',
                 domain=os.environ['HAIL_DOMAIN'],
                 # 2592000s = 30d
                 max_age=2592000,

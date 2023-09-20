@@ -1,6 +1,6 @@
-from hailtop import IS_NOTEBOOK
+from hailtop import is_notebook
 
-if IS_NOTEBOOK:
+if is_notebook():
     from plotly.io import renderers
     renderers.default='iframe'
 

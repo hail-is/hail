@@ -82,10 +82,10 @@ class Batch:
         timeout.
     default_python_image:
         Default image to use for all Python jobs. This must be the full name of the image including
-        any repository prefix and tags if desired (default tag is `latest`).  The image must have
+        any repository prefix and tags if desired (default tag is `latest`). The image must have
         the `dill` Python package installed and have the same version of Python installed that is
-        currently running. If `None`, a compatible Python image with `dill` pre-installed will
-        automatically be used if the current Python version is 3.9, or 3.10.
+        currently running. If `None`, a tag of the `hailgenetics/hail` image will be chosen
+        according to the current Hail and Python version.
     default_spot:
         If unspecified or ``True``, jobs will run by default on spot instances. If ``False``, jobs
         will run by default on non-spot instances. Each job can override this setting with

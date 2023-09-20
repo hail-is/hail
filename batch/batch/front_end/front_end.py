@@ -9,6 +9,7 @@ import random
 import re
 import signal
 import traceback
+from contextlib import AsyncExitStack
 from functools import wraps
 from numbers import Number
 from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union, cast
@@ -44,6 +45,7 @@ from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, version
+from hailtop.auth import hail_credentials
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.batch_client.types import GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
 from hailtop.config import get_deploy_config
@@ -716,8 +718,7 @@ async def _create_jobs(
     file_store: FileStore = app['file_store']
     user = userdata['username']
 
-    # restrict to what's necessary; in particular, drop the session
-    # which is sensitive
+    # restrict to what's necessary
     userdata = {
         'username': user,
         'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
@@ -1618,7 +1619,7 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
         retry_transient_errors(
             client_session.patch,
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
-            headers=app['batch_headers'],
+            headers=await app['hail_credentials'].auth_headers(),
         )
     )
 
@@ -2800,7 +2801,7 @@ async def cancel_batch_loop_body(app):
     await retry_transient_errors(
         client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
-        headers=app['batch_headers'],
+        headers=await app['hail_credentials'].auth_headers(),
     )
 
     should_wait = True
@@ -2812,7 +2813,7 @@ async def delete_batch_loop_body(app):
     await retry_transient_errors(
         client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
-        headers=app['batch_headers'],
+        headers=await app['hail_credentials'].auth_headers(),
     )
 
     should_wait = True
@@ -2852,7 +2853,7 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
+SELECT instance_id, n_tokens, frozen FROM globals;
 '''
     )
 
@@ -2862,9 +2863,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
 
-    app['internal_token'] = row['internal_token']
-
-    app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
+    app['hail_credentials'] = hail_credentials()
 
     app['frozen'] = row['frozen']
 
@@ -2900,16 +2899,12 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
 
 async def on_cleanup(app):
-    try:
-        app['task_manager'].shutdown()
-    finally:
-        try:
-            await app['client_session'].close()
-        finally:
-            try:
-                await app['file_store'].close()
-            finally:
-                await app['db'].async_close()
+    async with AsyncExitStack() as stack:
+        stack.callback(app['task_manager'].shutdown)
+        stack.push_async_callback(app['hail_credentials'].close)
+        stack.push_async_callback(app['client_session'].close)
+        stack.push_async_callback(app['file_store'].close)
+        stack.push_async_callback(app['db'].async_close)
 
 
 def run():

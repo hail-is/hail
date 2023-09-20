@@ -35,7 +35,7 @@ from gear import (
     setup_aiohttp_session,
     transaction,
 )
-from gear.auth import AIOHTTPHandler
+from gear.auth import AIOHTTPHandler, UserData
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
@@ -68,7 +68,6 @@ from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
 from ..utils import (
     add_metadata_to_request,
     authorization_token,
-    batch_only,
     json_to_value,
     query_billing_projects_with_cost,
 )
@@ -115,6 +114,17 @@ def instance_from_request(request):
 # auth mechanism
 def instance_token(request):
     return request.headers.get('X-Hail-Instance-Token') or authorization_token(request)
+
+
+def batch_only(fun: AIOHTTPHandler):
+    @wraps(fun)
+    @auth.authenticated_users_only()
+    async def wrapped(request: web.Request, userdata: UserData):
+        if userdata['username'] != 'batch':
+            raise web.HTTPUnauthorized()
+        return await fun(request)
+
+    return wrapped
 
 
 def activating_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.StreamResponse]]) -> AIOHTTPHandler:
@@ -1562,14 +1572,12 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT instance_id, internal_token, frozen FROM globals;
+SELECT instance_id, frozen FROM globals;
 '''
     )
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
-    app['internal_token'] = row['internal_token']
-    app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
     app['frozen'] = row['frozen']
 
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
