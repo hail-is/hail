@@ -8,7 +8,7 @@ object Copy {
       case F32(value) => F32(value)
       case F64(value) => F64(value)
       case Str(value) => Str(value)
-      case UUID4(id) => UUID4(id)
+      case UUID4() => UUID4()
       case True() => True()
       case False() => False()
       case Literal(typ, value) => Literal(typ, value)

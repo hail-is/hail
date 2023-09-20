@@ -69,7 +69,7 @@ object TypeCheck {
       case True() =>
       case False() =>
       case Str(x) =>
-      case UUID4(_) =>
+      case UUID4() =>
       case Literal(_, _) =>
       case EncodedLiteral(_, _) =>
       case Void() =>

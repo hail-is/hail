@@ -164,7 +164,6 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case F32(x) => single(x.toString)
     case F64(x) => single(x.toString)
     case Str(x) => single(prettyStringLiteral(if (elideLiterals && x.length > 13) x.take(10) + "..." else x))
-    case UUID4(id) => single(prettyIdentifier(id))
     case Cast(_, typ) => single(typ.parsableString())
     case CastRename(_, typ) => single(typ.parsableString())
     case NA(typ) => single(typ.parsableString())

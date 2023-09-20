@@ -7,7 +7,8 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import java.util.UUID
+import java.security.SecureRandom
+import java.util.{Base64, UUID}
 import scala.language.implicitConversions
 
 package object ir {
@@ -23,6 +24,13 @@ package object ir {
   }
 
   def uuid4(): String = UUID.randomUUID().toString
+
+  private lazy val secureRand = new SecureRandom()
+  def randBase64String(): String = {
+    val bytes = Array.ofDim[Byte](6)
+    secureRand.nextBytes(bytes)
+    Base64.getUrlEncoder.encodeToString(bytes)
+  }
 
   def genSym(base: String): Sym = Sym.gen(base)
 

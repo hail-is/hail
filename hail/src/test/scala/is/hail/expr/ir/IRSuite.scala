@@ -3429,13 +3429,10 @@ class IRSuite extends HailSuite {
 
   @Test def testUUID4() {
     val single = UUID4()
-    val hex = "[0-9a-f]"
-    val format = s"$hex{8}-$hex{4}-$hex{4}-$hex{4}-$hex{12}"
-    // 12345678-1234-5678-1234-567812345678
+    val format = raw"[A-Za-z0-9\-_]{8}"
     assertEvalsTo(
       bindIR(single){ s =>
-        invoke("regexMatch", TBoolean, Str(format), s) &&
-          invoke("length", TInt32, s).ceq(I32(36))
+        invoke("regexMatch", TBoolean, Str(format), s)
       }, true)
 
     val stream = mapIR(rangeIR(5)) { _ => single }

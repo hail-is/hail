@@ -1015,8 +1015,8 @@ object Interpret {
         ctx.scopedExecution { (hcl, fs, htc, r) =>
           SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r)).asInstanceOf[Row](0)
         }
-      case UUID4(_) =>
-         uuid4()
+      case UUID4() =>
+         randBase64String()
     }
   }
 }

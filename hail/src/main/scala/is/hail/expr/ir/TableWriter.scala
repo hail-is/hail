@@ -67,7 +67,7 @@ object TableNativeWriter {
     RelationalWriter.scoped(path, overwrite, Some(ts.tableType))(
       ts.mapContexts { oldCtx =>
         val d = digitsNeeded(ts.numPartitions)
-        val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
+        val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }").toFastIndexedSeq)
 
         zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
           MakeStruct(FastSeq(
@@ -76,7 +76,7 @@ object TableNativeWriter {
         }
       }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals( "table_native_writer") { (rows, ctxRef) =>
         val file = GetField(ctxRef, "writeCtx")
-        WritePartition(rows, file + UUID4(), rowWriter)
+        WritePartition(rows, strConcat("[", UUID4(), "]", file), rowWriter)
       } { (parts, globals) =>
         val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
           Str(partFile(1, 0)), globalWriter)

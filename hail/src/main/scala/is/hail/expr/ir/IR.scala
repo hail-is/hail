@@ -158,16 +158,12 @@ final case class True() extends IR with TrivialIR
 final case class False() extends IR with TrivialIR
 final case class Void() extends IR with TrivialIR
 
-object UUID4 {
-  def apply(): UUID4 = UUID4(genUID())
-}
-
 // WARNING! This node can only be used when trying to append a one-off,
 // random string that will not be reused elsewhere in the pipeline.
 // Any other uses will need to write and then read again; this node is
 // non-deterministic and will not e.g. exhibit the correct semantics when
 // self-joining on streams.
-final case class UUID4(id: String) extends IR
+final case class UUID4() extends IR
 
 final case class Cast(v: IR, _typ: Type) extends IR
 final case class CastRename(v: IR, _typ: Type) extends IR

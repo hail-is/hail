@@ -13,7 +13,7 @@ object InferType {
       case F32(_) => TFloat32
       case F64(_) => TFloat64
       case Str(_) => TString
-      case UUID4(_) => TString
+      case UUID4() => TString
       case Literal(t, _) => t
       case EncodedLiteral(codec, _) => codec.encodedVirtualType
       case True() | False() => TBoolean

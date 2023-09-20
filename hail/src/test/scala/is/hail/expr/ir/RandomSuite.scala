@@ -7,6 +7,9 @@ import is.hail.utils.FastIndexedSeq
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.testng.annotations.Test
 
+import java.security.SecureRandom
+import java.util.Base64
+
 class RandomSuite extends HailSuite {
   // from skein_golden_kat_short_internals.txt in the skein source
   val threefryTestCases = FastIndexedSeq(
@@ -21,6 +24,13 @@ class RandomSuite extends HailSuite {
       Array(0xF8F9FAFBFCFDFEFFL, 0xF0F1F2F3F4F5F6F7L, 0xE8E9EAEBECEDEEEFL, 0xE0E1E2E3E4E5E6E7L),
       Array(0x008CF75D18C19DA0L, 0x1D7D14BE2266E7D8L, 0x5D09E0E985FE673BL, 0xB4A5480C6039B172L)
     ))
+
+  @Test def testUUID(): Unit = {
+    val rand = new SecureRandom()
+    val bytes = Array.ofDim[Byte](6)
+    rand.nextBytes(bytes)
+    val str = Base64.getEncoder.encodeToString(bytes)
+  }
 
   @Test def testThreefry() {
     for {
