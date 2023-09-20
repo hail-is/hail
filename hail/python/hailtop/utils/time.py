@@ -1,7 +1,8 @@
 import time
-from typing import Optional, overload
+from typing import Optional, overload, Union
 import datetime
 import dateutil.parser
+from ..humanizex import naturaldelta_msec
 
 
 def time_msecs() -> int:
@@ -12,17 +13,19 @@ def time_ns() -> int:
     return time.monotonic_ns()
 
 
-def time_msecs_str(t) -> str:
+def time_msecs_str(t: Union[int, float]) -> str:
     return datetime.datetime.utcfromtimestamp(t / 1000).strftime(
         '%Y-%m-%dT%H:%M:%SZ')
 
 
-def humanize_timedelta_msecs(delta_msecs):
-    import humanize  # pylint: disable=import-outside-toplevel
+@overload
+def humanize_timedelta_msecs(delta_msecs: None) -> None: ...
+@overload
+def humanize_timedelta_msecs(delta_msecs: Union[int, float]) -> str: ...
+def humanize_timedelta_msecs(delta_msecs: Optional[Union[int, float]]) -> Optional[str]:
     if delta_msecs is None:
         return None
-
-    return humanize.naturaldelta(datetime.timedelta(milliseconds=delta_msecs))
+    return naturaldelta_msec(delta_msecs)
 
 
 @overload
