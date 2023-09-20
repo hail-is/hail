@@ -24,7 +24,6 @@ from hailtop.utils import async_to_blocking, TransientError, Timings, am_i_inter
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
-from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 import hailtop.aiotools.fs as afs
