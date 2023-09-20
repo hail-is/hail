@@ -14,7 +14,7 @@ object QoBOutputStreamManager {
   private[this] var _instances: mutable.Map[Layout[_], QoBOutputStreamManager] = mutable.Map()
   private[this] var _filename: String = null
 
-  private def getInstance(layout: Layout[_]): QoBOutputStreamManager = synchronized {
+  def getInstance(layout: Layout[_]): QoBOutputStreamManager = synchronized {
     _instances.getOrElseUpdate(layout, new QoBOutputStreamManager(layout, _filename))
   }
 
