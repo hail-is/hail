@@ -6,11 +6,11 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{MatrixValue, TableValue}
-import is.hail.types._
-import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}
-import is.hail.types.virtual._
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.types._
+import is.hail.types.physical.{PCanonicalStruct, PStruct}
+import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -110,7 +110,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       (0 until k).iterator.map { j => scaledEigenvectors(i, j) }.toFastIndexedSeq
     }.toFastIndexedSeq
 
-    val g1 = f1(mv.globals.value, eigenvalues.toFastIndexedSeq)
+    val g1 = f1(mv.globals.value, eigenvalues.toFastSeq)
     val globalScores = mv.colValues.safeJavaValue.zipWithIndex.map { case (cv, i) =>
       f3(mv.typ.extractColKey(cv.asInstanceOf[Row]), scores(i))
     }

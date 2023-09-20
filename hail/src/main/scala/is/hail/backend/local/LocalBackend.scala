@@ -155,8 +155,8 @@ class LocalBackend(
     if (ir.typ == TVoid) {
       val (pt, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionUnit](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), UnitInfo,
+          FastSeq(),
+          FastSeq(classInfo[Region]), UnitInfo,
           ir,
           print = print)
       }
@@ -168,8 +168,8 @@ class LocalBackend(
     } else {
       val (pt, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
+          FastSeq(),
+          FastSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(ir)),
           print = print)
       }
@@ -335,7 +335,7 @@ class LocalBackend(
     rgs.foreach(addReference)
 
     implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+    Serialization.write(rgs.map(_.toJSON).toFastSeq)
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =

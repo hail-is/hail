@@ -3,13 +3,13 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.asm4s._
 import is.hail.types.physical.stypes.concrete.{SCanonicalRNGStateSettable, SCanonicalRNGStateValue, SRNGState, SRNGStateStaticSizeValue}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.testng.annotations.Test
 
 class RandomSuite extends HailSuite {
   // from skein_golden_kat_short_internals.txt in the skein source
-  val threefryTestCases = FastIndexedSeq(
+  val threefryTestCases = FastSeq(
     (
       Array(0x0L, 0x0L, 0x0L, 0x0L),
       Array(0x0L, 0x0L),
@@ -131,7 +131,7 @@ class RandomSuite extends HailSuite {
     f.result(ctx)(new HailClassLoader(getClass.getClassLoader))
   }
 
-  val pmacTestCases = FastIndexedSeq(
+  val pmacTestCases = FastSeq(
     (Array[Long](), 0L),
     (Array[Long](100, 101), 10L),
     (Array[Long](100, 101, 102, 103), 20L),

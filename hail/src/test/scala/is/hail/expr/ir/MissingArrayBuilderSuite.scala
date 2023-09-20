@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.AsmFunction2
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
@@ -35,9 +35,9 @@ class MissingArrayBuilderSuite extends TestNGSuite {
 
   @DataProvider(name = "sortInt")
   def integerData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(3, null, 3, 7, null), FastIndexedSeq(3, 3, 7, null, null)),
-    Array(FastIndexedSeq(null, null, null, null), FastIndexedSeq(null, null, null, null)),
-    Array(FastIndexedSeq(), FastIndexedSeq())
+    Array(FastSeq(3, null, 3, 7, null), FastSeq(3, 3, 7, null, null)),
+    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+    Array(FastSeq(), FastSeq())
   )
 
   @Test(dataProvider="sortInt")
@@ -52,9 +52,9 @@ class MissingArrayBuilderSuite extends TestNGSuite {
 
   @DataProvider(name = "sortLong")
   def longData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(3L, null, 3L, 7L, null), FastIndexedSeq(3L, 3L, 7L, null, null)),
-    Array(FastIndexedSeq(null, null, null, null), FastIndexedSeq(null, null, null, null)),
-    Array(FastIndexedSeq(), FastIndexedSeq())
+    Array(FastSeq(3L, null, 3L, 7L, null), FastSeq(3L, 3L, 7L, null, null)),
+    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+    Array(FastSeq(), FastSeq())
   )
 
   @Test(dataProvider="sortLong")
@@ -69,9 +69,9 @@ class MissingArrayBuilderSuite extends TestNGSuite {
 
   @DataProvider(name = "sortFloat")
   def floatData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(3f, null, 3f, 7f, null), FastIndexedSeq(3f, 3f, 7f, null, null)),
-    Array(FastIndexedSeq(null, null, null, null), FastIndexedSeq(null, null, null, null)),
-    Array(FastIndexedSeq(), FastIndexedSeq())
+    Array(FastSeq(3f, null, 3f, 7f, null), FastSeq(3f, 3f, 7f, null, null)),
+    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+    Array(FastSeq(), FastSeq())
   )
 
   @Test(dataProvider="sortFloat")
@@ -86,9 +86,9 @@ class MissingArrayBuilderSuite extends TestNGSuite {
 
   @DataProvider(name = "sortDouble")
   def doubleData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(3d, null, 3d, 7d, null), FastIndexedSeq(3d, 3d, 7d, null, null)),
-    Array(FastIndexedSeq(null, null, null, null), FastIndexedSeq(null, null, null, null)),
-    Array(FastIndexedSeq(), FastIndexedSeq())
+    Array(FastSeq(3d, null, 3d, 7d, null), FastSeq(3d, 3d, 7d, null, null)),
+    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+    Array(FastSeq(), FastSeq())
   )
 
   @Test(dataProvider="sortDouble")
@@ -103,9 +103,9 @@ class MissingArrayBuilderSuite extends TestNGSuite {
 
   @DataProvider(name = "sortBoolean")
   def booleanData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(true, null, true, false, null), FastIndexedSeq(false, true, true, null, null)),
-    Array(FastIndexedSeq(null, null, null, null), FastIndexedSeq(null, null, null, null)),
-    Array(FastIndexedSeq(), FastIndexedSeq())
+    Array(FastSeq(true, null, true, false, null), FastSeq(false, true, true, null, null)),
+    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+    Array(FastSeq(), FastSeq())
   )
 
   @Test(dataProvider="sortBoolean")

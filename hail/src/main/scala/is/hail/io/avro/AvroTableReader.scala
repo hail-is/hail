@@ -7,7 +7,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
 import is.hail.types.{TableType, VirtualTypeWithReq}
-import is.hail.utils.{FastIndexedSeq, plural}
+import is.hail.utils.{FastSeq, plural}
 import org.json4s.{Formats, JValue}
 
 class AvroTableReader(
@@ -45,7 +45,7 @@ class AvroTableReader(
   def renderShort(): String = defaultRender()
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
-    val globals = MakeStruct(FastIndexedSeq())
+    val globals = MakeStruct(FastSeq())
     val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
       MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
     }

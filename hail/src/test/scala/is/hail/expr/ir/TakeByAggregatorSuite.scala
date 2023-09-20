@@ -73,7 +73,7 @@ class TakeByAggregatorSuite extends HailSuite {
 
       val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
       val result = SafeRow.read(rt, o)
-      assert(result == FastIndexedSeq(0, 1, 2, 3, null, null, null))
+      assert(result == FastSeq(0, 1, 2, 3, null, null, null))
     }
   }
 

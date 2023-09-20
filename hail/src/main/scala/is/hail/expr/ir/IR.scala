@@ -20,7 +20,7 @@ import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, RStruct, TypeWithRequiredness, tcoerce}
-import is.hail.utils.{FastIndexedSeq, _}
+import is.hail.utils._
 import org.json4s.JsonAST.{JNothing, JString}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
@@ -382,7 +382,7 @@ final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: Strin
 
 object StreamFold2 {
   def apply(a: StreamFold): StreamFold2 = {
-    StreamFold2(a.a, FastIndexedSeq((a.accumName, a.zero)), a.valueName, FastSeq(a.body), Ref(a.accumName, a.zero.typ))
+    StreamFold2(a.a, FastSeq((a.accumName, a.zero)), a.valueName, FastSeq(a.body), Ref(a.accumName, a.zero.typ))
   }
 }
 

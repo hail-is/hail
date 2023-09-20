@@ -1,17 +1,11 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{LoweringAnalyses, BaseIR, IR, PruneDeadFields, RewriteBottomUp, TableExecuteIntermediate, TableKeyBy, TableKeyByAndAggregate, TableOrderBy, TableReader, TableValue}
-import is.hail.types.virtual._
-import is.hail.types._
-import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
-import is.hail.io.TypedCodecSpec
-import is.hail.rvd.RVDPartitioner
-import is.hail.utils.{FastIndexedSeq, Interval}
-import org.apache.spark.sql.Row
-import org.json4s.JValue
-import org.json4s.JsonAST.JString
+import is.hail.expr.ir.{Requiredness, _}
+import is.hail.types._
+import is.hail.types.virtual._
+import is.hail.utils.FastSeq
 
 
 object LowerAndExecuteShuffles {
@@ -46,7 +40,7 @@ object LowerAndExecuteShuffles {
 
         val origGlobalTyp = ts.typ.globalType
         ts = TableKeyBy(child, IndexedSeq())
-        ts = TableMapGlobals(ts, MakeStruct(FastIndexedSeq(
+        ts = TableMapGlobals(ts, MakeStruct(FastSeq(
           ("oldGlobals", Ref("global", origGlobalTyp)),
           ("__initState",
           RunAgg(init, MakeTuple.ordered(aggSigs.indices.map { aIdx => AggStateValue(aIdx, aggSigs(aIdx).state) }),
@@ -86,13 +80,13 @@ object LowerAndExecuteShuffles {
         val tmp = TableMapPartitions(shuffleRead, insGlob.name, partStream.name,
           Let("global", GetField(insGlob, "oldGlobals"),
             mapIR(StreamGroupByKey(partStream, newKeyType.fieldNames.toIndexedSeq, missingEqual = true)) { groupRef =>
-              RunAgg(Begin(FastIndexedSeq(
+              RunAgg(Begin(FastSeq(
                 bindIR(GetField(insGlob, "__initState")) { states =>
                   Begin(aggSigs.indices.map { aIdx => InitFromSerializedValue(aIdx, GetTupleElement(states, aIdx), aggSigs(aIdx).state) })
                 },
                 InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), takeVirtualSig)),
                 forIR(groupRef) { elem =>
-                  Begin(FastIndexedSeq(
+                  Begin(FastSeq(
                     SeqOp(aggSigs.length, IndexedSeq(SelectFields(elem, newKeyType.fieldNames)), PhysicalAggSig(Take(), takeVirtualSig)),
                     Begin((0 until aggSigs.length).map { aIdx =>
                       CombOpValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigs(aIdx))

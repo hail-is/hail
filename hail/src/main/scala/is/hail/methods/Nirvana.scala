@@ -1,23 +1,23 @@
 package is.hail.methods
 
-import java.io.{FileInputStream, IOException}
-import java.util.Properties
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.TableToTableFunction
-import is.hail.types._
-import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}
-import is.hail.types.virtual._
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
+import is.hail.types._
+import is.hail.types.physical.PType
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
+import java.io.{FileInputStream, IOException}
+import java.util.Properties
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
@@ -359,7 +359,7 @@ object Nirvana {
   }
 
   def annotate(ctx: ExecuteContext, tv: TableValue, config: String, blockSize: Int): TableValue = {
-    assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
+    assert(tv.typ.key == FastSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
     val properties = try {
@@ -475,7 +475,7 @@ object Nirvana {
       }).persist(ctx, StorageLevel.MEMORY_AND_DISK)
 
       TableValue(ctx,
-        TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct.empty),
+        TableType(nirvanaRowType.virtualType, FastSeq("locus", "alleles"), TStruct.empty),
         BroadcastRow.empty(ctx),
         nirvanaRVD
       )
@@ -484,7 +484,7 @@ object Nirvana {
 
 case class Nirvana(config: String, blockSize: Int = 500000) extends TableToTableFunction {
   override def typ(childType: TableType): TableType = {
-    assert(childType.key == FastIndexedSeq("locus", "alleles"))
+    assert(childType.key == FastSeq("locus", "alleles"))
     assert(childType.rowType.size == 2)
     TableType(childType.rowType ++ TStruct("nirvana" -> Nirvana.nirvanaSignature), childType.key, childType.globalType)
   }

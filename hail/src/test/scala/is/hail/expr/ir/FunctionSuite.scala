@@ -1,17 +1,13 @@
 package is.hail.expr.ir
 
-import java.io.PrintWriter
-
-import is.hail.{ExecStrategy, HailSuite}
-import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
-import is.hail.types.virtual._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.types.virtual._
+import is.hail.utils.FastSeq
 import is.hail.variant.Call2
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.Test
-import is.hail.TestUtils._
 
 object ScalaTestObject {
   def testFunction(): Int = 1
@@ -53,14 +49,14 @@ class FunctionSuite extends HailSuite {
   @Test
   def testCodeFunction() {
     assertEvalsTo(lookup("triangle", TInt32, TInt32)(In(0, TInt32)),
-      FastIndexedSeq(5 -> TInt32),
+      FastSeq(5 -> TInt32),
       (5 * (5 + 1)) / 2)
   }
 
   @Test
   def testStaticFunction() {
     assertEvalsTo(lookup("compare", TInt32, TInt32, TInt32)(In(0, TInt32), I32(0)) > 0,
-      FastIndexedSeq(5 -> TInt32),
+      FastSeq(5 -> TInt32),
       true)
   }
 
@@ -72,7 +68,7 @@ class FunctionSuite extends HailSuite {
   @Test
   def testIRConversion() {
     assertEvalsTo(lookup("addone", TInt32, TInt32)(In(0, TInt32)),
-      FastIndexedSeq(5 -> TInt32),
+      FastSeq(5 -> TInt32),
       6)
   }
 
@@ -92,7 +88,7 @@ class FunctionSuite extends HailSuite {
   @Test
   def testUnphasedDiploidGtIndexCall() {
     assertEvalsTo(lookup("UnphasedDiploidGtIndexCall", TCall, TInt32)(In(0, TInt32)),
-      FastIndexedSeq(0 -> TInt32),
+      FastSeq(0 -> TInt32),
       Call2.fromUnphasedDiploidGtIndex(0))
   }
 
@@ -100,10 +96,10 @@ class FunctionSuite extends HailSuite {
   def testFunctionBuilderGetOrDefine() {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
-    val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastIndexedSeq[ParamType](), UnitInfo) { mb =>
+    val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastSeq[ParamType](), UnitInfo) { mb =>
       mb.emit(i := i + 1)
     }
-    val mb2 = fb.getOrGenEmitMethod("foo", "foo", FastIndexedSeq[ParamType](), UnitInfo) { mb =>
+    val mb2 = fb.getOrGenEmitMethod("foo", "foo", FastSeq[ParamType](), UnitInfo) { mb =>
       mb.emit(i := i - 100)
     }
     fb.emitWithBuilder(cb => {

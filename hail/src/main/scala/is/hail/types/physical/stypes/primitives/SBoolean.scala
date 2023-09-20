@@ -1,12 +1,12 @@
 package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{BooleanInfo, Code, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.asm4s.{BooleanInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PBoolean, PType}
 import is.hail.types.virtual.{TBoolean, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 
 case object SBoolean extends SPrimitive {
@@ -23,7 +23,7 @@ case object SBoolean extends SPrimitive {
     }
   }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(BooleanInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(BooleanInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SBooleanSettable = {
     val IndexedSeq(x: Settable[Boolean@unchecked]) = settables
@@ -45,7 +45,7 @@ class SBooleanValue(val value: Value[Boolean]) extends SPrimitiveValue {
 
   override def st: SBoolean.type = SBoolean
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(value)
 
   override def _primitiveValue: Value[_] = value
 
@@ -62,7 +62,7 @@ object SBooleanSettable {
 }
 
 class SBooleanSettable(x: Settable[Boolean]) extends SBooleanValue(x) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(x)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(x, v.asInstanceOf[SBooleanValue].value)

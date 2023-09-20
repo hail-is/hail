@@ -1,7 +1,4 @@
 package is.hail.types.encoded
-import java.util
-import java.util.Map.Entry
-import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.backend.ExecuteContext
@@ -9,11 +6,14 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, 
 import is.hail.io._
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
-import org.json4s.{CustomSerializer, JValue}
+import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
+
+import java.util
+import java.util.Map.Entry
 
 
 class ETypeSerializer extends CustomSerializer[EType](format => ( {
@@ -53,7 +53,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     kb.getOrGenEmitMethod(s"ENCODE_${ st.asIdent }_TO_${ asIdent }",
       (st, this, "ENCODE"),
-      FastIndexedSeq[ParamType](st.paramType, classInfo[OutputBuffer]),
+      FastSeq[ParamType](st.paramType, classInfo[OutputBuffer]),
       UnitInfo) { mb =>
 
       mb.voidWithBuilder { cb =>
@@ -75,7 +75,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     val st = decodedSType(t)
     kb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ st.asIdent }",
       (t, this, "DECODE"),
-      FastIndexedSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
+      FastSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
       st.paramType) { mb =>
 
       mb.emitSCode { cb =>
@@ -99,7 +99,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     kb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
-      FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
+      FastSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
 
       mb.voidWithBuilder { cb =>
@@ -114,7 +114,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildSkip(kb: EmitClassBuilder[_]): (EmitCodeBuilder, Value[Region], Value[InputBuffer]) => Unit = {
     val mb = kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
-      FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
+      FastSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
       mb.voidWithBuilder { cb =>
         val r: Value[Region] = mb.getCodeParam[Region](1)

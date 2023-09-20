@@ -36,7 +36,7 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
 
   override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
     val s: IndexedSeq[Annotation] = annotation.asInstanceOf[Set[Annotation]]
-      .toFastIndexedSeq
+      .toFastSeq
       .sorted(elementType.virtualType.ordering(sm).toOrdering)
     arrayRep.unstagedStoreJavaObject(sm, s, region)
   }

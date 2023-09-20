@@ -181,7 +181,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     else
       FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
     case TailLoop(name, args, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastIndexedSeq))
+      FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastSeq))
     case Recur(name, _, t) => if (elideBindings)
       single(t.parsableString())
     else
@@ -198,7 +198,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case ApplyComparisonOp(op, _, _) => single(op.render())
     case GetField(_, name) => single(prettyIdentifier(name))
     case GetTupleElement(_, idx) => single(idx.toString)
-    case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1).toFastIndexedSeq, elideLiterals))
+    case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1).toFastSeq, elideLiterals))
     case MakeArray(_, typ) => single(typ.parsableString())
     case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
       FastSeq(typ.parsableString(), Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
@@ -467,7 +467,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
             list(prettyIdentifier(n), pretty(a))
           }
           pretty(old) +: prettyStringsOpt(fieldOrder) +: fieldDocs
-        case _ => ir.children.map(pretty).toFastIndexedSeq
+        case _ => ir.children.map(pretty).toFastSeq
       }
 
       /*
@@ -488,7 +488,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
 
     def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(String, String)]] = ir match {
       case If(_, _, _) =>
-        if (i > 0) Some(FastIndexedSeq()) else None
+        if (i > 0) Some(FastSeq()) else None
       case TailLoop(name, args, body) => if (i == args.length)
         Some(args.map { case (name, ir) => name -> "loopvar" } :+
           name -> "loop") else None
@@ -525,7 +525,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       case StreamScan(a, zero, accumName, valueName, _) =>
         if (i == 2) Some(Array(accumName -> "accum", valueName -> "elt")) else None
       case StreamAggScan(a, name, _) =>
-        if (i == 1) Some(FastIndexedSeq(name -> "elt")) else None
+        if (i == 1) Some(FastSeq(name -> "elt")) else None
       case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) =>
         if (i == 2) Some(Array(l -> "l_elt", r -> "r_elt")) else None
       case ArraySort(a, left, right, _) =>
@@ -694,7 +694,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         val nestedBlocks = (for {
           (child, i) <- ir.children.zipWithIndex
           if !childIsStrict(ir, i)
-        } yield prettyBlock(child, blockArgs(ir, i).get, bindings)).toFastIndexedSeq
+        } yield prettyBlock(child, blockArgs(ir, i).get, bindings)).toFastSeq
 
         val attsIterable = header(ir, elideBindings = true)
         val attributes = if (attsIterable.isEmpty) Iterable.empty else

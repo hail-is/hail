@@ -8,8 +8,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
-import is.hail.variant.ReferenceGenome
+import is.hail.utils.FastSeq
 
 object SUnreachable {
   def fromVirtualType(t: Type): SType = {
@@ -31,7 +30,7 @@ object SUnreachable {
 }
 
 abstract class SUnreachable extends SType {
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq()
 
   override def storageType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
 
@@ -53,9 +52,9 @@ abstract class SUnreachable extends SType {
 }
 
 abstract class SUnreachableValue extends SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq()
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq()
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
+  override def valueTuple: IndexedSeq[Value[_]] = FastSeq()
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {}
 

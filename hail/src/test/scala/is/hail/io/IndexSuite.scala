@@ -2,11 +2,9 @@ package is.hail.io
 
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
-import is.hail.types.encoded.EType
-import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PString, PStruct, PType}
-import is.hail.types.virtual._
-import is.hail.io.fs.FS
 import is.hail.io.index._
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PType}
+import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
@@ -244,10 +242,10 @@ class IndexSuite extends HailSuite {
 
               if (includesStart)
                 assert(index.iterateFrom(bounds(0)).toFastIndexedSeq ==
-                  leafsWithDups.slice(lowerBoundIdx, stringsWithDups.length).toFastIndexedSeq)
+                  leafsWithDups.slice(lowerBoundIdx, stringsWithDups.length).toFastSeq)
               if (!includesEnd)
                 assert(index.iterateUntil(bounds(1)).toFastIndexedSeq ==
-                  leafsWithDups.slice(0, upperBoundIdx).toFastIndexedSeq)
+                  leafsWithDups.slice(0, upperBoundIdx).toFastSeq)
             } else
               intercept[IllegalArgumentException](index.queryByInterval(bounds(0), bounds(1), includesStart, includesEnd))
           }
@@ -268,7 +266,7 @@ class IndexSuite extends HailSuite {
         branchingFactor,
         Map.empty)
 
-      val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(Row(s, i), i, Row()) }.toFastIndexedSeq
+      val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(Row(s, i), i, Row()) }.toFastSeq
 
       val index = indexReader(file, +PCanonicalStruct(), keyPType = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32()))
       assert(index.queryByInterval(Row("cat", 3), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==
@@ -295,10 +293,10 @@ class IndexSuite extends HailSuite {
         var start = stringsWithDups.indexWhere(s <= _)
         if (start == -1)
           start = stringsWithDups.length
-        assert(index.iterateFrom(s).toFastIndexedSeq == leafsWithDups.slice(start, stringsWithDups.length).toFastIndexedSeq)
+        assert(index.iterateFrom(s).toFastIndexedSeq == leafsWithDups.slice(start, stringsWithDups.length).toFastSeq)
 
         val end = stringsWithDups.lastIndexWhere(s > _) + 1
-        assert(index.iterateUntil(s).toFastIndexedSeq == leafsWithDups.slice(0, end).toFastIndexedSeq)
+        assert(index.iterateUntil(s).toFastIndexedSeq == leafsWithDups.slice(0, end).toFastSeq)
       }
     }
   }

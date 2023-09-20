@@ -3,7 +3,7 @@ package is.hail.io
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.{I64, MakeStruct, ReadPartition, Str, ToArray}
 import is.hail.io.avro.AvroPartitionReader
-import is.hail.utils.{FastIndexedSeq, fatal, using}
+import is.hail.utils.{FastSeq, fatal, using}
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.DataFileWriter
@@ -74,7 +74,7 @@ class AvroReaderSuite extends HailSuite {
     val avroFile = makeTestFile()
     val ir = ToArray(ReadPartition(
       MakeStruct(Array("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
-      partitionReader.fullRowType.typeAfterSelect(FastIndexedSeq(0, 2, 4)),
+      partitionReader.fullRowType.typeAfterSelect(FastSeq(0, 2, 4)),
       partitionReader))
     val expected = testValue.map { case Row(int, _, float, _, string) => Row(int, float, string) }
     assertEvalsTo(ir, expected)

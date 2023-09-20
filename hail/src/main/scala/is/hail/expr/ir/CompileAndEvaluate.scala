@@ -6,8 +6,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.{TVoid, _}
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.types.virtual._
+import is.hail.utils.FastSeq
 import org.apache.spark.sql.Row
 
 object CompileAndEvaluate {
@@ -31,7 +31,7 @@ object CompileAndEvaluate {
       return ir0
 
     _apply(ctx, ir0, optimize) match {
-      case Left(_) => Begin(FastIndexedSeq())
+      case Left(_) => Begin(FastSeq())
       case Right((pt, addr)) =>
         ir0.typ match {
           case _ if pt.isFieldMissing(addr, 0) => NA(ir0.typ)
@@ -51,8 +51,8 @@ object CompileAndEvaluate {
 
     if (ir.typ == TVoid) {
       val (_, f) = ctx.timer.time("Compile")(Compile[AsmFunction1RegionUnit](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq(classInfo[Region]), UnitInfo,
+        FastSeq(),
+        FastSeq(classInfo[Region]), UnitInfo,
         ir,
         print = None, optimize = optimize))
 
@@ -64,8 +64,8 @@ object CompileAndEvaluate {
     }
 
     val (Some(PTypeReferenceSingleCodeType(resType: PTuple)), f) = ctx.timer.time("Compile")(Compile[AsmFunction1RegionLong](ctx,
-      FastIndexedSeq(),
-      FastIndexedSeq(classInfo[Region]), LongInfo,
+      FastSeq(),
+      FastSeq(classInfo[Region]), LongInfo,
       MakeTuple.ordered(FastSeq(ir)),
       print = None, optimize = optimize))
 

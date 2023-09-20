@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
-import is.hail.types.physical.{PCanonicalNDArray, PNumeric, PPrimitive, PType}
+import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.toRichIterable
 
@@ -92,7 +92,7 @@ class SNDArraySliceValue(
   )(body: IndexedSeq[SValue] => SValue
   ): Unit = {
     SNDArray._coiterate(cb, indexVars, (this, destIndices, "dest") +: arrays: _*) { ptrs =>
-      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
+      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastSeq.map { case (array, ptr) =>
         val pt: PType = array.st.pType.elementType
         pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
       }
