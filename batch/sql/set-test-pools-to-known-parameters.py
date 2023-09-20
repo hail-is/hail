@@ -33,7 +33,7 @@ SET
   max_new_instances_per_autoscaler_loop = %s,
   autoscaler_loop_period_secs = %s,
   worker_max_idle_time_secs = %s
-WHERE name == %s
+WHERE name = %s
             ''',
             (
                 max_instances,
@@ -54,7 +54,7 @@ SET
   standing_worker_max_idle_time_secs = %s,
   job_queue_scheduling_window_secs = %s,
   min_instances = %s
-WHERE name == %s
+WHERE name = %s
             ''',
             (
                 worker_cores,
