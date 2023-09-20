@@ -1424,6 +1424,16 @@ class ServiceTests(unittest.TestCase):
         assert res.get_job(2).status()['spec']['resources']['preemptible'] == False
         assert res.get_job(3).status()['spec']['resources']['preemptible'] == True
 
+    def test_image_with_non_root_user_can_create_files(self):
+        b = self.batch()
+        j = b.new_job()
+        j.image(os.environ['HAIL_USERID_IMAGE'])
+        j.command('touch foo')
+        j.command('touch /io/foo')
+        res = b.run()
+        res_status = res.status()
+        assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
     def test_local_file_paths_error(self):
         b = self.batch()
         j = b.new_job()

@@ -1175,7 +1175,7 @@ class Container:
                     'permitted': default_docker_capabilities,
                 },
             },
-            "hooks": {"prestart": nvidia_runtime_hook},
+            'hooks': {'prestart': nvidia_runtime_hook},
             'linux': {
                 'rootfsPropagation': 'slave',
                 'namespaces': [
@@ -1189,8 +1189,6 @@ class Container:
                     {'type': 'uts'},
                     {'type': 'cgroup'},
                 ],
-                'uidMappings': [],
-                'gidMappings': [],
                 'resources': {
                     "devices": [{"allow": False, "access": "rwm"}],
                     'cpu': {'shares': weight},
@@ -1227,26 +1225,58 @@ class Container:
             config['linux']['readonlyPaths'] = []
             config['process']['apparmorProfile'] = 'unconfined'
             config['linux']['seccomp'] = {'defaultAction': "SCMP_ACT_ALLOW"}
+        else:
+            config['linux']['namespaces'].append(
+                {
+                    'type': 'user',
+                    'uidMappings': {
+                        'containerID': uid,
+                        'hostID': 0,
+                        'size': 1,
+                    },
+                    'gidMappings': {
+                        'containerID': gid,
+                        'hostID': 0,
+                        'size': 1,
+                    },
+                },
+            )
+            for mount in config['mounts']:
+                if mount['type'] == 'none':  # bind mount from the host
+                    # Setting a user namepsace alone does not do anything to the
+                    # ownership of fs objects mounted into the container, they are
+                    # still owned by the UID that owns them on the host. By setting
+                    # 'idmap', crun will mount them into the container using the mappings
+                    # from the user namespace so inside the container they appear
+                    # to by owned by USER.
+                    # https://github.com/containers/crun/blob/main/crun.1.md#idmap-mount-options
+                    mount['options'].append(f'idmap=uids=0-{uid}-1;gids=0-{gid}-1')
 
         return config
 
     async def _get_in_container_user(self) -> Tuple[int, int]:
+        # https://docs.docker.com/engine/reference/builder/#user
         assert self.image.image_config
         user = self.image.image_config['Config']['User']
         if not user:
             return 0, 0
         if ":" in user:
-            uid, gid = user.split(":")
-        else:
-            uid, gid = await self._read_user_from_rootfs(user)
-        return int(uid), int(gid)
+            user, group = user.split(":")
+            try:
+                return int(user), int(group)
+            except ValueError:
+                return await self._read_uid_gid_from_rootfs(user)
+        try:
+            return int(user), 0
+        except ValueError:
+            return await self._read_uid_gid_from_rootfs(user)
 
-    async def _read_user_from_rootfs(self, user) -> Tuple[str, str]:
+    async def _read_uid_gid_from_rootfs(self, user: str) -> Tuple[int, int]:
         with open(f'{self.image.rootfs_path}/etc/passwd', 'r', encoding='utf-8') as passwd:
             for record in passwd:
                 if record.startswith(user):
                     _, _, uid, gid, _, _, _ = record.split(":")
-                    return uid, gid
+                    return int(uid), int(gid)
             raise ValueError("Container user not found in image's /etc/passwd")
 
     def _mounts(self, uid: int, gid: int) -> List[MountSpecification]:

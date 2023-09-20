@@ -2604,6 +2604,16 @@ steps:
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2
+    name: userid_image
+    publishAs: userid
+    dockerFile:
+      inline: |
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
+        USER "1001"
+    dependsOn:
+      - hail_ubuntu_image
+  - kind: buildImage2
     name: gpu_image
     publishAs: gpu
     resources:
@@ -2921,6 +2931,7 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
+      export HAIL_USERID_IMAGE="{{ userid_image.image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
 
@@ -2956,6 +2967,7 @@ steps:
       - default_ns
       - merge_code
       - hail_dev_image
+      - userid_image
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
