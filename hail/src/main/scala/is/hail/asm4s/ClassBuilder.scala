@@ -291,7 +291,6 @@ class ClassBuilder[C](
         false,
         UnitInfo,
         FastIndexedSeq(lir.load(lInit.getParam(0)))))
-    L.append(lir.returnx())
     new VCode(L, L, null)
   }
 
@@ -379,6 +378,7 @@ class ClassBuilder[C](
 
   def classBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): Array[(String, Array[Byte])] = {
     assert(initBody.start != null)
+    initBody.end.append(lir.returnx())
     lInit.setEntry(initBody.start)
 
     clinitBody match {
