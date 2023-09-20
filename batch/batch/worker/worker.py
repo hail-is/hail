@@ -203,6 +203,8 @@ instance_config: Optional[InstanceConfig] = None
 
 N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
+N_JVM_CONTAINERS = sum(1 for jvm_cores in (1, 2, 4, 8) for _ in range(CORES // jvm_cores))
+
 deploy_config = get_deploy_config()
 
 docker: Optional[aiodocker.Docker] = None
@@ -345,11 +347,12 @@ class NetworkAllocator:
         self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self):
-        for subnet_index in range(N_SLOTS):
+        for subnet_index in range(N_SLOTS + N_JVM_CONTAINERS):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             self.public_networks.put_nowait(public)
 
+        for subnet_index in range(N_SLOTS):
             private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
 
             await private.init()
@@ -2940,6 +2943,7 @@ class Worker:
             for jvm_cores in (1, 2, 4, 8):
                 for _ in range(CORES // jvm_cores):
                     jvms.append(JVM.create(len(jvms), jvm_cores, self))
+            assert len(jvms) == N_JVM_CONTAINERS
             self._jvms.update(await asyncio.gather(*jvms))
         log.info(f'JVMs initialized {self._jvms}')
 
