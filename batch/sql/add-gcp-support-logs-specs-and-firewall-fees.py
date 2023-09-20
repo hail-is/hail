@@ -25,7 +25,7 @@ VALUES ('gcp-support-logs-specs-and-firewall-fees/1', 0.000000000001388888888888
             await tx.execute_update('''
 UPDATE resources
 SET deduped_resource_id = resource_id
-WHERE resource == 'gcp-support-logs-specs-and-firewall-fees/1';
+WHERE resource = 'gcp-support-logs-specs-and-firewall-fees/1';
 ''')
 
         await insert()
