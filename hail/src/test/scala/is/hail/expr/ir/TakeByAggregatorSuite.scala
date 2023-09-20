@@ -43,7 +43,7 @@ class TakeByAggregatorSuite extends HailSuite {
           .iterator
           .map(i => s"str$i")
           .take(size)
-          .toFastIndexedSeq, s"size=$size, n=$n")
+          .toFastSeq, s"size=$size, n=$n")
       }
     }
   }

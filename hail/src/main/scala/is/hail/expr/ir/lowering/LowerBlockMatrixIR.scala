@@ -694,8 +694,8 @@ class BlockMatrixStage2 private (
   }
 
   def filter(keepRows: IndexedSeq[Long], keepCols: IndexedSeq[Long], typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
-    val rowBlockDependents = keepRows.grouped(typ.blockSize).map(_.map(i => (i / typ.blockSize).toInt).distinct).toFastIndexedSeq
-    val colBlockDependents = keepCols.grouped(typ.blockSize).map(_.map(i => (i / typ.blockSize).toInt).distinct).toFastIndexedSeq
+    val rowBlockDependents = keepRows.grouped(typ.blockSize).map(_.map(i => (i / typ.blockSize).toInt).distinct).toFastSeq
+    val colBlockDependents = keepCols.grouped(typ.blockSize).map(_.map(i => (i / typ.blockSize).toInt).distinct).toFastSeq
 
     def localIndices(idxs: IndexedSeq[Long]): IndexedSeq[IndexedSeq[Long]] = {
       val result = new AnyRefArrayBuilder[IndexedSeq[Long]]()
@@ -715,9 +715,9 @@ class BlockMatrixStage2 private (
     }
 
     val groupedKeepRows: IndexedSeq[IndexedSeq[IndexedSeq[Long]]] =
-      keepRows.grouped(typ.blockSize).map(localIndices).toFastIndexedSeq
+      keepRows.grouped(typ.blockSize).map(localIndices).toFastSeq
     val groupedKeepCols: IndexedSeq[IndexedSeq[IndexedSeq[Long]]] =
-      keepCols.grouped(typ.blockSize).map(localIndices).toFastIndexedSeq
+      keepCols.grouped(typ.blockSize).map(localIndices).toFastSeq
     val t = TArray(TArray(TArray(TInt64)))
     val groupedKeepRowsLit = if (keepRows.isEmpty) NA(t) else Literal(t, groupedKeepRows)
     val groupedKeepColsLit = if (keepCols.isEmpty) NA(t) else Literal(t, groupedKeepCols)

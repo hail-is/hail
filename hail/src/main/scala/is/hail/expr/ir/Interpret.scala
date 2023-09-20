@@ -348,7 +348,7 @@ object Interpret {
           cValue match {
             case s: Set[_] =>
               s.asInstanceOf[Set[Any]].toFastSeq.sorted(ordering)
-            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq.sorted(ordering)
+            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastSeq.sorted(ordering)
             case a => a
           }
         }
@@ -418,7 +418,7 @@ object Interpret {
         else {
           val size = sizeValue.asInstanceOf[Int]
           if (size <= 0) fatal("stream grouped: non-positive size")
-          aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
+          aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastSeq
         }
       case StreamGroupByKey(a, key, missingEqual) =>
         val aValue = interpret(a, env, args)
@@ -708,7 +708,7 @@ object Interpret {
             case "right" => outerResult.iterator.filter { case (l, r) => r.isDefined }
           }
           elts.map { case (lIdx, rIdx) => joinF(lIdx.map(lValue.apply).orNull, rIdx.map(rValue.apply).orNull) }
-            .toFastIndexedSeq
+            .toFastSeq
         }
 
       case StreamFor(a, valueName, body) =>

@@ -897,7 +897,7 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
     val newPCs = pc.iterator.zip(prefixSums)
       .takeWhile { case (_, prefixSum) => prefixSum < n }
       .map { case (value, prefixSum) => if (prefixSum + value > n) n - prefixSum else value }
-      .toFastIndexedSeq
+      .toFastSeq
     assert(newPCs.sum == n || pc.sum < n)
     newPCs
   }

@@ -107,8 +107,8 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     val scaledEigenvectors = V(*, ::) *:* S
 
     val scores = (0 until mv.nCols).iterator.map { i =>
-      (0 until k).iterator.map { j => scaledEigenvectors(i, j) }.toFastIndexedSeq
-    }.toFastIndexedSeq
+      (0 until k).iterator.map { j => scaledEigenvectors(i, j) }.toFastSeq
+    }.toFastSeq
 
     val g1 = f1(mv.globals.value, eigenvalues.toFastSeq)
     val globalScores = mv.colValues.safeJavaValue.zipWithIndex.map { case (cv, i) =>
