@@ -24,7 +24,7 @@ from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
 
 from gear import (
-    AuthClient,
+    AuthServiceAuthenticator,
     Database,
     K8sCache,
     Transaction,
@@ -87,7 +87,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthClient()
+auth = AuthServiceAuthenticator()
 
 warnings.filterwarnings(
     'ignore',

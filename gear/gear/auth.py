@@ -1,3 +1,4 @@
+import abc
 import asyncio
 import logging
 import urllib.parse
@@ -46,19 +47,14 @@ AuthenticatedAIOHTTPHandler = Callable[[web.Request, UserData], Awaitable[web.St
 MaybeAuthenticatedAIOHTTPHandler = Callable[[web.Request, Optional[UserData]], Awaitable[web.StreamResponse]]
 
 
-class AuthClient:
-    def __init__(self):
-        self._userdata_cache = TimeLimitedMaxSizeCache(
-            self._load_userdata, TEN_SECONDS_IN_NANOSECONDS, 100, 'session_userdata_cache'
-        )
-
+class Authenticator(abc.ABC):
     def authenticated_users_only(
         self, redirect: Optional[bool] = None
     ) -> Callable[[AuthenticatedAIOHTTPHandler], AIOHTTPHandler]:
         def wrap(fun: AuthenticatedAIOHTTPHandler):
             @wraps(fun)
             async def wrapped(request: web.Request) -> web.StreamResponse:
-                userdata = await self._userdata_from_request(request)
+                userdata = await self._fetch_userdata(request)
                 if not userdata:
                     # Only web routes should redirect by default
                     if redirect or (redirect is None and '/api/' not in request.path):
@@ -73,7 +69,7 @@ class AuthClient:
     def maybe_authenticated_user(self, fun: MaybeAuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
         @wraps(fun)
         async def wrapped(request: web.Request) -> web.StreamResponse:
-            return await fun(request, await self._userdata_from_request(request))
+            return await fun(request, await self._fetch_userdata(request))
 
         return wrapped
 
@@ -90,7 +86,18 @@ class AuthClient:
 
         return wrap
 
-    async def _userdata_from_request(self, request):
+    @abc.abstractmethod
+    async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
+        raise NotImplementedError
+
+
+class AuthServiceAuthenticator(Authenticator):
+    def __init__(self):
+        self._userdata_cache = TimeLimitedMaxSizeCache(
+            self._fetch_userdata_from_auth_service, TEN_SECONDS_IN_NANOSECONDS, 100, 'session_userdata_cache'
+        )
+
+    async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
         session_id = await _get_session_id(request)
         if session_id is None:
             return None
@@ -98,7 +105,7 @@ class AuthClient:
         return await self._userdata_cache.lookup((session_id, request.app['client_session']))
 
     @staticmethod
-    async def _load_userdata(session_id_and_session: Tuple[str, httpx.ClientSession]):
+    async def _fetch_userdata_from_auth_service(session_id_and_session: Tuple[str, httpx.ClientSession]):
         session_id, client_session = session_id_and_session
         try:
             return await impersonate_user_and_get_info(session_id=session_id, client_session=client_session)
