@@ -212,10 +212,9 @@ object IntervalsSet {
 class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   import ExtractIntervalFilters._
 
+  // A set of key values, represented by an ordered sequence of disjoint intervals
+  // Supports lattice ops, plus complements.
   object KeySet extends AbstractLattice {
-    // FIXME: make this an AnyVal wrapper.
-    // Make constructor simplify intervals involving null
-    //   IntervalEndpoint(Row(a, b, null, null), -1) == IntervalEndpoint(Row(a, b), -1)
     type Value = IndexedSeq[Interval]
 
     def specializes(l: Value, r: Value): Boolean = {
@@ -264,6 +263,22 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
   }
 
+  // The lattice used in the EbtractIntervalFilters analysis
+  // A value can be
+  // * a constant, e.g. I32(5),
+  // * a key field, e.g. GetField(Ref("row"), "key_field")
+  // * the contig or position of a locus key field (which must be the first key
+  //   field, e.g. Apply("contig", ..., GetField(Ref("row"), "locus"), ...)
+  // * a struct, which consists of a lattice value for each field
+  // * a boolean, which consists of an overapproximating KeySet for each
+  //   possible runtime value --- true, false, or missing ---. For example
+  //   if the boolean is true in a row with key `k`, then `k` must be in the
+  //   "true" KeySet, but the converse needn't hold. In particular, when we
+  //   know nothing about the boolean (e.g. it's computed from a non-key field)
+  //   all three KeySets are the set of all keys.
+  // These categories are not disjoint. In particular, a value can be both a
+  // (key field or constant) and a (struct or boolean). We represent these
+  // overlaps with subclasses.
   object Lattice extends JoinLattice {
     abstract class Value
 
@@ -297,6 +312,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case _ => None
       }
     }
+
     trait KeyField extends Value {
       def idx: Int
     }
@@ -839,7 +855,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       case StreamFold(a, zero, accumName, valueName, body) => recur(a) match {
           case ConstantValue(array) => array.asInstanceOf[Iterable[Any]]
               .foldLeft(recur(zero)) { (accum, value) =>
-                recur(body, env.bind(accumName -> accum, valueName -> ConstantValue(value, a.typ.asInstanceOf[TStream].elementType)))
+                recur(body, env.bind(accumName -> accum, valueName -> ConstantValue(value, TIterable.elementType(a.typ))))
               }
           case _ => Lattice.top
         }
@@ -893,8 +909,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         val bool = res.asInstanceOf[BoolValue]
         if (KeySet.meet(KeySet.combine(bool.falseBound, bool.naBound), env.keySet) == KeySet.bottom)
           rw.replaceWithTrue += RefEquality(x)
-        else if (KeySet.meet(KeySet.combine(bool.trueBound, bool.naBound), env.keySet) == KeySet.bottom)
+        else if (KeySet.meet(KeySet.combine(bool.trueBound, bool.naBound), env.keySet) == KeySet.bottom) {
           rw.replaceWithFalse += RefEquality(x)
+        // add replaceWithMissing
+        }
       }
     }
     res
