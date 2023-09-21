@@ -1,7 +1,8 @@
 from typing import Optional
+import os
 import json
 
-from hailtop.config import get_deploy_config, DeployConfig, get_user_identity_config_path
+from hailtop.config import get_deploy_config, DeployConfig, get_user_identity_config_path, get_hail_config_path
 from hailtop.auth import hail_credentials, IdentityProvider, AzureFlow, GoogleFlow
 from hailtop.httpx import client_session, ClientSession
 
@@ -16,6 +17,7 @@ async def auth_flow(deploy_config: DeployConfig, default_ns: str, session: Clien
         assert idp == IdentityProvider.MICROSOFT
         credentials = AzureFlow.perform_installed_app_login_flow(client_secret_config)
 
+    os.makedirs(get_hail_config_path(), exist_ok=True)
     with open(get_user_identity_config_path(), 'w', encoding='utf-8') as f:
         f.write(json.dumps({'idp': idp.value, 'credentials': credentials}))
 
