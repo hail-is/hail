@@ -470,6 +470,18 @@ case class MatrixVCFWriter(
     val tm = MatrixType.fromTableType(ts.tableType, colsFieldName, entriesFieldName, colKey)
     tm.requireRowKeyVariant()
     tm.requireColKeyString()
+
+    if (tm.rowType.hasField("info")) {
+      tm.rowType.field("info").typ match {
+        case tinfo: TStruct =>
+          ExportVCF.checkInfoSignature(tinfo)
+        case t =>
+          warn(s"export_vcf found row field 'info' of type $t, but expected type 'tstruct'. Emitting no INFO fields.")
+      }
+    } else {
+      warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
+    }
+
     ExportVCF.checkFormatSignature(tm.entryType)
 
     val ext = ctx.fs.getCodecExtension(path)
@@ -527,16 +539,6 @@ case class MatrixVCFWriter(
 case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHeader: Boolean,
     append: Option[String], metadata: Option[VCFMetadata], tabix: Boolean) extends PartitionWriter {
   val ctxType: Type = TStruct("cols" -> TArray(typ.colType), "partFile" -> TString)
-
-  if (typ.rowType.hasField("info")) {
-    typ.rowType.field("info").typ match {
-      case _: TStruct =>
-      case t =>
-        warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
-    }
-  } else {
-    warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
-  }
 
   val formatFieldOrder: Array[Int] = typ.entryType.fieldIdx.get("GT") match {
     case Some(i) => (i +: typ.entryType.fields.filter(fd => fd.name != "GT").map(_.index)).toArray
@@ -652,8 +654,6 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         cb.ifx(ploidy.ceq(1) , cb._fatal("VCF spec does not support phased haploid calls."))
         val c = v.canonicalCall(cb)
         _writeB(cb, Code.invokeScalaObject1[Int, Array[Byte]](Call.getClass, "toUTF8", c))
-      case _ =>
-        fatal(s"VCF does not support ${value.st}")
     }
 
     def writeIterable(cb: EmitCodeBuilder, it: SIndexableValue, delim: Int) =
