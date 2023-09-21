@@ -3,11 +3,10 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, TypedDict
 
 import jinja2
 import yaml
-from typing_extensions import TypedDict
 
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
@@ -39,7 +38,7 @@ class ServiceAccount(TypedDict):
     namespace: str
 
 
-def expand_value_from(value, config):
+def expand_value_from(value, config) -> str:
     if isinstance(value, str):
         return value
 
@@ -97,7 +96,15 @@ class BuildConfigurationError(Exception):
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, *, requested_step_names=(), excluded_step_names=()):
+    def __init__(
+        self,
+        code: Code,
+        config_str: str,
+        scope: str,
+        *,
+        requested_step_names: Sequence[str] = (),
+        excluded_step_names: Sequence[str] = (),
+    ):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
@@ -271,13 +278,25 @@ class Step(abc.ABC):
 
 class BuildImage2Step(Step):
     def __init__(
-        self, params: StepParameters, dockerfile, context_path, publish_as, inputs, resources
+        self,
+        params: StepParameters,
+        dockerfile,
+        context_path,
+        publish_as,
+        inputs,
+        resources,
+        build_args,
     ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
         self.inputs = inputs
         self.resources = resources
+
+        self.build_args = {
+            arg['name']: expand_value_from(arg['value'], self.input_config(params.code, params.scope))
+            for arg in build_args
+        }
 
         image_name = publish_as
         self.base_image = f'{DOCKER_PREFIX}/{image_name}'
@@ -319,6 +338,7 @@ class BuildImage2Step(Step):
             json['publishAs'],
             json.get('inputs'),
             json.get('resources'),
+            json.get('buildArgs', []),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -337,6 +357,10 @@ class BuildImage2Step(Step):
         context = self.context_path
         if not context:
             context = '/io'
+
+        build_args_str = ' \\\n'.join(
+            f'--opt build-arg:{shq(name)}={shq(value)}' for name, value in self.build_args.items()
+        )
 
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
@@ -366,15 +390,16 @@ set -x
 
 export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
 export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
-retry buildctl-daemonless.sh \
-     build \
-     --frontend dockerfile.v0 \
-     --local context={shq(context)} \
-     --local dockerfile=/home/user \
-     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
-     --export-cache type=inline \
-     --import-cache type=registry,ref={shq(self.cache_repository)} \
-     --import-cache type=registry,ref={shq(self.main_branch_cache_repository)} \
+retry buildctl-daemonless.sh \\
+     build \\
+     --frontend dockerfile.v0 \\
+     --local context={shq(context)} \\
+     --local dockerfile=/home/user \\
+     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \\
+     --export-cache type=inline \\
+     --import-cache type=registry,ref={shq(self.cache_repository)} \\
+     --import-cache type=registry,ref={shq(self.main_branch_cache_repository)} \\
+     {build_args_str} \\
      --trace=/home/user/trace
 cat /home/user/trace
 '''
@@ -415,8 +440,8 @@ cat /home/user/trace
 
         if CLOUD == 'azure':
             image = 'mcr.microsoft.com/azure-cli'
-            assert self.image.startswith(DOCKER_PREFIX)
-            image_name = self.image[len(f'{DOCKER_PREFIX}/') :]
+            assert self.image.startswith(DOCKER_PREFIX + '/')
+            image_name = self.image.removeprefix(DOCKER_PREFIX + '/')
             script = f'''
 set -x
 date

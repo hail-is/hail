@@ -52,6 +52,7 @@ class VCFTests(unittest.TestCase):
         for f in _FLOAT_ARRAY_INFO_FIELDS:
             self.assertEqual(mt['info'][f].dtype, hl.tarray(hl.tfloat64))
 
+    @qobtest
     def test_glob(self):
         full = hl.import_vcf(resource('sample.vcf'))
         parts = hl.import_vcf(resource('samplepart*.vcf'))
@@ -373,6 +374,7 @@ class VCFTests(unittest.TestCase):
         files = hl.current_backend().fs.ls(tmp)
         self.assertTrue(any(f.path.endswith('.tbi') for f in files))
 
+    @qobtest
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         self.import_gvcfs_sample_vcf(path)

@@ -1,4 +1,5 @@
-FROM {{ docker_prefix }}/ubuntu:20.04
+ARG DOCKER_PREFIX=docker.io
+FROM $DOCKER_PREFIX/ubuntu:22.04
 
 RUN apt-get update -y && \
     apt-get install -y nginx && \

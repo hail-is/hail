@@ -3,8 +3,7 @@ import sys
 import typer
 from typer import Option as Opt, Argument as Arg
 
-from typing import List, Optional
-from typing_extensions import Annotated as Ann
+from typing import List, Optional, Annotated as Ann
 
 from .connect import connect as dataproc_connect, DataprocConnectService
 from .submit import submit as dataproc_submit
@@ -318,13 +317,19 @@ def submit(
     ] = None,
     dry_run: DryRunOption = False,
     region: Ann[Optional[str], Opt(help='Compute region for the cluster.')] = None,
+    arguments: Ann[Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')] = None,
 ):
+    '''Submit the Python script at path SCRIPT to a running Dataproc cluster with name NAME.
+
+    You may pass arguments to the script being submitted by listing them after the script; however,
+    if you wish to pass option-like arguments you should use "--". For example:
+
+
+
+    $ hailctl dataproc submit name --image-name docker.io/image my_script.py -- some-argument --animal dog
+
     '''
-    Submit the Python script at path SCRIPT to a running Dataproc cluster with
-    name NAME. To pass arguments to the script being submitted, just list them
-    after the name of the script.
-    '''
-    dataproc_submit(name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, ctx.args)
+    dataproc_submit(name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, [*(arguments or []), *ctx.args])
 
 
 @app.command()

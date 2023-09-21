@@ -1,7 +1,7 @@
 import abc
 import asyncio
 import base64
-import concurrent
+import concurrent.futures
 import errno
 import json
 import logging
@@ -36,6 +36,7 @@ import aiodocker  # type: ignore
 import aiodocker.images
 import aiohttp
 import aiohttp.client_exceptions
+import aiomonitor
 import aiorwlock
 import async_timeout
 import orjson
@@ -71,6 +72,7 @@ from hailtop.utils import (
 
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.azure.worker.worker_api import AzureWorkerAPI
+from ..cloud.gcp.resource_utils import is_gpu
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
 from ..cloud.resource_utils import (
     is_valid_storage_request,
@@ -143,7 +145,7 @@ def compose_auth_header_urlsafe(orig_f):
 # We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
 # in urlsafe mode which is required for Azure's credentials.
 # https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
-aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)  # type: ignore
 
 
 configure_logging()
@@ -200,6 +202,8 @@ log.info(f'REGION {REGION}')
 instance_config: Optional[InstanceConfig] = None
 
 N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
+
+N_JVM_CONTAINERS = sum(1 for jvm_cores in (1, 2, 4, 8) for _ in range(CORES // jvm_cores))
 
 deploy_config = get_deploy_config()
 
@@ -343,11 +347,12 @@ class NetworkAllocator:
         self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self):
-        for subnet_index in range(N_SLOTS):
+        for subnet_index in range(N_SLOTS + N_JVM_CONTAINERS):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             self.public_networks.put_nowait(public)
 
+        for subnet_index in range(N_SLOTS):
             private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
 
             await private.init()
@@ -556,6 +561,7 @@ class Image:
                     raise ImageCannotBePulled from e
                 if e.status == 500 and (
                     'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
+                    or 'Caller does not have permission' in e.message
                     or 'unauthorized' in e.message
                 ):
                     raise ImageCannotBePulled from e
@@ -811,7 +817,6 @@ class Container:
 
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
-        self.config_path = f'{self.container_scratch}/config'
         self.log_path = log_path or f'{self.container_scratch}/container.log'
         self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
@@ -964,6 +969,7 @@ class Container:
                 self._killed = True
 
     async def _cleanup(self):
+        log.info(f'Cleaning up {self}')
         if self._cleaned_up:
             return
 
@@ -986,6 +992,7 @@ class Container:
             if self.netns:
                 assert network_allocator
                 network_allocator.free(self.netns)
+                log.info(f'Freed the network namespace for {self}')
                 self.netns = None
         finally:
             try:
@@ -1025,11 +1032,16 @@ class Container:
     async def _setup_network_namespace(self):
         assert network_allocator
         assert port_allocator
-        if self.network == 'private':
-            self.netns = await network_allocator.allocate_private()
-        else:
-            assert self.network is None or self.network == 'public'
-            self.netns = await network_allocator.allocate_public()
+        try:
+            async with async_timeout.timeout(60):
+                if self.network == 'private':
+                    self.netns = await network_allocator.allocate_private()
+                else:
+                    assert self.network is None or self.network == 'public'
+                    self.netns = await network_allocator.allocate_public()
+        except asyncio.TimeoutError:
+            log.exception(network_allocator.task_manager.tasks)
+            raise
 
         if self.port is not None:
             self.host_port = await port_allocator.allocate()
@@ -1063,9 +1075,7 @@ class Container:
                         'crun',
                         'run',
                         '--bundle',
-                        f'{self.container_overlay_path}/merged',
-                        '--config',
-                        f'{self.config_path}/config.json',
+                        self.container_scratch,
                         self.name,
                         stdin=stdin,
                         stdout=container_log,
@@ -1099,8 +1109,7 @@ class Container:
         config = await self.container_config()
         self._validate_container_config(config)
 
-        os.makedirs(self.config_path)
-        with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
+        with open(f'{self.container_scratch}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(config))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
@@ -1127,10 +1136,26 @@ class Container:
             'CAP_KILL',
             'CAP_AUDIT_WRITE',
         ]
+
+        nvidia_runtime_hook = []
+        machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
+        if is_gpu(machine_family):
+            nvidia_runtime_hook = [
+                {
+                    "path": "/usr/bin/nvidia-container-runtime-hook",
+                    "args": ["nvidia-container-runtime-hook", "prestart"],
+                    "env": [
+                        "LANG=C.UTF-8",
+                        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin",
+                        "NOTIFY_SOCKET=/run/systemd/notify",
+                        "TMPDIR=/var/lib/docker/tmp",
+                    ],
+                }
+            ]
         config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
-                'path': '.',
+                'path': f'{self.container_overlay_path}/merged',
                 'readonly': False,
             },
             'hostname': self.netns.hostname,
@@ -1150,6 +1175,7 @@ class Container:
                     'permitted': default_docker_capabilities,
                 },
             },
+            "hooks": {"prestart": nvidia_runtime_hook},
             'linux': {
                 'rootfsPropagation': 'slave',
                 'namespaces': [
@@ -1166,6 +1192,7 @@ class Container:
                 'uidMappings': [],
                 'gidMappings': [],
                 'resources': {
+                    "devices": [{"allow": False, "access": "rwm"}],
                     'cpu': {'shares': weight},
                     'memory': {
                         'limit': self.memory_in_bytes,
@@ -1325,7 +1352,13 @@ class Container:
 
     def _env(self):
         assert self.image.image_config
-        env = self.image.image_config['Config']['Env'] + self.env
+        assert CLOUD_WORKER_API
+        env = (
+            self.image.image_config['Config']['Env'] + self.env + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
+        )
+        machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
+        if is_gpu(machine_family):
+            env += ["NVIDIA_VISIBLE_DEVICES=all"]
         if self.port is not None:
             assert self.host_port is not None
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
@@ -1646,7 +1679,7 @@ class Job(abc.ABC):
     #   start_time: int,
     #   end_time: int,
     #   resources: list of dict, {name: str, quantity: int}
-    #   region: str
+    #   region: str  # type: ignore
     # }
     def status(self):
         status = {
@@ -1702,6 +1735,7 @@ class DockerJob(Job):
         hail_extra_env = [
             {'name': 'HAIL_REGION', 'value': REGION},
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
+            {'name': 'HAIL_IDENTITY_PROVIDER_JSON', 'value': json.dumps(self.credentials.identity_provider_json)},
         ]
         self.env += hail_extra_env
 
@@ -1848,7 +1882,7 @@ class DockerJob(Job):
         except asyncio.CancelledError:
             raise
         except Exception:
-            pass
+            log.exception(f'While running container: {container}')
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
@@ -2900,7 +2934,7 @@ class Worker:
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
-        self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)
+        self._jvms = SortedSet([], key=lambda jvm: jvm.n_cores)
 
     async def _initialize_jvms(self):
         assert instance_config
@@ -2909,6 +2943,7 @@ class Worker:
             for jvm_cores in (1, 2, 4, 8):
                 for _ in range(CORES // jvm_cores):
                     jvms.append(JVM.create(len(jvms), jvm_cores, self))
+            assert len(jvms) == N_JVM_CONTAINERS
             self._jvms.update(await asyncio.gather(*jvms))
         log.info(f'JVMs initialized {self._jvms}')
 
@@ -3389,35 +3424,36 @@ async def async_main():
     await network_allocator.reserve()
 
     worker = Worker(httpx.client_session())
-    try:
-        await worker.run()
-    finally:
+    with aiomonitor.start_monitor(asyncio.get_event_loop(), locals=locals()):
         try:
-            await worker.shutdown()
-            log.info('worker shutdown', exc_info=True)
+            await worker.run()
         finally:
             try:
-                await CLOUD_WORKER_API.close()
+                await worker.shutdown()
+                log.info('worker shutdown', exc_info=True)
             finally:
                 try:
-                    await network_allocator_task_manager.shutdown_and_wait()
+                    await CLOUD_WORKER_API.close()
                 finally:
                     try:
-                        await docker.close()
-                        log.info('docker closed')
+                        await network_allocator_task_manager.shutdown_and_wait()
                     finally:
-                        asyncio.get_event_loop().set_debug(True)
-                        other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                        if other_tasks:
-                            log.warning('Tasks immediately after docker close')
-                            dump_all_stacktraces()
-                            _, pending = await asyncio.wait(
-                                other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
-                            )
-                            for t in pending:
-                                log.warning('Dangling task:')
-                                t.print_stack()
-                                t.cancel()
+                        try:
+                            await docker.close()
+                            log.info('docker closed')
+                        finally:
+                            asyncio.get_event_loop().set_debug(True)
+                            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                            if other_tasks:
+                                log.warning('Tasks immediately after docker close')
+                                dump_all_stacktraces()
+                                _, pending = await asyncio.wait(
+                                    other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED
+                                )
+                                for t in pending:
+                                    log.warning('Dangling task:')
+                                    t.print_stack()
+                                    t.cancel()
 
 
 loop = asyncio.get_event_loop()

@@ -42,3 +42,19 @@ known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "we
 
 [pytest]
 timeout = 120
+
+[tool.pyright]
+ignore = [
+    "**/sql",
+    "**/build",
+    "**/target",
+    "hail/python/hail",
+    "hail/python/test/hail",
+    "hail/python/hailtop/batch/docs",
+    "query",
+    "datasets",
+    "benchmark",
+    "docker/vep/vep.py",
+    "devbin",
+    "hail/src/test/resources/makeTestInfoScore.py",
+]

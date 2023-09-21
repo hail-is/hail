@@ -1,15 +1,20 @@
-import base64
-import json
-import os
+from hailtop.hail_logging import configure_logging
 
-import kubernetes_asyncio.client
-import kubernetes_asyncio.config
+configure_logging()
 
-from auth.driver.driver import create_user
-from gear import Database, transaction
-from gear.clients import get_identity_client
-from gear.cloud_config import get_global_config
-from hailtop.utils import async_to_blocking
+import base64  # noqa: E402 pylint: disable=wrong-import-position
+import json  # noqa: E402 pylint: disable=wrong-import-position
+import os  # noqa: E402 pylint: disable=wrong-import-position
+from typing import Optional  # noqa: E402 pylint: disable=wrong-import-position
+
+import kubernetes_asyncio.client  # noqa: E402 pylint: disable=wrong-import-position
+import kubernetes_asyncio.config  # noqa: E402 pylint: disable=wrong-import-position
+
+from auth.driver.driver import create_user  # noqa: E402 pylint: disable=wrong-import-position
+from gear import Database, Transaction, transaction  # noqa: E402 pylint: disable=wrong-import-position
+from gear.clients import get_identity_client  # noqa: E402 pylint: disable=wrong-import-position
+from gear.cloud_config import get_global_config  # noqa: E402 pylint: disable=wrong-import-position
+from hailtop.utils import async_to_blocking  # noqa: E402 pylint: disable=wrong-import-position,ungrouped-imports
 
 CLOUD = get_global_config()['cloud']
 SCOPE = os.environ['HAIL_SCOPE']
@@ -21,7 +26,7 @@ async def insert_user_if_not_exists(app, username, login_id, is_developer, is_se
     k8s_client = app['k8s_client']
 
     @transaction(db)
-    async def insert(tx):
+    async def insert(tx: Transaction) -> Optional[int]:
         row = await tx.execute_and_fetchone('SELECT id, state FROM users where username = %s;', (username,))
         if row:
             if row['state'] == 'active':
@@ -69,6 +74,7 @@ async def main():
     users = [
         # username, login_id, is_developer, is_service_account
         ('auth', None, 0, 1),
+        ('batch', None, 0, 1),
         ('ci', None, 0, 1),
         ('test', None, 0, 0),
         ('test-dev', None, 1, 0),
@@ -91,7 +97,7 @@ async def main():
     try:
         app['k8s_client'] = k8s_client
 
-        app['identity_client'] = get_identity_client(credentials_file='/auth-gsa-key/key.json')
+        app['identity_client'] = get_identity_client()
 
         for username, login_id, is_developer, is_service_account in users:
             user_id = await insert_user_if_not_exists(app, username, login_id, is_developer, is_service_account)

@@ -11,15 +11,14 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
     }
   }
 
-  def validUrl(filename: String): Boolean = {
+  override def validUrl(filename: String): Boolean =
     fss.exists(_.validUrl(filename))
-  }
 
   override def openCachedNoCompression(filename: String): SeekableDataInputStream = lookupFS(filename).openCachedNoCompression(filename)
 
   override def createCachedNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createCachedNoCompression(filename)
 
-  def openNoCompression(filename: String, _debug: Boolean = false): SeekableDataInputStream = lookupFS(filename).openNoCompression(filename, _debug)
+  def openNoCompression(filename: String): SeekableDataInputStream = lookupFS(filename).openNoCompression(filename)
 
   def createNoCompression(filename: String): PositionedDataOutputStream = lookupFS(filename).createNoCompression(filename)
 
@@ -29,11 +28,13 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   def delete(filename: String, recursive: Boolean) = lookupFS(filename).delete(filename, recursive)
 
-  def listStatus(filename: String): Array[FileStatus] = lookupFS(filename).listStatus(filename)
+  def listDirectory(filename: String): Array[FileListEntry] = lookupFS(filename).listDirectory(filename)
 
-  def glob(filename: String): Array[FileStatus] = lookupFS(filename).glob(filename)
+  def glob(filename: String): Array[FileListEntry] = lookupFS(filename).glob(filename)
 
-  def fileStatus(filename: String): FileStatus = lookupFS(filename).fileStatus(filename)
+  def fileListEntry(filename: String): FileListEntry = lookupFS(filename).fileListEntry(filename)
+
+  override def eTag(filename: String): Option[String] = lookupFS(filename).eTag(filename)
 
   def makeQualified(path: String): String = lookupFS(path).makeQualified(path)
 

@@ -25,7 +25,7 @@ async def monitor_endpoints_middleware(request, handler):
     verb = request.method
     CONCURRENT_REQUESTS.labels(endpoint=endpoint, verb=verb).inc()
     try:
-        response = await prom_async_time(REQUEST_TIME.labels(endpoint=endpoint, verb=verb), handler(request))
+        response = await prom_async_time(REQUEST_TIME.labels(endpoint=endpoint, verb=verb), handler(request))  # type: ignore
         REQUEST_COUNT.labels(endpoint=endpoint, verb=verb, status=response.status).inc()
         return response
     except web.HTTPException as e:

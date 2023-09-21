@@ -1,7 +1,7 @@
 import os
 import warnings
 import re
-from typing import Callable, Optional, Dict, Union, List, Any, Set
+from typing import Callable, Optional, Dict, Union, List, Any, Set, Literal, overload
 from io import BytesIO
 import dill
 
@@ -10,7 +10,7 @@ from hailtop.aiotools import AsyncFS
 from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch_client.client as _bc
-from hailtop.config import configuration_of
+from hailtop.config import ConfigVariable, configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -82,10 +82,14 @@ class Batch:
         timeout.
     default_python_image:
         Default image to use for all Python jobs. This must be the full name of the image including
-        any repository prefix and tags if desired (default tag is `latest`).  The image must have
+        any repository prefix and tags if desired (default tag is `latest`). The image must have
         the `dill` Python package installed and have the same version of Python installed that is
-        currently running. If `None`, a compatible Python image with `dill` pre-installed will
-        automatically be used if the current Python version is 3.8, 3.9, or 3.10.
+        currently running. If `None`, a tag of the `hailgenetics/hail` image will be chosen
+        according to the current Hail and Python version.
+    default_spot:
+        If unspecified or ``True``, jobs will run by default on spot instances. If ``False``, jobs
+        will run by default on non-spot instances. Each job can override this setting with
+        :meth:`.Job.spot`.
     project:
         DEPRECATED: please specify `google_project` on the ServiceBackend instead. If specified,
         the project to use when authenticating with Google Storage. Google Storage is used to
@@ -150,6 +154,7 @@ class Batch:
                  default_timeout: Optional[Union[float, int]] = None,
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
+                 default_spot: Optional[bool] = None,
                  project: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None):
         self._jobs: List[job.Job] = []
@@ -162,7 +167,7 @@ class Batch:
         if backend:
             self._backend = backend
         else:
-            backend_config = configuration_of('batch', 'backend', None, 'local')
+            backend_config = configuration_of(ConfigVariable.BATCH_BACKEND, None, 'local')
             if backend_config == 'service':
                 self._backend = _backend.ServiceBackend()
             else:
@@ -186,6 +191,7 @@ class Batch:
         self._default_timeout = default_timeout
         self._default_shell = default_shell
         self._default_python_image = default_python_image
+        self._default_spot = default_spot
 
         if project is not None:
             warnings.warn(
@@ -310,6 +316,8 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+        if self._default_spot is not None:
+            j.spot(self._default_spot)
 
         if isinstance(self._backend, _backend.ServiceBackend):
             j.regions(self._backend.regions)
@@ -331,7 +339,7 @@ class Batch:
 
         .. code-block:: python
 
-            b = Batch(default_python_image='hailgenetics/python-dill:3.8-slim')
+            b = Batch(default_python_image='hailgenetics/python-dill:3.9-slim')
 
             def hello(name):
                 return f'hello {name}'
@@ -382,6 +390,8 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+        if self._default_spot is not None:
+            j.spot(self._default_spot)
 
         if isinstance(self._backend, _backend.ServiceBackend):
             j.regions(self._backend.regions)
@@ -397,7 +407,7 @@ class Batch:
         return jrf
 
     def _new_input_resource_file(self, input_path, root=None):
-        self._backend.validate_file_scheme(input_path)
+        self._backend.validate_file(input_path, self.requester_pays_project)
 
         # Take care not to include an Azure SAS token query string in the local name.
         if AzureAsyncFS.valid_url(input_path):
@@ -549,19 +559,23 @@ class Batch:
 
         Write a single job intermediate to a permanent location in GCS:
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
-        >>> b.run()  # doctest: +SKIP
+        .. code-block:: python
+
+            b = Batch()
+            j = b.new_job()
+            j.command(f'echo "hello" > {j.ofile}')
+            b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
+            b.run()
 
         Write a single job intermediate to a permanent location in Azure:
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
-        >>> b.run()  # doctest: +SKIP
+        .. code-block:: python
+
+            b = Batch()
+            j = b.new_job()
+            j.command(f'echo "hello" > {j.ofile}')
+            b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
+            b.run()  # doctest: +SKIP
 
         .. warning::
 
@@ -609,6 +623,8 @@ class Batch:
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
+        self._backend.validate_file(dest, self.requester_pays_project)
+
         resource._add_output_path(dest)
 
     def select_jobs(self, pattern: str) -> List[job.Job]:
@@ -633,11 +649,15 @@ class Batch:
 
         return [job for job in self._jobs if job.name is not None and re.match(pattern, job.name) is not None]
 
+    @overload
+    def run(self, dry_run: Literal[False] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> _bc.Batch: ...
+    @overload
+    def run(self, dry_run: Literal[True] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> None: ...
     def run(self,
             dry_run: bool = False,
             verbose: bool = False,
             delete_scratch_on_exit: bool = True,
-            **backend_kwargs: Any):
+            **backend_kwargs: Any) -> Optional[_bc.Batch]:
         """
         Execute a batch.
 
@@ -695,6 +715,7 @@ class Batch:
             async_to_blocking(self._DEPRECATED_fs.close())
             self._DEPRECATED_fs = None
         return run_result
+
 
     def __str__(self):
         return self._uid

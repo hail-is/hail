@@ -2,14 +2,29 @@
 
 set -e
 
-source $HAIL/devbin/functions.sh
+cd "$(dirname "$0")"
+source ../devbin/functions.sh
 
-PROJECT=$(get_global_config_field gcp_project)
-ZONE=$(get_global_config_field gcp_zone)
-DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image)
+if [ -z "${NAMESPACE}" ]; then
+    echo "Must specify a NAMESPACE environment variable"
+    exit 1;
+fi
 
-WORKER_IMAGE_VERSION=12
-BUILDER=build-batch-worker-image
+PROJECT=$(get_global_config_field gcp_project $NAMESPACE)
+ZONE=$(get_global_config_field gcp_zone $NAMESPACE)
+DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
+
+WORKER_IMAGE_VERSION=14
+
+if [ "$NAMESPACE" == "default" ]; then
+    WORKER_IMAGE=batch-worker-${WORKER_IMAGE_VERSION}
+    BUILDER=build-batch-worker-image
+else
+    WORKER_IMAGE=batch-worker-$NAMESPACE-${WORKER_IMAGE_VERSION}
+    BUILDER=build-batch-worker-$NAMESPACE-image
+fi
+
+UBUNTU_IMAGE=ubuntu-minimal-2204-jammy-v20230726
 
 create_build_image_instance() {
     gcloud -q compute --project ${PROJECT} instances delete \
@@ -18,16 +33,12 @@ create_build_image_instance() {
     python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"'${DOCKER_ROOT_IMAGE}'"}}' \
         build-batch-worker-image-startup-gcp.sh build-batch-worker-image-startup-gcp.sh.out
 
-    UBUNTU_IMAGE=$(gcloud compute images list \
-        --standard-images \
-        --filter 'family="ubuntu-minimal-2004-lts"' \
-        --format='value(name)')
-
     gcloud -q compute instances create ${BUILDER} \
         --project ${PROJECT}  \
         --zone=${ZONE} \
         --machine-type=n1-standard-1 \
         --network=default \
+        --subnet=default \
         --network-tier=PREMIUM \
         --metadata-from-file startup-script=build-batch-worker-image-startup-gcp.sh.out \
         --no-restart-on-failure \
@@ -40,10 +51,10 @@ create_build_image_instance() {
 }
 
 create_worker_image() {
-    gcloud -q compute images delete batch-worker-${WORKER_IMAGE_VERSION} \
+    gcloud -q compute images delete $WORKER_IMAGE \
         --project ${PROJECT} || true
 
-    gcloud -q compute images create batch-worker-${WORKER_IMAGE_VERSION} \
+    gcloud -q compute images create $WORKER_IMAGE \
         --project ${PROJECT} \
         --source-disk-zone=${ZONE} \
         --source-disk=${BUILDER}
@@ -63,4 +74,4 @@ main() {
     create_worker_image
 }
 
-confirm "Building image with properties:\n Version: ${WORKER_IMAGE_VERSION}\n Project: ${PROJECT}\n Zone: ${ZONE}" && main
+confirm "Building image $WORKER_IMAGE with properties:\n Version: ${WORKER_IMAGE_VERSION}\n Project: ${PROJECT}\n Zone: ${ZONE}" && main

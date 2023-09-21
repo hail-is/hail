@@ -4,11 +4,8 @@ envoyproxy/envoy:v1.22.3
 ghost:3.0-alpine
 google/cloud-sdk:305.0.0-slim
 grafana/grafana:9.1.4
-jupyter/scipy-notebook
 jupyter/scipy-notebook:c094bb7219f9
 moby/buildkit:v0.8.3-rootless
-python:3.8
-python:3.8-slim
 python:3.9
 python:3.9-slim
 python:3.10
@@ -16,6 +13,7 @@ python:3.10-slim
 redis:6.0.6-alpine
 ubuntu:18.04
 ubuntu:19.04
-ubuntu:20.04
+ubuntu:22.04
 ubuntu:bionic-20200921
 ubuntu:focal-20221019
+ubuntu:jammy-20230624

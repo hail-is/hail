@@ -1,3 +1,5 @@
+from typing import Optional, Tuple
+
 from hailtop.batch_client.aioclient import Job
 
 
@@ -117,7 +119,7 @@ class BatchFormatVersion:
 
         return [ec, duration]
 
-    def get_status_exit_code_duration(self, status):
+    def get_status_exit_code_duration(self, status) -> Tuple[Optional[int], Optional[int]]:
         if self.format_version == 1:
             job_status = {'status': status}
             return (Job.exit_code(job_status), Job.total_duration_msecs(job_status))

@@ -13,7 +13,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import gcp_machine_type_to_worker_type_and_cores
+from ..resource_utils import gcp_machine_type_to_worker_type_and_cores, machine_family_to_gpu
 
 log = logging.getLogger('create_instance')
 
@@ -43,7 +43,8 @@ def create_vm_config(
     _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
 
     region = instance_config.region_for(zone)
-
+    machine_family = machine_type.split('-')[0]
+    docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_family_to_gpu(machine_family) else ''
     if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
@@ -60,7 +61,7 @@ def create_vm_config(
                 'diskSizeGb': str(data_disk_size_gb),
             },
         }
-        worker_data_disk_name = 'sdb'
+        worker_data_disk_name = 'nvme0n2' if 'g2' in machine_type else 'sdb'
 
     if job_private:
         unreserved_disk_storage_gb = data_disk_size_gb
@@ -128,7 +129,7 @@ tag jvm-{idx}.log
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-12',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-14',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
@@ -238,6 +239,17 @@ enable_ruby
 </filter>
 EOF
 
+sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
+<source>
+@type tail
+format syslog
+path /var/log/syslog
+pos_file /var/lib/google-fluentd/pos/syslog.pos
+read_from_head true
+tag syslog
+</source>
+EOF
+
 sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
 <source>
 @type tail
@@ -326,6 +338,7 @@ BATCH_WORKER_IMAGE_ID=$(docker inspect $BATCH_WORKER_IMAGE --format='{{{{.Id}}}}
 
 # So here I go it's my shot.
 docker run \
+--name worker \
 -e CLOUD=gcp \
 -e CORES=$CORES \
 -e NAME=$NAME \
@@ -350,7 +363,6 @@ docker run \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /var/run/netns:/var/run/netns:shared \
 -v /usr/bin/docker:/usr/bin/docker \
--v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /global-config:/global-config \
@@ -368,6 +380,8 @@ docker run \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
 --network host \
+--cgroupns host \
+{docker_run_gpu_args} \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 

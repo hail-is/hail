@@ -29,7 +29,11 @@ version = ''
 # The full version, including alpha/beta/rc tags
 release = ''
 nitpicky = True
-nitpick_ignore = [('py:class', 'hailtop.batch_client.client.Batch')]
+nitpick_ignore = [
+    ('py:class', 'hailtop.batch_client.client.Batch'),
+    ('py:class', 'hailtop.aiotools.router_fs.RouterAsyncFS'),
+    ('py:class', 'typing.Self'),
+]
 
 # -- General configuration ---------------------------------------------------
 
@@ -118,7 +122,7 @@ html_theme = 'sphinx_rtd_theme'
 # html_sidebars = {}
 
 # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html
-intersphinx_mapping = {'python': ('https://docs.python.org/3.8', None)}
+intersphinx_mapping = {'python': ('https://docs.python.org/3.9', None)}
 
 
 # -- Extension configuration -------------------------------------------------

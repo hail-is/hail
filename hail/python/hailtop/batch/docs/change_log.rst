@@ -3,7 +3,7 @@
 Python Version Compatibility Policy
 ===================================
 
-Hail complies with [NumPy's compatibility policy](https://numpy.org/neps/nep-0029-deprecation_policy.html#implementation) on Python
+Hail complies with `NumPy's compatibility policy <https://numpy.org/neps/nep-0029-deprecation_policy.html#implementation>`__ on Python
 versions. In particular, Hail officially supports:
 
 - All minor versions of Python released 42 months prior to the project, and at minimum the two
@@ -14,6 +14,29 @@ versions. In particular, Hail officially supports:
 
 Change Log
 ==========
+
+**Version 0.2.124**
+
+- (`#13681 <https://github.com/hail-is/hail/pull/13681>`__) Fix `hailctl batch init` and `hailctl auth login` for
+  new users who have never set up a configuration before.
+
+**Version 0.2.123**
+
+- (`#13643 <https://github.com/hail-is/hail/pull/13643>`__) Python jobs in Hail Batch that use the default image now support
+  all supported python versions and include the hail python package.
+- (`#13614 <https://github.com/hail-is/hail/pull/13614>`__) Fixed a bug that broke the `LocalBackend` when run inside a
+  Jupyter notebook.
+- (`#13200 <https://github.com/hail-is/hail/pull/13200>`__) `hailtop.batch` will now raise an error by default if a pipeline
+  attempts to read or write files from or two cold storage buckets in GCP.
+
+**Version 0.2.122**
+
+- (`#13565 <https://github.com/hail-is/hail/pull/13565>`__) Users can now use VEP images from the `hailgenetics` DockerHub
+  in Hail Batch.
+
+**Version 0.2.121**
+
+- (`#13396 <https://github.com/hail-is/hail/pull/13396>`__) Non-spot instances can be requested via the :meth:`.Job.spot` method.
 
 **Version 0.2.117**
 

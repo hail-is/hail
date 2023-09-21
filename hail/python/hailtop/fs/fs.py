@@ -1,13 +1,12 @@
 import abc
-import io
-from typing import List
+from typing import IO, List
 
-from .stat_result import StatResult
+from .stat_result import FileListEntry
 
 
 class FS(abc.ABC):
     @abc.abstractmethod
-    def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
+    def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> IO:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -27,11 +26,11 @@ class FS(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def stat(self, path: str) -> StatResult:
+    def stat(self, path: str) -> FileListEntry:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def ls(self, path: str) -> List[StatResult]:
+    def ls(self, path: str) -> List[FileListEntry]:
         raise NotImplementedError
 
     @abc.abstractmethod

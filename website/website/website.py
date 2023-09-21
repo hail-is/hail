@@ -3,6 +3,7 @@ import os
 from typing import Set
 
 import aiohttp_session
+import aiohttp_session.cookie_storage
 import jinja2
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
@@ -23,19 +24,19 @@ auth = AuthClient()
 
 
 def redirect(from_url, to_url):
-    async def serve(request):  # pylint: disable=unused-argument
+    async def serve(_):
         raise web.HTTPFound(to_url)
 
     routes.get(from_url)(serve)
 
 
 @routes.get('/healthcheck')
-async def get_healthcheck(request):  # pylint: disable=unused-argument
+async def get_healthcheck(_):
     return web.Response()
 
 
 @routes.get('/robots.txt')
-async def get_robots(request):  # pylint: disable=unused-argument
+async def get_robots(_):
     return web.Response(text='user-agent: *\nAllow: /')
 
 
@@ -68,7 +69,7 @@ docs_pages = set(
 
 
 @routes.get('/docs/{tail:.*}')
-@auth.web_maybe_authenticated_user
+@auth.maybe_authenticated_user
 async def serve_docs(request, userdata):
     tail = request.match_info['tail']
     if tail in docs_pages:
@@ -80,7 +81,7 @@ async def serve_docs(request, userdata):
 
 
 def make_template_handler(template_fname):
-    @auth.web_maybe_authenticated_user
+    @auth.maybe_authenticated_user
     async def serve(request, userdata):
         return await render_template('www', request, userdata, template_fname, {})
 

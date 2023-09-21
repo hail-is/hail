@@ -486,7 +486,7 @@ class S3AsyncFS(AsyncFS):
                 return False
             return True
 
-        async def cons(first_entry, it):
+        async def cons(first_entry, it) -> AsyncIterator[FileListEntry]:
             if await should_yield(first_entry):
                 yield first_entry
             try:

@@ -18,6 +18,7 @@ from test.hail.matrixtable.test_file_formats import create_all_values_datasets
 
 
 class Tests(unittest.TestCase):
+    @qobtest
     def test_annotate(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -110,6 +111,7 @@ class Tests(unittest.TestCase):
             x36=True
         )
 
+    @qobtest
     def test_aggregate1(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -1054,17 +1056,19 @@ class Tests(unittest.TestCase):
         self.assertTrue(t._same(ref_tab))
 
     def test_union(self):
-        t1 = hl.utils.range_table(5)
+        t1 = hl.utils.range_table(5, 2)
 
-        t2 = hl.utils.range_table(5)
-        t2 = t2.key_by(idx = t2.idx + 5)
+        t2 = hl.utils.range_table(5, 2)
+        t2 = t2.key_by(idx=t2.idx + 5)
 
-        t3 = hl.utils.range_table(5)
-        t3 = t3.key_by(idx = t3.idx + 10)
+        t3 = hl.utils.range_table(5, 2)
+        t3 = t3.key_by(idx=t3.idx + 10)
 
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
-        self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
-                        ._same(hl.utils.range_table(15).key_by()))
+
+        no_key = t1.key_by().union(t2.key_by(), t3.key_by())
+        assert no_key.n_partitions() == 6
+        self.assertTrue(no_key._same(hl.utils.range_table(15).key_by()))
 
     def nested_union(self, N, M):
         t = hl.utils.range_table(N, n_partitions=1)
@@ -1817,6 +1821,7 @@ def test_keys_before_scans():
     assert ht.idx_scan.collect() == [[5, 4, 3, 2, 1], [5, 4, 3, 2], [5, 4, 3], [5, 4], [5], []]
 
 
+@qobtest
 @lower_only()
 def test_lowered_persist():
     ht = hl.utils.range_table(100, 10).persist()
@@ -1825,6 +1830,7 @@ def test_lowered_persist():
 
 
 
+@qobtest
 @lower_only()
 def test_lowered_shuffle():
     ht = hl.utils.range_table(100, 10)
@@ -1852,6 +1858,7 @@ def test_empty_tree_aggregate():
     assert ht.aggregate(hl.agg.counter(ht.idx)) == {}
 
 
+@qobtest
 def test_interval_filter_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
@@ -2502,3 +2509,12 @@ def test_query_table_interval_key():
 def test_large_number_of_partitions():
     ht = hl.utils.range_table(1500, n_partitions=1500)
     ht.collect()
+
+
+def test_range_table_biggest_int():
+    biggest_int32 = (1 << 31) - 1
+    ht = hl.utils.range_table(biggest_int32)
+
+    n = biggest_int32 - 1  # NB: range table is [0, ..., n - 1]
+    expected_sum = n * (n + 1) // 2
+    assert expected_sum == ht.aggregate(hl.agg.sum(hl.int64(ht.idx)))

@@ -61,6 +61,22 @@ spec:
           - name: HAIL_SHOULD_PROFILE
             value: "1"
 {% endif %}
+{% if global.cloud == "gcp" %}
+          - name: GOOGLE_APPLICATION_CREDENTIALS
+            value: /gsa-key/key.json
+          - name: HAIL_IDENTITY_PROVIDER_JSON
+            value: '{"idp": "Google"}'
+{% else %}
+          - name: AZURE_APPLICATION_CREDENTIALS
+            value: /gsa-key/key.json
+          - name: HAIL_IDENTITY_PROVIDER_JSON
+            value: '{"idp": "Microsoft"}'
+          - name: HAIL_AZURE_OAUTH_SCOPE
+            valueFrom:
+              secretKeyRef:
+                name: auth-oauth2-client-secret
+                key: sp_oauth_scope
+{% endif %}
          resources:
            requests:
              cpu: "50m"
@@ -84,9 +100,6 @@ spec:
           - name: gsa-key
             mountPath: /gsa-key
             readOnly: true
-          - name: auth-tokens
-            mountPath: /user-tokens
-            readOnly: true
           - name: ssl-config-auth-driver
             mountPath: /ssl-config
             readOnly: true
@@ -108,9 +121,6 @@ spec:
        - name: gsa-key
          secret:
            secretName: auth-gsa-key
-       - name: auth-tokens
-         secret:
-           secretName: auth-tokens
        - name: ssl-config-auth-driver
          secret:
            secretName: ssl-config-auth-driver

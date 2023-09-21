@@ -12,7 +12,8 @@ log = logging.getLogger('billing_manager')
 
 class GCPBillingManager(CloudBillingManager):
     @staticmethod
-    async def create(db: Database, billing_client: aiogoogle.GoogleBillingClient, regions: List[str]):
+    async def create(db: Database, regions: List[str]):
+        billing_client = aiogoogle.GoogleBillingClient()
         product_versions_dict = await refresh_product_versions_from_db(db)
         bm = GCPBillingManager(db, product_versions_dict, billing_client, regions)
         await bm.refresh_resources()
@@ -36,3 +37,6 @@ class GCPBillingManager(CloudBillingManager):
     async def refresh_resources_from_retail_prices(self):
         prices = [price async for price in fetch_prices(self.billing_client, self.regions, self.currency_code)]
         await self._refresh_resources_from_retail_prices(prices)
+
+    async def close(self):
+        await self.billing_client.close()

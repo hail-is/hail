@@ -15,7 +15,7 @@ popd
 SHARED_GALLERY_NAME="${RESOURCE_GROUP}_batch"
 BUILD_IMAGE_RESOURCE_GROUP="${RESOURCE_GROUP}-build-batch-worker-image"
 VM_NAME=build-batch-worker-image
-WORKER_VERSION=0.0.12
+WORKER_VERSION=0.0.14
 
 USERNAME=$(whoami)
 
@@ -45,7 +45,7 @@ echo "Creating $VM_NAME VM..."
 IP=$(az vm create \
     --resource-group $BUILD_IMAGE_RESOURCE_GROUP \
     --name $VM_NAME \
-    --image UbuntuLTS \
+    --image Ubuntu2204 \
     --generate-ssh-keys \
     --public-ip-sku Standard \
     --assign-identity ${BATCH_WORKER_IDENTITY} \
@@ -81,7 +81,7 @@ az vm generalize \
     --name $VM_NAME
 
 az sig image-version delete \
-    --gallery-image-definition batch-worker \
+    --gallery-image-definition batch-worker-22-04 \
     --gallery-name ${SHARED_GALLERY_NAME} \
     --resource-group ${RESOURCE_GROUP} \
     --gallery-image-version ${WORKER_VERSION} || true
@@ -91,7 +91,7 @@ echo "Creating image..."
 az sig image-version create \
     --resource-group ${RESOURCE_GROUP} \
     --gallery-name ${SHARED_GALLERY_NAME} \
-    --gallery-image-definition batch-worker \
+    --gallery-image-definition batch-worker-22-04 \
     --gallery-image-version ${WORKER_VERSION} \
     --target-regions ${LOCATION} \
     --replica-count 1 \

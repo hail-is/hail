@@ -19,12 +19,11 @@ from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
-from hailtop.config import (configuration_of, get_remote_tmpdir)
-from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings, am_i_interactive, retry_transient_errors
+from hailtop.config import (ConfigVariable, configuration_of, get_remote_tmpdir)
+from hailtop.utils import async_to_blocking, TransientError, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
-from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 import hailtop.aiotools.fs as afs
@@ -36,6 +35,7 @@ from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
 from ..ir import BaseIR
 from ..utils import ANY_REGION
+from hailtop.aiotools.validators import validate_file
 
 
 ReferenceGenomeConfig = Dict[str, Any]
@@ -203,10 +203,11 @@ class ServiceBackend(Backend):
                      worker_cores: Optional[Union[int, str]] = None,
                      worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
-                     token: Optional[str] = None,
+                     credentials_token: Optional[str] = None,
                      regions: Optional[List[str]] = None,
-                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None):
-        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
+                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+                     gcs_bucket_allow_list: Optional[List[str]] = None):
+        billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
         if billing_project is None:
             raise ValueError(
                 "No billing project.  Call 'init_batch' with the billing "
@@ -216,25 +217,28 @@ class ServiceBackend(Backend):
         gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         )
-        async_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
+        async_fs = RouterAsyncFS(
+            gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration},
+            gcs_bucket_allow_list=gcs_bucket_allow_list
+        )
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
-            batch_client = await aiohb.BatchClient.create(billing_project, _token=token)
+            batch_client = await aiohb.BatchClient.create(billing_project, _token=credentials_token)
         bc = hb.BatchClient.from_async(batch_client)
         batch_attributes: Dict[str, str] = dict()
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
-        jar_url = configuration_of('query', 'jar_url', jar_url, None)
+        jar_url = configuration_of(ConfigVariable.QUERY_JAR_URL, jar_url, None)
         jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
 
-        driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
-        driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
-        worker_cores = configuration_of('query', 'batch_worker_cores', worker_cores, None)
-        worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
-        name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
+        driver_cores = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_CORES, driver_cores, None)
+        driver_memory = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_MEMORY, driver_memory, None)
+        worker_cores = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, None)
+        worker_memory = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None)
+        name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
 
         if regions is None:
-            regions_from_conf = configuration_of('batch', 'regions', regions, None)
+            regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, None)
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
@@ -245,7 +249,7 @@ class ServiceBackend(Backend):
         assert len(regions) > 0, regions
 
         if disable_progress_bar is None:
-            disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, None)
+            disable_progress_bar_str = configuration_of(ConfigVariable.QUERY_DISABLE_PROGRESS_BAR, None, None)
             if disable_progress_bar_str is None:
                 disable_progress_bar = not am_i_interactive()
             else:
@@ -279,7 +283,7 @@ class ServiceBackend(Backend):
             worker_cores=worker_cores,
             worker_memory=worker_memory,
             name_prefix=name_prefix or '',
-            regions=regions,
+            regions=regions
         )
         sb._initialize_flags(flags)
         return sb
@@ -288,7 +292,7 @@ class ServiceBackend(Backend):
                  *,
                  billing_project: str,
                  sync_fs: FS,
-                 async_fs: AsyncFS,
+                 async_fs: RouterAsyncFS,
                  bc: hb.BatchClient,
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
@@ -306,7 +310,7 @@ class ServiceBackend(Backend):
         self._async_fs = async_fs
         self.bc = bc
         self.async_bc = self.bc._async_client
-        self._batch: Optional[aiohb.Batch] = None
+        self._batch_was_submitted: bool = False
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
         self.remote_tmpdir = remote_tmpdir
@@ -320,6 +324,14 @@ class ServiceBackend(Backend):
         self.worker_memory = worker_memory
         self.name_prefix = name_prefix
         self.regions = regions
+
+        self._batch: aiohb.Batch = self._create_batch()
+
+    def _create_batch(self) -> aiohb.Batch:
+        return self.async_bc.create_batch(attributes=self.batch_attributes)
+
+    def validate_file(self, uri: str) -> None:
+        validate_file(uri, self._async_fs, validate_scheme=True)
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -342,12 +354,6 @@ class ServiceBackend(Backend):
     @property
     def logger(self):
         return log
-
-    def validate_file_scheme(self, url):
-        assert isinstance(self._async_fs, RouterAsyncFS)
-        if self._async_fs.get_scheme(url) == 'file':
-            raise ValueError(
-                f'Found local filepath {url} when using Query on Batch. Specify a remote filepath instead.')
 
     def stop(self):
         async_to_blocking(self._async_fs.close())
@@ -372,7 +378,6 @@ class ServiceBackend(Backend):
                    worker_memory: Optional[str] = None,
                    ):
         timings = Timings()
-        token = secret_alnum_string()
         with TemporaryDirectory(ensure_exists=False) as iodir:
             readonly_fuse_buckets = set()
             storage_requirement_bytes = 0
@@ -425,16 +430,12 @@ class ServiceBackend(Backend):
                         await write_str(infile, bucket)
                         await write_str(infile, mount_point)
                         await write_bool(infile, readonly)
-                    await inputs(infile, token)
+                    await inputs(infile, self._batch.token)
 
             with timings.step("submit batch"):
                 batch_attributes = self.batch_attributes
                 if 'name' not in batch_attributes:
                     batch_attributes = {**batch_attributes, 'name': self.name_prefix}
-                if self._batch is None:
-                    bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
-                else:
-                    bb = await self.async_bc.update_batch(self._batch)
 
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
                 if driver_cores is not None:
@@ -450,7 +451,7 @@ class ServiceBackend(Backend):
                 if storage_requirement_bytes != 0:
                     resources['storage'] = storage_gib_str
 
-                j = bb.create_jvm_job(
+                j = self._batch.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
@@ -465,7 +466,8 @@ class ServiceBackend(Backend):
                     cloudfuse=cloudfuse_config,
                     profile=self.flags['profile'] is not None,
                 )
-                self._batch = await bb.submit(disable_progress_bar=True)
+                await self._batch.submit(disable_progress_bar=True)
+                self._batch_was_submitted = True
 
             with timings.step("wait driver"):
                 try:
@@ -480,22 +482,24 @@ class ServiceBackend(Backend):
                     raise
                 except Exception:
                     await self._batch.cancel()
-                    self._batch = None
+                    self._batch = self._create_batch()
+                    self._batch_was_submitted = False
                     raise
 
             with timings.step("read output"):
                 result_bytes = await retry_transient_errors(self._read_output, ir, iodir + '/out', iodir + '/in')
-                return token, result_bytes, timings
+                return result_bytes, timings
 
     async def _read_output(self, ir: Optional[BaseIR], output_uri: str, input_uri: str) -> bytes:
-        assert self._batch
-
         try:
             driver_output = await self._async_fs.open(output_uri)
         except FileNotFoundError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(
+                    _jobs_query_string='failed',
+                    _max_jobs=10
+                ),
                 'input_uri': await self._async_fs.read(input_uri),
             })) from exc
 
@@ -516,7 +520,10 @@ class ServiceBackend(Backend):
         except UnexpectedEOFError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(),
+                'batch_debug_info': await self._batch.debug_info(
+                    _jobs_query_string='failed',
+                    _max_jobs=10
+                ),
                 'in': await self._async_fs.read(input_uri),
                 'out': await self._async_fs.read(output_uri),
             })) from exc
@@ -525,10 +532,11 @@ class ServiceBackend(Backend):
         try:
             return async_to_blocking(coro)
         except KeyboardInterrupt:
-            if self._batch is not None:
+            if self._batch_was_submitted:
                 print("Received a keyboard interrupt, cancelling the batch...")
                 async_to_blocking(self._batch.cancel())
-                self._batch = None
+                self._batch = self._create_batch()
+                self._batch_was_submitted = False
             raise
 
     def execute(self, ir: BaseIR, timed: bool = False, **kwargs):
@@ -552,7 +560,7 @@ class ServiceBackend(Backend):
                 await fun.serialize(infile)
             await write_str(infile, '{"name":"StreamBufferSpec"}')
 
-        _, resp, timings = await self._rpc(
+        resp, timings = await self._rpc(
             'execute(...)',
             inputs,
             ir=ir,
@@ -579,7 +587,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
-        _, resp, _ = await self._rpc('value_type(...)', inputs, progress=progress)
+        resp, _ = await self._rpc('value_type(...)', inputs, progress=progress)
         return dtype(orjson.loads(resp))
 
     def table_type(self, tir):
@@ -592,7 +600,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(tir))
-        _, resp, _ = await self._rpc('table_type(...)', inputs, progress=progress)
+        resp, _ = await self._rpc('table_type(...)', inputs, progress=progress)
         return ttable._from_json(orjson.loads(resp))
 
     def matrix_type(self, mir):
@@ -605,7 +613,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(mir))
-        _, resp, _ = await self._rpc('matrix_type(...)', inputs, progress=progress)
+        resp, _ = await self._rpc('matrix_type(...)', inputs, progress=progress)
         return tmatrix._from_json(orjson.loads(resp))
 
     def blockmatrix_type(self, bmir):
@@ -618,7 +626,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(bmir))
-        _, resp, _ = await self._rpc('blockmatrix_type(...)', inputs, progress=progress)
+        resp, _ = await self._rpc('blockmatrix_type(...)', inputs, progress=progress)
         return tblockmatrix._from_json(orjson.loads(resp))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
@@ -637,7 +645,7 @@ class ServiceBackend(Backend):
             await write_str_array(infile, y_contigs)
             await write_str_array(infile, mt_contigs)
             await write_str_array(infile, par)
-        _, resp, _ = await self._rpc('from_fasta_file(...)', inputs, progress=progress)
+        resp, _ = await self._rpc('from_fasta_file(...)', inputs, progress=progress)
         return orjson.loads(resp)
 
     def load_references_from_dataset(self, path):
@@ -650,7 +658,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
-        _, resp, _ = await self._rpc('load_references_from_dataset(...)', inputs, progress=progress)
+        resp, _ = await self._rpc('load_references_from_dataset(...)', inputs, progress=progress)
         return orjson.loads(resp)
 
     # Sequence and liftover information is stored on the ReferenceGenome
@@ -659,7 +667,7 @@ class ServiceBackend(Backend):
     def add_sequence(self, name, fasta_file, index_file):  # pylint: disable=unused-argument
         # FIXME Not only should this be in the cloud, it should be in the *right* cloud
         for blob in (fasta_file, index_file):
-            self.validate_file_scheme(blob)
+            self.validate_file(blob)
 
     def remove_sequence(self, name):  # pylint: disable=unused-argument
         pass
@@ -684,7 +692,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
-        _, resp, _ = await self._rpc('parse_vcf_metadata(...)', inputs, progress=progress)
+        resp, _ = await self._rpc('parse_vcf_metadata(...)', inputs, progress=progress)
         return orjson.loads(resp)
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
@@ -706,7 +714,7 @@ class ServiceBackend(Backend):
             await write_bool(infile, quant_pheno)
             await write_str(infile, delimiter)
             await write_str(infile, missing)
-        _, resp, _ = await self._rpc('import_fam(...)', inputs, progress=progress)
+        resp, _ = await self._rpc('import_fam(...)', inputs, progress=progress)
         return orjson.loads(resp)
 
     def register_ir_function(self,

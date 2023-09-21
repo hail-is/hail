@@ -1,8 +1,10 @@
+from typing import Callable, TypeVar, cast
+from typing_extensions import ParamSpec
 import copy
 import json
 from collections import defaultdict
 
-import decorator
+from hailtop.hail_decorator import decorator
 
 import hail
 from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
@@ -2228,9 +2230,6 @@ class StreamAgg(IR):
         else:
             return {}
 
-    def renderable_uses_agg_context(self, i: int):
-        return i == 0
-
     def renderable_new_block(self, i: int) -> bool:
         return i == 1
 
@@ -2975,19 +2974,23 @@ def register_seeded_function(name, param_types, ret_type):
     _register(_seeded_function_registry, name, (param_types, ret_type))
 
 
-def udf(*param_types):
+T = TypeVar('T')
+P = ParamSpec('P')
+
+
+def udf(*param_types: HailType) -> Callable[[Callable[P, T]], Callable[P, T]]:
 
     uid = Env.get_uid()
 
-    @decorator.decorator
-    def wrapper(__original_func, *args, **kwargs):
+    @decorator
+    def wrapper(__original_func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         registry = hail.ir.ir._udf_registry
         if uid in registry:
             f = registry[uid]
         else:
             f = hail.experimental.define_function(__original_func, *param_types, _name=uid)
             registry[uid] = f
-        return f(*args, **kwargs)
+        return cast(Callable[P, T], f)(*args, **kwargs)
 
     return wrapper
 

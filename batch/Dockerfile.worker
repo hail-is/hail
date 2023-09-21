@@ -1,15 +1,17 @@
-FROM {{ hail_ubuntu_image.image }} AS base
+ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+FROM $BASE_IMAGE AS base
 
 # libyajl-dev: crun runtime dependency
 RUN hail-apt-get-install \
     iproute2 \
     iptables \
+    ca-certificates-java \
     openjdk-8-jre-headless \
     liblapack3 \
     xfsprogs \
     libyajl-dev
 
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
 
 {% if global.cloud == "gcp" %}
 RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
@@ -19,13 +21,24 @@ RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
     hail-apt-get-install fuse gcsfuse=0.41.12
 
+RUN curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg && \
+    curl -s -L https://nvidia.github.io/libnvidia-container/ubuntu22.04/libnvidia-container.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    tee /etc/apt/sources.list.d/nvidia-container-toolkit.list 
+
+RUN apt-get update && \
+    hail-apt-get-install nvidia-container-toolkit 
+
 {% elif global.cloud == "azure" %}
+RUN apt-get update && \
+    hail-apt-get-install libreadline8
+
 # https://github.com/Azure/azure-storage-fuse/issues/603
 RUN hail-apt-get-install ca-certificates pkg-config libfuse-dev cmake libcurl4-gnutls-dev libgnutls28-dev uuid-dev libgcrypt20-dev && \
-    curl -LO https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb && \
+    curl -LO https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb && \
     dpkg -i packages-microsoft-prod.deb && \
     apt-get update && \
-    hail-apt-get-install blobfuse
+    hail-apt-get-install blobfuse2
 
 {% else %}
 RUN echo "!!! UNEXPECTED CLOUD {{global.cloud}} !!!" && exit 1
@@ -40,7 +53,7 @@ RUN hail-pip-install \
     -r batch-requirements.txt \
     pyspark==3.3.0
 
-ENV SPARK_HOME /usr/local/lib/python3.8/dist-packages/pyspark
+ENV SPARK_HOME /usr/local/lib/python3.9/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 

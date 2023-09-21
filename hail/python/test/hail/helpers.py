@@ -1,10 +1,12 @@
+from typing import Callable, TypeVar
+from typing_extensions import ParamSpec
 import os
 from timeit import default_timer as timer
 import unittest
 import pytest
-from decorator import decorator
+from hailtop.hail_decorator import decorator
 
-from hail.utils.java import Env, choose_backend
+from hail.utils.java import choose_backend
 import hail as hl
 
 
@@ -121,10 +123,14 @@ def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
 
 
+P = ParamSpec('P')
+T = TypeVar('T')
+
+
 def skip_unless_spark_backend(reason='requires Spark'):
     from hail.backend.spark_backend import SparkBackend
     @decorator
-    def wrapper(func, *args, **kwargs):
+    def wrapper(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         if isinstance(hl.utils.java.Env.backend(), SparkBackend):
             return func(*args, **kwargs)
         else:
@@ -160,7 +166,7 @@ def skip_when_service_backend_in_azure(reason='skipping for Service Backend in A
 def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
     from hail.backend.service_backend import ServiceBackend
     @decorator
-    def wrapper(func, *args, **kwargs):
+    def wrapper(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
             raise unittest.SkipTest(reason)
         else:
@@ -187,6 +193,9 @@ fails_spark_backend = pytest.mark.xfail(
     choose_backend() == 'spark',
     reason="doesn't yet work on spark backend",
     strict=True)
+
+
+qobtest = pytest.mark.qobtest
 
 
 def test_timeout(overall=None, *, batch=None, local=None, spark=None):

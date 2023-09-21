@@ -1,4 +1,5 @@
 import asyncio
+from typing import Dict
 
 from gear import Database
 from gear.cloud_config import get_gcp_config
@@ -24,7 +25,6 @@ class GCPDriver(CloudDriver):
         machine_name_prefix: str,
         namespace: str,
         inst_coll_configs: InstanceCollectionConfigs,
-        credentials_file: str,
         task_manager: aiotools.BackgroundTaskManager,  # BORROWED
     ) -> 'GCPDriver':
         gcp_config = get_gcp_config()
@@ -42,17 +42,16 @@ ON DUPLICATE KEY UPDATE region = region;
             region_args,
         )
 
-        db_regions = {
+        db_regions: Dict[str, int] = {
             record['region']: record['region_id']
             async for record in db.select_and_fetchall('SELECT region_id, region from regions')
         }
         assert max(db_regions.values()) < 64, str(db_regions)
         app['regions'] = db_regions
 
-        compute_client = aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
+        compute_client = aiogoogle.GoogleComputeClient(project)
 
         activity_logs_client = aiogoogle.GoogleLoggingClient(
-            credentials_file=credentials_file,
             # The project-wide logging quota is 60 request/m.  The event
             # loop sleeps 15s per iteration, so the max rate is 4
             # iterations/m.  Note, the event loop could make multiple
@@ -63,10 +62,8 @@ ON DUPLICATE KEY UPDATE region = region;
             rate_limit=RateLimit(10, 60),
         )
 
-        billing_client = aiogoogle.GoogleBillingClient(credentials_file=credentials_file)
-
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
-        billing_manager = await GCPBillingManager.create(db, billing_client, regions)
+        billing_manager = await GCPBillingManager.create(db, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
 
@@ -153,7 +150,10 @@ ON DUPLICATE KEY UPDATE region = region;
         try:
             await self.compute_client.close()
         finally:
-            await self.activity_logs_client.close()
+            try:
+                await self.activity_logs_client.close()
+            finally:
+                await self._billing_manager.close()
 
     async def process_activity_logs(self) -> None:
         async def _process_activity_log_events_since(mark):

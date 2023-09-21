@@ -3,9 +3,10 @@ import json
 import logging
 import os
 import re
-from typing import List, Optional
+import typing
+from functools import wraps
+from typing import List, NoReturn, Optional
 
-import aiohttp
 import aiohttp_session
 import kubernetes_asyncio.client
 import kubernetes_asyncio.client.rest
@@ -15,10 +16,10 @@ from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
-    AuthClient,
     Database,
     K8sCache,
     Transaction,
+    UserData,
     check_csrf_token,
     create_session,
     json_request,
@@ -28,9 +29,11 @@ from gear import (
     setup_aiohttp_session,
     transaction,
 )
+from gear.auth import AIOHTTPHandler, AuthenticatedAIOHTTPHandler, MaybeAuthenticatedAIOHTTPHandler
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
+from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
@@ -49,7 +52,6 @@ from .exceptions import (
     PreviouslyDeletedUser,
     UnknownUser,
 )
-from .flow import get_flow_client
 
 log = logging.getLogger('auth')
 
@@ -65,13 +67,46 @@ deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
 
-auth = AuthClient()
+
+def authenticated_users_only(fun: AuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
+    @wraps(fun)
+    async def wrapped(request: web.Request) -> web.StreamResponse:
+        session_id = await get_session_id(request)
+        if not session_id:
+            raise web.HTTPUnauthorized()
+        userdata = await get_userinfo(request, session_id)
+        return await fun(request, userdata)
+
+    return wrapped
 
 
-async def user_from_login_id(db, login_id):
+def authenticated_devs_only(fun: AuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
+    @authenticated_users_only
+    @wraps(fun)
+    async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
+        if userdata['is_developer'] != 1:
+            raise web.HTTPUnauthorized()
+        return await fun(request, userdata)
+
+    return wrapped
+
+
+def maybe_authenticated_user(fun: MaybeAuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
+    @wraps(fun)
+    async def wrapped(request: web.Request) -> web.StreamResponse:
+        session_id = await get_session_id(request)
+        if not session_id:
+            return await fun(request, None)
+        userdata = await get_userinfo(request, session_id)
+        return await fun(request, userdata)
+
+    return wrapped
+
+
+async def user_from_login_id(db: Database, login_id: str) -> Optional[UserData]:
     users = [x async for x in db.select_and_fetchall("SELECT * FROM users WHERE login_id = %s;", login_id)]
     if len(users) == 1:
-        return users[0]
+        return typing.cast(UserData, users[0])
     assert len(users) == 0, users
     return None
 
@@ -180,20 +215,20 @@ def cleanup_session(session):
 
 
 @routes.get('/healthcheck')
-async def get_healthcheck(request):  # pylint: disable=W0613
+async def get_healthcheck(_) -> web.Response:
     return web.Response()
 
 
 @routes.get('')
 @routes.get('/')
-@auth.web_maybe_authenticated_user
-async def get_index(request, userdata):  # pylint: disable=unused-argument
+@maybe_authenticated_user
+async def get_index(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     return await render_template('auth', request, userdata, 'index.html', {})
 
 
 @routes.get('/creating')
-@auth.web_maybe_authenticated_user
-async def creating_account(request, userdata):
+@maybe_authenticated_user
+async def creating_account(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     db = request.app['db']
     session = await aiohttp_session.get_session(request)
     if 'pending' in session:
@@ -207,7 +242,7 @@ async def creating_account(request, userdata):
 
         if user is None:
             set_message(session, f'Account does not exist for login id {login_id}.', 'error')
-            return aiohttp.web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
 
@@ -218,7 +253,7 @@ async def creating_account(request, userdata):
             session_id = await create_session(db, user['id'])
             session['session_id'] = session_id
             set_message(session, f'Account has been created for {user["username"]}.', 'info')
-            return aiohttp.web.HTTPFound(next_page)
+            raise web.HTTPFound(next_page)
 
         assert user['state'] == 'creating'
         session['pending'] = True
@@ -226,7 +261,7 @@ async def creating_account(request, userdata):
         session['next'] = next_page
         return await render_template('auth', request, userdata, 'account-creating.html', page_context)
 
-    return aiohttp.web.HTTPUnauthorized()
+    raise web.HTTPUnauthorized()
 
 
 @routes.get('/creating/wait')
@@ -243,24 +278,18 @@ async def _wait_websocket(request, login_id):
 
     user = await user_from_login_id(db, login_id)
     if not user:
-        return web.HTTPNotFound()
+        raise web.HTTPNotFound()
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
     try:
         count = 0
-        while count < 10:
-            try:
-                user = await user_from_login_id(db, login_id)
-                assert user
-                if user['state'] != 'creating':
-                    log.info(f"user {user['username']} is no longer creating")
-                    break
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # pylint: disable=broad-except
-                log.exception(f"/creating/wait: error while updating status for user {user['username']}")
+        user = await user_from_login_id(db, login_id)
+        assert user
+        while count < 10 and user['state'] == 'creating':
+            user = await user_from_login_id(db, login_id)
+            assert user
             await asyncio.sleep(1)
             count += 1
 
@@ -276,7 +305,7 @@ async def _wait_websocket(request, login_id):
 
 
 @routes.get('/signup')
-async def signup(request):
+async def signup(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
@@ -287,11 +316,11 @@ async def signup(request):
     session['caller'] = 'signup'
     session['flow'] = flow_data
 
-    return aiohttp.web.HTTPFound(flow_data['authorization_url'])
+    raise web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/login')
-async def login(request):
+async def login(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
@@ -302,11 +331,11 @@ async def login(request):
     session['caller'] = 'login'
     session['flow'] = flow_data
 
-    return aiohttp.web.HTTPFound(flow_data['authorization_url'])
+    raise web.HTTPFound(flow_data['authorization_url'])
 
 
 @routes.get('/oauth2callback')
-async def callback(request):
+async def callback(request) -> web.Response:
     session = await aiohttp_session.get_session(request)
     if 'flow' not in session:
         raise web.HTTPUnauthorized()
@@ -336,7 +365,7 @@ async def callback(request):
     if user is None:
         if caller == 'login':
             set_message(session, f'Account does not exist for login id {login_id}', 'error')
-            return aiohttp.web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         assert caller == 'signup'
 
@@ -350,12 +379,12 @@ async def callback(request):
             await insert_new_user(db, username, login_id, is_developer=False, is_service_account=False)
         except AuthUserError as e:
             set_message(session, e.message, 'error')
-            return web.HTTPFound(deploy_config.external_url('auth', ''))
+            raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
         session['pending'] = True
         session['login_id'] = login_id
 
-        return web.HTTPFound(creating_url)
+        raise web.HTTPFound(creating_url)
 
     if user['state'] in ('deleting', 'deleted'):
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
@@ -368,19 +397,19 @@ async def callback(request):
             set_message(session, f'Account for login id {login_id} is still being created.', 'error')
         session['pending'] = True
         session['login_id'] = user['login_id']
-        return web.HTTPFound(creating_url)
+        raise web.HTTPFound(creating_url)
 
     assert user['state'] == 'active'
     if caller == 'signup':
         set_message(session, f'Account has already been created for {user["username"]}.', 'info')
     session_id = await create_session(db, user['id'])
     session['session_id'] = session_id
-    return aiohttp.web.HTTPFound(next_page)
+    raise web.HTTPFound(next_page)
 
 
 @routes.post('/api/v1alpha/users/{user}/create')
-@auth.rest_authenticated_developers_only
-async def create_user(request: web.Request, userdata):  # pylint: disable=unused-argument
+@authenticated_devs_only
+async def create_user(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     username = request.match_info['user']
 
@@ -393,14 +422,6 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
     hail_credentials_secret_name = body.get('hail_credentials_secret_name')
     if (hail_identity or hail_credentials_secret_name) and not is_test_deployment:
         raise web.HTTPBadRequest(text='Cannot specify an existing hail identity for a new user')
-    if hail_credentials_secret_name:
-        try:
-            k8s_cache: K8sCache = request.app['k8s_cache']
-            await k8s_cache.read_secret(hail_credentials_secret_name, DEFAULT_NAMESPACE)
-        except kubernetes_asyncio.client.rest.ApiException as e:
-            raise web.HTTPBadRequest(
-                text=f'hail credentials secret name specified but was not found in namespace {DEFAULT_NAMESPACE}: {hail_credentials_secret_name}'
-            ) from e
 
     try:
         await insert_new_user(
@@ -419,8 +440,8 @@ async def create_user(request: web.Request, userdata):  # pylint: disable=unused
 
 
 @routes.get('/user')
-@auth.web_authenticated_users_only()
-async def user_page(request, userdata):
+@authenticated_users_only
+async def user_page(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
 
 
@@ -434,9 +455,8 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
 
 
 @routes.post('/copy-paste-token')
-@check_csrf_token
-@auth.web_authenticated_users_only()
-async def get_copy_paste_token(request, userdata):
+@authenticated_users_only
+async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
     session_id = session['session_id']
     db = request.app['db']
@@ -446,33 +466,32 @@ async def get_copy_paste_token(request, userdata):
 
 
 @routes.post('/api/v1alpha/copy-paste-token')
-@auth.rest_authenticated_users_only
-async def get_copy_paste_token_api(request, userdata):
-    session_id = userdata['session_id']
+@authenticated_users_only
+async def get_copy_paste_token_api(request: web.Request, _) -> web.Response:
+    session_id = await get_session_id(request)
     db = request.app['db']
     copy_paste_token = await create_copy_paste_token(db, session_id)
     return web.Response(body=copy_paste_token)
 
 
 @routes.post('/logout')
-@check_csrf_token
-@auth.web_maybe_authenticated_user
-async def logout(request, userdata):
+@maybe_authenticated_user
+async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn:
     if not userdata:
-        return web.HTTPFound(deploy_config.external_url('auth', ''))
+        raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
     db = request.app['db']
-    session_id = userdata['session_id']
+    session_id = await get_session_id(request)
     await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     session = await aiohttp_session.get_session(request)
     cleanup_session(session)
 
-    return web.HTTPFound(deploy_config.external_url('auth', ''))
+    raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
 
 @routes.get('/api/v1alpha/login')
-async def rest_login(request):
+async def rest_login(request: web.Request) -> web.Response:
     callback_port = request.query['callback_port']
     callback_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
     flow_data = request.app['flow_client'].initiate_flow(callback_uri)
@@ -484,9 +503,15 @@ async def rest_login(request):
     )
 
 
+@routes.get('/api/v1alpha/oauth2-client')
+async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
+    idp = IdentityProvider.GOOGLE if CLOUD == 'gcp' else IdentityProvider.MICROSOFT
+    return json_response({'idp': idp.value, 'oauth2_client': request.app['hailctl_client_config']})
+
+
 @routes.get('/roles')
-@auth.web_authenticated_developers_only()
-async def get_roles(request, userdata):
+@authenticated_devs_only
+async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app['db']
     roles = [x async for x in db.select_and_fetchall('SELECT * FROM roles;')]
     page_context = {'roles': roles}
@@ -494,13 +519,12 @@ async def get_roles(request, userdata):
 
 
 @routes.post('/roles')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
-async def post_create_role(request, userdata):  # pylint: disable=unused-argument
+@authenticated_devs_only
+async def post_create_role(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
-    name = post['name']
+    name = str(post['name'])
 
     role_id = await db.execute_insertone(
         '''
@@ -512,12 +536,12 @@ VALUES (%s);
 
     set_message(session, f'Created role {role_id} {name}.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/roles'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/roles'))
 
 
 @routes.get('/users')
-@auth.web_authenticated_developers_only()
-async def get_users(request, userdata):
+@authenticated_devs_only
+async def get_users(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app['db']
     users = [x async for x in db.select_and_fetchall('SELECT * FROM users;')]
     page_context = {'users': users}
@@ -525,36 +549,36 @@ async def get_users(request, userdata):
 
 
 @routes.post('/users')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
-async def post_create_user(request, userdata):  # pylint: disable=unused-argument
+@authenticated_devs_only
+async def post_create_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
-    username = post['username']
-    login_id = post.get('login_id', '')
+    username = str(post['username'])
+    login_id = str(post['login_id']) if 'login_id' in post else None
     is_developer = post.get('is_developer') == '1'
     is_service_account = post.get('is_service_account') == '1'
 
     try:
-        if login_id == '':
-            login_id = None
         created_user = await insert_new_user(db, username, login_id, is_developer, is_service_account)
     except AuthUserError as e:
         set_message(session, e.message, 'error')
-        return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+        raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
     if created_user:
         set_message(session, f'Created user {username} {login_id}.', 'info')
     else:
         set_message(session, f'User {username} {login_id} already exists.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
 
 @routes.get('/api/v1alpha/users')
-@auth.rest_authenticated_developers_only
-async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
+@authenticated_users_only
+async def rest_get_users(request: web.Request, userdata: UserData) -> web.Response:
+    if userdata['is_developer'] != 1 and userdata['username'] != 'ci':
+        raise web.HTTPUnauthorized()
+
     db: Database = request.app['db']
     _query = '''
 SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity
@@ -565,8 +589,8 @@ FROM users;
 
 
 @routes.get('/api/v1alpha/users/{user}')
-@auth.rest_authenticated_developers_only
-async def rest_get_user(request, userdata):  # pylint: disable=unused-argument
+@authenticated_devs_only
+async def rest_get_user(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     username = request.match_info['user']
 
@@ -604,14 +628,13 @@ WHERE {' AND '.join(where_conditions)};
 
 
 @routes.post('/users/delete')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
-async def delete_user(request, userdata):  # pylint: disable=unused-argument
+@authenticated_devs_only
+async def delete_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app['db']
     post = await request.post()
-    id = post['id']
-    username = post['username']
+    id = str(post['id'])
+    username = str(post['username'])
 
     try:
         await _delete_user(db, username, id)
@@ -619,19 +642,19 @@ async def delete_user(request, userdata):  # pylint: disable=unused-argument
     except UnknownUser:
         set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
 
-    return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
 
 @routes.delete('/api/v1alpha/users/{user}')
-@auth.rest_authenticated_developers_only
-async def rest_delete_user(request: web.Request, userdata):  # pylint: disable=unused-argument
+@authenticated_devs_only
+async def rest_delete_user(request: web.Request, _) -> web.Response:
     db = request.app['db']
     username = request.match_info['user']
 
     try:
         await _delete_user(db, username, None)
     except UnknownUser as e:
-        return e.http_response()
+        raise e.http_response()
 
     return web.json_response()
 
@@ -701,29 +724,70 @@ WHERE copy_paste_tokens.id = %s
 
 
 @routes.post('/api/v1alpha/logout')
-@auth.rest_authenticated_users_only
-async def rest_logout(request, userdata):
-    session_id = userdata['session_id']
+@authenticated_users_only
+async def rest_logout(request: web.Request, _) -> web.Response:
+    session_id = await get_session_id(request)
     db = request.app['db']
     await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     return web.Response(status=200)
 
 
-async def get_userinfo(request, session_id):
+async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
+    flow_client: Flow = request.app['flow_client']
+    client_session = request.app['client_session']
+
+    userdata = await get_userinfo_from_hail_session_id(request, auth_token)
+    if userdata:
+        return userdata
+
+    hailctl_oauth_client = request.app['hailctl_client_config']
+    uid = await flow_client.get_identity_uid_from_access_token(
+        client_session, auth_token, oauth2_client=hailctl_oauth_client
+    )
+    if uid:
+        return await get_userinfo_from_login_id_or_hail_identity_id(request, uid)
+
+    raise web.HTTPUnauthorized()
+
+
+async def get_userinfo_from_login_id_or_hail_identity_id(
+    request: web.Request, login_id_or_hail_idenity_uid: str
+) -> UserData:
+    db = request.app['db']
+
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            '''
+SELECT users.*
+FROM users
+WHERE (users.login_id = %s OR users.hail_identity_uid = %s) AND users.state = 'active'
+''',
+            (login_id_or_hail_idenity_uid, login_id_or_hail_idenity_uid),
+        )
+    ]
+
+    if len(users) != 1:
+        log.info('Unknown login id')
+        raise web.HTTPUnauthorized()
+    return users[0]
+
+
+async def get_userinfo_from_hail_session_id(request: web.Request, session_id: str) -> Optional[UserData]:
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
-        log.info('Session id != 44 bytes')
-        raise web.HTTPUnauthorized()
+        return None
 
     db = request.app['db']
     users = [
         x
         async for x in db.select_and_fetchall(
             '''
-SELECT users.*, sessions.session_id FROM users
+SELECT users.*
+FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
-WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
+WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 ''',
             session_id,
             'get_userinfo',
@@ -731,28 +795,18 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
     ]
 
     if len(users) != 1:
-        log.info(f'Unknown session id: {session_id}')
-        raise web.HTTPUnauthorized()
+        return None
     return users[0]
 
 
 @routes.get('/api/v1alpha/userinfo')
-async def userinfo(request):
-    if 'Authorization' not in request.headers:
-        log.info('Authorization not in request.headers')
-        raise web.HTTPUnauthorized()
-
-    auth_header = request.headers['Authorization']
-    session_id = maybe_parse_bearer_header(auth_header)
-    if not session_id:
-        log.info('Bearer not in Authorization header')
-        raise web.HTTPUnauthorized()
-
-    return json_response(await get_userinfo(request, session_id))
+@authenticated_users_only
+async def userinfo(_, userdata: UserData) -> web.Response:
+    return json_response(userdata)
 
 
-async def get_session_id(request):
-    if 'X-Hail-Internal-Authorization' in request.headers:
+async def get_session_id(request: web.Request) -> Optional[str]:
+    if 'X-Hail-Internal-Authorization' in request.headers and DEFAULT_NAMESPACE == 'default':
         return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
 
     if 'Authorization' in request.headers:
@@ -762,26 +816,18 @@ async def get_session_id(request):
     return session.get('session_id')
 
 
-@routes.route('*', '/api/v1alpha/verify_dev_credentials')
-async def verify_dev_credentials(request):
-    session_id = await get_session_id(request)
-    if not session_id:
-        raise web.HTTPUnauthorized()
-    userdata = await get_userinfo(request, session_id)
-    is_developer = userdata is not None and userdata['is_developer'] == 1
-    if not is_developer:
+@routes.route('*', '/api/v1alpha/verify_dev_credentials', name='verify_dev')
+@authenticated_users_only
+async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
+    if userdata['is_developer'] != 1:
         raise web.HTTPUnauthorized()
     return web.Response(status=200)
 
 
-@routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials')
-async def verify_dev_or_sa_credentials(request):
-    session_id = await get_session_id(request)
-    if not session_id:
-        raise web.HTTPUnauthorized()
-    userdata = await get_userinfo(request, session_id)
-    is_developer_or_sa = userdata is not None and (userdata['is_developer'] == 1 or userdata['is_service_account'] == 1)
-    if not is_developer_or_sa:
+@routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials', name='verify_dev_or_sa')
+@authenticated_users_only
+async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
+    if userdata['is_developer'] != 1 and userdata['is_service_account'] != 1:
         raise web.HTTPUnauthorized()
     return web.Response(status=200)
 
@@ -791,7 +837,16 @@ async def on_startup(app):
     await db.async_init(maxsize=50)
     app['db'] = db
     app['client_session'] = httpx.client_session()
-    app['flow_client'] = get_flow_client('/auth-oauth2-client-secret/client_secret.json')
+
+    credentials_file = '/auth-oauth2-client-secret/client_secret.json'
+    if CLOUD == 'gcp':
+        app['flow_client'] = GoogleFlow(credentials_file)
+    else:
+        assert CLOUD == 'azure'
+        app['flow_client'] = AzureFlow(credentials_file)
+
+    with open('/auth-oauth2-client-secret/hailctl_client_secret.json', 'r', encoding='utf-8') as f:
+        app['hailctl_client_config'] = json.loads(f.read())
 
     kubernetes_asyncio.config.load_incluster_config()
     app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
@@ -827,10 +882,28 @@ class AuthAccessLogger(AccessLogger):
         super().log(request, response, time)
 
 
+@web.middleware
+async def auth_check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
+    # The below are used by gateway / Envoy reverse proxies for auth checks, but
+    # Envoy calls those auth endpoints with the same HTTP method as the original
+    # user's request. In the case where a user is trying to POST to a protected
+    # service, that will additionally trigger a CSRF check on the auth endpoint
+    # which cannot always be conducted if, for example, the backend service is
+    # Grafana which conducts its own CSRF mitigations separate from our own.
+    # These auth endpoints are not CSRF-vulnerable so we opt out of CSRF-token
+    # validation.
+    # See: https://github.com/envoyproxy/envoy/issues/5357
+    envoy_auth_endpoints = {request.app.router[name].canonical for name in ('verify_dev', 'verify_dev_or_sa')}
+    if request.path in envoy_auth_endpoints:
+        return await handler(request)
+
+    return await check_csrf_token(request, handler)
+
+
 def run():
     install_profiler_if_requested('auth')
 
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[auth_check_csrf_token, monitor_endpoints_middleware])
 
     setup_aiohttp_jinja2(app, 'auth')
     setup_aiohttp_session(app)

@@ -11,11 +11,6 @@ large as 955,000 whole exomes. The :class:`.VariantDatasetCombiner` produces a
 
 .. warning::
 
-    The :class:`.VariantDataset` API is new and subject to change. While this is functionality tested
-    and used in production applications, it is still considered experimental.
-
-.. warning::
-
     Hail 0.1 also had a Variant Dataset class. Although pieces of the interfaces are similar, they should not
     be considered interchangeable and do not represent the same data.
 

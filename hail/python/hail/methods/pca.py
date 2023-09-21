@@ -601,7 +601,8 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling
     if oversampling_param is None:
         oversampling_param = k
 
-    U, S, V = _reduced_svd(A, k, compute_loadings, q_iterations, k + oversampling_param)
+    compute_U = (not transpose and compute_loadings) or (transpose and compute_scores)
+    U, S, V = _reduced_svd(A, k, compute_U, q_iterations, k + oversampling_param)
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
 
     def numpy_to_rows_table(X, field_name):

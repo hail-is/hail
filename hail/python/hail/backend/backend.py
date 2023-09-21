@@ -1,10 +1,11 @@
 from typing import Mapping, List, Union, TypeVar, Tuple, Dict, Optional, Any, AbstractSet
 import abc
+import warnings
 import orjson
 import pkg_resources
 import zipfile
 
-from hailtop.config.user_config import configuration_of
+from hailtop.config.user_config import unchecked_configuration_of
 from hailtop.fs.fs import FS
 
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
@@ -33,8 +34,44 @@ Error summary: {short_message}''',
                       error_id)
 
 
+class LocalJarInformation:
+    def __init__(self, development_mode: bool, local_jar_path: str, extra_classpath: List[str]):
+        self.development_mode = development_mode
+        self.path = local_jar_path
+        self.extra_classpath = extra_classpath
+
+
+def resource_exists(f: str) -> bool:
+    return pkg_resources.resource_exists(__name__, f)
+
+
+def resource_filename(f: str) -> str:
+    return pkg_resources.resource_filename(__name__, f)
+
+
+def local_jar_information() -> LocalJarInformation:
+    if resource_exists('hail.jar'):
+        warnings.warn('!!! THIS IS A DEVELOPMENT VERSION OF HAIL !!!')
+        with open(pkg_resources.resource_filename(__name__, 'extra_classpath')) as fobj:
+            return LocalJarInformation(
+                True,
+                resource_filename('hail.jar'),
+                [fobj.read()],
+            )
+    elif resource_exists('hail-all-spark.jar'):
+        return LocalJarInformation(
+            False,
+            resource_filename("hail-all-spark.jar"),
+            [],
+        )
+    else:
+        raise ValueError(
+            f'Hail requires either {resource_filename("hail.jar")} or {resource_filename("hail-all-spark.jar")}.'
+        )
+
+
 class Backend(abc.ABC):
-    # Must match knownFlags in HailFeatureFlags.py
+    # Must match knownFlags in HailFeatureFlags.scala
     _flags_env_vars_and_defaults: Dict[str, Tuple[str, Optional[str]]] = {
         "no_whole_stage_codegen": ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN", None),
         "no_ir_logging": ("HAIL_DEV_NO_IR_LOG", None),
@@ -52,12 +89,14 @@ class Backend(abc.ABC):
         "shuffle_max_branch_factor": ("HAIL_SHUFFLE_MAX_BRANCH", "64"),
         "shuffle_cutoff_to_local_sort": ("HAIL_SHUFFLE_CUTOFF", "512000000"),  # This is in bytes
         "grouped_aggregate_buffer_size": ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE", "50"),
-        "use_ssa_logs": ("HAIL_USE_SSA_LOGS", None),
+        "use_ssa_logs": ("HAIL_USE_SSA_LOGS", "1"),
         "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
         "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
         "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
         "rng_nonce": ("HAIL_RNG_NONCE", "0x0"),
         "profile": ("HAIL_PROFILE", None),
+        "use_fast_restarts": ("HAIL_USE_FAST_RESTARTS", None),
+        "cachedir": ("HAIL_CACHE_DIR", None),
     }
 
     def _valid_flags(self) -> AbstractSet[str]:
@@ -69,11 +108,11 @@ class Backend(abc.ABC):
         self._references = {}
 
     @abc.abstractmethod
-    def stop(self):
-        pass
+    def validate_file(self, uri: str):
+        raise NotImplementedError
 
     @abc.abstractmethod
-    def validate_file_scheme(self, url):
+    def stop(self):
         pass
 
     @abc.abstractmethod
@@ -116,7 +155,7 @@ class Backend(abc.ABC):
 
     def initialize_references(self):
         from hail.genetics.reference_genome import ReferenceGenome
-        jar_path = pkg_resources.resource_filename(__name__, 'hail-all-spark.jar')
+        jar_path = local_jar_information().path
         for path_in_jar in BUILTIN_REFERENCE_RESOURCE_PATHS.values():
             rg_config = orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
             rg = ReferenceGenome._from_config(rg_config, _builtin=True)
@@ -197,7 +236,7 @@ class Backend(abc.ABC):
 
     def _initialize_flags(self, initial_flags: Dict[str, str]) -> None:
         self.set_flags(**{
-            k: configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
+            k: unchecked_configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
             for k, (deprecated_envvar, default) in Backend._flags_env_vars_and_defaults.items()
             if k not in initial_flags
         }, **initial_flags)

@@ -8,10 +8,15 @@ steps:
         optional: true
   - kind: buildImage2
     name: git_make_bash_image
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: global.docker_root_image
     publishAs: git-make-bash
     dockerFile:
       inline: |
-        FROM {{ global.docker_root_image }}
+        ARG BASE_IMAGE
+        FROM $BASE_IMAGE
         RUN apt-get update && apt-get install -y git make bash
   - kind: runImage
     name: merge_code
@@ -46,6 +51,30 @@ steps:
         to: /io/hail-ubuntu
     dependsOn:
       - merge_code
+  - kind: buildImage2
+    name: hail_ubuntu_image_python_3_10
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    buildArgs:
+      - name: PYTHON_VERSION
+        value: "3.10"
+      - name: DOCKER_PREFIX
+        value:
+          valueFrom: global.docker_prefix
+    publishAs: hail-ubuntu-py-3-10
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+  - kind: runImage
+    name: test_build_image_build_args_override_default
+    image:
+      valueFrom: hail_ubuntu_image_python_3_10.image
+    script: |
+      python3 --version | grep '3.10'
+    dependsOn:
+      - hail_ubuntu_image_python_3_10
   - kind: buildImage2
     name: base_image
     dockerFile: /io/repo/docker/Dockerfile.base
@@ -280,7 +309,8 @@ steps:
       valueFrom: ci_utils_image.image
     script: |
       set -ex
-      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl curl {{ default_ns.name }} \
           hello /healthcheck \
           -fsSL \
@@ -288,15 +318,23 @@ steps:
           --retry-delay 30 \
           -XGET
     secrets:
-      - name: test-tokens
+      - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: worker-deploy-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /deploy-config
+        mountPath: /test-gsa-key
     dependsOn:
       - ci_utils_image
       - default_ns
       - deploy_hello
+  - kind: runImage
+    name: test_jinja_state_contains_developers
+    image:
+      valueFrom: hail_ubuntu_image.image
+    script: |
+      set -ex
+
+      {% for user in code['developers'] %}
+      echo {{ user['username'] }}
+      {% endfor %}
+    dependsOn:
+      - hail_ubuntu_image

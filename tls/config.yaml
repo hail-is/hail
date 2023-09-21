@@ -27,16 +27,6 @@ principals:
   domains:
     - ci
   kind: json
-- name: notebook-python
-  domains:
-    - notebook
-    - workshop
-  kind: json
-- name: notebook
-  domains:
-    - notebook
-    - workshop
-  kind: nginx
 - name: gateway
   domains:
     - gateway
@@ -56,10 +46,6 @@ principals:
     - internal-gateway
   unmanged: True
   kind: nginx
-- name: memory
-  domains:
-    - memory
-  kind: json
 - name: monitoring
   domains:
     - monitoring

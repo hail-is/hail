@@ -57,7 +57,7 @@ locals {
     "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" :
     "gcr.io/${var.gcp_project}"
   )
-  docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
+  docker_root_image = "${local.docker_prefix}/ubuntu:22.04"
 }
 
 provider "google" {
@@ -855,6 +855,37 @@ resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
     selector {
       match_labels = {
         k8s-app = "kube-dns"
+      }
+    }
+  }
+}
+
+resource "kubernetes_pod_disruption_budget" "kube_dns_autoscaler_pdb" {
+  metadata {
+    name = "kube-dns-autoscaler"
+    namespace = "kube-system"
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+        k8s-app = "kube-dns-autoscaler"
+      }
+    }
+  }
+}
+
+resource "kubernetes_pod_disruption_budget" "event_exporter_pdb" {
+  metadata {
+    name = "event-exporter"
+    namespace = "kube-system"
+  }
+  spec {
+    max_unavailable = "1"
+    selector {
+      match_labels = {
+	# nb: pods are called event-exporter-gke-...
+        k8s-app = "event-exporter"
       }
     }
   }

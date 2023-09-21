@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+from typing import Dict
 
 from gear import Database
 from gear.cloud_config import get_azure_config
@@ -27,7 +28,6 @@ class AzureDriver(CloudDriver):
         machine_name_prefix: str,
         namespace: str,
         inst_coll_configs: InstanceCollectionConfigs,
-        credentials_file: str,
         task_manager: aiotools.BackgroundTaskManager,  # BORROWED
     ) -> 'AzureDriver':
         azure_config = get_azure_config()
@@ -45,7 +45,7 @@ ON DUPLICATE KEY UPDATE region = region;
             region_args,
         )
 
-        db_regions = {
+        db_regions: Dict[str, int] = {
             record['region']: record['region_id']
             async for record in db.select_and_fetchall('SELECT region_id, region from regions')
         }
@@ -55,12 +55,10 @@ ON DUPLICATE KEY UPDATE region = region;
         with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()
 
-        arm_client = aioazure.AzureResourceManagerClient(
-            subscription_id, resource_group, credentials_file=credentials_file
-        )
-        compute_client = aioazure.AzureComputeClient(subscription_id, resource_group, credentials_file=credentials_file)
-        resources_client = aioazure.AzureResourcesClient(subscription_id, credentials_file=credentials_file)
-        network_client = aioazure.AzureNetworkClient(subscription_id, resource_group, credentials_file=credentials_file)
+        arm_client = aioazure.AzureResourceManagerClient(subscription_id, resource_group)
+        compute_client = aioazure.AzureComputeClient(subscription_id, resource_group)
+        resources_client = aioazure.AzureResourcesClient(subscription_id)
+        network_client = aioazure.AzureNetworkClient(subscription_id, resource_group)
         pricing_client = aioazure.AzurePricingClient()
 
         region_monitor = await RegionMonitor.create(region)

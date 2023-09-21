@@ -4,18 +4,19 @@ import logging
 import os
 import ssl
 import traceback
-from typing import Awaitable, Callable, Optional, TypeVar
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, Optional, TypeVar
 
 import aiomysql
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import pymysql
+from typing_extensions import Concatenate, ParamSpec
 
 from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.config import get_deploy_config
-from hailtop.utils import sleep_and_backoff
+from hailtop.utils import sleep_before_try
 
 log = logging.getLogger('gear.database')
 
@@ -29,10 +30,14 @@ operational_error_retry_codes = (1040, 1213, 2003, 2013)
 internal_error_retry_codes = (1205,)
 
 
-def retry_transient_mysql_errors(f):
+T = TypeVar("T")
+P = ParamSpec('P')
+
+
+def retry_transient_mysql_errors(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
     @functools.wraps(f)
-    async def wrapper(*args, **kwargs):
-        delay = 0.1
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        tries = 0
         while True:
             try:
                 return await f(*args, **kwargs)
@@ -54,21 +59,19 @@ def retry_transient_mysql_errors(f):
                     )
                 else:
                     raise
-            delay = await sleep_and_backoff(delay)
+            tries += 1
+            await sleep_before_try(tries)
 
     return wrapper
 
 
-T = TypeVar("T")
-
-
 def transaction(db: 'Database', read_only: bool = False):
-    def transformer(fun: Callable[['Transaction'], Awaitable[T]]) -> Callable[[], Awaitable[T]]:
+    def transformer(fun: Callable[Concatenate['Transaction', P], Awaitable[T]]) -> Callable[P, Awaitable[T]]:
         @functools.wraps(fun)
         @retry_transient_mysql_errors
-        async def wrapper():
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             async with db.start(read_only=read_only) as tx:
-                return await fun(tx)
+                return await fun(tx, *args, **kwargs)
 
         return wrapper
 
@@ -88,11 +91,11 @@ async def resolve_test_db_endpoint(sql_config: SQLConfig) -> SQLConfig:
     await kubernetes_asyncio.config.load_kube_config()
     async with kubernetes_asyncio.client.ApiClient() as api:
         client = kubernetes_asyncio.client.CoreV1Api(api)
-        db_service = await client.read_namespaced_service(service_name, namespace)
-        db_pod = await client.read_namespaced_pod(f'{db_service.spec.selector["app"]}-0', namespace)
+        db_service = await client.read_namespaced_service(service_name, namespace)  # type: ignore
+        db_pod = await client.read_namespaced_pod(f'{db_service.spec.selector["app"]}-0', namespace)  # type: ignore
         sql_config_dict = sql_config.to_dict()
-        sql_config_dict['host'] = db_pod.status.host_ip
-        sql_config_dict['port'] = db_service.spec.ports[0].node_port
+        sql_config_dict['host'] = db_pod.status.host_ip  # type: ignore
+        sql_config_dict['port'] = db_service.spec.ports[0].node_port  # type: ignore
         return SQLConfig.from_dict(sql_config_dict)
 
 
@@ -108,24 +111,21 @@ def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
     return sql_config
 
 
-database_ssl_context = None
-
-
 def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLContext:
-    global database_ssl_context
-    if database_ssl_context is None:
-        if sql_config is None:
-            sql_config = get_sql_config()
-        database_ssl_context = ssl.create_default_context(cafile=sql_config.ssl_ca)
-        if sql_config.ssl_cert is not None and sql_config.ssl_key is not None:
-            database_ssl_context.load_cert_chain(sql_config.ssl_cert, keyfile=sql_config.ssl_key, password=None)
-        database_ssl_context.verify_mode = ssl.CERT_REQUIRED
-        database_ssl_context.check_hostname = False
+    if sql_config is None:
+        sql_config = get_sql_config()
+    database_ssl_context = ssl.create_default_context(cafile=sql_config.ssl_ca)
+    if sql_config.ssl_cert is not None and sql_config.ssl_key is not None:
+        database_ssl_context.load_cert_chain(sql_config.ssl_cert, keyfile=sql_config.ssl_key, password=None)
+    database_ssl_context.verify_mode = ssl.CERT_REQUIRED
+    database_ssl_context.check_hostname = False
     return database_ssl_context
 
 
 @retry_transient_mysql_errors
-async def create_database_pool(config_file: Optional[str] = None, autocommit: bool = True, maxsize: int = 10):
+async def create_database_pool(
+    config_file: Optional[str] = None, autocommit: bool = True, maxsize: int = 10
+) -> aiomysql.Pool:
     sql_config = get_sql_config(config_file)
     if get_deploy_config().location() != 'k8s' and sql_config.host.endswith('svc.cluster.local'):
         sql_config = await resolve_test_db_endpoint(sql_config)
@@ -238,7 +238,7 @@ class Transaction:
                     await cursor.execute(sql, args)
             return await cursor.fetchone()
 
-    async def execute_and_fetchall(self, sql, args=None, query_name=None):
+    async def execute_and_fetchall(self, sql: str, args=None, query_name=None) -> AsyncIterator[Dict[str, Any]]:
         assert self.conn
         async with self.conn.cursor() as cursor:
             if query_name is None:
@@ -253,7 +253,7 @@ class Transaction:
                 for row in rows:
                     yield row
 
-    async def execute_insertone(self, sql, args=None, *, query_name=None):
+    async def execute_insertone(self, sql, args=None, *, query_name=None) -> Optional[int]:
         assert self.conn
         async with self.conn.cursor() as cursor:
             if query_name is None:

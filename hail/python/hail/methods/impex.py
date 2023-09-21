@@ -121,7 +121,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 
     require_biallelic(dataset, 'export_gen')
 
-    hl.current_backend().validate_file_scheme(output)
+    hl.current_backend().validate_file(output)
 
     if gp is None:
         if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
@@ -238,7 +238,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
     require_row_key_variant(mt, 'export_bgen')
     require_col_key_str(mt, 'export_bgen')
 
-    hl.current_backend().validate_file_scheme(output)
+    hl.current_backend().validate_file(output)
 
     if gp is None:
         if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
@@ -364,7 +364,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
 
     require_biallelic(dataset, 'export_plink', tolerate_generic_locus=True)
 
-    hl.current_backend().validate_file_scheme(output)
+    hl.current_backend().validate_file(output)
 
     if ind_id is None:
         require_col_key_str(dataset, "export_plink")
@@ -539,7 +539,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         **Note**: This feature is experimental, and the interface and defaults
         may change in future versions.
     """
-    hl.current_backend().validate_file_scheme(output)
+    hl.current_backend().validate_file(output)
 
     _, ext = os.path.splitext(output)
     if ext == '.gz':
@@ -2673,11 +2673,26 @@ def import_vcf(path,
 
     >>> ds = hl.import_vcf('data/example2.vcf.bgz', reference_genome='GRCh37')
 
+    Import a variant-partitioned dataset stored in one or more VCF files. The ``*`` is a glob
+    pattern which matches any string of characters.
+
+    >>> ds = hl.import_vcf('data/samplepart*.vcf')
+
+    Import a VCF dataset and override every header with the header from ``data/samplepart1.vcf``. If
+    the other VCF files are missing headers, have differing sample names, or otherwise have
+    incompatible headers, `header_file` can be used to enforce a consistent header.
+
+    >>> ds = hl.import_vcf('data/samplepart*.vcf', header_file='data/samplepart1.vcf')
+
     Import a VCF with GRCh38 as the reference genome that incorrectly uses the
     contig names from GRCh37 (i.e. uses contig name "1" instead of "chr1").
 
     >>> recode = {f"{i}":f"chr{i}" for i in (list(range(1, 23)) + ['X', 'Y'])}
     >>> ds = hl.import_vcf('data/grch38_bad_contig_names.vcf', reference_genome='GRCh38', contig_recoding=recode)
+
+    Import a bgzipped VCF which uses the "gz" extension rather than the "bgz" extension:
+
+    >>> ds = hl.import_vcf('data/samplepart*.vcf.gz', force_bgz=True)
 
     Notes
     -----
@@ -2694,11 +2709,14 @@ def import_vcf(path,
     either be uncompressed (**.vcf**) or block compressed (**.vcf.bgz**). If you
     have a large compressed VCF that ends in **.vcf.gz**, it is likely that the
     file is actually block-compressed, and you should rename the file to
-    **.vcf.bgz** accordingly. If you actually have a standard gzipped file, it
-    is possible to import it to Hail using the `force` parameter. However, this
-    is not recommended -- all parsing will have to take place on one node
-    because gzip decompression is not parallelizable. In this case, import will
-    take significantly longer.
+    **.vcf.bgz** accordingly. If you are unable to rename this file, please use
+    `force_bgz=True` to ignore the extension and treat this file as
+    block-gzipped.
+
+    If you have a **non-block** (aka standard) gzipped file, you may use
+    `force=True`; however, we strongly discourage this because each file will be
+    processed by a single core. Import will take significantly longer for any
+    non-trivial dataset.
 
     :func:`.import_vcf` does not perform deduplication - if the provided VCF(s)
     contain multiple records with the same chrom, pos, ref, alt, all these
@@ -2754,16 +2772,17 @@ def import_vcf(path,
     Parameters
     ----------
     path : :class:`str` or :obj:`list` of :obj:`str`
-        VCF file(s) to read.
+        One or more paths to VCF files to read. Each path may or may not include glob expressions
+        like ``*``, ``?``, or ``[abc123]``.
     force : :obj:`bool`
         If ``True``, load **.vcf.gz** files serially. No downstream operations
         can be parallelized, so this mode is strongly discouraged.
     force_bgz : :obj:`bool`
-        If ``True``, load **.vcf.gz** files as blocked gzip files, assuming
-        that they were actually compressed using the BGZ codec.
+        If ``True``, load **.vcf.gz** files as blocked gzip files, assuming that they were actually
+        compressed using the BGZ codec.
     header_file : :class:`str`, optional
         Optional header override file. If not specified, the first file in
-        `path` is used.
+        `path` is used. Glob patterns are not allowed in the `header_file`.
     min_partitions : :obj:`int`, optional
         Minimum partitions to load per file.
     drop_samples : :obj:`bool`
@@ -2807,6 +2826,7 @@ def import_vcf(path,
     Returns
     -------
     :class:`.MatrixTable`
+
     """
     if force:
         hl.utils.warning(
@@ -2837,7 +2857,7 @@ def import_vcf(path,
            filter=nullable(str),
            find=nullable(str),
            replace=nullable(str))
-def import_gvcf_interval(path, file_num, contig, start, end, header_info, call_fields=[], entry_float_type='float64',
+def import_gvcf_interval(path, file_num, contig, start, end, header_info, call_fields=['PGT'], entry_float_type='float64',
                          array_elements_required=True, reference_genome='default', contig_recoding=None,
                          skip_invalid_loci=False, filter=None, find=None, replace=None):
     indices, aggs = hl.expr.unify_all(path, file_num, contig, start, end)

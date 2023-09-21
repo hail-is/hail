@@ -4,11 +4,11 @@ import typer
 from typer import Option as Opt, Argument as Arg
 import json
 
-from typing import Optional, List
-from typing_extensions import Annotated as Ann
+from typing import Optional, List, Annotated as Ann, cast, Dict, Any
 
 from . import list_batches
 from . import billing
+from .initialize import async_basic_initialize
 from . import submit as _submit
 from .batch_cli_utils import (
     get_batch_if_exists,
@@ -52,7 +52,7 @@ def get(batch_id: int, output: StructuredFormatOption = StructuredFormat.YAML):
     with BatchClient('') as client:
         batch = get_batch_if_exists(client, batch_id)
         if batch:
-            print(make_formatter(output)(batch.last_known_status()))
+            print(make_formatter(output)([batch.last_known_status()]))
         else:
             print(f"Batch with id {batch_id} not found")
 
@@ -145,15 +145,22 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
         job = get_job_if_exists(client, batch_id, job_id)
 
         if job is not None:
-            print(make_formatter(output)(job._status))
+            assert job._status
+            print(make_formatter(output)([
+                cast(
+                    Dict[str, Any],  # https://stackoverflow.com/q/71986632/6823256
+                    job._status
+                )
+            ]))
         else:
             print(f"Job with ID {job_id} on batch {batch_id} not found")
 
 
-@app.command()
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def submit(
+    ctx: typer.Context,
     script: str,
-    arguments: Ann[Optional[List[str]], Arg()] = None,
+    arguments: Ann[Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')] = None,
     files: Ann[
         Optional[List[str]], Opt(help='Files or directories to add to the working directory of the job.')
     ] = None,
@@ -161,5 +168,19 @@ def submit(
     image_name: Ann[Optional[str], Opt(help='Name of Docker image for the job (default: hailgenetics/hail)')] = None,
     output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
 ):
-    '''Submit a batch with a single job that runs SCRIPT with the arguments ARGUMENTS.'''
-    asyncio.run(_submit.submit(name, image_name, files or [], output, script, arguments or []))
+    '''Submit a batch with a single job that runs SCRIPT with the arguments ARGUMENTS.
+
+    If you wish to pass option-like arguments you should use "--". For example:
+
+
+
+    $ hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
+    '''
+    asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
+
+
+@app.command('init', help='Initialize a Hail Batch environment.')
+def initialize(
+        verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
+):
+    asyncio.get_event_loop().run_until_complete(async_basic_initialize(verbose=verbose))

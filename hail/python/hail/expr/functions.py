@@ -79,10 +79,10 @@ def _quantile_from_cdf(cdf, q):
     def compute(cdf):
         n = cdf.ranks[cdf.ranks.length() - 1]
         pos = hl.int64(q * n) + 1
-        idx = hl.max(0, hl.min(cdf.values.length() - 1, _lower_bound(cdf.ranks, pos) - 1))
+        idx = hl.max(0, hl.min(cdf['values'].length() - 1, _lower_bound(cdf.ranks, pos) - 1))
         res = hl.if_else(n == 0,
-                         hl.missing(cdf.values.dtype.element_type),
-                         cdf.values[idx])
+                         hl.missing(cdf['values'].dtype.element_type),
+                         cdf['values'][idx])
         return res
     return hl.rbind(cdf, compute)
 
@@ -126,6 +126,53 @@ def _error_from_cdf(cdf, failure_prob, all_quantiles=False):
         return hl.rbind(cdf, lambda cdf: hl.rbind(compute_sum(cdf), compute_global_error))
     else:
         return hl.rbind(cdf, lambda cdf: hl.rbind(compute_sum(cdf), compute_single_error))
+
+
+def _error_from_cdf_python(cdf, failure_prob, all_quantiles=False):
+    """Estimates error of approx_cdf aggregator, using Hoeffding's inequality.
+
+    Parameters
+    ----------
+    cdf : :obj:`dict`
+        Result of :func:`.approx_cdf` aggregator, evaluated to a python dict
+    failure_prob: :obj:`float`
+        Upper bound on probability of true error being greater than estimated error.
+    all_quantiles: :obj:`bool`
+        If ``True``, with probability 1 - `failure_prob`, error estimate applies
+        to all quantiles simultaneously.
+
+    Returns
+    -------
+    :obj:`float`
+        Upper bound on error of quantile estimates.
+    """
+    import math
+
+    s = 0
+    for i in builtins.range(builtins.len(cdf._compaction_counts)):
+        s += cdf._compaction_counts[i] << (2 * i)
+    s = s / (cdf.ranks[-1] ** 2)
+
+    def update_grid_size(p):
+        return 4 * math.sqrt(math.log(2 * p / failure_prob) / (2 * s))
+
+    def compute_grid_size(s):
+        p = 1 / failure_prob
+        for _ in builtins.range(5):
+            p = update_grid_size(p)
+        return p
+
+    def compute_single_error(s, failure_prob=failure_prob):
+        return math.sqrt(math.log(2 / failure_prob) * s / 2)
+
+    if s == 0:
+        # no compactions ergo no error
+        return 0
+    elif all_quantiles:
+        p = compute_grid_size(s)
+        return 1 / p + compute_single_error(s, failure_prob / p)
+    else:
+        return compute_single_error(s, failure_prob)
 
 
 @typecheck(t=hail_type)

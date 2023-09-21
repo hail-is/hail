@@ -21,17 +21,132 @@ Hail as particularly buggy (especially compared to one-off untested
 scripts pervasive in bioinformatics!), Hail 0.2 is a partial realization
 of a larger vision.
 
+### What is the difference between the Hail Python library version and the native file format version?
+
+The Hail Python library version, the version you see on [PyPI](https://pypi.org/project/hail/), in
+`pip`, or in `hl.version()` changes every time we release the Python library. The Hail native file
+format version only changes when we change the format of Hail Table and MatrixTable files. If a
+version of the Python library introduces a new native file format version, we note that in the
+change log. All subsequent versions of the Python library can read the new file format version.
+
+The native file format changes much slower than the Python library version. It is not currently
+possible to view the file format version of a Hail Table or MatrixTable.
+
 ### What stability is guaranteed?
 
-We do not intentionally break back-compatibility of interfaces or file
-formats. This means that a script developed to run on Hail 0.2.5 should
-continue to work in every subsequent release within the 0.2 major version.
-**The exception to this rule is experimental functionality, denoted as
-such in the reference documentation, which may change at any time**.
+The Hail file formats and Python API are backwards compatible. This means that a script developed to
+run on Hail 0.2.5 should continue to work in every subsequent release within the 0.2 major version.
+This also means any file written by python library versions 0.2.1 through 0.2.5 can be read by
+0.2.5.
 
-Please note that **forward compatibility should not be expected, especially
-relating to file formats**: this means that it may not be possible to use
-an earlier version of Hail to read files written in a later version.
+Forward compatibility of file formats and the Python API is not guaranteed. In particular, a new
+file format version is only readable by library versions released after the file format. For
+example, Python library version 0.2.119 introduces a new file format version: 1.7.0. All library
+versions before 0.2.119, for example 0.2.118, *cannot* read file format version 1.7.0. All library
+versions after and including 0.2.119 *can* read file format version 1.7.0.
+
+Each version of the Hail Python library can only write files using the latest file format version it
+supports.
+
+**The hl.experimental package and other methods marked experimental in the docs are exempt from this
+policy. Their functionality or even existence may change without notice. Please contact us if you
+critically depend on experimental functionality.**
+
+## Version 0.2.124
+
+Released 2023-09-21
+
+### New Features
+
+- (hail#13608) Change default behavior of hl.ggplot.geom_density to use a new method. The old method is still available using the flag smoothed=True. The new method is typically a much more accurate representation, and works well for any distribution, not just smooth ones.
+
+## Version 0.2.123
+
+Released 2023-09-18
+
+### New Features
+
+- (hail#13610) Additional setup is no longer required when using hail.plot or hail.ggplot in a Jupyter notebook (calling bokeh.io.output_notebook or hail.plot.output_notebook and/or setting plotly.io.renderers.default = 'iframe' is no longer necessary).
+
+### Bug Fixes
+- (hail#13634) Fix a bug which caused Query-on-Batch pipelines with a large number of partitions (close to 100k) to run out of memory on the driver after all partitions finish.
+- (hail#13619) Fix an optimization bug that, on some pipelines, since at least 0.2.58 (commit 23813af), resulted in Hail using essentially unbounded amounts of memory.
+- (hail#13609) Fix a bug in hail.ggplot.scale_color_continuous that sometimes caused errors by generating invalid colors.
+
+## Version 0.2.122
+
+Released 2023-09-07
+
+### New Features
+
+- (hail#13508) The n parameter of MatrixTable.tail is deprecated in favor of a new n_rows parameter.
+
+### Bug Fixes
+- (hail#13498) Fix a bug where field names can shadow methods on the StructExpression class, e.g. "items", "keys", "values". Now the only way to access such fields is through the getitem syntax, e.g. "some_struct['items']". It's possible this could break existing code that uses such field names.
+- (hail#13585) Fix bug introduced in 0.2.121 where Query-on-Batch
+  users could not make requests to `batch.hail.is` without a domain configuration
+  set.
+
+## Version 0.2.121
+
+Released 2023-08-31
+
+### New Features
+
+- (hail#13385) The VDS combiner now supports arbitrary custom call fields via the `call_fields`
+  parameter.
+- (hail#13224) `hailctl config get`, `set`, and `unset` now support shell auto-completion. Run
+  `hailctl --install-completion zsh` to install the auto-completion for `zsh`. You must already have
+  completion enabled for `zsh`.
+- (hail#13279) Add `hailctl batch init` which helps new users interactively set up `hailctl` for
+  Query-on-Batch and Batch use.
+
+### Bug Fixes
+- (hail#13573) Fix (hail#12936) in which VEP frequently failed (due to Docker not starting up) on
+  clusters with a non-trivial number of workers.
+- (hail#13485) Fix (hail#13479) in which `hl.vds.local_to_global` could produce invalid values when
+  the LA field is too short. There were and are no issues when the LA field has the correct length.
+- (hail#13340) Fix `copy_log` to correctly copy relative file paths.
+- (hail#13364) `hl.import_gvcf_interval` now treats `PGT` as a call field.
+- (hail#13333) Fix interval filtering regression: `filter_rows` or `filter` mentioning the same
+  field twice or using two fields incorrectly read the entire dataset. In 0.2.121, these filters
+  will correctly read only the relevant subset of the data.
+- (hail#13368) In Azure, Hail now uses fewer "list blobs" operations. This should reduce cost on
+  pipelines that import many files, export many of files, or use file glob expressions.
+- (hail#13414) Resolves (hail#13407) in which uses of `union_rows` could reduce parallelism to one
+  partition resulting in severely degraded performance.
+- (hail#13405) `MatrixTable.aggregate_cols` no longer forces a distributed computation. This should
+  be what you want in the majority of cases. In case you know the aggregation is very slow and
+  should be parallelized, use `mt.cols().aggregate` instead.
+- (hail#13460) In Query-on-Spark, restore `hl.read_table` optimization that avoids reading
+  unnecessary data in pipelines that do not reference row fields.
+- (hail#13447) Fix (hail#13446). In all three submit commands (`batch`, `dataproc`, and
+  `hdinsight`), Hail now allows and encourages the use of -- to separate arguments meant for the
+  user script from those meant for hailctl. In hailctl batch submit, option-like arguments, for
+  example "--foo", are now supported before "--" if and only if they do not conflict with a hailctl
+  option.
+- (hail#13422) `hailtop.hail_frozenlist.frozenlist` now has an eval-able `repr`.
+- (hail#13523) `hl.Struct` is now pickle-able.
+- (hail#13505) Fix bug introduced in 0.2.117 by commit `c9de81108` which prevented the passing of
+  keyword arguments to Python jobs. This manifested as "ValueError: too many values to unpack".
+- (hail#13536) Fixed (hail#13535) which prevented the use of Python jobs when the client (e.g. your
+  laptop) Python version is 3.11 or later.
+- (hail#13434) In QoB, Hail's file systems now correctly list all files in a directory, not just the
+  first 1000. This could manifest in an `import_table` or `import_vcf` which used a glob
+  expression. In such a case, only the first 1000 files would have been included in the resulting
+  Table or MatrixTable.
+- (hail#13550) `hl.utils.range_table(n)` now supports all valid 32-bit signed integer values of `n`.
+- (hail#13500) In Query-on-Batch, the client-side Python code will not try to list every job when a
+  QoB batch fails. This could take hours for long-running pipelines or pipelines with many
+  partitions.
+
+
+### Deprecations
+
+- (hail#13275) Hail no longer officially supports Python 3.8.
+- (hail#13508) The `n` parameter of `MatrixTable.tail` is deprecated in favor of a new `n_rows`
+  parameter.
+
 
 ## Version 0.2.120
 
@@ -79,8 +194,9 @@ Released 2023-06-28
 - (hail#13173) Fix globbing in scala blob storage filesystem implementations.
 
 ### File Format
-- The native file format version is now 1.7.0. Older versions of hail will not
-  be able to read tables or matrix tables written by this version of hail.
+
+- The native file format version is now 1.7.0. Older versions of Hail will not
+  be able to read tables or matrix tables written by this version of Hail.
 
 ## Version 0.2.118
 
@@ -739,6 +855,11 @@ Release 2022-01-24
 - (hail#11219) We no longer officially support Python 3.6, though it may continue to work in the short term.
 - (hail#11220) We support building hail with Java 11.
 
+### File Format
+
+- The native file format version is now 1.6.0. Older versions of Hail will not
+  be able to read tables or matrix tables written by this version of Hail.
+
 ---
 
 ## Version 0.2.81
@@ -1172,6 +1293,11 @@ Released 2020-08-19
   dataproc` now features the same Spark monitoring widget found in the "Hail"
   kernel. There is now no reason to use the "Hail" kernel.
 
+### File Format
+
+- The native file format version is now 1.5.0. Older versions of Hail will not
+  be able to read tables or matrix tables written by this version of Hail.
+
 ---
 
 ## Version 0.2.54
@@ -1532,6 +1658,11 @@ Released 2020-03-12
 - (hail#8253) `hailctl dataproc` now supports new flags `--requester-pays-allow-all` and `--requester-pays-allow-buckets`. This will configure your hail installation to be able to read from requester pays buckets. The charges for reading from these buckets will be billed to the project that the cluster is created in.
 - (hail#8268) The data sources for VEP have been moved to `gs://hail-us-vep`, `gs://hail-eu-vep`, and `gs://hail-uk-vep`, which are requester-pays buckets in Google Cloud. `hailctl dataproc` will automatically infer which of these buckets you should pull data from based on the region your cluster is spun up in. If you are in none of those regions, please contact us on discuss.hail.is.
 
+### File Format
+
+- The native file format version is now 1.4.0. Older versions of Hail will not
+  be able to read tables or matrix tables written by this version of Hail.
+
 ---
 
 
@@ -1726,6 +1857,11 @@ Released 2019-10-24
 ### Performance Improvements
 - (hail#7355) Improve performance of IR copying.
 
+### File Format
+
+- The native file format version is now 1.3.0. Older versions of Hail will not
+  be able to read tables or matrix tables written by this version of Hail.
+
 ## Version 0.2.25
 
 Released 2019-10-14
@@ -1745,6 +1881,11 @@ Released 2019-10-14
 - (hail#7187) Dramatically improve performance of chained `BlockMatrix` multiplies without checkpoints in between.
 - (hail#7195)(hail#7194) Improve performance of `group[_rows]_by` / `aggregate`.
 - (hail#7201) Permit code generation of larger aggregation pipelines.
+
+### File Format
+
+- The native file format version is now 1.2.0. Older versions of Hail will not
+  be able to read tables or matrix tables written by this version of Hail.
 
 ---
 
@@ -1959,6 +2100,11 @@ Released 2019-07-10
 
 - (hail#6488) Exposed `table.multi_way_zip_join`. This takes a list of tables of
   identical types, and zips them together into one table.
+
+### File Format
+
+- The native file format version is now 1.1.0. Older versions of Hail will not
+  be able to read tables or matrix tables written by this version of Hail.
 
 -----
 

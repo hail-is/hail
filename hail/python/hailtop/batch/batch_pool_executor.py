@@ -3,10 +3,9 @@ from types import TracebackType
 from io import BytesIO
 import warnings
 import asyncio
-import concurrent
+import concurrent.futures
 import dill
 import functools
-import sys
 
 from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
@@ -14,15 +13,7 @@ from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from .batch import Batch
-from .backend import ServiceBackend
-
-
-if sys.version_info < (3, 7):
-    def create_task(coro, *, name=None):  # pylint: disable=unused-argument
-        return asyncio.ensure_future(coro)
-else:
-    def create_task(*args, **kwargs):
-        return asyncio.create_task(*args, **kwargs)  # pylint: disable=no-member
+from .backend import ServiceBackend, HAIL_GENETICS_HAIL_IMAGE
 
 
 def cpu_spec_to_float(spec: Union[int, str]) -> float:
@@ -94,7 +85,7 @@ class BatchPoolExecutor:
         Backend used to execute the jobs. Must be a :class:`.ServiceBackend`.
     image:
         The name of a Docker image used for each submitted job. The image must
-        include Python 3.8 or later and must have the ``dill`` Python package
+        include Python 3.9 or later and must have the ``dill`` Python package
         installed. If you intend to use ``numpy``, ensure that OpenBLAS is also
         installed. If unspecified, an image with a matching Python verison and
         ``numpy``, ``scipy``, and ``sklearn`` installed is used.
@@ -143,12 +134,8 @@ class BatchPoolExecutor:
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
-        version = sys.version_info
         if image is None:
-            if version.major != 3 or version.minor not in (8, 9, 10):
-                raise ValueError(
-                    f'You must specify an image if you are using a Python version other than 3.8, 3.9 or 3.10 (you are using {version})')
-            self.image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+            self.image = HAIL_GENETICS_HAIL_IMAGE
         else:
             self.image = image
         self.cpus_per_job = cpus_per_job
@@ -406,8 +393,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
 "''')
         output_gcs = self.outputs + f'{name}/output'
         batch.write_output(j.ofile, output_gcs)
-        backend_batch = batch.run(wait=False,
-                                  disable_progress_bar=True)._async_batch
+        backend_batch = batch.run(wait=False, disable_progress_bar=True)._async_batch
         try:
             return BatchPoolFuture(self,
                                    backend_batch,
@@ -558,8 +544,8 @@ class BatchPoolFuture:
 
     async def _async_fetch_result(self):
         try:
-            await self.job.wait()
-            main_container_status = self.job._status['status']['container_statuses']['main']
+            status = await self.job.wait()
+            main_container_status = status['status']['container_statuses']['main']
             if main_container_status['state'] == 'error':
                 raise ValueError(
                     f"submitted job failed:\n{main_container_status['error']}")
@@ -587,7 +573,7 @@ class BatchPoolFuture:
             raise concurrent.futures.CancelledError()
         self.result(timeout)
 
-    def add_done_callback(self, fn):
+    def add_done_callback(self, _):
         """NOT IMPLEMENTED
         """
         raise NotImplementedError()

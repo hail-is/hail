@@ -85,10 +85,6 @@ class CloudResourceManager:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def instance_config_from_dict(self, data: dict) -> InstanceConfig:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     async def create_vm(
         self,
         file_store: FileStore,

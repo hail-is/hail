@@ -1,7 +1,7 @@
 from enum import Enum, auto
 from typing import Dict, NamedTuple, Optional, Union, Any
 
-import hurry.filesize
+from hailtop.utils.filesize import filesize
 
 
 class FileType(Enum):
@@ -10,7 +10,7 @@ class FileType(Enum):
     SYMLINK = auto()
 
 
-class StatResult(NamedTuple):
+class FileListEntry(NamedTuple):
     path: str
     owner: Union[None, str, int]
     size: int
@@ -25,8 +25,11 @@ class StatResult(NamedTuple):
         return {
             'path': self.path,
             'owner': self.owner,
-            'is_dir': self.is_dir(),
             'size_bytes': self.size,
-            'size': hurry.filesize.size(self.size),
+            'size': filesize(self.size),
             'modification_time': self.modification_time,
+            'is_dir': self.is_dir(),
         }
+
+
+StatResult = FileListEntry  # backwards compatibility

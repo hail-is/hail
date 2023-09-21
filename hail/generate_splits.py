@@ -1,9 +1,12 @@
 import os
 import random
 import subprocess as sp
+from typing import List, TypeVar
+
+T = TypeVar("T")
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[T]) -> List[List[T]]:
     assert k > 0
     assert ls
 
@@ -35,7 +38,7 @@ with open('classes', 'r') as f:
                for x in foo]
     classes = [cls for cls in classes
                if not cls.startswith('is.hail.services')
-               if not cls.startswith('is.hail.fs')]
+               if not cls.startswith('is.hail.io.fs')]
 
 random.shuffle(classes, lambda: 0.0)
 

@@ -341,7 +341,11 @@ def handle_public_access_error(fun):
             return await fun(self, url, *args, **kwargs)
         except azure.core.exceptions.ClientAuthenticationError:
             fs_url = self.parse_url(url)
-            anon_client = BlobServiceClient(f'https://{fs_url.account}.blob.core.windows.net', credential=None)
+            #  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob#other-client--per-operation-configuration
+            anon_client = BlobServiceClient(f'https://{fs_url.account}.blob.core.windows.net',
+                                            credential=None,
+                                            connection_timeout=5,
+                                            read_timeout=5)
             self._blob_service_clients[(fs_url.account, fs_url.container, fs_url.query)] = anon_client
             return await fun(self, url, *args, **kwargs)
     return wrapped
@@ -367,7 +371,7 @@ class AzureAsyncFS(AsyncFS):
     @staticmethod
     def valid_url(url: str) -> bool:
         if url.startswith('https://'):
-            stripped_scheme = url[len('https://'):]
+            stripped_scheme = url.removeprefix('https://')
             authority = stripped_scheme.split('/', maxsplit=1)[0]
             if '.' not in authority:
                 return False
@@ -383,9 +387,10 @@ class AzureAsyncFS(AsyncFS):
         permissions: str = "rw",
         valid_interval: timedelta = timedelta(hours=1)
     ) -> str:
-        mgmt_client = StorageManagementClient(self._credential, subscription_id)
+        assert self._credential
+        mgmt_client = StorageManagementClient(self._credential, subscription_id)  # type: ignore
         storage_keys = await mgmt_client.storage_accounts.list_keys(resource_group, account)
-        storage_key = storage_keys.keys[0].value
+        storage_key = storage_keys.keys[0].value  # type: ignore
 
         token = generate_account_sas(
             account,
@@ -451,7 +456,11 @@ class AzureAsyncFS(AsyncFS):
         credential = token if token else self._credential
         k = account, container, token
         if k not in self._blob_service_clients:
-            self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net', credential=credential)
+            #  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob#other-client--per-operation-configuration
+            self._blob_service_clients[k] = BlobServiceClient(f'https://{account}.blob.core.windows.net',
+                                                              credential=credential,  # type: ignore
+                                                              connection_timeout=5,
+                                                              read_timeout=5)
         return self._blob_service_clients[k]
 
     def get_blob_client(self, url: AzureAsyncFSURL) -> BlobClient:
@@ -576,7 +585,7 @@ class AzureAsyncFS(AsyncFS):
                 return False
             return True
 
-        async def cons(first_entry, it):
+        async def cons(first_entry, it) -> AsyncIterator[FileListEntry]:
             if await should_yield(first_entry):
                 yield first_entry
             try:

@@ -4,10 +4,12 @@ import json
 import logging
 import os
 import traceback
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
 import kubernetes_asyncio
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
 import uvloop  # type: ignore
 import yaml
 from aiohttp import web
@@ -15,11 +17,11 @@ from gidgethub import aiohttp as gh_aiohttp
 from gidgethub import routing as gh_routing
 from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
-from typing_extensions import TypedDict
 
 from gear import (
     AuthClient,
     Database,
+    UserData,
     check_csrf_token,
     json_request,
     json_response,
@@ -28,11 +30,12 @@ from gear import (
 )
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
+from hailtop.auth import hail_credentials
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import collect_agen, humanize_timedelta_msecs, periodically_call
+from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_call, retry_transient_errors
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
@@ -49,10 +52,7 @@ uvloop.install()
 
 deploy_config = get_deploy_config()
 
-watched_branches: List[WatchedBranch] = [
-    WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable)
-    for (index, [bss, deployable, mergeable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
-]
+watched_branches: List[WatchedBranch] = []
 
 routes = web.RouteTableDef()
 
@@ -131,14 +131,14 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 
 @routes.get('')
 @routes.get('/')
-@auth.web_authenticated_developers_only()
-async def index(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only()
+async def index(request: web.Request, userdata: UserData) -> web.Response:
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
     page_context = {'watched_branches': wb_configs, 'frozen_merge_deploy': request.app['frozen_merge_deploy']}
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
-def wb_and_pr_from_request(request):
+def wb_and_pr_from_request(request: web.Request) -> Tuple[WatchedBranch, PR]:
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
 
@@ -152,15 +152,19 @@ def wb_and_pr_from_request(request):
 
 
 def filter_jobs(jobs):
-    filtered: Dict[str, list] = {"running": [], "failed": [], "pending": [], "jobs": []}
+    filtered: Dict[str, list] = {
+        state: []
+        # the order of this list is the order in which the states will be displayed on the page
+        for state in ["failed", "error", "cancelled", "running", "pending", "ready", "creating", "success"]
+    }
     for job in jobs:
-        filtered.get(job["state"].lower(), filtered["jobs"]).append(job)
-    return {"completed" if k == "jobs" else k: v if len(v) > 0 else None for k, v in filtered.items()}
+        filtered[job["state"].lower()].append(job)
+    return {"jobs": filtered}
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@auth.web_authenticated_developers_only()
-async def get_pr(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only()
+async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     wb, pr = wb_and_pr_from_request(request)
 
     page_context = {}
@@ -172,7 +176,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     if batch:
         if isinstance(batch, Batch):
             status = await batch.last_known_status()
-            jobs = await collect_agen(batch.jobs())
+            jobs = await collect_aiter(batch.jobs())
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
@@ -196,8 +200,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
 def storage_uri_to_url(uri: str) -> str:
     if uri.startswith('gs://'):
-        protocol = 'gs://'
-        path = uri[len(protocol) :]
+        path = uri.removeprefix('gs://')
         return f'https://console.cloud.google.com/storage/browser/{path}'
     return uri
 
@@ -221,17 +224,16 @@ async def retry_pr(wb, pr, request):
 
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
-async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only(redirect=False)
+async def post_retry_pr(request: web.Request, _) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
 
     await asyncio.shield(retry_pr(wb, pr, request))
-    return web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
+    raise web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
 @routes.get('/batches')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
     batches = [b async for b in batch_client.list_batches()]
@@ -241,13 +243,13 @@ async def get_batches(request, userdata):
 
 
 @routes.get('/batches/{batch_id}')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
     b = await batch_client.get_batch(batch_id)
     status = await b.last_known_status()
-    jobs = await collect_agen(b.jobs())
+    jobs = await collect_aiter(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
     wb = get_maybe_wb_for_batch(b)
@@ -267,23 +269,6 @@ def get_maybe_wb_for_batch(b: Batch):
             assert len(wbs) == 1
             return wbs[0].index
     return None
-
-
-@routes.get('/batches/{batch_id}/jobs/{job_id}')
-@auth.web_authenticated_developers_only()
-async def get_job(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    job_id = int(request.match_info['job_id'])
-    batch_client = request.app['batch_client']
-    job = await batch_client.get_job(batch_id, job_id)
-    page_context = {
-        'batch_id': batch_id,
-        'job_id': job_id,
-        'job_log': await job.log(),
-        'job_status': json.dumps(await job.status(), indent=2),
-        'attempts': await job.attempts(),
-    }
-    return await render_template('ci', request, userdata, 'job.html', page_context)
 
 
 def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
@@ -308,8 +293,8 @@ def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
 
 
 @routes.get('/me')
-@auth.web_authenticated_developers_only()
-async def get_user(request, userdata):
+@auth.authenticated_developers_only()
+async def get_user(request: web.Request, userdata: UserData) -> web.Response:
     for authorized_user in AUTHORIZED_USERS:
         if authorized_user.hail_username == userdata['username']:
             user = authorized_user
@@ -341,22 +326,21 @@ async def get_user(request, userdata):
 
 
 @routes.post('/authorize_source_sha')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
-async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only(redirect=False)
+async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     post = await request.post()
-    sha = post['sha'].strip()
+    sha = str(post['sha']).strip()
     await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/healthcheck')
-async def healthcheck(request):  # pylint: disable=unused-argument
+async def healthcheck(_) -> web.Response:
     return web.Response(status=200)
 
 
@@ -378,7 +362,7 @@ async def push_callback(event):
     data = event.data
     ref = data['ref']
     if ref.startswith('refs/heads/'):
-        branch_name = ref[len('refs/heads/') :]
+        branch_name = ref.removeprefix('refs/heads/')
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
             if wb.branch == branch:
@@ -438,15 +422,15 @@ async def batch_callback_handler(request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
-@auth.rest_authenticated_developers_only
-async def deploy_status(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only()
+async def deploy_status(request: web.Request, _) -> web.Response:
     batch_client = request.app['batch_client']
 
     async def get_failure_information(batch):
         if isinstance(batch, MergeFailureBatch):
             exc = batch.exception
             return traceback.format_exception(type(exc), value=exc, tb=exc.__traceback__)
-        jobs = await collect_agen(batch.jobs())
+        jobs = await collect_aiter(batch.jobs())
 
         async def fetch_job_and_log(j):
             full_job = await batch_client.get_job(j['batch_id'], j['job_id'])
@@ -472,8 +456,8 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/update')
-@auth.rest_authenticated_developers_only
-async def post_update(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only()
+async def post_update(request: web.Request, _) -> web.Response:
     log.info('developer triggered update')
 
     async def update_all():
@@ -485,8 +469,8 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@auth.rest_authenticated_developers_only
-async def dev_deploy_branch(request, userdata):
+@auth.authenticated_developers_only()
+async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     try:
         params = await json_request(request)
@@ -522,7 +506,7 @@ async def dev_deploy_branch(request, userdata):
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    unwatched_branch = UnwatchedBranch(branch, sha, userdata, extra_config)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata, app['developers'], extra_config=extra_config)
 
     batch_client = app['batch_client']
 
@@ -543,16 +527,15 @@ async def batch_callback(request):
 
 
 @routes.post('/freeze_merge_deploy')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
-async def freeze_deploys(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only()
+async def freeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
     if app['frozen_merge_deploy']:
         set_message(session, 'CI is already frozen.', 'info')
-        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
         '''
@@ -564,20 +547,19 @@ UPDATE globals SET frozen_merge_deploy = 1;
 
     set_message(session, 'Froze all merges and deploys.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.post('/unfreeze_merge_deploy')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
-async def unfreeze_deploys(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only()
+async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
     if not app['frozen_merge_deploy']:
         set_message(session, 'CI is already unfrozen.', 'info')
-        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+        raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
         '''
@@ -589,12 +571,12 @@ UPDATE globals SET frozen_merge_deploy = 0;
 
     set_message(session, 'Unfroze all merges and deploys.', 'info')
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/namespaces')
-@auth.web_authenticated_developers_only()
-async def get_active_namespaces(request, userdata):
+@auth.authenticated_developers_only()
+async def get_active_namespaces(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     namespaces = [
         r
@@ -616,9 +598,8 @@ GROUP BY active_namespaces.namespace'''
 
 
 @routes.post('/namespaces/{namespace}/services/add')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
-async def add_namespaced_service(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only()
+async def add_namespaced_service(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     service = post['service']
@@ -641,13 +622,12 @@ WHERE namespace = %s AND service = %s
             (namespace, service),
         )
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
 @routes.post('/namespaces/add')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
-async def add_namespace(request, userdata):  # pylint: disable=unused-argument
+@auth.authenticated_developers_only()
+async def add_namespace(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     namespace = post['namespace']
@@ -666,7 +646,7 @@ async def add_namespace(request, userdata):  # pylint: disable=unused-argument
             (namespace,),
         )
 
-    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+    raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
 async def cleanup_expired_namespaces(db: Database):
@@ -725,6 +705,7 @@ GROUP BY active_namespaces.namespace''',
 
 
 async def update_loop(app):
+    wb: Optional[WatchedBranch] = None
     while True:
         try:
             for wb in watched_branches:
@@ -733,12 +714,14 @@ async def update_loop(app):
         except concurrent.futures.CancelledError:
             raise
         except Exception:  # pylint: disable=broad-except
-            log.exception(f'{wb.branch.short_str()} update failed due to exception')
+            if wb:
+                log.exception(f'{wb.branch.short_str()} update failed due to exception')
         await asyncio.sleep(300)
 
 
 async def on_startup(app):
-    app['client_session'] = httpx.client_session()
+    client_session = httpx.client_session()
+    app['client_session'] = client_session
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = await BatchClient.create('ci')
 
@@ -754,13 +737,31 @@ SELECT frozen_merge_deploy FROM globals;
     app['frozen_merge_deploy'] = row['frozen_merge_deploy']
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    app['task_manager'].ensure_future(update_loop(app))
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()
         k8s_client = kubernetes_asyncio.client.CoreV1Api()
         app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
         app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db']))
+
+    async with hail_credentials() as creds:
+        headers = await creds.auth_headers()
+    users = await retry_transient_errors(
+        client_session.get_read_json,
+        deploy_config.url('auth', '/api/v1alpha/users'),
+        headers=headers,
+    )
+    app['developers'] = [u for u in users if u['is_developer'] == 1 and u['state'] == 'active']
+
+    global watched_branches
+    watched_branches = [
+        WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable, app['developers'])
+        for (index, [bss, deployable, mergeable]) in enumerate(
+            json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]'))
+        )
+    ]
+
+    app['task_manager'].ensure_future(update_loop(app))
 
 
 async def on_cleanup(app):
@@ -775,7 +776,7 @@ async def on_cleanup(app):
 def run():
     install_profiler_if_requested('ci')
 
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[check_csrf_token, monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)
 

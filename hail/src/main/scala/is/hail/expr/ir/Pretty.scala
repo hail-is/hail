@@ -644,35 +644,44 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     def prettyBlock(ir: BaseIR, newBindings: IndexedSeq[(String, String)], bindings: Env[String]): Doc = {
       val args = newBindings.map { case (name, base) => name -> s"%${uniqueify(base)}" }
       val blockBindings = bindings.bindIterable(args)
-      val (pre, body) = pretty(ir, blockBindings)
       val openBlock = if (args.isEmpty)
         text("{")
       else
         concat("{", softline, args.map(_._2).mkString("(", ", ", ") =>"))
-      concat(openBlock, nest(2, vsep(pre, body)), line, "}")
+      ir match {
+        case Ref(name, _) =>
+          val body = blockBindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref"))
+          concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
+        case RelationalRef(name, _) =>
+          val body = blockBindings.lookupOption(name).getOrElse(uniqueify("%undefined_relational_ref"))
+          concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
+        case _ =>
+          val (pre, body) = pretty(ir, blockBindings)
+          concat(openBlock, nest(2, vsep(pre, body)), line, "}")
+      }
     }
 
     def pretty(ir: BaseIR, bindings: Env[String]): (Doc, Doc) = ir match {
       case Let(name, value, body) =>
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (vsep(valueDoc, bodyPre), bodyHead)
+        (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLet(name, value, body) =>
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (vsep(valueDoc, bodyPre), bodyHead)
+        (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLetTable(name, value, body) =>
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (vsep(valueDoc, bodyPre), bodyHead)
+        (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLetMatrixTable(name, value, body) =>
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (vsep(valueDoc, bodyPre), bodyHead)
+        (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLetBlockMatrix(name, value, body) =>
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (vsep(valueDoc, bodyPre), bodyHead)
+        (concat(valueDoc, bodyPre), bodyHead)
       case _ =>
         val strictChildBodies = mutable.ArrayBuilder.make[Doc]()
         val strictChildIdents = for {
@@ -725,7 +734,6 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
               text("else"),
               nestedBlocks(1))
           case _ =>
-            val args = strictChildIdents.mkString("(", ", ", ")")
             hsep(text(Pretty.prettyClass(ir) + standardArgs) +: (attributes ++ nestedBlocks))
         }
 
