@@ -1,6 +1,5 @@
 from typing import Dict, Any, Optional
 import abc
-import math
 import numpy as np
 import plotly.graph_objects as go
 
@@ -718,7 +717,7 @@ def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None,
         If false, uses a custom method do generate a variable width histogram
         directly from the approx_cdf results.
 
-   Returns
+    Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
