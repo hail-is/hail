@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.expr.ir._
 import is.hail.types
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 object DictFunctions extends RegistryFunctions {
   def contains(dict: IR, key: IR) = {
@@ -66,7 +66,7 @@ object DictFunctions extends RegistryFunctions {
       ToArray(StreamMap(
         ToStream(d),
         elt.name,
-        MakeTuple.ordered(FastIndexedSeq(GetField(elt, "key"), GetField(elt, "value")))))
+        MakeTuple.ordered(FastSeq(GetField(elt, "key"), GetField(elt, "value")))))
     }
 
     registerIR1("keySet", tdict, TSet(tv("key"))) { (_, d, _) =>

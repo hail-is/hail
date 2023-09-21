@@ -7,7 +7,7 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue, SStringValue}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PString, PType}
 import is.hail.types.virtual.{TArray, TString, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 object SJavaArrayHelpers {
   def hasNulls(a: Array[String]): Boolean = {
@@ -62,7 +62,7 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
     }
   }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[String])
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(arrayInfo[String])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaArrayStringSettable = {
     val IndexedSeq(a: Settable[Array[String]@unchecked]) = settables
@@ -82,7 +82,7 @@ class SJavaArrayStringValue(
   val st: SJavaArrayString,
   val array: Value[Array[String]]
 ) extends SIndexableValue {
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(array)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(array)
 
   override def loadLength(): Value[Int] = new Value[Int] {
     override def get: Code[Int] = array.length()
@@ -123,7 +123,7 @@ final class SJavaArrayStringSettable(
   st: SJavaArrayString,
   override val array: Settable[Array[String]]
 ) extends SJavaArrayStringValue(st, array) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(array)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(array)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
     cb.assign(array, v.asInstanceOf[SJavaArrayStringValue].array)

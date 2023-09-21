@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.types._
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 import scala.language.{dynamics, implicitConversions}
 
@@ -64,9 +64,9 @@ object DeprecatedIRBuilder {
     MakeTuple.ordered(values.toArray.map(_ (env)))
 
   def applyAggOp(
-    op: AggOp,
-    initOpArgs: IndexedSeq[IRProxy] = FastIndexedSeq(),
-    seqOpArgs: IndexedSeq[IRProxy] = FastIndexedSeq()): IRProxy = (env: E) => {
+                  op: AggOp,
+                  initOpArgs: IndexedSeq[IRProxy] = FastSeq(),
+                  seqOpArgs: IndexedSeq[IRProxy] = FastSeq()): IRProxy = (env: E) => {
 
     val i = initOpArgs.map(x => x(env))
     val s = seqOpArgs.map(x => x(env))
@@ -94,7 +94,7 @@ object DeprecatedIRBuilder {
     def mapRows(newRow: IRProxy): TableIR =
       TableMapRows(tir, newRow(env))
 
-    def explode(sym: Symbol): TableIR = TableExplode(tir, FastIndexedSeq(sym.name))
+    def explode(sym: Symbol): TableIR = TableExplode(tir, FastSeq(sym.name))
 
     def aggregateByKey(aggIR: IRProxy): TableIR = TableAggregateByKey(tir, aggIR(env))
 
@@ -118,7 +118,7 @@ object DeprecatedIRBuilder {
       val uid = genUID()
       val keyFields = tir.typ.key
       val valueFields = tir.typ.valueType.fieldNames
-      keyBy(FastIndexedSeq())
+      keyBy(FastSeq())
         .collect()
         .apply('rows)
         .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))

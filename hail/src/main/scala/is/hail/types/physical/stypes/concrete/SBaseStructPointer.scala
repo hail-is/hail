@@ -4,11 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
-import is.hail.types.physical.stypes.primitives.SInt64Value
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 
 final case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
@@ -24,7 +23,7 @@ final case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
     new SBaseStructPointerValue(this, pType.store(cb, region, value, deepCopy))
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SBaseStructPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
@@ -56,7 +55,7 @@ class SBaseStructPointerValue(
 ) extends SBaseStructValue {
   val pt: PBaseStruct = st.pType
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
@@ -79,7 +78,7 @@ final class SBaseStructPointerSettable(
   st: SBaseStructPointer,
   override val a: Settable[Long]
 ) extends SBaseStructPointerValue(st, a) with SBaseStructSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
     cb.assign(a, v.asInstanceOf[SBaseStructPointerValue].a)

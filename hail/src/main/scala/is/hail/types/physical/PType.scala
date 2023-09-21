@@ -326,7 +326,7 @@ object PType {
     else {
       val fb = EmitFunctionBuilder[AsmFunction2RegionLongLong](ctx,
         "copyFromAddr",
-        FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
+        FastSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
 
       fb.emitWithBuilder { cb =>
         val region = fb.apply_method.getCodeParam[Region](1)

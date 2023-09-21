@@ -22,7 +22,7 @@ object Annotation {
 
       case t: TArray =>
         val arr = a.asInstanceOf[IndexedSeq[Annotation]]
-        Array.tabulate(arr.length)(i => Annotation.copy(t.elementType, arr(i))).toFastIndexedSeq
+        Array.tabulate(arr.length)(i => Annotation.copy(t.elementType, arr(i))).toFastSeq
 
       case t: TSet =>
         a.asInstanceOf[Set[Annotation]].map(Annotation.copy(t.elementType, _))
@@ -38,7 +38,7 @@ object Annotation {
       case t: TNDArray =>
         val nd = a.asInstanceOf[NDArray]
         val rme = nd.getRowMajorElements()
-        SafeNDArray(nd.shape, Array.tabulate(rme.length)(i => Annotation.copy(t.elementType, rme(i))).toFastIndexedSeq)
+        SafeNDArray(nd.shape, Array.tabulate(rme.length)(i => Annotation.copy(t.elementType, rme(i))).toFastSeq)
 
       case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString | TCall | _: TLocus | TBinary => a
     }

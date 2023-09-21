@@ -3,11 +3,9 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s.Code
 import is.hail.expr.ir._
 import is.hail.stats._
-import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.{PCanonicalArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.commons.math3.special.Gamma
@@ -226,7 +224,7 @@ object MathFunctions extends RegistryFunctions {
             minAccuracy.value)
         )
 
-        DaviesAlgorithm.pType.constructFromFields(cb, r.region, FastIndexedSeq(
+        DaviesAlgorithm.pType.constructFromFields(cb, r.region, FastSeq(
           EmitValue.present(primitive(cb.memoize(res.invoke[Double]("value")))),
           EmitValue.present(primitive(cb.memoize(res.invoke[Int]("nIterations")))),
           EmitValue.present(primitive(cb.memoize(res.invoke[Boolean]("converged")))),
@@ -273,7 +271,7 @@ object MathFunctions extends RegistryFunctions {
           c.value,
           d.value))
 
-      fetStruct.constructFromFields(cb, r.region, FastIndexedSeq(
+      fetStruct.constructFromFields(cb, r.region, FastSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
         EmitValue.present(primitive(cb.memoize(res(1)))),
         EmitValue.present(primitive(cb.memoize(res(2)))),
@@ -291,7 +289,7 @@ object MathFunctions extends RegistryFunctions {
           c.value,
           d.value))
 
-      chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
+      chisqStruct.constructFromFields(cb, r.region, FastSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
         EmitValue.present(primitive(cb.memoize(res(1))))
       ), deepCopy = false)
@@ -308,7 +306,7 @@ object MathFunctions extends RegistryFunctions {
           d.value,
           mcc.value))
 
-      chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
+      chisqStruct.constructFromFields(cb, r.region, FastSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
         EmitValue.present(primitive(cb.memoize(res(1))))
       ), deepCopy = false)
@@ -324,7 +322,7 @@ object MathFunctions extends RegistryFunctions {
           nHomVar.value,
           oneSided.value))
 
-      hweStruct.constructFromFields(cb, r.region, FastIndexedSeq(
+      hweStruct.constructFromFields(cb, r.region, FastSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
         EmitValue.present(primitive(cb.memoize(res(1))))
       ), deepCopy = false)
