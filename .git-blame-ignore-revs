@@ -6,3 +6,5 @@
 1a861505c1fc2ea3c9d7b32a47be7af10d13907c
 # black format services code
 4fccbe2d18c6d2f4059036d61489467c780bbc0e
+# Delete `FastIndexedSeq`
+fcc9ffab3cd68c4cfb26a1553d65118797c59d6e
