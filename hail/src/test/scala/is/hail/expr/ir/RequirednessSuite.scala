@@ -3,15 +3,15 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
-import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
-import is.hail.types.physical._
-import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives.SInt32
-import is.hail.utils.{BoxedArrayBuilder, FastIndexedSeq, FastSeq}
+import is.hail.types.virtual._
+import is.hail.types._
+import is.hail.utils.{BoxedArrayBuilder, FastSeq}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -34,7 +34,7 @@ class RequirednessSuite extends HailSuite {
 
   def stream(r: Boolean, elt: Boolean): IR = {
     if (r)
-      MakeStream(FastIndexedSeq(int(elt), int(required)), tstream)
+      MakeStream(FastSeq(int(elt), int(required)), tstream)
     else
       mapIR(NA(tstream))(x => x + int(elt))
   }
@@ -42,29 +42,29 @@ class RequirednessSuite extends HailSuite {
   def array(r: Boolean, elt: Boolean): IR = ToArray(stream(r, elt))
 
   def struct(r: Boolean, i: Boolean, a: Boolean, elt: Boolean): IR = {
-    val fields = FastIndexedSeq("x" -> int(i), "y" -> array(a, elt))
+    val fields = FastSeq("x" -> int(i), "y" -> array(a, elt))
     if (r) MakeStruct(fields) else InsertFields(NA(tstruct), fields)
   }
 
   def tuple(r: Boolean, i: Boolean, a: Boolean, elt: Boolean): IR = {
-    val t = MakeTuple.ordered(FastIndexedSeq(int(i), array(a, elt)))
+    val t = MakeTuple.ordered(FastSeq(int(i), array(a, elt)))
     if (r) t else If(True(), NA(ttuple), t)
   }
 
   def nd(r: Boolean): IR =
-    if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1L, 2L), True()) else NA(tnd)
+    if (r) MakeNDArray.fill(int(optional), FastSeq(1L, 2L), True()) else NA(tnd)
 
 // FIXME: Currently ndarrays don't support elements that have pointers.
 //  def nestednd(r: Boolean, aelt: Boolean): IR = {
 //    if (r)
-//      MakeNDArray.fill(array(optional, aelt), FastIndexedSeq(1, 2), True())
+//      MakeNDArray.fill(array(optional, aelt), FasSeq(1, 2), True())
 //    else
 //      NDArrayMap(NA(tnestednd), genUID(), array(optional, aelt))
 //  }
 
   def nestedstream(r: Boolean, a: Boolean, aelt: Boolean): IR = {
     if (r)
-      MakeStream(FastIndexedSeq(array(a, required), array(required, aelt)), tnestedstream)
+      MakeStream(FastSeq(array(a, required), array(required, aelt)), tnestedstream)
     else
       mapIR(NA(tnestedstream))(x => array(a, aelt))
   }
@@ -102,9 +102,9 @@ class RequirednessSuite extends HailSuite {
       Cast(I32(5), TFloat64),
       Die("mumblefoo", TFloat64),
       Literal(TStruct("x" -> TInt32), Row(1)),
-      MakeArray(FastIndexedSeq(I32(4)), TArray(TInt32)),
-      MakeStruct(FastIndexedSeq("x" -> I32(4), "y" -> Str("foo"))),
-      MakeTuple.ordered(FastIndexedSeq(I32(5), Str("bar"))))
+      MakeArray(FastSeq(I32(4)), TArray(TInt32)),
+      MakeStruct(FastSeq("x" -> I32(4), "y" -> Str("foo"))),
+      MakeTuple.ordered(FastSeq(I32(5), Str("bar"))))
 
     allRequired.foreach { n =>
       nodes += Array(n, RequirednessSuite.deepInnerRequired(PType.canonical(n.typ, required), required))
@@ -127,12 +127,12 @@ class RequirednessSuite extends HailSuite {
     }
 
     // test coalesce
-    nodes += Array(Coalesce(FastIndexedSeq(
+    nodes += Array(Coalesce(FastSeq(
       array(required, optional),
       array(optional, required))),
       parray(required, optional))
 
-    nodes += Array(Coalesce(FastIndexedSeq(
+    nodes += Array(Coalesce(FastSeq(
       array(optional, optional),
       array(optional, required))),
       parray(optional, optional))
@@ -187,8 +187,8 @@ class RequirednessSuite extends HailSuite {
     // StreamFold2
     nodes += Array(StreamFold2(
       nestedstream(optional, optional, optional),
-      FastIndexedSeq("b" -> I32(0)), "a",
-      FastIndexedSeq(ArrayRef(Ref("a", tarray), Ref("b", TInt32))),
+      FastSeq("b" -> I32(0)), "a",
+      FastSeq(ArrayRef(Ref("a", tarray), Ref("b", TInt32))),
       Ref("b", TInt32)
     ), PInt32(optional))
     // StreamScan
@@ -200,16 +200,16 @@ class RequirednessSuite extends HailSuite {
     // TailLoop
     val param1 = Ref(genUID(), tarray)
     val param2 = Ref(genUID(), TInt32)
-    val loop = TailLoop("loop", FastIndexedSeq(
+    val loop = TailLoop("loop", FastSeq(
       param1.name -> array(required, required),
       param2.name -> int(required)),
       If(False(), // required
-        MakeArray(FastIndexedSeq(param1), tnestedarray), // required
+        MakeArray(FastSeq(param1), tnestedarray), // required
         If(param2 <= I32(1), // possibly missing
-          Recur("loop", FastIndexedSeq(
+          Recur("loop", FastSeq(
             array(required, optional),
             int(required)), tnestedarray),
-          Recur("loop", FastIndexedSeq(
+          Recur("loop", FastSeq(
             array(optional, required),
             int(optional)), tnestedarray))))
     nodes += Array(loop, PCanonicalArray(PCanonicalArray(PInt32(optional), optional), optional))
@@ -217,12 +217,12 @@ class RequirednessSuite extends HailSuite {
     val s1 = Ref(genUID(), TInt32)
     val s2 = Ref(genUID(), TInt32)
     val notExtendNA = StreamZip(
-      FastIndexedSeq(stream(required, optional), stream(required, required)),
-      FastIndexedSeq(s1.name, s2.name),
+      FastSeq(stream(required, optional), stream(required, required)),
+      FastSeq(s1.name, s2.name),
       s1 + s2, ArrayZipBehavior.TakeMinLength)
     val extendNA = StreamZip(
-      FastIndexedSeq(stream(required, required), stream(required, required)),
-      FastIndexedSeq(s1.name, s2.name),
+      FastSeq(stream(required, required), stream(required, required)),
+      FastSeq(s1.name, s2.name),
       s1 + s2, ArrayZipBehavior.ExtendNA)
     nodes += Array(notExtendNA, pstream(required, optional))
     nodes += Array(extendNA, pstream(required, optional))
@@ -292,14 +292,14 @@ class RequirednessSuite extends HailSuite {
 
     // type-preserving
     nodes += Array(table, rowType, globalType)
-    nodes += Array(TableKeyBy(table, FastIndexedSeq("b")), rowType, globalType)
+    nodes += Array(TableKeyBy(table, FastSeq("b")), rowType, globalType)
     nodes += Array(TableFilter(table, GetField(global, "y") < 0), rowType, globalType)
     nodes += Array(TableHead(table, 5), rowType, globalType)
     nodes += Array(TableTail(table, 5), rowType, globalType)
     nodes += Array(TableRepartition(table, 5, RepartitionStrategy.SHUFFLE), rowType, globalType)
     nodes += Array(TableDistinct(table), rowType, globalType)
-    nodes += Array(TableOrderBy(table, FastIndexedSeq()), rowType, globalType)
-    nodes += Array(TableFilterIntervals(table, FastIndexedSeq(), true), rowType, globalType)
+    nodes += Array(TableOrderBy(table, FastSeq()), rowType, globalType)
+    nodes += Array(TableFilterIntervals(table, FastSeq(), true), rowType, globalType)
 
     val rMap = Map("a" -> "d", "c" -> "f")
     val gMap = Map("x" -> "foo", "y" -> "bar")
@@ -345,7 +345,7 @@ class RequirednessSuite extends HailSuite {
       globalType)
 
     nodes += Array(
-      TableAggregateByKey(TableKeyBy(table, FastIndexedSeq("a")), expr),
+      TableAggregateByKey(TableKeyBy(table, FastSeq("a")), expr),
       PCanonicalStruct(required,
         "a" -> rowType.fieldType("a"),
         "collect" -> PCanonicalArray(rowType.fieldType("b"), required),
@@ -355,12 +355,12 @@ class RequirednessSuite extends HailSuite {
     val left = TableMapGlobals(
       TableKeyBy(TableMapRows(table.deepCopy(), makestruct(
       "a" -> nestedarray(required, optional, required),
-      "b" -> GetField(row, "b"))), FastIndexedSeq("a")),
+      "b" -> GetField(row, "b"))), FastSeq("a")),
       selectIR(global, "x"))
     val right = TableMapGlobals(
       TableKeyBy(TableMapRows(table.deepCopy(), makestruct(
         "a" -> nestedarray(required, required, optional),
-        "c" -> GetField(row, "c"))), FastIndexedSeq("a")),
+        "c" -> GetField(row, "c"))), FastSeq("a")),
       selectIR(global, "y", "z"))
 
     nodes += Array(
@@ -399,7 +399,7 @@ class RequirednessSuite extends HailSuite {
       TableMapRows(table.deepCopy(), makestruct(
         "a" -> interval(nestedarray(required, required, optional), required),
         "c" -> GetField(row, "c"))),
-      FastIndexedSeq("a"))
+      FastSeq("a"))
     nodes += Array(
       TableIntervalJoin(left, intervalTable, "root", product = false),
       PCanonicalStruct(required,
@@ -419,11 +419,11 @@ class RequirednessSuite extends HailSuite {
             "c" -> rowType.fieldType("c")), optional)),
       globalType.selectFields(FastSeq("x")))
 
-    nodes += Array(TableMultiWayZipJoin(FastIndexedSeq(
+    nodes += Array(TableMultiWayZipJoin(FastSeq(
       TableKeyBy(TableMapRows(table.deepCopy(), insertIR(row,
-        "a" -> nestedarray(required, optional, required))), FastIndexedSeq("a")),
+        "a" -> nestedarray(required, optional, required))), FastSeq("a")),
       TableKeyBy(TableMapRows(table.deepCopy(), insertIR(row,
-        "a" -> nestedarray(required, required, optional))), FastIndexedSeq("a"))),
+        "a" -> nestedarray(required, required, optional))), FastSeq("a"))),
       "value", "global"),
       PCanonicalStruct(required,
         "a" -> pnestedarray(required, optional, optional),
@@ -517,7 +517,7 @@ class RequirednessSuite extends HailSuite {
 
     val reader = TableNativeReader(fs, TableNativeReaderParameters(path, None))
     for (rType <- Array(table.typ,
-      TableType(TStruct("a" -> tnestedarray), FastIndexedSeq(), TStruct("z" -> tstruct))
+      TableType(TStruct("a" -> tnestedarray), FastSeq(), TStruct("z" -> tstruct))
     )) {
       val row = reader.rowRequiredness(ctx, rType)
       val global = reader.globalRequiredness(ctx, rType)
@@ -531,7 +531,7 @@ class RequirednessSuite extends HailSuite {
 
   @Test def testSubsettedTuple(): Unit = {
     val node = MakeTuple(FastSeq(0 -> I32(0), 4 -> NA(TInt32), 2 -> NA(TArray(TInt32))))
-    val expected = PCanonicalTuple(FastIndexedSeq(
+    val expected = PCanonicalTuple(FastSeq(
       PTupleField(0, PInt32(required)),
       PTupleField(4, PInt32(optional)),
       PTupleField(2, PCanonicalArray(PInt32(required), optional))), required)

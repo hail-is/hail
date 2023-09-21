@@ -460,8 +460,8 @@ class SparkBackend(
       case TVoid =>
         val (_, f) = ctx.timer.time("Compile") {
           Compile[AsmFunction1RegionUnit](ctx,
-            FastIndexedSeq(),
-            FastIndexedSeq(classInfo[Region]), UnitInfo,
+            FastSeq(),
+            FastSeq(classInfo[Region]), UnitInfo,
             ir,
             print = print)
         }
@@ -470,8 +470,8 @@ class SparkBackend(
       case _ =>
         val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
           Compile[AsmFunction1RegionLong](ctx,
-            FastIndexedSeq(),
-            FastIndexedSeq(classInfo[Region]), LongInfo,
+            FastSeq(),
+            FastSeq(classInfo[Region]), LongInfo,
             MakeTuple.ordered(FastSeq(ir)),
             print = print)
         }
@@ -576,7 +576,7 @@ class SparkBackend(
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
     ExecutionTimer.logTime("SparkBackend.pyFromDF") { timer =>
-      val key = jKey.asScala.toArray.toFastIndexedSeq
+      val key = jKey.asScala.toArray.toFastSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx.theHailClassLoader)
@@ -619,7 +619,7 @@ class SparkBackend(
     rgs.foreach(addReference)
 
     implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+    Serialization.write(rgs.map(_.toJSON).toFastSeq)
   }
 
   def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))

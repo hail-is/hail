@@ -176,7 +176,7 @@ class RichIndexedSeq[T](val a: IndexedSeq[T]) extends AnyVal {
       is = is.iterator.grouped(2).map {
         case Seq(x1, x2) => f(x1, x2)
         case Seq(x1) => x1
-      }.toFastIndexedSeq
+      }.toFastSeq
     }
     is.head
   }

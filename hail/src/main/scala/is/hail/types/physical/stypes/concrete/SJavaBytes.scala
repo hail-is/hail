@@ -4,10 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalBinary, PType}
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 case object SJavaBytes extends SBinary {
   override val virtualType: TBinary.type = TBinary
@@ -26,7 +26,7 @@ case object SJavaBytes extends SBinary {
       case _ => new SJavaBytesValue(value.asBinary.loadBytes(cb))
     }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(arrayInfo[Byte])
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(arrayInfo[Byte])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaBytesSettable = {
     val IndexedSeq(b: Settable[Array[Byte]@unchecked]) = settables
@@ -42,7 +42,7 @@ case object SJavaBytes extends SBinary {
 class SJavaBytesValue(val bytes: Value[Array[Byte]]) extends SBinaryValue {
   override def st: SBinary = SJavaBytes
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(bytes)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(bytes)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(bytes.length())
@@ -60,7 +60,7 @@ object SJavaBytesSettable {
 }
 
 final class SJavaBytesSettable(override val bytes: Settable[Array[Byte]]) extends SJavaBytesValue(bytes) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(bytes)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(bytes)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
     cb.assign(bytes, v.asInstanceOf[SJavaBytesValue].bytes)

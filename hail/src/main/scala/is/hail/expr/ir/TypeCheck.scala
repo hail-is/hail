@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.expr.Nat
 import is.hail.backend.ExecuteContext
+import is.hail.expr.Nat
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
@@ -501,7 +501,7 @@ object TypeCheck {
         val indices = fields.map(_._1)
         assert(indices.areDistinct())
         assert(indices.isSorted)
-        assert(x.typ == TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ)}.toFastIndexedSeq))
+        assert(x.typ == TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ)}.toFastSeq))
       case x@GetTupleElement(o, idx) =>
         val t = tcoerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx))

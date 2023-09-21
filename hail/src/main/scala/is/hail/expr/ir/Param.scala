@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.asm4s.{BooleanInfo, TypeInfo, Value}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue, SingleCodeType}
 import is.hail.types.virtual.Type
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 import scala.language.existentials
 
@@ -44,7 +44,7 @@ trait EmitParamType extends ParamType {
 case class SingleCodeEmitParamType(required: Boolean, sct: SingleCodeType) extends EmitParamType {
   def virtualType: Type = sct.virtualType
 
-  def definedValueTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(sct.ti)
+  def definedValueTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(sct.ti)
 
   override def toString: String = s"SingleCodeEmitParamType($required, $sct)"
 }

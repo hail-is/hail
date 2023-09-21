@@ -164,7 +164,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
 
   def push(cb: EmitCodeBuilder, region: Value[Region], elt: EmitCode): Unit = {
     val pushF = kb.genEmitMethod("blockLinkedListPush",
-      FastIndexedSeq[ParamType](typeInfo[Region], elt.emitParamType), typeInfo[Unit])
+      FastSeq[ParamType](typeInfo[Region], elt.emitParamType), typeInfo[Unit])
     pushF.voidWithBuilder { cb =>
       pushImpl(cb,
         pushF.getCodeParam[Region](1),
@@ -178,7 +178,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     assert(bll ne this)
     assert(bll.elemType.isOfType(elemType))
     val appF = kb.genEmitMethod("blockLinkedListAppend",
-      FastIndexedSeq[ParamType](typeInfo[Region]),
+      FastSeq[ParamType](typeInfo[Region]),
       typeInfo[Unit])
     appF.voidWithBuilder { cb =>
       bll.foreach(cb) { (cb, elt) =>
@@ -198,7 +198,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
 
   def serialize(cb: EmitCodeBuilder, region: Value[Region], outputBuffer: Value[OutputBuffer]): Unit = {
     val serF = kb.genEmitMethod("blockLinkedListSerialize",
-      FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[OutputBuffer]),
+      FastSeq[ParamType](typeInfo[Region], typeInfo[OutputBuffer]),
       typeInfo[Unit])
     val ob = serF.getCodeParam[OutputBuffer](2)
     serF.voidWithBuilder { cb =>
@@ -217,7 +217,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
 
   def deserialize(cb: EmitCodeBuilder, region: Value[Region], inputBuffer: Value[InputBuffer]): Unit = {
     val desF = kb.genEmitMethod("blockLinkedListDeserialize",
-      FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[InputBuffer]),
+      FastSeq[ParamType](typeInfo[Region], typeInfo[InputBuffer]),
       typeInfo[Unit])
     val r = desF.getCodeParam[Region](1)
     val ib = desF.getCodeParam[InputBuffer](2)
@@ -243,7 +243,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     assert(other ne this)
     assert(other.kb eq kb)
     val initF = kb.genEmitMethod("blockLinkedListDeepCopy",
-      FastIndexedSeq[ParamType](typeInfo[Region]),
+      FastSeq[ParamType](typeInfo[Region]),
       typeInfo[Unit])
     val r = initF.getCodeParam[Region](1)
     initF.voidWithBuilder { cb =>

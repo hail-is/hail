@@ -301,7 +301,7 @@ class RVDPartitioner(
 
   def partitionBoundsIRRepresentation: Literal = {
     Literal(TArray(RVDPartitioner.intervalIRRepresentation(kType)),
-      rangeBounds.map(i => RVDPartitioner.intervalToIRRepresentation(i, kType.size)).toFastIndexedSeq)
+      rangeBounds.map(i => RVDPartitioner.intervalToIRRepresentation(i, kType.size)).toFastSeq)
   }
 }
 
@@ -392,13 +392,13 @@ object RVDPartitioner {
     val step = (sortedKeys.length - 1).toDouble / nPartitions
     val partitionEdges = Array.tabulate(nPartitions - 1) { i =>
       IntervalEndpoint(sortedKeys(((i + 1) * step).toInt), 1)
-    }.toFastIndexedSeq
+    }.toFastSeq
 
     val interval = Interval(min, max, true, true)
     new RVDPartitioner(
       ctx.stateManager,
       typ.kType.virtualType,
-      FastIndexedSeq(interval)
+      FastSeq(interval)
     ).subdivide(partitionEdges, math.max(partitionKey - 1, 0))
   }
 

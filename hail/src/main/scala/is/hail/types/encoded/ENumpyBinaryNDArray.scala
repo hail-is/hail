@@ -5,12 +5,12 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.PCanonicalNDArray
-import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.physical.stypes.interfaces.SNDArrayValue
 import is.hail.types.physical.stypes.primitives.SFloat64
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 // FIXME numpy format should not be a hail native serialized format, move this to ValueReader/Writer
 final case class ENumpyBinaryNDArray(nRows: Long, nCols: Long, required: Boolean) extends EType {
@@ -33,7 +33,7 @@ final case class ENumpyBinaryNDArray(nRows: Long, nCols: Long, required: Boolean
 
     cb.forLoop(cb.assign(i, 0L), i < nRows, cb.assign(i, i + 1L), {
       cb.forLoop(cb.assign(j, 0L), j < nCols, cb.assign(j, j + 1L), {
-        writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb), out)
+        writeElemF(cb, ndarray.loadElement(FastSeq(i, j), cb), out)
       })
     })
 

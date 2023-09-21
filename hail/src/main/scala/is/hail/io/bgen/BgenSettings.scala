@@ -1,6 +1,5 @@
 package is.hail.io.bgen
 
-import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.io._
 import is.hail.types.encoded._
@@ -8,7 +7,6 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType}
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 
 
 object BgenSettings {
@@ -34,34 +32,34 @@ object BgenSettings {
     val bufferSpec = specFromVersion(indexVersion)
 
     val keyVType = indexKeyType(rg)
-    val keyEType = EBaseStruct(FastIndexedSeq(
-      EField("locus", EBaseStruct(FastIndexedSeq(
+    val keyEType = EBaseStruct(FastSeq(
+      EField("locus", EBaseStruct(FastSeq(
         EField("contig", EBinaryRequired, 0),
         EField("position", EInt32Required, 1))), 0),
       EField("alleles", EArray(EBinaryOptional, required = false), 1)),
       required = false)
 
     val annotationVType = TStruct.empty
-    val annotationEType = EBaseStruct(FastIndexedSeq(), required = true)
+    val annotationEType = EBaseStruct(FastSeq(), required = true)
 
-    val leafEType = EBaseStruct(FastIndexedSeq(
+    val leafEType = EBaseStruct(FastSeq(
       EField("first_idx", EInt64Required, 0),
-      EField("keys", EArray(EBaseStruct(FastIndexedSeq(
+      EField("keys", EArray(EBaseStruct(FastSeq(
         EField("key", keyEType, 0),
         EField("offset", EInt64Required, 1),
         EField("annotation", annotationEType, 2)
       ), required = true), required = true), 1)
     ))
-    val leafVType = TStruct(FastIndexedSeq(
+    val leafVType = TStruct(FastSeq(
       Field("first_idx", TInt64, 0),
-      Field("keys", TArray(TStruct(FastIndexedSeq(
+      Field("keys", TArray(TStruct(FastSeq(
         Field("key", keyVType, 0),
         Field("offset", TInt64, 1),
         Field("annotation", annotationVType, 2)
       ))), 1)))
 
-    val internalNodeEType = EBaseStruct(FastIndexedSeq(
-      EField("children", EArray(EBaseStruct(FastIndexedSeq(
+    val internalNodeEType = EBaseStruct(FastSeq(
+      EField("children", EArray(EBaseStruct(FastSeq(
         EField("index_file_offset", EInt64Required, 0),
         EField("first_idx", EInt64Required, 1),
         EField("first_key", keyEType, 2),
@@ -70,8 +68,8 @@ object BgenSettings {
       ), required = true), required = true), 0)
     ))
 
-    val internalNodeVType = TStruct(FastIndexedSeq(
-      Field("children", TArray(TStruct(FastIndexedSeq(
+    val internalNodeVType = TStruct(FastSeq(
+      Field("children", TArray(TStruct(FastSeq(
         Field("index_file_offset", TInt64, 0),
         Field("first_idx", TInt64, 1),
         Field("first_key", keyVType, 2),

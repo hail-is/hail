@@ -7,9 +7,8 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, HailException, Interval}
+import is.hail.utils.{FastSeq, HailException, Interval}
 import is.hail.{ExecStrategy, HailSuite}
-import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.scalatest.Matchers._
 import org.testng.annotations.Test
@@ -87,7 +86,7 @@ class TableGenSuite extends HailSuite {
   def testLowering: Unit = {
     val table = TestUtils.collect(mkTableGen())
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
-    assertEvalsTo(lowered, Row(FastIndexedSeq(0, 0).map(Row(_)), Row(0)))
+    assertEvalsTo(lowered, Row(FastSeq(0, 0).map(Row(_)), Row(0)))
   }
 
   @Test(groups = Array("lowering"))
@@ -100,7 +99,7 @@ class TableGenSuite extends HailSuite {
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
       ExecuteContext.scoped() { ctx =>
-        loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
+        loweredExecute(ctx, lowered, Env.empty, FastSeq(), None)
       }
     }
     ex.errorId shouldBe errorId
@@ -111,7 +110,7 @@ class TableGenSuite extends HailSuite {
   def testRowsAreCorrectlyKeyed: Unit = {
     val errorId = 56
     val table = TestUtils.collect(mkTableGen(
-      partitioner = Some(new RVDPartitioner(ctx.stateManager, TStruct("a" -> TInt32), FastIndexedSeq(
+      partitioner = Some(new RVDPartitioner(ctx.stateManager, TStruct("a" -> TInt32), FastSeq(
         Interval(Row(0), Row(0), true, false), Interval(Row(1), Row(1), true, false)
       ))),
       errorId = Some(errorId)
@@ -119,7 +118,7 @@ class TableGenSuite extends HailSuite {
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
       ExecuteContext.scoped() { ctx =>
-        loweredExecute(ctx, lowered, Env.empty, FastIndexedSeq(), None)
+        loweredExecute(ctx, lowered, Env.empty, FastSeq(), None)
       }
     }
 

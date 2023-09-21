@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{UnitInfo, Value, _}
+import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
@@ -10,7 +10,7 @@ import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.virtual.Type
-import is.hail.utils.{FastIndexedSeq, valueToRichCodeRegion}
+import is.hail.utils.{FastSeq, valueToRichCodeRegion}
 
 class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
@@ -35,7 +35,7 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDArrayACode, nextNDArrayBCode) = seq
     val seqOpMethod = cb.emb.genEmitMethod("ndarray_add_multiply_aggregator_seq_op",
-      FastIndexedSeq(nextNDArrayACode.emitParamType, nextNDArrayBCode.emitParamType), CodeParamType(UnitInfo))
+      FastSeq(nextNDArrayACode.emitParamType, nextNDArrayBCode.emitParamType), CodeParamType(UnitInfo))
     seqOpMethod.voidWithBuilder { cb =>
       val ndArrayAEmitCode = seqOpMethod.getEmitParam(cb, 1)
       ndArrayAEmitCode.toI(cb).consume(cb, {}, { case checkA: SNDArrayValue =>
