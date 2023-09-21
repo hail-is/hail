@@ -3,7 +3,7 @@
 Python Version Compatibility Policy
 ===================================
 
-Hail complies with [NumPy's compatibility policy](https://numpy.org/neps/nep-0029-deprecation_policy.html#implementation) on Python
+Hail complies with `NumPy's compatibility policy <https://numpy.org/neps/nep-0029-deprecation_policy.html#implementation>`__ on Python
 versions. In particular, Hail officially supports:
 
 - All minor versions of Python released 42 months prior to the project, and at minimum the two
@@ -14,6 +14,11 @@ versions. In particular, Hail officially supports:
 
 Change Log
 ==========
+
+**Version 0.2.124**
+
+- (`#13681 <https://github.com/hail-is/hail/pull/13681>`__) Fix `hailctl batch init` and `hailctl auth login` for
+  new users who have never set up a configuration before.
 
 **Version 0.2.123**
 
