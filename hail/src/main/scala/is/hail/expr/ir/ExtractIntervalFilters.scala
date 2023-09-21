@@ -23,24 +23,6 @@ trait AbstractLattice extends JoinLattice {
   def meet(l: Value, r: Value): Value
 }
 
-object AbstactLattice {
-  class Memo(val lattice: AbstractLattice) extends AbstractLattice {
-    type Value = lattice.Value
-
-    val top = lattice.top
-    val bottom = lattice.bottom
-
-    private val joinCache: mutable.Map[(RefEquality[Value], RefEquality[Value]), Value] = mutable.Map.empty
-    private val meetCache: mutable.Map[(RefEquality[Value], RefEquality[Value]), Value] = mutable.Map.empty
-
-    def combine(l: Value, r: Value): Value =
-      joinCache.getOrElseUpdate((RefEquality(l), RefEquality(r)), lattice.combine(l, r))
-
-    def meet(l: Value, r: Value): Value =
-      meetCache.getOrElseUpdate((RefEquality(l), RefEquality(r)), lattice.meet(l, r))
-  }
-}
-
 object ExtractIntervalFilters {
 
   val MAX_LITERAL_SIZE = 4096
@@ -771,6 +753,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       IntervalsSet(Interval(endpoint(null, -1), posInf)),
       IntervalsSet(Interval(negInf, endpoint(null, -1))),
       KeySet.bottom)
+      .restrict(keySet)
     case (IsNA(_), Seq(b: BoolValue)) => BoolValue.isNA(b)
     // collection contains
     case (ApplyIR("contains", _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
@@ -780,13 +763,13 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case Contig(rgStr) =>
           val rg = ctx.stateManager.referenceGenomes(rgStr)
           val intervals = intervalsFromLiteralContigs(collectionVal, rg)
-          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
+          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom).restrict(keySet)
         case KeyField(0) =>
           val intervals = intervalsFromLiteral(collectionVal, firstKeyOrd.toOrdering, true)
-          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
+          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom).restrict(keySet)
         case struct: StructValue if struct.isKeyPrefix =>
           val intervals = intervalsFromLiteral(collectionVal, keyOrd.toOrdering, false)
-          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom)
+          BoolValue(intervals, KeySet.complement(intervals), KeySet.bottom).restrict(keySet)
         case _ => BoolValue.top(keySet)
       }
     // interval contains
@@ -801,11 +784,13 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               IntervalsSet(Interval(l, r)),
               IntervalsSet(Interval(negInf, l), Interval(r, endpoint(null, -1))),
               IntervalsSet(Interval(endpoint(null, -1), posInf)))
+              .restrict(keySet)
           case struct: StructValue if struct.isKeyPrefix =>
             BoolValue(
               IntervalsSet(i),
               IntervalsSet(Interval(negInf, i.left), Interval(i.right, posInf)),
               IntervalsSet.empty)
+              .restrict(keySet)
           case _ => BoolValue.top(keySet)
         }
       }
@@ -828,8 +813,6 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     def recur(x: IR, env: AbstractEnv = env): AbstractValue =
       _analyze(x, env, rewrites)
 
-//    println(s"visiting:\n${Pretty(ctx, x)}")
-//    println(s"env: ${env}")
     var res: Lattice.Value = if (env.keySet == KeySet.bottom)
       Lattice.bottom
     else x match {
@@ -877,23 +860,24 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           aVals.reduce(Lattice.combine)
         }
       case _ =>
-        val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
-        val keyOrConstVal = computeKeyOrConst(x, children)
-        if (x.typ == TBoolean) {
-          if (keyOrConstVal == Lattice.top)
-            computeBoolean(x, children, env.keySet)
-          else
-            keyOrConstVal.asInstanceOf[BoolValue].restrict(env.keySet)
-        } else {
-          keyOrConstVal
-        }
+        null
     }
-//    println(s"finished visiting:\n${Pretty(ctx, x)}")
-//    println(s"result: $res")
 
-    res = res match {
-      case res: BoolValue => res.restrict(env.keySet)
-      case _ => res
+    res = if (res == null) {
+      val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
+      val keyOrConstVal = computeKeyOrConst(x, children)
+      if (x.typ == TBoolean) {
+        if (keyOrConstVal == Lattice.top)
+          computeBoolean(x, children, env.keySet)
+        else
+          keyOrConstVal.asInstanceOf[BoolValue].restrict(env.keySet)
+      } else {
+        keyOrConstVal
+      }
+    } else if (x.typ == TBoolean) {
+      res.asInstanceOf[BoolValue].restrict(env.keySet)
+    } else {
+      res
     }
 
     res match {
@@ -911,7 +895,6 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           rw.replaceWithTrue += RefEquality(x)
         else if (KeySet.meet(KeySet.combine(bool.trueBound, bool.naBound), env.keySet) == KeySet.bottom) {
           rw.replaceWithFalse += RefEquality(x)
-        // add replaceWithMissing
         }
       }
     }
