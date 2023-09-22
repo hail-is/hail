@@ -22,8 +22,10 @@ async def main():
         standing_worker_cores = 16,
         standing_worker_max_idle_time_secs = 5 * 60,
         job_queue_scheduling_window_secs = 150,
-        min_instances = 1,
+        min_instances = 0,
     ):
+        assert not enable_standing_worker, 'use min_instances'
+
         await db.execute_update(
             '''
 UPDATE inst_colls
@@ -69,33 +71,27 @@ WHERE name = %s
 
     await set_pool(
         'highcpu',
-        min_instances=0,
-        enable_standing_worker=False,
+        min_instances=0,  # min_instances means n_standing_workers
     )
     await set_pool(
         'highcpu-np',
-        min_instances=0,
-        enable_standing_worker=False,
+        min_instances=0,  # min_instances means n_standing_workers
     )
     await set_pool(
         'highmem',
-        min_instances=0,
-        enable_standing_worker=False,
+        min_instances=0,  # min_instances means n_standing_workers
     )
     await set_pool(
         'highmem-np',
-        min_instances=0,
-        enable_standing_worker=False,
+        min_instances=0,  # min_instances means n_standing_workers
     )
     await set_pool(
         'standard',
-        min_instances=0,
-        enable_standing_worker=True,
+        min_instances=1,  # min_instances means n_standing_workers
     )
     await set_pool(
         'standard-np',
-        min_instances=0,
-        enable_standing_worker=True,
+        min_instances=1,  # min_instances means n_standing_workers
     )
     await db.async_close()
 
