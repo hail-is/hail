@@ -27,7 +27,7 @@ object QoBOutputStreamManager {
     _instances.remove(layout)
   }
 
-  private def flushAllAppenders(): Unit = synchronized {
+  def flushAllAppenders(): Unit = synchronized {
     _instances.values.foreach(_.flush())
   }
 }
