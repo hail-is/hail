@@ -156,8 +156,15 @@ def test_blanczos_T():
     np.testing.assert_allclose(norm_of_diff, spec1(k + 1, k), rtol=1e-02)
     np.testing.assert_allclose(singulars, sigma[:k], rtol=1e-01)
 
+
+@pytest.mark.parametrize("compute_loadings,compute_scores,transpose", [
+    (compute_loadings, compute_scores, transpose)
+    for compute_loadings in [True, False]
+    for compute_scores in [True, False]
+    for transpose in [True, False]
+])
 @skip_when_service_backend()
-def test_blanczos_flags():
+def test_blanczos_flags(compute_loadings, compute_scores, transpose):
     k, m, n = 10, 100, 200
     sigma = [spec1(i + 1, k) for i in range(m)]
     seed = 1025
@@ -173,23 +180,20 @@ def test_blanczos_flags():
     Usigma = U * sigma[:k]
     Vsigma = V * sigma[:k]
 
-    for compute_loadings in [True, False]:
-        for compute_scores in [True, False]:
-            for transpose in [True, False]:
-                mt = mt_A_T if transpose else mt_A
-                eigenvalues, scores, loadings = hl._blanczos_pca(mt.ent, k=k, oversampling_param=k, q_iterations=4, compute_loadings=compute_loadings, compute_scores=compute_scores, transpose=transpose)
-                if compute_loadings:
-                    loadings = np.array(loadings.loadings.collect())
-                    np.testing.assert_allclose(np.abs(loadings), U, rtol=1e-02)
-                else:
-                    assert loadings is None
-                if compute_scores:
-                    scores = np.array(scores.scores.collect())
-                    np.testing.assert_allclose(np.abs(scores), Vsigma, rtol=1e-02)
-                else:
-                    assert scores is None
-                singulars = np.sqrt(eigenvalues)
-                np.testing.assert_allclose(singulars, sigma[:k], rtol=1e-01)
+    mt = mt_A_T if transpose else mt_A
+    eigenvalues, scores, loadings = hl._blanczos_pca(mt.ent, k=k, oversampling_param=k, q_iterations=4, compute_loadings=compute_loadings, compute_scores=compute_scores, transpose=transpose)
+    if compute_loadings:
+        loadings = np.array(loadings.loadings.collect())
+        np.testing.assert_allclose(np.abs(loadings), U, rtol=1e-02)
+    else:
+        assert loadings is None
+    if compute_scores:
+        scores = np.array(scores.scores.collect())
+        np.testing.assert_allclose(np.abs(scores), Vsigma, rtol=1e-02)
+    else:
+        assert scores is None
+    singulars = np.sqrt(eigenvalues)
+    np.testing.assert_allclose(singulars, sigma[:k], rtol=1e-01)
 
 
 def spectra_helper(spec_func, triplet):
