@@ -109,9 +109,6 @@ if role == 'Master':
         + '/hail/backend/hail-all-spark.jar'
     )
 
-    if not os.path.exists(hail_jar):
-        raise ValueError(f'{hail_jar} must exist')
-
     conf_to_set = [
         'spark.executorEnv.PYTHONHASHSEED=0',
         'spark.app.name=Hail',

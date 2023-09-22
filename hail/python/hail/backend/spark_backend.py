@@ -1,4 +1,5 @@
 from typing import Set
+import pkg_resources
 import sys
 import os
 import json
@@ -22,7 +23,6 @@ from hailtop.aiotools.validators import validate_file
 
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
-from .backend import local_jar_information
 
 
 _installed = False
@@ -134,20 +134,16 @@ class SparkBackend(Py4JBackend):
         super(SparkBackend, self).__init__()
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
-        try:
-            local_jar_info = local_jar_information()
-        except ValueError:
-            local_jar_info = None
-
-        if local_jar_info is not None:
+        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+            hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+            assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
             conf = pyspark.SparkConf()
 
             base_conf = spark_conf or {}
             for k, v in base_conf.items():
                 conf.set(k, v)
 
-            jars = [local_jar_info.path]
-            extra_classpath = local_jar_info.extra_classpath
+            jars = [hail_jar_path]
 
             if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
                 import sparkmonitor
@@ -172,15 +168,11 @@ class SparkBackend(Py4JBackend):
                 append_to_comma_separated_list(
                     conf,
                     'spark.driver.extraClassPath',
-                    *jars,
-                    *extra_classpath
-                )
+                    *jars)
                 append_to_comma_separated_list(
                     conf,
                     'spark.executor.extraClassPath',
-                    './hail-all-spark.jar',
-                    *extra_classpath
-                )
+                    './hail-all-spark.jar')
 
             if sc is None:
                 pyspark.SparkContext._ensure_initialized(conf=conf)

@@ -338,7 +338,3 @@ task shadowTestJar(type: ShadowJar) {
     from sourceSets.main.output
     configurations = [project.configurations.testRuntimeClasspath]
 }
-
-task printClasspath(type: Exec) {
-    commandLine = ['echo', "${sourceSets.main.runtimeClasspath.asPath}"]
-}
