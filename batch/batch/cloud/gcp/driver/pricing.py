@@ -58,6 +58,7 @@ class GCPAcceleratorPrice(Price):
         preemptible: bool,
         region: str,
         cost_per_hour: float,
+        sku: str,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
@@ -65,6 +66,7 @@ class GCPAcceleratorPrice(Price):
         self.preemptible = preemptible
         self.region = region
         self.cost_per_hour = cost_per_hour
+        self.sku = sku
         self.effective_start_date = effective_start_date
         self.effective_end_date = effective_end_date
 
@@ -269,7 +271,7 @@ def process_accelerator_sku(sku: dict, regions: List[str]) -> List[GCPAccelerato
         if service_region in regions:
             compute_prices.append(
                 GCPAcceleratorPrice(
-                    accelerator_family, preemptible, service_region, cost_per_hour, effective_start_date
+                    accelerator_family, preemptible, service_region, cost_per_hour, sku['skuId'], effective_start_date
                 )
             )
     return compute_prices
