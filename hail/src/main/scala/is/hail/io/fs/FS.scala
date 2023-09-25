@@ -398,13 +398,8 @@ trait FS extends Serializable {
         val c = components(i)
         if (containsWildcard(c)) {
           val m = javaFS.getPathMatcher(s"glob:$c")
-<<<<<<< HEAD
-          for (directoryEntry <- listStatus(prefix)) {
+          for (directoryEntry <- listDirectory(prefix)) {
             val p = dropTrailingSlash(directoryEntry.getPath)
-=======
-          for (cfs <- listDirectory(prefix)) {
-            val p = dropTrailingSlash(cfs.getPath)
->>>>>>> hi/main
             val d = p.drop(prefix.toString.length + 1)
             if (m.matches(javaFS.getPath(d))) {
               f(parseUrl(p), directoryEntry, i + 1)
