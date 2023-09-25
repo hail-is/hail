@@ -1152,7 +1152,7 @@ class Emit[C](
       case ArrayMaximalIndependentSet(edges, tieBreaker) =>
         emitI(edges).map(cb) { edgesCode =>
           val jEdges: Value[UnsafeIndexedSeq] = cb.memoize(Code.checkcast[UnsafeIndexedSeq]((is.hail.expr.ir.functions.ArrayFunctions.svalueToJavaValue(cb, region, edgesCode))))
-          val maxSet = tieBreaker match {
+          val ms = tieBreaker match {
             case None =>
               Code.invokeScalaObject1[UnsafeIndexedSeq, IndexedSeq[Any]](Graph.getClass, "maximalIndependentSet", jEdges)
             case Some((leftName, rightName, tieBreaker)) =>
@@ -1170,7 +1170,21 @@ class Emit[C](
                   jEdges, mb.getHailClassLoader, mb.getFS, mb.getTaskContext, region,
                   mb.getPType[PTuple](wrappedNodeType), mb.getPType[PTuple](resultType), mb.getObject(f))
           }
-          is.hail.expr.ir.functions.ArrayFunctions.unwrapReturn(cb, region, typeWithReq.canonicalEmitType.st, maxSet)
+
+          val (rt, maxSet: Code[_]) = typeWithReq.t match {
+            case TArray(TString) =>
+              val rawSet = cb.memoize(ms)
+              val maxSet = cb.memoize(Code.newArray[String](rawSet.invoke[Int]("length")))
+              val i = cb.newLocal[Int]("mis_str_iseq_to_arr_i")
+              cb.forLoop(cb.assign(i, 0), i < maxSet.length(), cb.assign(i, i + 1), {
+                cb += maxSet.update(i, Code.checkcast[String](rawSet.invoke[Int, java.lang.Object]("apply", i)))
+              })
+
+              SJavaArrayString(typeWithReq.r.required) -> maxSet.get
+            case _ =>
+              typeWithReq.canonicalEmitType.st -> ms
+          }
+          is.hail.expr.ir.functions.ArrayFunctions.unwrapReturn(cb, region, rt, maxSet)
         }
 
       case x@ToSet(a) =>
