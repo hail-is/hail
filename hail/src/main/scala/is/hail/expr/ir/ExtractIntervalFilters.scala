@@ -328,7 +328,6 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case _ => ConcreteBool(x.falseBound, x.trueBound, x.naBound)
       }
 
-      // WIP: push these methods onto BoolValue class, make sure they preserve keySet
       def isNA(x: BoolValue): BoolValue = x match {
         case ConstantBool(x, keySet) => ConstantBool(false, keySet)
         case _ => ConcreteBool(x.naBound, KeySetLattice.combine(x.trueBound, x.falseBound), KeySetLattice.bottom)
@@ -760,7 +759,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       KeySet(Interval(negInf, endpoint(null, -1))),
       KeySetLattice.bottom)
       .restrict(keySet)
-    case (IsNA(_), Seq(b: BoolValue)) => BoolValue.isNA(b)
+    case (IsNA(_), Seq(b: BoolValue)) => BoolValue.isNA(b).restrict(keySet)
     // collection contains
     case (ApplyIR("contains", _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
       if (collectionVal == null) {
@@ -887,8 +886,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     res match {
-      case res: BoolValue =>
-        assert(KeySetLattice.specializes(res.trueBound, env.keySet), s"\n  trueBound = ${res.trueBound}\n  env = ${env.keySet}")
+      case res: BoolValue if x.typ == TBoolean =>
+        assert(KeySetLattice.specializes(res.trueBound, env.keySet), s"\n  trueBound = ${res.trueBound}\n  env = ${env.keySet}\n  ir = ${Pretty.sexprStyle(x, allowUnboundRefs = true)}")
         assert(KeySetLattice.specializes(res.falseBound, env.keySet), s"\n  falseBound = ${res.falseBound}\n  env = ${env.keySet}")
         assert(KeySetLattice.specializes(res.naBound, env.keySet), s"\n  naBound = ${res.naBound}\n  env = ${env.keySet}")
       case _ =>
