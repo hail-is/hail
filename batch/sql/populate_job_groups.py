@@ -107,7 +107,7 @@ LIMIT 100;
 SELECT id AS batch_id
 FROM batches
 LEFT JOIN job_group_parents ON batches.id = job_group_parents.batch_id
-WHERE job_groups.batch_id IS NULL
+WHERE job_group_parents.batch_id IS NULL
 LIMIT 100;
 ''')
 
