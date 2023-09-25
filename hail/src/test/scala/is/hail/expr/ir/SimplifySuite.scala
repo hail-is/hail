@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
+import is.hail.utils.{FastSeq, Interval}
 import is.hail.variant.Locus
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
@@ -19,19 +19,19 @@ class SimplifySuite extends HailSuite {
         TableRange(10, 10)),
       "rowField",
       "globalField"))
-    assertEvalsTo(tmwzj, Row(FastIndexedSeq(Row(), Row(), Row())))
+    assertEvalsTo(tmwzj, Row(FastSeq(Row(), Row(), Row())))
   }
 
   @Test def testRepartitionableMapUpdatesForUpstreamOptimizations() {
     hc
-    val range = TableKeyBy(TableRange(10, 3), FastIndexedSeq())
+    val range = TableKeyBy(TableRange(10, 3), FastSeq())
     val simplifiableIR =
       If(True(),
         GetField(Ref("row", range.typ.rowType), "idx").ceq(0),
         False())
     val checksRepartitioningIR =
       TableFilter(
-        TableOrderBy(range, FastIndexedSeq(SortField("idx", Ascending))),
+        TableOrderBy(range, FastSeq(SortField("idx", Ascending))),
         simplifiableIR)
 
     assertEvalsTo(TableAggregate(checksRepartitioningIR, IRAggCount), 1L)
@@ -41,16 +41,16 @@ class SimplifySuite extends HailSuite {
 
   @Test def testInsertFieldsRewriteRules() {
     val ir1 = InsertFields(InsertFields(base, Seq("1" -> I32(2)), None), Seq("1" -> I32(3)), None)
-    assert(Simplify(ctx, ir1) == InsertFields(base, Seq("1" -> I32(3)), Some(FastIndexedSeq("1", "2"))))
+    assert(Simplify(ctx, ir1) == InsertFields(base, Seq("1" -> I32(3)), Some(FastSeq("1", "2"))))
 
-    val ir2 = InsertFields(InsertFields(base, Seq("3" -> I32(2)), Some(FastIndexedSeq("3", "1", "2"))), Seq("3" -> I32(3)), None)
-    assert(Simplify(ctx, ir2) == InsertFields(base, Seq("3" -> I32(3)), Some(FastIndexedSeq("3", "1", "2"))))
+    val ir2 = InsertFields(InsertFields(base, Seq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))), Seq("3" -> I32(3)), None)
+    assert(Simplify(ctx, ir2) == InsertFields(base, Seq("3" -> I32(3)), Some(FastSeq("3", "1", "2"))))
 
-    val ir3 = InsertFields(InsertFields(base, Seq("3" -> I32(2)), Some(FastIndexedSeq("3", "1", "2"))), Seq("4" -> I32(3)), Some(FastIndexedSeq("3", "1", "2", "4")))
-    assert(Simplify(ctx, ir3) == InsertFields(base, Seq("3" -> I32(2), "4" -> I32(3)), Some(FastIndexedSeq("3", "1", "2", "4"))))
+    val ir3 = InsertFields(InsertFields(base, Seq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))), Seq("4" -> I32(3)), Some(FastSeq("3", "1", "2", "4")))
+    assert(Simplify(ctx, ir3) == InsertFields(base, Seq("3" -> I32(2), "4" -> I32(3)), Some(FastSeq("3", "1", "2", "4"))))
 
     val ir4 = InsertFields(InsertFields(base, Seq("3" -> I32(0), "4" -> I32(1))), Seq("3" -> I32(5)))
-    assert(Simplify(ctx, ir4) == InsertFields(base, Seq("4" -> I32(1), "3" -> I32(5)), Some(FastIndexedSeq("1", "2", "3", "4"))))
+    assert(Simplify(ctx, ir4) == InsertFields(base, Seq("4" -> I32(1), "3" -> I32(5)), Some(FastSeq("1", "2", "3", "4"))))
   }
 
   lazy val base2 = Literal(TStruct("A" -> TInt32, "B" -> TInt32, "C" -> TInt32, "D" -> TInt32), Row(1, 2, 3, 4))
@@ -66,32 +66,32 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testInsertSelectRewriteRules() {
-    val ir1 = SelectFields(InsertFields(base, FastIndexedSeq("3" -> I32(1)), None), FastIndexedSeq("1"))
-    assert(Simplify(ctx, ir1) == SelectFields(base, FastIndexedSeq("1")))
+    val ir1 = SelectFields(InsertFields(base, FastSeq("3" -> I32(1)), None), FastSeq("1"))
+    assert(Simplify(ctx, ir1) == SelectFields(base, FastSeq("1")))
 
-    val ir2 = SelectFields(InsertFields(base, FastIndexedSeq("3" -> I32(1)), None), FastIndexedSeq("3", "1"))
-    assert(Simplify(ctx, ir2) == InsertFields(SelectFields(base, FastIndexedSeq("1")), FastIndexedSeq("3" -> I32(1)), Some(FastIndexedSeq("3", "1"))))
+    val ir2 = SelectFields(InsertFields(base, FastSeq("3" -> I32(1)), None), FastSeq("3", "1"))
+    assert(Simplify(ctx, ir2) == InsertFields(SelectFields(base, FastSeq("1")), FastSeq("3" -> I32(1)), Some(FastSeq("3", "1"))))
   }
 
   @Test def testContainsRewrites() {
-    assertEvalsTo(invoke("contains", TBoolean, Literal(TArray(TString), FastIndexedSeq("a")), In(0, TString)),
-      FastIndexedSeq("a" -> TString),
+    assertEvalsTo(invoke("contains", TBoolean, Literal(TArray(TString), FastSeq("a")), In(0, TString)),
+      FastSeq("a" -> TString),
       true)
 
     assertEvalsTo(invoke("contains", TBoolean, ToSet(ToStream(In(0, TArray(TString)))), Str("a")),
-      FastIndexedSeq(FastIndexedSeq("a") -> TArray(TString)),
+      FastSeq(FastSeq("a") -> TArray(TString)),
       true)
 
 
     assertEvalsTo(invoke("contains", TBoolean, ToArray(ToStream(In(0, TSet(TString)))), Str("a")),
-      FastIndexedSeq(Set("a") -> TSet(TString)),
+      FastSeq(Set("a") -> TSet(TString)),
       true)
   }
 
   @Test def testTableCountExplodeSetRewrite() {
     var ir: TableIR = TableRange(1, 1)
     ir = TableMapRows(ir, InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32), Set(1)))))
-    ir = TableExplode(ir, FastIndexedSeq("foo"))
+    ir = TableExplode(ir, FastSeq("foo"))
     assertEvalsTo(TableCount(ir), 1L)
   }
 
@@ -103,8 +103,8 @@ class SimplifySuite extends HailSuite {
     val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD + GetField(r2, "y")))))
     val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", GetField(r2, "y").toI))))
 
-    assert(Simplify(ctx, ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
-    assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ctx, ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastSeq("x", "y", "z"))))
+    assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD)), Some(FastSeq("x", "y", "z"))))
 
     assert(Optimize[IR](ir3, "direct", ctx) == InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", I32(0)))))
 
@@ -156,7 +156,7 @@ class SimplifySuite extends HailSuite {
 
     val doesNotRewrite: Array[StreamAgg] = Array(
       StreamAgg(In(0, TArray(TInt32)), "foo",
-        ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(Ref("foo", TInt32)),
+        ApplyAggOp(FastSeq(), FastSeq(Ref("foo", TInt32)),
           AggSignature(Sum(), FastSeq(), FastSeq(TInt32)))),
       StreamAgg(In(0, TArray(TInt32)), "foo",
         AggLet("bar", In(1, TInt32) * In(1, TInt32), Ref("x", TInt32), false))
@@ -179,7 +179,7 @@ class SimplifySuite extends HailSuite {
 
     val doesNotRewrite: Array[StreamAggScan] = Array(
       StreamAggScan(In(0, TArray(TInt32)), "foo",
-        ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("foo", TInt32)),
+        ApplyScanOp(FastSeq(), FastSeq(Ref("foo", TInt32)),
           AggSignature(Sum(), FastSeq(), FastSeq(TInt64)))),
       StreamAggScan(In(0, TArray(TInt32)), "foo",
         AggLet("bar", In(1, TInt32) * In(1, TInt32), Ref("x", TInt32), true))
@@ -240,10 +240,10 @@ class SimplifySuite extends HailSuite {
     var tir: TableIR = TableRange(10, 5)
     def r = Ref("row", tir.typ.rowType)
     tir = TableMapRows(tir, InsertFields(r,  FastSeq("idx2" -> GetField(r, "idx"))))
-    tir = TableKeyBy(tir, FastIndexedSeq("idx", "idx2"))
-    tir = TableFilterIntervals(tir, FastIndexedSeq(Interval(Row(0), Row(1), true, false)), false)
-    tir = TableFilterIntervals(tir, FastIndexedSeq(Interval(Row(8), Row(10), true, false)), false)
-    assert(Simplify(ctx, tir).asInstanceOf[TableFilterIntervals].intervals == FastIndexedSeq(Interval(Row(0), Row(1), true, false), Interval(Row(8), Row(10), true, false)))
+    tir = TableKeyBy(tir, FastSeq("idx", "idx2"))
+    tir = TableFilterIntervals(tir, FastSeq(Interval(Row(0), Row(1), true, false)), false)
+    tir = TableFilterIntervals(tir, FastSeq(Interval(Row(8), Row(10), true, false)), false)
+    assert(Simplify(ctx, tir).asInstanceOf[TableFilterIntervals].intervals == FastSeq(Interval(Row(0), Row(1), true, false), Interval(Row(8), Row(10), true, false)))
   }
 
   @Test def testSimplifyReadFilterIntervals() {
@@ -258,9 +258,9 @@ class SimplifySuite extends HailSuite {
     val tzr = mr.lower().asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
     val tzrr = tzr.tr.asInstanceOf[TableNativeZippedReader]
 
-    val intervals1 = FastIndexedSeq(Interval(Row(Locus("1", 100000)), Row(Locus("1", 200000)), true, false), Interval(Row(Locus("2", 100000)), Row(Locus("2", 200000)), true, false))
-    val intervals2 = FastIndexedSeq(Interval(Row(Locus("1", 150000)), Row(Locus("1", 250000)), true, false), Interval(Row(Locus("2", 150000)), Row(Locus("2", 250000)), true, false))
-    val intersection = FastIndexedSeq(Interval(Row(Locus("1", 150000)), Row(Locus("1", 200000)), true, false), Interval(Row(Locus("2", 150000)), Row(Locus("2", 200000)), true, false))
+    val intervals1 = FastSeq(Interval(Row(Locus("1", 100000)), Row(Locus("1", 200000)), true, false), Interval(Row(Locus("2", 100000)), Row(Locus("2", 200000)), true, false))
+    val intervals2 = FastSeq(Interval(Row(Locus("1", 150000)), Row(Locus("1", 250000)), true, false), Interval(Row(Locus("2", 150000)), Row(Locus("2", 250000)), true, false))
+    val intersection = FastSeq(Interval(Row(Locus("1", 150000)), Row(Locus("1", 200000)), true, false), Interval(Row(Locus("2", 150000)), Row(Locus("2", 200000)), true, false))
     val tfi1 = TableFilterIntervals(tr, intervals1, true)
     val exp1 = TableRead(tnr.fullType, false, TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", Some(NativeReaderOptions(intervals1, tnr.fullType.keyType, true)))))
 
@@ -284,8 +284,8 @@ class SimplifySuite extends HailSuite {
   @Test(enabled = false) def testFilterIntervalsKeyByToFilter() {
     var t: TableIR = TableRange(100, 10)
     t = TableMapRows(t, InsertFields(Ref("row", t.typ.rowType), FastSeq(("x", I32(1) - GetField(Ref("row", t.typ.rowType), "idx")))))
-    t = TableKeyBy(t, FastIndexedSeq("x"))
-    t = TableFilterIntervals(t, FastIndexedSeq(Interval(Row(-10), Row(10), includesStart = true, includesEnd = false)), keep = true)
+    t = TableKeyBy(t, FastSeq("x"))
+    t = TableFilterIntervals(t, FastSeq(Interval(Row(-10), Row(10), includesStart = true, includesEnd = false)), keep = true)
 
     val t2 = Simplify(ctx, t)
     assert(t2 match {
@@ -446,7 +446,7 @@ class SimplifySuite extends HailSuite {
     val matrix =
       ValueToBlockMatrix(
         MakeArray((1 to 4).map(F64(_)), TArray(TFloat64)),
-        FastIndexedSeq(2, 2),
+        FastSeq(2, 2),
         10
       )
 
@@ -454,14 +454,14 @@ class SimplifySuite extends HailSuite {
       Array(BlockMatrixBroadcast(matrix, 0 to 1, matrix.shape, matrix.blockSize), matrix),
       Array(BlockMatrixMap(matrix, "x", Ref("x", TFloat64), true), matrix),
       Array(BlockMatrixMap(matrix, "x", ref(TFloat64), true), BlockMatrixBroadcast(
-        ValueToBlockMatrix(ref(TFloat64), FastIndexedSeq(1, 1), matrix.blockSize),
-        FastIndexedSeq(),
+        ValueToBlockMatrix(ref(TFloat64), FastSeq(1, 1), matrix.blockSize),
+        FastSeq(),
         matrix.shape,
         matrix.blockSize
       )),
       Array(BlockMatrixMap(matrix, "x", F64(2356), true), BlockMatrixBroadcast(
-        ValueToBlockMatrix(F64(2356), FastIndexedSeq(1, 1), matrix.blockSize),
-        FastIndexedSeq(),
+        ValueToBlockMatrix(F64(2356), FastSeq(1, 1), matrix.blockSize),
+        FastSeq(),
         matrix.shape,
         matrix.blockSize
       )),

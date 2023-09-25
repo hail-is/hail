@@ -100,7 +100,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def addBindingRelations(node: BaseIR): Unit = {
     val refMap: Map[String, IndexedSeq[RefEquality[BaseRef]]] =
-      usesAndDefs.uses(node).toFastIndexedSeq.groupBy(_.t.name)
+      usesAndDefs.uses(node).toFastSeq.groupBy(_.t.name)
     def addElementBinding(name: String, d: IR, makeOptional: Boolean = false, makeRequired: Boolean = false): Unit = {
       assert(!(makeOptional && makeRequired))
       if (refMap.contains(name)) {
@@ -150,7 +150,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         refMap("row").foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).rowType)) }
       if (refMap.contains("global"))
         refMap("global").foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).globalType)) }
-      val refs = refMap.getOrElse("row", FastIndexedSeq()) ++ refMap.getOrElse("global", FastIndexedSeq())
+      val refs = refMap.getOrElse("row", FastSeq()) ++ refMap.getOrElse("global", FastSeq())
       dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
     }
     node match {
@@ -181,7 +181,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ArrayMaximalIndependentSet(a, tiebreaker) =>
         tiebreaker.foreach { case (left, right, _) =>
           val eltReq = tcoerce[TypeWithRequiredness](tcoerce[RIterable](lookup(a)).elementType.children.head)
-          val req = RTuple.fromNamesAndTypes(FastIndexedSeq("0" -> eltReq))
+          val req = RTuple.fromNamesAndTypes(FastSeq("0" -> eltReq))
           req.union(true)
           refMap(left).foreach { u => defs.bind(u, Array(req)) }
           refMap(right).foreach { u => defs.bind(u, Array(req)) }
@@ -317,7 +317,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           refMap(globalName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](lookup(child).globalType)) }
         if (refMap.contains(partitionStreamName))
           refMap(partitionStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType))) }
-        val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
+        val refs = refMap.getOrElse(globalName, FastSeq()) ++ refMap.getOrElse(partitionStreamName, FastSeq())
         dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
       case TableGen(contexts, globals, cname, gname, _, _, _) =>
         addElementBinding(cname, contexts)

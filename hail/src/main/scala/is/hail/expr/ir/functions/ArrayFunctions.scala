@@ -1,15 +1,14 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.types.tcoerce
-import is.hail.types.physical.{PCanonicalArray, PInt32, PType}
-import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
-import is.hail.types.physical.stypes.primitives.{SBooleanValue, SFloat64, SInt32, SInt32Value}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SFloat64, SInt32, SInt32Value}
+import is.hail.types.physical.{PCanonicalArray, PType}
+import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -38,9 +37,9 @@ object ArrayFunctions extends RegistryFunctions {
     val sum = genUID()
     StreamFold2(
       ToStream(a),
-      FastIndexedSeq((n, I32(0)), (sum, zero(t))),
+      FastSeq((n, I32(0)), (sum, zero(t))),
       elt,
-      FastIndexedSeq(Ref(n, TInt32) + I32(1), Ref(sum, t) + Ref(elt, t)),
+      FastSeq(Ref(n, TInt32) + I32(1), Ref(sum, t) + Ref(elt, t)),
       Cast(Ref(sum, t), TFloat64) / Cast(Ref(n, TInt32), TFloat64)
     )
   }
@@ -55,7 +54,7 @@ object ArrayFunctions extends RegistryFunctions {
       If(IsNA(a2),
         NA(typ),
         ToArray(StreamFlatMap(
-          MakeStream(FastIndexedSeq(a1, a2), TStream(typ)),
+          MakeStream(FastSeq(a1, a2), TStream(typ)),
           uid,
           ToStream(Ref(uid, a1.typ))))))
   }
@@ -101,7 +100,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR2("extend", TArray(tv("T")), TArray(tv("T")), TArray(tv("T")))((_, a, b, _) => extend(a, b))
 
     registerIR2("append", TArray(tv("T")), tv("T"), TArray(tv("T"))) { (_, a, c, _) =>
-      extend(a, MakeArray(FastIndexedSeq(c), TArray(c.typ)))
+      extend(a, MakeArray(FastSeq(c), TArray(c.typ)))
     }
 
     registerIR2("contains", TArray(tv("T")), tv("T"), TBoolean) { (_, a, e, _) => contains(a, e) }
@@ -122,7 +121,7 @@ object ArrayFunctions extends RegistryFunctions {
         val e1 = Ref(a1id, tcoerce[TArray](array1.typ).elementType)
         val a2id = genUID()
         val e2 = Ref(a2id, tcoerce[TArray](array2.typ).elementType)
-        ToArray(StreamZip(FastIndexedSeq(ToStream(array1), ToStream(array2)), FastIndexedSeq(a1id, a2id),
+        ToArray(StreamZip(FastSeq(ToStream(array1), ToStream(array2)), FastSeq(a1id, a2id),
                                         irOp(e1, e2, errorID), ArrayZipBehavior.AssertSameLength))
       }
     }
@@ -138,9 +137,9 @@ object ArrayFunctions extends RegistryFunctions {
         val first = genUID()
         val acc = genUID()
         StreamFold2(ToStream(a),
-          FastIndexedSeq((acc, NA(t)), (first, True())),
+          FastSeq((acc, NA(t)), (first, True())),
           value,
-          FastIndexedSeq(
+          FastSeq(
             If(Ref(first, TBoolean), Ref(value, t), invoke(op, t, Ref(acc, t), Ref(value, t))),
             False()
           ),
@@ -326,7 +325,7 @@ object ArrayFunctions extends RegistryFunctions {
       { case (rt, inArrayET, la, n, _) => EmitType(PCanonicalArray(PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())).sType, inArrayET.required && la.required && n.required) })(
       { case (cb, region, rt: SIndexablePointer, err, array, localAlleles, nTotalAlleles, fillInValue) =>
 
-        IEmitCode.multiMapEmitCodes(cb, FastIndexedSeq(array, localAlleles, nTotalAlleles)) {
+        IEmitCode.multiMapEmitCodes(cb, FastSeq(array, localAlleles, nTotalAlleles)) {
           case IndexedSeq(array: SIndexableValue, localAlleles: SIndexableValue, _nTotalAlleles: SInt32Value) =>
             def triangle(x: Value[Int]): Code[Int] = (x * (x + 1)) / 2
             val nTotalAlleles =_nTotalAlleles.value
@@ -384,7 +383,7 @@ object ArrayFunctions extends RegistryFunctions {
     {case (rt, inArrayET, la, n, _, omitFirst) => EmitType(PCanonicalArray(PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())).sType, inArrayET.required && la.required && n.required && omitFirst.required)})(
       { case (cb, region, rt: SIndexablePointer, err, array, localAlleles, nTotalAlleles, fillInValue, omitFirstElement) =>
 
-        IEmitCode.multiMapEmitCodes(cb, FastIndexedSeq(array, localAlleles, nTotalAlleles, omitFirstElement)) {
+        IEmitCode.multiMapEmitCodes(cb, FastSeq(array, localAlleles, nTotalAlleles, omitFirstElement)) {
           case IndexedSeq(array: SIndexableValue, localAlleles: SIndexableValue, _nTotalAlleles: SInt32Value, omitFirst: SBooleanValue) =>
             val nTotalAlleles = _nTotalAlleles.value
             val pt = rt.pType.asInstanceOf[PCanonicalArray]

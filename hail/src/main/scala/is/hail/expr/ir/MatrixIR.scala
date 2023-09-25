@@ -171,12 +171,12 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
         tr,
         InsertFields(
           Ref("row", tr.typ.rowType),
-          FastIndexedSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(requestedType.entryType)))))
+          FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(requestedType.entryType)))))
       tr = TableMapGlobals(
         tr,
         InsertFields(
           Ref("global", tr.typ.globalType),
-          FastIndexedSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(requestedType.colType)))))
+          FastSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(requestedType.colType)))))
     }
     tr
   }
@@ -194,7 +194,7 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
           .filter(f => containedFields.contains(f.name))
           .map(_.index)
           .toArray
-        val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
+        val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastSeq
         BroadcastRow(ctx, Row(arr), requestedType)
       case None =>
         assert(requestedType == TStruct.empty)
@@ -742,7 +742,7 @@ case class MatrixAnnotateColsTable(
   root: String) extends MatrixIR {
   require(child.typ.colType.fieldOption(root).isEmpty)
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child, table)
 
   override def columnCount: Option[Call] = child.columnCount
 
@@ -771,7 +771,7 @@ case class MatrixAnnotateRowsTable(
     (table.typ.keyType.size == 1 && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0))),
     s"\n  L: ${ child.typ }\n  R: ${ table.typ }")
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child, table)
 
   override def columnCount: Option[Int] = child.columnCount
 
@@ -797,7 +797,7 @@ case class MatrixAnnotateRowsTable(
 case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
   assert(path.nonEmpty)
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   lazy val rowCountUpperBound: Option[Long] = None
 
@@ -816,7 +816,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
     path.zip(refs).zipWithIndex.foldRight[IR](idx) {
       case (((field, ref), i), arg) =>
-        InsertFields(ref, FastIndexedSeq(field ->
+        InsertFields(ref, FastSeq(field ->
           (if (i == refs.length - 1)
             ArrayRef(ToArray(ToStream(GetField(ref, field))), arg)
           else
@@ -830,7 +830,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends MatrixIR {
   val typ: MatrixType = child.typ
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRepartition = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
@@ -876,7 +876,7 @@ case class MatrixDistinctByRow(child: MatrixIR) extends MatrixIR {
 
   val typ: MatrixType = child.typ
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixDistinctByRow = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
@@ -897,7 +897,7 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
     val newPCs = pc.iterator.zip(prefixSums)
       .takeWhile { case (_, prefixSum) => prefixSum < n }
       .map { case (value, prefixSum) => if (prefixSum + value > n) n - prefixSum else value }
-      .toFastIndexedSeq
+      .toFastSeq
     assert(newPCs.sum == n || pc.sum < n)
     newPCs
   }
@@ -974,7 +974,7 @@ case class MatrixColsTail(child: MatrixIR, n: Int) extends MatrixIR {
 
 case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixExplodeCols = {
     val IndexedSeq(newChild) = newChildren
@@ -1061,7 +1061,7 @@ case class MatrixRename(child: MatrixIR,
     rowType = child.typ.rowType.rename(rowMap),
     entryType = child.typ.entryType.rename(entryMap))
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 

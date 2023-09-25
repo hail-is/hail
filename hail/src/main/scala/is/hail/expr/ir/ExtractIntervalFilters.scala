@@ -106,7 +106,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends AbstractLatti
 
   object KeySet {
     def apply(intervals: Interval*): IndexedSeq[Interval] = {
-      apply(intervals.toFastIndexedSeq)
+      apply(intervals.toFastSeq)
     }
 
     def apply(intervals: IndexedSeq[Interval]): IndexedSeq[Interval] = {
@@ -114,7 +114,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends AbstractLatti
       intervals
     }
 
-    val empty: IndexedSeq[Interval] = FastIndexedSeq()
+    val empty: IndexedSeq[Interval] = FastSeq()
 
     def reduce(intervals: IndexedSeq[Interval]): IndexedSeq[Interval] = intervals match {
       case Seq() => empty
@@ -123,7 +123,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends AbstractLatti
           last
         else
           Interval(last.left, IntervalEndpoint(Row(), 1))
-        (init :+ reducedLast).toFastIndexedSeq
+        (init :+ reducedLast).toFastSeq
     }
 
     private def intervalIsReduced(interval: Interval): Boolean = {
@@ -153,7 +153,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends AbstractLatti
   }
 
   def combineMulti(vs: Value*): Value = {
-    KeySet(Interval.union(vs.flatten.toFastIndexedSeq, iord))
+    KeySet(Interval.union(vs.flatten.toFastSeq, iord))
   }
 
   def meet(l: Value, r: Value): Value = {
@@ -651,14 +651,14 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     KeySet.reduce(
       lit.toArray.distinct.filter(x => wrapped || x != null).sorted(ordering)
         .map(elt => Interval(endpoint(elt, -1, wrapped), endpoint(elt, 1, wrapped)))
-        .toFastIndexedSeq)
+        .toFastSeq)
 
   private def intervalsFromLiteralContigs(contigs: Any, rg: ReferenceGenome): IndexedSeq[Interval] = {
     KeySet((contigs: @unchecked) match {
-             case x: Map[_, _] => x.keys.asInstanceOf[Iterable[String]].toFastIndexedSeq
+             case x: Map[_, _] => x.keys.asInstanceOf[Iterable[String]].toFastSeq
                .sortBy(rg.contigsIndex.get(_))(TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]])
                .flatMap(getIntervalFromContig(_, rg))
-             case x: Traversable[_] => x.asInstanceOf[Traversable[String]].toArray.toFastIndexedSeq
+             case x: Traversable[_] => x.asInstanceOf[Traversable[String]].toArray.toFastSeq
                .sortBy(rg.contigsIndex.get(_))(TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]])
                .flatMap(getIntervalFromContig(_, rg))
            })
@@ -869,7 +869,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     res = if (res == null) {
-      val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastIndexedSeq
+      val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastSeq
       val keyOrConstVal = computeKeyOrConst(x, children)
       if (x.typ == TBoolean) {
         if (keyOrConstVal == Lattice.top)

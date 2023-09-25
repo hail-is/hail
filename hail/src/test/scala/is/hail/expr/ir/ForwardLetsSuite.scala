@@ -35,11 +35,11 @@ class ForwardLetsSuite extends HailSuite {
     Array(
       NDArrayMap(In(1, TNDArray(TInt32, Nat(1))), "y", x + y),
       NDArrayMap2(In(1, TNDArray(TInt32, Nat(1))), In(2, TNDArray(TInt32, Nat(1))), "y", "z", x + y + Ref("z", TInt32), ErrorIDs.NO_ERROR),
-      TailLoop("f", FastIndexedSeq("y" -> I32(0)), If(y < x, Recur("f", FastIndexedSeq[IR](y - I32(1)), TInt32), x))
+      TailLoop("f", FastSeq("y" -> I32(0)), If(y < x, Recur("f", FastSeq[IR](y - I32(1)), TInt32), x))
     ).map(ir => Array[IR](Let("x", In(0, TInt32) + In(0, TInt32), ir)))
   }
 
-  def aggMin(value: IR): ApplyAggOp = ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(value), AggSignature(Min(), FastSeq(), FastSeq(value.typ)))
+  def aggMin(value: IR): ApplyAggOp = ApplyAggOp(FastSeq(), FastSeq(value), AggSignature(Min(), FastSeq(), FastSeq(value.typ)))
 
   @DataProvider(name = "nonForwardingAggOps")
   def nonForwardingAggOps(): Array[Array[IR]] = {
@@ -128,7 +128,7 @@ class ForwardLetsSuite extends HailSuite {
 
   @Test def testAggregators(): Unit = {
     val aggEnv = Env[Type]("row" -> TStruct("idx" -> TInt32))
-    val ir0 = applyAggOp(Sum(), seqOpArgs = FastIndexedSeq(let(x = 'row('idx) - 1) {
+    val ir0 = applyAggOp(Sum(), seqOpArgs = FastSeq(let(x = 'row('idx) - 1) {
       'x.toD
     }))
       .apply(aggEnv)

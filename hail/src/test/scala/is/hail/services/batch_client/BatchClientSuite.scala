@@ -1,8 +1,7 @@
 package is.hail.services.batch_client
 
 import is.hail.utils._
-
-import org.json4s.JsonAST.{JArray, JBool, JInt, JObject, JString}
+import org.json4s.JsonAST._
 import org.json4s.{DefaultFormats, Formats}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
@@ -16,7 +15,7 @@ class BatchClientSuite extends TestNGSuite {
         "billing_project" -> JString("test"),
         "n_jobs" -> JInt(1),
         "token" -> JString(token)),
-      FastIndexedSeq(
+      FastSeq(
         JObject(
           "always_run" -> JBool(false),
           "job_id" -> JInt(0),

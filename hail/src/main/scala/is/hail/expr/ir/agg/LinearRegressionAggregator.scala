@@ -4,13 +4,13 @@ import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerSettable, SIndexablePointerValue}
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 class LinearRegressionAggregatorState(val kb: EmitClassBuilder[_]) extends AbstractTypedRegionBackedAggState(LinearRegressionAggregator.stateType)
 
@@ -234,7 +234,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     val oxty = cb.newLocal[Long]("oxty")
     val oxtx = cb.newLocal[Long]("oxtx")
 
-    cb += Code(FastIndexedSeq(
+    cb += Code(FastSeq(
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
       oxty := stateType.loadField(other.off, 0),

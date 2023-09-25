@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PBinary, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -18,7 +18,7 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
     new SBinaryPointerValue(this, pType.store(cb, region, value, deepCopy))
   }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo)
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Value[Long]): SValue = {
     if (pt == this.pType)
@@ -56,7 +56,7 @@ class SBinaryPointerValue(
 
   def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(pt.loadLength(a))
@@ -77,7 +77,7 @@ final class SBinaryPointerSettable(
   st: SBinaryPointer,
   override val a: Settable[Long]
 ) extends SBinaryPointerValue(st, a) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(a, v.asInstanceOf[SBinaryPointerValue].a)

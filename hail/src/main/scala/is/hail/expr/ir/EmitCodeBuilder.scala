@@ -1,12 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.utils._
 
 object EmitCodeBuilder {
@@ -221,7 +219,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
               s"\n  got ${ c.ti }" +
               s"\n  expected ${ cpt.ti }" +
               s"\n  all param types: ${expectedArgs}-")
-          FastIndexedSeq(c)
+          FastSeq(c)
         case (SCodeParam(pc), pcpt: SCodeParamType) =>
           if (pc.st != pcpt.st)
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
@@ -270,7 +268,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SValue = {
     val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
     if (st.nSettables == 1)
-      st.fromValues(FastIndexedSeq(_invoke(callee, args: _*)))
+      st.fromValues(FastSeq(_invoke(callee, args: _*)))
     else {
       val tup = _invoke(callee, args: _*)
       st.fromValues(callee.asmTuple.loadElementsAny(tup))

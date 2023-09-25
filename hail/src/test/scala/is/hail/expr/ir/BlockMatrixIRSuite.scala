@@ -2,14 +2,13 @@ package is.hail.expr.ir
 
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.Nat
-import is.hail.types.encoded.{EFloat64Required, EBlockMatrixNDArray}
-import is.hail.types.virtual._
 import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
+import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64Required}
+import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.TestUtils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.Test
 
 class BlockMatrixIRSuite extends HailSuite {
@@ -20,8 +19,8 @@ class BlockMatrixIRSuite extends HailSuite {
   val shape: Array[Long] = Array[Long](N_ROWS, N_COLS)
 
   def toIR(bdm: BDM[Double], blockSize: Int = BLOCK_SIZE): BlockMatrixIR =
-    ValueToBlockMatrix(Literal(TArray(TFloat64), bdm.t.toArray.toFastIndexedSeq),
-      FastIndexedSeq(bdm.rows, bdm.cols), blockSize)
+    ValueToBlockMatrix(Literal(TArray(TFloat64), bdm.t.toArray.toFastSeq),
+      FastSeq(bdm.rows, bdm.cols), blockSize)
 
   def fill(v: Double, nRows: Int = N_ROWS, nCols: Int = N_COLS, blockSize: Int = BLOCK_SIZE) =
     toIR(BDM.fill[Double](nRows, nCols)(v), blockSize)
@@ -45,10 +44,10 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixMap() {
-    val sqrtIR = BlockMatrixMap(ones, "element", Apply("sqrt", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), false)
+    val sqrtIR = BlockMatrixMap(ones, "element", Apply("sqrt", FastSeq(), FastSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), false)
     val negIR = BlockMatrixMap(ones, "element", ApplyUnaryPrimOp(Negate, Ref("element", TFloat64)), false)
-    val logIR = BlockMatrixMap(ones, "element", Apply("log", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), true)
-    val absIR = BlockMatrixMap(ones, "element", Apply("abs", FastIndexedSeq(), FastIndexedSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), false)
+    val logIR = BlockMatrixMap(ones, "element", Apply("log", FastSeq(), FastSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), true)
+    val absIR = BlockMatrixMap(ones, "element", Apply("abs", FastSeq(), FastSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR), false)
 
     assertBMEvalsTo(sqrtIR, BDM.fill[Double](3, 3)(1))
     assertBMEvalsTo(negIR, BDM.fill[Double](3, 3)(-1))
@@ -71,7 +70,7 @@ class BlockMatrixIRSuite extends HailSuite {
   @Test def testBlockMatrixBroadcastValue_Scalars() {
     val broadcastTwo = BlockMatrixBroadcast(
       ValueToBlockMatrix(MakeArray(IndexedSeq[F64](F64(2)), TArray(TFloat64)), Array[Long](1, 1), ones.typ.blockSize),
-      FastIndexedSeq(), shape, ones.typ.blockSize)
+      FastSeq(), shape, ones.typ.blockSize)
 
     val onesAddTwo = makeMap2(ones, broadcastTwo, Add(), UnionBlocks)
     val onesSubTwo = makeMap2(ones, broadcastTwo, Subtract(), UnionBlocks)
@@ -88,9 +87,9 @@ class BlockMatrixIRSuite extends HailSuite {
     val vectorLiteral = MakeArray(IndexedSeq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64))
 
     val broadcastRowVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](1, 3),
-      ones.typ.blockSize), FastIndexedSeq(1), shape, ones.typ.blockSize)
+      ones.typ.blockSize), FastSeq(1), shape, ones.typ.blockSize)
     val broadcastColVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](3, 1),
-      ones.typ.blockSize), FastIndexedSeq(0), shape, ones.typ.blockSize)
+      ones.typ.blockSize), FastSeq(0), shape, ones.typ.blockSize)
 
     val ops = Array(
       (Add(), UnionBlocks, (i: Double, j: Double) => i + j),
@@ -127,11 +126,11 @@ class BlockMatrixIRSuite extends HailSuite {
     val keepCols = Array(0L, 2L, 7L)
 
     assertBMEvalsTo(BlockMatrixFilter(unfiltered, Array(keepRows, Array())),
-      original(keepRows.map(_.toInt).toFastIndexedSeq, ::).toDenseMatrix)
+      original(keepRows.map(_.toInt).toFastSeq, ::).toDenseMatrix)
     assertBMEvalsTo(BlockMatrixFilter(unfiltered, Array(Array(), keepCols)),
-      original(::, keepCols.map(_.toInt).toFastIndexedSeq).toDenseMatrix)
+      original(::, keepCols.map(_.toInt).toFastSeq).toDenseMatrix)
     assertBMEvalsTo(BlockMatrixFilter(unfiltered, Array(keepRows, keepCols)),
-      original(keepRows.map(_.toInt).toFastIndexedSeq, keepCols.map(_.toInt).toFastIndexedSeq).toDenseMatrix)
+      original(keepRows.map(_.toInt).toFastSeq, keepCols.map(_.toInt).toFastSeq).toDenseMatrix)
   }
 
   @Test def testBlockMatrixSlice() {
@@ -140,12 +139,12 @@ class BlockMatrixIRSuite extends HailSuite {
     val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i * nCols + j)
     val unsliced = toIR(original, blockSize = 3)
 
-    val rowSlice = FastIndexedSeq(1L, 10L, 3L)
-    val colSlice = FastIndexedSeq(4L, 8L, 2L)
-    assertBMEvalsTo(BlockMatrixSlice(unsliced, FastIndexedSeq(rowSlice, colSlice)),
+    val rowSlice = FastSeq(1L, 10L, 3L)
+    val colSlice = FastSeq(4L, 8L, 2L)
+    assertBMEvalsTo(BlockMatrixSlice(unsliced, FastSeq(rowSlice, colSlice)),
       original(
-        Array.range(rowSlice(0).toInt, rowSlice(1).toInt, rowSlice(2).toInt).toFastIndexedSeq,
-        Array.range(colSlice(0).toInt, colSlice(1).toInt, colSlice(2).toInt).toFastIndexedSeq).toDenseMatrix)
+        Array.range(rowSlice(0).toInt, rowSlice(1).toInt, rowSlice(2).toInt).toFastSeq,
+        Array.range(colSlice(0).toInt, colSlice(1).toInt, colSlice(2).toInt).toFastSeq).toDenseMatrix)
   }
 
   @Test def testBlockMatrixDot() {
@@ -167,7 +166,7 @@ class BlockMatrixIRSuite extends HailSuite {
     val etype = EBlockMatrixNDArray(EFloat64Required, required = true)
     val path = "src/test/resources/blockmatrix_example/0/parts/part-0-28-0-0-0feb7ac2-ab02-6cd4-5547-bfcb94dacb33"
     val matrix = BlockMatrix.read(fs, "src/test/resources/blockmatrix_example/0").toBreezeMatrix()
-    val expected = Array.tabulate(2)(i => Array.tabulate(2)(j => matrix(i, j)).toFastIndexedSeq).toFastIndexedSeq
+    val expected = Array.tabulate(2)(i => Array.tabulate(2)(j => matrix(i, j)).toFastSeq).toFastSeq
 
     val typ = TNDArray(TFloat64, Nat(2))
     val spec = TypedCodecSpec(etype, typ, BlockMatrix.bufferSpec)

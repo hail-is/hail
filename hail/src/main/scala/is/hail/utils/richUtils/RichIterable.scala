@@ -1,10 +1,9 @@
 package is.hail.utils.richUtils
 
-import java.io.Serializable
-
 import is.hail.utils._
 
-import scala.collection.{mutable, AbstractIterable}
+import java.io.Serializable
+import scala.collection.{AbstractIterable, mutable}
 import scala.reflect.ClassTag
 
 object RichIterable {
@@ -102,9 +101,7 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     m.toMap
   }
 
-  def toFastSeq(implicit tct: ClassTag[T]): Seq[T] = toFastIndexedSeq
-
-  def toFastIndexedSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = {
+  def toFastSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = {
     i match {
       case i: mutable.WrappedArray[T] => i
       case i: mutable.ArrayBuffer[T] => i

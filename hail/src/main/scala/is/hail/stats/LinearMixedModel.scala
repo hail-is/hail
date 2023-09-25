@@ -34,7 +34,7 @@ object LinearMixedModel {
       "chi_sq" -> PFloat64(),
       "p_value" -> PFloat64())
 
-  private val tableType = TableType(rowType.virtualType, FastIndexedSeq("idx"), TStruct.empty)
+  private val tableType = TableType(rowType.virtualType, FastSeq("idx"), TStruct.empty)
 
   def toTableIR(ctx: ExecuteContext, rvd: RVD): TableIR = {
     TableLiteral(TableValue(ctx, tableType, BroadcastRow.empty(ctx), rvd), ctx.theHailClassLoader)

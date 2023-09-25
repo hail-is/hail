@@ -188,8 +188,8 @@ package object ir {
     val r1 = Ref(genUID(), tcoerce[TStream](s.typ).elementType)
     val r2 = Ref(genUID(), TInt32)
     StreamZip(
-      FastIndexedSeq(s, StreamIota(I32(0), I32(1))),
-      FastIndexedSeq(r1.name, r2.name),
+      FastSeq(s, StreamIota(I32(0), I32(1))),
+      FastSeq(r1.name, r2.name),
       MakeStruct(FastSeq(("elt", r1), ("idx", r2))),
       ArrayZipBehavior.TakeMinLength
     )

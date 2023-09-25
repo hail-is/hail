@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 import is.hail.{ExecStrategy, HailSuite}
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
@@ -46,14 +46,14 @@ class StringFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("split", TArray(TString), NA(TString), Str(",")), null)
     assertEvalsTo(invoke("split", TArray(TString), Str("a,b,c"), NA(TString)), null)
 
-    assertEvalsTo(invoke("split", TArray(TString), Str("x"), Str("x")), FastIndexedSeq("", ""))
-    assertEvalsTo(invoke("split", TArray(TString), Str("a,b,c"), Str(",")), FastIndexedSeq("a", "b", "c"))
+    assertEvalsTo(invoke("split", TArray(TString), Str("x"), Str("x")), FastSeq("", ""))
+    assertEvalsTo(invoke("split", TArray(TString), Str("a,b,c"), Str(",")), FastSeq("a", "b", "c"))
 
     assertEvalsTo(invoke("split", TArray(TString), NA(TString), Str(","), I32(2)), null)
     assertEvalsTo(invoke("split", TArray(TString), Str("a,b,c"), NA(TString), I32(2)), null)
     assertEvalsTo(invoke("split", TArray(TString), Str("a,b,c"), Str(","), NA(TInt32)), null)
 
-    assertEvalsTo(invoke("split", TArray(TString), Str("a,b,c"), Str(","), I32(2)), FastIndexedSeq("a", "b,c"))
+    assertEvalsTo(invoke("split", TArray(TString), Str("a,b,c"), Str(","), I32(2)), FastSeq("a", "b,c"))
   }
 
   @Test def testReplace() {
@@ -84,8 +84,8 @@ class StringFunctionsSuite extends HailSuite {
 
   @Test def testFirstMatchIn() {
     assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("""([a-zA-Z]+)"""), Str("1")), null)
-    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""([a-zA-Z]+)""")), FastIndexedSeq("Hello"))
-    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""[a-zA-Z]+""")), FastIndexedSeq())
+    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""([a-zA-Z]+)""")), FastSeq("Hello"))
+    assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""[a-zA-Z]+""")), FastSeq())
   }
 
   @Test def testHammingDistance() {
@@ -101,7 +101,7 @@ class StringFunctionsSuite extends HailSuite {
     Array(F32(3.14f), TFloat32),
     Array(I64(7), TInt64),
     Array(IRArray(1, null, 5), TArray(TInt32)),
-    Array(MakeTuple.ordered(FastIndexedSeq(1, NA(TInt32), 5.7)), TTuple(TInt32, TInt32, TFloat64))
+    Array(MakeTuple.ordered(FastSeq(1, NA(TInt32), 5.7)), TTuple(TInt32, TInt32, TFloat64))
   )
 
   @Test(dataProvider = "str")

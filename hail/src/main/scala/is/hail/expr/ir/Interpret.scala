@@ -2,18 +2,17 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.spark.SparkTaskContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.types.physical.{PTuple, PType, stypes}
-import is.hail.types.virtual._
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
-import is.hail.utils._
-import is.hail.HailContext
-import is.hail.backend.{ExecuteContext, HailTaskContext}
-import is.hail.backend.spark.SparkTaskContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
+import is.hail.types.physical.{PTuple, PType}
 import is.hail.types.tcoerce
+import is.hail.types.virtual._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -39,7 +38,7 @@ object Interpret {
     lowered.execute(ctx)
   }
 
-  def apply[T](ctx: ExecuteContext, ir: IR): T = apply(ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq[(Any, Type)]()).asInstanceOf[T]
+  def apply[T](ctx: ExecuteContext, ir: IR): T = apply(ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]()).asInstanceOf[T]
 
   def apply[T](ctx: ExecuteContext,
     ir0: IR,
@@ -56,7 +55,7 @@ object Interpret {
     result
   }
 
-  def alreadyLowered(ctx: ExecuteContext, ir: IR): Any = run(ctx, ir, Env.empty, FastIndexedSeq(), Memo.empty)
+  def alreadyLowered(ctx: ExecuteContext, ir: IR): Any = run(ctx, ir, Env.empty, FastSeq(), Memo.empty)
 
   private def run(ctx: ExecuteContext,
     ir: IR,
@@ -241,8 +240,8 @@ object Interpret {
             case Compare(t, _) => t.ordering(ctx.stateManager).compare(lValue, rValue)
           }
 
-      case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
-      case MakeStream(elements, _, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq
+      case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastSeq
+      case MakeStream(elements, _, _) => elements.map(interpret(_, env, args)).toFastSeq
       case x@ArrayRef(a, i, errorId) =>
         val aValue = interpret(a, env, args)
         val iValue = interpret(i, env, args)
@@ -348,8 +347,8 @@ object Interpret {
           val ordering = tcoerce[TIterable](c.typ).elementType.ordering(ctx.stateManager).toOrdering
           cValue match {
             case s: Set[_] =>
-              s.asInstanceOf[Set[Any]].toFastIndexedSeq.sorted(ordering)
-            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq.sorted(ordering)
+              s.asInstanceOf[Set[Any]].toFastSeq.sorted(ordering)
+            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastSeq.sorted(ordering)
             case a => a
           }
         }
@@ -419,7 +418,7 @@ object Interpret {
         else {
           val size = sizeValue.asInstanceOf[Int]
           if (size <= 0) fatal("stream grouped: non-positive size")
-          aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
+          aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastSeq
         }
       case StreamGroupByKey(a, key, missingEqual) =>
         val aValue = interpret(a, env, args)
@@ -429,7 +428,7 @@ object Interpret {
           val structType = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
           val seq = aValue.asInstanceOf[IndexedSeq[Row]]
           if (seq.isEmpty)
-            FastIndexedSeq[IndexedSeq[Row]]()
+            FastSeq[IndexedSeq[Row]]()
           else {
             val outer = new BoxedArrayBuilder[IndexedSeq[Row]]()
             val inner = new BoxedArrayBuilder[Row]()
@@ -448,7 +447,7 @@ object Interpret {
             }
             outer += inner.result()
 
-            outer.result().toFastIndexedSeq
+            outer.result().toFastSeq
           }
         }
       case StreamMap(a, name, body) =>
@@ -523,7 +522,7 @@ object Interpret {
             advance(i)
             builder += elt
           }
-          builder.result().toFastIndexedSeq
+          builder.result().toFastSeq
         }
       case StreamZipJoin(as, key, curKeyName, curValsName, joinF) =>
         val streams = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[Row]])
@@ -570,9 +569,9 @@ object Interpret {
               advance(j)
               j = tournament(0)
             }
-            builder += interpret(joinF, env.bind(curKeyName -> curKey, curValsName -> elt.toFastIndexedSeq), args)
+            builder += interpret(joinF, env.bind(curKeyName -> curKey, curValsName -> elt.toFastSeq), args)
           }
-          builder.toFastIndexedSeq
+          builder.toFastSeq
         }
       case StreamFilter(a, name, cond) =>
         val aValue = interpret(a, env, args)
@@ -709,7 +708,7 @@ object Interpret {
             case "right" => outerResult.iterator.filter { case (l, r) => r.isDefined }
           }
           elts.map { case (lIdx, rIdx) => joinF(lIdx.map(lValue.apply).orNull, rIdx.map(rValue.apply).orNull) }
-            .toFastIndexedSeq
+            .toFastSeq
         }
 
       case StreamFor(a, valueName, body) =>
@@ -816,7 +815,7 @@ object Interpret {
           val (rt, f) = functionMemo.getOrElseUpdate(ir, {
             val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
               GetTupleElement(Ref("in", argTuple.virtualType), i)
-            }.toFastIndexedSeq
+            }.toFastSeq
             val newChildren = ir match {
               case ir: ApplySeeded => wrappedArgs :+ NA(TRNGState)
               case _ => wrappedArgs
@@ -824,8 +823,8 @@ object Interpret {
             val wrappedIR = Copy(ir, newChildren)
 
             val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](ctx,
-              FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)))),
-              FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+              FastSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)))),
+              FastSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
             (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region))
@@ -857,7 +856,7 @@ object Interpret {
         child.analyzeAndExecute(ctx).asTableValue(ctx).globals.safeJavaValue
       case TableCollect(child) =>
         val tv = child.analyzeAndExecute(ctx).asTableValue(ctx)
-        Row(tv.rvd.collect(ctx).toFastIndexedSeq, tv.globals.safeJavaValue)
+        Row(tv.rvd.collect(ctx).toFastSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
         val tvs = children.map(_.analyzeAndExecute(ctx).asTableValue(ctx))
         writer(ctx, tvs)
@@ -890,8 +889,8 @@ object Interpret {
 
         val wrapped = if (extracted.aggs.isEmpty) {
           val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) = Compile[AsmFunction2RegionLongLong](ctx,
-            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+            FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
+            FastSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
           // TODO Is this right? where does wrapped run?
@@ -901,15 +900,15 @@ object Interpret {
 
           val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
             extracted.states,
-            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-            FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
+            FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
+            FastSeq(classInfo[Region], LongInfo), UnitInfo,
             extracted.init)
 
           val (_, partitionOpSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](ctx,
             extracted.states,
-            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t))),
+            FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t))),
               ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.rvd.rowPType)))),
-            FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
+            FastSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
 
           val useTreeAggregate = extracted.shouldTreeAggregate
@@ -989,8 +988,8 @@ object Interpret {
           val (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) = CompileWithAggregators[AsmFunction2RegionLongLong](
             ctx,
             extracted.states,
-            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+            FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
+            FastSeq(classInfo[Region], LongInfo), LongInfo,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
           assert(rTyp.types(0).virtualType == query.typ)
 
@@ -1008,8 +1007,8 @@ object Interpret {
         wrapped.get(0)
       case LiftMeOut(child) =>
         val (Some(PTypeReferenceSingleCodeType(rt)), makeFunction) = Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
+          FastSeq(),
+          FastSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
         ctx.scopedExecution { (hcl, fs, htc, r) =>
