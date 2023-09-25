@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitMethodBuilder, _}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBoolean, SFloat64Value, SInt32, SInt32Value, SInt64}
+import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -49,7 +49,7 @@ object LocusFunctions extends RegistryFunctions {
       })
       IEmitCode.present(cb, finish(cb))
     }
-    rt.constructFromFields(cb, r, FastIndexedSeq(locus, alleles), deepCopy = false)
+    rt.constructFromFields(cb, r, FastSeq(locus, alleles), deepCopy = false)
   }
 
   def emitLocusInterval(cb: EmitCodeBuilder, r: Value[Region], intervalCode: Code[Interval], pt: PCanonicalInterval): SIntervalPointerValue = {
@@ -215,7 +215,7 @@ object LocusFunctions extends RegistryFunctions {
         }
 
         rt.constructFromFields(cb, r.region,
-          FastIndexedSeq[EmitCode](
+          FastSeq[EmitCode](
             EmitCode.fromI(cb.emb)(cb => addIdxWithCondition(cb) { case (cb, i, idx, coords) => coords.loadElement(cb, i)
                           .get(cb, "locus_windows: missing value for 'coord_expr'")
                           .asDouble.value > (coords.loadElement(cb, idx)
@@ -394,7 +394,7 @@ object LocusFunctions extends RegistryFunctions {
               primitive(cb.memoize(Code.checkcast[java.lang.Boolean](lifted.getField[java.lang.Object]("_2"))
                 .invoke[Boolean]("booleanValue"))))
 
-            val structCode = rt.constructFromFields(cb, r, FastIndexedSeq(locusCode, negativeStrandCode), deepCopy = false)
+            val structCode = rt.constructFromFields(cb, r, FastSeq(locusCode, negativeStrandCode), deepCopy = false)
 
             cb.goto(Ldefined)
             IEmitCode(Lmissing, Ldefined, structCode, false)
@@ -435,7 +435,7 @@ object LocusFunctions extends RegistryFunctions {
               primitive(cb.memoize(Code.checkcast[java.lang.Boolean](lifted.getField[java.lang.Object]("_2"))
                 .invoke[Boolean]("booleanValue"))))
 
-            val structCode = rt.constructFromFields(cb, r, FastIndexedSeq(intervalCode, negativeStrandCode), deepCopy = false)
+            val structCode = rt.constructFromFields(cb, r, FastSeq(intervalCode, negativeStrandCode), deepCopy = false)
 
 
             cb.goto(Ldefined)

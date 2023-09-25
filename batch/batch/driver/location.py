@@ -15,5 +15,6 @@ class CloudLocationMonitor(abc.ABC):
         data_disk_size_gb: int,
         preemptible: bool,
         regions: List[str],
+        machine_type: str,
     ) -> str:
         raise NotImplementedError

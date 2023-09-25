@@ -40,8 +40,7 @@ async def setup_existing_remote_tmpdir(service_account: str, verbose: bool) -> T
     give_access_to_remote_tmpdir = Confirm.ask(f'Do you want to give service account {service_account} read/write access to bucket {bucket}?')
     if give_access_to_remote_tmpdir:
         try:
-            await grant_service_account_bucket_access_with_role(bucket=bucket, service_account=service_account, role= 'roles/storage.objectViewer', verbose=verbose)
-            await grant_service_account_bucket_access_with_role(bucket=bucket, service_account=service_account, role= 'roles/storage.objectCreator', verbose=verbose)
+            await grant_service_account_bucket_access_with_role(bucket=bucket, service_account=service_account, role= 'roles/storage.objectAdmin', verbose=verbose)
         except InsufficientPermissions as e:
             typer.secho(e.message, fg=typer.colors.RED)
             raise Abort() from e
@@ -143,8 +142,7 @@ async def setup_new_remote_tmpdir(*,
     typer.secho(f'Updated bucket {bucket_name} in project {project} with lifecycle rule set to {lifecycle_days} days and labels {labels}.', fg=typer.colors.GREEN)
 
     try:
-        await grant_service_account_bucket_access_with_role(bucket_name, service_account, 'roles/storage.objectViewer', verbose=verbose)
-        await grant_service_account_bucket_access_with_role(bucket_name, service_account, 'roles/storage.objectCreator', verbose=verbose)
+        await grant_service_account_bucket_access_with_role(bucket_name, service_account, 'roles/storage.objectAdmin', verbose=verbose)
     except InsufficientPermissions as e:
         typer.secho(e.message, fg=typer.colors.RED)
         raise Abort() from e

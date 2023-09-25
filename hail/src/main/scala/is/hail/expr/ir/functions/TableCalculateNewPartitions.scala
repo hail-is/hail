@@ -2,9 +2,9 @@ package is.hail.expr.ir.functions
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.TableValue
+import is.hail.rvd.RVD
 import is.hail.types
 import is.hail.types.virtual._
-import is.hail.rvd.RVD
 import is.hail.utils._
 
 case class TableCalculateNewPartitions(
@@ -26,11 +26,11 @@ case class TableCalculateNewPartitions(
   def execute(ctx: ExecuteContext, tv: TableValue): Any = {
     val rvd = tv.rvd
     if (rvd.typ.key.isEmpty)
-      FastIndexedSeq()
+      FastSeq()
     else {
       val ki = RVD.getKeyInfo(ctx, rvd.typ, rvd.typ.key.length, RVD.getKeys(ctx, rvd.typ, rvd.crdd))
       if (ki.isEmpty)
-        FastIndexedSeq()
+        FastSeq()
       else
         RVD.calculateKeyRanges(ctx, rvd.typ, ki, nPartitions, rvd.typ.key.length).rangeBounds.toIndexedSeq
     }

@@ -43,9 +43,9 @@ object LoadPlink {
                 val locus = Locus.annotation(recodedContig, bpPos.toInt, rg)
                 val alleles =
                   if (a2Reference)
-                    FastIndexedSeq(allele2, allele1)
+                    FastSeq(allele2, allele1)
                   else
-                    FastIndexedSeq(allele1, allele2)
+                    FastSeq(allele1, allele2)
                 val locusAlleles = Row(locus, alleles)
                 vs += new PlinkVariant(n, locusAlleles, cmPos.toDouble, rsId)
               }

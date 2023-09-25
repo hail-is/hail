@@ -68,11 +68,12 @@ class InstanceCollectionManager:
         data_disk_size_gb: int,
         preemptible: bool,
         regions: List[str],
+        machine_type: str,
     ) -> str:
         if self._default_region in regions and self.global_total_provisioned_cores_mcpu // 1000 < 1_000:
             regions = [self._default_region]
         return self.location_monitor.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions, machine_type
         )
 
     @property
@@ -233,9 +234,10 @@ class InstanceCollection:
         data_disk_size_gb: int,
         preemptible: bool,
         regions: List[str],
+        machine_type: str,
     ) -> str:
         return self.inst_coll_manager.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions, machine_type
         )
 
     def generate_machine_name(self) -> str:
@@ -286,7 +288,9 @@ class InstanceCollection:
         data_disk_size_gb,
         boot_disk_size_gb,
     ) -> Tuple[Instance, List[QuantifiedResource]]:
-        location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
+        location = self.choose_location(
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions, machine_type
+        )
 
         machine_name = self.generate_machine_name()
         activation_token = secrets.token_urlsafe(32)

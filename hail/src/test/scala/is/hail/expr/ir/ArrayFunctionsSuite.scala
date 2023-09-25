@@ -1,13 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
-import is.hail.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils.FastSeq
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.{DataProvider, Test}
-import org.scalatest.testng.TestNGSuite
 
 class ArrayFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))
@@ -16,10 +14,10 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @DataProvider(name = "basic")
   def basicData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(3, 7)),
+    Array(FastSeq(3, 7)),
     Array(null),
-    Array(FastIndexedSeq(3, null, 7, null)),
-    Array(FastIndexedSeq())
+    Array(FastSeq(3, null, 7, null)),
+    Array(FastSeq())
   )
 
   @DataProvider(name = "basicPairs")
@@ -84,11 +82,11 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @DataProvider(name = "sort")
   def sortData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(3, 9, 7), FastIndexedSeq(3, 7, 9), FastIndexedSeq(9, 7, 3)),
+    Array(FastSeq(3, 9, 7), FastSeq(3, 7, 9), FastSeq(9, 7, 3)),
     Array(null, null, null),
-    Array(FastIndexedSeq(3, null, 1, null, 3), FastIndexedSeq(1, 3, 3, null, null), FastIndexedSeq(3, 3, 1, null, null)),
-    Array(FastIndexedSeq(1, null, 3, null, 1), FastIndexedSeq(1, 1, 3, null, null), FastIndexedSeq(3, 1, 1, null, null)),
-    Array(FastIndexedSeq(), FastIndexedSeq(), FastIndexedSeq())
+    Array(FastSeq(3, null, 1, null, 3), FastSeq(1, 3, 3, null, null), FastSeq(3, 3, 1, null, null)),
+    Array(FastSeq(1, null, 3, null, 1), FastSeq(1, 1, 3, null, null), FastSeq(3, 1, 1, null, null)),
+    Array(FastSeq(), FastSeq(), FastSeq())
   )
 
   @Test(dataProvider = "sort")
@@ -114,11 +112,11 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @DataProvider(name = "argminmax")
   def argMinMaxData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(3, 9, 7), 0, 1),
+    Array(FastSeq(3, 9, 7), 0, 1),
     Array(null, null, null),
-    Array(FastIndexedSeq(3, null, 1, null, 3), 2, 0),
-    Array(FastIndexedSeq(1, null, 3, null, 1), 0, 2),
-    Array(FastIndexedSeq(), null, null)
+    Array(FastSeq(3, null, 1, null, 3), 2, 0),
+    Array(FastSeq(1, null, 3, null, 1), 0, 2),
+    Array(FastSeq(), null, null)
   )
 
   @Test(dataProvider = "argminmax")
@@ -133,11 +131,11 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @DataProvider(name = "uniqueMinMaxIndex")
   def uniqueMinMaxData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(3, 9, 7), 0, 1),
+    Array(FastSeq(3, 9, 7), 0, 1),
     Array(null, null, null),
-    Array(FastIndexedSeq(3, null, 1, null, 3), 2, null),
-    Array(FastIndexedSeq(1, null, 3, null, 1), null, 2),
-    Array(FastIndexedSeq(), null, null)
+    Array(FastSeq(3, null, 1, null, 3), 2, null),
+    Array(FastSeq(1, null, 3, null, 1), null, 2),
+    Array(FastSeq(), null, null)
   )
 
   @Test(dataProvider = "uniqueMinMaxIndex")
@@ -152,9 +150,9 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @DataProvider(name = "arrayOpsData")
   def arrayOpsData(): Array[Array[Any]] = Array[Any](
-    FastIndexedSeq(3, 9, 7, 1),
-    FastIndexedSeq(null, 2, null, 8),
-    FastIndexedSeq(5, 3, null, null),
+    FastSeq(3, 9, 7, 1),
+    FastSeq(null, 2, null, 8),
+    FastSeq(5, 3, null, null),
     null
   ).combinations(2).toArray
 
@@ -221,39 +219,39 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test def slicing() {
     val a = IRArray(0, null, 2)
-    assertEvalsTo(ArraySlice(a, I32(1), None), FastIndexedSeq(null, 2))
-    assertEvalsTo(ArraySlice(a, I32(-2), None), FastIndexedSeq(null, 2))
-    assertEvalsTo(ArraySlice(a, I32(5), None), FastIndexedSeq())
-    assertEvalsTo(ArraySlice(a, I32(-5), None), FastIndexedSeq(0, null, 2))
+    assertEvalsTo(ArraySlice(a, I32(1), None), FastSeq(null, 2))
+    assertEvalsTo(ArraySlice(a, I32(-2), None), FastSeq(null, 2))
+    assertEvalsTo(ArraySlice(a, I32(5), None), FastSeq())
+    assertEvalsTo(ArraySlice(a, I32(-5), None), FastSeq(0, null, 2))
     assertEvalsTo(ArraySlice(naa, I32(1), None), null)
     assertEvalsTo(ArraySlice(a, NA(TInt32), None), null)
 
-    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(2))), FastIndexedSeq(0, null))
-    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(-1))), FastIndexedSeq(0, null))
-    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(5))), FastIndexedSeq(0, null, 2))
-    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(-5))), FastIndexedSeq())
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(2))), FastSeq(0, null))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(-1))), FastSeq(0, null))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(5))), FastSeq(0, null, 2))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(-5))), FastSeq())
     assertEvalsTo(ArraySlice(naa, I32(0), Some(I32(1))), null)
     assertEvalsTo(ArraySlice(a, I32(0), Some(NA(TInt32))), null)
 
-    assertEvalsTo(ArraySlice(a, I32(1), Some(I32(3))), FastIndexedSeq(null, 2))
-    assertEvalsTo(ArraySlice(a, I32(1), Some(I32(2))), FastIndexedSeq(null))
-    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(2))), FastIndexedSeq(0, null))
-    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(3))), FastIndexedSeq(0, null, 2))
-    assertEvalsTo(ArraySlice(a, I32(-1),Some( I32(3))), FastIndexedSeq(2))
-    assertEvalsTo(ArraySlice(a, I32(-4), Some(I32(4))), FastIndexedSeq(0, null, 2))
+    assertEvalsTo(ArraySlice(a, I32(1), Some(I32(3))), FastSeq(null, 2))
+    assertEvalsTo(ArraySlice(a, I32(1), Some(I32(2))), FastSeq(null))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(2))), FastSeq(0, null))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(3))), FastSeq(0, null, 2))
+    assertEvalsTo(ArraySlice(a, I32(-1),Some( I32(3))), FastSeq(2))
+    assertEvalsTo(ArraySlice(a, I32(-4), Some(I32(4))), FastSeq(0, null, 2))
     assertEvalsTo(ArraySlice(naa, I32(1), Some(I32(2))), null)
     assertEvalsTo(ArraySlice(a, I32(1), Some(NA(TInt32))), null)
     assertEvalsTo(ArraySlice(a, NA(TInt32), Some(I32(1))), null)
-    assertEvalsTo(ArraySlice(a, I32(3), Some(I32(2))), FastIndexedSeq())
+    assertEvalsTo(ArraySlice(a, I32(3), Some(I32(2))), FastSeq())
   }
 
   @DataProvider(name = "flatten")
   def flattenData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(FastIndexedSeq(3, 9, 7), FastIndexedSeq(3, 7, 9)), FastIndexedSeq(3, 9, 7, 3, 7, 9)),
-    Array(FastIndexedSeq(null, FastIndexedSeq(1)), FastIndexedSeq(1)),
-    Array(FastIndexedSeq(null, null), FastIndexedSeq()),
-    Array(FastIndexedSeq(FastIndexedSeq(null), FastIndexedSeq(), FastIndexedSeq(7)), FastIndexedSeq(null, 7)),
-    Array(FastIndexedSeq(FastIndexedSeq(), FastIndexedSeq()), FastIndexedSeq())
+    Array(FastSeq(FastSeq(3, 9, 7), FastSeq(3, 7, 9)), FastSeq(3, 9, 7, 3, 7, 9)),
+    Array(FastSeq(null, FastSeq(1)), FastSeq(1)),
+    Array(FastSeq(null, null), FastSeq()),
+    Array(FastSeq(FastSeq(null), FastSeq(), FastSeq(7)), FastSeq(null, 7)),
+    Array(FastSeq(FastSeq(), FastSeq()), FastSeq())
   )
 
   @Test(dataProvider = "flatten")
@@ -266,37 +264,37 @@ class ArrayFunctionsSuite extends HailSuite {
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
-      args = FastIndexedSeq(FastIndexedSeq() -> t),
+      args = FastSeq(FastSeq() -> t),
       expected=false)
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
-      args = FastIndexedSeq(FastIndexedSeq(null) -> t),
+      args = FastSeq(FastSeq(null) -> t),
       expected=false)
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
-      args = FastIndexedSeq(FastIndexedSeq("c", "a", "b") -> t),
+      args = FastSeq(FastSeq("c", "a", "b") -> t),
       expected=true)
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
-      args = FastIndexedSeq(FastIndexedSeq("c", "a", "b", null) -> t),
+      args = FastSeq(FastSeq("c", "a", "b", null) -> t),
       expected=true)
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
-      args = FastIndexedSeq((null, t)),
+      args = FastSeq((null, t)),
       expected=null)
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), NA(t.elementType)),
-      args = FastIndexedSeq((null, t)),
+      args = FastSeq((null, t)),
       expected=null)
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), NA(t.elementType)),
-      args = FastIndexedSeq(FastIndexedSeq("a", null) -> t),
+      args = FastSeq(FastSeq("a", null) -> t),
       expected=true)
   }
 }

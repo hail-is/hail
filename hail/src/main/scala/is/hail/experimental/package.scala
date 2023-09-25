@@ -1,8 +1,8 @@
 package is.hail
 
-import is.hail.stats._
-import breeze.linalg.{Vector, DenseVector, max, sum}
+import breeze.linalg.{DenseVector, max, sum}
 import breeze.numerics._
+import is.hail.stats._
 import is.hail.utils._
 
 package object experimental {
@@ -43,7 +43,7 @@ package object experimental {
     val nSamples = sum(_gtCounts)
 
     //Needs some non-ref samples to compute
-    if(_gtCounts(0) >= nSamples){ return FastIndexedSeq(_gtCounts(0),0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0)}
+    if(_gtCounts(0) >= nSamples){ return FastSeq(_gtCounts(0),0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0)}
 
     val nHaplotypes = 2.0*nSamples.toDouble
 
@@ -80,7 +80,7 @@ package object experimental {
 
     }
 
-    return (p_next *:* nHaplotypes).toArray.toFastIndexedSeq
+    return (p_next *:* nHaplotypes).toArray.toFastSeq
   }
 
 }

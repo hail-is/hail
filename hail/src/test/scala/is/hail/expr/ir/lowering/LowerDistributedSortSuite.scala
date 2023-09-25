@@ -1,12 +1,11 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.{Apply, ApplyBinaryPrimOp, Ascending, Descending, ErrorIDs, GetField, I32, IR, Literal, LoweringAnalyses, MakeStruct, Ref, Requiredness, RequirednessAnalysis, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream, mapIR}
-import is.hail.{ExecStrategy, HailContext, HailSuite, TestUtils}
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
+import is.hail.expr.ir.{Apply, Ascending, Descending, ErrorIDs, GetField, I32, Literal, LoweringAnalyses, MakeStruct, Ref, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream, mapIR}
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
+import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -42,7 +41,7 @@ class LowerDistributedSortSuite extends HailSuite {
       val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses)
 
       val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
-        .lower(ctx, myTable.typ.copy(key = FastIndexedSeq()))
+        .lower(ctx, myTable.typ.copy(key = FastSeq()))
       val res = TestUtils.eval(sortedTs.mapCollect("test")(x => ToArray(x))).asInstanceOf[IndexedSeq[IndexedSeq[Row]]].flatten
 
       val rowFunc = myTable.typ.rowType.select(sortFields.map(_.field))._2

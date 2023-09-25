@@ -80,6 +80,6 @@ def set_query_name(init_hail, request):
             if any(r.failed for r in report.values()):
                 log.info(f'cancelling failed test batch {backend._batch.id}')
                 asyncio.get_event_loop().run_until_complete(backend._batch.cancel())
-            backend._batch = None
+            backend._batch = backend._create_batch()
     else:
         yield

@@ -74,6 +74,7 @@ async def main():
     users = [
         # username, login_id, is_developer, is_service_account
         ('auth', None, 0, 1),
+        ('batch', None, 0, 1),
         ('ci', None, 0, 1),
         ('test', None, 0, 0),
         ('test-dev', None, 1, 0),

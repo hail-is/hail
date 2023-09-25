@@ -2,13 +2,13 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.ir.streams.StreamProducer
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes._
 import is.hail.types.virtual.{TStream, Type}
 import is.hail.types.{RIterable, TypeWithRequiredness}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 trait MissingnessAsMethod {
   def isMissing: Boolean
@@ -86,7 +86,7 @@ trait SStreamValue extends SUnrealizableValue {
 
 class SStreamConcrete(val st: SStreamIteratorLong, val it: Value[NoBoxLongIterator]) extends SStreamValue {
 
-  lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(it)
+  lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(it)
 
   override def getProducer(mb: EmitMethodBuilder[_]): StreamProducer = {
 
@@ -128,7 +128,7 @@ class SStreamConcreteSettable(st: SStreamIteratorLong, val itSettable: Settable[
     cb.assign(itSettable, v.asInstanceOf[SStreamConcrete].it)
   }
 
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(itSettable)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(itSettable)
 }
 
 case class SStreamControlFlow(st: SimpleSStream, producer: StreamProducer) extends SStreamValue {

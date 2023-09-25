@@ -16,7 +16,7 @@ abstract class FakeFS extends FS {
   override def eTag(url: FakeURL): Option[String] = ???
   override def fileListEntry(url: FakeURL): FileListEntry = ???
   override def glob(url: FakeURL): Array[FileListEntry] = ???
-  override def listStatus(url: FakeURL): Array[FileListEntry] = ???
+  override def listDirectory(url: FakeURL): Array[FileListEntry] = ???
   override def makeQualified(path: String): String = ???
   override def getConfiguration(): Any = ???
   override def setConfiguration(config: Any): Unit = ???

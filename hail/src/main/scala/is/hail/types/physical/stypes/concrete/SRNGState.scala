@@ -3,15 +3,12 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, Threefry, ThreefryRandomEngine}
-import is.hail.types.{RPrimitive, TypeWithRequiredness}
-import is.hail.types.physical.{PType, StoredSTypePType}
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
+import is.hail.types.physical.{PType, StoredSTypePType}
 import is.hail.types.virtual.{TRNGState, Type}
-import is.hail.utils.{Bitstring, FastIndexedSeq, toRichIterable}
-
-import scala.collection.mutable
-import scala.collection.mutable
+import is.hail.types.{RPrimitive, TypeWithRequiredness}
+import is.hail.utils.FastSeq
 
 final case class SRNGStateStaticInfo(numWordsInLastBlock: Int, hasStaticSplit: Boolean, numDynBlocks: Int) {
   assert(numWordsInLastBlock <= 4 && numWordsInLastBlock >= 0)
@@ -109,7 +106,7 @@ class SCanonicalRNGStateValue(
   override def valueTuple: IndexedSeq[Value[_]] =
     runningSum ++
       lastDynBlock ++
-      FastIndexedSeq(numWordsInLastBlock, hasStaticSplit, numDynBlocks)
+      FastSeq(numWordsInLastBlock, hasStaticSplit, numDynBlocks)
 
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
     new SInt64Value(4*8 + 4*8 + 4 + 4 + 4)
@@ -136,7 +133,7 @@ class SCanonicalRNGStateValue(
       cb += Code.switch(
         numWordsInLastBlock,
         Code._fatal[Unit]("invalid numWordsInLastBlock"),
-        FastIndexedSeq(
+        FastSeq(
           newLastDynBlock(0) := idx,
           newLastDynBlock(1) := idx,
           newLastDynBlock(2) := idx,
@@ -164,7 +161,7 @@ class SCanonicalRNGStateValue(
     cb += Code.switch(
       numWordsInLastBlock,
       Code._fatal[Unit]("invalid numWordsInLastBlock"),
-      FastIndexedSeq(
+      FastSeq(
         x(0) := x(0) ^ 1L,
         x(1) := x(1) ^ 1L,
         x(2) := x(2) ^ 1L,
@@ -182,7 +179,7 @@ class SCanonicalRNGStateValue(
     cb += Code.switch(
       numWordsInLastBlock,
       Code._fatal[Unit]("invalid numWordsInLastBlock"),
-      FastIndexedSeq(
+      FastSeq(
         x(0) := x(0) ^ 1L,
         x(1) := x(1) ^ 1L,
         x(2) := x(2) ^ 1L,
@@ -213,7 +210,7 @@ class SCanonicalRNGStateSettable(
   override def settableTuple(): IndexedSeq[Settable[_]] =
     runningSum ++
       lastDynBlock ++
-      FastIndexedSeq(numWordsInLastBlock, hasStaticSplit, numDynBlocks)
+      FastSeq(numWordsInLastBlock, hasStaticSplit, numDynBlocks)
 }
 
 object SRNGStateStaticSizeValue {

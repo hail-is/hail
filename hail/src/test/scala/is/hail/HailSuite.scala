@@ -1,23 +1,22 @@
 package is.hail
 
-import java.io.{File, PrintWriter}
-
-import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import breeze.linalg.DenseMatrix
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
 import is.hail.annotations._
-import is.hail.asm4s.HailClassLoader
-import is.hail.expr.ir._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.expr.ir._
+import is.hail.io.fs.FS
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.io.fs.FS
-import is.hail.TestUtils._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
+
+import java.io.{File, PrintWriter}
 
 object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
@@ -164,15 +163,15 @@ class HailSuite extends TestNGSuite {
 
   def assertNDEvals(nd: IR, expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
-    assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected)
+    assertNDEvals(nd, Env.empty, FastSeq(), None, expected)
   }
 
   def assertNDEvals(nd: IR, expected: (Any, IndexedSeq[Long]))
     (implicit execStrats: Set[ExecStrategy]) {
     if (expected == null)
-      assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, null, null)
+      assertNDEvals(nd, Env.empty, FastSeq(), None, null, null)
     else
-      assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected._2, expected._1)
+      assertNDEvals(nd, Env.empty, FastSeq(), None, expected._2, expected._1)
   }
 
   def assertNDEvals(nd: IR, args: IndexedSeq[(Any, Type)], expected: Any)
@@ -182,7 +181,7 @@ class HailSuite extends TestNGSuite {
 
   def assertNDEvals(nd: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
-    assertNDEvals(nd, Env.empty, FastIndexedSeq(), Some(agg), expected)
+    assertNDEvals(nd, Env.empty, FastSeq(), Some(agg), expected)
   }
 
   def assertNDEvals(
@@ -201,7 +200,7 @@ class HailSuite extends TestNGSuite {
         e = e.head.asInstanceOf[IndexedSeq[Any]]
       n.toLong
     }
-    assertNDEvals(nd, Env.empty, FastIndexedSeq(), agg, dims, expected)
+    assertNDEvals(nd, Env.empty, FastSeq(), agg, dims, expected)
   }
 
   def assertNDEvals(
@@ -253,7 +252,7 @@ class HailSuite extends TestNGSuite {
             if (execStrats.contains(strat)) throw e
         }
       }
-      val expectedArray = Array.tabulate(expected.rows)(i => Array.tabulate(expected.cols)(j => expected(i, j)).toFastIndexedSeq).toFastIndexedSeq
+      val expectedArray = Array.tabulate(expected.rows)(i => Array.tabulate(expected.cols)(j => expected(i, j)).toFastSeq).toFastSeq
       assertNDEvals(BlockMatrixCollect(bm), expectedArray)(filteredExecStrats.filterNot(ExecStrategy.interpretOnly))
     }
   }
@@ -272,7 +271,7 @@ class HailSuite extends TestNGSuite {
   )(
     implicit execStrats: Set[ExecStrategy]
   ) {
-    assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
+    assertEvalsTo(x, Env.empty, FastSeq(), None, expected)
   }
 
   def assertEvalsTo(
@@ -292,6 +291,6 @@ class HailSuite extends TestNGSuite {
   )(
     implicit execStrats: Set[ExecStrategy]
   ) {
-    assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
+    assertEvalsTo(x, Env.empty, FastSeq(), Some(agg), expected)
   }
 }

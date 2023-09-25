@@ -126,7 +126,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
-  def listStatus(url: URL): Array[FileListEntry] = {
+  def listDirectory(url: URL): Array[FileListEntry] = {
     var statuses = url.hadoopFs.globStatus(url.hadoopPath)
     if (statuses == null) {
       throw new FileNotFoundException(url.toString)

@@ -49,7 +49,7 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   def delete(url: URL, recursive: Boolean) = url.fs.delete(url.url, recursive)
 
-  def listStatus(url: URL): Array[FileListEntry] = url.fs.listStatus(url.url)
+  def listDirectory(url: URL): Array[FileListEntry] = url.fs.listDirectory(url.url)
 
   def glob(url: URL): Array[FileListEntry] = url.fs.glob(url.url)
 

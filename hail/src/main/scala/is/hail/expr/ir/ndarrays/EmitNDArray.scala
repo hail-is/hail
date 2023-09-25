@@ -3,9 +3,9 @@ package is.hail.expr.ir.ndarrays
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -76,7 +76,7 @@ object EmitNDArray {
     def emitNDInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
 
       assert(!emitter.ctx.inLoopCriticalPath.contains(ir))
-      val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+      val mb = cb.emb.genEmitMethod(context, FastSeq[ParamType](), UnitInfo)
       val r = cb.newField[Region]("emitInSeparate_region", region)
 
       var ev: EmitSettable = null

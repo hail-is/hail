@@ -8,7 +8,7 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
-import is.hail.types.{RField, RStruct, RTuple, TypeWithRequiredness}
+import is.hail.types.{RStruct, RTuple, TypeWithRequiredness}
 import is.hail.utils._
 
 object SBaseStruct {
@@ -107,9 +107,9 @@ trait SBaseStructValue extends SValue {
 
   def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
     new SInsertFieldsStructValue(
-      SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),
+      SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastSeq),
       this,
-      fields.map(_._2).toFastIndexedSeq
+      fields.map(_._2).toFastSeq
     )
   }
 

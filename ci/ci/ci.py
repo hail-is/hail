@@ -744,7 +744,8 @@ SELECT frozen_merge_deploy FROM globals;
         app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
         app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db']))
 
-    headers = await hail_credentials().auth_headers()
+    async with hail_credentials() as creds:
+        headers = await creds.auth_headers()
     users = await retry_transient_errors(
         client_session.get_read_json,
         deploy_config.url('auth', '/api/v1alpha/users'),
