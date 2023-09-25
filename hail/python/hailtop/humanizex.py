@@ -30,19 +30,19 @@ _units = [
 ]
 
 
-def naturaldelta(seconds: Union[int, float]):
-    return _naturaldelta(seconds, value_unit = _SECOND, value_name = 'second')
+def naturaldelta(seconds: Union[int, float]) -> str:
+    return _naturaldelta(seconds, value_unit: int = _SECOND, value_name: str = 'second')
 
 
-def naturaldelta_msec(milliseconds: Union[int, float]):
-    return _naturaldelta(milliseconds, value_unit = _MILLISECOND, value_name = 'millisecond')
+def naturaldelta_msec(milliseconds: Union[int, float]) -> str:
+    return _naturaldelta(milliseconds, value_unit: int = _MILLISECOND, value_name: str = 'millisecond')
 
 
-def naturaldelta_usec(microseconds: Union[int, float]):
-    return _naturaldelta(microseconds, value_unit = _MICROSECOND, value_name = 'microsecond')
+def naturaldelta_usec(microseconds: Union[int, float]) -> str:
+    return _naturaldelta(microseconds, value_unit: int = _MICROSECOND, value_name: str = 'microsecond')
 
 
-def _naturaldelta(value: Union[int, float], value_unit: int = _SECOND, value_name: str = 'second'):
+def _naturaldelta(value: Union[int, float], value_unit: int = _SECOND, value_name: str = 'second') -> str:
     value *= value_unit
     for index in range(len(_units) - 1):
         major_unit, major_name = _units[index]
