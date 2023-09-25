@@ -123,7 +123,7 @@ class TableIntervalJoin(TableIR):
     def _handle_randomness(self, uid_field_name):
         left = self.left.handle_randomness(uid_field_name)
         right = self.right.handle_randomness(None)
-        return TableIntervalJoin(left, right, self.root)
+        return TableIntervalJoin(left, right, self.root, self.product)
 
     def head_str(self):
         return f'{escape_id(self.root)} {self.product}'
