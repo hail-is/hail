@@ -1,12 +1,17 @@
-FROM {{ global.docker_prefix }}/ubuntu:jammy-20230624
+ARG DOCKER_PREFIX={{ global.docker_prefix }}
+FROM $DOCKER_PREFIX/ubuntu:jammy-20230624
+
 ENV LANG C.UTF-8
 ENV DEBIAN_FRONTEND noninteractive
+
 COPY retry /bin/retry
 COPY hail-apt-get-install /bin/hail-apt-get-install
 COPY pip.conf /root/.config/pip/pip.conf
 COPY hail-pip-install /bin/hail-pip-install
 COPY controller.sh /
 COPY curlrc /root/.curlrc
+
+ARG PYTHON_VERSION=3.9
 RUN chmod 755 /bin/retry && \
     chmod 755 /bin/hail-apt-get-install && \
     chmod 755 /bin/hail-pip-install && \
@@ -20,8 +25,8 @@ RUN chmod 755 /bin/retry && \
          >> /etc/apt/sources.list && \
     echo 'deb-src [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu jammy main' \
          >> /etc/apt/sources.list && \
-    hail-apt-get-install python3.9-minimal python3.9-dev python3.9-distutils gcc g++ && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1 && \
+    hail-apt-get-install python$PYTHON_VERSION-minimal python$PYTHON_VERSION-dev python$PYTHON_VERSION-distutils gcc g++ && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$PYTHON_VERSION 1 && \
     curl https://bootstrap.pypa.io/get-pip.py | python3 && \
     python3 -m pip install 'pip>=21<22' && \
     python3 -m pip check && \

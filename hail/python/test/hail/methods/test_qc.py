@@ -10,6 +10,7 @@ GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
 
 class Tests(unittest.TestCase):
+    @qobtest
     def test_sample_qc(self):
         data = [
             {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
@@ -51,6 +52,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r[0].sqc.r_het_hom_var, 0.3333333333)
         self.assertAlmostEqual(r[0].sqc.r_insertion_deletion, None)
 
+    @qobtest
     def test_variant_qc(self):
         data = [
             {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},

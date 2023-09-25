@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
-import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers}
+import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash}
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
@@ -588,7 +588,7 @@ class Emit[C](
 
   def emitVoidInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
     assert(!ctx.inLoopCriticalPath.contains(ir))
-    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+    val mb = cb.emb.genEmitMethod(context, FastSeq[ParamType](), UnitInfo)
     val r = cb.newField[Region]("emitVoidSeparate_region", region)
     mb.voidWithBuilder { cb =>
       ctx.tryingToSplit.bind(ir, ())
@@ -598,7 +598,7 @@ class Emit[C](
   }
 
   def emitSplitMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): (EmitSettable, EmitMethodBuilder[_]) = {
-    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+    val mb = cb.emb.genEmitMethod(context, FastSeq[ParamType](), UnitInfo)
     val r = cb.newField[Region]("emitInSeparate_region", region)
 
     var ev: EmitSettable = null
@@ -655,7 +655,7 @@ class Emit[C](
       case x@Begin(xs) =>
         if (!ctx.inLoopCriticalPath.contains(x) && xs.forall(x => !ctx.inLoopCriticalPath.contains(x))) {
           xs.grouped(16).zipWithIndex.foreach { case (group, idx) =>
-            val mb = cb.emb.genEmitMethod(s"begin_group_$idx", FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
+            val mb = cb.emb.genEmitMethod(s"begin_group_$idx", FastSeq[ParamType](classInfo[Region]), UnitInfo)
             mb.voidWithBuilder { cb =>
               group.foreach(x => emitVoid(x, cb, mb.getCodeParam[Region](1), env, container, loopEnv))
             }
@@ -1161,7 +1161,7 @@ class Emit[C](
               val (Some(PTypeReferenceSingleCodeType(t)), f) = Compile[AsmFunction3RegionLongLongLong](ctx.executeContext,
                 IndexedSeq((leftName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType))),
                            (rightName, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType)))),
-                FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+                FastSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
                 MakeTuple.ordered(FastSeq(tieBreaker)))
               assert(t.virtualType == TTuple(TFloat64))
               val resultType = t.asInstanceOf[PTuple]
@@ -1338,7 +1338,7 @@ class Emit[C](
               })
               IEmitCode.present(cb, finishInner(cb))
             }
-            val elt = groupType.constructFromFields(cb, region, FastIndexedSeq(key, group), deepCopy = false)
+            val elt = groupType.constructFromFields(cb, region, FastSeq(key, group), deepCopy = false)
             addGroup(cb, IEmitCode.present(cb, elt))
             cb.assign(grpIdx, grpIdx + 1)
           })
@@ -1658,7 +1658,7 @@ class Emit[C](
                       (IndexedSeq(k), rStackVars :+ k :+ m)
                     case (_, 1, stack :+ n) =>
                       val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack, leftBroadcastMask)
-                      (lStackVars :+ n :+ k, FastIndexedSeq(k))
+                      (lStackVars :+ n :+ k, FastSeq(k))
                     case (_, _, stack :+ n :+ m) =>
                       val lStackVars = NDArrayEmitter.zeroBroadcastedDims(stack, leftBroadcastMask)
                       val rStackVars = NDArrayEmitter.zeroBroadcastedDims(stack, rightBroadcastMask)
@@ -1788,9 +1788,9 @@ class Emit[C](
             val sPType = outputPType.fields(1).typ.asInstanceOf[PCanonicalNDArray]
             val vtPType = outputPType.fields(2).typ.asInstanceOf[PCanonicalNDArray]
 
-            val uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
+            val uShapeSeq = FastSeq[Value[Long]](M, UCOL)
             val (uData, uFinisher) = uPType.constructDataFunction(uShapeSeq, uPType.makeColumnMajorStrides(uShapeSeq, cb), cb, region)
-            val vtShapeSeq = FastIndexedSeq[Value[Long]](LDVT, N)
+            val vtShapeSeq = FastSeq[Value[Long]](LDVT, N)
             val (vtData, vtFinisher) = vtPType.constructDataFunction(vtShapeSeq, vtPType.makeColumnMajorStrides(vtShapeSeq, cb), cb, region)
 
             (if (full_matrices) "A" else "S", sPType, uData, uFinisher, vtData, vtFinisher)
@@ -1866,7 +1866,7 @@ class Emit[C](
             val vt = vtFinisher(cb)
 
             val outputPType = NDArraySVD.pTypes(true, false).asInstanceOf[PCanonicalTuple]
-            outputPType.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, u), EmitCode.present(cb.emb, s), EmitCode.present(cb.emb, vt)), deepCopy = false)
+            outputPType.constructFromFields(cb, region, FastSeq(EmitCode.present(cb.emb, u), EmitCode.present(cb.emb, s), EmitCode.present(cb.emb, vt)), deepCopy = false)
           } else {
             s
           }
@@ -1884,9 +1884,9 @@ class Emit[C](
           val vecType = PCanonicalNDArray(PFloat64Required, 1)
           val intVecType = PCanonicalNDArray(PInt32Required, 1)
 
-          val W = vecType.constructUninitialized(FastIndexedSeq(n), cb, region)
-          val work = vecType.constructUninitialized(FastIndexedSeq(SizeValueDyn(workSize)), cb, region)
-          val iWork = intVecType.constructUninitialized(FastIndexedSeq(iWorkSize), cb, region)
+          val W = vecType.constructUninitialized(FastSeq(n), cb, region)
+          val work = vecType.constructUninitialized(FastSeq(SizeValueDyn(workSize)), cb, region)
+          val iWork = intVecType.constructUninitialized(FastSeq(iWorkSize), cb, region)
 
           if (eigvalsOnly) {
             SNDArray.syevr(cb, "U", mat, W, None, work, iWork)
@@ -1894,12 +1894,12 @@ class Emit[C](
             W
           } else {
             val resultType = NDArrayEigh.pTypes(false, false).asInstanceOf[PCanonicalTuple]
-            val Z = matType.constructUninitialized(FastIndexedSeq(n, n), cb, region)
-            val iSuppZ = vecType.constructUninitialized(FastIndexedSeq(SizeValueDyn(cb.memoize(n * 2))), cb, region)
+            val Z = matType.constructUninitialized(FastSeq(n, n), cb, region)
+            val iSuppZ = vecType.constructUninitialized(FastSeq(SizeValueDyn(cb.memoize(n * 2))), cb, region)
 
             SNDArray.syevr(cb, "U", mat, W, Some((Z, iSuppZ)), work, iWork)
 
-            resultType.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, W), EmitCode.present(cb.emb, Z)), false)
+            resultType.constructFromFields(cb, region, FastSeq(EmitCode.present(cb.emb, W), EmitCode.present(cb.emb, Z)), false)
           }
         }
 
@@ -1932,7 +1932,7 @@ class Emit[C](
           val dataFirstElementAddress = pndValue.firstDataAddress
 
           val hPType = ndPT
-          val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
+          val hShapeArray = FastSeq[Value[Long]](N, M)
           val hStridesArray = hPType.makeRowMajorStrides(hShapeArray, cb)
           val (hFirstElement, hFinisher) = hPType.constructDataFunction(hShapeArray, hStridesArray, cb, region)
 
@@ -1982,7 +1982,7 @@ class Emit[C](
             val resultType = resultPType.asInstanceOf[PCanonicalBaseStruct]
             val tau = tauFinisher(cb)
 
-            resultType.constructFromFields(cb, region, FastIndexedSeq(
+            resultType.constructFromFields(cb, region, FastSeq(
               EmitCode.present(cb.emb, h),
               EmitCode.present(cb.emb, tau)
             ), deepCopy = false)
@@ -1998,7 +1998,7 @@ class Emit[C](
               throw new AssertionError(s"Unsupported QR mode $mode")
             }
 
-            val rShapeArray = FastIndexedSeq[Value[Long]](rRows, rCols)
+            val rShapeArray = FastSeq[Value[Long]](rRows, rCols)
 
             val rStridesArray = rPType.makeColumnMajorStrides(rShapeArray, cb)
 
@@ -2098,7 +2098,7 @@ class Emit[C](
               cb.append(Region.copyFrom(aAddressDORGQRFirstElement,
                 qFirstElementAddress, (M * numColsToUse) * 8L))
 
-              crPType.constructFromFields(cb, region, FastIndexedSeq(
+              crPType.constructFromFields(cb, region, FastSeq(
                 EmitCode.present(cb.emb, qFinisher(cb)),
                 EmitCode.present(cb.emb, rNDArray)
               ), deepCopy = false)
@@ -2272,7 +2272,7 @@ class Emit[C](
 
         val tt = t.typ.asInstanceOf[TTuple]
         val errTupleType = tt.types(0).asInstanceOf[TTuple]
-        val errTuple = SStackStruct(errTupleType, FastIndexedSeq(EmitType(sst, true), EmitType(SInt32, true)))
+        val errTuple = SStackStruct(errTupleType, FastSeq(EmitType(sst, true), EmitType(SInt32, true)))
         val tv = cb.emb.newEmitField("trap_errTuple", EmitType(errTuple, false))
 
         val maybeMissingEV = cb.emb.newEmitField("trap_value", ev.emitType.copy(required = false))
@@ -2400,7 +2400,7 @@ class Emit[C](
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamValue =>
 
           def wrapInTuple(cb: EmitCodeBuilder, region: Value[Region], et: EmitCode): SBaseStructPointerValue = {
-            PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
+            PCanonicalTuple(true, et.emitType.storageType).constructFromFields(cb, region, FastSeq(et), deepCopy = false)
           }
 
           val bufferSpec: BufferSpec = BufferSpec.blockedUncompressed
@@ -2438,7 +2438,7 @@ class Emit[C](
 
             val env = EmitEnv(Env[EmitValue](
               (cname, decodedContext),
-              (gname, decodedGlobal)), FastIndexedSeq())
+              (gname, decodedGlobal)), FastSeq())
 
             if (ctx.executeContext.getFlag("print_ir_on_worker") != null)
               cb.consoleInfo(Pretty(ctx.executeContext, body, elideLiterals = true))
@@ -2464,7 +2464,7 @@ class Emit[C](
           parentCB.addModule(fID, bodyFB.resultWithIndex())
           val functionID = fID
 
-          val spark = parentCB.backend()
+          val backend = parentCB.backend()
 
           val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
           val buf = mb.genFieldThisRef[OutputBuffer]()
@@ -2501,14 +2501,57 @@ class Emit[C](
           assert(staticID != null)
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
+
+          val semhash = cb.newLocal[Option[SemanticHash.Type]]("semhash",
+            Code.invokeScalaObject[Option[SemanticHash.Type]](
+              Option.getClass,
+              "empty",
+              Array(),
+              Array()
+            )
+          )
+
           emitI(dynamicID).consume(cb,
-            (),
+            ctx.executeContext.irMetadata.nextHash.foreach { hash =>
+              cb.assign(semhash,
+                Code.invokeScalaObject[Option[SemanticHash.Type]](
+                  SemanticHash.CodeGenSupport.getClass,
+                  "lift",
+                  Array(classOf[SemanticHash.Type]),
+                  Array(hash)
+                )
+              )
+            },
             { dynamicID =>
-              cb.assign(stageName, stageName.concat("|").concat(dynamicID.asString.loadString(cb)))
-            })
+              val dynV = dynamicID.asString.loadString(cb)
+              cb.assign(stageName, stageName.concat("|").concat(dynV))
+              ctx.executeContext.irMetadata.nextHash.foreach { staticHash =>
+
+                val dynamicHash =
+                  dynV.invoke[Array[Byte]]("getBytes")
+
+                val combined =
+                  Code.invokeScalaObject[SemanticHash.Type](
+                    SemanticHash.getClass,
+                    "extend",
+                    Array(classOf[SemanticHash.Type], classOf[Array[Byte]]),
+                    Array(staticHash, dynamicHash)
+                  )
+
+                cb.assign(semhash,
+                  Code.invokeScalaObject[Option[SemanticHash.Type]](
+                    SemanticHash.CodeGenSupport.getClass,
+                    "lift",
+                    Array(classOf[SemanticHash.Type]),
+                    Array(combined)
+                  )
+                )
+              }
+            }
+          )
 
           val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
-          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](
+          cb.assign(encRes, backend.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[SemanticHash.Type], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
             mb.getHailClassLoader,
@@ -2517,7 +2560,9 @@ class Emit[C](
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray"),
             stageName,
-            mb.getObject(tsd)))
+            semhash,
+            mb.getObject(tsd))
+          )
 
           val len = cb.memoize(encRes.length())
           val pt = PCanonicalArray(bodySpec.encodedType.decodedSType(bodySpec.encodedVirtualType).asInstanceOf[SBaseStruct].fieldEmitTypes(0).storageType)
@@ -2653,7 +2698,7 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
 
-        val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _))).toFastIndexedSeq
+        val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _))).toFastSeq
 
         val argSTypes = emitArgs.map(_.st)
         val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
@@ -2668,9 +2713,9 @@ class Emit[C](
               funcMB
           }
         EmitCode.fromI(mb) { cb =>
-          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
+          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
-            cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
+            cb.invokeSCode(meth, FastSeq[Param](CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
           }
         }
 
@@ -2723,7 +2768,7 @@ class Emit[C](
 
     var newEnv = env
     val sort = fb.genEmitMethod("dependent_sorting_func",
-      FastIndexedSeq(typeInfo[Region], CodeParamType(elemSCT.ti), CodeParamType(elemSCT.ti)),
+      FastSeq(typeInfo[Region], CodeParamType(elemSCT.ti), CodeParamType(elemSCT.ti)),
       BooleanInfo)
 
     sort.emitWithBuilder[Boolean] { cb =>
@@ -2803,7 +2848,7 @@ object NDArrayEmitter {
       lK = leftShape.head
       if (rightShape.length == 1) {
         rK = rightShape.head
-        shape = FastIndexedSeq()
+        shape = FastSeq()
       } else {
         rK = rightShape(rightShape.length - 2)
         shape = rightShape.slice(0, rightShape.length - 2) :+ rightShape.last

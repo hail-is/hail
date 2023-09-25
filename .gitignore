@@ -43,3 +43,6 @@ infra/.terraform.lock.hcl
 .cache/
 wheel-container.tar
 *-image
+hail/python/hail/backend/extra_classpath
+hail/python/hail/backend/hail.jar
+hail/install-editable

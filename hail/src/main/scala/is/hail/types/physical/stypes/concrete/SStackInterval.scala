@@ -3,11 +3,11 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
+import is.hail.types.physical.PType
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalValue}
-import is.hail.types.physical.{PInterval, PType}
 import is.hail.types.virtual.{TInterval, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 object SStackInterval {
   def construct(start: EmitValue, end: EmitValue, includesStart: Value[Boolean], includesEnd: Value[Boolean]): SStackIntervalValue = {
@@ -42,7 +42,7 @@ final case class SStackInterval(pointEmitType: EmitType) extends SInterval {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = {
     val pointTypes = pointEmitType.settableTupleTypes
-    pointTypes ++ pointTypes ++ FastIndexedSeq(BooleanInfo, BooleanInfo)
+    pointTypes ++ pointTypes ++ FastSeq(BooleanInfo, BooleanInfo)
   }
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SStackIntervalSettable = {
@@ -82,7 +82,7 @@ class SStackIntervalValue(
   val includesEnd: Value[Boolean]
 ) extends SIntervalValue {
   require(start.emitType == end.emitType && start.emitType == st.pointEmitType)
-  override lazy val valueTuple: IndexedSeq[Value[_]] = start.valueTuple() ++ end.valueTuple() ++ FastIndexedSeq(includesStart, includesEnd)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = start.valueTuple() ++ end.valueTuple() ++ FastSeq(includesStart, includesEnd)
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode = start.toI(cb)
 
@@ -100,7 +100,7 @@ final class SStackIntervalSettable(
   override val includesStart: Settable[Boolean],
   override val includesEnd: Settable[Boolean]
 ) extends SStackIntervalValue(st, start, end, includesStart, includesEnd) with SSettable {
-  override lazy val settableTuple: IndexedSeq[Settable[_]] = start.settableTuple() ++ end.settableTuple() ++ FastIndexedSeq(includesStart, includesEnd)
+  override lazy val settableTuple: IndexedSeq[Settable[_]] = start.settableTuple() ++ end.settableTuple() ++ FastSeq(includesStart, includesEnd)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SStackIntervalValue =>

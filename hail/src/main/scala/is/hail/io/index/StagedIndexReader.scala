@@ -5,20 +5,11 @@ import is.hail.asm4s._
 import is.hail.backend.TaskFinalizer
 import is.hail.expr.ir.functions.IntervalFunctions.{arrayOfStructFindIntervalRange, compareStructWithPartitionIntervalEndpoint}
 import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode}
+import is.hail.io.AbstractTypedCodecSpec
 import is.hail.io.fs.FS
-import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SSettable, SValue}
-import is.hail.expr.ir.functions.IntervalFunctions.compareStructWithPartitionIntervalEndpoint
-import is.hail.expr.ir.functions.MathFunctions
-import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.io.AbstractTypedCodecSpec
-import is.hail.io.fs.FS
-import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.SStackStruct
-import is.hail.types.physical.stypes.interfaces.{SBaseStructSettable, SBaseStructValue, SIntervalValue, primitive}
-import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct}
 import is.hail.types.virtual.{TInt64, TTuple}
 import is.hail.utils._
@@ -203,7 +194,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     cb.invokeVoid(
       cb.emb.ecb.getOrGenEmitMethod("queryBound",
         ("queryBound", this),
-        FastIndexedSeq(endpoint.st.paramType, typeInfo[Boolean], typeInfo[Int], typeInfo[Long], typeInfo[Long], leafChildLocalType.paramType),
+        FastSeq(endpoint.st.paramType, typeInfo[Boolean], typeInfo[Int], typeInfo[Long], typeInfo[Long], leafChildLocalType.paramType),
         UnitInfo) { emb =>
         emb.emitWithBuilder { cb =>
           val endpoint = emb.getSCodeParam(1).asBaseStruct
@@ -367,7 +358,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     cb.ifx(cached cne 0L, {
       cb.assign(ret, internalPType.loadCheapSCode(cb, cached))
     }, {
-      cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readInternalNode", ("readInternalNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
+      cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readInternalNode", ("readInternalNode", this), FastSeq(LongInfo), ret.st.paramType) { emb =>
         emb.emitSCode { cb =>
           val offset = emb.getCodeParam[Long](1)
           cb += is.invoke[Long, Unit]("seek", offset)
@@ -395,7 +386,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     cb.ifx(cached cne 0L, {
       cb.assign(ret, leafPType.loadCheapSCode(cb, cached))
     }, {
-      cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readLeafNode", ("readLeafNode", this), FastIndexedSeq(LongInfo), ret.st.paramType) { emb =>
+      cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readLeafNode", ("readLeafNode", this), FastSeq(LongInfo), ret.st.paramType) { emb =>
         emb.emitSCode { cb =>
           val offset = emb.getCodeParam[Long](1)
           cb += is.invoke[Long, Unit]("seek", offset)
@@ -416,7 +407,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     cb.invokeSCode(
       cb.emb.ecb.getOrGenEmitMethod("queryIndex",
         ("queryIndex", this),
-        FastIndexedSeq(classInfo[Region], typeInfo[Long]),
+        FastSeq(classInfo[Region], typeInfo[Long]),
         leafChildType.paramType) { emb =>
         emb.emitSCode { cb =>
 

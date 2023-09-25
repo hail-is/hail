@@ -4,9 +4,7 @@ import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.expr.ir.IRParser
-import is.hail.types.physical.PType
 import is.hail.utils._
-import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
@@ -37,7 +35,7 @@ class TUnionSerializer extends CustomSerializer[TUnion](format => (
   { case t: TUnion => JString(t.parsableString()) }))
 
 object TUnion {
-  val empty: TUnion = TUnion(FastIndexedSeq())
+  val empty: TUnion = TUnion(FastSeq())
 
   def apply(args: (String, Type)*): TUnion =
     TUnion(args

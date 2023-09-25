@@ -1,9 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.utils.FastIndexedSeq
-import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
+import is.hail.utils.FastSeq
 import net.sourceforge.jdistlib.rng.RandomEngine
+import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 import org.apache.commons.math3.random.RandomGenerator
 
 object Threefry {
@@ -26,7 +26,7 @@ object Threefry {
   val defaultNumRounds = 20
 
   val defaultKey: IndexedSeq[Long] =
-    expandKey(FastIndexedSeq(0x215d6dfdb7dfdf6bL, 0x045cfa043329c49fL, 0x9ec75a93692444ddL, 0x1284681663220f1cL))
+    expandKey(FastSeq(0x215d6dfdb7dfdf6bL, 0x045cfa043329c49fL, 0x9ec75a93692444ddL, 0x1284681663220f1cL))
 
   def expandKey(k: IndexedSeq[Long]): IndexedSeq[Long] = {
     assert(k.length == 4)

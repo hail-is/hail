@@ -3,7 +3,7 @@ import pytest
 
 from hail.utils import FatalError, HailUserError
 
-from ..helpers import resource, test_timeout
+from ..helpers import resource, test_timeout, qobtest
 
 
 @pytest.mark.parametrize("skat_model", [('hl._linear_skat', hl._linear_skat),
@@ -58,6 +58,7 @@ def test_skat_negative_weights_errors(skat_model):
         assert False
 
 
+@qobtest
 def test_logistic_skat_phenotypes_are_binary():
     genotypes = [
         [2, 1, 1, 1, 0, 1, 1, 2, 1, 1, 2, 1, 0, 0, 1],
@@ -107,6 +108,7 @@ def test_logistic_skat_phenotypes_are_binary():
         assert False
 
 
+@qobtest
 def test_logistic_skat_no_weights_R_truth():
     # library('SKAT')
     # dat <- matrix(c(2,1,0,1,

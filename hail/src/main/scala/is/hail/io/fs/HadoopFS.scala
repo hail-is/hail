@@ -1,11 +1,14 @@
 package is.hail.io.fs
 
 import is.hail.utils._
-
 import org.apache.hadoop
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.fs.{EtagSource, FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.io.MD5Hash
 
 import java.io._
+import java.security.MessageDigest
+import java.util.Base64
+import scala.util.Try
 
 class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
   val normalizedPath = fs.getPath
@@ -81,10 +84,8 @@ case class LocalFSURL(val path: String) extends FSURL[LocalFSURL] {
 class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends FS {
   type URL = LocalFSURL
 
-  def validUrl(filename: String): Boolean = {
-    val uri = new java.net.URI(filename)
-    uri.getScheme == null || uri.getScheme == "file"
-  }
+  override def validUrl(filename: String): Boolean =
+    Try(getFileSystem(filename)).isSuccess
 
   def getConfiguration(): SerializableHadoopConfiguration = conf
 
@@ -122,7 +123,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
-  def listStatus(filename: String): Array[FileListEntry] = {
+  def listDirectory(filename: String): Array[FileListEntry] = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     var statuses = fs.globStatus(hPath)
@@ -186,6 +187,15 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   def fileListEntry(filename: String): FileListEntry = {
     val p = new hadoop.fs.Path(filename)
     new HadoopFileListEntry(p.getFileSystem(conf.value).getFileStatus(p))
+  }
+
+  override def eTag(filename: String): Option[String] = {
+    val p = new hadoop.fs.Path(filename)
+    val fs = p.getFileSystem(conf.value)
+    if (fs.hasPathCapability(p, "fs.capability.etags.available"))
+      Some(fs.getFileStatus(p).asInstanceOf[EtagSource].getEtag)
+    else
+      None
   }
 
   def makeQualified(path: String): String = {

@@ -24,7 +24,7 @@ for build in ["GRCh37", "GRCh38"]:
 
     j = batch.new_job(name=f"{name}_{version}_{build}")
     j.image("gcr.io/broad-ctsa/datasets:050521")
-    j.command("gcloud -q auth activate-service-account --key-file=/gsa-key/key.json")
+    j.command("gcloud -q auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS")
     j.command(f"wget -c -O - {snvs_url} {indels_url} | "
               "zcat | "
               "grep -v '^#' | "

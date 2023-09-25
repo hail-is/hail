@@ -29,6 +29,7 @@ DOCKER_BUILDKIT=1 docker build \
        ${DEV_CACHE:+--cache-from ${DEV_CACHE}} \
        ${EXTRA_CACHE:+--cache-from ${EXTRA_CACHE}} \
        --build-arg BUILDKIT_INLINE_CACHE=1 \
+       ${DOCKER_BUILD_ARGS} \
        --tag ${REMOTE_IMAGE_NAME} \
        --tag ${CACHE_IMAGE_NAME} \
        ${CONTEXT}

@@ -74,6 +74,7 @@ async def main():
     users = [
         # username, login_id, is_developer, is_service_account
         ('auth', None, 0, 1),
+        ('batch', None, 0, 1),
         ('ci', None, 0, 1),
         ('test', None, 0, 0),
         ('test-dev', None, 1, 0),
@@ -96,7 +97,7 @@ async def main():
     try:
         app['k8s_client'] = k8s_client
 
-        app['identity_client'] = get_identity_client(credentials_file='/auth-gsa-key/key.json')
+        app['identity_client'] = get_identity_client()
 
         for username, login_id, is_developer, is_service_account in users:
             user_id = await insert_user_if_not_exists(app, username, login_id, is_developer, is_service_account)

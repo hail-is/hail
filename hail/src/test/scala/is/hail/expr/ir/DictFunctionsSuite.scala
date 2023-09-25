@@ -1,13 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
-import org.scalatest.testng.TestNGSuite
 
 class DictFunctionsSuite extends HailSuite {
   def tuplesToMap(a: IndexedSeq[(Integer, Integer)]): Map[Integer, Integer] =
@@ -43,11 +42,11 @@ class DictFunctionsSuite extends HailSuite {
 
   @DataProvider(name = "dictToArray")
   def dictToArrayData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(1 -> 3, 2 -> 7), FastIndexedSeq(Row(1, 3), Row(2, 7))),
-    Array(FastIndexedSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
-      FastIndexedSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1))),
-    Array(FastIndexedSeq(), FastIndexedSeq()),
-    Array(FastIndexedSeq(null), FastIndexedSeq()),
+    Array(FastSeq(1 -> 3, 2 -> 7), FastSeq(Row(1, 3), Row(2, 7))),
+    Array(FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
+      FastSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1))),
+    Array(FastSeq(), FastSeq()),
+    Array(FastSeq(null), FastSeq()),
     Array(null, null))
 
   @Test(dataProvider = "dictToArray")
@@ -57,11 +56,11 @@ class DictFunctionsSuite extends HailSuite {
 
   @DataProvider(name = "keysAndValues")
   def keysAndValuesData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(1 -> 3, 2 -> 7), FastIndexedSeq(1, 2), FastIndexedSeq(3, 7)),
-    Array(FastIndexedSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
-      FastIndexedSeq(1, 2, 3, null), FastIndexedSeq(3, null, 7, 1)),
-    Array(FastIndexedSeq(), FastIndexedSeq(), FastIndexedSeq()),
-    Array(FastIndexedSeq(null), FastIndexedSeq(), FastIndexedSeq()),
+    Array(FastSeq(1 -> 3, 2 -> 7), FastSeq(1, 2), FastSeq(3, 7)),
+    Array(FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
+      FastSeq(1, 2, 3, null), FastSeq(3, null, 7, 1)),
+    Array(FastSeq(), FastSeq(), FastSeq()),
+    Array(FastSeq(null), FastSeq(), FastSeq()),
     Array(null, null, null))
 
   @Test(dataProvider = "keysAndValues")

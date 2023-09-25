@@ -61,8 +61,6 @@ trait FSURL[T <: FSURL[T]] {
   def getPath: String
   def addPathComponent(component: String): T
   def fromString(s: String): T
-
-  override def toString(): String
 }
 
 trait FileListEntry {
@@ -342,9 +340,9 @@ trait FS extends Serializable {
 
   def delete(filename: String, recursive: Boolean)
 
-  def listStatus(filename: String): Array[FileListEntry]
+  def listDirectory(filename: String): Array[FileListEntry]
 
-  def listStatus(url: URL): Array[FileListEntry] = listStatus(url.toString)
+  def listDirectory(url: URL): Array[FileListEntry] = listDirectory(url.toString)
 
   def glob(filename: String): Array[FileListEntry]
 
@@ -378,7 +376,7 @@ trait FS extends Serializable {
         val c = components(i)
         if (containsWildcard(c)) {
           val m = javaFS.getPathMatcher(s"glob:$c")
-          for (cfs <- listStatus(prefix)) {
+          for (cfs <- listDirectory(prefix)) {
             val p = dropTrailingSlash(cfs.getPath)
             val d = p.drop(prefix.toString.length + 1)
             if (m.matches(javaFS.getPath(d))) {
@@ -401,7 +399,11 @@ trait FS extends Serializable {
 
   def fileListEntry(filename: String): FileListEntry
 
-  def fileListEntry(url: URL): FileListEntry = fileListEntry(url.toString)
+  /** Return the file's HTTP etag, if the underlying file system supports etags. */
+  def eTag(filename: String): Option[String]
+
+  def fileListEntry(url: URL): FileListEntry =
+    fileListEntry(url.toString)
 
   def makeQualified(path: String): String
 

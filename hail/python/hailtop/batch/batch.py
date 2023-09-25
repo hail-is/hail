@@ -82,10 +82,10 @@ class Batch:
         timeout.
     default_python_image:
         Default image to use for all Python jobs. This must be the full name of the image including
-        any repository prefix and tags if desired (default tag is `latest`).  The image must have
+        any repository prefix and tags if desired (default tag is `latest`). The image must have
         the `dill` Python package installed and have the same version of Python installed that is
-        currently running. If `None`, a compatible Python image with `dill` pre-installed will
-        automatically be used if the current Python version is 3.9, or 3.10.
+        currently running. If `None`, a tag of the `hailgenetics/hail` image will be chosen
+        according to the current Hail and Python version.
     default_spot:
         If unspecified or ``True``, jobs will run by default on spot instances. If ``False``, jobs
         will run by default on non-spot instances. Each job can override this setting with
@@ -407,7 +407,7 @@ class Batch:
         return jrf
 
     def _new_input_resource_file(self, input_path, root=None):
-        self._backend.validate_file_scheme(input_path)
+        self._backend.validate_file(input_path, self.requester_pays_project)
 
         # Take care not to include an Azure SAS token query string in the local name.
         if AzureAsyncFS.valid_url(input_path):
@@ -559,19 +559,23 @@ class Batch:
 
         Write a single job intermediate to a permanent location in GCS:
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
-        >>> b.run()  # doctest: +SKIP
+        .. code-block:: python
+
+            b = Batch()
+            j = b.new_job()
+            j.command(f'echo "hello" > {j.ofile}')
+            b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
+            b.run()
 
         Write a single job intermediate to a permanent location in Azure:
 
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
-        >>> b.run()  # doctest: +SKIP
+        .. code-block:: python
+
+            b = Batch()
+            j = b.new_job()
+            j.command(f'echo "hello" > {j.ofile}')
+            b.write_output(j.ofile, 'https://my-account.blob.core.windows.net/my-container/output/hello.txt')
+            b.run()  # doctest: +SKIP
 
         .. warning::
 
@@ -618,6 +622,8 @@ class Batch:
             dest_scheme = url_scheme(dest)
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
+
+        self._backend.validate_file(dest, self.requester_pays_project)
 
         resource._add_output_path(dest)
 

@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.backend.ExecutionCache
 import is.hail.utils._
 import org.json4s.JsonAST.{JArray, JObject, JString}
 
@@ -27,12 +28,14 @@ object HailFeatureFlags {
     ("shuffle_max_branch_factor", ("HAIL_SHUFFLE_MAX_BRANCH" -> "64")),
     ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> "512000000")), // This is in bytes
     ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
-    ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null),
+    ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> "1"),
     ("gcs_requester_pays_project", "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
     ("gcs_requester_pays_buckets", "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
     ("index_branching_factor", "HAIL_INDEX_BRANCHING_FACTOR" -> null),
     ("rng_nonce", "HAIL_RNG_NONCE" -> "0x0"),
     ("profile", "HAIL_PROFILE" -> null),
+    (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
+    (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null),
   )
 
   def fromEnv(): HailFeatureFlags =

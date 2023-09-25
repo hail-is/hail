@@ -1,4 +1,5 @@
-FROM {{ hail_ubuntu_image.image }}
+ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+FROM $BASE_IMAGE
 
 # re: RANDFILE, https://github.com/openssl/openssl/issues/7754#issuecomment-444063355
 # jdk not strictly necessary, but we want keytool

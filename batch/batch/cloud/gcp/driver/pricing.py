@@ -2,11 +2,17 @@ import logging
 from typing import AsyncGenerator, List, Optional
 
 from hailtop.aiocloud import aiogoogle
-from hailtop.utils import rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec
+from hailtop.utils import (
+    rate_cpu_hour_to_mcpu_msec,
+    rate_gib_hour_to_mib_msec,
+    rate_gib_month_to_mib_msec,
+    rate_instance_hour_to_fraction_msec,
+)
 from hailtop.utils.time import parse_timestamp_msecs
 
 from ....driver.pricing import Price
 from ..resources import (
+    GCPAcceleratorResource,
     GCPComputeResource,
     GCPLocalSSDStaticSizedDiskResource,
     GCPMemoryResource,
@@ -40,6 +46,32 @@ class GCPComputePrice(Price):
     @property
     def rate(self):
         return rate_cpu_hour_to_mcpu_msec(self.cost_per_hour)
+
+
+class GCPAcceleratorPrice(Price):
+    def __init__(
+        self,
+        accelerator_family: str,
+        preemptible: bool,
+        region: str,
+        cost_per_hour: float,
+        effective_start_date: int,
+        effective_end_date: Optional[int] = None,
+    ):
+        self.accelerator_family = accelerator_family
+        self.preemptible = preemptible
+        self.region = region
+        self.cost_per_hour = cost_per_hour
+        self.effective_start_date = effective_start_date
+        self.effective_end_date = effective_end_date
+
+    @property
+    def product(self):
+        return GCPAcceleratorResource.product_name(self.accelerator_family, self.preemptible, self.region)
+
+    @property
+    def rate(self):
+        return rate_instance_hour_to_fraction_msec(self.cost_per_hour, 1024)
 
 
 class GCPMemoryPrice(Price):
@@ -142,6 +174,15 @@ def instance_family_from_sku(sku: dict) -> Optional[str]:
     category = sku['category']
     if category['resourceGroup'] == 'N1Standard':
         return 'n1'
+    if sku['description'].startswith("G2 Instance") or sku['description'].startswith("Spot Preemptible G2 Instance"):
+        return 'g2'
+    return None
+
+
+def accelerator_from_sku(sku) -> Optional[str]:
+    description = sku['description']
+    if description.startswith("Nvidia L4 GPU"):
+        return 'l4'
     return None
 
 
@@ -185,6 +226,41 @@ def process_compute_sku(sku: dict, regions: List[str]) -> List[GCPComputePrice]:
         if service_region in regions:
             compute_prices.append(
                 GCPComputePrice(instance_family, preemptible, service_region, cost_per_hour, effective_start_date)
+            )
+    return compute_prices
+
+
+def process_accelerator_sku(sku: dict, regions: List[str]) -> List[GCPAcceleratorPrice]:
+    category = sku['category']
+    assert category['resourceFamily'] == 'Compute', sku
+    assert 'GPU' in category['resourceGroup']
+
+    accelerator_family = accelerator_from_sku(sku)
+    preemptible = preemptible_from_sku(sku)
+
+    if accelerator_family is None or preemptible is None:
+        return []
+
+    effective_start_date = parse_effective_start_date(sku)
+
+    # https://cloud.google.com/billing/docs/reference/rest/v1/services.skus/list#sku
+    pricing_info = sku['pricingInfo'][-1]  # A timeline of pricing info for this SKU in chronological order.
+    pricing_expression = pricing_info['pricingExpression']
+    assert (
+        pricing_expression['usageUnitDescription'] == 'hour'
+        and pricing_expression['baseUnit'] == 's'
+        and pricing_expression['baseUnitConversionFactor'] == 3600
+    ), sku
+    cost_per_hour = pricing_expression_to_price_per_unit(pricing_expression)
+
+    compute_prices = []
+    service_regions = sku['serviceRegions']
+    for service_region in service_regions:
+        if service_region in regions:
+            compute_prices.append(
+                GCPAcceleratorPrice(
+                    accelerator_family, preemptible, service_region, cost_per_hour, effective_start_date
+                )
             )
     return compute_prices
 
@@ -274,6 +350,9 @@ async def fetch_prices(
     params = {'currencyCode': currency_code}
     async for sku in billing_client.list_skus('/6F81-5844-456A/skus', params=params):
         category = sku['category']
+        if 'GPU' in category['resourceGroup']:
+            for accelerator_price in process_accelerator_sku(sku, regions):
+                yield accelerator_price
         if category['resourceFamily'] == 'Compute':
             if 'Core' in sku['description']:
                 for compute_price in process_compute_sku(sku, regions):

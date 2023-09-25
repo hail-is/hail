@@ -17,7 +17,8 @@ class CIClient:
         self._session: Optional[httpx.ClientSession] = None
 
     async def __aenter__(self):
-        headers = await hail_credentials().auth_headers()
+        async with hail_credentials() as credentials:
+            headers = await credentials.auth_headers()
         self._session = client_session(
             raise_for_status=False, timeout=aiohttp.ClientTimeout(total=60), headers=headers
         )  # type: ignore

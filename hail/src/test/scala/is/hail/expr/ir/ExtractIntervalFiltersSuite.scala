@@ -1,8 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.TestUtils._
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq, Interval, IntervalEndpoint}
+import is.hail.utils.{FastSeq, Interval, IntervalEndpoint}
 import is.hail.variant.{Locus, ReferenceGenome}
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
@@ -12,10 +11,10 @@ class ExtractIntervalFiltersSuite extends HailSuite {
 
   lazy val ref1 = Ref("foo", TStruct("w" -> TInt32, "x" -> TInt32))
   lazy val k1 = GetField(ref1, "x")
-  val ref1Key = FastIndexedSeq("x")
+  val ref1Key = FastSeq("x")
 
   val structRef = Ref("foo", TStruct("x" -> TInt32, "y" -> TInt32, "z" -> TInt32))
-  val structRefKey = FastIndexedSeq("y", "z")
+  val structRefKey = FastSeq("y", "z")
 
   val structT1 = TStruct("y" -> TInt32, "z" -> TInt32)
   val structT2 = TStruct("y" -> TInt32)
@@ -73,7 +72,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
   @Test def testLiteralContains() {
     for (lit <- Array(
       Literal(TSet(TInt32), Set(1, 10)),
-      Literal(TArray(TInt32), FastIndexedSeq(1, 10)),
+      Literal(TArray(TInt32), FastSeq(1, 10)),
       Literal(TDict(TInt32, TString), Map(1 -> "foo", 10 -> "bar")))) {
       val ir = invoke("contains", TBoolean, lit, k1)
 
@@ -89,7 +88,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
 
     for (lit <- Array(
       Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4))),
-      Literal(TArray(structT1), FastIndexedSeq(Row(1, 2), Row(3, 4))),
+      Literal(TArray(structT1), FastSeq(Row(1, 2), Row(3, 4))),
       Literal(TDict(structT1, TString), Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar")))) {
       for (k <- fullKeyRefs) {
 
@@ -104,7 +103,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
 
     for (lit <- Array(
       Literal(TSet(structT2), Set(Row(1), Row(3))),
-      Literal(TArray(structT2), FastIndexedSeq(Row(1), Row(3))),
+      Literal(TArray(structT2), FastSeq(Row(1), Row(3))),
       Literal(TDict(structT2, TString), Map(Row(1) -> "foo", Row(3) -> "bar")))) {
       for (k <- prefixKeyRefs) {
 
@@ -247,7 +246,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
 
     for (lit <- Array(
       Literal(TSet(TString), Set("chr1", "chr10")),
-      Literal(TArray(TString), FastIndexedSeq("chr1", "chr10")),
+      Literal(TArray(TString), FastSeq("chr1", "chr10")),
       Literal(TDict(TString, TString), Map("chr1" -> "foo", "chr10" -> "bar")))) {
 
       val ir = invoke("contains", TBoolean, lit, contig)
@@ -265,7 +264,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
   }
 
   @Test def testIntervalListFold() {
-    val inIntervals = FastIndexedSeq(
+    val inIntervals = FastSeq(
       Interval(IntervalEndpoint(0, -1), IntervalEndpoint(10, -1)),
       null,
       Interval(IntervalEndpoint(20, -1), IntervalEndpoint(25, -1)),

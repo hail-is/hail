@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext, HailTaskContext}
+import is.hail.backend.{BackendUtils, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.fs.FS
@@ -10,7 +10,7 @@ import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
-import is.hail.types.physical.{PCanonicalTuple, PType, typeToTypeInfo}
+import is.hail.types.physical.{PCanonicalTuple, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
@@ -60,7 +60,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   }
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] = rgContainers.keys.map(ctx.getReference(_)).toIndexedSeq.sortBy(_.name)
-  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastIndexedSeq.sortBy(_._1).map(_._2)
+  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] = rgContainers.toFastSeq.sortBy(_._1).map(_._2)
 
   var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
 
@@ -336,7 +336,7 @@ class EmitClassBuilder[C](
     val spec = TypedCodecSpec(litType, BufferSpec.wireSpec)
 
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
-    val mb2 = newEmitMethod("addAndDecodeLiterals", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
+    val mb2 = newEmitMethod("addAndDecodeLiterals", FastSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
 
     mb2.voidWithBuilder { cb =>
       val allEncodedFields = mb2.getCodeParam[Array[AnyRef]](1)
@@ -402,13 +402,13 @@ class EmitClassBuilder[C](
     _aggOff = genFieldThisRef[Long]("agg_off")
     _aggSerialized = genFieldThisRef[Array[Array[Byte]]]("agg_serialized")
 
-    val newF = newEmitMethod("newAggState", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
-    val setF = newEmitMethod("setAggState", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
-    val getF = newEmitMethod("getAggOffset", FastIndexedSeq[ParamType](), typeInfo[Long])
-    val storeF = newEmitMethod("storeAggsToRegion", FastIndexedSeq[ParamType](), typeInfo[Unit])
-    val setNSer = newEmitMethod("setNumSerialized", FastIndexedSeq[ParamType](typeInfo[Int]), typeInfo[Unit])
-    val setSer = newEmitMethod("setSerializedAgg", FastIndexedSeq[ParamType](typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
-    val getSer = newEmitMethod("getSerializedAgg", FastIndexedSeq[ParamType](typeInfo[Int]), typeInfo[Array[Byte]])
+    val newF = newEmitMethod("newAggState", FastSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
+    val setF = newEmitMethod("setAggState", FastSeq[ParamType](typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
+    val getF = newEmitMethod("getAggOffset", FastSeq[ParamType](), typeInfo[Long])
+    val storeF = newEmitMethod("storeAggsToRegion", FastSeq[ParamType](), typeInfo[Unit])
+    val setNSer = newEmitMethod("setNumSerialized", FastSeq[ParamType](typeInfo[Int]), typeInfo[Unit])
+    val setSer = newEmitMethod("setSerializedAgg", FastSeq[ParamType](typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
+    val getSer = newEmitMethod("getSerializedAgg", FastSeq[ParamType](typeInfo[Int]), typeInfo[Array[Byte]])
 
     val (nfcode, states) = EmitCodeBuilder.scoped(newF) { cb =>
       val states = agg.StateTuple(aggSigs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)).toArray)
@@ -478,7 +478,7 @@ class EmitClassBuilder[C](
     if (_backendField == null) {
       cb.addInterface(typeInfo[FunctionWithBackend].iname)
       val backendField = genFieldThisRef[BackendUtils]()
-      val mb = newEmitMethod("setBackend", FastIndexedSeq[ParamType](typeInfo[BackendUtils]), typeInfo[Unit])
+      val mb = newEmitMethod("setBackend", FastSeq[ParamType](typeInfo[BackendUtils]), typeInfo[Unit])
       mb.emit(backendField := mb.getCodeParam[BackendUtils](1))
       _backendField = backendField
     }
@@ -508,7 +508,7 @@ class EmitClassBuilder[C](
       null
     else {
       cb.addInterface(typeInfo[FunctionWithObjects].iname)
-      val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
+      val mb = newEmitMethod("setObjects", FastSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
       mb.voidWithBuilder(cb => emodb.setObjects(cb, mb.getCodeParam[Array[AnyRef]](1)))
       emodb.modb._objects.result()
     }
@@ -589,7 +589,7 @@ class EmitClassBuilder[C](
 
   private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_], AsmTuple[_]) = {
     val codeArgsInfo = argsInfo.flatMap {
-      case CodeParamType(ti) => FastIndexedSeq(ti)
+      case CodeParamType(ti) => FastSeq(ti)
       case t: EmitParamType => t.valueTupleTypes
       case SCodeParamType(pt) => pt.settableTupleTypes()
     }
@@ -638,15 +638,15 @@ class EmitClassBuilder[C](
 
   def makeAddPartitionRegion(): Unit = {
     cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
-    val mb = newEmitMethod("addPartitionRegion", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
+    val mb = newEmitMethod("addPartitionRegion", FastSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
     mb.emit(partitionRegion := mb.getCodeParam[Region](1))
-    val mb2 = newEmitMethod("setPool", FastIndexedSeq[ParamType](typeInfo[RegionPool]), typeInfo[Unit])
+    val mb2 = newEmitMethod("setPool", FastSeq[ParamType](typeInfo[RegionPool]), typeInfo[Unit])
     mb2.emit(poolField := mb2.getCodeParam[RegionPool](1))
   }
 
   def makeAddHailClassLoader(): Unit = {
     cb.addInterface(typeInfo[FunctionWithHailClassLoader].iname)
-    val mb = newEmitMethod("addHailClassLoader", FastIndexedSeq[ParamType](typeInfo[HailClassLoader]), typeInfo[Unit])
+    val mb = newEmitMethod("addHailClassLoader", FastSeq[ParamType](typeInfo[HailClassLoader]), typeInfo[Unit])
     mb.voidWithBuilder { cb =>
       emodb.setHailClassLoader(cb, mb.getCodeParam[HailClassLoader](1))
     }
@@ -654,7 +654,7 @@ class EmitClassBuilder[C](
 
   def makeAddFS(): Unit = {
     cb.addInterface(typeInfo[FunctionWithFS].iname)
-    val mb = newEmitMethod("addFS", FastIndexedSeq[ParamType](typeInfo[FS]), typeInfo[Unit])
+    val mb = newEmitMethod("addFS", FastSeq[ParamType](typeInfo[FS]), typeInfo[Unit])
     mb.voidWithBuilder { cb =>
       emodb.setFS(cb, mb.getCodeParam[FS](1))
     }
@@ -662,7 +662,7 @@ class EmitClassBuilder[C](
 
   def makeAddTaskContext(): Unit = {
     cb.addInterface(typeInfo[FunctionWithTaskContext].iname)
-    val mb = newEmitMethod("addTaskContext", FastIndexedSeq[ParamType](typeInfo[HailTaskContext]), typeInfo[Unit])
+    val mb = newEmitMethod("addTaskContext", FastSeq[ParamType](typeInfo[HailTaskContext]), typeInfo[Unit])
     mb.voidWithBuilder { cb =>
       cb.assign(_taskContext, mb.getCodeParam[HailTaskContext](1))
     }
@@ -670,7 +670,7 @@ class EmitClassBuilder[C](
 
   def makeAddReferenceGenomes(): Unit = {
     cb.addInterface(typeInfo[FunctionWithReferences].iname)
-    val mb = newEmitMethod("addReferenceGenomes", FastIndexedSeq[ParamType](typeInfo[Array[ReferenceGenome]]), typeInfo[Unit])
+    val mb = newEmitMethod("addReferenceGenomes", FastSeq[ParamType](typeInfo[Array[ReferenceGenome]]), typeInfo[Unit])
     mb.voidWithBuilder { cb =>
       val rgFields = emodb.referenceGenomeFields()
       val rgs = mb.getCodeParam[Array[ReferenceGenome]](1)
@@ -825,22 +825,22 @@ class EmitClassBuilder[C](
     newEmitMethod(genName("m", baseName), argsInfo, returnInfo)
 
   def genEmitMethod[R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
-    genEmitMethod(baseName, FastIndexedSeq[ParamType](), typeInfo[R])
+    genEmitMethod(baseName, FastSeq[ParamType](), typeInfo[R])
 
   def genEmitMethod[A: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
-    genEmitMethod(baseName, FastIndexedSeq[ParamType](typeInfo[A]), typeInfo[R])
+    genEmitMethod(baseName, FastSeq[ParamType](typeInfo[A]), typeInfo[R])
 
   def genEmitMethod[A: TypeInfo, B: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
-    genEmitMethod(baseName, FastIndexedSeq[ParamType](typeInfo[A], typeInfo[B]), typeInfo[R])
+    genEmitMethod(baseName, FastSeq[ParamType](typeInfo[A], typeInfo[B]), typeInfo[R])
 
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
-    genEmitMethod(baseName, FastIndexedSeq[ParamType](typeInfo[A1], typeInfo[A2], typeInfo[A3]), typeInfo[R])
+    genEmitMethod(baseName, FastSeq[ParamType](typeInfo[A1], typeInfo[A2], typeInfo[A3]), typeInfo[R])
 
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
-    genEmitMethod(baseName, FastIndexedSeq[ParamType](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4]), typeInfo[R])
+    genEmitMethod(baseName, FastSeq[ParamType](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4]), typeInfo[R])
 
   def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
-    genEmitMethod(baseName, FastIndexedSeq[ParamType](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4], typeInfo[A5]), typeInfo[R])
+    genEmitMethod(baseName, FastSeq[ParamType](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4], typeInfo[A5]), typeInfo[R])
 
   def genStaticEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     newStaticEmitMethod(genName("sm", baseName), argsInfo, returnInfo)
@@ -872,7 +872,7 @@ object EmitFunctionBuilder {
   }
 
   def apply[R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction0[R]] =
-    EmitFunctionBuilder[AsmFunction0[R]](ctx, baseName, FastIndexedSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
+    EmitFunctionBuilder[AsmFunction0[R]](ctx, baseName, FastSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 
   def apply[A: TypeInfo, R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction1[A, R]] =
     EmitFunctionBuilder[AsmFunction1[A, R]](ctx, baseName, Array(GenericTypeInfo[A]), GenericTypeInfo[R])
@@ -1061,7 +1061,7 @@ class EmitMethodBuilder[C](
     assert(emitReturnType.isInstanceOf[CodeParamType])
     assert(args.forall(_.isInstanceOf[CodeParam]))
     mb.invoke(cb, args.flatMap {
-      case CodeParam(c) => FastIndexedSeq(c)
+      case CodeParam(c) => FastSeq(c)
       // If you hit this assertion, it means that an EmitParam was passed to
       // invokeCode. Code with EmitParams must be invoked using the EmitCodeBuilder
       // interface to ensure that setup is run and missingness is evaluated for the

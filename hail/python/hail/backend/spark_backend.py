@@ -1,5 +1,4 @@
 from typing import Set
-import pkg_resources
 import sys
 import os
 import json
@@ -18,9 +17,12 @@ from hail.fs.hadoop_fs import HadoopFS
 from hail.ir.renderer import CSERenderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.validators import validate_file
 
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
+from .backend import local_jar_information
 
 
 _installed = False
@@ -132,16 +134,20 @@ class SparkBackend(Py4JBackend):
         super(SparkBackend, self).__init__()
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
-        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
-            hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
-            assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
+        try:
+            local_jar_info = local_jar_information()
+        except ValueError:
+            local_jar_info = None
+
+        if local_jar_info is not None:
             conf = pyspark.SparkConf()
 
             base_conf = spark_conf or {}
             for k, v in base_conf.items():
                 conf.set(k, v)
 
-            jars = [hail_jar_path]
+            jars = [local_jar_info.path]
+            extra_classpath = local_jar_info.extra_classpath
 
             if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
                 import sparkmonitor
@@ -166,11 +172,15 @@ class SparkBackend(Py4JBackend):
                 append_to_comma_separated_list(
                     conf,
                     'spark.driver.extraClassPath',
-                    *jars)
+                    *jars,
+                    *extra_classpath
+                )
                 append_to_comma_separated_list(
                     conf,
                     'spark.executor.extraClassPath',
-                    './hail-all-spark.jar')
+                    './hail-all-spark.jar',
+                    *extra_classpath
+                )
 
             if sc is None:
                 pyspark.SparkContext._ensure_initialized(conf=conf)
@@ -242,6 +252,13 @@ class SparkBackend(Py4JBackend):
 
         self._initialize_flags({})
 
+        self._router_async_fs = RouterAsyncFS(
+            gcs_kwargs={"gcs_requester_pays_configuration": gcs_requester_pays_project}
+        )
+
+    def validate_file(self, uri: str) -> None:
+        validate_file(uri, self._router_async_fs)
+
     def jvm(self):
         return self._jvm
 
@@ -250,9 +267,6 @@ class SparkBackend(Py4JBackend):
 
     def utils_package_object(self):
         return self._utils_package_object
-
-    def validate_file_scheme(self, url):
-        pass
 
     def stop(self):
         self._jbackend.close()
