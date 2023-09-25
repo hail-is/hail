@@ -16,11 +16,11 @@
   <li>Time Completed: {% if 'time_completed' in batch and batch['time_completed'] is not none %}{{ batch['time_completed'] }}{% endif %}</li>
   <li>Total Jobs: {{ batch['n_jobs'] }}</li>
   <ul>
-    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=pending">Pending</a>
-      + <a href="{{ base_path }}/batches/{{ batch['id'] }}?q=running">Running</a> Jobs: {{ batch['n_jobs'] - batch['n_completed'] }}</li>
-    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=success">Succeeded</a> Jobs: {{ batch['n_succeeded'] }}</li>
-    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=failed">Failed</a> Jobs: {{ batch['n_failed'] }}</li>
-    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=cancelled">Cancelled</a> Jobs: {{ batch['n_cancelled'] }}</li>
+    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Dpending">Pending</a>
+      + <a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Drunning">Running</a> Jobs: {{ batch['n_jobs'] - batch['n_completed'] }}</li>
+    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Dsuccess">Succeeded</a> Jobs: {{ batch['n_succeeded'] }}</li>
+    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Dfailed">Failed</a> Jobs: {{ batch['n_failed'] }}</li>
+    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Dcancelled">Cancelled</a> Jobs: {{ batch['n_cancelled'] }}</li>
   </ul>
   <li>Duration: {% if 'duration' in batch and batch['duration'] is not none %}{{ batch['duration'] }}{% endif %}</li>
   <li>Cost: {% if 'cost' in batch and batch['cost'] is not none %}{{ batch['cost'] }}{% endif %}</li>
