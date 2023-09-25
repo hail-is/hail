@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet}
 import is.hail.types.virtual.{TArray, TDict, TSet, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 import scala.language.existentials
 
@@ -24,7 +24,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
   def sort(cb: EmitCodeBuilder, region: Value[Region], comparesLessThan: (EmitCodeBuilder, Value[Region], Value[_], Value[_]) => Value[Boolean]): Unit = {
 
-    val sortMB = cb.emb.ecb.genEmitMethod("arraySorter_outer", FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
+    val sortMB = cb.emb.ecb.genEmitMethod("arraySorter_outer", FastSeq[ParamType](classInfo[Region]), UnitInfo)
     sortMB.voidWithBuilder { cb =>
 
       val newEnd = cb.newLocal[Int]("newEnd", 0)
@@ -47,7 +47,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       // sort elements in [0, newEnd]
 
       // merging into B
-      val mergeMB = cb.emb.ecb.genEmitMethod("arraySorter_merge", FastIndexedSeq[ParamType](classInfo[Region], IntInfo, IntInfo, IntInfo, workingArrayInfo, workingArrayInfo), UnitInfo)
+      val mergeMB = cb.emb.ecb.genEmitMethod("arraySorter_merge", FastSeq[ParamType](classInfo[Region], IntInfo, IntInfo, IntInfo, workingArrayInfo, workingArrayInfo), UnitInfo)
       mergeMB.voidWithBuilder { cb =>
         val r = mergeMB.getCodeParam[Region](1)
         val begin = mergeMB.getCodeParam[Int](2)
@@ -88,7 +88,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         })
       }
 
-      val splitMergeMB = cb.emb.ecb.genEmitMethod("arraySorter_splitMerge", FastIndexedSeq[ParamType](classInfo[Region], IntInfo, IntInfo, workingArrayInfo, workingArrayInfo), UnitInfo)
+      val splitMergeMB = cb.emb.ecb.genEmitMethod("arraySorter_splitMerge", FastSeq[ParamType](classInfo[Region], IntInfo, IntInfo, workingArrayInfo, workingArrayInfo), UnitInfo)
       splitMergeMB.voidWithBuilder { cb =>
         val r = splitMergeMB.getCodeParam[Region](1)
         val begin = splitMergeMB.getCodeParam[Int](2)
@@ -172,7 +172,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
   def distinctFromSorted(cb: EmitCodeBuilder, region: Value[Region], discardNext: (EmitCodeBuilder, Value[Region], EmitCode, EmitCode) => Code[Boolean]): Unit = {
 
-    val distinctMB = cb.emb.genEmitMethod("distinctFromSorted", FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
+    val distinctMB = cb.emb.genEmitMethod("distinctFromSorted", FastSeq[ParamType](classInfo[Region]), UnitInfo)
     distinctMB.voidWithBuilder { cb =>
       val region = distinctMB.getCodeParam[Region](1)
       val i = cb.newLocal[Int]("i", 0)

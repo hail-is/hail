@@ -9,7 +9,7 @@ import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointe
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.virtual.{TInterval, Type}
-import is.hail.utils.{FastIndexedSeq, Interval}
+import is.hail.utils.{FastSeq, Interval}
 import org.apache.spark.sql.Row
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
@@ -155,7 +155,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
   ): SIntervalPointerValue = {
     val startEC = EmitCode.present(cb.emb, primitive(includesStart))
     val endEC = EmitCode.present(cb.emb, primitive(includesEnd))
-    val sc = representation.constructFromFields(cb, region, FastIndexedSeq(start, end, startEC, endEC), deepCopy = false)
+    val sc = representation.constructFromFields(cb, region, FastSeq(start, end, startEC, endEC), deepCopy = false)
     new SIntervalPointerValue(sType, sc.a, includesStart, includesEnd)
   }
 

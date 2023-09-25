@@ -19,7 +19,7 @@ object LowerOrInterpretNonCompilable {
           log.info(s"interpreting non-compilable result: ${ value.getClass.getSimpleName }")
           val v = Interpret.alreadyLowered(ctx, value)
           if (value.typ == TVoid) {
-            Begin(FastIndexedSeq())
+            Begin(FastSeq())
           } else Literal.coerce(value.typ, v)
         case None =>
           log.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")

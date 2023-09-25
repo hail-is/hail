@@ -85,7 +85,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
-      typ.colsTableType.copy(key = FastIndexedSeq[String]()),
+      typ.colsTableType.copy(key = FastSeq[String]()),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -107,7 +107,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
-      TableType(typ.globalType, FastIndexedSeq(), TStruct.empty),
+      TableType(typ.globalType, FastSeq(), TStruct.empty),
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -147,7 +147,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
-      TableType(entriesRVType, FastIndexedSeq(), typ.globalType),
+      TableType(entriesRVType, FastSeq(), typ.globalType),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))

@@ -2,18 +2,17 @@ package is.hail.variant.vsm
 
 import is.hail.HailSuite
 import is.hail.annotations.BroadcastRow
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir
-import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableRange, TableValue}
+import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue}
+import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.virtual.{TInt32, TStruct}
-import is.hail.rvd.RVD
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 import org.testng.annotations.Test
 
 class PartitioningSuite extends HailSuite {
   @Test def testShuffleOnEmptyRDD() {
-    val typ = TableType(TStruct("tidx" -> TInt32), FastIndexedSeq("tidx"), TStruct.empty)
+    val typ = TableType(TStruct("tidx" -> TInt32), FastSeq("tidx"), TStruct.empty)
     val t = TableLiteral(
       TableValue(
         ctx,

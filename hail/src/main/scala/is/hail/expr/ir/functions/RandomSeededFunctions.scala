@@ -4,12 +4,12 @@ import is.hail.asm4s._
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SNDArrayPointer, SRNGStateStaticSizeValue, SRNGStateValue}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SNDArrayPointer, SRNGStateValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.{PBoolean, PCanonicalArray, PCanonicalNDArray, PFloat64, PInt32, PType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PFloat64, PInt32}
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 import net.sourceforge.jdistlib.rng.MersenneTwister
 import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 
@@ -114,7 +114,7 @@ object RandomSeededFunctions extends RegistryFunctions {
     registerSCode5("rand_unif_nd", TRNGState, TInt64, TInt64, TFloat64, TFloat64, TNDArray(TFloat64, Nat(2)), {
       case (_: Type, _: SType, _: SType, _: SType, _: SType, _: SType) => PCanonicalNDArray(PFloat64(true), 2, true).sType
     }) { case (r, cb, rt: SNDArrayPointer, rngState: SRNGStateValue, nRows: SInt64Value, nCols: SInt64Value, min, max, errorID) =>
-      val result = rt.pType.constructUninitialized(FastIndexedSeq(SizeValueDyn(nRows.value), SizeValueDyn(nCols.value)), cb, r.region)
+      val result = rt.pType.constructUninitialized(FastSeq(SizeValueDyn(nRows.value), SizeValueDyn(nCols.value)), cb, r.region)
       val rng = cb.emb.getThreefryRNG()
       rngState.copyIntoEngine(cb, rng)
       result.coiterateMutate(cb, r.region) { _ =>
@@ -148,7 +148,7 @@ object RandomSeededFunctions extends RegistryFunctions {
     registerSCode5("rand_norm_nd", TRNGState, TInt64, TInt64, TFloat64, TFloat64, TNDArray(TFloat64, Nat(2)), {
       case (_: Type, _: SType, _: SType, _: SType, _: SType, _: SType) => PCanonicalNDArray(PFloat64(true), 2, true).sType
     }) { case (r, cb, rt: SNDArrayPointer, rngState: SRNGStateValue, nRows: SInt64Value, nCols: SInt64Value, mean, sd, errorID) =>
-      val result = rt.pType.constructUninitialized(FastIndexedSeq(SizeValueDyn(nRows.value), SizeValueDyn(nCols.value)), cb, r.region)
+      val result = rt.pType.constructUninitialized(FastSeq(SizeValueDyn(nRows.value), SizeValueDyn(nCols.value)), cb, r.region)
       val rng = cb.emb.getThreefryRNG()
       rngState.copyIntoEngine(cb, rng)
       result.coiterateMutate(cb, r.region) { _ =>

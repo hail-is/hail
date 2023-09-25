@@ -1,11 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.types._
-import is.hail.types.physical.PStruct
-import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s._
@@ -155,7 +152,7 @@ object MatrixTableSpec {
     var entriesSpec = RelationalSpec.read(fs, path + "/entries").asInstanceOf[TableSpec]
     entriesSpec = TableSpec(fs, path + "/entries",
       entriesSpec.params.copy(
-        table_type = TableType(params.matrix_type.entriesRVType, FastIndexedSeq(), params.matrix_type.globalType)))
+        table_type = TableType(params.matrix_type.entriesRVType, FastSeq(), params.matrix_type.globalType)))
 
     new MatrixTableSpec(params, globalsSpec, colsSpec, rowsSpec, entriesSpec)
   }
