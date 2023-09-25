@@ -1,48 +1,17 @@
 package is.hail.asm4s
 
+import is.hail.HailSuite
 import is.hail.annotations.Region
-import is.hail.asm4s.CodeSuite.StmtXAsCode
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder, EmitValue, IEmitCode}
-import is.hail.lir.{Block, StmtX}
-import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.stypes.{EmitType, SValue}
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.primitives.{SFloat32Value, SFloat64Value, SInt32, SInt32Value, SInt64, SInt64Value}
+import is.hail.types.physical._
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
-import is.hail.utils.FastSeq
-import is.hail.{HailSuite, lir}
 import org.apache.spark.sql.Row
-import org.objectweb.asm.Opcodes
-import org.testng.annotations.{DataProvider, Test}
-
-object CodeSuite {
-  implicit class StmtXAsCode(val x: StmtX) extends AnyVal {
-    def asCode: Code[Unit] =
-      Code.void[Unit](x)
-  }
-}
+import org.testng.annotations.Test
 
 class CodeSuite extends HailSuite {
-
-  @DataProvider(name="ControlX")
-  def ControlXs: Array[Array[Any]] =
-    Array(
-      Array(lir.returnx().asCode),
-      Array(CodeLabel().goto),
-      {
-        val x = lir.ldcInsn(0, typeInfo[Int])
-        val stmt = lir.ifx(Opcodes.IFNULL, x, new Block(), new Block())
-        Array(stmt.asCode)
-      },
-      Array(Code._fatal[Unit]("oh noes :(")),
-      Array(lir.switch(lir.ldcInsn(0, typeInfo[Int]), new Block(), FastSeq()).asCode)
-    )
-
-  @Test(dataProvider = "ControlX")
-  def testAppendDeadCode(goto: Code[Unit]): Unit =
-    intercept[AssertionError] {
-      Code(goto, Code._fatal[Unit]("Dead code"))
-    }
 
   @Test def testForLoop() {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")

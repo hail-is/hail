@@ -1,11 +1,13 @@
 package is.hail.lir
 
+import java.io.PrintWriter
+
+import is.hail.HailContext
+
+import scala.collection.mutable
 import is.hail.asm4s._
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
-
-import java.io.PrintWriter
-import scala.collection.mutable
 
 // FIXME move typeinfo stuff lir
 
@@ -409,8 +411,9 @@ class Block {
 
   def append(x: StmtX): Unit = {
     assert(x.parent == null)
-    assert(!last.isInstanceOf[ControlX], s"Cannot append StmtX '$x' after ControlX")
-
+    if (last.isInstanceOf[ControlX])
+      // if last is a ControlX, x is dead code, so just drop it
+      return
     if (last == null) {
       first = x
       last = x
