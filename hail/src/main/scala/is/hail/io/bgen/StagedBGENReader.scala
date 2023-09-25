@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{RegistryFunctions, StringFunctions}
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.expr.ir.{ArraySorter, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitSettable, IEmitCode, LowerMatrixIR, ParamType, StagedArrayBuilder, uuid4}
@@ -17,8 +17,8 @@ import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SBaseStructV
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual._
 import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
-import is.hail.utils.{BoxedArrayBuilder, CompressionUtils, FastIndexedSeq}
-import is.hail.variant.{Call2, ReferenceGenome}
+import is.hail.utils.{BoxedArrayBuilder, CompressionUtils, FastSeq}
+import is.hail.variant.Call2
 import org.objectweb.asm.Opcodes._
 
 object StagedBGENReader {
@@ -210,7 +210,7 @@ object StagedBGENReader {
 
           val memoTyp = PCanonicalArray(entryType.setRequired(true), required = true)
 
-          val memoMB = emb.genEmitMethod("memoizeEntries", FastIndexedSeq[ParamType](), UnitInfo)
+          val memoMB = emb.genEmitMethod("memoizeEntries", FastSeq[ParamType](), UnitInfo)
           memoMB.voidWithBuilder { cb =>
 
             val partRegion = emb.partitionRegion
@@ -581,7 +581,7 @@ object BGENFunctions extends RegistryFunctions {
         val ecb = cb.emb.genEmitClass[Unit]("buffer_stream")
         ecb.cb.addInterface(typeInfo[NoBoxLongIterator].iname)
 
-        val ctor = ecb.newEmitMethod("<init>", FastIndexedSeq[ParamType](typeInfo[String], typeInfo[Int]), UnitInfo)
+        val ctor = ecb.newEmitMethod("<init>", FastSeq[ParamType](typeInfo[String], typeInfo[Int]), UnitInfo)
         val ib = ecb.genFieldThisRef[InputBuffer]("ib")
         val iterSize = ecb.genFieldThisRef[Int]("size")
         val iterCurrIdx = ecb.genFieldThisRef[Int]("currIdx")
@@ -596,7 +596,7 @@ object BGENFunctions extends RegistryFunctions {
               "()V",
               false,
               UnitInfo,
-              FastIndexedSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+              FastSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
           cb += new VCode(L, L, null)
 
           val path = cb.memoize(ctor.getCodeParam[String](1))
@@ -607,9 +607,9 @@ object BGENFunctions extends RegistryFunctions {
           cb.assign(iterCurrIdx, 0)
         }
 
-        val next = ecb.newEmitMethod("next", FastIndexedSeq[ParamType](), LongInfo)
+        val next = ecb.newEmitMethod("next", FastSeq[ParamType](), LongInfo)
 
-        val init = ecb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
+        val init = ecb.newEmitMethod("init", FastSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
         init.voidWithBuilder { cb =>
           val eltRegion = init.getCodeParam[Region](2)
 
@@ -629,21 +629,21 @@ object BGENFunctions extends RegistryFunctions {
           ret
         }
 
-        val isEOS = ecb.newEmitMethod("eos", FastIndexedSeq[ParamType](), BooleanInfo)
+        val isEOS = ecb.newEmitMethod("eos", FastSeq[ParamType](), BooleanInfo)
         isEOS.emitWithBuilder[Boolean](cb => iterEOS)
 
-        val close = ecb.newEmitMethod("close", FastIndexedSeq[ParamType](), UnitInfo)
+        val close = ecb.newEmitMethod("close", FastSeq[ParamType](), UnitInfo)
         close.voidWithBuilder(cb => cb += ib.invoke[Unit]("close"))
 
         val iters = mb.genFieldThisRef[Array[NoBoxLongIterator]]("iters")
         cb.assign(iters, Code.newArray[NoBoxLongIterator](groupIndex))
         val i = cb.newLocal[Int]("i")
         cb.whileLoop(i < groupIndex, {
-          cb += iters.update(i, coerce[NoBoxLongIterator](Code.newInstance(ecb.cb, ctor.mb, FastIndexedSeq(paths(i), fileSizes(i)))))
+          cb += iters.update(i, coerce[NoBoxLongIterator](Code.newInstance(ecb.cb, ctor.mb, FastSeq(paths(i), fileSizes(i)))))
           cb.assign(i, i + 1)
         })
 
-        val mergedStream = StreamUtils.multiMergeIterators(cb, Right(true), iters, FastIndexedSeq("locus", "alleles"), rowPType)
+        val mergedStream = StreamUtils.multiMergeIterators(cb, Right(true), iters, FastSeq("locus", "alleles"), rowPType)
 
         val iw = StagedIndexWriter.withDefaults(settings.indexKeyType, mb.ecb, annotationType = +PCanonicalStruct())
         iw.init(cb, idxPath, cb.memoize(Code.invokeScalaObject3[String, Map[String, String], Boolean, Map[String, Any]](

@@ -2,9 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
-import is.hail.expr.ir._
 import is.hail.types._
-import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TString, TStruct}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 object LowerMatrixIR {
@@ -182,7 +181,7 @@ object LowerMatrixIR {
         val colKey = makeStruct(table.typ.key.zip(child.typ.colKey).map { case (tk, mck) => Symbol(tk) -> col(Symbol(mck)) }: _*)
         lower(ctx, child, ab)
           .mapGlobals(let(__dictfield = lower(ctx, table, ab)
-            .keyBy(FastIndexedSeq())
+            .keyBy(FastSeq())
             .collect()
             .apply('rows)
             .arrayStructToDict(table.typ.key)) {
@@ -421,7 +420,7 @@ object LowerMatrixIR {
           val aggResult = loweredChild.aggregate(
             aggLet(va = 'row.selectFields(child.typ.rowType.fieldNames: _*)) {
               makeStruct(
-                ('count, applyAggOp(Count(), FastIndexedSeq(), FastIndexedSeq())),
+                ('count, applyAggOp(Count(), FastSeq(), FastSeq())),
                 ('array_aggs, irRange(0, 'global(colsField).len)
                   .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
                     let(sa = 'global(colsField)('__result_idx)) {
@@ -537,10 +536,10 @@ object LowerMatrixIR {
           InsertFields(
             Ref("row", rt),
             FastSeq((entriesFieldName, ToArray(StreamZip(
-              FastIndexedSeq(
+              FastSeq(
                 ToStream(GetField(Ref("row", rt), entriesFieldName)),
                 ToStream(GetField(Ref("global", gt), colsFieldName))),
-              FastIndexedSeq("g", "sa"),
+              FastSeq("g", "sa"),
               Subst(lower(ctx, newEntries, ab), BindingEnv(Env(
                 "global" -> SelectFields(Ref("global", gt), child.typ.globalType.fieldNames),
                 "va" -> SelectFields(Ref("row", rt), child.typ.rowType.fieldNames)))),
@@ -555,7 +554,7 @@ object LowerMatrixIR {
       case MatrixUnionRows(children) =>
         // FIXME: this should check that all children have the same column keys.
         val first = lower(ctx, children.head, ab)
-        TableUnion(FastIndexedSeq(first) ++
+        TableUnion(FastSeq(first) ++
           children.tail.map(lower(ctx, _, ab)
             .mapRows('row.selectFields(first.typ.rowType.fieldNames: _*))))
 
@@ -747,7 +746,7 @@ object LowerMatrixIR {
                 .map(lambdaIdx1 ~> makeStruct('key -> 'global (colsField)(lambdaIdx1).selectFields(child.typ.colKey: _*), 'value -> lambdaIdx1))
                 .sort(ascending = true, onKey = true)
                 .map(lambdaIdx1 ~> lambdaIdx1('value))))
-            .aggregateByKey(makeStruct(values -> applyAggOp(Collect(), seqOpArgs = FastIndexedSeq('row.selectFields(lc.typ.valueType.fieldNames: _*)))))
+            .aggregateByKey(makeStruct(values -> applyAggOp(Collect(), seqOpArgs = FastSeq('row.selectFields(lc.typ.valueType.fieldNames: _*)))))
             .mapRows('row.dropFields(values).insertFields(toExplode ->
               'global (oldColIdx)
                 .flatMap(lambdaIdx1 ~> 'row (values)
@@ -779,7 +778,7 @@ object LowerMatrixIR {
                 child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry_struct (f))
 
               'row.dropFields(entriesField, colIdx).insertFieldsList(newFields,
-                ordering = Some(x.typ.rowType.fieldNames.toFastIndexedSeq))
+                ordering = Some(x.typ.rowType.fieldNames.toFastSeq))
             })
             .mapGlobals('global.dropFields(colsField))
           if (child.typ.colKey.isEmpty)
@@ -852,7 +851,7 @@ object LowerMatrixIR {
         TableMultiWrite(children.map(lower(ctx, _, ab)), WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey))
       case MatrixCount(child) =>
         lower(ctx, child, ab)
-          .aggregate(makeTuple(applyAggOp(Count(), FastIndexedSeq(), FastIndexedSeq()), 'global(colsField).len))
+          .aggregate(makeTuple(applyAggOp(Count(), FastSeq(), FastSeq()), 'global(colsField).len))
       case MatrixAggregate(child, query) =>
         val lc = lower(ctx, child, ab)
         val idx = Symbol(genUID())

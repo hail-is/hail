@@ -33,7 +33,6 @@ class UserData(TypedDict):
     is_service_account: bool
     hail_credentials_secret_name: str
     tokens_secret_name: str
-    session_id: str
 
 
 def maybe_parse_bearer_header(value: str) -> Optional[str]:

@@ -10,6 +10,7 @@ from ...resources import (
     Resource,
     ServiceFeeResourceMixin,
     StaticSizedDiskResourceMixin,
+    VMResourceMixin,
 )
 
 
@@ -168,6 +169,39 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
         return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
+class GCPAcceleratorResource(VMResourceMixin, GCPResource):
+    FORMAT_VERSION = 1
+    TYPE = 'gcp_accelerator'
+
+    @staticmethod
+    def product_name(accelerator_family: str, preemptible: bool, region: str) -> str:
+        preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+        return f'accelerator/{accelerator_family}-{preemptible_str}/{region}'
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> 'GCPAcceleratorResource':
+        assert data['type'] == GCPAcceleratorResource.TYPE
+        return GCPAcceleratorResource(data['name'])
+
+    @staticmethod
+    def create(
+        product_versions: ProductVersions,
+        accelerator_family: str,
+        preemptible: bool,
+        region: str,
+    ) -> 'GCPAcceleratorResource':
+        product = GCPAcceleratorResource.product_name(accelerator_family, preemptible, region)
+        name = product_versions.resource_name(product)
+        assert name, product
+        return GCPAcceleratorResource(name)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def to_dict(self) -> dict:
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
+
+
 class GCPMemoryResource(MemoryResourceMixin, GCPResource):
     FORMAT_VERSION = 1
     TYPE = 'gcp_memory'
@@ -272,5 +306,7 @@ def gcp_resource_from_dict(data: dict) -> GCPResource:
         return GCPMemoryResource.from_dict(data)
     if typ == GCPServiceFeeResource.TYPE:
         return GCPServiceFeeResource.from_dict(data)
+    if typ == GCPAcceleratorResource.TYPE:
+        return GCPAcceleratorResource.from_dict(data)
     assert typ == GCPIPFeeResource.TYPE
     return GCPIPFeeResource.from_dict(data)

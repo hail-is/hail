@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.15
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 122
+HAIL_PATCH_VERSION := 124
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -69,10 +69,12 @@ PYTHON_VERSION_INFO += python/hail/docs/_static/hail_version.js
 SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
+NON_SHADOW_JAR := build/libs/hail.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
+FAST_PYTHON_JAR := python/hail/backend/hail.jar
+FAST_PYTHON_JAR_EXTRA_CLASSPATH := python/hail/backend/extra_classpath
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
@@ -94,6 +96,18 @@ $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTI
 	./gradlew shadowJar $(GRADLE_ARGS)
 ifdef HAIL_DEBUG_MODE
 	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+endif
+
+ifdef HAIL_COMPILE_NATIVES
+$(NON_SHADOW_JAR): native-lib-prebuilt
+endif
+ifdef HAIL_DEBUG_MODE
+$(NON_SHADOW_JAR): $(JAR_DEBUG_CLASSES)
+endif
+$(NON_SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
+	./gradlew jar $(GRADLE_ARGS)
+ifdef HAIL_DEBUG_MODE
+	$(JAR) -uf $(NON_SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
 
 .PHONY: shadowTestJar
@@ -121,7 +135,7 @@ endif
 services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	./gradlew testServices $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
-.PHONY: services-jvm-test
+.PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
@@ -175,12 +189,18 @@ python/README.md: ../README.md
 $(PYTHON_JAR): $(SHADOW_JAR)
 	cp -f $(SHADOW_JAR) $@
 
+$(FAST_PYTHON_JAR): $(NON_SHADOW_JAR)
+	cp -f $(NON_SHADOW_JAR) $@
+
+$(FAST_PYTHON_JAR_EXTRA_CLASSPATH): build.gradle
+	./gradlew -q printClasspath > $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
+
 .PHONY: python-jar
 python-jar: $(PYTHON_JAR)
 
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-pytest: python/README.md $(PYTHON_JAR)
+pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	cd python && $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
@@ -222,7 +242,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 
 .PHONY: doctest
 doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-doctest: python/README.md $(PYTHON_JAR)
+doctest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	cd python && $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
@@ -272,12 +292,6 @@ wheel: $(WHEEL)
 $(WHEEL): copy-py-files
 	# Clear the bdist build cache before building the wheel
 	cd build/deploy; rm -rf build; $(HAIL_PYTHON3) setup.py -q sdist bdist_wheel
-
-.PHONY: egg
-egg: $(EGG)
-
-$(EGG): copy-py-files
-	cd build/deploy; $(HAIL_PYTHON3) setup.py -q sdist bdist_egg
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
@@ -340,12 +354,18 @@ upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
 	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
 
-.PHONY: install-editable
+# if the installation of Hail has changed, i.e. you pip-installed a non-development version of Hail,
+# this file will be newer than "install-editable"
+install-editable: $(shell pip3 show hail | grep Location: | sed 's/Location: //')/hail/__init__.py
+install-editable: python/setup.py
+install-editable: python/requirements.txt
+install-editable: python/README.md
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-install-editable: python/README.md $(PYTHON_JAR)
+install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	-$(PIP) uninstall -y hail
 	cd python && $(PIP) install -e .
 	hailctl config set query/backend spark
+	touch install-editable
 
 .PHONY: install-for-qob
 install-for-qob: upload-qob-jar install-editable
@@ -500,6 +520,8 @@ clean: clean-env clean-libs native-lib-clean
 	./gradlew clean $(GRADLE_ARGS)
 	rm -rf build/
 	rm -rf $(PYTHON_JAR)
+	rm -rf $(FAST_PYTHON_JAR)
+	rm -rf $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	rm -rf python/README.md
 	rm -rf $(SCALA_BUILD_INFO)
 	rm -rf $(PYTHON_VERSION_INFO)

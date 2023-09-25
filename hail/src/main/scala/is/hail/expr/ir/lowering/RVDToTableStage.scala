@@ -2,18 +2,18 @@ package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
-import is.hail.expr.ir.{Compile, CompileIterator, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.expr.ir._
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.{RTable, TableType, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual.TStruct
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.types.{RTable, TableType, VirtualTypeWithReq}
+import is.hail.utils.FastSeq
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
 import org.json4s.JValue
@@ -31,14 +31,14 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
   override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
     assert(!dropRows)
     val (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) = Compile[AsmFunction1RegionLong](
-      ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, PruneDeadFields.upcast(ctx, globals, requestedType.globalType))
+      ctx, FastSeq(), FastSeq(classInfo[Region]), LongInfo, PruneDeadFields.upcast(ctx, globals, requestedType.globalType))
     val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
 
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbAddr), globType)
 
     val rowEmitType = SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType))
     val (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), rowF) = Compile[AsmFunction2RegionLongLong](
-      ctx, FastIndexedSeq(("row", rowEmitType)), FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+      ctx, FastSeq(("row", rowEmitType)), FastSeq(classInfo[Region], LongInfo), LongInfo,
       PruneDeadFields.upcast(ctx, In(0, rowEmitType),
         requestedType.rowType))
 
@@ -109,7 +109,7 @@ object TableStageToRVD {
       Let(name, value, acc)
     }
 
-    val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
+    val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastSeq(), FastSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
     val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
 
     val globPType = gbPType.fieldType("globals").asInstanceOf[PStruct]

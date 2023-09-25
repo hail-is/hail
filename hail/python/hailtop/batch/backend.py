@@ -18,7 +18,7 @@ from hailtop import pip_version
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_python_dill_image_for_current_python_version
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
@@ -33,6 +33,7 @@ from hailtop.aiotools.validators import validate_file
 
 
 HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{pip_version()}')
+HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE') or hailgenetics_hail_image_for_current_python_version()
 
 
 RunningBatchType = TypeVar('RunningBatchType')
@@ -681,7 +682,7 @@ class ServiceBackend(Backend[bc.Batch]):
         pyjobs = [j for j in unsubmitted_jobs if isinstance(j, _job.PythonJob)]
         for pyjob in pyjobs:
             if pyjob._image is None:
-                pyjob._image = hailgenetics_python_dill_image_for_current_python_version()
+                pyjob._image = HAIL_GENETICS_HAIL_IMAGE
         await batch._serialize_python_functions_to_input_files(
             batch_remote_tmpdir, dry_run=dry_run
         )

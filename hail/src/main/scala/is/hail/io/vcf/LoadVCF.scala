@@ -8,7 +8,7 @@ import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.expr.ir.{CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines, GenericTableValue, IEmitCode, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixReader, TableExecuteIntermediate, PartitionReader, TableValue}
+import is.hail.expr.ir.{CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines, GenericTableValue, IEmitCode, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixReader, PartitionReader}
 import is.hail.io.fs.{FS, FileListEntry}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader}
@@ -138,13 +138,13 @@ case class VCFHeaderInfo(sampleIds: Array[String], infoFields: Array[(String, Ty
     val rvb = new RegionValueBuilder(sm, r)
     rvb.start(VCFHeaderInfo.headerTypePType)
     rvb.startStruct()
-    rvb.addAnnotation(rvb.currentType().virtualType, sampleIds.toFastIndexedSeq)
-    rvb.addAnnotation(rvb.currentType().virtualType, infoFields.map { case (x1, x2) => Row(x1, x2.parsableString()) }.toFastIndexedSeq)
-    rvb.addAnnotation(rvb.currentType().virtualType, formatFields.map { case (x1, x2) => Row(x1, x2.parsableString()) }.toFastIndexedSeq)
+    rvb.addAnnotation(rvb.currentType().virtualType, sampleIds.toFastSeq)
+    rvb.addAnnotation(rvb.currentType().virtualType, infoFields.map { case (x1, x2) => Row(x1, x2.parsableString()) }.toFastSeq)
+    rvb.addAnnotation(rvb.currentType().virtualType, formatFields.map { case (x1, x2) => Row(x1, x2.parsableString()) }.toFastSeq)
     rvb.addAnnotation(rvb.currentType().virtualType, if (dropAttrs) Map.empty else filtersAttrs)
     rvb.addAnnotation(rvb.currentType().virtualType, if (dropAttrs) Map.empty else infoAttrs)
     rvb.addAnnotation(rvb.currentType().virtualType, if (dropAttrs) Map.empty else formatAttrs)
-    rvb.addAnnotation(rvb.currentType().virtualType, infoFlagFields.toFastIndexedSeq.sorted)
+    rvb.addAnnotation(rvb.currentType().virtualType, infoFlagFields.toFastSeq.sorted)
     rvb.result().offset
   }
 
@@ -1811,11 +1811,11 @@ class MatrixVCFReader(
 
   val fullRVDType = RVDType(
     PCanonicalStruct(true,
-      FastIndexedSeq(
+      FastSeq(
         "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
         "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       ++ rowValuePType.fields.map { f => f.name -> f.typ }
-      ++ FastIndexedSeq(
+      ++ FastSeq(
         LowerMatrixIR.entriesFieldName -> PCanonicalArray(formatPType, true),
         rowUIDFieldName -> PCanonicalTuple(true, PInt64Required, PInt64Required)): _*),
     fullType.key)
@@ -1879,7 +1879,7 @@ class MatrixVCFReader(
         GenericLines.read(fs, fileListEntries, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
     }
 
-    val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastIndexedSeq)
+    val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastSeq)
 
     val fullRowPType: PType = fullRVDType.rowType
 
@@ -1943,7 +1943,7 @@ class MatrixVCFReader(
   }
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val globals = Row(sampleIDs.zipWithIndex.map(t => Row(t._1, t._2.toLong)).toFastIndexedSeq)
+    val globals = Row(sampleIDs.zipWithIndex.map(t => Row(t._1, t._2.toLong)).toFastSeq)
     Literal.coerce(requestedGlobalsType,
       fullType.globalType.valueSubsetter(requestedGlobalsType)
         .apply(globals))
@@ -1988,7 +1988,7 @@ case class GVCFPartitionReader(header: VCFHeaderInfo,
   lazy val (infoType, rowValueType, entryType) = header.getPTypes(arrayElementsRequired, entryFloatType, callFields)
 
   lazy val fullRowPType: PCanonicalStruct = PCanonicalStruct(true,
-      FastIndexedSeq(("locus", PCanonicalLocus.schemaFromRG(rg, true)), ("alleles", PCanonicalArray(PCanonicalString(true), true)))
+      FastSeq(("locus", PCanonicalLocus.schemaFromRG(rg, true)), ("alleles", PCanonicalArray(PCanonicalString(true), true)))
         ++ rowValueType.fields.map { f => (f.name, f.typ) }
         ++ Array(entriesFieldName -> PCanonicalArray(entryType, true),
         uidFieldName -> PCanonicalTuple(true, PInt64Required, PInt64Required)): _*)

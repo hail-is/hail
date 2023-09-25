@@ -7,8 +7,8 @@ import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check._
 import is.hail.expr.ir.{CompileAndEvaluate, GetField, TableCollect, TableLiteral}
-import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.BlockMatrix.ops._
+import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
 import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.sql.Row
@@ -607,7 +607,7 @@ class BlockMatrixSuite extends HailSuite {
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
       } {
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(::, keep.toFastIndexedSeq).copy
+        val filteredViaBreeze = lm(::, keep.toFastSeq).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -628,7 +628,7 @@ class BlockMatrixSuite extends HailSuite {
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8))
       } {
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lmt(::, keep.toFastIndexedSeq).copy
+        val filteredViaBreeze = lmt(::, keep.toFastSeq).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -648,7 +648,7 @@ class BlockMatrixSuite extends HailSuite {
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8))
       } {
         val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keep.toFastIndexedSeq, ::).copy
+        val filteredViaBreeze = lm(keep.toFastSeq, ::).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -671,7 +671,7 @@ class BlockMatrixSuite extends HailSuite {
         Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
       } {
         val filteredViaBlock = bm.filter(keep.map(_.toLong), keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keep.toFastIndexedSeq, keep.toFastIndexedSeq).copy
+        val filteredViaBreeze = lm(keep.toFastSeq, keep.toFastSeq).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -696,7 +696,7 @@ class BlockMatrixSuite extends HailSuite {
           Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
       } {
         val filteredViaBlock = bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keepRows.toFastIndexedSeq, keepCols.toFastIndexedSeq).copy
+        val filteredViaBreeze = lm(keepRows.toFastSeq, keepCols.toFastSeq).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }

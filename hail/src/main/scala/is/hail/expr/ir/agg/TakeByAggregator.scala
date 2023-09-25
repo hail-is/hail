@@ -10,7 +10,7 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
+import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -40,9 +40,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   private val (garbage, maxGarbage) = if (canHaveGarbage) (kb.genFieldThisRef[Int](), kb.genFieldThisRef[Int]()) else (null, null)
 
   private val garbageFields: IndexedSeq[(String, PType)] = if (canHaveGarbage)
-    FastIndexedSeq(("current_garbage", PInt32Required), ("max_garbage", PInt32Required))
+    FastSeq(("current_garbage", PInt32Required), ("max_garbage", PInt32Required))
   else
-    FastIndexedSeq()
+    FastSeq()
 
   val storageType: PStruct =
     PCanonicalStruct(true,
@@ -208,7 +208,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     cb.memoize(IEmitCode(cb, keyIsMissing(cb, offset), loadKeyValue(cb, offset)))
 
   private val compareElt: (EmitCodeBuilder, Value[Long], Value[Long]) => Value[Int] = {
-    val mb = kb.genEmitMethod("i_gt_j", FastIndexedSeq[ParamType](LongInfo, LongInfo), IntInfo)
+    val mb = kb.genEmitMethod("i_gt_j", FastSeq[ParamType](LongInfo, LongInfo), IntInfo)
     val i = mb.getCodeParam[Long](1)
     val j = mb.getCodeParam[Long](2)
 
@@ -220,7 +220,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   private val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Unit = {
-    val mb = kb.genEmitMethod("swap", FastIndexedSeq[ParamType](LongInfo, LongInfo), UnitInfo)
+    val mb = kb.genEmitMethod("swap", FastSeq[ParamType](LongInfo, LongInfo), UnitInfo)
     val i = mb.getCodeParam[Long](1)
     val j = mb.getCodeParam[Long](2)
 
@@ -235,7 +235,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
 
   private val rebalanceUp: (EmitCodeBuilder, Value[Int]) => Unit = {
-    val mb = kb.genEmitMethod("rebalance_up", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
+    val mb = kb.genEmitMethod("rebalance_up", FastSeq[ParamType](IntInfo), UnitInfo)
     val idx = mb.getCodeParam[Int](1)
 
     mb.voidWithBuilder { cb =>
@@ -255,7 +255,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   private val rebalanceDown: (EmitCodeBuilder, Value[Int]) => Unit = {
-    val mb = kb.genEmitMethod("rebalance_down", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
+    val mb = kb.genEmitMethod("rebalance_down", FastSeq[ParamType](IntInfo), UnitInfo)
     val idx = mb.getCodeParam[Int](1)
 
     val child1 = mb.newLocal[Int]("child_1")
@@ -292,7 +292,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   private lazy val gc: EmitCodeBuilder => Unit = {
     if (canHaveGarbage) {
-      val mb = kb.genEmitMethod("take_by_garbage_collect", FastIndexedSeq[ParamType](), UnitInfo)
+      val mb = kb.genEmitMethod("take_by_garbage_collect", FastSeq[ParamType](), UnitInfo)
       val oldRegion = mb.newLocal[Region]("old_region")
       mb.voidWithBuilder { cb =>
         cb.assign(garbage, garbage + 1)
@@ -359,7 +359,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   def seqOp(cb: EmitCodeBuilder, v: EmitCode, k: EmitCode): Unit = {
     val mb = kb.genEmitMethod("take_by_seqop",
-      FastIndexedSeq[ParamType](v.emitParamType, k.emitParamType),
+      FastSeq[ParamType](v.emitParamType, k.emitParamType),
       UnitInfo)
 
     mb.voidWithBuilder { cb =>
@@ -394,7 +394,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   def combine(cb: EmitCodeBuilder, other: TakeByRVAS): Unit = {
-    val mb = kb.genEmitMethod("take_by_combop", FastIndexedSeq[ParamType](), UnitInfo)
+    val mb = kb.genEmitMethod("take_by_combop", FastSeq[ParamType](), UnitInfo)
 
 
     mb.voidWithBuilder { cb =>
@@ -427,10 +427,10 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   def result(cb: EmitCodeBuilder, _r: Value[Region], resultType: PCanonicalArray): SIndexablePointerValue = {
-    val mb = kb.genEmitMethod("take_by_result", FastIndexedSeq[ParamType](classInfo[Region]), LongInfo)
+    val mb = kb.genEmitMethod("take_by_result", FastSeq[ParamType](classInfo[Region]), LongInfo)
 
     val quickSort: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Unit] = {
-      val mb = kb.genEmitMethod("result_quicksort", FastIndexedSeq[ParamType](LongInfo, IntInfo, IntInfo), UnitInfo)
+      val mb = kb.genEmitMethod("result_quicksort", FastSeq[ParamType](LongInfo, IntInfo, IntInfo), UnitInfo)
       val indices = mb.getCodeParam[Long](1)
       val low = mb.getCodeParam[Int](2)
       val high = mb.getCodeParam[Int](3)
@@ -438,7 +438,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       val pivotIndex = mb.newLocal[Int]("pivotIdx")
 
       val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Value[Unit] = {
-        val mb = kb.genEmitMethod("quicksort_swap", FastIndexedSeq[ParamType](LongInfo, LongInfo), UnitInfo)
+        val mb = kb.genEmitMethod("quicksort_swap", FastSeq[ParamType](LongInfo, LongInfo), UnitInfo)
         val i = mb.getCodeParam[Long](1)
         val j = mb.getCodeParam[Long](2)
 
@@ -455,7 +455,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       }
 
       val partition: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Int] = {
-        val mb = kb.genEmitMethod("quicksort_partition", FastIndexedSeq[ParamType](LongInfo, IntInfo, IntInfo), IntInfo)
+        val mb = kb.genEmitMethod("quicksort_partition", FastSeq[ParamType](LongInfo, IntInfo, IntInfo), IntInfo)
 
         val indices = mb.getCodeParam[Long](1)
         val low = mb.getCodeParam[Int](2)

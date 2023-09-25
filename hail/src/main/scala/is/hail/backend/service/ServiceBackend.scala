@@ -297,8 +297,8 @@ class ServiceBackend(
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
       val (_, f) = Compile[AsmFunction1RegionUnit](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
+        FastSeq(),
+        FastSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
         x,
         optimize = true)
 
@@ -306,9 +306,9 @@ class ServiceBackend(
       Array()
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
-        MakeTuple.ordered(FastIndexedSeq(x)),
+        FastSeq(),
+        FastSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
+        MakeTuple.ordered(FastSeq(x)),
         optimize = true)
       val retPType = pt.asInstanceOf[PBaseStruct]
       val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
@@ -357,7 +357,7 @@ class ServiceBackend(
     rgs.foreach(addReference)
 
     implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+    Serialization.write(rgs.map(_.toJSON).toFastSeq)
   }
 
   def parseVCFMetadata(
@@ -408,7 +408,7 @@ object ServiceBackendSocketAPI2 {
   private[this] val log = Logger.getLogger(getClass.getName())
 
   def main(argv: Array[String]): Unit = {
-    assert(argv.length == 7, argv.toFastIndexedSeq)
+    assert(argv.length == 7, argv.toFastSeq)
 
     val scratchDir = argv(0)
     val logFile = argv(1)

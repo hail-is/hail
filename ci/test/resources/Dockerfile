@@ -1,4 +1,5 @@
-FROM {{ ci_utils_image.image }}
+ARG BASE_IMAGE={{ ci_utils_image.image }}
+FROM $BASE_IMAGE
 
 COPY ci/test/resources/hello.py /hello/
 

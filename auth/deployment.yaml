@@ -45,8 +45,6 @@ spec:
             value: "{{ default_ns.name }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
-          - name: GOOGLE_APPLICATION_CREDENTIALS
-            value: /gsa-key/key.json
           - name: HAIL_DOMAIN
             valueFrom:
               secretKeyRef:

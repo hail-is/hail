@@ -483,6 +483,116 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
     """
     return GeomHistogram(mapping, min_val=min_val, max_val=max_val, bins=bins, fill=fill, color=color, alpha=alpha, position=position, size=size)
 
+# Computes the maximum entropy distribution whose cdf is within +- e of the
+# staircase-shaped cdf encoded by min_x, max_x, x, y.
+#
+# x is an array of n x-coordinates between min_x and max_x, and y is an array
+# of (n+1) y-coordinates between 0 and 1, both sorted. Together they encode a
+# staircase-shaped cdf.
+# For example, if min_x = 1, max_x=4, x=[2], y=[.2, .6], then the cdf is the
+# staircase tracing the points
+# (1, 0) - (1, .2) - (2, .2) - (2, .6) - (4, .6) - (4, 1)
+#
+# Now consider the set of all possible cdfs within +-e of the one above. In
+# other words, shift the staircase both up and down by e, capping above and
+# below at 1 and 0, and consider all possible cdfs that lie in between. The
+# distribution with maximum entropy whose cdf is between the two staircases
+# is the one whose cdf is the graph constructed as follows: tie a rubber band
+# to the points (min_x, 0) and (max_x, 1), place the middle between the two
+# staircases, and let it contract. In other words, it will be the shortest
+# path between the staircases.
+#
+# It's easy to see this path must be piecewise linear, and the points where the
+# slopes change will be either
+# * bending up at a point of the form (x[i], y[i]+e), or
+# * bending down at a point of the form (x[i], y[i+1]-e)
+#
+# Returns (new_y, keep).
+# keep is the array of indices i at which the piecewise linear max-ent cdf
+# changes slope, as described in the previous paragraph.
+# new_y is an array the same length as x. For each i in keep, new_y[i] is the
+# y coordinate of the point on the max-ent cdf.
+def _max_entropy_cdf(min_x, max_x, x, y, e):
+    def point_on_bound(i, upper):
+        if i == len(x):
+            return max_x, 1
+        else:
+            yi = y[i] + e if upper else y[i+1] - e
+            return x[i], yi
+
+    # Result variables:
+    new_y = np.full_like(x, 0.0, dtype=np.float64)
+    keep = np.full_like(x, False, dtype=np.bool_)
+
+    # State variables:
+    # (fx, fy) is most recently fixed point on max-ent cdf
+    fx, fy = min_x, 0
+    li, ui = 0, 0
+    j = 1
+
+    def slope_from_fixed(i, upper):
+        xi, yi = point_on_bound(i, upper)
+        return (yi - fy) / (xi - fx)
+
+    def fix_point_on_result(i, upper):
+        nonlocal fx, fy, new_y, keep
+        xi, yi = point_on_bound(i, upper)
+        fx, fy = xi, yi
+        new_y[i] = fy
+        keep[i] = True
+
+    min_slope = slope_from_fixed(li, upper=False)
+    max_slope = slope_from_fixed(ui, upper=True)
+
+    # Consider a line l from (fx, fy) to (x[j], y?). As we increase y?, l first
+    # bumps into the upper staircase at (x[ui], y[ui] + e), and as we decrease
+    # y?, l first bumps into the lower staircase at (x[li], y[li+1] - e).
+    # We track the min and max slopes l can have while staying between the
+    # staircases, as well as the points li and ui where the line must bend if
+    # forced too high or too low.
+
+    while True:
+        lower_slope = slope_from_fixed(j, upper=False)
+        upper_slope = slope_from_fixed(j, upper=True)
+        if upper_slope < min_slope:
+            # Line must bend down at x[li]. We know the max-entropy cdf passes
+            # through this point, so record it in new_y, keep.
+            # This becomes the new fixed point, and we must restart the scan
+            # from there.
+            fix_point_on_result(li, upper=False)
+            j = li + 1
+            if j >= len(x):
+                break
+            li, ui = j, j
+            min_slope = slope_from_fixed(li, upper=False)
+            max_slope = slope_from_fixed(ui, upper=True)
+            j += 1
+            continue
+        elif lower_slope > max_slope:
+            # Line must bend up at x[ui]. We know the max-entropy cdf passes
+            # through this point, so record it in new_y, keep.
+            # This becomes the new fixed point, and we must restart the scan
+            # from there.
+            fix_point_on_result(ui, upper=True)
+            j = ui + 1
+            if j >= len(x):
+                break
+            li, ui = j, j
+            min_slope = slope_from_fixed(li, upper=False)
+            max_slope = slope_from_fixed(ui, upper=True)
+            j += 1
+            continue
+        if j >= len(x):
+            break
+        if upper_slope < max_slope:
+            ui = j
+            max_slope = upper_slope
+        if lower_slope > min_slope:
+            li = j
+            min_slope = lower_slope
+        j += 1
+    return new_y, keep
+
 
 class GeomDensity(Geom):
     aes_to_arg = {
@@ -493,46 +603,80 @@ class GeomDensity(Geom):
         "alpha": ("marker_opacity", None)
     }
 
-    def __init__(self, aes, k=1000, smoothing=0.5, fill=None, color=None, alpha=None):
+    def __init__(self, aes, k=1000, smoothing=0.5, fill=None, color=None, alpha=None, smoothed=False):
         super().__init__(aes)
         self.k = k
         self.smoothing = smoothing
         self.fill = fill
         self.color = color
         self.alpha = alpha
+        self.smoothed = smoothed
 
     def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+        from hail.expr.functions import _error_from_cdf_python
         def plot_group(df, idx):
-            slope = 1.0 / (df.attrs['max'] - df.attrs['min'])
-            n = df.attrs['n']
-            min = df.attrs['min']
-            max = df.attrs['max']
-            values = df.value.to_numpy()
-            weights = df.weight.to_numpy()
+            data = df.attrs['data']
 
-            def f(x, prev):
-                inv_scale = (np.sqrt(n * slope) / self.smoothing) * np.sqrt(prev / weights)
-                diff = x[:, np.newaxis] - values
-                grid = (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
-                return np.sum(grid, axis=1)
+            if self.smoothed:
+                n = data['ranks'][-1]
+                weights = np.diff(data['ranks'][1:-1])
+                min = data['values'][0]
+                max = data['values'][-1]
+                values = np.array(data['values'][1:-1])
+                slope = 1 / (max - min)
 
-            round1 = f(values, np.full(len(values), slope))
-            x_d = np.linspace(min, max, 1000)
-            final = f(x_d, round1)
+                def f(x, prev):
+                    inv_scale = (np.sqrt(n * slope) / self.smoothing) * np.sqrt(prev / weights)
+                    diff = x[:, np.newaxis] - values
+                    grid = (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
+                    return np.sum(grid, axis=1)
 
-            trace_args = {
-                "x": x_d,
-                "y": final,
-                "mode": "lines",
-                "fill": "tozeroy",
-                "row": facet_row,
-                "col": facet_col
-            }
+                round1 = f(values, np.full(len(values), slope))
+                x_d = np.linspace(min, max, 1000)
+                final = f(x_d, round1)
 
-            self._add_aesthetics_to_trace_args(trace_args, df)
-            self._update_legend_trace_args(trace_args, legend_cache)
+                trace_args = {
+                    "x": x_d,
+                    "y": final,
+                    "mode": "lines",
+                    "fill": "tozeroy",
+                    "row": facet_row,
+                    "col": facet_col
+                }
 
-            fig_so_far.add_scatter(**trace_args)
+                self._add_aesthetics_to_trace_args(trace_args, df)
+                self._update_legend_trace_args(trace_args, legend_cache)
+
+                fig_so_far.add_scatter(**trace_args)
+            else:
+                confidence = 5
+
+                y = np.array(data['ranks'][1:-1]) / data['ranks'][-1]
+                x = np.array(data['values'][1:-1])
+                min_x = data['values'][0]
+                max_x = data['values'][-1]
+                err = _error_from_cdf_python(data, 10 ** (-confidence), all_quantiles=True)
+
+                new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
+                slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
+
+                left = np.concatenate([[min_x], x[keep]])
+                right = np.concatenate([x[keep], [max_x]])
+                widths = right - left
+
+                trace_args = {
+                    "x": [min_x, *x[keep]],
+                    "y": slopes,
+                    "row": facet_row,
+                    "col": facet_col,
+                    "width": widths,
+                    "offset": 0
+                }
+
+                self._add_aesthetics_to_trace_args(trace_args, df)
+                self._update_legend_trace_args(trace_args, legend_cache)
+
+                fig_so_far.add_bar(**trace_args)
 
         for idx, group_df in enumerate(grouped_data):
             plot_group(group_df, idx)
@@ -541,7 +685,7 @@ class GeomDensity(Geom):
         return StatCDF(self.k)
 
 
-def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None, alpha=None):
+def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None, alpha=None, smoothed=False):
     """Creates a smoothed density plot.
 
     This method uses the `hl.agg.approx_cdf` aggregator to compute a sketch
@@ -568,13 +712,17 @@ def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None,
         A single line color for all density plots, overrides ``color`` aesthetic.
     alpha: `float`
         A measure of transparency between 0 and 1.
+    smoothed: `boolean`
+        If true, attempts to fit a smooth kernel density estimator.
+        If false, uses a custom method do generate a variable width histogram
+        directly from the approx_cdf results.
 
     Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomDensity(mapping, k, smoothing, fill, color, alpha)
+    return GeomDensity(mapping, k, smoothing, fill, color, alpha, smoothed)
 
 
 class GeomHLine(Geom):

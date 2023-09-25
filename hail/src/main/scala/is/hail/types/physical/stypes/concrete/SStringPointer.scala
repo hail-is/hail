@@ -5,10 +5,10 @@ import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SString, SStringValue}
 import is.hail.types.physical.stypes.primitives.SInt64Value
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PString, PType}
 import is.hail.types.virtual.Type
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 
 final case class SStringPointer(pType: PString) extends SString {
@@ -21,7 +21,7 @@ final case class SStringPointer(pType: PString) extends SString {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
     new SStringPointerValue(this, pType.store(cb, region, value, deepCopy))
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SStringPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
@@ -49,7 +49,7 @@ final case class SStringPointer(pType: PString) extends SString {
 class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SStringValue {
   val pt: PString = st.pType
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a)
 
   def binaryRepr(): SBinaryPointerValue = new SBinaryPointerValue(SBinaryPointer(st.pType.binaryRepresentation), a)
 
@@ -73,7 +73,7 @@ object SStringPointerSettable {
 }
 
 final class SStringPointerSettable(st: SStringPointer, override val a: Settable[Long]) extends SStringPointerValue(st, a) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
     cb.assign(a, v.asInstanceOf[SStringPointerValue].a)

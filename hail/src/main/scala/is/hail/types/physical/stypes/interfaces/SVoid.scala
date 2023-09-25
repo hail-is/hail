@@ -7,7 +7,7 @@ import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes._
 import is.hail.types.virtual.{TVoid, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 case object SVoid extends SType {
 
@@ -37,5 +37,5 @@ case object SVoidValue extends SValue with SUnrealizableValue {
 
   override def st: SType = SVoid
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
+  override def valueTuple: IndexedSeq[Value[_]] = FastSeq()
 }

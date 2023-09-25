@@ -1,10 +1,9 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
-import is.hail.utils._
 import is.hail.TestUtils._
-import is.hail.types._
 import is.hail.types.virtual.TString
+import is.hail.utils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.testng.annotations.Test
 
 class StringSliceSuite extends HailSuite {
@@ -120,18 +119,18 @@ class StringSliceSuite extends HailSuite {
   }
 
   @Test def testStringIndex() {
-    assertEvalsTo(invoke("index", TString, In(0, TString), I32(0)), FastIndexedSeq("Baz" -> TString), "B")
-    assertEvalsTo(invoke("index", TString, In(0, TString), I32(1)), FastIndexedSeq("Baz" -> TString), "a")
-    assertEvalsTo(invoke("index", TString, In(0, TString), I32(2)), FastIndexedSeq("Baz" -> TString), "z")
-    assertEvalsTo(invoke("index", TString, In(0, TString), I32(-1)), FastIndexedSeq("Baz" -> TString), "z")
-    assertEvalsTo(invoke("index", TString, In(0, TString), I32(-2)), FastIndexedSeq("Baz" -> TString), "a")
-    assertEvalsTo(invoke("index", TString, In(0, TString), I32(-3)), FastIndexedSeq("Baz" -> TString), "B")
+    assertEvalsTo(invoke("index", TString, In(0, TString), I32(0)), FastSeq("Baz" -> TString), "B")
+    assertEvalsTo(invoke("index", TString, In(0, TString), I32(1)), FastSeq("Baz" -> TString), "a")
+    assertEvalsTo(invoke("index", TString, In(0, TString), I32(2)), FastSeq("Baz" -> TString), "z")
+    assertEvalsTo(invoke("index", TString, In(0, TString), I32(-1)), FastSeq("Baz" -> TString), "z")
+    assertEvalsTo(invoke("index", TString, In(0, TString), I32(-2)), FastSeq("Baz" -> TString), "a")
+    assertEvalsTo(invoke("index", TString, In(0, TString), I32(-3)), FastSeq("Baz" -> TString), "B")
 
     interceptFatal("string index out of bounds") {
-      assertEvalsTo(invoke("index", TString, In(0, TString), I32(3)), FastIndexedSeq("Baz" -> TString), "B")
+      assertEvalsTo(invoke("index", TString, In(0, TString), I32(3)), FastSeq("Baz" -> TString), "B")
     }
     interceptFatal("string index out of bounds") {
-      assertEvalsTo(invoke("index", TString, In(0, TString), I32(-4)), FastIndexedSeq("Baz" -> TString), "B")
+      assertEvalsTo(invoke("index", TString, In(0, TString), I32(-4)), FastSeq("Baz" -> TString), "B")
     }
   }
 }

@@ -5,8 +5,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
-import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
-import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
+import is.hail.io.BufferSpec
+import is.hail.rvd.{RVDPartitioner, RVDType}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq, tcoerce}
@@ -654,7 +654,7 @@ object IRParser {
     punctuation(it, ":")
     val rowType = tcoerce[TStruct](type_expr(it))
     punctuation(it, "}")
-    TableType(rowType, key.toFastIndexedSeq, tcoerce[TStruct](globalType))
+    TableType(rowType, key.toFastSeq, tcoerce[TStruct](globalType))
   }
 
   def matrix_type_expr(it: TokenIterator): MatrixType = {
@@ -1054,7 +1054,7 @@ object IRParser {
         for {
           nd <- ir_value_expr(env)(it)
           filters <- fillArray(tcoerce[TNDArray](nd.typ).nDims)(ir_value_expr(env)(it))
-        } yield NDArrayFilter(nd, filters.toFastIndexedSeq)
+        } yield NDArrayFilter(nd, filters.toFastSeq)
       case "NDArrayMatMul" =>
         val errorID = int32_literal(it)
         for {
@@ -1396,7 +1396,7 @@ object IRParser {
           old <- ir_value_expr(env)(it)
           fieldOrder = opt(it, string_literals)
           fields <- named_value_irs(env)(it)
-        } yield InsertFields(old, fields, fieldOrder.map(_.toFastIndexedSeq))
+        } yield InsertFields(old, fields, fieldOrder.map(_.toFastSeq))
       case "GetField" =>
         val name = identifier(it)
         ir_value_expr(env)(it).map { s =>
@@ -1516,7 +1516,7 @@ object IRParser {
         implicit val formats: Formats = BlockMatrixWriter.formats
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
         repUntil(it, blockmatrix_ir(env), PunctuationToken(")")).map { blockMatrices =>
-          BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
+          BlockMatrixMultiWrite(blockMatrices.toFastSeq, writer)
         }
       case "CollectDistributedArray" =>
         val staticID = identifier(it)
@@ -1836,7 +1836,7 @@ object IRParser {
             .bindEval(child.typ.colEnv).bindEval("n_rows", TInt64)
             .bindAgg(child.typ.entryEnv).bindScan(child.typ.colEnv)
           newCol <- ir_value_expr(newEnv)(it)
-        } yield MatrixMapCols(child, newCol, newKey.map(_.toFastIndexedSeq))
+        } yield MatrixMapCols(child, newCol, newKey.map(_.toFastSeq))
       case "MatrixKeyRowsBy" =>
         val key = identifiers(it)
         val isSorted = boolean_literal(it)
@@ -2053,7 +2053,7 @@ object IRParser {
         punctuation(it, ")")
         done(BandSparsifier(blocksOnly, l, u))
       case "RectangleSparsifier" =>
-        val rectangles = int64_literals(it).toFastIndexedSeq
+        val rectangles = int64_literals(it).toFastSeq
         punctuation(it, ")")
         done(RectangleSparsifier(rectangles.grouped(4).toIndexedSeq))
     }
@@ -2121,7 +2121,7 @@ object IRParser {
       case "BlockMatrixSlice" =>
         val slices = literals(literals(int64_literal))(it)
         blockmatrix_ir(env.onlyRelational)(it).map { child =>
-          BlockMatrixSlice(child, slices.map(_.toFastIndexedSeq).toFastIndexedSeq)
+          BlockMatrixSlice(child, slices.map(_.toFastSeq).toFastSeq)
         }
       case "ValueToBlockMatrix" =>
         val shape = int64_literals(it)

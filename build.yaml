@@ -8,7 +8,8 @@ steps:
       memory: standard
     dockerFile:
       inline: |
-        FROM {{ global.docker_root_image }}
+        ARG BASE_IMAGE={{ global.docker_root_image }}
+        FROM $BASE_IMAGE
         RUN apt-get update && apt-get install -y git make bash
   - kind: runImage
     name: merge_code
@@ -119,6 +120,42 @@ steps:
     dependsOn:
       - merge_code
       - copy_third_party_images
+  - kind: buildImage2
+    name: hail_ubuntu_image_python_3_10
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    publishAs: hail-ubuntu-python-3-10
+    buildArgs:
+      - name: PYTHON_VERSION
+        value: "3.10"
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+      - copy_third_party_images
+  - kind: buildImage2
+    name: hail_ubuntu_image_python_3_11
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    publishAs: hail-ubuntu-python-3-11
+    buildArgs:
+      - name: PYTHON_VERSION
+        value: "3.11"
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+      - copy_third_party_images
   - kind: deploy
     name: deploy_batch_sa
     namespace:
@@ -170,7 +207,6 @@ steps:
           hail/python/dev \
           gear \
           web_common \
-          auth \
           batch \
           ci
     inputs:
@@ -1318,6 +1354,10 @@ steps:
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
     publishAs: hailgenetics/hail
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image.image
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
@@ -1329,16 +1369,79 @@ steps:
       - merge_code
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
+  - kind: buildImage2
+    name: hailgenetics_hail_image_python_3_10
+    dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hail
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image_python_3_10.image
+    inputs:
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /wheel-container.tar
+        to: /io/repo/wheel-container.tar
+    dependsOn:
+      - merge_code
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image_python_3_10
+  - kind: buildImage2
+    name: hailgenetics_hail_image_python_3_11
+    dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hail
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image_python_3_11.image
+    inputs:
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /wheel-container.tar
+        to: /io/repo/wheel-container.tar
+    dependsOn:
+      - merge_code
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image_python_3_11
   - kind: runImage
     name: test_hailgenetics_hail_image
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
       set -ex
+      python3 --version | grep '3.9'
       python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
       python3 -c 'import numpy; import pandas; import sklearn; import scipy'
     dependsOn:
       - hailgenetics_hail_image
+  - kind: runImage
+    name: test_hailgenetics_hail_image_python_3_10
+    image:
+      valueFrom: hailgenetics_hail_image_python_3_10.image
+    script: |
+      set -ex
+      python3 --version | grep '3.10'
+      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+      python3 -c 'import numpy; import pandas; import sklearn; import scipy'
+    dependsOn:
+      - hailgenetics_hail_image_python_3_10
+  - kind: runImage
+    name: test_hailgenetics_hail_image_python_3_11
+    image:
+      valueFrom: hailgenetics_hail_image_python_3_11.image
+    script: |
+      set -ex
+      python3 --version | grep '3.11'
+      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+      python3 -c 'import numpy; import pandas; import sklearn; import scipy'
+    dependsOn:
+      - hailgenetics_hail_image_python_3_11
   - kind: buildImage2
     name: hail_dev_image
     dockerFile: /io/repo/docker/Dockerfile.hail-dev
@@ -1357,13 +1460,13 @@ steps:
     contextPath: /io/repo
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install make
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
         COPY gear/pinned-requirements.txt gear-requirements.txt
         COPY web_common/pinned-requirements.txt web_common-requirements.txt
-        COPY auth/pinned-requirements.txt auth-requirements.txt
         COPY batch/pinned-requirements.txt batch-requirements.txt
         COPY ci/pinned-requirements.txt ci-requirements.txt
         RUN python3 -m pip install \
@@ -1371,7 +1474,6 @@ steps:
             -r dev-requirements.txt \
             -r gear-requirements.txt \
             -r web_common-requirements.txt \
-            -r auth-requirements.txt \
             -r batch-requirements.txt \
             -r ci-requirements.txt
     publishAs: linting
@@ -1384,8 +1486,6 @@ steps:
         to: /io/repo/gear/pinned-requirements.txt
       - from: /repo/web_common/pinned-requirements.txt
         to: /io/repo/web_common/pinned-requirements.txt
-      - from: /repo/auth/pinned-requirements.txt
-        to: /io/repo/auth/pinned-requirements.txt
       - from: /repo/batch/pinned-requirements.txt
         to: /io/repo/batch/pinned-requirements.txt
       - from: /repo/ci/pinned-requirements.txt
@@ -2190,6 +2290,9 @@ steps:
       - name: cleanup-deprecated-functions
         script: /io/sql/cleanup-deprecated-functions.sql
         online: true
+      - name: set-test-pools-to-known-parameters
+        script: /io/sql/set-test-pools-to-known-parameters.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2430,7 +2533,6 @@ steps:
       - default_ns
       - merge_code
       - deploy_batch
-      - deploy_memory
       - create_deploy_config
       - create_accounts
       - hail_run_image
@@ -2482,7 +2584,8 @@ steps:
     publishAs: netcat
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install netcat
     dependsOn:
       - hail_ubuntu_image
@@ -2491,18 +2594,29 @@ steps:
     publishAs: volume
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         VOLUME ["/data"]
         WORKDIR "/tmp"
         VOLUME ["relative_volume"]
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2
+    name: gpu_image
+    publishAs: gpu
+    resources:
+      storage: 10Gi
+    dockerFile:
+      inline: |
+        FROM python:3.9
+        RUN pip install torch torchvision -f https://download.pytorch.org/whl/cu113/torch_stable.html
+  - kind: buildImage2
     name: workdir_image
     publishAs: workdir
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         WORKDIR ["/work"]
     dependsOn:
       - hail_ubuntu_image
@@ -2511,7 +2625,8 @@ steps:
     publishAs: curl
     dockerFile:
       inline: |
-        FROM {{ hail_ubuntu_image.image }}
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
         RUN hail-apt-get-install curl
     dependsOn:
       - hail_ubuntu_image
@@ -2544,6 +2659,7 @@ steps:
       export HAIL_TOKEN="{{ token }}"
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_DOMAIN="{{ global.domain }}"
+      export HAIL_GPU_IMAGE="{{ gpu_image.image }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
 
       hail-pip-install -r /io/dev-requirements.txt
@@ -2591,6 +2707,7 @@ steps:
       - volume_image
       - workdir_image
       - curl_image
+      - gpu_image
   - kind: runImage
     name: delete_test_billing_projects
     resources:
@@ -2965,7 +3082,6 @@ steps:
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      cd /io/hailtop/batch
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch_docs/{{ token }}/
       python3 -m pytest \
@@ -2980,7 +3096,8 @@ steps:
               --doctest-glob='*.rst' \
               --ignore=docs/cookbook/files/ \
               --timeout=120 \
-              --ignore=docs/conf.py
+              --ignore=docs/conf.py \
+              /io/hailtop/batch
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3179,6 +3296,8 @@ steps:
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
                              docker://{{ hailgenetics_hailtop_image.image }} \
+                             docker://{{ hailgenetics_hail_image_python_3_10.image }} \
+                             docker://{{ hailgenetics_hail_image_python_3_11.image }} \
                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
                              docker://{{ hailgenetics_vep_grch38_95_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
@@ -3223,6 +3342,8 @@ steps:
       - ci_utils_image
       - merge_code
       - hailgenetics_hail_image
+      - hailgenetics_hail_image_python_3_10
+      - hailgenetics_hail_image_python_3_11
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
       - hailgenetics_vep_grch38_95_image

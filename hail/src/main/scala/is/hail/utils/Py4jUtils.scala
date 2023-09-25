@@ -51,7 +51,7 @@ trait Py4jUtils {
   def makeDouble(d: Double): Double = d
 
   def ls(fs: FS, path: String): String = {
-    val statuses = fs.listStatus(path)
+    val statuses = fs.listDirectory(path)
     JsonMethods.compact(JArray(statuses.map(fs => fileListEntryToJson(fs)).toList))
   }
 

@@ -1,6 +1,5 @@
 package is.hail.types.physical
 
-import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Region, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
@@ -143,36 +142,36 @@ class PContainerTest extends PhysicalTestUtils {
       copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32(true)), IndexedSeq(1, 2, 3, 4),
         deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(), true)),
-        FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
+        FastSeq(FastSeq(20L), FastSeq(1L), FastSeq(20L,5L,31L,41L), FastSeq(1L,2L,3L)),
         deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(), true)),
-        FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
+        FastSeq(FastSeq(20L), FastSeq(1L), FastSeq(20L,5L,31L,41L), FastSeq(1L,2L,3L)),
         deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64(true))),
-        FastIndexedSeq(FastIndexedSeq(20L), FastIndexedSeq(1L), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
+        FastSeq(FastSeq(20L), FastSeq(1L), FastSeq(20L,5L,31L,41L), FastSeq(1L,2L,3L)),
          deepCopy = deepCopy, interpret = interpret)
 
       // test empty arrays
-      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), FastIndexedSeq(),
+      copyTestExecutor(PCanonicalArray(PInt32()), PCanonicalArray(PInt32()), FastSeq(),
         deepCopy = deepCopy, interpret = interpret)
-      copyTestExecutor(PCanonicalArray(PInt32(true)), PCanonicalArray(PInt32(true)), FastIndexedSeq(),
+      copyTestExecutor(PCanonicalArray(PInt32(true)), PCanonicalArray(PInt32(true)), FastSeq(),
         deepCopy = deepCopy, interpret = interpret)
 
       // test missing-only array
       copyTestExecutor(PCanonicalArray(PInt64()), PCanonicalArray(PInt64()),
-        FastIndexedSeq(null), deepCopy = deepCopy, interpret = interpret)
+        FastSeq(null), deepCopy = deepCopy, interpret = interpret)
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64())),
-        FastIndexedSeq(FastIndexedSeq(null)), deepCopy = deepCopy, interpret = interpret)
+        FastSeq(FastSeq(null)), deepCopy = deepCopy, interpret = interpret)
 
       // test 2D arrays
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PInt64())), PCanonicalArray(PCanonicalArray(PInt64())),
-        FastIndexedSeq(null, FastIndexedSeq(null), FastIndexedSeq(20L,5L,31L,41L), FastIndexedSeq(1L,2L,3L)),
+        FastSeq(null, FastSeq(null), FastSeq(20L,5L,31L,41L), FastSeq(1L,2L,3L)),
         deepCopy = deepCopy, interpret = interpret)
 
       // test complex nesting
-      val complexNesting = FastIndexedSeq(
-        FastIndexedSeq( FastIndexedSeq(20L,30L,31L,41L), FastIndexedSeq(20L,22L,31L,43L) ),
-        FastIndexedSeq( FastIndexedSeq(1L,3L,31L,41L), FastIndexedSeq(0L,30L,17L,41L) )
+      val complexNesting = FastSeq(
+        FastSeq( FastSeq(20L,30L,31L,41L), FastSeq(20L,22L,31L,43L) ),
+        FastSeq( FastSeq(1L,3L,31L,41L), FastSeq(0L,30L,17L,41L) )
       )
 
       copyTestExecutor(PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64(true), true), true), true), PCanonicalArray(PCanonicalArray(PCanonicalArray(PInt64()))),

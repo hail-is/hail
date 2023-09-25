@@ -7,6 +7,7 @@ import zipfile
 from ..utils.java import Env
 from .codec import encode
 from ..expr.functions import literal
+from ..backend.backend import local_jar_information
 
 __libhail_loaded = False
 
@@ -17,7 +18,7 @@ def load_libhail():
         return
     with zipfile.ZipFile(pkg_resources.resource_stream(
             'hail',
-            "hail-all-spark.jar")) as jar:
+            local_jar_information().path)) as jar:
         if platform.system() == 'Darwin':
             lib_path = 'darwin/libhail.dylib'
         else:

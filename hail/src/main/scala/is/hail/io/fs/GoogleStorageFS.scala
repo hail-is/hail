@@ -450,9 +450,9 @@ class GoogleStorageFS(
     globWithPrefix(url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
-  def listStatus(filename: String): Array[FileListEntry] = listStatus(parseUrl(filename))
+  def listDirectory(filename: String): Array[FileListEntry] = listDirectory(parseUrl(filename))
 
-  override def listStatus(url: GoogleStorageFSURL): Array[FileListEntry] = retryTransientErrors {
+  override def listDirectory(url: GoogleStorageFSURL): Array[FileListEntry] = retryTransientErrors {
     val path = if (url.path.endsWith("/")) url.path else url.path + "/"
 
     val blobs = retryTransientErrors {

@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.JsonParseException
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr._
-import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
 import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
 import is.hail.io.fs.FS
 import is.hail.methods.VEP._
 import is.hail.rvd.RVD
@@ -80,7 +80,7 @@ object VEP {
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
 
-    val (jt, err, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
+    val (jt, err, proc) = List((Locus("1", 13372), FastSeq("G", "C"))).iterator.pipe(pb,
       printContext,
       printElement,
       _ => ())
@@ -130,7 +130,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
   }
 
   override def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
-    assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
+    assert(tv.typ.key == FastSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
     val localConf = conf
@@ -194,7 +194,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                       val x = csqRegex.findFirstIn(s)
                       val a = x match {
                         case Some(value) =>
-                          value.substring(4).split(",").toFastIndexedSeq
+                          value.substring(4).split(",").toFastSeq
                         case None =>
                           warn(s"No CSQ INFO field for VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) }.\nVEP output: $s.")
                           null

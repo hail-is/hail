@@ -623,7 +623,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
             reference_data = hl.filter_intervals(reference_data, ref_intervals, keep)
         else:
             warning("'hl.vds.filter_intervals': filtering intervals without a known max reference block length"
-                    "\n  (computed by `hl.vds.store_ref_block_max_lengthgth` or 'hl.vds.truncate_reference_blocks')"
+                    "\n  (computed by `hl.vds.store_ref_block_max_length` or 'hl.vds.truncate_reference_blocks')"
                     "\n  requires a full pass over the reference data (expensive!)")
 
     if mode == 'variants_only':

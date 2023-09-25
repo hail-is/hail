@@ -20,6 +20,7 @@ from hailtop.utils import secret_alnum_string
 from hailtop.fs.fs import FS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from .builtin_references import BUILTIN_REFERENCES
+from .backend.backend import local_jar_information
 
 
 def _get_tmpdir(tmpdir):
@@ -511,7 +512,7 @@ async def init_batch(
                                           worker_cores=worker_cores,
                                           worker_memory=worker_memory,
                                           name_prefix=name_prefix,
-                                          token=token,
+                                          credentials_token=token,
                                           regions=regions,
                                           gcs_requester_pays_configuration=gcs_requester_pays_configuration,
                                           gcs_bucket_allow_list=gcs_bucket_allow_list)
@@ -611,7 +612,7 @@ def revision() -> str:
 def _hail_cite_url():
     v = version()
     [tag, sha_prefix] = v.split("-")
-    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+    if not local_jar_information().development_mode:
         # pip installed
         return f"https://github.com/hail-is/hail/releases/tag/{tag}"
     return f"https://github.com/hail-is/hail/commit/{sha_prefix}"
@@ -879,14 +880,12 @@ def _with_flags(**flags):
 
 def debug_info():
     from hail.backend.spark_backend import SparkBackend
-    hail_jar_path = None
-    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
-        hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+    from hail.backend.backend import local_jar_information
     spark_conf = None
     if isinstance(Env.backend(), SparkBackend):
         spark_conf = spark_context()._conf.getAll()
     return {
         'spark_conf': spark_conf,
-        'hail_jar_path': hail_jar_path,
+        'local_jar_information': local_jar_information(),
         'version': version()
     }

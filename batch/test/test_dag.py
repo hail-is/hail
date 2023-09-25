@@ -160,6 +160,7 @@ async def test_callback(client):
         callback_body.pop('time_closed')
         callback_body.pop('time_completed')
         callback_body.pop('duration')
+        callback_body.pop('duration_ms')
         callback_body.pop('cost_breakdown')
         assert callback_body == {
             'id': b.id,
