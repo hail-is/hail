@@ -1254,25 +1254,6 @@ object LoadVCF {
     }
   }
 
-  def globAllVCFs(arguments: Array[String],
-    fs: FS,
-    forceGZ: Boolean = false,
-    gzAsBGZ: Boolean = false): Array[FileListEntry] = {
-    val statuses = fs.globAllStatuses(arguments)
-
-    if (statuses.isEmpty)
-      fatal("arguments refer to no files")
-
-    statuses.foreach { status =>
-      val file = status.getPath
-      if (!(file.endsWith(".vcf") || file.endsWith(".vcf.bgz") || file.endsWith(".vcf.gz")))
-        warn(s"expected input file '$file' to end in .vcf[.bgz, .gz]")
-      if (file.endsWith(".gz"))
-        checkGzippedFile(fs, file, forceGZ, gzAsBGZ)
-    }
-    statuses
-  }
-
   def getEntryFloatType(entryFloatTypeName: String): TNumeric = {
     IRParser.parseType(entryFloatTypeName) match {
       case TFloat32 => TFloat32
@@ -1689,7 +1670,12 @@ object MatrixVCFReader {
 
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
-    val fileListEntries = LoadVCF.globAllVCFs(fs.globAll(params.files), fs, params.forceGZ, params.gzAsBGZ)
+    val fileListEntries = fs.globAll(params.files)
+    fileListEntries.map(_.getPath).foreach { path =>
+      if (!(path.endsWith(".vcf") || path.endsWith(".vcf.bgz") || path.endsWith(".vcf.gz")))
+        warn(s"expected input file '$path' to end in .vcf[.bgz, .gz]")
+    }
+    checkGzipOfGlobbedFiles(params.files, fileListEntries, params.forceGZ, params.gzAsBGZ)
 
     val entryFloatType = LoadVCF.getEntryFloatType(params.entryFloatTypeName)
 

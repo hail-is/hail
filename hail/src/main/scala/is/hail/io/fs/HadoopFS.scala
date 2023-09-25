@@ -154,18 +154,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     url.hadoopFs.delete(url.hadoopPath, recursive)
   }
 
-  override def globAll(filenames: Iterable[String]): Array[String] = {
-    filenames.iterator
-      .flatMap { arg =>
-        val fss = glob(arg)
-        val files = fss.map(_.getPath.toString)
-        if (files.isEmpty)
-          warn(s"'$arg' refers to no files")
-        files
-      }.toArray
-  }
-
-  override def globAllStatuses(filenames: Iterable[String]): Array[FileListEntry] = {
+  override def globAll(filenames: Iterable[String]): Array[FileListEntry] = {
     filenames.flatMap { filename =>
       val statuses = glob(filename)
       if (statuses.isEmpty)
