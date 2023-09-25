@@ -362,10 +362,6 @@ trait FS extends Serializable {
 
   def delete(url: URL, recursive: Boolean): Unit
 
-  final def listStatus(filename: String): Array[FileListEntry] = listStatus(parseUrl(filename))
-
-  def listStatus(url: URL): Array[FileListEntry]
-
   final def glob(filename: String): Array[FileListEntry] = glob(parseUrl(filename))
 
   def glob(url: URL): Array[FileListEntry]
@@ -414,7 +410,7 @@ trait FS extends Serializable {
     ab.toArray
   }
 
-  def globAll(filenames: Iterable[String]): Array[FileListEntry] = filenames.flatMap(glob).toArray
+  def globAll(filenames: Iterable[String]): Array[FileListEntry] = filenames.flatMap((x: String) => glob(x)).toArray
 
   final def eTag(filename: String): Option[String] = eTag(parseUrl(filename))
 
