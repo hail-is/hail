@@ -31,15 +31,15 @@ _units = [
 
 
 def naturaldelta(seconds: Union[int, float]) -> str:
-    return _naturaldelta(seconds, value_unit: int = _SECOND, value_name: str = 'second')
+    return _naturaldelta(seconds, value_unit = _SECOND, value_name = 'second')
 
 
 def naturaldelta_msec(milliseconds: Union[int, float]) -> str:
-    return _naturaldelta(milliseconds, value_unit: int = _MILLISECOND, value_name: str = 'millisecond')
+    return _naturaldelta(milliseconds, value_unit = _MILLISECOND, value_name = 'millisecond')
 
 
 def naturaldelta_usec(microseconds: Union[int, float]) -> str:
-    return _naturaldelta(microseconds, value_unit: int = _MICROSECOND, value_name: str = 'microsecond')
+    return _naturaldelta(microseconds, value_unit = _MICROSECOND, value_name = 'microsecond')
 
 
 def _naturaldelta(value: Union[int, float], value_unit: int = _SECOND, value_name: str = 'second') -> str:
