@@ -66,7 +66,9 @@ class ProductVersions:
         for product, new_product_info in new_data.items():
             if product not in self._product_versions:
                 valid_updates[product] = new_product_info
-                log.info(f'added product {product} with version {new_product_info.latest_version} and sku {new_product_info.sku}')
+                log.info(
+                    f'added product {product} with version {new_product_info.latest_version} and sku {new_product_info.sku}'
+                )
 
         self._product_versions.update(valid_updates)
 
