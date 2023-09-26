@@ -6,7 +6,7 @@ build:
 	$(MAKE) -C .. website-image
 
 run:
-	$(MAKE) -C .. docs.tar.gz
+	$(MAKE) -C .. website/website/docs
 	HAIL_DOMAIN=localhost:5555 PORT=5555 python3 -m website local
 
 run-docker: build
