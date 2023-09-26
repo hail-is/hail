@@ -165,16 +165,19 @@ private-repo-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail
 	rm wheel-container.tar
 	echo $(PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE) > $@
 
-.PHONY: docs
-docs:
+hail-0.1-docs-5a6778710097.tar.gz:
+	gcloud storage cp gs://hail-common/builds/0.1/docs/$@ .
+
+docs-stamp: $(shell git ls-files hail batch)
 	$(MAKE) -C hail hail-docs-no-test batch-docs
-	gcloud storage cp gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz .
+	touch docs-stamp
+
+docs.tar.gz: hail-0.1-docs-5a6778710097.tar.gz docs-stamp
 	mkdir -p hail/build/www/docs/0.1
 	tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
-	rm hail-0.1-docs-5a6778710097.tar.gz
-	tar czf docs.tar.gz -C hail/build/www .
+	tar czf $@ -C hail/build/www .
 
-website-image: docs
+website-image: docs.tar.gz
 
 $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
 	$(eval IMAGE := $(DOCKER_PREFIX)/$*:$(TOKEN))
