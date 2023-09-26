@@ -1189,6 +1189,8 @@ class Container:
                     {'type': 'uts'},
                     {'type': 'cgroup'},
                 ],
+                'uidMappings': [],
+                'gidMappings': [],
                 'resources': {
                     "devices": [{"allow": False, "access": "rwm"}],
                     'cpu': {'shares': weight},
