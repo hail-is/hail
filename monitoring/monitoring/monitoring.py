@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from collections import defaultdict, namedtuple
+from contextlib import AsyncExitStack
 from typing import Any, Dict, List
 
 import aiohttp_session
@@ -354,13 +355,10 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    try:
-        await app['db'].async_close()
-    finally:
-        try:
-            await app['client_session'].close()
-        finally:
-            app['task_manager'].shutdown()
+    async with AsyncExitStack() as cleanup:
+        cleanup.push_async_callback(app['db'].async_close)
+        cleanup.push_async_callback(app['client_session'].close)
+        cleanup.callback(app['task_manager'].shutdown)
 
 
 def run():
