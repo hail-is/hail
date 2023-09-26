@@ -160,14 +160,14 @@ object Worker {
     }
 
     var result: Array[Byte] = null
-    var userError: HailException = null
+    var errorWhileExecutingUserCode: Exception = null
     using(new ServiceTaskContext(i)) { htc =>
       try {
         retryTransientErrors {
           result = f(context, htc, theHailClassLoader, fs)
         }
       } catch {
-        case err: HailException => userError = err
+        case err: Exception => errorWhileExecutingUserCode = err
       }
     }
 
@@ -177,13 +177,13 @@ object Worker {
     retryTransientErrors {
       write(s"$root/result.$i") { dos =>
         if (result != null) {
-          assert(userError == null)
+          assert(errorWhileExecutingUserCode == null)
 
           dos.writeBoolean(true)
           dos.write(result)
         } else {
-          assert(userError != null)
-          val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
+          assert(errorWhileExecutingUserCode != null)
+          val (shortMessage, expandedMessage, errorId) = handleForPython(errorWhileExecutingUserCode)
 
           dos.writeBoolean(false)
           writeString(dos, shortMessage)
@@ -196,5 +196,10 @@ object Worker {
     timer.end("writeOutputs")
     timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")
+
+    if (errorWhileExecutingUserCode != null) {
+      log.info("throwing the exception so that this Worker job is marked as failed.")
+      throw errorWhileExecutingUserCode
+    }
   }
 }
