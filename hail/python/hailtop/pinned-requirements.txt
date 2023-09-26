@@ -16,7 +16,7 @@ attrs==23.1.0
     # via aiohttp
 azure-common==1.1.28
     # via azure-mgmt-storage
-azure-core==1.29.3
+azure-core==1.29.4
     # via
     #   azure-identity
     #   azure-mgmt-core
@@ -28,11 +28,11 @@ azure-mgmt-core==1.4.0
     # via azure-mgmt-storage
 azure-mgmt-storage==20.1.0
     # via -r hail/hail/python/hailtop/requirements.txt
-azure-storage-blob==12.17.0
+azure-storage-blob==12.18.1
     # via -r hail/hail/python/hailtop/requirements.txt
-boto3==1.28.41
+boto3==1.28.53
     # via -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.41
+botocore==1.31.53
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   boto3
@@ -55,7 +55,7 @@ click==8.1.7
     # via typer
 commonmark==0.9.1
     # via rich
-cryptography==41.0.3
+cryptography==41.0.4
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -72,7 +72,7 @@ google-api-core==2.11.1
     # via
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.22.0
+google-auth==2.23.0
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   google-api-core
@@ -83,11 +83,11 @@ google-auth-oauthlib==0.8.0
     # via -r hail/hail/python/hailtop/requirements.txt
 google-cloud-core==2.3.3
     # via google-cloud-storage
-google-cloud-storage==2.10.0
+google-cloud-storage==2.11.0
     # via -r hail/hail/python/hailtop/requirements.txt
 google-crc32c==1.5.0
     # via google-resumable-media
-google-resumable-media==2.5.0
+google-resumable-media==2.6.0
     # via google-cloud-storage
 googleapis-common-protos==1.60.0
     # via google-api-core
@@ -109,7 +109,7 @@ jmespath==1.0.1
     #   botocore
 jproperties==2.1.1
     # via -r hail/hail/python/hailtop/requirements.txt
-msal==1.23.0
+msal==1.24.0
     # via
     #   azure-identity
     #   msal-extensions
@@ -121,13 +121,13 @@ multidict==6.0.4
     # via
     #   aiohttp
     #   yarl
-nest-asyncio==1.5.7
+nest-asyncio==1.5.8
     # via -r hail/hail/python/hailtop/requirements.txt
 oauthlib==3.2.2
     # via requests-oauthlib
-orjson==3.9.5
+orjson==3.9.7
     # via -r hail/hail/python/hailtop/requirements.txt
-portalocker==2.7.0
+portalocker==2.8.2
     # via msal-extensions
 protobuf==3.20.2
     # via
@@ -175,7 +175,6 @@ s3transfer==0.6.2
 six==1.16.0
     # via
     #   azure-core
-    #   google-auth
     #   isodate
     #   jproperties
     #   python-dateutil
@@ -185,7 +184,7 @@ tabulate==0.9.0
     # via -r hail/hail/python/hailtop/requirements.txt
 typer==0.9.0
     # via -r hail/hail/python/hailtop/requirements.txt
-typing-extensions==4.7.1
+typing-extensions==4.8.0
     # via
     #   azure-core
     #   azure-storage-blob
