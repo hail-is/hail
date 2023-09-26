@@ -98,7 +98,7 @@ class AuthServiceAuthenticator(Authenticator):
         )
 
     async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
-        session_id = await _get_session_id(request)
+        session_id = await get_session_id(request)
         if session_id is None:
             return None
 
@@ -130,7 +130,7 @@ async def impersonate_user_and_get_info(session_id: str, client_session: httpx.C
         raise
 
 
-async def _get_session_id(request: web.Request) -> Optional[str]:
+async def get_session_id(request: web.Request) -> Optional[str]:
     # Favor browser cookie to Bearer token auth
     session = await aiohttp_session.get_session(request)
     if 'session_id' in session:

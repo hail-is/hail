@@ -29,7 +29,7 @@ from gear import (
     setup_aiohttp_session,
     transaction,
 )
-from gear.auth import AIOHTTPHandler
+from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
 from hailtop import httpx
@@ -68,9 +68,15 @@ deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
 
 
+async def get_internal_auth_token(request: web.Request) -> Optional[str]:
+    if 'X-Hail-Internal-Authorization' in request.headers and DEFAULT_NAMESPACE == 'default':
+        return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
+    return None
+
+
 class LocalAuthenticator(Authenticator):
     async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
-        session_id = await get_session_id(request)
+        session_id = await get_internal_auth_token(request) or await get_session_id(request)
         if not session_id:
             return None
         return await get_userinfo(request, session_id)
@@ -779,17 +785,6 @@ WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.m
 @auth.authenticated_users_only()
 async def userinfo(_, userdata: UserData) -> web.Response:
     return json_response(userdata)
-
-
-async def get_session_id(request: web.Request) -> Optional[str]:
-    if 'X-Hail-Internal-Authorization' in request.headers and DEFAULT_NAMESPACE == 'default':
-        return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
-
-    if 'Authorization' in request.headers:
-        return maybe_parse_bearer_header(request.headers['Authorization'])
-
-    session = await aiohttp_session.get_session(request)
-    return session.get('session_id')
 
 
 @routes.route('*', '/api/v1alpha/verify_dev_credentials', name='verify_dev')
