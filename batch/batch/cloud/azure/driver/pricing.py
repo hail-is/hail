@@ -26,13 +26,12 @@ class AzureVMPrice(Price):
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.machine_type = machine_type
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_hour = cost_per_hour
-        self.sku = sku
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def product(self):
@@ -55,14 +54,13 @@ class AzureDiskPrice(Price):
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.disk_name = disk_name
         self.redundancy_type = redundancy_type
         self.size_gib = size_gib
-        self.region = region
         self.cost_per_month = cost_per_month
-        self.sku = sku
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def cost_per_gib_month(self):

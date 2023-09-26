@@ -1,6 +1,6 @@
 import abc
 import logging
-from collections import namedtuple
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from gear import Database, transaction
@@ -10,7 +10,10 @@ from .pricing import Price
 log = logging.getLogger('billing_manager')
 
 
-ProductVersionInfo = namedtuple('ProductVersionInfo', ['latest_version', 'sku'])
+@dataclass
+class ProductVersionInfo:
+    latest_version: str
+    sku: Optional[str]
 
 
 def product_version_to_resource(product: str, version: str) -> str:
@@ -19,49 +22,53 @@ def product_version_to_resource(product: str, version: str) -> str:
 
 class ProductVersions:
     def __init__(self, data: Dict[str, ProductVersionInfo]):
-        self._data = data
+        self._product_versions = data
 
     def latest_version(self, product: str) -> Optional[str]:
-        info = self._data.get(product)
+        info = self._product_versions.get(product)
         if info:
             return info.latest_version
         return None
 
     def sku(self, product: str) -> Optional[str]:
-        info = self._data.get(product)
+        info = self._product_versions.get(product)
         if info:
             return info.sku
         return None
 
     def resource_name(self, product: str) -> Optional[str]:
         version = self.latest_version(product)
-        assert version is not None, (product, str(self._data))
+        assert version is not None, (product, str(self._product_versions))
         return product_version_to_resource(product, version)
 
-    def update(self, data: Dict[str, ProductVersionInfo]):
-        for product, (old_version, old_sku) in self._data.items():
-            product_info = data.get(product)
+    def update(self, new_data: Dict[str, ProductVersionInfo]):
+        valid_updates: Dict[str, ProductVersionInfo] = {}
+        for product, old_product_info in self._product_versions.items():
+            old_version = old_product_info.latest_version
+            old_sku = old_product_info.sku
 
-            if product_info is None:
+            new_product_info = new_data.get(product)
+
+            if new_product_info is None:
                 log.error(f'product {product} does not appear in new data; keeping in existing latest_product_versions')
-                continue
+            else:
+                new_version = new_product_info.latest_version
+                new_sku = new_product_info.sku
 
-            new_version, new_sku = product_info
+                if old_sku is not None and old_sku != new_sku:
+                    log.error(
+                        f'product {product} does not have the same SKU as is currently in the database ({old_sku}, {new_sku})'
+                    )
+                elif new_version != old_version:
+                    valid_updates[product] = new_product_info
+                    log.info(f'updated product version for {product} from {old_version} to {new_version}')
 
-            if old_sku is not None and old_sku != new_sku:
-                log.error(
-                    f'product {product} does not have the same SKU as is currently in the database ({old_sku}, {new_sku})'
-                )
-                continue
+        for product, new_product_info in new_data.items():
+            if product not in self._product_versions:
+                valid_updates[product] = new_product_info
+                log.info(f'added product {product} with version {new_product_info.latest_version} and sku {new_product_info.sku}')
 
-            if new_version != old_version:
-                log.info(f'updated product version for {product} from {old_version} to {new_version}')
-
-        for product, (new_version, new_sku) in data.items():
-            if product not in self._data:
-                log.info(f'added product {product} with version {new_version} and sku {new_sku}')
-
-        self._data.update(data)
+        self._product_versions.update(valid_updates)
 
 
 class CloudBillingManager(abc.ABC):

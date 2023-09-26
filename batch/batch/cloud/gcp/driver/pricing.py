@@ -34,13 +34,12 @@ class GCPComputePrice(Price):
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.instance_family = instance_family
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_hour = cost_per_hour
-        self.sku = sku
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def product(self):
@@ -62,13 +61,12 @@ class GCPAcceleratorPrice(Price):
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.accelerator_family = accelerator_family
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_hour = cost_per_hour
-        self.sku = sku
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def product(self):
@@ -90,13 +88,12 @@ class GCPMemoryPrice(Price):
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.instance_family = instance_family
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_hour = cost_per_hour
-        self.sku = sku
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def product(self):
@@ -117,12 +114,11 @@ class GCPLocalSSDDiskPrice(Price):
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_month = cost_per_month
-        self.sku = sku
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def cost_per_gib_month(self):
@@ -147,12 +143,11 @@ class GCPDiskPrice(Price):
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.disk_type = disk_type
-        self.region = region
         self.cost_per_month = cost_per_month
-        self.sku = sku
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def cost_per_gib_month(self):
