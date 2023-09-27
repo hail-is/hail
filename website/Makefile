@@ -10,7 +10,7 @@ run:
 	HAIL_DOMAIN=localhost:5555 PORT=5555 python3 -m website local
 
 run-docker: build
-	docker run -e HAIL_DOMAIN=localhost:5555 -e PORT=5555 -p 5555:5555 website python3 -m website local
+	docker run -e HAIL_DOMAIN=localhost:5555 -e PORT=5555 -p 5555:5555 $(shell cat ../website-image) python3 -m website local
 
 deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
