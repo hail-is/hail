@@ -1,6 +1,6 @@
 package is.hail.expr.ir.functions
 
-import is.hail.asm4s.{Code, _}
+import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
@@ -9,7 +9,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue, SInt32}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 object IntervalFunctions extends RegistryFunctions {
 
@@ -86,11 +86,11 @@ object IntervalFunctions extends RegistryFunctions {
 
   def intervalsOverlap(cb: EmitCodeBuilder, lhs: SIntervalValue, rhs: SIntervalValue): IEmitCode = {
     IEmitCode.multiFlatMap(cb,
-      FastIndexedSeq(lhs.loadEnd, rhs.loadStart)
+      FastSeq(lhs.loadEnd, rhs.loadStart)
     ) { case Seq(lEnd, rStart) =>
       cb.ifx(intervalEndpointCompare(cb, lEnd, lhs.includesEnd, rStart, !rhs.includesStart) > 0, {
         IEmitCode.multiMap(cb,
-          FastIndexedSeq(lhs.loadStart, rhs.loadEnd)
+          FastSeq(lhs.loadStart, rhs.loadEnd)
         ) { case Seq(lStart, rEnd) =>
           primitive(cb.memoize(intervalEndpointCompare(cb, rEnd, rhs.includesEnd, lStart, !lhs.includesStart) > 0))
         }
@@ -294,7 +294,7 @@ object IntervalFunctions extends RegistryFunctions {
         EmitType(SBoolean, required)
     }) { case (cb, r, rt, _, int, point) =>
       IEmitCode.multiFlatMap(cb,
-        FastIndexedSeq(int.toI, point.toI)
+        FastSeq(int.toI, point.toI)
       ) { case Seq(interval: SIntervalValue, point) =>
         intervalContains(cb, interval, point)
       }
@@ -312,7 +312,7 @@ object IntervalFunctions extends RegistryFunctions {
         val required = i1t.required && i2t.required && i1ST.pointEmitType.required && i2ST.pointEmitType.required
         EmitType(SBoolean, required)
     }) { case (cb, r, rt, _, interval1: EmitCode, interval2: EmitCode) =>
-      IEmitCode.multiFlatMap(cb, FastIndexedSeq(interval1.toI, interval2.toI)) {
+      IEmitCode.multiFlatMap(cb, FastSeq(interval1.toI, interval2.toI)) {
         case Seq(interval1: SIntervalValue, interval2: SIntervalValue) =>
         intervalsOverlap(cb, interval1, interval2)
       }
@@ -368,7 +368,7 @@ object IntervalFunctions extends RegistryFunctions {
 
     val requiredInt = EmitType(SInt32, true)
     val equalRangeResultType = TTuple(TInt32, TInt32)
-    val equalRangeResultSType = SStackStruct(equalRangeResultType, FastIndexedSeq(requiredInt, requiredInt))
+    val equalRangeResultSType = SStackStruct(equalRangeResultType, FastSeq(requiredInt, requiredInt))
 
     registerSCode2("partitionerFindIntervalRange",
       TArray(partitionIntervalType), partitionIntervalType, equalRangeResultType,
@@ -376,7 +376,7 @@ object IntervalFunctions extends RegistryFunctions {
     ) { case (_, cb, rt, intervals: SIndexableValue, query: SIntervalValue, errorID) =>
       val (start, end) = partitionerFindIntervalRange(cb, intervals, query, errorID)
       new SStackStructValue(equalRangeResultSType,
-        FastIndexedSeq(
+        FastSeq(
           EmitValue.present(primitive(start)),
           EmitValue.present(primitive(end))))
     }

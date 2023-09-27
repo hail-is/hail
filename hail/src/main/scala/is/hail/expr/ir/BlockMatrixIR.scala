@@ -39,10 +39,10 @@ object BlockMatrixIR {
 
   def matrixShapeToTensorShape(nRows: Long,  nCols: Long): (IndexedSeq[Long], Boolean) = {
     (nRows, nCols) match {
-      case (1, 1) => (FastIndexedSeq(), false)
-      case (_, 1) => (FastIndexedSeq(nRows), false)
-      case (1, _) => (FastIndexedSeq(nCols), true)
-      case _ => (FastIndexedSeq(nRows, nCols), false)
+      case (1, 1) => (FastSeq(), false)
+      case (_, 1) => (FastSeq(nRows), false)
+      case (1, _) => (FastSeq(nCols), true)
+      case _ => (FastSeq(nRows, nCols), false)
     }
   }
 
@@ -174,7 +174,7 @@ class BlockMatrixNativeReader(
     }
 
     BlockMatrixStage2(
-      FastIndexedSeq(),
+      FastSeq(),
       fullType,
       contexts,
       blockIR)
@@ -223,7 +223,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 
     def blockIR(ctx: IR) = ctx
 
-    BlockMatrixStage2(FastIndexedSeq(), typ, contexts, blockIR)
+    BlockMatrixStage2(FastSeq(), typ, contexts, blockIR)
   }
 }
 
@@ -348,7 +348,7 @@ case object UnionBlocks extends SparsityStrategy {
   def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock || rightBlock
   def mergeSparsity(left: BlockMatrixSparsity, right: BlockMatrixSparsity): BlockMatrixSparsity = {
     if (left.isSparse && right.isSparse) {
-      BlockMatrixSparsity(left.blockSet.union(right.blockSet).toFastIndexedSeq)
+      BlockMatrixSparsity(left.blockSet.union(right.blockSet).toFastSeq)
     } else BlockMatrixSparsity.dense
   }
 }
@@ -357,7 +357,7 @@ case object IntersectionBlocks extends SparsityStrategy {
   def mergeSparsity(left: BlockMatrixSparsity, right: BlockMatrixSparsity): BlockMatrixSparsity = {
     if (right.isSparse) {
       if (left.isSparse)
-        BlockMatrixSparsity(left.blockSet.intersect(right.blockSet).toFastIndexedSeq)
+        BlockMatrixSparsity(left.blockSet.intersect(right.blockSet).toFastSeq)
       else right
     } else left
   }
@@ -635,8 +635,8 @@ case class BlockMatrixAgg(
   override lazy val typ: BlockMatrixType = {
     val matrixShape = BlockMatrixIR.tensorShapeToMatrixShape(child)
     val matrixShapeArr = Array[Long](matrixShape._1, matrixShape._2)
-    val shape = IndexedSeq(0, 1).filter(i => !axesToSumOut.contains(i)).map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
-    val isRowVector = axesToSumOut == FastIndexedSeq(0)
+    val shape = IndexedSeq(0, 1).filter(i => !axesToSumOut.contains(i)).map({ i: Int => matrixShapeArr(i) }).toFastSeq
+    val isRowVector = axesToSumOut == FastSeq(0)
 
     val sparsity = if (child.typ.isSparse) {
       axesToSumOut match {
@@ -701,7 +701,7 @@ case class BlockMatrixFilter(
       if (dim.isEmpty) childMatrixShape(i) else dim.length
     })
 
-    val IndexedSeq(nRows: Long, nCols: Long) = matrixShape.toFastIndexedSeq
+    val IndexedSeq(nRows: Long, nCols: Long) = matrixShape.toFastSeq
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(nRows, nCols)
 
     val sparsity = child.typ.sparsity.condense(rowBlockDependents -> colBlockDependents)
@@ -734,7 +734,7 @@ case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
 
   def blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
     val IndexedSeq(newChild: BlockMatrixIR) = newChildren

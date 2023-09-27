@@ -1,18 +1,15 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64, PString, PStruct}
+import is.hail.sparkextras.ContextRDD
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64}
 import is.hail.types.virtual.{TFloat64, TStruct}
 import is.hail.types.{MatrixType, TableType}
-import is.hail.rvd.RVDContext
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{AllelePair, Call, Genotype, HardCallView}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.language.higherKinds
@@ -297,7 +294,7 @@ object IBD {
 
   private val ibdPType =
     PCanonicalStruct(required = true, Array(("i", PCanonicalString()), ("j", PCanonicalString())) ++ ExtendedIBDInfo.pType.fields.map(f => (f.name, f.typ)): _*)
-  private val ibdKey = FastIndexedSeq("i", "j")
+  private val ibdKey = FastSeq("i", "j")
 
   private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String): (RegionValue) => Double = {
     val rvRowType = input.rvRowType

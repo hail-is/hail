@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import typing
+from contextlib import AsyncExitStack
 from typing import List, NoReturn, Optional
 
 import aiohttp_session
@@ -825,14 +826,10 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    try:
-        k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
-        await k8s_client.api_client.rest_client.pool_manager.close()
-    finally:
-        try:
-            await app['db'].async_close()
-        finally:
-            await app['client_session'].close()
+    async with AsyncExitStack() as cleanup:
+        cleanup.push_async_callback(app['k8s_client'].api_client.rest_client.pool_manager.close)
+        cleanup.push_async_callback(app['db'].async_close)
+        cleanup.push_async_callback(app['client_session'].close)
 
 
 class AuthAccessLogger(AccessLogger):

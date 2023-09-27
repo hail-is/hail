@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import traceback
+from contextlib import AsyncExitStack
 from typing import Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
@@ -765,12 +766,11 @@ SELECT frozen_merge_deploy FROM globals;
 
 
 async def on_cleanup(app):
-    try:
-        await app['db'].async_close()
-        await app['client_session'].close()
-        await app['batch_client'].close()
-    finally:
-        app['task_manager'].shutdown()
+    async with AsyncExitStack() as cleanup:
+        cleanup.push_async_callback(app['db'].async_close)
+        cleanup.push_async_callback(app['client_session'].close)
+        cleanup.push_async_callback(app['batch_client'].close)
+        cleanup.callback(app['task_manager'].shutdown)
 
 
 def run():

@@ -67,7 +67,7 @@ object TableNativeWriter {
     RelationalWriter.scoped(path, overwrite, Some(ts.tableType))(
       ts.mapContexts { oldCtx =>
         val d = digitsNeeded(ts.numPartitions)
-        val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
+        val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastSeq)
 
         zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
           MakeStruct(FastSeq(
@@ -82,13 +82,13 @@ object TableNativeWriter {
           Str(partFile(1, 0)), globalWriter)
 
         bindIR(parts) { fileCountAndDistinct =>
-          Begin(FastIndexedSeq(
+          Begin(FastSeq(
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
               RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc => GetField(fc, "filePath") }),
               RVDSpecWriter(s"$path/rows", RVDSpecMaker(rowSpec, partitioner, IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](pKey))))),
             WriteMetadata(ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
-              SelectFields(fc, FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
+              SelectFields(fc, FastSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
               TableSpecWriter(path, ts.tableType, "rows", "globals", "references", log = true))))
         }
@@ -496,7 +496,7 @@ case class TableTextWriter(
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -508,7 +508,7 @@ case class TableTextWriter(
       WritePartition(rows, file, lineWriter)
     } { (parts, _) =>
       val commit = TableTextFinalizer(path, ts.rowType, delimiter, header, exportType)
-      Begin(FastIndexedSeq(WriteMetadata(parts, commit)))
+      Begin(FastSeq(WriteMetadata(parts, commit)))
     }
   }
 }
@@ -670,12 +670,12 @@ case class TableNativeFanoutWriter(
         )
         val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None, None)
         new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter, globalWriter)
-      }.toFastIndexedSeq
+      }.toFastSeq
     }
 
     val writeTables = ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -691,7 +691,7 @@ case class TableNativeFanoutWriter(
     } { (parts, globals) =>
       bindIR(parts) { fileCountAndDistinct =>
         Begin(targets.zipWithIndex.map { case (target, index) =>
-          Begin(FastIndexedSeq(
+          Begin(FastSeq(
             WriteMetadata(
               MakeArray(
                 GetField(
@@ -720,13 +720,13 @@ case class TableNativeFanoutWriter(
               ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
                 SelectFields(
                   GetTupleElement(fc, index),
-                  FastIndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")
+                  FastSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")
                 )
               }),
               TableSpecWriter(target.path, target.tableType, "rows", "globals", "references", log = true)
             )
           ))
-        }.toFastIndexedSeq)
+        }.toFastSeq)
       }
     }
 

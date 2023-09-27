@@ -18,7 +18,7 @@ object PCanonicalStruct {
       .iterator
       .zipWithIndex
       .map { case ((n, t), i) => PField(n, t, i) }
-      .toFastIndexedSeq,
+      .toFastSeq,
       required)
 
   def apply(names: java.util.List[String], types: java.util.List[PType], required: Boolean): PCanonicalStruct = {

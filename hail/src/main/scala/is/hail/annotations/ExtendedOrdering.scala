@@ -93,26 +93,26 @@ object ExtendedOrdering {
 
       def compareNonnull(x: T, y: T): Int = {
         itOrd.compareNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
+          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq)
       }
 
       override def ltNonnull(x: T, y: T): Boolean = {
         itOrd.ltNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
+          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq)
       }
 
       override def lteqNonnull(x: T, y: T): Boolean = {
         itOrd.lteqNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
+          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq)
       }
 
       override def equivNonnull(x: T, y: T): Boolean = {
         itOrd.equivNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
+          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq)
       }
     }
 

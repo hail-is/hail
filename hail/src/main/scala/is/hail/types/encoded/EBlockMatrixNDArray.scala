@@ -36,13 +36,13 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     if (encodeRowMajor) {
       cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
         cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
-          writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb), out)
+          writeElemF(cb, ndarray.loadElement(FastSeq(i, j), cb), out)
         })
       })
     } else {
       cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
         cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
-          writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb), out)
+          writeElemF(cb, ndarray.loadElement(FastSeq(i, j), cb), out)
         })
       })
     }

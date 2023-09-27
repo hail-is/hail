@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.backend.ExecuteContext
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.types._
 import is.hail.types.virtual._
@@ -106,15 +106,15 @@ object PruneDeadFields {
   def minimal(tt: TableType): TableType = {
     TableType(
       rowType = TStruct.empty,
-      key = FastIndexedSeq(),
+      key = FastSeq(),
       globalType = TStruct.empty
     )
   }
 
   def minimal(mt: MatrixType): MatrixType = {
     MatrixType(
-      rowKey = FastIndexedSeq(),
-      colKey = FastIndexedSeq(),
+      rowKey = FastSeq(),
+      colKey = FastSeq(),
       rowType = TStruct.empty,
       colType = TStruct.empty,
       globalType = TStruct.empty,
@@ -141,7 +141,7 @@ object PruneDeadFields {
   }
 
   def unifyKey(children: Seq[IndexedSeq[String]]): IndexedSeq[String] = {
-    children.foldLeft(FastIndexedSeq[String]()) { case (comb, k) => if (k.length > comb.length) k else comb }
+    children.foldLeft(FastSeq[String]()) { case (comb, k) => if (k.length > comb.length) k else comb }
   }
 
   def unifyBaseType(base: BaseType, children: BaseType*): BaseType = unifyBaseTypeSeq(base, children)
@@ -391,8 +391,8 @@ object PruneDeadFields {
               key = right.typ.key,
               rowType = unify(
                 right.typ.rowType,
-                FastIndexedSeq[TStruct](right.typ.rowType.filterSet(right.typ.key.toSet, true)._1) ++
-                  FastIndexedSeq(struct): _*),
+                FastSeq[TStruct](right.typ.rowType.filterSet(right.typ.key.toSet, true)._1) ++
+                  FastSeq(struct): _*),
               globalType = minimal(right.typ.globalType))
             memoizeTableIR(ctx, right, rightDep, memo)
 
@@ -420,8 +420,8 @@ object PruneDeadFields {
               key = right.typ.key,
               rowType = unify(
                 right.typ.rowType,
-                FastIndexedSeq[TStruct](right.typ.rowType.filterSet(right.typ.key.toSet, true)._1) ++
-                  FastIndexedSeq(struct): _*),
+                FastSeq[TStruct](right.typ.rowType.filterSet(right.typ.key.toSet, true)._1) ++
+                  FastSeq(struct): _*),
               globalType = minimal(right.typ.globalType))
             memoizeTableIR(ctx, right, rightDep, memo)
 
@@ -477,7 +477,7 @@ object PruneDeadFields {
           child.typ.key
         else if (isPrefix)
           if  (reqKey.length <= child.typ.key.length) reqKey else child.typ.key
-        else FastIndexedSeq()
+        else FastSeq()
 
         memoizeTableIR(ctx, child, TableType(
           key = childReqKey,
@@ -487,7 +487,7 @@ object PruneDeadFields {
         val k = if (sortFields.forall(_.sortOrder == Ascending) && child.typ.key.startsWith(sortFields.map(_.field)))
           child.typ.key
         else
-          FastIndexedSeq()
+          FastSeq()
         memoizeTableIR(ctx, child, TableType(
           key = k,
           rowType = unify(child.typ.rowType,
@@ -542,7 +542,7 @@ object PruneDeadFields {
         val exprDep = memoizeAndGetDep(ctx, expr, requestedType.valueType, child.typ, memo)
         memoizeTableIR(ctx, child,
           TableType(
-            key = FastIndexedSeq(), // note: this can deoptimize if prune runs before Simplify
+            key = FastSeq(), // note: this can deoptimize if prune runs before Simplify
             rowType = unify(child.typ.rowType, keyDep.rowType, exprDep.rowType),
             globalType = unify(child.typ.globalType, keyDep.globalType, exprDep.globalType, requestedType.globalType)),
           memo)
@@ -580,7 +580,7 @@ object PruneDeadFields {
       case CastMatrixToTable(child, entriesFieldName, colsFieldName) =>
         val childDep = MatrixType(
           rowKey = requestedType.key,
-          colKey = FastIndexedSeq(),
+          colKey = FastSeq(),
           globalType = if (requestedType.globalType.hasField(colsFieldName))
             requestedType.globalType.deleteKey(colsFieldName)
           else
@@ -663,7 +663,7 @@ object PruneDeadFields {
           child.typ.rowKey
         else if (isPrefix)
           if (reqKey.length <= child.typ.rowKey.length) reqKey else child.typ.rowKey
-        else FastIndexedSeq()
+        else FastSeq()
 
         memoizeMatrixIR(ctx, child, requestedType.copy(
           rowKey = childReqKey,
@@ -681,7 +681,7 @@ object PruneDeadFields {
       case MatrixMapCols(child, newCol, newKey) =>
         val irDep = memoizeAndGetDep(ctx, newCol, requestedType.colType, child.typ, memo)
         val reqKey =  newKey match {
-          case Some(_) => FastIndexedSeq()
+          case Some(_) => FastSeq()
           case None => requestedType.colKey
         }
         val depMod = requestedType.copy(colType = selectKey(child.typ.colType, reqKey), colKey = reqKey)
@@ -901,7 +901,7 @@ object PruneDeadFields {
     memo: ComputeMutableState
   ): TableType = {
     val depEnv = memoizeValueIR(ctx, ir, requestedType, memo)
-    val depEnvUnified = concatEnvs(FastIndexedSeq(depEnv.eval) ++ FastIndexedSeq(depEnv.agg, depEnv.scan).flatten)
+    val depEnvUnified = concatEnvs(FastSeq(depEnv.eval) ++ FastSeq(depEnv.agg, depEnv.scan).flatten)
 
     val expectedBindingSet = Set("row", "global")
     depEnvUnified.m.keys.foreach { k =>
@@ -918,7 +918,7 @@ object PruneDeadFields {
     val globalType = unifySeq(base.globalType,
       Array(min.globalType) ++ uses("global", depEnvUnified)
     )
-    TableType(key = FastIndexedSeq(),
+    TableType(key = FastSeq(),
       rowType = rowType.asInstanceOf[TStruct],
       globalType = globalType.asInstanceOf[TStruct])
   }
@@ -931,7 +931,7 @@ object PruneDeadFields {
     memo: ComputeMutableState
   ): MatrixType = {
     val depEnv = memoizeValueIR(ctx, ir, requestedType, memo)
-    val depEnvUnified = concatEnvs(FastIndexedSeq(depEnv.eval) ++ FastIndexedSeq(depEnv.agg, depEnv.scan).flatten)
+    val depEnvUnified = concatEnvs(FastSeq(depEnv.eval) ++ FastSeq(depEnv.agg, depEnv.scan).flatten)
 
     val expectedBindingSet = Set("va", "sa", "g", "global", "n_rows", "n_cols")
     depEnvUnified.m.keys.foreach { k =>
@@ -957,8 +957,8 @@ object PruneDeadFields {
       throw new RuntimeException(s"prune: found dependence on entry array in row binding:\n${ Pretty(ctx, ir) }")
 
     MatrixType(
-      rowKey = FastIndexedSeq(),
-      colKey = FastIndexedSeq(),
+      rowKey = FastSeq(),
+      colKey = FastSeq(),
       globalType = globalType,
       colType = colType,
       rowType = rowType,
@@ -1154,7 +1154,7 @@ object PruneDeadFields {
         val bodyEnv = memoizeValueIR(ctx, cond, cond.typ, memo)
         val valueType = unifySeq(
           TIterable.elementType(a.typ),
-          FastIndexedSeq(TIterable.elementType(requestedType)) ++ uses(name, bodyEnv.eval)
+          FastSeq(TIterable.elementType(requestedType)) ++ uses(name, bodyEnv.eval)
         )
         unifyEnvs(
           bodyEnv.deleteEval(name),
@@ -1164,7 +1164,7 @@ object PruneDeadFields {
         val bodyEnv = memoizeValueIR(ctx, cond, cond.typ, memo)
         val valueType = unifySeq(
           TIterable.elementType(a.typ),
-          FastIndexedSeq(TIterable.elementType(requestedType)) ++ uses(name, bodyEnv.eval)
+          FastSeq(TIterable.elementType(requestedType)) ++ uses(name, bodyEnv.eval)
         )
         unifyEnvs(
           bodyEnv.deleteEval(name),
@@ -1174,7 +1174,7 @@ object PruneDeadFields {
         val bodyEnv = memoizeValueIR(ctx, cond, cond.typ, memo)
         val valueType = unifySeq(
           TIterable.elementType(a.typ),
-          FastIndexedSeq(TIterable.elementType(requestedType)) ++ uses(name, bodyEnv.eval)
+          FastSeq(TIterable.elementType(requestedType)) ++ uses(name, bodyEnv.eval)
         )
         unifyEnvs(
           bodyEnv.deleteEval(name),
@@ -1450,7 +1450,7 @@ object PruneDeadFields {
               }})
       case GetTupleElement(o, idx) =>
         val childTupleType = o.typ.asInstanceOf[TTuple]
-        val tupleDep = TTuple(FastIndexedSeq(TupleField(idx, requestedType)))
+        val tupleDep = TTuple(FastSeq(TupleField(idx, requestedType)))
         memoizeValueIR(ctx, o, tupleDep, memo)
       case ConsoleLog(message, result) =>
         unifyEnvs(
@@ -1495,7 +1495,7 @@ object PruneDeadFields {
         val queryDep = memoizeAndGetDep(ctx, query, query.typ, child.typ, memo)
         val dep = MatrixType(
           rowKey = child.typ.rowKey,
-          colKey = FastIndexedSeq(),
+          colKey = FastSeq(),
           rowType = unify(child.typ.rowType, queryDep.rowType, selectKey(child.typ.rowType, child.typ.rowKey)),
           entryType = queryDep.entryType,
           colType = queryDep.colType,
@@ -2111,7 +2111,7 @@ object PruneDeadFields {
         else {
           val rRowType = TIterable.elementType(rStruct.fieldType("rows")).asInstanceOf[TStruct]
           val rGlobType = rStruct.fieldOption("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())
-          TableCollect(upcastTable(ctx, rebuild(ctx, child, memo), TableType(rowType = rRowType, FastIndexedSeq(), rGlobType),
+          TableCollect(upcastTable(ctx, rebuild(ctx, child, memo), TableType(rowType = rRowType, FastSeq(), rGlobType),
             upcastRow = true, upcastGlobals = false))
         }
       case AggExplode(array, name, aggBody, isScan) =>

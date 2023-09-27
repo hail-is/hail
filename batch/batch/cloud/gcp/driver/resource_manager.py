@@ -1,11 +1,11 @@
 import logging
 import uuid
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import aiohttp
-import dateutil.parser
 
 from hailtop.aiocloud import aiogoogle
+from hailtop.utils.time import parse_timestamp_msecs
 
 from ....driver.instance import Instance
 from ....driver.resource_manager import (
@@ -30,12 +30,6 @@ from .billing_manager import GCPBillingManager
 from .create_instance import create_vm_config
 
 log = logging.getLogger('resource_manager')
-
-
-def parse_gcp_timestamp(timestamp: Optional[str]) -> Optional[int]:
-    if timestamp is None:
-        return None
-    return int(dateutil.parser.isoparse(timestamp).timestamp() * 1000 + 0.5)
 
 
 class GCPResourceManager(CloudResourceManager):
@@ -65,7 +59,7 @@ class GCPResourceManager(CloudResourceManager):
             if state in ('PROVISIONING', 'STAGING'):
                 return VMStateCreating(spec, instance.time_created)
             if state == 'RUNNING':
-                last_start_timestamp_msecs = parse_gcp_timestamp(spec.get('lastStartTimestamp'))
+                last_start_timestamp_msecs = parse_timestamp_msecs(spec.get('lastStartTimestamp'))
                 assert last_start_timestamp_msecs is not None
                 return VMStateRunning(spec, last_start_timestamp_msecs)
             if state in ('STOPPING', 'TERMINATED'):

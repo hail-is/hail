@@ -9,7 +9,7 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArray, SStream}
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq, Interval, toMapFast}
+import is.hail.utils.{FastSeq, Interval, toMapFast}
 import org.apache.spark.sql.Row
 
 object BaseTypeWithRequiredness {
@@ -178,7 +178,7 @@ object VirtualTypeWithReq {
   }
 
   def subset(vt: Type, rt: TypeWithRequiredness): VirtualTypeWithReq = {
-    val empty = FastIndexedSeq()
+    val empty = FastSeq()
     def subsetRT(vt: Type, rt: TypeWithRequiredness): TypeWithRequiredness = {
       val r = (vt, rt) match {
         case (_, t: RPrimitive) => t.copy(empty)
@@ -383,7 +383,7 @@ case class RNDArray(override val elementType: TypeWithRequiredness) extends RIte
 }
 
 case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredness) extends TypeWithRequiredness {
-  val children: IndexedSeq[TypeWithRequiredness] = FastIndexedSeq(startType, endType)
+  val children: IndexedSeq[TypeWithRequiredness] = FastSeq(startType, endType)
   def _unionLiteral(a: Annotation): Unit = {
     startType.unionLiteral(a.asInstanceOf[Interval].start)
     endType.unionLiteral(a.asInstanceOf[Interval].end)
@@ -588,11 +588,11 @@ case class RTable(rowFields: IndexedSeq[(String, TypeWithRequiredness)], globalF
 }
 
 case class RMatrix(rowType: RStruct, entryType: RStruct, colType: RStruct, globalType: RStruct) {
-  val entriesRVType: RStruct = RStruct.fromNamesAndTypes(FastIndexedSeq(MatrixType.entriesIdentifier -> RIterable(entryType)))
+  val entriesRVType: RStruct = RStruct.fromNamesAndTypes(FastSeq(MatrixType.entriesIdentifier -> RIterable(entryType)))
 }
 
 case class RBlockMatrix(elementType: TypeWithRequiredness) extends BaseTypeWithRequiredness {
-  override def children: IndexedSeq[BaseTypeWithRequiredness] = FastIndexedSeq(elementType)
+  override def children: IndexedSeq[BaseTypeWithRequiredness] = FastSeq(elementType)
 
   override def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): BaseTypeWithRequiredness = RBlockMatrix(newChildren(0).asInstanceOf[TypeWithRequiredness])
 

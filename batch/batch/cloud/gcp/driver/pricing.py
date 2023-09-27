@@ -1,8 +1,6 @@
 import logging
 from typing import AsyncGenerator, List, Optional
 
-import dateutil.parser
-
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import (
     rate_cpu_hour_to_mcpu_msec,
@@ -10,6 +8,7 @@ from hailtop.utils import (
     rate_gib_month_to_mib_msec,
     rate_instance_hour_to_fraction_msec,
 )
+from hailtop.utils.time import parse_timestamp_msecs
 
 from ....driver.pricing import Price
 from ..resources import (
@@ -30,15 +29,16 @@ class GCPComputePrice(Price):
         preemptible: bool,
         region: str,
         cost_per_hour: float,
+        sku: str,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.instance_family = instance_family
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_hour = cost_per_hour
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def product(self):
@@ -56,15 +56,16 @@ class GCPAcceleratorPrice(Price):
         preemptible: bool,
         region: str,
         cost_per_hour: float,
+        sku: str,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.accelerator_family = accelerator_family
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_hour = cost_per_hour
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def product(self):
@@ -82,15 +83,16 @@ class GCPMemoryPrice(Price):
         preemptible: bool,
         region: str,
         cost_per_hour: float,
+        sku: str,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.instance_family = instance_family
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_hour = cost_per_hour
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def product(self):
@@ -107,14 +109,15 @@ class GCPLocalSSDDiskPrice(Price):
         preemptible: bool,
         region: str,
         cost_per_month: float,
+        sku: str,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_month = cost_per_month
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def cost_per_gib_month(self):
@@ -135,14 +138,15 @@ class GCPDiskPrice(Price):
         disk_type: str,
         region: str,
         cost_per_month: float,
+        sku: str,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.disk_type = disk_type
-        self.region = region
         self.cost_per_month = cost_per_month
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def cost_per_gib_month(self):
@@ -158,7 +162,8 @@ class GCPDiskPrice(Price):
 
 
 def parse_effective_start_date(sku: dict) -> int:
-    return int(dateutil.parser.isoparse(sku['pricingInfo'][0]['effectiveTime']).timestamp() * 1000 + 0.5)
+    time_str = sku['pricingInfo'][0]['effectiveTime']
+    return parse_timestamp_msecs(time_str)
 
 
 def pricing_expression_to_price_per_unit(pricing_expression: dict) -> float:
@@ -225,7 +230,9 @@ def process_compute_sku(sku: dict, regions: List[str]) -> List[GCPComputePrice]:
     for service_region in service_regions:
         if service_region in regions:
             compute_prices.append(
-                GCPComputePrice(instance_family, preemptible, service_region, cost_per_hour, effective_start_date)
+                GCPComputePrice(
+                    instance_family, preemptible, service_region, cost_per_hour, sku['skuId'], effective_start_date
+                )
             )
     return compute_prices
 
@@ -259,7 +266,7 @@ def process_accelerator_sku(sku: dict, regions: List[str]) -> List[GCPAccelerato
         if service_region in regions:
             compute_prices.append(
                 GCPAcceleratorPrice(
-                    accelerator_family, preemptible, service_region, cost_per_hour, effective_start_date
+                    accelerator_family, preemptible, service_region, cost_per_hour, sku['skuId'], effective_start_date
                 )
             )
     return compute_prices
@@ -289,7 +296,9 @@ def process_memory_sku(sku: dict, regions: List[str]) -> List[GCPMemoryPrice]:
     for service_region in service_regions:
         if service_region in regions:
             memory_prices.append(
-                GCPMemoryPrice(instance_family, preemptible, service_region, cost_per_hour, effective_start_date)
+                GCPMemoryPrice(
+                    instance_family, preemptible, service_region, cost_per_hour, sku['skuId'], effective_start_date
+                )
             )
     return memory_prices
 
@@ -316,7 +325,7 @@ def process_local_ssd_sku(sku: dict, regions: List[str]) -> List[GCPLocalSSDDisk
     for service_region in service_regions:
         if service_region in regions:
             local_ssd_prices.append(
-                GCPLocalSSDDiskPrice(preemptible, service_region, cost_per_month, effective_start_date)
+                GCPLocalSSDDiskPrice(preemptible, service_region, cost_per_month, sku['skuId'], effective_start_date)
             )
     return local_ssd_prices
 
@@ -340,7 +349,9 @@ def process_disk_sku(sku: dict, regions: List[str]) -> List[GCPDiskPrice]:
     service_regions = sku['serviceRegions']
     for service_region in service_regions:
         if service_region in regions:
-            disk_prices.append(GCPDiskPrice('pd-ssd', service_region, cost_per_month, effective_start_date))
+            disk_prices.append(
+                GCPDiskPrice('pd-ssd', service_region, cost_per_month, sku['skuId'], effective_start_date)
+            )
     return disk_prices
 
 

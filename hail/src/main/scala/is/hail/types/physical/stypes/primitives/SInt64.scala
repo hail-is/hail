@@ -2,12 +2,12 @@ package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
 import is.hail.asm4s.Code.invokeStatic1
-import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s.{LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PInt64, PType}
 import is.hail.types.virtual.{TInt64, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 case object SInt64 extends SPrimitive {
   override def ti: TypeInfo[_] = LongInfo
@@ -22,7 +22,7 @@ case object SInt64 extends SPrimitive {
     }
   }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SInt64Settable = {
     val IndexedSeq(x: Settable[Long@unchecked]) = settables
@@ -42,7 +42,7 @@ case object SInt64 extends SPrimitive {
 class SInt64Value(val value: Value[Long]) extends SPrimitiveValue {
   val pt: PInt64 = PInt64(false)
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
+  override def valueTuple: IndexedSeq[Value[_]] = FastSeq(value)
 
   override def st: SInt64.type = SInt64
 
@@ -61,7 +61,7 @@ object SInt64Settable {
 }
 
 final class SInt64Settable(x: Settable[Long]) extends SInt64Value(x) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(x)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(x, v.asInstanceOf[SInt64Value].value)

@@ -3,10 +3,10 @@ package is.hail.types.physical.stypes.primitives
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, FloatInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PFloat32, PType}
 import is.hail.types.virtual.{TFloat32, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 case object SFloat32 extends SPrimitive {
   override def ti: TypeInfo[_] = FloatInfo
@@ -21,7 +21,7 @@ case object SFloat32 extends SPrimitive {
     }
   }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(FloatInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(FloatInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat32Settable = {
     val IndexedSeq(x: Settable[Float@unchecked]) = settables
@@ -41,7 +41,7 @@ case object SFloat32 extends SPrimitive {
 class SFloat32Value(val value: Value[Float]) extends SPrimitiveValue {
   val pt: PFloat32 = PFloat32()
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
+  override def valueTuple: IndexedSeq[Value[_]] = FastSeq(value)
 
   override def st: SFloat32.type = SFloat32
 
@@ -60,7 +60,7 @@ object SFloat32Settable {
 }
 
 final class SFloat32Settable(x: Settable[Float]) extends SFloat32Value(x) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(x)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(x, v.asInstanceOf[SFloat32Value].value)

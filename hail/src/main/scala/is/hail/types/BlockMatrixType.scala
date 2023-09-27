@@ -25,7 +25,7 @@ object BlockMatrixSparsity {
       }
       i += 1
     }
-    BlockMatrixSparsity(Some(builder.result().toFastIndexedSeq))
+    BlockMatrixSparsity(Some(builder.result().toFastSeq))
   }
 
   def fromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[IndexedSeq[Int]]): BlockMatrixSparsity = {
@@ -292,10 +292,10 @@ object BlockMatrixType {
 
   def matrixToTensorShape(nRows: Long,  nCols: Long): (IndexedSeq[Long], Boolean) = {
     (nRows, nCols) match {
-      case (1, 1) => (FastIndexedSeq(), false)
-      case (_, 1) => (FastIndexedSeq(nRows), false)
-      case (1, _) => (FastIndexedSeq(nCols), true)
-      case _ => (FastIndexedSeq(nRows, nCols), false)
+      case (1, 1) => (FastSeq(), false)
+      case (_, 1) => (FastSeq(nRows), false)
+      case (1, _) => (FastSeq(nCols), true)
+      case _ => (FastSeq(nRows, nCols), false)
     }
   }
 

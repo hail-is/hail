@@ -1,10 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.types.physical._
-import is.hail.types.virtual
-import is.hail.types.virtual.{TArray, TDict, TInt32, TInterval, TStruct}
 import is.hail.rvd.AbstractRVDSpec
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
@@ -31,8 +30,8 @@ class PTypeSuite extends HailSuite {
       PCanonicalSet(PInt32Required, false),
       PCanonicalDict(PInt32Required, PCanonicalString(true), true),
       PCanonicalInterval(PInt32Optional, false),
-      PCanonicalTuple(FastIndexedSeq(PTupleField(1, PInt32Required), PTupleField(3, PCanonicalString(false))), true),
-      PCanonicalStruct(FastIndexedSeq(PField("foo", PInt32Required, 0), PField("bar", PCanonicalString(false), 1)), true)
+      PCanonicalTuple(FastSeq(PTupleField(1, PInt32Required), PTupleField(3, PCanonicalString(false))), true),
+      PCanonicalStruct(FastSeq(PField("foo", PInt32Required, 0), PField("bar", PCanonicalString(false), 1)), true)
     ).map(t => Array(t: Any))
   }
 
@@ -52,8 +51,8 @@ class PTypeSuite extends HailSuite {
     assert(PType.literalPType(TInt32, null) == PInt32())
 
     assert(PType.literalPType(TArray(TInt32), null) == PCanonicalArray(PInt32(true)))
-    assert(PType.literalPType(TArray(TInt32), FastIndexedSeq(1, null)) == PCanonicalArray(PInt32(), true))
-    assert(PType.literalPType(TArray(TInt32), FastIndexedSeq(1, 5)) == PCanonicalArray(PInt32(true), true))
+    assert(PType.literalPType(TArray(TInt32), FastSeq(1, null)) == PCanonicalArray(PInt32(), true))
+    assert(PType.literalPType(TArray(TInt32), FastSeq(1, 5)) == PCanonicalArray(PInt32(true), true))
 
     assert(PType.literalPType(TInterval(TInt32), Interval(5, null, false, true)) == PCanonicalInterval(PInt32(), true))
 

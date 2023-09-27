@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SCall, SCallValue, SIndexableValue}
 import is.hail.types.physical.stypes.primitives.SInt64Value
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PCall, PCanonicalCall, PType}
 import is.hail.types.virtual.{TCall, Type}
 import is.hail.utils._
@@ -23,7 +23,7 @@ case object SCanonicalCall extends SCall {
 
   override def castRename(t: Type): SType = this
 
-  def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
+  def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(IntInfo)
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalCallSettable = {
     val IndexedSeq(call: Settable[Int@unchecked]) = settables
@@ -67,7 +67,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
 
   override val st: SCanonicalCall.type = SCanonicalCall
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(call)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(call)
 
   override def ploidy(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize((call >>> 1) & 0x3)
@@ -114,7 +114,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     val repr = cb.newLocal[Int]("lgt_to_gt_repr")
     cb += Code.switch(ploidy(cb),
       EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb._fatalWithError(errorID, s"ploidy above 2 is not currently supported")),
-      FastIndexedSeq(
+      FastSeq(
         EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb.assign(repr, call)), // ploidy 0
         EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
           val allele = Code.invokeScalaObject1[Int, Int](Call.getClass, "alleleRepr", call)
@@ -152,5 +152,5 @@ final class SCanonicalCallSettable(override val call: Settable[Int]) extends SCa
   override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(call, v.asInstanceOf[SCanonicalCallValue].call)
 
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(call)
 }

@@ -52,6 +52,14 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.124
+
+Released 2023-09-21
+
+### New Features
+
+- (hail#13608) Change default behavior of hl.ggplot.geom_density to use a new method. The old method is still available using the flag smoothed=True. The new method is typically a much more accurate representation, and works well for any distribution, not just smooth ones.
+
 ## Version 0.2.123
 
 Released 2023-09-18

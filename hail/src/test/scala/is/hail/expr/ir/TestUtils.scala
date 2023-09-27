@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
-import is.hail.types._
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils.FastSeq
 import is.hail.variant.Call
 
 object TestUtils {
-  def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastIndexedSeq())
+  def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastSeq())
 
   def collect(tir: TableIR): IR =
     TableAggregate(tir, MakeStruct(FastSeq(
@@ -30,7 +29,7 @@ object TestUtils {
     if (p == null)
       NA(TTuple(TInt32, TInt32))
     else
-      MakeTuple.ordered(FastIndexedSeq(toIRInt(p._1), toIRInt(p._2)))
+      MakeTuple.ordered(FastSeq(toIRInt(p._1), toIRInt(p._2)))
 
   def toIRArray(a: IndexedSeq[Integer]): IR =
     if (a == null)
@@ -54,9 +53,9 @@ object TestUtils {
     else
       MakeArray(a.map(s => Literal.coerce(TString, s)), TArray(TString))
 
-  def IRStringArray(a: String*): IR = toIRStringArray(FastIndexedSeq(a:_*))
+  def IRStringArray(a: String*): IR = toIRStringArray(FastSeq(a:_*))
 
-  def IRStringSet(a: String*): IR = ToSet(ToStream(toIRStringArray(FastIndexedSeq(a:_*))))
+  def IRStringSet(a: String*): IR = ToSet(ToStream(toIRStringArray(FastSeq(a:_*))))
 
   def toIRDoubleArray(a: IndexedSeq[java.lang.Double]): IR =
     if (a == null)
@@ -92,22 +91,22 @@ object TestUtils {
 
     def IRAggCount: IR = {
     val aggSig = AggSignature(Count(), FastSeq.empty, FastSeq.empty)
-    ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, aggSig)
+    ApplyAggOp(FastSeq.empty, FastSeq.empty, aggSig)
   }
 
   def IRScanCount: IR = {
     val aggSig = AggSignature(Count(), FastSeq.empty, FastSeq.empty)
-    ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq.empty, aggSig)
+    ApplyScanOp(FastSeq.empty, FastSeq.empty, aggSig)
   }
 
   def IRAggCollect(ir: IR): IR = {
     val aggSig = AggSignature(Collect(), FastSeq.empty, FastSeq[Type](ir.typ))
-    ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(ir), aggSig)
+    ApplyAggOp(FastSeq(), FastSeq(ir), aggSig)
   }
 
   def IRScanCollect(ir: IR): IR = {
     val aggSig = AggSignature(Collect(), FastSeq.empty, FastSeq[Type](ir.typ))
-    ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(ir), aggSig)
+    ApplyScanOp(FastSeq(), FastSeq(ir), aggSig)
   }
 
   def IRStruct(fields: (String, IR)*): IR =

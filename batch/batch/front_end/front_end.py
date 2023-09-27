@@ -1827,6 +1827,7 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
                 end_time = time_msecs()
             duration_msecs = max(end_time - start_time, 0)
             attempt['duration'] = humanize_timedelta_msecs(duration_msecs)
+            attempt['duration_ms'] = duration_msecs
 
     return attempts
 

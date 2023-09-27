@@ -22,6 +22,7 @@ CREATE INDEX `resources_deduped_resource_id` ON `resources` (`deduped_resource_i
 CREATE TABLE IF NOT EXISTS `latest_product_versions` (
   `product` VARCHAR(100) NOT NULL,
   `version` VARCHAR(100) NOT NULL,
+  `sku` VARCHAR(100),
   `time_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`product`)
 ) ENGINE = InnoDB;

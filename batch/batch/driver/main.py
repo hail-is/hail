@@ -7,6 +7,7 @@ import re
 import signal
 import warnings
 from collections import defaultdict, namedtuple
+from contextlib import AsyncExitStack
 from functools import wraps
 from typing import Any, Awaitable, Callable, Dict, NoReturn, Set, Tuple
 
@@ -1613,33 +1614,17 @@ SELECT instance_id, frozen FROM globals;
 
 async def on_cleanup(app):
     try:
-        app['canceller'].shutdown()
+        async with AsyncExitStack() as cleanup:
+            cleanup.callback(app['canceller'].shutdown)
+            cleanup.callback(app['task_manager'].shutdown)
+            cleanup.push_async_callback(app['driver'].shutdown)
+            cleanup.push_async_callback(app['file_store'].shutdown)
+            cleanup.push_async_callback(app['client_session'].close)
+            cleanup.callback(app['async_worker_pool'].shutdown)
+            cleanup.push_async_callback(app['db'].async_close)
+            cleanup.push_async_callback(app['k8s_client'].api_client.rest_client.pool_manager.close)
     finally:
-        try:
-            app['task_manager'].shutdown()
-        finally:
-            try:
-                await app['driver'].shutdown()
-            finally:
-                try:
-                    await app['file_store'].close()
-                finally:
-                    try:
-                        await app['client_session'].close()
-                    finally:
-                        try:
-                            app['async_worker_pool'].shutdown()
-                        finally:
-                            try:
-                                await app['db'].async_close()
-                            finally:
-                                try:
-                                    k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
-                                    await k8s_client.api_client.rest_client.pool_manager.close()
-                                finally:
-                                    await asyncio.gather(
-                                        *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                    )
+        await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

@@ -121,7 +121,13 @@ object Worker {
     timer.start("readInputs")
     val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
-    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
+    def open(x: String): SeekableDataInputStream = {
+      fs.openNoCompression(x)
+    }
+
+    def write(x: String)(writer: PositionedDataOutputStream => Unit): Unit = {
+      fs.writePDOS(x)(writer)
+    }
 
     val fFuture = Future {
       retryTransientErrors {

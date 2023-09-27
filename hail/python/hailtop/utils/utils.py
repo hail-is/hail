@@ -658,8 +658,6 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
-    import google.api_core.exceptions  # pylint: disable=import-outside-toplevel
-    import google.auth.exceptions  # pylint: disable=import-outside-toplevel
     import hailtop.aiocloud.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
     import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
     if (isinstance(e, aiohttp.ClientResponseError)
@@ -702,10 +700,6 @@ def is_transient_error(e):
     if isinstance(e, socket.gaierror) and e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
         # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
-        return True
-    if isinstance(e, google.api_core.exceptions.GatewayTimeout):
-        return True
-    if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
         return True
     if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True

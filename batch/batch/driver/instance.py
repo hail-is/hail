@@ -1,15 +1,14 @@
 import base64
-import datetime
 import json
 import logging
 import secrets
 from typing import Dict, Optional
 
 import aiohttp
-import humanize
 
 from gear import Database, transaction
 from hailtop import httpx
+from hailtop.humanizex import naturaldelta_msec
 from hailtop.utils import retry_transient_errors, time_msecs, time_msecs_str
 
 from ..cloud.utils import instance_config_from_config_dict
@@ -351,7 +350,7 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
         return time_msecs_str(self.time_created)
 
     def last_updated_str(self):
-        return humanize.naturaldelta(datetime.timedelta(milliseconds=time_msecs() - self.last_updated))
+        return naturaldelta_msec(time_msecs() - self.last_updated)
 
     @property
     def region(self):

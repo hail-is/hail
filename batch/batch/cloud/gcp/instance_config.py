@@ -13,6 +13,7 @@ from .resources import (
     GCPResource,
     GCPServiceFeeResource,
     GCPStaticSizedDiskResource,
+    GCPSupportLogsSpecsAndFirewallFees,
     gcp_resource_from_dict,
 )
 
@@ -58,6 +59,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             GCPDynamicSizedDiskResource.create(product_versions, 'pd-ssd', region),
             GCPIPFeeResource.create(product_versions, 1024),
             GCPServiceFeeResource.create(product_versions),
+            GCPSupportLogsSpecsAndFirewallFees.create(product_versions),
         ]
 
         accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family)
