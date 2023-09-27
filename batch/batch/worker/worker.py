@@ -2386,7 +2386,7 @@ class JVMJob(Job):
 
     async def get_resource_usage(self) -> Dict[str, bytes]:
         if self.jvm:
-            contents = await self.jvm.get_resource_usage()
+            contents = await self.jvm.get_job_resource_usage()
         else:
             contents = ResourceUsageMonitor.no_data()
         return {'main': contents}
