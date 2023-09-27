@@ -6,6 +6,7 @@ import pandas as pd
 import bokeh
 import bokeh.io
 import bokeh.models
+import warnings
 from bokeh.models import (HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper,
                           CategoricalColorMapper, ColumnDataSource, BasicTicker, Plot, CDSView,
                           GroupFilter, IntersectionFilter, Legend, LegendItem, Renderer, CustomJS,
@@ -1451,8 +1452,12 @@ def qq(
 
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int, significance_line=nullable(numeric))
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8) -> Plot:
+           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool,
+           n_divisions=int, significance_line=nullable(numeric), downsample=bool
+           )
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None,
+              collect_all=False, n_divisions=500, significance_line=5e-8,
+              downsample=True) -> Plot:
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -1468,12 +1473,14 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     hover_fields : Dict[str, :class:`.Expression`]
         Dictionary of field names and values to be shown in the HoverTool of the plot.
     collect_all : bool
-        Whether to collect all values or downsample before plotting.
+        Deprecated - use `downsample` instead.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
     significance_line : float, optional
         p-value at which to add a horizontal, dotted red line indicating
         genome-wide significance.  If ``None``, no line is added.
+    downsample : bool
+        Down-sample before plotting or plot all values.
 
     Returns
     -------
@@ -1491,11 +1498,15 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     pvals = -hail.log10(pvals)
 
+    if collect_all:
+        warnings.warn('manhattan: `collect_all` has been deprecated. Use `downsample` instead.')
+        downsample = False
+
     source_pd = _collect_scatter_plot_data(
         ('_global_locus', locus.global_position()),
         ('_pval', pvals),
         fields=hover_fields,
-        n_divisions=None if collect_all else n_divisions
+        n_divisions=n_divisions if downsample else None
     )
     source_pd['p_value'] = [10 ** (-p) for p in source_pd['_pval']]
     source_pd['_contig'] = [locus.split(":")[0] for locus in source_pd['locus']]

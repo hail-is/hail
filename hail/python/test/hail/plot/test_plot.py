@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import hail as hl
 
 
@@ -52,11 +54,18 @@ def test_qq():
     ht = hl.utils.range_table(100)
     hl.plot.qq(ht.idx / 100)
 
-
 def test_manhattan():
     ht = hl.balding_nichols_model(1, n_variants=100, n_samples=1).rows()
     ht = ht.add_index('idx')
-    hl.plot.manhattan(ht.idx / 100)
+
+    with patch('warnings.warn') as mock:
+        hl.plot.manhattan(ht.idx / 100)
+        mock.assert_not_called()
+
+    with patch('warnings.warn') as mock:
+        hl.plot.manhattan(ht.idx / 100, collect_all=True)
+        mock.assert_called()
+
 
 
 def test_visualize_missingness():
