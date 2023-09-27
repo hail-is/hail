@@ -56,6 +56,8 @@ ssl-mode={self.ssl_mode}
         assert self.port is not None
         assert self.user is not None
         assert self.password is not None
+        assert self.instance is not None
+        assert self.connection_name is not None
         if self.ssl_cert is not None:
             assert self.ssl_key is not None
             if not os.path.isfile(self.ssl_cert):
@@ -64,11 +66,9 @@ ssl-mode={self.ssl_mode}
                 raise ValueError(f'specified ssl-key, {self.ssl_key}, does not exist')
         else:
             assert self.ssl_key is None
-        if self.host != 'localhost':
-            assert self.ssl_ca is not None
-            assert self.ssl_mode is not None
-            if not os.path.isfile(self.ssl_ca):
-                raise ValueError(f'specified ssl-ca, {self.ssl_ca}, does not exist')
+        assert self.ssl_ca is not None
+        if not os.path.isfile(self.ssl_ca):
+            raise ValueError(f'specified ssl-ca, {self.ssl_ca}, does not exist')
 
     def using_mtls(self) -> bool:
         if self.ssl_cert is not None:

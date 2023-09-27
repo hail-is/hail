@@ -108,10 +108,11 @@ def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
     if config_file is not None:
         with open(config_file, 'r', encoding='utf-8') as f:
             sql_config = SQLConfig.from_json(f.read())
+        sql_config.check()
+        log.info('using tls and verifying server certificates for MySQL')
     else:
         sql_config = SQLConfig.local_insecure_config()
-    sql_config.check()
-    log.info('using tls and verifying server certificates for MySQL')
+        log.info('Using unencrypted config for database on localhost')
     return sql_config
 
 
