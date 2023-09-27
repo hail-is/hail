@@ -221,7 +221,16 @@ vep-grch38-image: hail-ubuntu-image
 		./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(VEP_GRCH38_IMAGE)
 	echo $(VEP_GRCH38_IMAGE) > $@
 
-.PHONY: $(SERVICES_DATABASES)
-$(SERVICES_DATABASES): %-db:
+.PHONY: local-mysql
+local-mysql:
 	cd docker/mysql && docker compose up -d
+
+.PHONY: $(SERVICES_DATABASES)
+$(SERVICES_DATABASES): %-db: local-mysql
+ifdef DROP
+$(SERVICES_DATABASES): %-db:
+	MYSQL_PWD=pw mysql -h 127.0.0.1 -u root -e 'DROP DATABASE `local-$*`'
+else
+$(SERVICES_DATABASES): %-db:
 	python3 ci/create_local_database.py $* local-$*
+endif
