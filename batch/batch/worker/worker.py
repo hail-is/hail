@@ -1858,6 +1858,9 @@ class DockerJob(Job):
 
     async def run_container(self, container: Container, task_name: str):
         async def on_completion():
+            if container.state in ('pending', 'creating'):
+                return
+
             with container._step('uploading_log'):
                 assert self.worker.file_store
                 await self.worker.file_store.write_log_file(
