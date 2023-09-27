@@ -2,8 +2,6 @@ import asyncio
 import base64
 import json
 import os
-import secrets
-import string
 import sys
 from shlex import quote as shq
 from typing import Optional
@@ -17,47 +15,125 @@ from hailtop.utils import check_shell, check_shell_output
 create_database_config = None
 
 
-def generate_token(size=12):
-    assert size > 0
-    alpha = string.ascii_lowercase
-    alnum = string.ascii_lowercase + string.digits
-    return secrets.choice(alpha) + ''.join([secrets.choice(alnum) for _ in range(size - 1)])
+async def migrate(database_name, db, mysql_cnf_file, i, migration):
+    print(f'applying migration {i} {migration}')
 
+    # version to migrate to
+    # the 0th migration migrates from 1 to 2
+    to_version = i + 2
 
-async def write_user_config(namespace: str, database_name: str, user: str, config: SQLConfig):
-    with open('/sql-config/server-ca.pem', 'r', encoding='utf-8') as f:
-        server_ca = f.read()
-    client_cert: Optional[str]
-    client_key: Optional[str]
-    if config.using_mtls():
-        with open('/sql-config/client-cert.pem', 'r', encoding='utf-8') as f:
-            client_cert = f.read()
-        with open('/sql-config/client-key.pem', 'r', encoding='utf-8') as f:
-            client_key = f.read()
+    name = migration['name']
+    script = migration['script']
+    online = migration.get('online', False)
+
+    out, _ = await check_shell_output(f'sha1sum {script} | cut -d " " -f1')
+    script_sha1 = out.decode('utf-8').strip()
+    print(f'script_sha1 {script_sha1}')
+
+    row = await db.execute_and_fetchone(f'SELECT version FROM `{database_name}_migration_version`;')
+    current_version = row['version']
+
+    if current_version + 1 == to_version:
+        if not online:
+            await _shutdown()
+
+        # migrate
+        if script.endswith('.py'):
+            await check_shell(f'python3 {script}')
+        else:
+            await check_shell(
+                f'''
+mysql --defaults-extra-file={mysql_cnf_file} <{script}
+'''
+            )
+
+        await db.just_execute(
+            f'''
+UPDATE `{database_name}_migration_version`
+SET version = %s;
+
+INSERT INTO `{database_name}_migrations` (version, name, script_sha1)
+VALUES (%s, %s, %s);
+''',
+            (to_version, to_version, name, script_sha1),
+        )
     else:
-        client_cert = None
-        client_key = None
-    secret = create_secret_data_from_config(config, server_ca, client_cert, client_key)
-    files = secret.keys()
-    for fname, data in secret.items():
-        with open(os.path.basename(fname), 'w', encoding='utf-8') as f:
-            f.write(data)
-    secret_name = f'sql-{database_name}-{user}-config'
-    print(f'creating secret {secret_name}')
-    from_files = ' '.join(f'--from-file={f}' for f in files)
-    await check_shell(
+        assert current_version >= to_version
+
+        # verify checksum
+        row = await db.execute_and_fetchone(
+            f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,)
+        )
+        assert row is not None
+        assert name == row['name'], row
+        assert script_sha1 == row['script_sha1'], row
+
+
+async def create_migration_tables(db: Database, database_name: str):
+    rows = db.execute_and_fetchall(f"SHOW TABLES LIKE '{database_name}_migration_version';")
+    rows = [row async for row in rows]
+    if len(rows) == 0:
+        await db.just_execute(
+            f'''
+CREATE TABLE `{database_name}_migration_version` (
+  `version` BIGINT NOT NULL
+) ENGINE = InnoDB;
+INSERT INTO `{database_name}_migration_version` (`version`) VALUES (1);
+
+CREATE TABLE `{database_name}_migrations` (
+  `version` BIGINT NOT NULL,
+  `name` VARCHAR(100),
+  `script_sha1` VARCHAR(40),
+  PRIMARY KEY (`version`)
+) ENGINE = InnoDB;
+'''
+        )
+
+
+async def async_main():
+    global create_database_config
+    create_database_config = json.load(sys.stdin)
+
+    await _create_database()
+
+    namespace = create_database_config['namespace']
+    scope = create_database_config['scope']
+    cloud = create_database_config['cloud']
+    database_name = create_database_config['database_name']
+
+    admin_secret_name = f'sql-{database_name}-admin-config'
+    out, _ = await check_shell_output(
         f'''
-kubectl -n {shq(namespace)} create secret generic \
-        {shq(secret_name)} \
-        {from_files} \
-        --save-config --dry-run=client \
-        -o yaml \
-        | kubectl -n {shq(namespace)} apply -f -
+kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
 '''
     )
+    admin_secret = json.loads(out)
+
+    admin_sql_config = SQLConfig.from_json(base64.b64decode(admin_secret['data']['sql-config.json']).decode())
+    if namespace != 'default' and admin_sql_config.host.endswith('.svc.cluster.local'):
+        admin_sql_config = await resolve_test_db_endpoint(admin_sql_config)
+
+    with open('/sql-config.json', 'wb') as f:
+        f.write(orjson.dumps(admin_sql_config.to_dict()))
+
+    with open('/sql-config.cnf', 'wb') as f:
+        f.write(admin_sql_config.to_cnf().encode('utf-8'))
+
+    os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
+    os.environ['HAIL_SCOPE'] = scope
+    os.environ['HAIL_CLOUD'] = cloud
+    os.environ['HAIL_NAMESPACE'] = namespace
+
+    db = Database()
+    await db.async_init()
+
+    await create_migration_tables(db, database_name)
+    migrations = create_database_config['migrations']
+    for i, m in enumerate(migrations):
+        await migrate(database_name, db, '/sql-config.cnf', i, m)
 
 
-async def create_database():
+async def _create_database():
     with open('/sql-config/sql-config.json', 'r', encoding='utf-8') as f:
         sql_config = SQLConfig.from_json(f.read())
 
@@ -103,7 +179,7 @@ async def create_database():
             '''
         )
 
-        await write_user_config(
+        await _write_user_config(
             namespace,
             database_name,
             admin_or_user,
@@ -135,10 +211,43 @@ async def create_database():
     await create_user_if_doesnt_exist('user', user_username, user_password)
 
 
+async def _write_user_config(namespace: str, database_name: str, user: str, config: SQLConfig):
+    with open('/sql-config/server-ca.pem', 'r', encoding='utf-8') as f:
+        server_ca = f.read()
+    client_cert: Optional[str]
+    client_key: Optional[str]
+    if config.using_mtls():
+        with open('/sql-config/client-cert.pem', 'r', encoding='utf-8') as f:
+            client_cert = f.read()
+        with open('/sql-config/client-key.pem', 'r', encoding='utf-8') as f:
+            client_key = f.read()
+    else:
+        client_cert = None
+        client_key = None
+    secret = create_secret_data_from_config(config, server_ca, client_cert, client_key)
+    files = secret.keys()
+    for fname, data in secret.items():
+        with open(os.path.basename(fname), 'w', encoding='utf-8') as f:
+            f.write(data)
+    secret_name = f'sql-{database_name}-{user}-config'
+    print(f'creating secret {secret_name}')
+    from_files = ' '.join(f'--from-file={f}' for f in files)
+    await check_shell(
+        f'''
+kubectl -n {shq(namespace)} create secret generic \
+        {shq(secret_name)} \
+        {from_files} \
+        --save-config --dry-run=client \
+        -o yaml \
+        | kubectl -n {shq(namespace)} apply -f -
+'''
+    )
+
+
 did_shutdown = False
 
 
-async def shutdown():
+async def _shutdown():
     global did_shutdown
 
     if did_shutdown:
@@ -156,124 +265,6 @@ kubectl -n {s["namespace"]} delete --ignore-not-found=true deployment {s["name"]
             )
 
     did_shutdown = True
-
-
-async def migrate(database_name, db, mysql_cnf_file, i, migration):
-    print(f'applying migration {i} {migration}')
-
-    # version to migrate to
-    # the 0th migration migrates from 1 to 2
-    to_version = i + 2
-
-    name = migration['name']
-    script = migration['script']
-    online = migration.get('online', False)
-
-    out, _ = await check_shell_output(f'sha1sum {script} | cut -d " " -f1')
-    script_sha1 = out.decode('utf-8').strip()
-    print(f'script_sha1 {script_sha1}')
-
-    row = await db.execute_and_fetchone(f'SELECT version FROM `{database_name}_migration_version`;')
-    current_version = row['version']
-
-    if current_version + 1 == to_version:
-        if not online:
-            await shutdown()
-
-        # migrate
-        if script.endswith('.py'):
-            await check_shell(f'python3 {script}')
-        else:
-            await check_shell(
-                f'''
-mysql --defaults-extra-file={mysql_cnf_file} <{script}
-'''
-            )
-
-        await db.just_execute(
-            f'''
-UPDATE `{database_name}_migration_version`
-SET version = %s;
-
-INSERT INTO `{database_name}_migrations` (version, name, script_sha1)
-VALUES (%s, %s, %s);
-''',
-            (to_version, to_version, name, script_sha1),
-        )
-    else:
-        assert current_version >= to_version
-
-        # verify checksum
-        row = await db.execute_and_fetchone(
-            f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,)
-        )
-        assert row is not None
-        assert name == row['name'], row
-        assert script_sha1 == row['script_sha1'], row
-
-
-async def async_main():
-    global create_database_config
-    create_database_config = json.load(sys.stdin)
-
-    await create_database()
-
-    namespace = create_database_config['namespace']
-    scope = create_database_config['scope']
-    cloud = create_database_config['cloud']
-    database_name = create_database_config['database_name']
-
-    admin_secret_name = f'sql-{database_name}-admin-config'
-    out, _ = await check_shell_output(
-        f'''
-kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
-'''
-    )
-    admin_secret = json.loads(out)
-
-    admin_sql_config = SQLConfig.from_json(base64.b64decode(admin_secret['data']['sql-config.json']).decode())
-    if namespace != 'default' and admin_sql_config.host.endswith('.svc.cluster.local'):
-        admin_sql_config = await resolve_test_db_endpoint(admin_sql_config)
-
-    with open('/sql-config.json', 'wb') as f:
-        f.write(orjson.dumps(admin_sql_config.to_dict()))
-
-    with open('/sql-config.cnf', 'wb') as f:
-        f.write(admin_sql_config.to_cnf().encode('utf-8'))
-
-    os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
-    os.environ['HAIL_SCOPE'] = scope
-    os.environ['HAIL_CLOUD'] = cloud
-    os.environ['HAIL_NAMESPACE'] = namespace
-
-    db = Database()
-    await db.async_init()
-
-    await create_migration_tables(db, database_name)
-    migrations = create_database_config['migrations']
-    for i, m in enumerate(migrations):
-        await migrate(database_name, db, '/sql-config.cnf', i, m)
-
-
-async def create_migration_tables(db: Database, database_name: str):
-    rows = db.execute_and_fetchall(f"SHOW TABLES LIKE '{database_name}_migration_version';")
-    rows = [row async for row in rows]
-    if len(rows) == 0:
-        await db.just_execute(
-            f'''
-CREATE TABLE `{database_name}_migration_version` (
-  `version` BIGINT NOT NULL
-) ENGINE = InnoDB;
-INSERT INTO `{database_name}_migration_version` (`version`) VALUES (1);
-
-CREATE TABLE `{database_name}_migrations` (
-  `version` BIGINT NOT NULL,
-  `name` VARCHAR(100),
-  `script_sha1` VARCHAR(40),
-  PRIMARY KEY (`version`)
-) ENGINE = InnoDB;
-'''
-        )
 
 
 if __name__ == '__main__':
