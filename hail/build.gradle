@@ -95,7 +95,7 @@ configurations {
 	}
     }
 
-    testCompileOnly.extendsFrom shadow
+    testImplementation.extendsFrom shadow
 }
 
 dependencies {
