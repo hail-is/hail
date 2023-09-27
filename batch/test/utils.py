@@ -27,7 +27,7 @@ def create_batch(client: Union[bc.BatchClient, aiobc.BatchClient], **kwargs) -> 
     this_batch_id = os.environ.get('HAIL_BATCH_ID')
     this_job_id = os.environ.get('HAIL_JOB_ID')
     if this_batch_id and this_job_id:
-        attributes['parent_job'] = f'{this_batch_id}-{this_job_id}'
+        attributes['client_job'] = f'{this_batch_id}-{this_job_id}'
     return client.create_batch(attributes, **kwargs)
 
 
