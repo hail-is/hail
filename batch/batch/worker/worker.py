@@ -1353,9 +1353,11 @@ class Container:
     def _env(self):
         assert self.image.image_config
         assert CLOUD_WORKER_API
-        env = self.image.image_config['Config']['Env'] or []
-        env.extend(self.env)
-        env.extend(CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs)
+        env = (
+            (self.image.image_config['Config']['Env'] or [])
+            + self.env
+            + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
+        )
         machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
         if is_gpu(machine_family):
             env += ["NVIDIA_VISIBLE_DEVICES=all"]
