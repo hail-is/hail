@@ -2298,7 +2298,7 @@ steps:
         online: true
       - name: add-product-sku
         script: /io/sql/add-product-sku.sql
-	online: true
+        online: true
       - name: dedup-agg-batch-resources
         script: /io/sql/dedup_agg_batch_resources.py
         online: true
