@@ -8,13 +8,13 @@ class SQLConfig(NamedTuple):
     port: int
     user: str
     password: str
-    instance: str
-    connection_name: str
+    instance: Optional[str]
+    connection_name: Optional[str]
     db: Optional[str]
-    ssl_ca: str
+    ssl_ca: Optional[str]
     ssl_cert: Optional[str]
     ssl_key: Optional[str]
-    ssl_mode: str
+    ssl_mode: Optional[str]
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict())
@@ -99,6 +99,22 @@ ssl-mode={self.ssl_mode}
                          ssl_cert=d.get('ssl-cert'),
                          ssl_key=d.get('ssl-key'),
                          ssl_mode=d['ssl-mode'])
+
+    @staticmethod
+    def local_insecure_config() -> 'SQLConfig':
+        return SQLConfig(
+            host='localhost',
+            port=3306,
+            user='root',
+            password='pw',
+            db=os.environ.get('HAIL_SQL_DATABASE'),
+            instance=None,
+            connection_name=None,
+            ssl_ca=None,
+            ssl_cert=None,
+            ssl_key=None,
+            ssl_mode=None,
+        )
 
 
 def create_secret_data_from_config(config: SQLConfig,
