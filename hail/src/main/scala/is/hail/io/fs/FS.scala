@@ -190,9 +190,6 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
     } else {
       bb.clear()
       bb.limit(0)
-      if (bb.remaining() != 0) {
-        assert(false, bb.remaining().toString())
-      }
       physicalSeek(newPos)
     }
     pos = newPos
