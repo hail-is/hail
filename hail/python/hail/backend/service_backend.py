@@ -8,7 +8,7 @@ import orjson
 import logging
 import warnings
 
-from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, version
 from hail.utils import FatalError
 from hail.expr.types import HailType, dtype, ttuple, tvoid
 from hail.expr.table_type import ttable
@@ -225,11 +225,16 @@ class ServiceBackend(Backend):
         if batch_client is None:
             batch_client = await aiohb.BatchClient.create(billing_project, _token=credentials_token)
         bc = hb.BatchClient.from_async(batch_client)
-        batch_attributes: Dict[str, str] = dict()
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
         jar_url = configuration_of(ConfigVariable.QUERY_JAR_URL, jar_url, None)
         jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
+
+        batch_attributes: Dict[str, str] = {
+            'hail-version': version(),
+        }
+        if name_prefix:
+            batch_attributes['name'] = name_prefix
 
         driver_cores = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_CORES, driver_cores, None)
         driver_memory = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_MEMORY, driver_memory, None)
@@ -433,10 +438,6 @@ class ServiceBackend(Backend):
                     await inputs(infile, self._batch.token)
 
             with timings.step("submit batch"):
-                batch_attributes = self.batch_attributes
-                if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': self.name_prefix}
-
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
                 if driver_cores is not None:
                     resources['cpu'] = str(driver_cores)
