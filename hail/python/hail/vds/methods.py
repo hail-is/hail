@@ -606,7 +606,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
                 f"'filter_intervals': expect a table with a single key of type {expected}; "
                 f"found {list(intervals.key.dtype.values())}")
         intervals_table = intervals
-        intervals = hl.literal(intervals.aggregate(hl.agg.collect(intervals.key[0]), _localize=False))
+        intervals = intervals.aggregate(hl.agg.collect(intervals.key[0]), _localize=False)
 
     if mode == 'unchecked_filter_both':
         return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
