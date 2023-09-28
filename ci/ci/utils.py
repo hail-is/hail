@@ -1,6 +1,7 @@
 import datetime
 import secrets
 import string
+import urllib.parse
 from typing import List, Optional
 
 from gear import Database
@@ -36,3 +37,53 @@ ON DUPLICATE KEY UPDATE namespace = namespace;
 ''',
         [(namespace, service) for service in services],
     )
+
+
+def generate_gcp_service_logging_url(
+    project: str, services: List[str], namespace: str, start_time: str, end_time: str, severity: Optional[List[str]]
+):
+    service_queries = []
+    for service in services:
+        service_queries.append(
+            f'''
+(
+resource.type="k8s_container"
+resource.labels.namespace_name="{namespace}"
+resource.labels.container_name="{service}"
+)
+'''
+        )
+
+    query = ' OR '.join(service_queries)
+
+    if severity is not None:
+        severity_queries = []
+        for level in severity:
+            severity_queries.append(f'severity={level}')
+        query += ' OR '.join(severity_queries)
+
+    timestamp_query = f';startTime={start_time};endTime={end_time}'
+
+    return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote_plus(query)};{urllib.parse.quote_plus(timestamp_query)}?project={project}'
+
+
+def generate_gcp_worker_logging_url(
+    project: str, namespace: str, start_time: str, end_time: str, severity: Optional[List[str]]
+):
+    query = f'''
+(
+resource.type="gce_instance"
+logName:"worker"
+labels.namespace="{namespace}"
+)
+'''
+
+    if severity is not None:
+        severity_queries = []
+        for level in severity:
+            severity_queries.append(f'severity={level}')
+        query += ' OR '.join(severity_queries)
+
+    timestamp_query = f';startTime={start_time};endTime={end_time}'
+
+    return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote_plus(query)};{urllib.parse.quote_plus(timestamp_query)}?project={project}'
