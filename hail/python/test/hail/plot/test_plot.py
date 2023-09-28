@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch
 
 import hail as hl
@@ -57,13 +58,24 @@ def test_qq():
 def test_manhattan():
     ht = hl.balding_nichols_model(1, n_variants=100, n_samples=1).rows()
     ht = ht.add_index('idx')
+    hl.plot.manhattan(ht.idx / 100)
+
+def test_manhatten_deprecated_collect_all():
+    ht = hl.balding_nichols_model(1, n_variants=100, n_samples=1).rows()
+    ht = ht.add_index('idx')
+
+    with pytest.raises(ValueError):
+        hl.plot.manhattan(ht.idx / 100, collect_all=True)
+
+    with pytest.raises(ValueError):
+        hl.plot.manhattan(ht.idx / 100, n_divisions=0)
 
     with patch('warnings.warn') as mock:
-        hl.plot.manhattan(ht.idx / 100)
+        hl.plot.manhattan(ht.idx / 100, n_divisions=None)
         mock.assert_not_called()
 
     with patch('warnings.warn') as mock:
-        hl.plot.manhattan(ht.idx / 100, collect_all=True)
+        hl.plot.manhattan(ht.idx / 100, n_divisions=None, collect_all=True)
         mock.assert_called()
 
 

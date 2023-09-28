@@ -18,11 +18,11 @@ from bokeh.transform import transform
 from bokeh.layouts import gridplot
 
 from hail.expr import aggregators
-from hail.expr.expressions import Expression, NumericExpression, \
-    StringExpression, Int32Expression, Int64Expression, \
-    Float32Expression, Float64Expression, \
-    expr_numeric, expr_float64, expr_any, expr_locus, expr_str, \
-    check_row_indexed
+from hail.expr.expressions import (
+    Expression, NumericExpression, StringExpression, LocusExpression,
+    Int32Expression, Int64Expression, Float32Expression, Float64Expression,
+    expr_numeric, expr_float64, expr_any, expr_locus, expr_str, check_row_indexed
+)
 from hail.expr.functions import _error_from_cdf_python
 from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
     sequenceof, dictof
@@ -1451,36 +1451,47 @@ def qq(
     return p
 
 
-@typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool,
-           n_divisions=int, significance_line=nullable(numeric), downsample=bool
+@typecheck(pvals=expr_float64,
+           locus=nullable(expr_locus()),
+           title=nullable(str),
+           size=int,
+           hover_fields=nullable(dictof(str, expr_any)),
+           collect_all=nullable(bool),
+           n_divisions=nullable(int),
+           significance_line=nullable(numeric)
            )
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None,
-              collect_all=False, n_divisions=500, significance_line=5e-8,
-              downsample=True) -> Plot:
+def manhattan(pvals: 'Float64Expression',
+              locus: 'Optional[LocusExpression]' = None,
+              title: 'Optional[str]' = None,
+              size: int = 4,
+              hover_fields: 'Optional[Dict[str, Expression]]' = None,
+              collect_all: 'Optional[bool]' = None,
+              n_divisions: 'Optional[int]' = 500,
+              significance_line: 'Optional[Union[int, float]]' = 5e-8
+              ) -> Plot:
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
     ----------
     pvals : :class:`.Float64Expression`
         P-values to be plotted.
-    locus : :class:`.LocusExpression`
+    locus : :class:`.LocusExpression`, optional
         Locus values to be plotted.
-    title : str
+    title : str, optional
         Title of the plot.
     size : int
         Size of markers in screen space units.
-    hover_fields : Dict[str, :class:`.Expression`]
+    hover_fields : Dict[str, :class:`.Expression`], optional
         Dictionary of field names and values to be shown in the HoverTool of the plot.
-    collect_all : bool
-        Deprecated - use `downsample` instead.
-    n_divisions : int
-        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+    collect_all : bool, optional
+        Deprecated - use `n_divisions` instead.
+    n_divisions : int, optional.
+        Factor by which to downsample (default value = 500).
+        A lower input results in fewer output datapoints.
+        Use `None` to collect all points.
     significance_line : float, optional
         p-value at which to add a horizontal, dotted red line indicating
         genome-wide significance.  If ``None``, no line is added.
-    downsample : bool
-        Down-sample before plotting or plot all values.
 
     Returns
     -------
@@ -1498,15 +1509,21 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None,
 
     pvals = -hail.log10(pvals)
 
-    if collect_all:
-        warnings.warn('manhattan: `collect_all` has been deprecated. Use `downsample` instead.')
-        downsample = False
+    if collect_all is not None:
+        warnings.warn('manhattan: `collect_all` has been deprecated. Use `n_divisions` instead.')
+        if n_divisions is not None and collect_all is not None:
+            raise ValueError('At most one of `collect_all` or `n_divisions` must be specified.')
+
+        n_divisions = None if collect_all else n_divisions
+
+    if n_divisions is not None and n_divisions < 1:
+        raise ValueError('`n_divisions` must be a positive whole number or `None`')
 
     source_pd = _collect_scatter_plot_data(
         ('_global_locus', locus.global_position()),
         ('_pval', pvals),
         fields=hover_fields,
-        n_divisions=n_divisions if downsample else None
+        n_divisions=n_divisions
     )
     source_pd['p_value'] = [10 ** (-p) for p in source_pd['_pval']]
     source_pd['_contig'] = [locus.split(":")[0] for locus in source_pd['locus']]
