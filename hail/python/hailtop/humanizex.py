@@ -13,20 +13,23 @@ _MONTH = 30 * _DAY
 
 def _fmt(s: Union[int, float], word: str) -> str:
     s = int(s)
+    if word in SHORTHAND_UNITS:
+        return f'{s}{word}'
     if s == 1:
         return f'{s} {word}'
     return f'{s} {word}s'
 
 
+SHORTHAND_UNITS = {'s', 'ms', 'μs'}
 _units = [
     (_MONTH, 'month'),
     (_WEEK, 'week'),
     (_DAY, 'day'),
     (_HOUR, 'hour'),
     (_MINUTE, 'minute'),
-    (_SECOND, 'second'),
-    (_MILLISECOND, 'millisecond'),
-    (_MICROSECOND, 'microsecond'),
+    (_SECOND, 's'),
+    (_MILLISECOND, 'ms'),
+    (_MICROSECOND, 'μs'),
 ]
 
 
