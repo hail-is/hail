@@ -20,7 +20,7 @@ from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
-    AuthClient,
+    AuthServiceAuthenticator,
     Database,
     UserData,
     check_csrf_token,
@@ -57,7 +57,7 @@ watched_branches: List[WatchedBranch] = []
 
 routes = web.RouteTableDef()
 
-auth = AuthClient()
+auth = AuthServiceAuthenticator()
 
 
 class PRConfig(TypedDict):

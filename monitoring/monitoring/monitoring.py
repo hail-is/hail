@@ -13,7 +13,7 @@ import prometheus_client as pc  # type: ignore
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthClient, Database, json_response, setup_aiohttp_session, transaction
+from gear import AuthServiceAuthenticator, Database, json_response, setup_aiohttp_session, transaction
 from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
@@ -38,7 +38,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthClient()
+auth = AuthServiceAuthenticator()
 
 GCP_REGION = os.environ['HAIL_GCP_REGION']
 BATCH_GCP_REGIONS = set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS']))
