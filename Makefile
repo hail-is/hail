@@ -5,6 +5,7 @@ include config.mk
 SERVICES := auth batch ci monitoring website
 SERVICES_PLUS_ADMIN_POD := $(SERVICES) admin-pod
 SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
+SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
 
@@ -165,16 +166,23 @@ private-repo-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail
 	rm wheel-container.tar
 	echo $(PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE) > $@
 
-.PHONY: docs
-docs:
+hail-0.1-docs-5a6778710097.tar.gz:
+	gcloud storage cp gs://hail-common/builds/0.1/docs/$@ .
+
+hail/build/www: hail-0.1-docs-5a6778710097.tar.gz $(shell git ls-files hail)
 	$(MAKE) -C hail hail-docs-no-test batch-docs
-	gcloud storage cp gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz .
 	mkdir -p hail/build/www/docs/0.1
 	tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
-	rm hail-0.1-docs-5a6778710097.tar.gz
+	touch $@  # Copying into the dir does not necessarily touch it
+
+website/website/docs: hail/build/www
+	cp -r hail/build/www/docs website/website/
+	touch $@  # Copying into the dir does not necessarily touch it
+
+docs.tar.gz: hail/build/www
 	tar czf docs.tar.gz -C hail/build/www .
 
-website-image: docs
+website-image: docs.tar.gz
 
 $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
 	$(eval IMAGE := $(DOCKER_PREFIX)/$*:$(TOKEN))
@@ -214,6 +222,20 @@ vep-grch38-image: hail-ubuntu-image
 	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
 		./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(VEP_GRCH38_IMAGE)
 	echo $(VEP_GRCH38_IMAGE) > $@
+
+.PHONY: local-mysql
+local-mysql:
+	cd docker/mysql && docker compose up -d
+
+.PHONY: $(SERVICES_DATABASES)
+$(SERVICES_DATABASES): %-db: local-mysql
+ifdef DROP
+$(SERVICES_DATABASES): %-db:
+	MYSQL_PWD=pw mysql -h 127.0.0.1 -u root -e 'DROP DATABASE `local-$*`'
+else
+$(SERVICES_DATABASES): %-db:
+	python3 ci/create_local_database.py $* local-$*
+endif
 
 .PHONY: sass-compile-watch
 sass-compile-watch:

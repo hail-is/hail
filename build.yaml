@@ -2295,6 +2295,9 @@ steps:
       - name: add-gcp-support-logs-specs-and-firewall-fees
         script: /io/sql/add-gcp-support-logs-specs-and-firewall-fees.py
         online: true
+      - name: add-product-sku
+        script: /io/sql/add-product-sku.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -3674,7 +3677,7 @@ steps:
     alwaysRun: true
     script: |
       set -ex
-      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+      gcloud -q auth activate-service-account --key-file=/batch-gsa-key/key.json
       set +e
       kubectl -n {{ default_ns.name }} scale deployment batch-driver --replicas=0
       gcloud -q compute instances list \
@@ -3688,10 +3691,10 @@ steps:
           --project {{ global.gcp_project }} \
         | xargs -P8 -n2 -r sh -c 'gcloud -q compute disks delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
     secrets:
-      - name: test-gsa-key
+      - name: batch-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /test-gsa-key
+        mountPath: /batch-gsa-key
     scopes:
       - dev
       - test

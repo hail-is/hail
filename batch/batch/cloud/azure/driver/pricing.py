@@ -21,15 +21,16 @@ class AzureVMPrice(Price):
         preemptible: bool,
         region: str,
         cost_per_hour: float,
+        sku: str,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.machine_type = machine_type
         self.preemptible = preemptible
-        self.region = region
         self.cost_per_hour = cost_per_hour
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def product(self):
@@ -48,16 +49,17 @@ class AzureDiskPrice(Price):
         size_gib: int,
         region: str,
         cost_per_month: float,
+        sku: str,
         effective_start_date: int,
         effective_end_date: Optional[int] = None,
     ):
+        super().__init__(
+            region=region, effective_start_date=effective_start_date, effective_end_date=effective_end_date, sku=sku
+        )
         self.disk_name = disk_name
         self.redundancy_type = redundancy_type
         self.size_gib = size_gib
-        self.region = region
         self.cost_per_month = cost_per_month
-        self.effective_start_date = effective_start_date
-        self.effective_end_date = effective_end_date
 
     @property
     def cost_per_gib_month(self):
@@ -95,6 +97,7 @@ async def vm_prices_by_region(
             continue
         assert data['unitOfMeasure'] == '1 Hour' and data['currencyCode'] == 'USD', data
 
+        sku_id = data['skuId']
         sku_name = data['skuName']
         machine_type = data['armSkuName']
         preemptible = 'Spot' in sku_name
@@ -110,7 +113,7 @@ async def vm_prices_by_region(
             raise ValueError(f'already seen pricing for vm {sku_name}; {seen_data} vs {data}; aborting')
         seen_vm_names[sku_name] = data
 
-        vm_price = AzureVMPrice(machine_type, preemptible, region, vm_cost_per_hour, start_date, end_date)
+        vm_price = AzureVMPrice(machine_type, preemptible, region, vm_cost_per_hour, sku_id, start_date, end_date)
         prices.append(vm_price)
 
     return prices
@@ -129,6 +132,7 @@ async def managed_disk_prices_by_region(
 
         assert data['unitOfMeasure'] == '1/Month' and data['currencyCode'] == 'USD', data
 
+        sku_id = data['skuId']
         sku_name = data['skuName']
         disk_name, redundancy_type = sku_name.split()
         assert redundancy_type in ('LRS', 'ZRS'), redundancy_type
@@ -142,7 +146,7 @@ async def managed_disk_prices_by_region(
         start_date = parse_timestamp_msecs(data['effectiveStartDate'])
         cost_per_month = data['retailPrice']
 
-        disk_price = AzureDiskPrice(disk_name, redundancy_type, size_gib, region, cost_per_month, start_date)
+        disk_price = AzureDiskPrice(disk_name, redundancy_type, size_gib, region, cost_per_month, sku_id, start_date)
         prices.append(disk_price)
 
     return prices

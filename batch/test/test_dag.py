@@ -162,6 +162,7 @@ async def test_callback(client):
         callback_body.pop('duration')
         callback_body.pop('duration_ms')
         callback_body.pop('cost_breakdown')
+        callback_body['attributes'].pop('client_job')
         assert callback_body == {
             'id': b.id,
             'user': 'test',
