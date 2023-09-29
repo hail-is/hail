@@ -2842,7 +2842,7 @@ object NDArrayEmitter {
               .concat("] vs [ ")
           )((accum, v) => accum.concat(v.toS).concat(" "))
             .concat("]"), errorID),
-          (left > right).mux(left, right)))
+          (right ceq 1L).mux(left, right)))
     }
 
     shape

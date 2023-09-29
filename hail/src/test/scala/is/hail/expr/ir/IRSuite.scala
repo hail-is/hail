@@ -1850,12 +1850,29 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(0, 0)), 2.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(0, 1)), 3.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(1, 0)), 2.0)
+
+    val vectorWithEmpty = NDArrayMap2(
+      NDArrayReindex(vectorRowMajor, FastSeq(1, 0)),
+      makeNDArray(FastSeq(), FastSeq(0, 2), True()),
+      "v", "m",
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
+    assertEvalsTo(NDArrayShape(vectorWithEmpty), Row(0L, 2L))
+
+    val colVectorWithEmpty = NDArrayMap2(
+      colVector,
+      makeNDArray(FastSeq(), FastSeq(2, 0), True()),
+      "v", "m",
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
+    assertEvalsTo(NDArrayShape(colVectorWithEmpty), Row(2L, 0L))
   }
 
-  @Test(enabled = false) def testNDArrayAgg() {
+  @Test def testNDArrayAgg() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-    val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
+    val empty = makeNDArrayRef(NDArrayAgg(makeNDArray(IndexedSeq(), IndexedSeq(0, 5), true), IndexedSeq(0, 1)), IndexedSeq())
+    assertEvalsTo(empty, 0.0)
+
+    val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq())
     assertEvalsTo(three, 3.0)
 
     val zero = makeNDArrayRef(NDArrayAgg(vectorRowMajor, IndexedSeq(0)), IndexedSeq.empty)
