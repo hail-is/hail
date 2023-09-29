@@ -126,8 +126,8 @@ object IntervalFunctions extends RegistryFunctions {
 
     cb.define(Leq)
     val c = cb.memoize(lLength - rLength)
-    val ls = cb.ifx(c <= 0, lSign, 0)
-    val rs = cb.ifx(c >= 0, rSign, 0)
+    val ls = cb.mux(c <= 0, lSign, 0)
+    val rs = cb.mux(c >= 0, rSign, 0)
     cb.assign(result, ls - rs)
 
     cb.define(Lafter)

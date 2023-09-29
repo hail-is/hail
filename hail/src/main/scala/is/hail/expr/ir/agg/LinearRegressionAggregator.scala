@@ -234,7 +234,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     val oxty = cb.newLocal[Long]("oxty")
     val oxtx = cb.newLocal[Long]("oxtx")
 
-    cb += Code(FastSeq(
+    cb += Code(
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
       oxty := stateType.loadField(other.off, 0),
@@ -242,22 +242,32 @@ class LinearRegressionAggregator() extends StagedAggregator {
       n := vector.loadLength(xty),
       i := 0,
       sptr := vector.firstElementOffset(xty, n),
-      optr := vector.firstElementOffset(oxty, n),
-      Code.whileLoop(i < n, Code(
+      optr := vector.firstElementOffset(oxty, n)
+    )
+
+    cb.whileLoop(i < n, {
+      cb += Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
         sptr := sptr + scalar.byteSize,
-        optr := optr + scalar.byteSize)),
+        optr := optr + scalar.byteSize
+      )
+    })
 
+    cb += Code(
       n := vector.loadLength(xtx),
       i := 0,
       sptr := vector.firstElementOffset(xtx, n),
-      optr := vector.firstElementOffset(oxtx, n),
-      Code.whileLoop(i < n, Code(
+      optr := vector.firstElementOffset(oxtx, n)
+    )
+
+    cb.whileLoop(i < n, {
+      cb += Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
         sptr := sptr + scalar.byteSize,
-        optr := optr + scalar.byteSize))))
+        optr := optr + scalar.byteSize)
+    })
   }
 
   protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: AbstractTypedRegionBackedAggState, other: AbstractTypedRegionBackedAggState): Unit = {

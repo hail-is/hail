@@ -152,12 +152,14 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
           cb += sab.add(ec.pv.asInt64.value))
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
-      cb += (idx := 0)
-      cb += Code.whileLoop(idx < sab.size,
-        returnArray.update(idx, sab.isMissing(idx).mux(
+      cb.forLoop(
+        cb.assign(idx, 0),
+        idx < sab.size,
+        cb.assign(idx, idx + 1),
+        cb += returnArray.update(idx, sab.isMissing(idx).mux(
           Code._null[java.lang.Long],
-          Code.boxLong(coerce[Long](sab(idx))))),
-        idx := idx + 1
+          Code.boxLong(coerce[Long](sab(idx)))
+        ))
       )
       returnArray
     }

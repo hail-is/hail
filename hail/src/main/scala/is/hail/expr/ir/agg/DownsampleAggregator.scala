@@ -212,7 +212,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb += ob.writeInt(treeSize)
         tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
           val src = cb.newLocal("downsample_state_ser_src", srcCode)
-          cb += Region.loadBoolean(key.storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("bad"))
+          cb.ifx(Region.loadBoolean(key.storageType.loadField(src, "empty")), cb._fatal("bad"))
           val binCode = binType.loadCheapSCode(cb, key.storageType.loadField(src, "bin"))
           binET.buildEncoder(binCode.st, kb).apply(cb, binCode, ob)
 

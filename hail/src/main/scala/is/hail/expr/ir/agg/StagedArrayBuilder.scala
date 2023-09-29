@@ -81,9 +81,9 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
         .apply(cb, region, ib)
       cb.assign(data, eltArray.store(cb, region, decValue, deepCopy = false))
 
-      cb += ib.readInt()
-        .cne(const(StagedArrayBuilder.END_SERIALIZATION))
-        .orEmpty(Code._fatal[Unit](s"StagedArrayBuilder serialization failed"))
+      cb.ifx(ib.readInt() cne StagedArrayBuilder.END_SERIALIZATION,
+        cb._fatal(s"StagedArrayBuilder serialization failed")
+      )
     }
   }
 

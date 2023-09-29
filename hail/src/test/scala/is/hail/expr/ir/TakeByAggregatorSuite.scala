@@ -107,7 +107,7 @@ class TakeByAggregatorSuite extends HailSuite {
             ab.append(cb, new SInt32Value(random))
             cb += (i := i + 1)
           })
-          cb += ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!"))
+          cb.ifx(ab.size cne n, cb._fatal("bad size!"))
           cb += (resultOff := argR.allocate(8L, 16L))
           cb += Region.storeAddress(resultOff, tba.result(cb, argR, rt).a)
           cb += Region.storeAddress(resultOff + 8L, ab.data)

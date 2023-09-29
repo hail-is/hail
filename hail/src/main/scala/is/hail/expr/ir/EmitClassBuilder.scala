@@ -686,32 +686,30 @@ class EmitClassBuilder[C](
     }
   }
 
-  def makeRNGs() {
+  def makeRNGs(): Unit = {
     cb.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
 
-    val initialized = genFieldThisRef[Boolean]()
+    val initialized = genFieldThisRef[Boolean]("initialized")
     val mb = newEmitMethod("setPartitionIndex", IndexedSeq[ParamType](typeInfo[Int]), typeInfo[Unit])
-
     val rngFields = rngs.result()
-    val initialize = Code(
-      Code(rngFields.map { case (field, initialization) =>
-        field := initialization
-      }),
-      threefryRNG match {
-        case Some((field, init)) => field := init
-        case None => Code._empty.get
+
+    mb.voidWithBuilder { cb =>
+      cb.ifx(!initialized, {
+        rngFields.foreach { case (field, init) =>
+          cb.assign(field, init)
+        }
+
+        threefryRNG.foreach { case (field, init) =>
+          cb.assign(field, init)
+        }
+
+        cb.assign(initialized, true)
+      })
+
+      rngFields.foreach { case (field, _) =>
+        cb += field.invoke[Int, Unit]("reset", mb.getCodeParam[Int](1))
       }
-    )
-
-    val reseed = Code(rngFields.map { case (field, _) =>
-      field.invoke[Int, Unit]("reset", mb.getCodeParam[Int](1))
-    })
-
-    mb.emit(Code(
-      initialized.mux(
-        Code._empty,
-        Code(initialize, initialized := true)),
-      reseed))
+    }
   }
 
   def newRNG(seed: Long): Value[IRRandomness] = {

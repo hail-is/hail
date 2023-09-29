@@ -1,13 +1,11 @@
 package is.hail.lir
 
-import java.io.PrintWriter
-
-import is.hail.HailContext
-
-import scala.collection.mutable
 import is.hail.asm4s._
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
+
+import java.io.PrintWriter
+import scala.collection.mutable
 
 // FIXME move typeinfo stuff lir
 
@@ -356,13 +354,7 @@ class Block {
 
     last match {
       case ctrl: ControlX =>
-        var i = 0
-        while (i < ctrl.targetArity()) {
-          if (ctrl.target(i) == null)
-            return false
-          i += 1
-        }
-        true
+        (0 until ctrl.targetArity()).forall(ctrl.target(_) != null)
       case _ => false
     }
   }
@@ -411,9 +403,8 @@ class Block {
 
   def append(x: StmtX): Unit = {
     assert(x.parent == null)
-    if (last.isInstanceOf[ControlX])
-      // if last is a ControlX, x is dead code, so just drop it
-      return
+    assert(!last.isInstanceOf[ControlX], s"StmtX '$x' is redundant after ControlX '$last'.")
+
     if (last == null) {
       first = x
       last = x

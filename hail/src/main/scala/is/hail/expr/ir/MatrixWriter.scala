@@ -1417,7 +1417,7 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
         cb += bp.invoke[Int, Unit]("add", 1)
       }, { case call: SCallValue =>
         val gtIx = cb.memoize(Code.invokeScalaObject1[Call, Int](Call.getClass, "unphasedDiploidGtIndex", call.canonicalCall(cb)))
-        val gt = cb.ifx(gtIx.ceq(0), 3, cb.ifx(gtIx.ceq(1), 2, 0))
+        val gt = cb.mux(gtIx.ceq(0), 3, cb.mux(gtIx.ceq(1), 2, 0))
         cb += bp.invoke[Int, Unit]("add", gt)
       })
     })

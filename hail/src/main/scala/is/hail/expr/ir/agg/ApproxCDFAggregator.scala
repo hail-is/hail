@@ -77,26 +77,22 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
 
   override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
-      cb += Code(
-        ob.writeBoolean(initialized),
-        ob.writeInt(k),
-        initialized.orEmpty(
-          aggr.invoke[OutputBuffer, Unit]("serializeTo", ob)
-        ))
+      cb += ob.writeBoolean(initialized)
+      cb += ob.writeInt(k)
+      cb.ifx(initialized, cb += aggr.invoke[OutputBuffer, Unit]("serializeTo", ob))
   }
 
   override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb, ib: Value[InputBuffer]) =>
-      cb += Code(
-        initialized := ib.readBoolean(),
-        k := ib.readInt(),
-        initialized.orEmpty(
-          Code(
-            aggr := Code.invokeScalaObject2[Int, InputBuffer, ApproxCDFStateManager](
-              ApproxCDFStateManager.getClass, "deserializeFrom", k, ib),
-            id := region.storeJavaObject(aggr)
-          )
-        ))
+      cb.assign(initialized, ib.readBoolean())
+      cb.assign(k, ib.readInt())
+      cb.ifx(initialized, {
+        cb.assign(aggr, Code.invokeScalaObject2[Int, InputBuffer, ApproxCDFStateManager](
+          ApproxCDFStateManager.getClass, "deserializeFrom", k, ib)
+        )
+
+        cb.assign(id, region.storeJavaObject(aggr))
+      })
   }
 
   override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {

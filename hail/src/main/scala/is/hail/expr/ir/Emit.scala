@@ -1733,11 +1733,13 @@ class Emit[C](
 
           val INFOdgetrf = mb.newLocal[Int]()
           val INFOdgetri = mb.newLocal[Int]()
-          val INFOerror = (fun: String, info: LocalRef[Int]) => (info cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error ${ fun }. Error code = ").concat(info.toS), const(errorID)))
 
-          cb.append((N cne M).orEmpty(Code._fatalWithID[Unit](const("Can only invert square matrix"), const(errorID))))
+          def INFOerror(cb: EmitCodeBuilder, fun: String, info: LocalRef[Int]): Unit =
+            cb.ifx(info cne 0,
+              cb._fatalWithError(errorID, const(s"LAPACK error $fun. Error code = ").concat(info.toS))
+            )
 
+          cb.ifx(N cne M, cb._fatalWithError(errorID, "Can only invert square matrix"))
           cb.assign(An, (M * N).toI)
 
           cb.assign(IPIVaddr, IPIVptype.allocate(region, N.toI))
@@ -1754,7 +1756,8 @@ class Emit[C](
             LDA.toI,
             IPIVptype.firstElementOffset(IPIVaddr, N.toI)
           ))
-          cb.append(INFOerror("dgetrf", INFOdgetrf))
+
+          INFOerror(cb, "dgetrf", INFOdgetrf)
 
           cb.assign(WORKaddr, Code.invokeStatic1[Memory, Long, Long]("malloc", An.toL * 8L))
 
@@ -1766,8 +1769,8 @@ class Emit[C](
             WORKaddr,
             N.toI
           ))
-          cb.append(INFOerror("dgetri", INFOdgetri))
 
+          INFOerror(cb, "dgetri", INFOdgetri)
           finish(cb)
         }
 
@@ -1775,8 +1778,11 @@ class Emit[C](
         emitNDArrayColumnMajorStrides(nd).flatMap(cb) { case ndPVal: SNDArrayValue =>
 
           val infoDGESDDResult = cb.newLocal[Int]("infoDGESDD")
-          val infoDGESDDErrorTest = (extraErrorMsg: String) => (infoDGESDDResult cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS), errorID))
+
+          def infoDGESDDErrorTest(cb: EmitCodeBuilder, extraErrorMsg: String): Unit =
+            cb.ifx(infoDGESDDResult cne 0,
+              cb._fatalWithError(errorID, const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS))
+            )
 
           val LWORKAddress = mb.newLocal[Long]("svd_lwork_address")
           val shapes = ndPVal.shapes
@@ -1837,7 +1843,7 @@ class Emit[C](
             IWORK
           ))
 
-          cb.append(infoDGESDDErrorTest("Failed size query."))
+          infoDGESDDErrorTest(cb, "Failed size query.")
 
           cb.assign(IWORK, Code.invokeStatic1[Memory, Long, Long]("malloc", K.toL * 8L * 4L)) // 8K 4 byte integers.
           cb.assign(A, Code.invokeStatic1[Memory, Long, Long]("malloc", M * N * 8L))
@@ -1871,7 +1877,7 @@ class Emit[C](
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", WORK.load()))
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", LWORKAddress.load()))
 
-          cb.append(infoDGESDDErrorTest("Failed result computation."))
+          infoDGESDDErrorTest(cb, "Failed result computation.")
 
           val s = sFinisher(cb)
 
@@ -1957,8 +1963,11 @@ class Emit[C](
           val aNumElements = cb.newLocal[Long]("ndarray_qr_aNumElements")
 
           val infoDGEQRFResult = cb.newLocal[Int]("ndaray_qr_infoDGEQRFResult")
-          val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS), errorID))
+
+          def infoDGEQRFErrorTest(cb: EmitCodeBuilder, extraErrorMsg: String): Unit =
+            cb.ifx(infoDGEQRFResult cne 0,
+              cb._fatalWithError(errorID, const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS))
+            )
 
           // Computing H and Tau
           cb.assign(aNumElements, ndPT.numElements(shapeArray))
@@ -1975,7 +1984,8 @@ class Emit[C](
             LWORKAddress,
             -1
           ))
-          cb.append(infoDGEQRFErrorTest("Failed size query."))
+
+          infoDGEQRFErrorTest(cb, "Failed size query.")
 
           cb.assign(workAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
           cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
@@ -1988,7 +1998,7 @@ class Emit[C](
             LWORK
           ))
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
-          cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
+          infoDGEQRFErrorTest(cb, "Failed to compute H and Tau.")
 
           val h = hFinisher(cb)
 
@@ -2060,8 +2070,11 @@ class Emit[C](
               val qStridesArray = qPType.makeColumnMajorStrides(qShapeArray, cb)
 
               val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
-              val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
-                .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS), errorID))
+
+              def infoDORQRErrorTest(cb: EmitCodeBuilder, extraErrorMsg: String): Unit =
+                cb.ifx(infoDORGQRResult cne 0,
+                  cb._fatalWithError(errorID, const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS))
+                )
 
               val qCondition = cb.newLocal[Boolean]("ndarray_qr_qCondition")
               val numColsToUse = cb.newLocal[Long]("ndarray_qr_numColsToUse")
@@ -2094,7 +2107,8 @@ class Emit[C](
                 LWORKAddress,
                 -1
               ))
-              cb.append(infoDORQRErrorTest("Failed size query."))
+
+              infoDORQRErrorTest(cb, "Failed size query.")
               cb.append(workAddress := Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
               cb.assign(infoDORGQRResult, Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
                 M.toI,
@@ -2107,7 +2121,7 @@ class Emit[C](
                 LWORK
               ))
               cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
-              cb.append(infoDORQRErrorTest("Failed to compute Q."))
+              infoDORQRErrorTest(cb, "Failed to compute Q.")
               val (qFirstElementAddress, qFinisher) = qPType.constructDataFunction(qShapeArray, qStridesArray, cb, region)
               cb.append(Region.copyFrom(aAddressDORGQRFirstElement,
                 qFirstElementAddress, (M * numColsToUse) * 8L))

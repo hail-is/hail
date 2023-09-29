@@ -1,16 +1,17 @@
 package is.hail.asm4s
 
 import java.io.PrintWriter
-
 import is.hail.HailSuite
 import is.hail.asm4s.Code._
 import is.hail.asm4s.FunctionBuilder._
 import is.hail.check.{Gen, Prop}
+import is.hail.utils.HailException
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 import scala.collection.mutable
 import scala.language.postfixOps
+import scala.util.Random
 
 trait Z2Z { def apply(z:Boolean): Boolean }
 
@@ -139,17 +140,17 @@ class ASM4SSuite extends HailSuite {
   @Test def fact(): Unit = {
     val fb = FunctionBuilder[Int, Int]("Fact")
     val i = fb.getArg[Int](1)
-    val r = fb.newLocal[Int]()
-    fb.emit(Code(
-      r.store(1),
-      whileLoop(
-        fb.getArg[Int](1) > 1,
-        Code(
-          r.store(r * i),
-          i.store(i - 1))),
-      r))
-    val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    fb.emitWithBuilder[Int] { cb =>
+      val r = cb.newLocal[Int]("r")
+      cb.assign(r, 1)
+      cb.whileLoop(i > 1, {
+        cb.assign(r, r * i)
+        cb.assign(i, i - 1)
+      })
+      r
+    }
 
+    val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f(3) == 6)
     assert(f(4) == 24)
   }
@@ -186,25 +187,25 @@ class ASM4SSuite extends HailSuite {
 
   @Test def fibonacci(): Unit = {
     val fb = FunctionBuilder[Int, Int]("Fib")
+
     val i = fb.getArg[Int](1)
-    val n = fb.newLocal[Int]()
-    val vn_2 = fb.newLocal[Int]()
-    val vn_1 = fb.newLocal[Int]()
-    val temp = fb.newLocal[Int]()
-    fb.emit(
-      (i < 3).mux(1, Code(
-        vn_2.store(1),
-        vn_1.store(1),
-        whileLoop(
-          i > 3,
-          Code(
-            temp.store(vn_2 + vn_1),
-            vn_2.store(vn_2),
-            vn_1.store(temp),
-            i.store(i - 1)
-          )
-        ),
-        vn_2 + vn_1)))
+    fb.emitWithBuilder[Int] { cb =>
+      val n = cb.newLocal[Int]("n")
+      cb.ifx(i < 3, cb.assign(n, 1), {
+        val vn_1 = cb.newLocal[Int]("vn_1")
+        val vn_2 = cb.newLocal[Int]("vn_2")
+        cb.assign(vn_1, 1)
+        cb.assign(vn_2, 1)
+        cb.whileLoop(i > 3, {
+          val temp = fb.newLocal[Int]()
+          cb.assign(temp, vn_2 + vn_1)
+          cb.assign(vn_1, temp)
+          cb.assign(i, i - 1)
+        })
+        cb.assign(n, vn_2 + vn_1)
+      })
+      n
+    }
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
     Prop.forAll(Gen.choose(0, 100)) { i =>
@@ -328,7 +329,6 @@ class ASM4SSuite extends HailSuite {
     assert(f(2, 2, 8) == 16)
   }
 
-
   @Test def checkLocalVarsOnMethods(): Unit = {
     val fb = FunctionBuilder[Int, Int, Int]("F")
     val add = fb.genMethod[Int, Int, Int]("add")
@@ -399,25 +399,28 @@ class ASM4SSuite extends HailSuite {
   }
 
   @Test def lazyFieldEvaluatesOnce(): Unit = {
-    val fb = FunctionBuilder[Int]("F")
-    val v2 = fb.genFieldThisRef[Int]()
-    val v1 = fb.genLazyFieldThisRef(v2 + 1)
+    val F = FunctionBuilder[Int]("LazyField")
+    val a = F.genFieldThisRef[Int]("a")
+    val lzy = F.genLazyFieldThisRef(a + 1, "lzy")
 
-    fb.emit(Code(
-      v2 := 0,
-      v2 := v1,
-      v2 := v1,
-      v1))
+    F.emit(Code(
+      a := 0,
+      a := lzy,
+      a := lzy,
+      lzy
+    ))
 
-    assert(fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)() == 1)
+    val f = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    assert(f() == 1)
   }
 
   @Test def testInitialize(): Unit = {
     val fb = FunctionBuilder[Boolean, Int]("F")
-    val l = fb.newLocal[Int]()
-    fb.emit(Code(
-      fb.getArg[Boolean](1).mux(Code._empty, l := 5),
-      l))
+    fb.emitWithBuilder { cb =>
+      val a = cb.newLocal[Int]("a")
+      cb.ifx(!fb.getArg[Boolean](1), cb.assign(a, 5))
+      a
+    }
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f(true) == 0)
     assert(f(false) == 5)

@@ -15,15 +15,19 @@ class CodeSuite extends HailSuite {
 
   @Test def testForLoop() {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
-    val mb = fb.apply_method
-    val i = mb.newLocal[Int]()
-    val sum = mb.newLocal[Int]()
-    val code = Code(
-      sum := 0,
-      Code.forLoop(i := 0, i < 5, i := i + 1, sum :=  sum + i),
-      sum.load()
-    )
-    fb.emit(code)
+    fb.emitWithBuilder[Int] { cb =>
+      val i = cb.newLocal[Int]("i")
+      val sum = cb.newLocal[Int]("sum", 0)
+      cb.assign(sum, 0)
+      cb.forLoop(
+        cb.assign(i, 0),
+        i < 5,
+        cb.assign(i, i + 1),
+        cb.assign(sum, sum + i)
+      )
+      sum
+    }
+
     val result = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
     assert(result == 10)
   }

@@ -36,19 +36,9 @@ trait CodeBuilderLike {
 
   // def code: Code[Unit] // debugging only
 
-  protected def uncheckedAppend(c: Code[Unit]): Unit
+  def append(c: Code[Unit]): Unit
 
-  def append(c: Code[Unit]): Unit = {
-    // if (!isOpenEnded) { // stack in lir.Block (X.scala)
-    //   println(code.end.stack.mkString("\n"))
-    // }
-    assert(isOpenEnded)
-    uncheckedAppend(c)
-  }
-
-  def define(L: CodeLabel): Unit = {
-    uncheckedAppend(L)
-  }
+  def define(L: CodeLabel): Unit
 
   def result(): Code[Unit]
 
@@ -80,26 +70,21 @@ trait CodeBuilderLike {
     append(s := coerce[T](v))
   }
 
-  def ifx(c: Code[Boolean], emitThen: => Unit): Unit = {
-    val Ltrue = CodeLabel()
-    val Lafter = CodeLabel()
-    append(c.mux(Ltrue.goto, Lafter.goto))
-    define(Ltrue)
-    emitThen
-    define(Lafter)
-  }
+  def ifx(c: Code[Boolean], emitThen: => Unit): Unit =
+    ifx(c, emitThen, Code._empty)
 
-  def ifx(c: Code[Boolean], emitThen: => Unit, emitElse: => Unit): Unit = {
+  def ifx(cond: Code[Boolean], emitThen: => Unit, emitElse: => Unit): Unit = {
     val Ltrue = CodeLabel()
     val Lfalse = CodeLabel()
-    val Lafter = CodeLabel()
-    append(c.mux(Ltrue.goto, Lfalse.goto))
+    val Lexit = CodeLabel()
+
+    append(cond.branch(Ltrue, Lfalse))
     define(Ltrue)
     emitThen
-    if (isOpenEnded) goto(Lafter)
+    if (isOpenEnded) goto(Lexit)
     define(Lfalse)
     emitElse
-    define(Lafter)
+    define(Lexit)
   }
 
   def loop(emitBody: CodeLabel => Unit): Unit = {
@@ -108,39 +93,30 @@ trait CodeBuilderLike {
     emitBody(Lstart)
   }
 
-  def whileLoop(c: => Code[Boolean], emitBody: (CodeLabel) => Unit): Unit = {
-    val Lstart = CodeLabel()
-    val Lbody = CodeLabel()
-    val Lafter = CodeLabel()
-    define(Lstart)
-    append(c.mux(Lbody.goto, Lafter.goto))
-    define(Lbody)
-    emitBody(Lstart)
-    goto(Lstart)
-    define(Lafter)
-  }
+  def whileLoop(cond: Code[Boolean], emitBody: CodeLabel => Unit): Unit =
+    loop { Lstart =>
+      emitBody(Lstart)
+      ifx(cond, {
+        emitBody(Lstart)
+        goto(Lstart)
+      })
+    }
 
-  def whileLoop(c: => Code[Boolean], emitBody: => Unit): Unit = whileLoop(c, _ => emitBody)
+  def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit =
+    whileLoop(c, _ => emitBody)
 
-  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: (CodeLabel) => Unit): Unit = {
-    val Lstart = CodeLabel()
-    val Lbody = CodeLabel()
-    val Lafter = CodeLabel()
-    val Lincr = CodeLabel()
-
+  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: CodeLabel => Unit): Unit = {
     setup
-    define(Lstart)
-    append(cond.mux(Lbody.goto, Lafter.goto))
-    define(Lbody)
-    emitBody(Lincr)
-    define(Lincr)
-    incr
-    goto(Lstart)
-    define(Lafter)
+    whileLoop(cond, {
+      val Lincr = CodeLabel()
+      emitBody(Lincr)
+      define(Lincr)
+      incr
+    })
   }
 
-  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: => Unit): Unit =
-    forLoop(setup, cond, incr, _ => emitBody)
+  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, body: => Unit): Unit =
+    forLoop(setup, cond, incr, _ => body)
 
   def newLocal[T](name: String)(implicit tti: TypeInfo[T]): LocalRef[T] = mb.newLocal[T](name)
 
@@ -186,6 +162,19 @@ class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBu
     val last = code.end.last
     (last == null) || !last.isInstanceOf[lir.ControlX] || last.isInstanceOf[lir.ThrowX]
   }
+
+  override def append(c: Code[Unit]): Unit = {
+    assert(isOpenEnded)
+    code = Code(code, c)
+  }
+
+  override def define(L: CodeLabel): Unit =
+    if (isOpenEnded) append(L) else {
+      val tmp = code
+      code = new VCode(code.start, L.end, null)
+      tmp.clear()
+      L.clear()
+    }
 
   def uncheckedAppend(c: Code[Unit]): Unit = {
     code = Code(code, c)

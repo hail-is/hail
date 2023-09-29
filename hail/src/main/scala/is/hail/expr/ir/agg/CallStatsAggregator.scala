@@ -44,14 +44,20 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
   }
 
   // unused but extremely useful for debugging if something goes wrong
-  def dump(tag: String): Code[Unit] = {
-    val i = kb.genFieldThisRef[Int]()
-    Code(
-      Code._println(s"at tag $tag"),
-      i := 0,
-      Code.whileLoop(i < nAlleles,
-        Code._println(const("at i=").concat(i.toS).concat(", AC=").concat(alleleCountAtIndex(i, nAlleles).toS).concat(", HOM=").concat(homCountAtIndex(i, nAlleles).toS)),
-        i := i + 1)
+  def dump(cb: CodeBuilderLike, tag: String): Unit = {
+    val i = cb.newLocal[Int]("i")
+    cb += Code._println(s"at tag $tag")
+    cb.forLoop(
+      setup = cb.assign(i, 0),
+      cond = i < nAlleles,
+      incr = cb.assign(i, i + 1),
+      body = {
+        cb += Code._println(
+          const("at i=") + i.toS +
+            ", AC=" + alleleCountAtIndex(i, nAlleles).toS +
+            ", HOM=" + homCountAtIndex(i, nAlleles).toS
+        )
+      }
     )
   }
 

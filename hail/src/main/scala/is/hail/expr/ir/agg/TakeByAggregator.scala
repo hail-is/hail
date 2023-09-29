@@ -184,9 +184,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.assign(maxSize, ib.readInt())
           ab.deserialize(codec)(cb, ib)
           initStaging(cb)
-          cb += ib.readInt()
-            .cne(const(TakeByRVAS.END_SERIALIZATION))
-            .orEmpty(Code._fatal[Unit](s"StagedSizedKeyValuePriorityQueue serialization failed"))
+          cb.ifx(ib.readInt() cne TakeByRVAS.END_SERIALIZATION,
+            cb._fatal(s"StagedSizedKeyValuePriorityQueue serialization failed")
+          )
         }
       )({ cb =>
         cb.assign(maxGarbage, ib.readInt())
