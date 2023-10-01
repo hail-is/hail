@@ -158,7 +158,7 @@ jproperties==2.1.1
     #   -r hail/hail/python/hailtop/requirements.txt
 markupsafe==2.1.3
     # via jinja2
-msal==1.24.0
+msal==1.24.1
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
