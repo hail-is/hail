@@ -92,7 +92,7 @@ jmespath==1.0.1
     #   botocore
 jproperties==2.1.1
     # via -r hail/hail/python/hailtop/requirements.txt
-msal==1.24.0
+msal==1.24.1
     # via
     #   azure-identity
     #   msal-extensions
