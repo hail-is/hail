@@ -55,10 +55,10 @@ pylint-%:
 
 .PHONY: check-%-fast
 check-%-fast:
-	# ruff check $*
-	# $(PYTHON) -m pyright $*
-	# $(PYTHON) -m black $* --check --diff
-	# curlylint $*
+	ruff check $*
+	$(PYTHON) -m pyright $*
+	$(PYTHON) -m black $* --check --diff
+	curlylint $*
 	cd $* && bash ../check-sql.sh
 
 .PHONY: check-%
