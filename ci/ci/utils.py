@@ -40,7 +40,12 @@ ON DUPLICATE KEY UPDATE namespace = namespace;
 
 
 def generate_gcp_service_logging_url(
-    project: str, services: List[str], namespace: str, start_time: str, end_time: str, severity: Optional[List[str]]
+    project: str,
+    services: List[str],
+    namespace: str,
+    start_time: str,
+    end_time: Optional[str],
+    severity: Optional[List[str]],
 ):
     service_queries = []
     for service in services:
@@ -62,13 +67,15 @@ resource.labels.container_name="{service}"
             severity_queries.append(f'severity={level}')
         query += ' OR '.join(severity_queries)
 
-    timestamp_query = f';startTime={start_time};endTime={end_time}'
+    timestamp_query = f';startTime={start_time}'
+    if end_time is not None:
+        timestamp_query += f';endTime = {end_time}'
 
     return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote_plus(query)};{urllib.parse.quote_plus(timestamp_query)}?project={project}'
 
 
 def generate_gcp_worker_logging_url(
-    project: str, namespace: str, start_time: str, end_time: str, severity: Optional[List[str]]
+    project: str, namespace: str, start_time: str, end_time: Optional[str], severity: Optional[List[str]]
 ):
     query = f'''
 (
@@ -84,6 +91,8 @@ labels.namespace="{namespace}"
             severity_queries.append(f'severity={level}')
         query += ' OR '.join(severity_queries)
 
-    timestamp_query = f';startTime={start_time};endTime={end_time}'
+    timestamp_query = f';startTime={start_time}'
+    if end_time is not None:
+        timestamp_query += f';endTime = {end_time}'
 
     return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote_plus(query)};{urllib.parse.quote_plus(timestamp_query)}?project={project}'

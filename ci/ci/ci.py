@@ -190,6 +190,8 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
             if CLOUD == 'gcp':
                 start_time = status['time_created']
                 end_time = status['time_completed']
+                assert start_time is not None
+                assert PROJECT is not None
 
                 page_context['logging_queries'] = {
                     'batch-k8s-error-warning': generate_gcp_service_logging_url(
