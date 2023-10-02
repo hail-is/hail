@@ -230,6 +230,7 @@ class ServiceBackend(Backend):
         jar_url = configuration_of(ConfigVariable.QUERY_JAR_URL, jar_url, None)
         jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
 
+        name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
         batch_attributes: Dict[str, str] = {
             'hail-version': version(),
         }
@@ -240,7 +241,6 @@ class ServiceBackend(Backend):
         driver_memory = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_MEMORY, driver_memory, None)
         worker_cores = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, None)
         worker_memory = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None)
-        name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
 
         if regions is None:
             regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, None)
@@ -287,7 +287,6 @@ class ServiceBackend(Backend):
             driver_memory=driver_memory,
             worker_cores=worker_cores,
             worker_memory=worker_memory,
-            name_prefix=name_prefix or '',
             regions=regions
         )
         sb._initialize_flags(flags)
@@ -307,7 +306,6 @@ class ServiceBackend(Backend):
                  driver_memory: Optional[str],
                  worker_cores: Optional[Union[int, str]],
                  worker_memory: Optional[str],
-                 name_prefix: str,
                  regions: List[str]):
         super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
@@ -327,7 +325,6 @@ class ServiceBackend(Backend):
         self.driver_memory = driver_memory
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
-        self.name_prefix = name_prefix
         self.regions = regions
 
         self._batch: aiohb.Batch = self._create_batch()
