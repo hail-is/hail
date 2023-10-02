@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -o pipefail
 
 # Verify the the working tree modifies no sql files relative to the main
 # branch. This will always pass on a deploy because the working tree is an
