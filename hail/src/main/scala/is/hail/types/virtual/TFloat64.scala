@@ -18,9 +18,9 @@ case object TFloat64 extends TNumeric {
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Double]
 
-  override def _showStr(a: Annotation): String = a.asInstanceOf[Double].formatted("%.02e")
+  override def _showStr(a: Annotation): String = "%.02e".format(a.asInstanceOf[Double])
 
-  override def str(a: Annotation): String = if (a == null) "NA" else a.asInstanceOf[Double].formatted("%.5e")
+  override def str(a: Annotation): String = if (a == null) "NA" else "%.5e".format(a.asInstanceOf[Double])
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = arbitrary[Double]
 

@@ -24,7 +24,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   override def compWithKey(cb: EmitCodeBuilder, off: Value[Long], k: EmitValue): Value[Int] = {
     val mb = kb.getOrGenEmitMethod("compWithKey",
       ("compWithKey_grouped_btree", kt, k.emitType),
-      FastIndexedSeq[ParamType](typeInfo[Long], k.emitParamType),
+      FastSeq[ParamType](typeInfo[Long], k.emitParamType),
       typeInfo[Int]
     ) { mb =>
       val comp = kb.getOrderingFunction(compType.sType, k.st, CodeOrdering.Compare())

@@ -5,10 +5,10 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64Value
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalString, PType}
 import is.hail.types.virtual.{TString, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 case object SJavaString extends SString {
   override val virtualType: TString.type = TString
@@ -28,7 +28,7 @@ case object SJavaString extends SString {
     }
   }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(classInfo[String])
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(classInfo[String])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaStringSettable = {
     val IndexedSeq(s: Settable[String@unchecked]) = settables
@@ -51,7 +51,7 @@ case object SJavaString extends SString {
 class SJavaStringValue(val s: Value[String]) extends SStringValue {
   override def st: SString = SJavaString
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(s)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(s)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(s.invoke[Int]("length"))
@@ -76,7 +76,7 @@ object SJavaStringSettable {
 }
 
 final class SJavaStringSettable(override val s: Settable[String]) extends SJavaStringValue(s) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(s)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(s)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
     cb.assign(s, v.asInstanceOf[SJavaStringValue].s)

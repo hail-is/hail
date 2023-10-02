@@ -75,11 +75,11 @@ def set_query_name(init_hail, request):
         for rg in references:
             backend.remove_reference(rg)
         backend.initialize_references()
-        if backend._batch:
+        if backend._batch_was_submitted:
             report: Dict[str, CollectReport] = request.node.stash[test_results_key]
             if any(r.failed for r in report.values()):
                 log.info(f'cancelling failed test batch {backend._batch.id}')
                 asyncio.get_event_loop().run_until_complete(backend._batch.cancel())
-            backend._batch = None
+            backend._batch = backend._create_batch()
     else:
         yield

@@ -109,5 +109,5 @@ case class VariantSubgen(
         altGen)
         .filter(!_.contains(ref))
     } yield
-      Annotation(Locus(contig, start), (ref +: altAlleles).toFastIndexedSeq)
+      Annotation(Locus(contig, start), (ref +: altAlleles).toFastSeq)
 }

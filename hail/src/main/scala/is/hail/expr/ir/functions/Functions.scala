@@ -2,19 +2,18 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir._
-import is.hail.types._
-import is.hail.utils._
-import is.hail.asm4s.coerce
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.experimental.ExperimentalFunctions
+import is.hail.expr.ir._
 import is.hail.io.bgen.BGENFunctions
+import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
+import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.virtual._
+import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 
@@ -73,8 +72,8 @@ object IRFunctionRegistry {
   ): Unit = {
     requireJavaIdentifier(name)
 
-    val typeParameters = typeParamStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
-    val valueParameterTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
+    val typeParameters = typeParamStrs.asScala.map(IRParser.parseType).toFastSeq
+    val valueParameterTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastSeq
     userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
     addIR(name,
       typeParameters,
@@ -95,8 +94,8 @@ object IRFunctionRegistry {
   ): Unit = {
     requireJavaIdentifier(name)
 
-    val typeParameters = typeParamStrs.map(IRParser.parseType).toFastIndexedSeq
-    val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastIndexedSeq
+    val typeParameters = typeParamStrs.map(IRParser.parseType).toFastSeq
+    val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastSeq
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
     val body = IRParser.parse_value_ir(
       bodyStr,
@@ -407,7 +406,7 @@ abstract class RegistryFunctions {
         override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: SValue*): SValue = {
           assert(unify(typeParameters, args.map(_.st.virtualType), returnSType.virtualType))
           val returnValue = impl(r, cb, returnSType, typeParameters.toArray, args.toArray)
-          returnSType.fromValues(FastIndexedSeq(returnValue))
+          returnSType.fromValues(FastSeq(returnValue))
         }
       })
   }
@@ -478,7 +477,7 @@ abstract class RegistryFunctions {
       val returnValue = cb.memoizeAny(
         Code.invokeScalaObject(cls, method, cts, args.map { a => SType.extractPrimValue(cb, a).get })(PrimitiveTypeToIRIntermediateClassTag(returnType)),
         rt.settableTupleTypes()(0))
-      rt.fromValues(FastIndexedSeq(returnValue))
+      rt.fromValues(FastSeq(returnValue))
     }
   }
 
@@ -730,13 +729,13 @@ abstract class UnseededMissingnessObliviousJVMFunction (
   def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: SValue*): SValue
 
   def apply(r: EmitRegion, returnType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: EmitCode*): EmitCode = {
-    EmitCode.fromI(r.mb)(cb => IEmitCode.multiMapEmitCodes(cb, args.toFastIndexedSeq) { args =>
+    EmitCode.fromI(r.mb)(cb => IEmitCode.multiMapEmitCodes(cb, args.toFastSeq) { args =>
       apply(r, cb, returnType, typeParameters, errorID, args: _*)
     })
   }
 
   def applyI(r: EmitRegion, cb: EmitCodeBuilder, returnType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: EmitCode*): IEmitCode = {
-    IEmitCode.multiMapEmitCodes(cb, args.toFastIndexedSeq) { args =>
+    IEmitCode.multiMapEmitCodes(cb, args.toFastSeq) { args =>
       apply(r, cb, returnType, typeParameters, errorID, args: _*)
     }
   }
@@ -744,7 +743,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
   def getAsMethod[C](cb: EmitClassBuilder[C], rpt: SType, typeParameters: Seq[Type], args: SType*): EmitMethodBuilder[C] = {
     val unified = unify(typeParameters, args.map(_.virtualType), rpt.virtualType)
     assert(unified, name)
-    val methodbuilder = cb.genEmitMethod(name, FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Int]) ++ args.map(_.paramType), rpt.paramType)
+    val methodbuilder = cb.genEmitMethod(name, FastSeq[ParamType](typeInfo[Region], typeInfo[Int]) ++ args.map(_.paramType), rpt.paramType)
     methodbuilder.emitSCode(cb => apply(EmitRegion.default(methodbuilder),
       cb,
       rpt,

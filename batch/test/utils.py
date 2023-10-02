@@ -23,7 +23,12 @@ def create_batch(client: aiobc.BatchClient, **kwargs) -> aiobc.Batch:
 def create_batch(client: Union[bc.BatchClient, aiobc.BatchClient], **kwargs) -> Union[bc.Batch, aiobc.Batch]:
     name_of_test_method = inspect.stack()[1][3]
     attrs = kwargs.pop('attributes', {})  # Tests should be able to override the name
-    return client.create_batch(attributes={'name': name_of_test_method, **attrs}, **kwargs)
+    attributes = {'name': name_of_test_method, **attrs}
+    this_batch_id = os.environ.get('HAIL_BATCH_ID')
+    this_job_id = os.environ.get('HAIL_JOB_ID')
+    if this_batch_id and this_job_id:
+        attributes['client_job'] = f'{this_batch_id}-{this_job_id}'
+    return client.create_batch(attributes, **kwargs)
 
 
 def batch_status_job_counter(batch_status, job_state):

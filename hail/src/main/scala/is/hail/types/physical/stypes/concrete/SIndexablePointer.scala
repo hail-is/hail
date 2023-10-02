@@ -3,12 +3,11 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
-import is.hail.types.physical._
-import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.Type
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 
 final case class SIndexablePointer(pType: PContainer) extends SContainer {
@@ -29,7 +28,7 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
         new SIndexablePointerValue(this, a, value.loadLength(), cb.memoize(pType.firstElementOffset(a)))
     }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo, IntInfo, LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SIndexablePointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked], length: Settable[Int@unchecked], elementsAddress: Settable[Long@unchecked]) = settables
@@ -62,7 +61,7 @@ class SIndexablePointerValue(
 ) extends SIndexableValue {
   val pt: PContainer = st.pType
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, length, elementsAddress)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a, length, elementsAddress)
 
   override def loadLength(): Value[Int] = length
 
@@ -123,7 +122,7 @@ final class SIndexablePointerSettable(
   override val length: Settable[Int],
   override val elementsAddress: Settable[Long]
 ) extends SIndexablePointerValue(st, a, length, elementsAddress) with SSettable {
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
+  def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a, length, elementsAddress)
 
   def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SIndexablePointerValue =>

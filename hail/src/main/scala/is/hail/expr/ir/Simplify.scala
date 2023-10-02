@@ -304,7 +304,7 @@ object Simplify {
     case ArraySlice(z@ToArray(s), x@I32(i), Some(I32(j)), I32(1), _) if i > 0 && j > 0 => {
       if (j > i) {
         ToArray(StreamTake(StreamDrop(s, x), I32(j-i)))
-      } else new MakeArray(FastIndexedSeq(), z.typ.asInstanceOf[TArray])
+      } else new MakeArray(FastSeq(), z.typ.asInstanceOf[TArray])
     }
 
     case ArraySlice(ToArray(s), x@I32(i), None, I32(1), _) if i >= 0 =>
@@ -314,7 +314,7 @@ object Simplify {
 
     case StreamFilter(a, _, True()) => a
 
-    case StreamFor(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
+    case StreamFor(_, _, Begin(Seq())) => Begin(FastSeq())
 
     // FIXME: Unqualify when StreamFold supports folding over stream of streams
     case StreamFold(StreamMap(a, n1, b), zero, accumName, valueName, body) if a.typ.asInstanceOf[TStream].elementType.isRealizable => StreamFold(a, zero, accumName, n1, Let(valueName, b, body))
@@ -425,7 +425,7 @@ object Simplify {
       val newFieldRefs = newFieldMap.map { case (k, ir) =>
         (k, Ref(genUID(), ir.typ))
       } // cannot be mapValues, or genUID() gets run for every usage!
-      def copiedNewFieldRefs(): IndexedSeq[(String, IR)] = fieldNames.map(name => (name, newFieldRefs(name).deepCopy())).toFastIndexedSeq
+      def copiedNewFieldRefs(): IndexedSeq[(String, IR)] = fieldNames.map(name => (name, newFieldRefs(name).deepCopy())).toFastSeq
 
       def rewrite(ir1: IR): IR = ir1 match {
         case GetField(Ref(`name`, _), fd) => newFieldRefs.get(fd) match {
@@ -437,9 +437,9 @@ object Simplify {
           InsertFields(Ref(name, old.typ),
             copiedNewFieldRefs().filter { case (name, _) => !newFieldSet.contains(name) }
               ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
-            Some(ins.typ.fieldNames.toFastIndexedSeq))
+            Some(ins.typ.fieldNames.toFastSeq))
         case SelectFields(Ref(`name`, _), fds) =>
-          SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames.toFastIndexedSeq)), fds)
+          SelectFields(InsertFields(Ref(name, old.typ), copiedNewFieldRefs(), Some(x.typ.fieldNames.toFastSeq)), fds)
         case ta: TableAggregate => ta
         case ma: MatrixAggregate => ma
         case _ => ir1.mapChildrenWithIndex {
@@ -468,7 +468,7 @@ object Simplify {
       val insertFields2 = insertFields.filter { case (fName, _) => selectSet.contains(fName) }
       val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
       val selectFields2 = selectFields.filter(structSet.contains)
-      val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2, Some(selectFields.toFastIndexedSeq))
+      val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2, Some(selectFields.toFastSeq))
       assert(x2.typ == x.typ)
       x2
 
@@ -479,7 +479,7 @@ object Simplify {
       val (oldFields, newFields) =
         insertFields.partition {  case (name, f) => f == GetField(struct, name) }
       val preservedFields = selectFields.filter(f => !insertNames.contains(f)) ++ oldFields.map(_._1)
-      InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields.toFastIndexedSeq))
+      InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields.toFastSeq))
 
     case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
@@ -503,8 +503,8 @@ object Simplify {
     case TableCount(TableExplode(child, path)) =>
       TableAggregate(child,
         ApplyAggOp(
-          FastIndexedSeq(),
-          FastIndexedSeq(ArrayLen(CastToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
+          FastSeq(),
+          FastSeq(ArrayLen(CastToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
           AggSignature(Sum(), FastSeq(), FastSeq(TInt64))))
 
     case MatrixCount(child) if child.partitionCounts.isDefined || child.columnCount.isDefined =>
@@ -594,7 +594,7 @@ object Simplify {
           GetField(Ref(left, kvElement.typ), "key"),
           GetField(Ref(right, kvElement.typ), "key")))
       Let(uid,
-        TableCollect(TableKeyBy(child, FastIndexedSeq())),
+        TableCollect(TableKeyBy(child, FastSeq())),
         MakeStruct(FastSeq(
           ("rows", ToArray(StreamMap(ToStream(sorted),
             uid3,
@@ -604,12 +604,12 @@ object Simplify {
     case GetField(TableCollect(child), "global") => TableGetGlobals(child)
 
     case TableAggregate(child, query) if child.typ.key.nonEmpty && !ContainsNonCommutativeAgg(query) =>
-      TableAggregate(TableKeyBy(child, FastIndexedSeq(), false), query)
+      TableAggregate(TableKeyBy(child, FastSeq(), false), query)
     case TableAggregate(TableOrderBy(child, _), query) if !ContainsNonCommutativeAgg(query) =>
       if (child.typ.key.isEmpty)
         TableAggregate(child, query)
       else
-        TableAggregate(TableKeyBy(child, FastIndexedSeq(), false), query)
+        TableAggregate(TableKeyBy(child, FastSeq(), false), query)
     case TableAggregate(TableMapRows(child, newRow), query) if !ContainsScan(newRow) =>
       val uid = genUID()
       TableAggregate(child,
@@ -841,14 +841,14 @@ object Simplify {
       val te =
         TableExplode(
           TableKeyByAndAggregate(child,
-            MakeStruct(FastIndexedSeq(
+            MakeStruct(FastSeq(
               "row" -> ApplyAggOp(
-                FastIndexedSeq(I32(n.toInt)),
+                FastSeq(I32(n.toInt)),
                 Array(row, keyStruct),
                 aggSig))),
-            MakeStruct(FastIndexedSeq()), // aggregate to one row
+            MakeStruct(FastSeq()), // aggregate to one row
             Some(1), 10),
-          FastIndexedSeq("row"))
+          FastSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
 
     case TableDistinct(TableDistinct(child)) => TableDistinct(child)
@@ -858,7 +858,7 @@ object Simplify {
     case TableDistinct(TableRepartition(child, n, strategy)) => TableRepartition(TableDistinct(child), n, strategy)
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) =>
-      TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
+      TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
 
     case TableKeyByAndAggregate(child, expr, newKey, _, _)
       if (newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k))) ||
@@ -908,7 +908,7 @@ object Simplify {
       else
       // remove means union intervals
         Interval.union(i1 ++ i2, ord)
-      TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
+      TableFilterIntervals(child, intervals.toFastSeq, keep1)
 
       // FIXME: Can try to serialize intervals shorter than the key
       // case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if !child.typ.key.startsWith(keys) =>
@@ -1073,8 +1073,8 @@ object Simplify {
     case BlockMatrixMap(matrix, name, ir, _) if IsConstant(ir) || (ir.isInstanceOf[Ref] && ir.asInstanceOf[Ref].name != name) =>
       val typ = matrix.typ
       BlockMatrixBroadcast(
-        ValueToBlockMatrix(ir, FastIndexedSeq(1, 1), typ.blockSize),
-        FastIndexedSeq(),
+        ValueToBlockMatrix(ir, FastSeq(1, 1), typ.blockSize),
+        FastSeq(),
         typ.shape,
         typ.blockSize
       )

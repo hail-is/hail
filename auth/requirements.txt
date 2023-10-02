@@ -1,4 +1,0 @@
--c ../hail/python/pinned-requirements.txt
--c ../hail/python/dev/pinned-requirements.txt
--c ../gear/pinned-requirements.txt
--c ../web_common/pinned-requirements.txt

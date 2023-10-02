@@ -8,7 +8,7 @@ import jinja2
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthClient, monitor_endpoints_middleware, setup_aiohttp_session
+from gear import AuthServiceAuthenticator, monitor_endpoints_middleware, setup_aiohttp_session
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -20,7 +20,7 @@ log = logging.getLogger('website')
 deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
 
-auth = AuthClient()
+auth = AuthServiceAuthenticator()
 
 
 def redirect(from_url, to_url):
@@ -135,7 +135,7 @@ def run(local_mode):
     web.run_app(
         deploy_config.prefix_application(app, 'www'),
         host='0.0.0.0',
-        port=5000,
+        port=int(os.environ.get('PORT', 5000)),
         access_log_class=AccessLogger,
         ssl_context=None if local_mode else internal_server_ssl_context(),
     )

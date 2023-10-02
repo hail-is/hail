@@ -207,7 +207,6 @@ steps:
           hail/python/dev \
           gear \
           web_common \
-          auth \
           batch \
           ci
     inputs:
@@ -1468,7 +1467,6 @@ steps:
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
         COPY gear/pinned-requirements.txt gear-requirements.txt
         COPY web_common/pinned-requirements.txt web_common-requirements.txt
-        COPY auth/pinned-requirements.txt auth-requirements.txt
         COPY batch/pinned-requirements.txt batch-requirements.txt
         COPY ci/pinned-requirements.txt ci-requirements.txt
         RUN python3 -m pip install \
@@ -1476,7 +1474,6 @@ steps:
             -r dev-requirements.txt \
             -r gear-requirements.txt \
             -r web_common-requirements.txt \
-            -r auth-requirements.txt \
             -r batch-requirements.txt \
             -r ci-requirements.txt
     publishAs: linting
@@ -1489,8 +1486,6 @@ steps:
         to: /io/repo/gear/pinned-requirements.txt
       - from: /repo/web_common/pinned-requirements.txt
         to: /io/repo/web_common/pinned-requirements.txt
-      - from: /repo/auth/pinned-requirements.txt
-        to: /io/repo/auth/pinned-requirements.txt
       - from: /repo/batch/pinned-requirements.txt
         to: /io/repo/batch/pinned-requirements.txt
       - from: /repo/ci/pinned-requirements.txt
@@ -2294,6 +2289,14 @@ steps:
         online: true
       - name: cleanup-deprecated-functions
         script: /io/sql/cleanup-deprecated-functions.sql
+        online: true
+      - name: set-test-pools-to-known-parameters
+        script: /io/sql/set-test-pools-to-known-parameters.py
+      - name: add-gcp-support-logs-specs-and-firewall-fees
+        script: /io/sql/add-gcp-support-logs-specs-and-firewall-fees.py
+        online: true
+      - name: add-product-sku
+        script: /io/sql/add-product-sku.sql
         online: true
     inputs:
       - from: /repo/batch/sql
@@ -3303,7 +3306,9 @@ steps:
                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
                              docker://{{ hailgenetics_vep_grch38_95_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
-                             /io/www.tar.gz
+                             /io/www.tar.gz \
+                             {{ global.gcp_project }} \
+                             /io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3672,7 +3677,7 @@ steps:
     alwaysRun: true
     script: |
       set -ex
-      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+      gcloud -q auth activate-service-account --key-file=/batch-gsa-key/key.json
       set +e
       kubectl -n {{ default_ns.name }} scale deployment batch-driver --replicas=0
       gcloud -q compute instances list \
@@ -3686,10 +3691,10 @@ steps:
           --project {{ global.gcp_project }} \
         | xargs -P8 -n2 -r sh -c 'gcloud -q compute disks delete --zone "$1" --project {{ global.gcp_project }} "$2" || true' argv0
     secrets:
-      - name: test-gsa-key
+      - name: batch-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /test-gsa-key
+        mountPath: /batch-gsa-key
     scopes:
       - dev
       - test

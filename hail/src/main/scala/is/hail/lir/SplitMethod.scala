@@ -60,7 +60,7 @@ class SplitMethod(
 
   private val spillsClass = new Classx(genName("C", s"${ m.name }Spills"), "java/lang/Object", None)
   private val spillsCtor = {
-    val ctor = spillsClass.newMethod("<init>", FastIndexedSeq(), UnitInfo)
+    val ctor = spillsClass.newMethod("<init>", FastSeq(), UnitInfo)
     val L = new Block()
     ctor.setEntry(L)
     L.append(
@@ -70,7 +70,7 @@ class SplitMethod(
         "()V",
         false,
         UnitInfo,
-        FastIndexedSeq(load(ctor.getParam(0)))))
+        FastSeq(load(ctor.getParam(0)))))
     L.append(returnx())
     ctor
   }
@@ -100,7 +100,7 @@ class SplitMethod(
     val tcls = classOf[SplitUnreachable]
     val c = tcls.getDeclaredConstructor()
     throwx(newInstance(ti,
-      Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), ti, FastIndexedSeq()))
+      Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), ti, FastSeq()))
   }
 
   private val spills = m.newLocal("spills", spillsClass.ti)
@@ -317,7 +317,7 @@ class SplitMethod(
       case _: ThrowX => UnitInfo
     }
 
-    val splitM = c.newMethod(s"${ m.name }_region${ start }_$end", FastIndexedSeq(spillsClass.ti), returnTI)
+    val splitM = c.newMethod(s"${ m.name }_region${ start }_$end", FastSeq(spillsClass.ti), returnTI)
     splitMethods += splitM
 
     splitM.setEntry(Lstart)

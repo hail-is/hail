@@ -4,8 +4,7 @@ import is.hail.expr.ir.IRParser._
 import is.hail.expr.ir.{IRParser, PunctuationToken, TokenIterator}
 import is.hail.types.encoded._
 import is.hail.types.virtual._
-import is.hail.rvd.RVDType
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 object LegacyEncodedTypeParser {
 
@@ -22,7 +21,7 @@ object LegacyEncodedTypeParser {
         punctuation(it, "[")
         val (pointType, ePointType) = legacy_type_expr(it)
         punctuation(it, "]")
-        (TInterval(pointType), EBaseStruct(FastIndexedSeq(
+        (TInterval(pointType), EBaseStruct(FastSeq(
           EField("start", ePointType, 0),
           EField("end", ePointType, 1),
           EField("includesStart", EBooleanRequired, 2),
@@ -39,7 +38,7 @@ object LegacyEncodedTypeParser {
         punctuation(it, "(")
         val rg = identifier(it)
         punctuation(it, ")")
-        (TLocus(rg), EBaseStruct(FastIndexedSeq(
+        (TLocus(rg), EBaseStruct(FastSeq(
           EField("contig", EBinaryRequired, 0),
           EField("position", EInt32Required, 1)), req))
       case "Call" => (TCall, EInt32(req))
@@ -59,7 +58,7 @@ object LegacyEncodedTypeParser {
         punctuation(it, ",")
         val (valueType, valueEType) = legacy_type_expr(it)
         punctuation(it, "]")
-        (TDict(keyType, valueType), EArray(EBaseStruct(FastIndexedSeq(
+        (TDict(keyType, valueType), EArray(EBaseStruct(FastSeq(
           EField("key", keyEType, 0),
           EField("value", valueEType, 1)), required = true),
           req))
