@@ -19,6 +19,13 @@ def client():
     client.close()
 
 
+@pytest.fixture
+async def async_client():
+    client = await aioclient.BatchClient.create('test')
+    yield client
+    await client.close()
+
+
 def test_simple(client):
     batch = create_batch(client)
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
@@ -116,7 +123,7 @@ def test_cancel_left_after_tail(client):
         assert node_status['state'] == 'Cancelled', str((node_status, batch.debug_info()))
 
 
-async def test_callback(client):
+async def test_callback(async_client: aioclient.BatchClient):
     app = web.Application()
     callback_bodies = []
     callback_event = asyncio.Event()
@@ -141,11 +148,11 @@ async def test_callback(client):
     try:
         token = secrets.token_urlsafe(32)
         b = create_batch(
-            client, callback=url_for('/test'), attributes={'foo': 'bar', 'name': 'test_callback'}, token=token
+            async_client, callback=url_for('/test'), attributes={'foo': 'bar', 'name': 'test_callback'}, token=token
         )
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
         b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
-        b.submit()
+        await b.submit()
         await asyncio.wait_for(callback_event.wait(), 5 * 60)
         callback_body = callback_bodies[0]
 
