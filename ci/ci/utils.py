@@ -69,9 +69,9 @@ resource.labels.container_name="{service}"
 
     timestamp_query = f';startTime={start_time}'
     if end_time is not None:
-        timestamp_query += f';endTime = {end_time}'
+        timestamp_query += f';endTime={end_time}'
 
-    return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote_plus(query)};{urllib.parse.quote_plus(timestamp_query)}?project={project}'
+    return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote(query)};{urllib.parse.quote(timestamp_query)}?project={project}'
 
 
 def generate_gcp_worker_logging_url(
@@ -93,6 +93,6 @@ labels.namespace="{namespace}"
 
     timestamp_query = f';startTime={start_time}'
     if end_time is not None:
-        timestamp_query += f';endTime = {end_time}'
+        timestamp_query += f';endTime={end_time}'
 
-    return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote_plus(query)};{urllib.parse.quote_plus(timestamp_query)}?project={project}'
+    return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote(query)};{urllib.parse.quote(timestamp_query)}?project={project}'
