@@ -1171,6 +1171,14 @@ def test_hstack():
     assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([a, b]))), np.hstack((a, b))))
     assert_table(a, b)
 
+    empty = np.array([], np.int64).reshape((3, 0))
+    assert(np.array_equal(hl.eval(hl.nd.hstack((a, empty))), np.hstack((a, empty))))
+    assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([a, empty]))), np.hstack((a, empty))))
+    assert(np.array_equal(hl.eval(hl.nd.hstack((empty, a))), np.hstack((empty, a))))
+    assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([empty, a]))), np.hstack((empty, a))))
+    assert_table(a, empty)
+    assert_table(empty, a)
+
 
 def test_eye():
     for i in range(13):
