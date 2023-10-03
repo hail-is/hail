@@ -100,22 +100,69 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
     val len = cb.newLocal[Int]("len", in.readInt())
     val array = cb.newLocal[Long]("array", arrayType.allocate(region, len))
+    val elemAddr = cb.newLocal[Long]("elemAddr", arrayType.firstElementOffset(array, len))
     arrayType.storeLength(cb, array, len)
 
     val i = cb.newLocal[Int]("i")
+    val mbyteOffset = cb.newLocal[Long]("mbyteOffset", array + arrayType.lengthHeaderBytes)
+    val mbyte = cb.newLocal[Byte]("mbyte", 0.toByte)
+    val presentBitsLong = cb.newLocal[Long]("presentBitsLong", 0)
+    val inBlockIndexToPresentValue = cb.newLocal[Int]("inBlockIndexToPresentValue", 0)
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
 
     if (!elementType.required)
       cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
 
-    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
-      val elemAddr = cb.memoize(arrayType.elementOffset(array, len, i))
-      if (elementType.required)
-        readElemF(cb, region, elemAddr, in)
-      else
-        cb.ifx(arrayType.isElementDefined(array, i),
-          readElemF(cb, region, elemAddr, in))
-    })
+    val LONG_MASK_ALL_BUT_FIRST = const(0x7fffffffffffffffL)
+
+    def numberOfLeadingZeros(l: Code[Long]): Code[Int] =
+      Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfLeadingZeros", l)
+
+    cb.assign(i, 0)
+    if (elementType.required) {
+      cb.forLoop({}, i + 64 < len, cb.assign(i, i + 64), {
+        for (_ <- 0 to 63) {
+          readElemF(cb, region, elemAddr, in)
+          cb.assign(elemAddr, arrayType.nextElementAddress(elemAddr))
+        }
+      })
+    } else {
+      cb.forLoop({}, i + 64 < len, cb.assign(i, i + 64), {
+        cb.assign(presentBitsLong, ~Region.loadLong(mbyteOffset))
+        cb.assign(mbyteOffset, mbyteOffset + 8)
+        cb.assign(inBlockIndexToPresentValue, numberOfLeadingZeros(presentBitsLong))
+
+        cb.whileLoop(inBlockIndexToPresentValue < 64, {
+          cb.assign(elemAddr,
+            arrayType.elementOffset(array, len, i + inBlockIndexToPresentValue))
+          readElemF(cb, region, elemAddr, in)
+
+          cb.assign(inBlockIndexToPresentValue,
+            numberOfLeadingZeros(presentBitsLong & (LONG_MASK_ALL_BUT_FIRST >>> inBlockIndexToPresentValue)))
+        })
+      })
+      cb.assign(elemAddr, arrayType.elementOffset(array, len, i))
+    }
+    cb.forLoop({}, i < len,
+      {
+        cb.assign(i, i + 1)
+        cb.assign(elemAddr, arrayType.nextElementAddress(elemAddr))
+      },
+      {
+        if (elementType.required) {
+          readElemF(cb, region, elemAddr, in)
+        } else {
+          cb.ifx((i % 8).ceq(0),
+            {
+              cb.assign(mbyte, Region.loadByte(mbyteOffset))
+              cb.assign(mbyteOffset, mbyteOffset + 1)
+            }
+          )
+          cb.ifx((mbyte.load() & (const(1) << (i & 7))).ceq(0),
+            readElemF(cb, region, elemAddr, in))
+        }
+      }
+    )
 
     new SIndexablePointerValue(st, array, len, cb.memoize(arrayType.firstElementOffset(array, len)))
   }
