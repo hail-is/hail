@@ -324,7 +324,7 @@ typing-extensions==4.8.0
     #   typer
 tzdata==2023.3
     # via pandas
-urllib3==1.26.16
+urllib3==1.26.17
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   botocore
