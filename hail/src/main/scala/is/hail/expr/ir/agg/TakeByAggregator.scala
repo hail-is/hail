@@ -506,8 +506,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       mb.voidWithBuilder { cb =>
         cb.ifx(low < high, {
           cb.assign(pivotIndex, partition(cb, indices, low, high))
-          mb.invokeCode(cb, indices, low, pivotIndex)
-          mb.invokeCode(cb, indices, cb.memoize(pivotIndex + 1), high)
+          cb.invokeVoid(mb, indices, low, pivotIndex)
+          cb.invokeVoid(mb, indices, cb.memoize(pivotIndex + 1), high)
         })
       }
       mb.invokeCode(_, _, _, _)

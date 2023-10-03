@@ -1438,7 +1438,7 @@ class Emit[C](
 
                   val shapeValues = (0 until nDims).map { i =>
                     val shape = SingleCodeSCode.fromSCode(cb, shapeTupleValue.loadField(cb, i).get(cb), region)
-                    cb.newLocalAny[Long](s"make_ndarray_shape_${ i }", shape.code)
+                    cb.newLocal[Long](s"make_ndarray_shape_${ i }", coerce[Long](shape.code))
                   }
 
                   cb.ifx(isRowMajorCode.asBoolean.value, {
@@ -1662,7 +1662,7 @@ class Emit[C](
 
               val emitter = new NDArrayEmitter(unifiedShape, leftPVal.st.elementType) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SValue = {
-                  val element = coerce[Any](cb.newField("matmul_element")(eVti))
+                  val element = cb.newFieldAny("matmul_element", eVti)
                   val k = cb.newField[Long]("ndarray_matmul_k")
 
                   val (lIndices: IndexedSeq[Value[Long]], rIndices: IndexedSeq[Value[Long]]) = (lSType.nDims, rSType.nDims, idxVars) match {
@@ -1694,11 +1694,11 @@ class Emit[C](
 
 
                   val kLen = lShape(lSType.nDims - 1)
-                  cb.assign(element, numericElementType.zero)
+                  cb.assignAny(element, numericElementType.zero)
                   cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
                     val lElem = leftPVal.loadElement(lIndices, cb)
                     val rElem = rightPVal.loadElement(rIndices, cb)
-                    cb.assign(element, numericElementType.add(multiply(lElem, rElem), element))
+                    cb.assignAny(element, numericElementType.add(multiply(lElem, rElem), element))
                   })
 
                   primitive(outputPType.elementType.virtualType, element)

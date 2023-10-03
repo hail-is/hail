@@ -282,7 +282,7 @@ object StringFunctions extends RegistryFunctions {
     registerIEmitCode1("showStr", tv("T"), TString, {
       (_: Type, _: EmitType) => EmitType(SJavaString, true)
     }) { case (cb, r, st: SJavaString.type, _, a) =>
-      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
+      val jObj = cb.newLocalAny("showstr_java_obj", boxedTypeInfo(a.st.virtualType))
       a.toI(cb).consume(cb,
         cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
         sc => cb.assignAny(jObj, svalueToJavaValue(cb, r, sc)))
@@ -295,7 +295,7 @@ object StringFunctions extends RegistryFunctions {
     registerIEmitCode2("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: EmitType, truncType: EmitType) => EmitType(SJavaString, truncType.required)
     }) { case (cb, r, st: SJavaString.type, _, a, trunc) =>
-      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
+      val jObj = cb.newLocalAny("showstr_java_obj", boxedTypeInfo(a.st.virtualType))
       trunc.toI(cb).map(cb) { trunc =>
 
         a.toI(cb).consume(cb,
@@ -310,7 +310,7 @@ object StringFunctions extends RegistryFunctions {
     registerIEmitCode1("json", tv("T"), TString, (_: Type, _: EmitType) => EmitType(SJavaString, true)) {
       case (cb, r, st: SJavaString.type, _, a) =>
         val ti = boxedTypeInfo(a.st.virtualType)
-        val inputJavaValue = cb.newLocal("json_func_input_jv")(ti)
+        val inputJavaValue = cb.newLocalAny("json_func_input_jv", ti)
         a.toI(cb).consume(cb,
           cb.assignAny(inputJavaValue, Code._null(ti)),
           { sc =>

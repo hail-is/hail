@@ -523,23 +523,20 @@ object EmitStream {
 
             override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
 
-            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-              val LendOfSwitch = CodeLabel()
-              cb += Code.switch(current,
-                EmitCodeBuilder.scopedVoid(mb) { cb =>
-                  cb.goto(LendOfStream)
-                },
-                args.toFastSeq.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).map { elem =>
-                  EmitCodeBuilder.scopedVoid(mb) { cb =>
-                    cb.assign(eltField, elem.toI(cb).map(cb)(pc => pc.castTo(cb, region, unifiedType.st, false)))
-                    cb.goto(LendOfSwitch)
+            override val LproduceElement: CodeLabel =
+              mb.defineAndImplementLabel { cb =>
+                cb.switch(current,
+                  cb.goto(LendOfStream),
+                  args.map { a =>
+                    () =>
+                      val elem = emit(a, cb, region)
+                      cb.assign(eltField, elem.map(cb)(pc => pc.castTo(cb, region, unifiedType.st, false)))
                   }
-                })
-              cb.define(LendOfSwitch)
-              cb.assign(current, current + 1)
+                )
 
-              cb.goto(LproduceElementDone)
-            }
+                cb.assign(current, current + 1)
+                cb.goto(LproduceElementDone)
+              }
 
             val element: EmitCode = eltField.load
 
@@ -2719,9 +2716,13 @@ object EmitStream {
               }
 
               cb.define(LpullChild)
-              cb += Code.switch(winner,
-                LendOfStream.goto, // can only happen if k=0
-                producers.map(_.LproduceElement.goto))
+              cb.switch(
+                winner,
+                cb.goto(LendOfStream), // can only happen if k=0
+                producers.map { p =>
+                  () => cb.goto(p.LproduceElement)
+                }
+              )
             }
 
             override val element: EmitCode = joinResult
@@ -2941,7 +2942,7 @@ object EmitStream {
               })
 
               cb.define(LpullChild)
-              cb.ifx(winner >= nStreams, LendOfStream.goto) // can only happen if k=0
+              cb.ifx(winner >= nStreams, cb.goto(LendOfStream)) // can only happen if k=0
               val winnerIter = cb.memoize(iterArray(winner))
               val winnerNextElt = cb.memoize(winnerIter.invoke[Long]("next"))
               cb.ifx(winnerIter.invoke[Boolean]("eos"), {
@@ -3037,10 +3038,12 @@ object EmitStream {
               val LloopEnd = CodeLabel()
 
               cb.define(LpullChild)
-              // FIXME codebuilderify switch
-              cb += Code.switch(winner,
-                LendOfStream.goto, // can only happen if k=0
-                producers.map(p => p.LproduceElement.goto))
+              cb.switch(winner,
+                cb.goto(LendOfStream), // can only happen if k=0
+                producers.map { p =>
+                  () => cb.goto(p.LproduceElement)
+                }
+              )
 
 
               cb.define(LrunMatch)

@@ -130,14 +130,11 @@ class SCanonicalRNGStateValue(
     val newNumDynBlocks = cb.newLocal[Int](s"splitDyn_numBlocks", numDynBlocks)
 
     cb.ifx(numWordsInLastBlock < 4, {
-      cb += Code.switch(
-        numWordsInLastBlock,
-        Code._fatal[Unit]("invalid numWordsInLastBlock"),
-        FastSeq(
-          newLastDynBlock(0) := idx,
-          newLastDynBlock(1) := idx,
-          newLastDynBlock(2) := idx,
-          newLastDynBlock(3) := idx))
+      cb.switch(numWordsInLastBlock,
+        cb._fatal("invalid numWordsInLastBlock"),
+        for {i <- 0 until 4}
+          yield () => cb.assign(newLastDynBlock(i), idx)
+      )
       cb.assign(newNumWordsInLastBlock, newNumWordsInLastBlock + 1)
     }, {
       val key = Threefry.defaultKey
@@ -158,15 +155,11 @@ class SCanonicalRNGStateValue(
     val key = Threefry.defaultKey
     val finalTweak = cb.mux(numWordsInLastBlock.ceq(4), Threefry.finalBlockNoPadTweak, Threefry.finalBlockPaddedTweak)
     for (i <- 0 until 4) cb.assign(x(i), x(i) ^ lastDynBlock(i))
-    cb += Code.switch(
-      numWordsInLastBlock,
-      Code._fatal[Unit]("invalid numWordsInLastBlock"),
-      FastSeq(
-        x(0) := x(0) ^ 1L,
-        x(1) := x(1) ^ 1L,
-        x(2) := x(2) ^ 1L,
-        x(3) := x(3) ^ 1L,
-        Code._empty))
+    cb.switch(numWordsInLastBlock,
+      cb._fatal("invalid numWordsInLastBlock"),
+      for {i <- 0 until 4}
+        yield () => cb.assign(x(i), x(i) ^ 1L)
+    )
     Threefry.encrypt(cb, key, Array(finalTweak, const(0L)), x)
     x
   }
@@ -176,15 +169,11 @@ class SCanonicalRNGStateValue(
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"cie_x$i", runningSum(i)))
     val finalTweak = cb.mux(numWordsInLastBlock.ceq(4), Threefry.finalBlockNoPadTweak, Threefry.finalBlockPaddedTweak)
     for (i <- 0 until 4) cb.assign(x(i), x(i) ^ lastDynBlock(i))
-    cb += Code.switch(
-      numWordsInLastBlock,
-      Code._fatal[Unit]("invalid numWordsInLastBlock"),
-      FastSeq(
-        x(0) := x(0) ^ 1L,
-        x(1) := x(1) ^ 1L,
-        x(2) := x(2) ^ 1L,
-        x(3) := x(3) ^ 1L,
-        Code._empty))
+    cb.switch(numWordsInLastBlock,
+      cb._fatal("invalid numWordsInLastBlock"),
+      for {i <- 0 until 4}
+        yield () => cb.assign(x(i), x(i) ^ 1L)
+    )
     cb += tf.invoke[Long, Long, Long, Long, Long, Unit]("resetState", x(0), x(1), x(2), x(3), finalTweak)
   }
 }

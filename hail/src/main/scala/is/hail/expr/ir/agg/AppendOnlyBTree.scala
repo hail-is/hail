@@ -255,7 +255,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         })
       }
 
-      cb.whileLoop(cmp.cne(0), { Lcont =>
+      cb.whileLoop(cmp.cne(0), { (Lcont: CodeLabel)  =>
         (0 until maxElements).foreach { i =>
           cb.ifx(hasKey(cb, node, i), {
             cb.assign(keyV, loadKey(cb, node, i))
@@ -301,7 +301,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     }
 
     stackPush(root)
-    cb.whileLoop(stackI >= 0, { (Lstart) =>
+    cb.whileLoop(stackI >= 0, { (Lstart: CodeLabel) =>
       val node = cb.newLocal("btree_foreach_node", nodeStack(stackI))
       val idx = cb.newLocal("btree_foreach_idx", idxStack(stackI))
       val Lend = CodeLabel()

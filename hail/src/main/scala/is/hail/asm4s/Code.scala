@@ -524,18 +524,6 @@ object Code {
     newC
   }
 
-  def switch(c: Code[Int], dflt: Code[Unit], cases: IndexedSeq[Code[Unit]]): Code[Unit] = {
-    val L = new lir.Block()
-    c.end.append(lir.switch(c.v, dflt.start, cases.map(_.start)))
-    dflt.end.append(lir.goto(L))
-    cases.foreach(_.end.append(lir.goto(L)))
-    val newC = new VCode(c.start, L, null)
-    c.clear()
-    dflt.clear()
-    cases.foreach(_.clear())
-    newC
-  }
-
   def newLocal[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] =
     new LocalRef[T](new lir.Local(null, name, tti))
 
@@ -873,6 +861,13 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
     val newC = new CCode(entry, Ltrue, Lfalse)
     lhs.clear()
     rhs.clear()
+    newC
+  }
+
+  def switch(default: CodeLabel, cases: IndexedSeq[CodeLabel]): Code[Unit] = {
+    lhs.end.append(lir.switch(lhs.v, default.start, cases.map(_.start)))
+    val newC = new VCode[Unit](lhs.start, new Block(), lhs.v)
+    lhs.clear()
     newC
   }
 
@@ -1299,7 +1294,7 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
 
   override def get: Code[T] =
     CodeBuilder.scopedCode(null) { cb =>
-      cb.ifx(!present, { setm.invoke(cb) })
+      cb.ifx(!present, cb += setm.invoke(cb) )
       value
     }
 }

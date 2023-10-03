@@ -112,17 +112,18 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     }
 
     val repr = cb.newLocal[Int]("lgt_to_gt_repr")
-    cb += Code.switch(ploidy(cb),
-      EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb._fatalWithError(errorID, s"ploidy above 2 is not currently supported")),
+    cb.switch(ploidy(cb),
+      cb._fatalWithError(errorID, s"ploidy above 2 is not currently supported"),
       FastSeq(
-        EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb.assign(repr, call)), // ploidy 0
-        EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
+        { () => cb.assign(repr, call) }, // ploidy 0
+        { () =>
           val allele = Code.invokeScalaObject1[Int, Int](Call.getClass, "alleleRepr", call)
           val newCall = Code.invokeScalaObject2[Int, Boolean, Int](Call1.getClass, "apply",
-            checkAndTranslate(cb, allele), isPhased(cb))
+            checkAndTranslate(cb, allele), isPhased(cb)
+          )
           cb.assign(repr, newCall)
         }, // ploidy 1
-        EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
+        { () =>
           val allelePair = cb.newLocal[Int]("allelePair", Code.invokeScalaObject1[Int, Int](Call.getClass, "allelePairUnchecked", call))
           val j = cb.newLocal[Int]("allele_j", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "j", allelePair))
           val k = cb.newLocal[Int]("allele_k", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "k", allelePair))
@@ -133,7 +134,8 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
             checkAndTranslate(cb, j),
             checkAndTranslate(cb, k),
             isPhased(cb),
-            errorID))
+            errorID)
+          )
         } // ploidy 2
       )
     )

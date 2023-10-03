@@ -702,29 +702,15 @@ class SwitchX(var lineNumber: Int = 0) extends ControlX {
   def Lcases: IndexedSeq[Block] = _Lcases
 
   def setLcases(newLcases: IndexedSeq[Block]): Unit = {
-    var i = 0
-    while (i < _Lcases.length) {
-      val L = _Lcases(i)
-      if (L != null)
-        L.removeUse(this, i + 1)
-      _Lcases(i) = null
-      i += 1
+    for ((block, i) <- _Lcases.zipWithIndex) {
+      if (block != null) block.removeUse(this, i + 1)
     }
 
     // don't allow sharing
-    _Lcases = new Array[Block](newLcases.length)
-    i = 0
-    while (i < _Lcases.length) {
-      _Lcases(i) = newLcases(i)
-      i += 1
-    }
+    _Lcases = Array(newLcases: _*)
 
-    i = 0
-    while (i < _Lcases.length) {
-      val L = _Lcases(i)
-      if (L != null)
-        L.addUse(this, i + 1)
-      i += 1
+    for ((block, i) <- _Lcases.zipWithIndex) {
+      if (block != null) block.addUse(this, i + 1)
     }
   }
 

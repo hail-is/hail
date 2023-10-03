@@ -310,7 +310,8 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
         cb.ifx(utils.size.ceq(next),
           parentBuilder.create(cb), {
             cb.ifx(utils.getLength(next).ceq(branchingFactor),
-              m.invokeCode[Unit](cb, CodeParam(next), CodeParam(false)))
+              cb.invokeVoid(m, CodeParam(next), CodeParam(false))
+            )
             parentBuilder.loadFrom(cb, utils, next)
           })
         internalBuilder.loadChild(cb, 0)
@@ -337,7 +338,8 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       cb += ob.flush()
 
       cb.ifx(utils.getLength(0).ceq(branchingFactor),
-        writeInternalNode.invokeCode[Unit](cb, CodeParam(0), CodeParam(false)))
+        cb.invokeVoid(writeInternalNode, CodeParam(0), CodeParam(false))
+      )
       parentBuilder.loadFrom(cb, utils, 0)
 
       leafBuilder.loadChild(cb, 0)
@@ -353,11 +355,12 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     m.emitWithBuilder { cb =>
       val idxOff = cb.newLocal[Long]("indexOff")
       val level = m.newLocal[Int]("level")
-      cb.ifx(leafBuilder.ab.length > 0, writeLeafNode.invokeCode[Unit](cb))
-      cb.assign(level, 0)
+      cb.ifx(leafBuilder.ab.length > 0, cb.invokeVoid(writeLeafNode))
+      cb.assign(level, const(0))
       cb.whileLoop(level < utils.size - 1, {
         cb.ifx(utils.getLength(level) > 0,
-          writeInternalNode.invokeCode[Unit](cb, CodeParam(level), CodeParam(false)))
+          cb.invokeVoid(writeInternalNode, CodeParam(level), CodeParam(false))
+        )
         cb.assign(level, level + 1)
       })
       cb.assign(idxOff, utils.bytesWritten)
@@ -368,8 +371,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
   }
 
   def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode) {
-    cb.ifx(leafBuilder.ab.length.ceq(branchingFactor),
-      writeLeafNode.invokeCode[Unit](cb))
+    cb.ifx(leafBuilder.ab.length.ceq(branchingFactor), cb.invokeVoid(writeLeafNode))
     leafBuilder.add(cb, key, offset, annotation)
     cb.assign(elementIdx, elementIdx + 1L)
   }

@@ -161,10 +161,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
-  def result(
-    ctx: ExecuteContext,
-    print: Option[PrintWriter] = None
-  ): (HailClassLoader) => C = cb.result(ctx.shouldWriteIRFiles(), print)
+  def result(print: Option[PrintWriter] = None): HailClassLoader => C =
+    cb.result(ctx.shouldWriteIRFiles(), print)
 
   def getHailClassLoader: Code[HailClassLoader] = ecb.getHailClassLoader
 
@@ -216,7 +214,9 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getThreefryRNG(): Value[ThreefryRandomEngine] = ecb.getThreefryRNG()
 
-  def resultWithIndex(writeIRs: Boolean = ctx.shouldWriteIRFiles(), print: Option[PrintWriter] = None): (HailClassLoader, FS, HailTaskContext, Region) => C = ecb.resultWithIndex(writeIRs, print)
+  def resultWithIndex(print: Option[PrintWriter] = None)
+  : (HailClassLoader, FS, HailTaskContext, Region) => C =
+    ecb.resultWithIndex(print)
 
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
@@ -550,7 +550,7 @@ class EmitClassBuilder[C](
         case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
         case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
       }
-      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti, implicitly[op.ReturnType =!= Unit])
     }
   }
 
@@ -569,7 +569,7 @@ class EmitClassBuilder[C](
         case CodeOrdering.StructGt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
         case CodeOrdering.StructCompare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
       }
-      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti, implicitly[op.ReturnType =!= Unit])
     }
   }
 
@@ -730,10 +730,8 @@ class EmitClassBuilder[C](
     }
   }
 
-  def resultWithIndex(
-    writeIRs: Boolean,
-    print: Option[PrintWriter] = None
-  ): (HailClassLoader, FS, HailTaskContext, Region) => C = {
+  def resultWithIndex(print: Option[PrintWriter] = None)
+  : (HailClassLoader, FS, HailTaskContext, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
     makeAddHailClassLoader()
@@ -768,7 +766,7 @@ class EmitClassBuilder[C](
       "FunctionBuilder emission should happen on master, but happened on worker")
 
     val n = cb.className.replace("/", ".")
-    val classesBytes = modb.classesBytes(writeIRs, print)
+    val classesBytes = modb.classesBytes(ctx.shouldWriteIRFiles(), print)
 
     new ((HailClassLoader, FS, HailTaskContext, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null

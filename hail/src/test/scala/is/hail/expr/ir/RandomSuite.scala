@@ -64,7 +64,7 @@ class RandomSuite extends HailSuite {
 
       resArray
     }
-    f.result(ctx)(new HailClassLoader(getClass.getClassLoader))
+    f.result()(new HailClassLoader(getClass.getClassLoader))
   }
 
   def pmacEngineStagedStaticSize(staticID: Long, size: Int): AsmFunction1[Array[Long], ThreefryRandomEngine] = {
@@ -82,7 +82,7 @@ class RandomSuite extends HailSuite {
       state.copyIntoEngine(cb, engine)
       engine
     }
-    f.result(ctx)(new HailClassLoader(getClass.getClassLoader))
+    f.result()(new HailClassLoader(getClass.getClassLoader))
   }
 
   def pmacStagedDynSize(staticID: Long): AsmFunction1[Array[Long], Array[Long]] = {
@@ -107,7 +107,7 @@ class RandomSuite extends HailSuite {
 
       resArray
     }
-    f.result(ctx)(new HailClassLoader(getClass.getClassLoader))
+    f.result()(new HailClassLoader(getClass.getClassLoader))
   }
 
   def pmacEngineStagedDynSize(staticID: Long): AsmFunction1[Array[Long], ThreefryRandomEngine] = {
@@ -128,7 +128,7 @@ class RandomSuite extends HailSuite {
       state.copyIntoEngine(cb, engine)
       engine
     }
-    f.result(ctx)(new HailClassLoader(getClass.getClassLoader))
+    f.result()(new HailClassLoader(getClass.getClassLoader))
   }
 
   val pmacTestCases = FastSeq(

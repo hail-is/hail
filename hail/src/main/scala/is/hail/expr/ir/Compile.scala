@@ -29,7 +29,6 @@ object Compile {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true,
-    writeIRs: Boolean = false,
     print: Option[PrintWriter] = None
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F) = {
 
@@ -72,7 +71,7 @@ object Compile {
 
       val emitContext = EmitContext.analyze(ctx, ir)
       val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
-      CompiledFunction(rt, fb.resultWithIndex(writeIRs, print))
+      CompiledFunction(rt, fb.resultWithIndex(print))
     }).tuple
   }
 }
@@ -171,7 +170,6 @@ object CompileIterator {
     ctx: ExecuteContext,
     body: IR,
     argTypeInfo: Array[ParamType],
-    writeIRs: Boolean,
     printWriter: Option[PrintWriter]
   ): (PType, (HailClassLoader, FS, HailTaskContext, Region) => F) = {
 
@@ -250,7 +248,7 @@ object CompileIterator {
     val getMB = fb.newEmitMethod("loadAddress", FastSeq(), LongInfo)
     getMB.emit(elementAddress.load())
 
-    (returnType, fb.resultWithIndex(writeIRs, printWriter))
+    (returnType, fb.resultWithIndex(printWriter))
   }
 
   def forTableMapPartitions(
@@ -265,9 +263,10 @@ object CompileIterator {
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
-        SingleCodeEmitParamType(true, StreamSingleCodeType(true, streamElementType, true))),
-      false,
-      None)
+        SingleCodeEmitParamType(true, StreamSingleCodeType(true, streamElementType, true))
+      ),
+      None
+    )
     (eltPType, (theHailClassLoader, fs, htc, consumerCtx, v0, part) => {
       val stepper = makeStepper(theHailClassLoader, fs, htc, consumerCtx.partitionRegion)
       stepper.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
@@ -292,8 +291,8 @@ object CompileIterator {
         CodeParamType(typeInfo[Object]),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(ctxType)),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(bcValsType))),
-      false,
-      None)
+      None
+    )
     (eltPType, (theHailClassLoader, fs, htc, consumerCtx, v0, v1) => {
       val stepper = makeStepper(theHailClassLoader, fs, htc, consumerCtx.partitionRegion)
       stepper.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
