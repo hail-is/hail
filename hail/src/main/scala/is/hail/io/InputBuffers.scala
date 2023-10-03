@@ -3,12 +3,13 @@ package is.hail.io
 import java.io._
 import java.util
 import java.util.UUID
+import java.util.function.Supplier
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
 import is.hail.utils._
 
-import com.github.luben.zstd.Zstd
+import com.github.luben.zstd.{Zstd, ZstdDecompressCtx}
 
 trait InputBuffer extends Closeable {
   def close(): Unit
@@ -630,8 +631,13 @@ final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in
   }
 }
 
+object ZstdDecompressLib {
+  val instance = ThreadLocal.withInitial(new Supplier[ZstdDecompressCtx]() { def get: ZstdDecompressCtx = new ZstdDecompressCtx() })
+}
+
 final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+  private[this] val zstd = ZstdDecompressLib.instance.get
+  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
 
   def close(): Unit = {
     in.close()
@@ -646,16 +652,15 @@ final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends I
     } else {
       val compLen = blockLen - 4
       val decompLen = Memory.loadInt(comp, 0)
-      val ret = Zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
-      if (Zstd.isError(ret))
-        throw new com.github.luben.zstd.ZstdException(ret)
+      val ret = zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
       decompLen
     }
   }
 }
 
 final class ZstdSizedBasedInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
-  private val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+  private[this] val zstd = ZstdDecompressLib.instance.get
+  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
 
   def close(): Unit = {
     in.close()
@@ -675,9 +680,7 @@ final class ZstdSizedBasedInputBlockBuffer(blockSize: Int, in: InputBlockBuffer)
         compLen
       } else {
         val decompLen = decomp >>> 1
-        val ret = Zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
-        if (Zstd.isError(ret))
-          throw new com.github.luben.zstd.ZstdException(ret)
+        val ret = zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
         decompLen
       }
     }
