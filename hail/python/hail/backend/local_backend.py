@@ -5,14 +5,15 @@ import socketserver
 import sys
 from threading import Thread
 
+import orjson
 import py4j
 from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
 
 from hail.utils.java import scala_package_object
 from hail.ir.renderer import CSERenderer
 from hail.ir import finalize_randomness
-from .py4j_backend import Py4JBackend, handle_java_exception
-from .backend import local_jar_information
+from .py4j_backend import Py4JBackend, handle_java_exception, action_routes
+from .backend import local_jar_information, fatal_error_from_java_error_triplet
 from ..hail_logging import Logger
 from ..expr import Expression
 from ..expr.types import HailType
@@ -167,6 +168,10 @@ class LocalBackend(Py4JBackend):
         )
         self._jhc = hail_package.HailContext.apply(
             self._jbackend, branching_factor, optimizer_iterations)
+
+        self._backend_server = hail_package.backend.BackendServer.apply(self._jbackend)
+        self._backend_server_port: int = self._backend_server.port()
+        self._backend_server.start()
         self._registered_ir_function_names: Set[str] = set()
 
         # This has to go after creating the SparkSession. Unclear why.
@@ -206,9 +211,9 @@ class LocalBackend(Py4JBackend):
                              value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
                              return_type: HailType,
                              body: Expression):
-        r = CSERenderer(stop_at_jir=True)
+        r = CSERenderer()
         code = r(finalize_randomness(body._ir))
-        jbody = (self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)), ir_map=r.jirs))
+        jbody = self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)))
         self._registered_ir_function_names.add(name)
 
         self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
@@ -222,7 +227,18 @@ class LocalBackend(Py4JBackend):
     def _is_registered_ir_function_name(self, name: str) -> bool:
         return name in self._registered_ir_function_names
 
+    def _rpc(self, action, payload) -> Tuple[bytes, str]:
+        data = orjson.dumps(payload)
+        path = action_routes[action]
+        port = self._backend_server_port
+        resp = self._requests_session.post(f'http://localhost:{port}{path}', data=data)
+        if resp.status_code >= 400:
+            error_json = orjson.loads(resp.content)
+            raise fatal_error_from_java_error_triplet(error_json['short'], error_json['expanded'], error_json['error_id'])
+        return resp.content, resp.headers.get('X-Hail-Timings', '')
+
     def stop(self):
+        self._backend_server.stop()
         self._jhc.stop()
         self._jhc = None
         self._gateway.shutdown()

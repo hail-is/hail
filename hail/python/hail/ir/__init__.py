@@ -36,7 +36,7 @@ from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
     MatrixRowsHead, MatrixColsHead, MatrixRowsTail, MatrixColsTail, \
     MatrixExplodeCols, CastTableToMatrix, MatrixAnnotateRowsTable, \
     MatrixAnnotateColsTable, MatrixToMatrixApply, MatrixRename, \
-    MatrixFilterIntervals, JavaMatrix
+    MatrixFilterIntervals
 from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     BlockMatrixDot, BlockMatrixBroadcast, BlockMatrixAgg, BlockMatrixFilter, \
     BlockMatrixDensify, BlockMatrixSparsifier, BandSparsifier, \
@@ -259,7 +259,6 @@ __all__ = [
     'MatrixToMatrixApply',
     'MatrixRename',
     'MatrixFilterIntervals',
-    'JavaMatrix',
     'MatrixReader',
     'MatrixNativeReader',
     'MatrixRangeReader',

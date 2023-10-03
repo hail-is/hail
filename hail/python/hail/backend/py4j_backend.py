@@ -2,20 +2,17 @@ from typing import Mapping
 import abc
 import json
 
+import requests
 import py4j
 import py4j.java_gateway
 
 import hail
 from hail.expr import construct_expr
-from hail.ir import JavaIR, finalize_randomness
+from hail.ir import finalize_randomness, JavaIR
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import FatalError, Env
-from hail.expr.blockmatrix_type import tblockmatrix
-from hail.expr.matrix_type import tmatrix
-from hail.expr.table_type import ttable
-from hail.expr.types import dtype
 
-from .backend import Backend, fatal_error_from_java_error_triplet
+from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
 
 
 def handle_java_exception(f):
@@ -41,6 +38,19 @@ def handle_java_exception(f):
     return deco
 
 
+action_routes = {
+    ActionTag.VALUE_TYPE: '/value/type',
+    ActionTag.TABLE_TYPE: '/table/type',
+    ActionTag.MATRIX_TABLE_TYPE: '/matrixtable/type',
+    ActionTag.BLOCK_MATRIX_TYPE: '/blockmatrix/type',
+    ActionTag.LOAD_REFERENCES_FROM_DATASET: '/references/load',
+    ActionTag.FROM_FASTA_FILE: '/references/from_fasta',
+    ActionTag.EXECUTE: '/execute',
+    ActionTag.PARSE_VCF_METADATA: '/vcf/metadata/parse',
+    ActionTag.IMPORT_FAM: '/fam/import',
+}
+
+
 class Py4JBackend(Backend):
     _jbackend: py4j.java_gateway.JavaObject
 
@@ -55,6 +65,7 @@ class Py4JBackend(Backend):
         # By default, py4j's version of this function does extra
         # work to support python 2. This eliminates that.
         py4j.protocol.decode_bytearray = decode_bytearray
+        self._requests_session = requests.Session()
 
     @abc.abstractmethod
     def jvm(self):
@@ -68,26 +79,12 @@ class Py4JBackend(Backend):
     def utils_package_object(self):
         pass
 
-    def execute(self, ir, timed=False):
-        jir = self._to_java_value_ir(ir)
-        stream_codec = '{"name":"StreamBufferSpec"}'
-        # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
-        try:
-            result_tuple = self._jbackend.executeEncode(jir, stream_codec, timed)
-            (result, timings) = (result_tuple._1(), result_tuple._2())
-            value = ir.typ._from_encoding(result)
-
-            return (value, timings) if timed else value
-        except FatalError as e:
-            raise e.maybe_user_error(ir) from None
-
-    async def _async_execute(self, ir, timed=False):
-        raise NotImplementedError('no async available in Py4JBackend')
-
     def persist_expression(self, expr):
+        assert self._jbackend
+        t = expr.dtype
         return construct_expr(
-            JavaIR(self._jbackend.executeLiteral(self._to_java_value_ir(expr._ir))),
-            expr.dtype
+            JavaIR(t, self._jbackend.executeLiteral(self._render_ir(expr._ir))),
+            t
         )
 
     def set_flags(self, **flags: Mapping[str, str]):
@@ -111,12 +108,6 @@ class Py4JBackend(Backend):
     def _remove_reference_from_scala_backend(self, name):
         self._jbackend.pyRemoveReference(name)
 
-    def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        return json.loads(self._jbackend.pyFromFASTAFile(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par))
-
-    def load_references_from_dataset(self, path):
-        return json.loads(self._jbackend.pyLoadReferencesFromDataset(path))
-
     def add_sequence(self, name, fasta_file, index_file):
         self._jbackend.pyAddSequence(name, fasta_file, index_file)
 
@@ -129,64 +120,36 @@ class Py4JBackend(Backend):
     def remove_liftover(self, name, dest_reference_genome):
         self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
 
-    def parse_vcf_metadata(self, path):
-        return json.loads(self._jhc.pyParseVCFMetadataJSON(self._jbackend.fs(), path))
-
     def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
 
-    def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
-        return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
-
     def _to_java_ir(self, ir, parse):
         if not hasattr(ir, '_jir'):
-            r = CSERenderer(stop_at_jir=True)
+            r = CSERenderer()
             # FIXME parse should be static
-            ir._jir = parse(r(finalize_randomness(ir)), ir_map=r.jirs)
+            ir._jir = parse(r(finalize_randomness(ir)))
         return ir._jir
 
-    def _parse_value_ir(self, code, ref_map={}, ir_map={}):
+    def _parse_value_ir(self, code, ref_map={}):
         return self._jbackend.parse_value_ir(
             code,
             {k: t._parsable_string() for k, t in ref_map.items()},
-            ir_map)
+        )
 
-    def _parse_table_ir(self, code, ir_map={}):
-        return self._jbackend.parse_table_ir(code, ir_map)
+    def _parse_table_ir(self, code):
+        return self._jbackend.parse_table_ir(code)
 
-    def _parse_matrix_ir(self, code, ir_map={}):
-        return self._jbackend.parse_matrix_ir(code, ir_map)
+    def _parse_matrix_ir(self, code):
+        return self._jbackend.parse_matrix_ir(code)
 
-    def _parse_blockmatrix_ir(self, code, ir_map={}):
-        return self._jbackend.parse_blockmatrix_ir(code, ir_map)
+    def _parse_blockmatrix_ir(self, code):
+        return self._jbackend.parse_blockmatrix_ir(code)
 
     def _to_java_value_ir(self, ir):
         return self._to_java_ir(ir, self._parse_value_ir)
 
-    def _to_java_table_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_table_ir)
-
-    def _to_java_matrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_matrix_ir)
-
     def _to_java_blockmatrix_ir(self, ir):
         return self._to_java_ir(ir, self._parse_blockmatrix_ir)
-
-    def value_type(self, ir):
-        jir = self._to_java_value_ir(ir)
-        return dtype(jir.typ().toString())
-
-    def table_type(self, tir):
-        jir = self._to_java_table_ir(tir)
-        return ttable._from_java(jir.typ())
-
-    def matrix_type(self, mir):
-        jir = self._to_java_matrix_ir(mir)
-        return tmatrix._from_java(jir.typ())
-
-    def blockmatrix_type(self, bmir):
-        jir = self._to_java_blockmatrix_ir(bmir)
-        return tblockmatrix._from_java(jir.typ())
 
     @property
     def requires_lowering(self):

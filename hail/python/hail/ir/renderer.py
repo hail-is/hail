@@ -91,21 +91,13 @@ class RQStack(object):
 
 class Renderer:
     @abc.abstractmethod
-    def add_jir(self, jir):
+    def __call__(self, x: 'Renderable'):
         pass
 
 
 class PlainRenderer(Renderer):
-    def __init__(self, stop_at_jir=False):
-        self.stop_at_jir = stop_at_jir
+    def __init__(self):
         self.count = 0
-        self.jirs = {}
-
-    def add_jir(self, jir):
-        jir_id = f'm{self.count}'
-        self.count += 1
-        self.jirs[jir_id] = jir
-        return jir_id
 
     def __call__(self, x: 'Renderable'):
         stack = RQStack()
@@ -113,23 +105,10 @@ class PlainRenderer(Renderer):
 
         while x is not None or stack.non_empty():
             if x is not None:
-                # TODO: it would be nice to put the JavaIR logic in BaseIR somewhere but this isn't trivial
-                if self.stop_at_jir and hasattr(x, '_jir'):
-                    jir_id = self.add_jir(x._jir)
-                    if isinstance(x, ir.MatrixIR):
-                        builder.append(f'(JavaMatrix {jir_id})')
-                    elif isinstance(x, ir.TableIR):
-                        builder.append(f'(JavaTable {jir_id})')
-                    elif isinstance(x, ir.BlockMatrixIR):
-                        builder.append(f'(JavaBlockMatrix {jir_id})')
-                    else:
-                        assert isinstance(x, ir.IR)
-                        builder.append(f'(JavaIR {jir_id})')
-                else:
-                    head = x.render_head(self)
-                    if head != '':
-                        builder.append(x.render_head(self))
-                    stack.push(RenderableQueue(x.render_children(self), x.render_tail(self)))
+                head = x.render_head(self)
+                if head != '':
+                    builder.append(x.render_head(self))
+                stack.push(RenderableQueue(x.render_children(self), x.render_tail(self)))
                 x = None
             else:
                 top = stack.peek()
@@ -153,31 +132,8 @@ BindingSite = namedtuple(
 
 
 class CSERenderer(Renderer):
-    def __init__(self, stop_at_jir=False):
-        self.stop_at_jir = stop_at_jir
-        self.jir_count = 0
-        self.jirs = {}
+    def __init__(self):
         self.memo: Dict[int, Sequence[str]] = {}
-
-    def add_jir(self, jir):
-        jir_id = f'm{self.jir_count}'
-        self.jir_count += 1
-        self.jirs[jir_id] = jir
-        return jir_id
-
-    def _add_jir(self, node):
-        jir_id = self.add_jir(node._jir)
-        if isinstance(node, ir.MatrixIR):
-            jref = f'(JavaMatrix {jir_id})'
-        elif isinstance(node, ir.TableIR):
-            jref = f'(JavaTable {jir_id})'
-        elif isinstance(node, ir.BlockMatrixIR):
-            jref = f'(JavaBlockMatrix {jir_id})'
-        else:
-            assert isinstance(node, ir.IR)
-            jref = f'(JavaIR {jir_id})'
-
-        self.memo[id(node)] = jref
 
     def __call__(self, root: 'ir.BaseIR') -> str:
         binding_sites = CSEAnalysisPass(self)(root)
@@ -242,10 +198,6 @@ class CSEAnalysisPass:
                 continue
 
             child = node.children[child_idx]
-
-            if self.renderer.stop_at_jir and hasattr(child, '_jir'):
-                self.renderer._add_jir(child)
-                continue
 
             child_frame = frame.make_child_frame(len(stack))
 

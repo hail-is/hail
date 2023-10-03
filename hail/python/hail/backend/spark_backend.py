@@ -1,4 +1,4 @@
-from typing import Set
+from typing import Set, Tuple
 import sys
 import os
 import json
@@ -9,10 +9,12 @@ import py4j
 import pyspark
 import pyspark.sql
 
+import orjson
 from typing import List, Optional
 
 import hail as hl
 from hail.utils.java import scala_package_object
+from hail.expr.table_type import ttable
 from hail.fs.hadoop_fs import HadoopFS
 from hail.ir.renderer import CSERenderer
 from hail.table import Table
@@ -20,9 +22,9 @@ from hail.matrixtable import MatrixTable
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 
-from .py4j_backend import Py4JBackend, handle_java_exception
+from .py4j_backend import Py4JBackend, handle_java_exception, action_routes
 from ..hail_logging import Logger
-from .backend import local_jar_information
+from .backend import local_jar_information, fatal_error_from_java_error_triplet
 
 
 _installed = False
@@ -218,6 +220,9 @@ class SparkBackend(Py4JBackend):
             self._jhc = hail_package.HailContext.apply(
                 self._jbackend, branching_factor, optimizer_iterations)
 
+        self._backend_server = hail_package.backend.BackendServer.apply(self._jbackend)
+        self._backend_server_port: int = self._backend_server.port()
+        self._backend_server.start()
         self._jsc = self._jbackend.sc()
         if sc:
             self.sc = sc
@@ -268,7 +273,18 @@ class SparkBackend(Py4JBackend):
     def utils_package_object(self):
         return self._utils_package_object
 
+    def _rpc(self, action, payload) -> Tuple[bytes, str]:
+        data = orjson.dumps(payload)
+        path = action_routes[action]
+        port = self._backend_server_port
+        resp = self._requests_session.post(f'http://localhost:{port}{path}', data=data)
+        if resp.status_code >= 400:
+            error_json = orjson.loads(resp.content)
+            raise fatal_error_from_java_error_triplet(error_json['short'], error_json['expanded'], error_json['error_id'])
+        return resp.content, resp.headers.get('X-Hail-Timings', '')
+
     def stop(self):
+        self._backend_server.stop()
         self._jbackend.close()
         self._jhc.stop()
         self._jhc = None
@@ -290,19 +306,21 @@ class SparkBackend(Py4JBackend):
         return self._fs
 
     def from_spark(self, df, key):
-        return Table._from_java(self._jbackend.pyFromDF(df._jdf, key))
+        result_tuple = self._jbackend.pyFromDF(df._jdf, key)
+        tir_id, type_json = result_tuple._1(), result_tuple._2()
+        return Table._from_java(ttable._from_json(orjson.loads(type_json)), tir_id)
 
     def to_spark(self, t, flatten):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), self._spark_session)
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._render_ir(t._tir)), self._spark_session)
 
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
-        r = CSERenderer(stop_at_jir=True)
+        r = CSERenderer()
         assert not body._ir.uses_randomness
         code = r(body._ir)
-        jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
+        jbody = self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)))
         self._registered_ir_function_names.add(name)
 
         self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
