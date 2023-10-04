@@ -115,9 +115,6 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
     val LONG_MASK_ALL_BUT_FIRST = const(0x7fffffffffffffffL)
 
-    def numberOfLeadingZeros(l: Code[Long]): Code[Int] =
-      Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfLeadingZeros", l)
-
     cb.assign(i, 0)
     if (elementType.required) {
       cb.forLoop({}, i + 64 < len, cb.assign(i, i + 64), {
@@ -130,7 +127,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       cb.forLoop({}, i + 64 < len, cb.assign(i, i + 64), {
         cb.assign(presentBitsLong, ~Region.loadLong(mbyteOffset))
         cb.assign(mbyteOffset, mbyteOffset + 8)
-        cb.assign(inBlockIndexToPresentValue, numberOfLeadingZeros(presentBitsLong))
+        cb.assign(inBlockIndexToPresentValue, presentBitsLong.numberOfLeadingZeros)
 
         cb.whileLoop(inBlockIndexToPresentValue < 64, {
           cb.assign(elemAddr,
@@ -138,7 +135,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           readElemF(cb, region, elemAddr, in)
 
           cb.assign(inBlockIndexToPresentValue,
-            numberOfLeadingZeros(presentBitsLong & (LONG_MASK_ALL_BUT_FIRST >>> inBlockIndexToPresentValue)))
+            (presentBitsLong & (LONG_MASK_ALL_BUT_FIRST >>> inBlockIndexToPresentValue)).numberOfLeadingZeros)
         })
       })
       cb.assign(elemAddr, arrayType.elementOffset(array, len, i))
