@@ -1275,12 +1275,10 @@ class Invokeable[T, S](tcls: Class[T],
         lir.methodStmt(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs))
       new VCode(start, end, null)
     } else {
-      val t = new lir.Local(null, s"invoke_$name", sti)
       var r = lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)
       if (concreteReturnType != sct.runtimeClass)
         r = lir.checkcast(Type.getInternalName(sct.runtimeClass), r)
-      end.append(lir.store(t, r))
-      new VCode(start, end, lir.load(t))
+      new VCode(start, end, r)
     }
   }
 }
