@@ -2292,11 +2292,15 @@ steps:
         online: true
       - name: set-test-pools-to-known-parameters
         script: /io/sql/set-test-pools-to-known-parameters.py
+        online: true
       - name: add-gcp-support-logs-specs-and-firewall-fees
         script: /io/sql/add-gcp-support-logs-specs-and-firewall-fees.py
         online: true
       - name: add-product-sku
         script: /io/sql/add-product-sku.sql
+        online: true
+      - name: dedup-agg-batch-resources
+        script: /io/sql/dedup_agg_batch_resources.py
         online: true
     inputs:
       - from: /repo/batch/sql
