@@ -778,10 +778,6 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     case _ => !lhs.toCCode
   }
 
-  def muxAny(cthen: Code[_], celse: Code[_]): Code[_] = {
-    mux[Any](coerce[Any](cthen), coerce[Any](celse))
-  }
-
   def branch(csq: CodeLabel, alt: CodeLabel): Code[Unit] = {
     val cond = toCCode
     cond.Ltrue.append(lir.goto(csq.start))

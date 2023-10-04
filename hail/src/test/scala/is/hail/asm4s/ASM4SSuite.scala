@@ -445,4 +445,51 @@ class ASM4SSuite extends HailSuite {
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(test() == 1)
   }
+
+  @Test def testWhile(): Unit = {
+    val Main = FunctionBuilder[Int, Int, Int]("While")
+    Main.emitWithBuilder[Int] { cb =>
+      val a = cb.mb.getArg[Int](1)
+      val b = cb.mb.getArg[Int](2)
+
+      val acc = cb.newLocal[Int]("signum")
+      cb.ifx(a > 0, cb.assign(acc, 1), cb.assign(acc, -1))
+
+      cb.whileLoop(a cne 0, {
+        cb.assign(a, a - acc)
+        cb.assign(b, b + acc)
+      })
+
+      b
+    }
+
+    val f = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10))
+      { (x, y) => f(x, y) == x + y }
+      .check()
+  }
+
+  @Test def testFor(): Unit = {
+    val Main = FunctionBuilder[Int, Int, Int]("For")
+    Main.emitWithBuilder[Int] { cb =>
+      val a = cb.mb.getArg[Int](1)
+      val b = cb.mb.getArg[Int](2)
+
+      val acc = cb.newLocal[Int]("signum")
+
+      cb.forLoop(
+        setup = cb.ifx(a > 0, cb.assign(acc, 1), cb.assign(acc, -1)),
+        cond = a cne 0,
+        incr = cb.assign(a, a - acc),
+        body = cb.assign(b, b + acc)
+      )
+
+      b
+    }
+
+    val f = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10)) { (x, y) => f(x, y) == x + y }
+      .check()
+  }
+
 }

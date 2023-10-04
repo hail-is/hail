@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.lir
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.utils._
@@ -57,14 +56,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     val tmp = code
     code = Code._empty
     tmp
-  }
-
-  def mux[T: TypeInfo](c: Code[Boolean], emitThen: Code[T], emitElse: Code[T])
-                      (implicit ev: T =!= Unit): Value[T] = {
-    val expr = c.mux(emitThen, emitElse)
-    val loc = newLocal[T]("ifx_value")
-    assign(loc, expr)
-    loc
   }
 
   def ifx(c: Code[Boolean], emitThen: => SValue, emitElse: => SValue): SValue = {

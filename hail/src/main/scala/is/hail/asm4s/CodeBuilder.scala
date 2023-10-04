@@ -113,7 +113,6 @@ trait CodeBuilderLike {
   def whileLoop[A](cond: Code[Boolean], emitBody: CodeLabel => A)
                   (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit = 
     loop { Lstart =>
-      emitBody(Lstart)
       ifx(cond, {
         emitBody(Lstart)
         goto(Lstart)
