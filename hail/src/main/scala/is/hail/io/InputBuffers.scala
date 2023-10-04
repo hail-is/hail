@@ -652,7 +652,7 @@ final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends I
     } else {
       val compLen = blockLen - 4
       val decompLen = Memory.loadInt(comp, 0)
-      val ret = zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
+      zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
       decompLen
     }
   }
@@ -680,7 +680,7 @@ final class ZstdSizedBasedInputBlockBuffer(blockSize: Int, in: InputBlockBuffer)
         compLen
       } else {
         val decompLen = decomp >>> 1
-        val ret = zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
+        zstd.decompressByteArray(buf, 0, decompLen, comp, 4, compLen)
         decompLen
       }
     }
