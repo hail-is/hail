@@ -110,8 +110,8 @@ trait CodeBuilderLike {
     emitBody(Lstart)
   }
 
-  def whileLoop[A](cond: Code[Boolean], emitBody: CodeLabel => A)
-                  (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit = 
+  def while_[A](cond: Code[Boolean], emitBody: CodeLabel => A)
+               (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit =
     loop { Lstart =>
       ifx(cond, {
         emitBody(Lstart)
@@ -119,14 +119,14 @@ trait CodeBuilderLike {
       })
     }
 
-  def whileLoop[A](c: Code[Boolean], emitBody: => A)
-                  (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit = 
-    whileLoop(c, (_: CodeLabel) => emitBody)
+  def while_[A](c: Code[Boolean], emitBody: => A)
+               (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit =
+    while_(c, (_: CodeLabel) => emitBody)
 
-  def forLoop[A](setup: => A, cond: Code[Boolean], incr: => A, emitBody: CodeLabel => A)
-                (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit = {
+  def for_[A](setup: => A, cond: Code[Boolean], incr: => A, emitBody: CodeLabel => A)
+             (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit = {
     setup
-    whileLoop(cond, {
+    while_(cond, {
       val Lincr = CodeLabel()
       emitBody(Lincr)
       define(Lincr)
@@ -134,9 +134,9 @@ trait CodeBuilderLike {
     })
   }
 
-  def forLoop[A](setup: => A, cond: Code[Boolean], incr: => A, body: => A)
-                (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit =
-    forLoop(setup, cond, incr, (_: CodeLabel) => body)
+  def for_[A](setup: => A, cond: Code[Boolean], incr: => A, body: => A)
+             (implicit ev: A =:= Unit /* See note EVIDENCE_IS_UNIT */): Unit =
+    for_(setup, cond, incr, (_: CodeLabel) => body)
 
   def newLocal[T: TypeInfo](name: String)
                            (implicit ev: T =!= Unit /* See note EVIDENCE_IS_NOT_UNIT */)

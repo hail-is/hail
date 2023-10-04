@@ -43,7 +43,7 @@ object LocusFunctions extends RegistryFunctions {
       val ss = SStringPointer(ps)
       val (push, finish) = pAlleles.constructFromFunctions(cb, r, len, deepCopy = false)
       val i = cb.newLocal[Int]("locus_alleles_i", 0)
-      cb.whileLoop(i < len, {
+      cb.while_(i < len, {
         push(cb, IEmitCode.present(cb, ss.constructFromString(cb, r, all.invoke[Int, String]("apply", i))))
         cb.assign(i, i + 1)
       })
@@ -146,7 +146,7 @@ object LocusFunctions extends RegistryFunctions {
 
         def forAllContigs(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SIndexableValue) => Unit): Unit = {
           val iContig = cb.newLocal[Int]("locuswindows_icontig", 0)
-          cb.whileLoop(iContig < ncontigs, {
+          cb.while_(iContig < ncontigs, {
             val coordPerContig = grouped.loadElement(cb, iContig).get(cb, "locus_windows group cannot be missing")
               .asIndexable
             f(cb, iContig, coordPerContig)
@@ -172,7 +172,7 @@ object LocusFunctions extends RegistryFunctions {
             cb.ifx(len.ceq(0),
               cb.assign(lastCoord, 0.0),
               cb.assign(lastCoord, coords.loadElement(cb, 0).get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.value))
-            cb.whileLoop(i < len, {
+            cb.while_(i < len, {
 
               coords.loadElement(cb, i).consume(cb,
                 cb._fatalWithError(errorID, const("locus_windows: missing value for 'coord_expr' at row ")

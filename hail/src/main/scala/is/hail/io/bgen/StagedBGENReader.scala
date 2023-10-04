@@ -131,7 +131,7 @@ object StagedBGENReader {
             {
               cb.assign(nAlleles, cbfis.invoke[Int]("readShort"))
               cb.assign(i, 0)
-              cb.whileLoop(i < nAlleles,
+              cb.while_(i < nAlleles,
                 {
                   cb += cbfis.invoke[Int, Unit]("readLengthAndSkipString", 4)
                   cb.assign(i, i + 1)
@@ -174,7 +174,7 @@ object StagedBGENReader {
         val allelesType = SJavaArrayString(true)
 
         val a = cb.newLocal[Array[String]]("alleles", Code.newArray[String](nAlleles))
-        cb.whileLoop(i < nAlleles, {
+        cb.while_(i < nAlleles, {
           cb += a.update(i, cbfis.invoke[Int, String]("readLengthAndString", 4))
           cb.assign(i, i + 1)
         })
@@ -221,9 +221,9 @@ object StagedBGENReader {
             val (push, finish) = memoTyp.constructFromFunctions(cb, partRegion, 1 << 16, false)
 
             val d0 = cb.newLocal[Int]("memoize_entries_d0", 0)
-            cb.whileLoop(d0 < 256, {
+            cb.while_(d0 < 256, {
               val d1 = cb.newLocal[Int]("memoize_entries_d1", 0)
-              cb.whileLoop(d1 < 256, {
+              cb.while_(d1 < 256, {
                 val d2 = cb.newLocal[Int]("memoize_entries_d2", const(255) - d0 - d1)
 
                 val entryFieldCodes = new BoxedArrayBuilder[EmitCode]()
@@ -350,7 +350,7 @@ object StagedBGENReader {
               .concat("'.")))
 
           cb.assign(i, 0)
-          cb.whileLoop(i < nSamples, {
+          cb.while_(i < nSamples, {
             cb.assign(ploidy, reader.invoke[Int]("read"))
             cb.ifx((ploidy & 0x3f).cne(2),
               cb._fatal(const("Ploidy value must equal to 2. Found ")
@@ -390,7 +390,7 @@ object StagedBGENReader {
           val (pushElement, finish) = entriesArrayType.constructFromFunctions(cb, region, nSamples, deepCopy = false)
 
           cb.assign(i, 0)
-          cb.whileLoop(i < nSamples, {
+          cb.while_(i < nSamples, {
 
             val Lmissing = CodeLabel()
             val Lpresent = CodeLabel()
@@ -441,7 +441,7 @@ object StagedBGENReader {
       val len = cb.memoize(indices.length())
       val boxed = cb.memoize(Code.newArray[AnyRef](len))
       val i = cb.newLocal[Int]("i", 0)
-      cb.whileLoop(i < len, {
+      cb.while_(i < len, {
 
         val r = index.queryIndex(cb, mb.partitionRegion, cb.memoize(indices(i))).loadField(cb, "key").get(cb)
         cb += boxed.update(i, StringFunctions.svalueToJavaValue(cb, mb.partitionRegion, r, safe = true))
@@ -543,7 +543,7 @@ object BGENFunctions extends RegistryFunctions {
           val ob = cb.newLocal[OutputBuffer]("currFile", spec.buildCodeOutputBuffer(mb.create(path)))
 
           val i = cb.newLocal[Int]("i", 0)
-          cb.whileLoop(i < currSize, {
+          cb.while_(i < currSize, {
             val k = bufferSct.loadToSValue(cb, cb.memoizeAny(buffer.apply(i), buffer.ti))
             spec.encodedType.buildEncoder(k.st, mb.ecb).apply(cb, k, ob)
             cb.assign(i, i + 1)
@@ -561,7 +561,7 @@ object BGENFunctions extends RegistryFunctions {
 
         val nRead = cb.newLocal[Long]("nRead", 0L)
         val nWritten = cb.newLocal[Long]("nWritten", 0L)
-        cb.whileLoop(nRead < nVariants, {
+        cb.while_(nRead < nVariants, {
           StagedBGENReader.decodeRow(cb, er.region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, recoding,
             TStruct("locus" -> locType, "alleles" -> TArray(TString), "offset" -> TInt64), rg).toI(cb).consume(cb, {
             // do nothing if missing (invalid locus)
@@ -638,7 +638,7 @@ object BGENFunctions extends RegistryFunctions {
         val iters = mb.genFieldThisRef[Array[NoBoxLongIterator]]("iters")
         cb.assign(iters, Code.newArray[NoBoxLongIterator](groupIndex))
         val i = cb.newLocal[Int]("i")
-        cb.whileLoop(i < groupIndex, {
+        cb.while_(i < groupIndex, {
           cb += iters.update(i, coerce[NoBoxLongIterator](Code.newInstance(ecb.cb, ctor.mb, FastSeq(paths(i), fileSizes(i)))))
           cb.assign(i, i + 1)
         })

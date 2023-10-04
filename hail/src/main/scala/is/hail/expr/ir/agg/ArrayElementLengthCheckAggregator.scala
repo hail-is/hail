@@ -63,7 +63,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
   def seq(cb: EmitCodeBuilder, init: => Unit, initPerElt: => Unit, seqOp: => Unit): Unit = {
     init
     cb.assign(idx, 0)
-    cb.whileLoop(idx < lenRef, {
+    cb.while_(idx < lenRef, {
       initPerElt
       seqOp
       store(cb)
@@ -113,7 +113,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
         })
       cb += ob.writeInt(lenRef)
       cb.assign(idx, 0)
-      cb.whileLoop(idx < lenRef, {
+      cb.while_(idx < lenRef, {
         load(cb)
         nested.toCodeWithArgs(cb,
           { case (cb, i, _) =>
@@ -232,7 +232,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
       resultPType.stagedInitialize(cb, resultAddr, len, setMissing = false)
       val i = cb.newLocal[Int]("arrayagg_result_i", 0)
 
-      cb.whileLoop(i < len, {
+      cb.while_(i < len, {
         val addrAtI = cb.newLocal[Long]("arrayagg_result_addr_at_i", resultPType.elementOffset(resultAddr, len, i))
         resultEltType.stagedInitialize(cb, addrAtI, setMissing = false)
         cb.assign(state.idx, i)

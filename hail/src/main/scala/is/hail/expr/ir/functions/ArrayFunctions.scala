@@ -297,7 +297,7 @@ object ArrayFunctions extends RegistryFunctions {
             val xySum = cb.newLocal[Double]("xySum", 0d)
             val i = cb.newLocal[Int]("i")
             val n = cb.newLocal[Int]("n", 0)
-            cb.forLoop(cb.assign(i, 0), i < l1, cb.assign(i, i + 1), {
+            cb.for_(cb.assign(i, 0), i < l1, cb.assign(i, i + 1), {
               pv1.loadElement(cb, i).consume(cb, {}, { xc =>
                 pv2.loadElement(cb, i).consume(cb, {}, { yc =>
                   val x = cb.newLocal[Double]("x", xc.asDouble.value)
@@ -343,7 +343,7 @@ object ArrayFunctions extends RegistryFunctions {
             // fill in if necessary
             cb.ifx(localLen cne nGenotypes, {
               val i = cb.newLocal[Int]("i", 0)
-              cb.whileLoop(i < nGenotypes, {
+              cb.while_(i < nGenotypes, {
                 push(cb, i, fillIn.toI(cb))
                 cb.assign(i, i + 1)
               })
@@ -352,12 +352,12 @@ object ArrayFunctions extends RegistryFunctions {
 
             val i = cb.newLocal[Int]("la_i", 0)
             val laGIndexer = cb.newLocal[Int]("g_indexer", 0)
-            cb.whileLoop(i < laLen, {
+            cb.while_(i < laLen, {
               val lai = localAlleles.loadElement(cb, i).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
               cb.ifx(lai >= nTotalAlleles, cb._fatalWithError(err, "local_to_global: local allele of ", lai.toS, " out of bounds given n_total_alleles of ", nTotalAlleles.toS))
 
               val j = cb.newLocal[Int]("la_j", 0)
-              cb.whileLoop(j <= i, {
+              cb.while_(j <= i, {
                 val laj = localAlleles.loadElement(cb, j).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
 
                 val dest = cb.newLocal[Int]("dest")
@@ -405,14 +405,14 @@ object ArrayFunctions extends RegistryFunctions {
             // fill in if necessary
             cb.ifx(localLen cne globalLen, {
               val i = cb.newLocal[Int]("i", 0)
-              cb.whileLoop(i < globalLen, {
+              cb.while_(i < globalLen, {
                 push(cb, i, fillIn.toI(cb))
                 cb.assign(i, i + 1)
               })
             })
 
             val i = cb.newLocal[Int]("la_i", 0)
-            cb.whileLoop(i < localLen, {
+            cb.while_(i < localLen, {
               val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
               cb.ifx(lai >= nTotalAlleles, cb._fatalWithError(err, "local_to_global: local allele of ", lai.toS, " out of bounds given n_total_alleles of ", nTotalAlleles.toS))
               push(cb, cb.memoize(lai - idxAdjustmentForOmitFirst), array.loadElement(cb, i))

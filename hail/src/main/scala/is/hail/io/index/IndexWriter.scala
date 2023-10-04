@@ -357,7 +357,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       val level = m.newLocal[Int]("level")
       cb.ifx(leafBuilder.ab.length > 0, cb.invokeVoid(writeLeafNode))
       cb.assign(level, const(0))
-      cb.whileLoop(level < utils.size - 1, {
+      cb.while_(level < utils.size - 1, {
         cb.ifx(utils.getLength(level) > 0,
           cb.invokeVoid(writeInternalNode, CodeParam(level), CodeParam(false))
         )

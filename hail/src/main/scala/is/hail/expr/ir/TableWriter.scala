@@ -315,7 +315,7 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
-    cb.whileLoop(i < n, {
+    cb.while_(i < n, {
       val s = a.loadElement(cb, i).get(cb, "file name can't be missing!").asString
       cb += partFiles.update(i, s.loadString(cb))
       cb.assign(i, i + 1)
@@ -374,7 +374,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
-    cb.whileLoop(i < n, {
+    cb.while_(i < n, {
       val curElement =  a.loadElement(cb, i).get(cb, "writeMetadata annotation can't be missing").asBaseStruct
       val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").get(cb, "part count can't be missing!").asLong.value
 
@@ -597,7 +597,7 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
         cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
 
         val i = cb.newLocal[Int]("i")
-        cb.forLoop(cb.assign(i, 0), i < jFiles.length, cb.assign(i, i + 1), {
+        cb.for_(cb.assign(i, 0), i < jFiles.length, cb.assign(i, i + 1), {
           cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", jFiles(i), const(false))
         })
 

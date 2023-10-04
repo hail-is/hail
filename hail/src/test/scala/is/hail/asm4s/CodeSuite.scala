@@ -19,7 +19,7 @@ class CodeSuite extends HailSuite {
       val i = cb.newLocal[Int]("i")
       val sum = cb.newLocal[Int]("sum", 0)
       cb.assign(sum, 0)
-      cb.forLoop(
+      cb.for_(
         cb.assign(i, 0),
         i < 5,
         cb.assign(i, i + 1),

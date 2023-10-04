@@ -206,7 +206,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       val rng = cb.emb.getThreefryRNG()
       rngState.copyIntoEngine(cb, rng)
       val value = cb.newLocal[Double]("value", rng.invoke[Double, Double, Double]("rbeta", a.value, b.value))
-      cb.whileLoop(value < min.value || value > max.value, {
+      cb.while_(value < min.value || value > max.value, {
         cb.assign(value, rng.invoke[Double, Double, Double]("rbeta", a.value, b.value))
       })
       primitive(value)
@@ -226,7 +226,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       val len = weights.loadLength()
       val i = cb.newLocal[Int]("i", 0)
       val s = cb.newLocal[Double]("sum", 0.0)
-      cb.whileLoop(i < len, {
+      cb.while_(i < len, {
         cb.assign(s, s + weights.loadElement(cb, i).get(cb, "rand_cat requires all elements of input array to be present").asFloat64.value)
         cb.assign(i, i + 1)
       })
@@ -253,7 +253,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       val totalNumberOfRecords = cb.newLocal[Int]("scnspp_total_number_of_records", 0)
       val resultSize: Value[Int] = partitionCounts.loadLength()
       val i = cb.newLocal[Int]("scnspp_index", 0)
-      cb.forLoop(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
+      cb.for_(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
         cb.assign(totalNumberOfRecords, totalNumberOfRecords + partitionCounts.loadElement(cb, i).get(cb).asInt32.value)
       })
 
@@ -266,7 +266,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       val arrayRt = rt.asInstanceOf[SIndexablePointer]
       val (push, finish) = arrayRt.pType.asInstanceOf[PCanonicalArray].constructFromFunctions(cb, r.region, resultSize, false)
 
-      cb.forLoop(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
+      cb.for_(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
         val numSuccesses = cb.memoize(rng.invoke[Double, Double, Double, Double]("rhyper",
           successStatesRemaining.toD, failureStatesRemaining.toD, partitionCounts.loadElement(cb, i).get(cb).asInt32.value.toD).toI)
         cb.assign(successStatesRemaining, successStatesRemaining - numSuccesses)

@@ -31,8 +31,8 @@ final case class ENumpyBinaryNDArray(nRows: Long, nCols: Long, required: Boolean
     val j = cb.newLocal[Long]("j")
     val writeElemF = elementType.buildEncoder(ndarray.st.elementType, cb.emb.ecb)
 
-    cb.forLoop(cb.assign(i, 0L), i < nRows, cb.assign(i, i + 1L), {
-      cb.forLoop(cb.assign(j, 0L), j < nCols, cb.assign(j, j + 1L), {
+    cb.for_(cb.assign(i, 0L), i < nRows, cb.assign(i, i + 1L), {
+      cb.for_(cb.assign(j, 0L), j < nCols, cb.assign(j, j + 1L), {
         writeElemF(cb, ndarray.loadElement(FastSeq(i, j), cb), out)
       })
     })
@@ -53,7 +53,7 @@ final case class ENumpyBinaryNDArray(nRows: Long, nCols: Long, required: Boolean
     val currElementAddress = cb.newLocal[Long]("eblockmatrix_ndarray_currElementAddress", tFirstElementAddress)
 
     val i = cb.newLocal[Long]("i")
-    cb.forLoop(cb.assign(i, 0L), i < n, cb.assign(i, i + 1L), {
+    cb.for_(cb.assign(i, 0L), i < n, cb.assign(i, i + 1L), {
       readElemF(cb, region, currElementAddress, in)
       cb.assign(currElementAddress, currElementAddress + pt.elementType.byteSize)
     })

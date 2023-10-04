@@ -146,7 +146,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val T = vecType.constructUninitialized(FastSeq(btn), cb, region)
 
     val j = cb.newLocal[Long]("j")
-    cb.forLoop(cb.assign(j, 0L), j < n, cb.assign(j, j+1), {
+    cb.for_(cb.assign(j, 0L), j < n, cb.assign(j, j+1), {
       val windowStart = cb.memoize((j-w).max(0))
       val windowSize = cb.memoize(j - windowStart)
       val window = curWindow.slice(cb, Colon, (null, windowSize))
@@ -259,7 +259,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         val state = new LocalWhitening(cb, m, w, b, blocksize, region, false)
         val i = cb.newLocal[Long]("i", 0)
-        cb.whileLoop(i < n, {
+        cb.while_(i < n, {
           state.whitenBlock(cb, A.slice(cb, Colon, (i, (i+b).min(n))))
           cb.assign(i, i+b)
         })

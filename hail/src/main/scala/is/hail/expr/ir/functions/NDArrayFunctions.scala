@@ -178,7 +178,7 @@ object  NDArrayFunctions extends RegistryFunctions {
           cb.assign(iLeft, (-lower.value).max(0L))
           cb.assign(iRight, (nCols.get - lower.value).min(nRows.get))
 
-          cb.forLoop({
+          cb.for_({
             cb.assign(i, iLeft)
             cb.assign(j, lower.value.max(0L))
           }, i < iRight, {
@@ -206,7 +206,7 @@ object  NDArrayFunctions extends RegistryFunctions {
             primitive(0.0d)
           }
 
-          cb.forLoop({
+          cb.for_({
             cb.assign(i, iLeft)
             cb.assign(j, upper.value.max(0L) + 1)
           }, i < iRight, {
@@ -229,7 +229,7 @@ object  NDArrayFunctions extends RegistryFunctions {
         val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[SNDArrayPointerValue]
         val row = cb.newLocal[Long]("rowIdx")
         val IndexedSeq(nRows, nCols) = newBlock.shapes
-        cb.forLoop(cb.assign(row, 0L), row < nRows.get, cb.assign(row, row + 1L), {
+        cb.for_(cb.assign(row, 0L), row < nRows.get, cb.assign(row, row + 1L), {
           val start = starts.loadElement(cb, row.toI).get(cb).asInt64.value
           val stop = stops.loadElement(cb, row.toI).get(cb).asInt64.value
           newBlock.slice(cb, row, (null, start)).coiterateMutate(cb, er.region) { _ =>

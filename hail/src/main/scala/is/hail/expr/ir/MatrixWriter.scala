@@ -445,7 +445,7 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
-    cb.whileLoop(i < n, {
+    cb.while_(i < n, {
       val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
       cb += partCounts.update(i, count.asInt64.value)
       cb.assign(i, i + 1)
@@ -736,7 +736,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
     cb.ifx(alleles.loadLength() > 1,
       {
         val i = cb.newLocal[Int]("i")
-        cb.forLoop(cb.assign(i, 1), i < alleles.loadLength(), cb.assign(i, i + 1), {
+        cb.for_(cb.assign(i, 1), i < alleles.loadLength(), cb.assign(i, i + 1), {
           cb.ifx(i.cne(1), writeC(','))
           writeB(alleles.loadElement(cb, i).get(cb).asString.toBytes(cb).loadBytes(cb))
         })
@@ -853,7 +853,7 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
       val len = partPaths.loadLength()
       val files = cb.memoize(Code.newArray[String](len * 2))
       val i = cb.newLocal[Int]("i", 0)
-      cb.whileLoop(i < len, {
+      cb.while_(i < len, {
         val path = cb.memoize(partFiles(i))
         cb += files.update(i, path)
         // FIXME(chrisvittal): this will put the string ".tbi" in generated code, we should just access the htsjdk value
@@ -882,7 +882,7 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
         cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
 
         val i = cb.newLocal[Int]("i")
-        cb.forLoop(cb.assign(i, 0), i < jFiles.length, cb.assign(i, i + 1), {
+        cb.for_(cb.assign(i, 0), i < jFiles.length, cb.assign(i, i + 1), {
           cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", jFiles(i), const(false))
         })
 
@@ -1177,14 +1177,14 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
 
     val samplePloidyStart = cb.memoize(uncompBuf.invoke[Int]("size"))
     val i = cb.newLocal[Int]("i")
-    cb.forLoop(cb.assign(i, 0), i < nSamples, cb.assign(i, i + 1), {
+    cb.for_(cb.assign(i, 0), i < nSamples, cb.assign(i, i + 1), {
       add(cb, uncompBuf, 0x82) // placeholder for sample ploidy - default is missing
     })
 
     add(cb, uncompBuf, BgenWriter.phased)
     add(cb, uncompBuf, 8)
 
-    def emitNullGP(cb: EmitCodeBuilder): Unit = cb.forLoop(cb.assign(i, 0), i < nGenotypes - 1, cb.assign(i, i + 1), add(cb, uncompBuf, 0))
+    def emitNullGP(cb: EmitCodeBuilder): Unit = cb.for_(cb.assign(i, 0), i < nGenotypes - 1, cb.assign(i, i + 1), add(cb, uncompBuf, 0))
 
     val entries = elt.loadField(cb, entriesFieldName).get(cb).asIndexable
     entries.forEachDefinedOrMissing(cb)({ (cb, j) =>

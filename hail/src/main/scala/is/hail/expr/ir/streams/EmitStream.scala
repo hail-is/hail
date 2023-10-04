@@ -815,7 +815,7 @@ object EmitStream {
                 val u = cb.newLocal[Double]("seq_sample_rand_unif", Code.invokeStatic0[Math, Double]("random"))
                 val fC = cb.newLocal[Double]("seq_sample_Fc", (totalSizeVal.value - candidate - nRemaining).toD / (totalSizeVal.value - candidate).toD)
 
-                cb.whileLoop(fC > u, {
+                cb.while_(fC > u, {
                   cb.assign(candidate, candidate + 1)
                   cb.assign(fC, fC * (const(1.0) - (nRemaining.toD / (totalSizeVal.value - candidate).toD)))
                 })
@@ -2590,7 +2590,7 @@ object EmitStream {
               initMemoryManagementPerElementArray(cb)
               cb.assign(bracket, Code.newArray[Int](k))
               cb.assign(heads, Code.newArray[Long](k))
-              cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
+              cb.for_(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
                 cb += (bracket(i) = -1)
               })
               cb.assign(result, Code._null)
@@ -2625,7 +2625,7 @@ object EmitStream {
               cb.goto(LproduceElementDone)
 
               cb.define(LstartNewKey)
-              cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
+              cb.for_(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
                 cb += (result(i) = 0L)
               })
               cb.assign(curKey, eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
@@ -2752,7 +2752,7 @@ object EmitStream {
             .asInstanceOf[PCanonicalStruct]
             .setRequired(false)
           var streamRequiresMemoryManagement = false
-          cb.whileLoop(idx < nStreams, {
+          cb.while_(idx < nStreams, {
             val iter = produceIterator(makeProducer,
               eltType,
               cb,
@@ -2823,7 +2823,7 @@ object EmitStream {
                 cb.assign(regionArray, Code.newArray[Region](nStreams))
               cb.assign(bracket, Code.newArray[Int](k))
               cb.assign(heads, Code.newArray[Long](k))
-              cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
+              cb.for_(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
                 cb.updateArray(bracket, i, -1)
                 val eltRegion: Value[Region] = if (streamRequiresMemoryManagement) {
                   val r = cb.memoize(Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
@@ -2864,7 +2864,7 @@ object EmitStream {
               cb.goto(LproduceElementDone)
 
               cb.define(LstartNewKey)
-              cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
+              cb.for_(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
                 cb.updateArray(result, i, 0L)
               })
               cb.assign(curKey, eltType.loadCheapSCode(cb, heads(winner)).subset(key: _*)
@@ -2959,7 +2959,7 @@ object EmitStream {
 
             override def close(cb: EmitCodeBuilder): Unit = {
               cb.assign(i, 0)
-              cb.whileLoop(i < nStreams, {
+              cb.while_(i < nStreams, {
                 cb += iterArray(i).invoke[Unit]("close")
                 if (requiresMemoryManagementPerElement)
                   cb += regionArray(i).invoke[Unit]("invalidate")

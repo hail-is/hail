@@ -210,7 +210,7 @@ object StreamUtils {
       implInit(cb, outerRegion)
       cb.assign(bracket, Code.newArray[Int](k))
       cb.assign(heads, Code.newArray[Long](k))
-      cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
+      cb.for_(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
         cb += (bracket(i) = -1)
       })
       cb.assign(i, 0)
@@ -259,7 +259,7 @@ object StreamUtils {
 
       def forEachIterator(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], Value[NoBoxLongIterator]) => Unit) = {
         val idx = cb.newLocal[Int]("idx", 0)
-        cb.whileLoop(idx < k, {
+        cb.while_(idx < k, {
           val iter = cb.memoize(iterators(idx))
           f(cb, idx, iter)
           cb.assign(idx, idx + 1)

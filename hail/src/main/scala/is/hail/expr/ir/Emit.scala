@@ -1176,7 +1176,7 @@ class Emit[C](
               val rawSet = cb.memoize(ms)
               val maxSet = cb.memoize(Code.newArray[String](rawSet.invoke[Int]("length")))
               val i = cb.newLocal[Int]("mis_str_iseq_to_arr_i")
-              cb.forLoop(cb.assign(i, 0), i < maxSet.length(), cb.assign(i, i + 1), {
+              cb.for_(cb.assign(i, 0), i < maxSet.length(), cb.assign(i, i + 1), {
                 cb += maxSet.update(i, Code.checkcast[String](rawSet.invoke[Int, java.lang.Object]("apply", i)))
               })
 
@@ -1303,7 +1303,7 @@ class Emit[C](
               .equiv(cb, lk, rk, missingEqual = true)
           }
 
-          cb.whileLoop(eltIdx < sortedElts.size, {
+          cb.while_(eltIdx < sortedElts.size, {
             val bottomOfLoop = CodeLabel()
             val newGroup = CodeLabel()
 
@@ -1336,7 +1336,7 @@ class Emit[C](
           cb.assign(eltIdx, 0)
           cb.assign(grpIdx, 0)
 
-          cb.whileLoop(grpIdx < outerSize, {
+          cb.while_(grpIdx < outerSize, {
             cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
             cb.assign(withinGrpIdx, 0)
             val firstStruct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct
@@ -1344,7 +1344,7 @@ class Emit[C](
             val group = EmitCode.fromI(mb) { cb =>
               val (addElt, finishInner) = innerType
                 .constructFromFunctions(cb, region, groupSize, deepCopy = false)
-              cb.whileLoop(withinGrpIdx < groupSize, {
+              cb.while_(withinGrpIdx < groupSize, {
                 val struct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct
                 addElt(cb, struct.loadField(cb, 1))
                 cb.assign(eltIdx, eltIdx + 1)
@@ -1695,7 +1695,7 @@ class Emit[C](
 
                   val kLen = lShape(lSType.nDims - 1)
                   cb.assignAny(element, numericElementType.zero)
-                  cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
+                  cb.for_(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
                     val lElem = leftPVal.loadElement(lIndices, cb)
                     val rElem = rightPVal.loadElement(rIndices, cb)
                     cb.assignAny(element, numericElementType.add(multiply(lElem, rElem), element))
@@ -2036,12 +2036,12 @@ class Emit[C](
             val curWriteAddress = cb.newLocal[Long]("ndarray_qr_curr_write_addr", rDataAddress)
 
             // I think this just copies out the upper triangle into new ndarray in column major order
-            cb.forLoop({
+            cb.for_({
               cb.assign(currCol, 0L)
             }, currCol < rCols, {
               cb.assign(currCol, currCol + 1L)
             }, {
-              cb.forLoop({
+              cb.for_({
                 cb.assign(currRow, 0L)
               }, currRow < rRows, {
                 cb.assign(currRow, currRow + 1L)

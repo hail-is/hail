@@ -68,9 +68,9 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
     // set work1 to I
     work1.setToZero(cb)
-    cb.forLoop(cb.assign(i, 0L), i.toL < w + n, cb.assign(i, i+1), work1.setElement(FastSeq(i, i), primitive(1.0), cb))
+    cb.for_(cb.assign(i, 0L), i.toL < w + n, cb.assign(i, i+1), work1.setElement(FastSeq(i, i), primitive(1.0), cb))
 
-    cb.forLoop(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
+    cb.for_(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
       // Loop invariant:
       // * ([Q1 Q2] work1[:, i:w+n]) R[i:w+n, i:w+n] = [A1 A2][i:w+n] is qr fact
       // * ([Q1 Q2] work2[:, 0:i]) is locally whitened A2[:, 0:i]
@@ -126,7 +126,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
     // Set lower trapezoid of R[r12, r1] to zero
     val j = cb.mb.newLocal[Long]("j")
-    cb.forLoop(cb.assign(j, p0), j < p1, cb.assign(j, j+1), {
+    cb.for_(cb.assign(j, p0), j < p1, cb.assign(j, j+1), {
       R.slice(cb, (j+1, null), j).setToZero(cb)
     })
 
@@ -282,7 +282,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
       // Copy whitened A back to A
       val j = cb.newLocal[Long]("j")
-      cb.forLoop(cb.assign(j, 0L), j < b, cb.assign(j, j+1), {
+      cb.for_(cb.assign(j, 0L), j < b, cb.assign(j, j+1), {
         val Acol = A.slice(cb, Colon, j)
         SNDArray.copyVector(cb, Qslice2.slice(cb, Colon, j), Acol)
         SNDArray.scale(cb, Rslice2.loadElement(FastSeq(j, j), cb), Acol)

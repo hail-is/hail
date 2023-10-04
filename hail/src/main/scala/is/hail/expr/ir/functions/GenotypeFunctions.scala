@@ -16,7 +16,7 @@ object GenotypeFunctions extends RegistryFunctions {
       val m2 = cb.newLocal[Int]("m2", 99)
       val i = cb.newLocal[Int]("i", 0)
 
-      cb.whileLoop(i < pl.loadLength(), {
+      cb.while_(i < pl.loadLength(), {
         val value = pl.loadElement(cb, i).get(cb, "PL cannot have missing elements.", errorID)
         val pli = cb.newLocal[Int]("pli", value.asInt.value)
         cb.ifx(pli < m, {

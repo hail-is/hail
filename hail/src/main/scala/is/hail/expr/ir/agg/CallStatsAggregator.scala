@@ -47,7 +47,7 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
   def dump(cb: CodeBuilderLike, tag: String): Unit = {
     val i = cb.newLocal[Int]("i")
     cb += Code._println(s"at tag $tag")
-    cb.forLoop(
+    cb.for_(
       setup = cb.assign(i, 0),
       cond = i < nAlleles,
       incr = cb.assign(i, i + 1),
@@ -136,7 +136,7 @@ class CallStatsAggregator extends StagedAggregator {
           CallStatsState.callStatsInternalArrayType.stagedInitialize(cb, addr, n)
           cb += Region.storeAddress(state.homCountsOffset, addr)
           cb.assign(i, 0)
-          cb.whileLoop(i < n,
+          cb.while_(i < n,
             {
               state.updateAlleleCountAtIndex(cb, i, n, _ => 0)
               state.updateHomCountAtIndex(cb, i, n, _ => 0)
@@ -176,7 +176,7 @@ class CallStatsAggregator extends StagedAggregator {
       cb += Code._fatal[Unit]("hl.agg.call_stats: length mismatch"),
       {
         cb.assign(i, 0)
-        cb.whileLoop(i < state.nAlleles,
+        cb.while_(i < state.nAlleles,
           {
             state.updateAlleleCountAtIndex(cb, i, state.nAlleles, _ + other.alleleCountAtIndex(i, state.nAlleles))
             state.updateHomCountAtIndex(cb, i, state.nAlleles, _ + other.homCountAtIndex(i, state.nAlleles))

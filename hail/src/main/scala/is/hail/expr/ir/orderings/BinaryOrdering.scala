@@ -23,7 +23,7 @@ object BinaryOrdering {
         val cmp = cb.newLocal[Int]("cmp", 0)
         val Lbreak = CodeLabel()
 
-        cb.forLoop({}, i < lim, cb.assign(i, i + 1), {
+        cb.for_({}, i < lim, cb.assign(i, i + 1), {
           val compval = Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
             Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", xv.loadByte(cb, i)),
             Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", yv.loadByte(cb, i)))

@@ -283,7 +283,7 @@ object EmitNDArray {
                   cb.assign(missing, false)
                   // Need to check if the any of the ndarrays are missing.
                   val missingCheckLoopIdx = cb.newLocal[Int]("ndarray_concat_missing_check_idx")
-                  cb.forLoop(cb.assign(missingCheckLoopIdx, 0), missingCheckLoopIdx < arrLength, cb.assign(missingCheckLoopIdx, missingCheckLoopIdx + 1),
+                  cb.for_(cb.assign(missingCheckLoopIdx, 0), missingCheckLoopIdx < arrLength, cb.assign(missingCheckLoopIdx, missingCheckLoopIdx + 1),
                     cb.assign(missing, missing | ndsArraySValue.isElementMissing(cb, missingCheckLoopIdx))
                   )
                   missing
@@ -305,7 +305,7 @@ object EmitNDArray {
                     pushElement(cb, EmitCode(Code._empty, false, primitive(localDim)).toI(cb))
                   }
 
-                  cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
+                  cb.for_(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
                     val shapeOfNDAtIdx = ndsArraySValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shapeStruct(cb)
                     val dimLength = cb.newLocal[Long]("dimLength", shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).asInt64.value)
 
@@ -356,7 +356,7 @@ object EmitNDArray {
                       if (idx == axis) {
                         // If bigger than current ndarray, then we need to subtract out the size of this ndarray, increment to the next ndarray, and see if we are happy yet.
                         val shouldLoop = cb.newLocal[Boolean]("should_loop", curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.value)
-                        cb.whileLoop(shouldLoop,
+                        cb.while_(shouldLoop,
                           {
                             cb.assign(curIdxVar, curIdxVar - stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.value)
                             cb.assign(currentNDArrayIdx, currentNDArrayIdx + 1)

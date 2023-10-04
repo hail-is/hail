@@ -93,7 +93,7 @@ class RandomSuite extends HailSuite {
       cb.assign(state, SCanonicalRNGStateValue(cb))
       val i = cb.newLocal[Int]("i", 0)
       val len = cb.memoize(message.length())
-      cb.forLoop({}, i < len, cb.assign(i, i + 1), {
+      cb.for_({}, i < len, cb.assign(i, i + 1), {
         cb.assign(state, state.splitDyn(cb, cb.memoize(message(i))))
       })
       cb.assign(state, state.splitStatic(cb, staticID))
@@ -118,7 +118,7 @@ class RandomSuite extends HailSuite {
       cb.assign(state, SCanonicalRNGStateValue(cb))
       val i = cb.newLocal[Int]("i", 0)
       val len = cb.memoize(message.length())
-      cb.forLoop({}, i < len, cb.assign(i, i + 1), {
+      cb.for_({}, i < len, cb.assign(i, i + 1), {
         cb.assign(state, state.splitDyn(cb, cb.memoize(message(i))))
       })
       cb.assign(state, state.splitStatic(cb, staticID))

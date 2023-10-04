@@ -116,7 +116,7 @@ object SNDArray {
           }
         }
 
-        cb.forLoop(init(), coord < indexSizes(idx), increment(), recurLoopBuilder(idx - 1))
+        cb.for_(init(), coord < indexSizes(idx), increment(), recurLoopBuilder(idx - 1))
       }
     }
 
@@ -142,7 +142,7 @@ object SNDArray {
 
         recurLoopBuilder(dimIdx + 1,
           () => {
-            cb.forLoop({
+            cb.for_({
               inits(dimIdx)(cb)
               cb.assign(dimVar, 0L)
             }, dimVar < shape(dimIdx), {
@@ -183,7 +183,7 @@ object SNDArray {
 
         recurLoopBuilder(dimIdx - 1,
           () => {
-            cb.forLoop({
+            cb.for_({
               inits(dimIdx)(cb)
               cb.assign(dimVar, 0L)
             }, dimVar < shape(dimIdx), {
@@ -423,7 +423,7 @@ object SNDArray {
     // Set Q to I
     Q.setToZero(cb)
     val i = cb.mb.newLocal[Long]("i")
-    cb.forLoop(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
+    cb.for_(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
       Q.setElement(FastSeq(i, i), primitive(1.0), cb)
     })
     SNDArray.gemqrt("L", "N", A, T, Q, work, blocksize, cb)
@@ -506,7 +506,7 @@ object SNDArray {
     // Set Q to I
     Q.setToZero(cb)
     val i = cb.mb.newLocal[Long]("i")
-    cb.forLoop(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
+    cb.for_(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
       Q.setElement(FastSeq(i, i), primitive(1.0), cb)
     })
     SNDArray.gemqr(cb, "L", "N", A, T, Q, work)
@@ -873,7 +873,7 @@ trait SNDArrayValue extends SValue {
           val end = cb.mb.newLocal[Long](s"NDArray_setToZero_end_$dim")
           cb.assign(ptr, startPtr)
           cb.assign(end, ptr + strides(dim-1) * shapes(dim-1))
-          cb.forLoop({}, ptr < end, cb.assign(ptr, ptr + strides(dim-1)), recur(ptr, dim - 1, contiguousDims))
+          cb.for_({}, ptr < end, cb.assign(ptr, ptr + strides(dim-1)), recur(ptr, dim - 1, contiguousDims))
         }
       } else {
         eltType.storePrimitiveAtAddress(cb, startPtr, primitive(eltType.virtualType, eltType.zero))

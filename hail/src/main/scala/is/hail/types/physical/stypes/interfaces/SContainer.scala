@@ -33,7 +33,7 @@ trait SIndexableValue extends SValue {
   def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SValue) => Unit): Unit = {
     val length = loadLength()
     val idx = cb.newLocal[Int]("foreach_idx", 0)
-    cb.whileLoop(idx < length, {
+    cb.while_(idx < length, {
 
       loadElement(cb, idx).consume(cb,
         {}, /*do nothing if missing*/
@@ -47,7 +47,7 @@ trait SIndexableValue extends SValue {
   def forEachDefinedOrMissing(cb: EmitCodeBuilder)(missingF: (EmitCodeBuilder, Value[Int]) => Unit, presentF: (EmitCodeBuilder, Value[Int], SValue) => Unit): Unit = {
     val length = loadLength()
     val idx = cb.newLocal[Int]("foreach_idx", 0)
-    cb.whileLoop(idx < length, {
+    cb.while_(idx < length, {
 
       loadElement(cb, idx).consume(cb,
         { /*do function if missing*/

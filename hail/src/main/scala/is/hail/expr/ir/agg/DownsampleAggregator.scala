@@ -360,7 +360,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         tree.init(cb)
         copyFromTree(cb, oldRootBTree)
         cb.assign(i, 0)
-        cb.whileLoop(i < buffer.size,
+        cb.while_(i < buffer.size,
           {
             buffer.loadElement(cb, i).toI(cb).consume(cb, {}, { case point: SBaseStructValue =>
               val x = point.loadField(cb, "x").get(cb).asFloat64.value
@@ -509,7 +509,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     val i = mb.newLocal[Int]("i")
     mb.emitWithBuilder { cb =>
       cb.assign(i, 0)
-      cb.whileLoop(i < other.buffer.size, {
+      cb.while_(i < other.buffer.size, {
         val point = SingleCodeSCode.fromSCode(cb, other.buffer.loadElement(cb, i).pv, region)
         deepCopyAndInsertPoint(cb, coerce[Long](point.code))
         cb.assign(i, i + 1)

@@ -299,7 +299,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     cb.assign(dstAddress, dstAddressCode)
     val currentIdx = cb.newLocal[Int]("pcarray_deep_pointer_copy_current_idx")
     val currentElementAddress = cb.newLocal[Long]("pcarray_deep_pointer_copy_current_element_addr")
-    cb.forLoop(
+    cb.for_(
       cb.assign(currentIdx, 0),
       currentIdx < len,
       cb.assign(currentIdx, currentIdx + 1),
@@ -390,7 +390,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         stagedInitialize(cb, addr, length, setMissing = false)
 
         val idx = cb.newLocal[Int]("pcarray_store_at_addr_idx", 0)
-        cb.whileLoop(idx < length, {
+        cb.while_(idx < length, {
           indexable
             .loadElement(cb, idx)
             .consume(
@@ -439,7 +439,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val i = cb.newLocal[Int]("pcarray_construct1_i", 0)
 
     val firstElementAddr = cb.newLocal[Long]("pcarray_construct1_firstelementaddr", firstElementOffset(addr, length))
-    cb.whileLoop(i < length, {
+    cb.while_(i < length, {
       f(cb, i).consume(cb,
         setElementMissing(cb, addr, i),
         { sc =>

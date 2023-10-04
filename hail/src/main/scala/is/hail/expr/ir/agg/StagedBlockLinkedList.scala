@@ -121,7 +121,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     val present = cb.newLocal[Boolean]("bll_foreachnode_present")
     cb.assign(tmpNode, firstNode)
     cb.assign(present, true)
-    cb.whileLoop(present,
+    cb.while_(present,
       {
         body(cb)
         cb.assign(present, hasNext(tmpNode))
@@ -134,7 +134,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     foreachNode(cb, n) { cb =>
       val i = cb.newLocal[Int]("bll_foreach_i")
       cb.assign(i, 0)
-      cb.whileLoop(i < count(n),
+      cb.while_(i < count(n),
         {
           val elt = EmitCode.fromI(cb.emb) { cb =>
             IEmitCode(cb,
@@ -223,7 +223,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     val ib = desF.getCodeParam[InputBuffer](2)
     val dec = bufferEType.buildDecoder(bufferType.virtualType, desF.ecb)
     desF.voidWithBuilder { cb =>
-      cb.whileLoop(ib.readBoolean(), {
+      cb.while_(ib.readBoolean(), {
         appendShallow(cb, r, dec(cb, r, ib))
       })
     }

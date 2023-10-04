@@ -123,7 +123,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
   def dump(cb: EmitCodeBuilder, prefix: String): Unit = {
     cb.println(s"> dumping reservoir: $prefix with size=", maxSize.toS,", seen=", seenSoFar.toS)
     val j = cb.newLocal[Int]("j", 0)
-    cb.whileLoop(j < builder.size, {
+    cb.while_(j < builder.size, {
       cb.println("    j=", j.toS, ", elt=", cb.strValue(builder.loadElement(cb, j)))
       cb.assign(j, j + 1)
     })
@@ -135,14 +135,14 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
     cb.ifx(other.builder.size < maxSize, {
 
       cb.assign(j, 0)
-      cb.whileLoop(j < other.builder.size, {
+      cb.while_(j < other.builder.size, {
         seqOp(cb, cb.memoize(other.builder.loadElement(cb, j)))
         cb.assign(j, j + 1)
       })
     }, {
       cb.ifx(builder.size < maxSize, {
         cb.assign(j, 0)
-        cb.whileLoop(j < builder.size, {
+        cb.while_(j < builder.size, {
           other.seqOp(cb, cb.memoize(builder.loadElement(cb, j)))
           cb.assign(j, j + 1)
         })
@@ -166,7 +166,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
         val rightSize = cb.newLocal[Int]("rightSize", other.builder.size)
 
         cb.assign(j, 0)
-        cb.whileLoop(j < maxSize, {
+        cb.while_(j < maxSize, {
           val x = cb.memoize(rand.invoke[Double]("nextDouble"))
           cb.ifx(x * (totalWeightLeft + totalWeightRight) <= totalWeightLeft, {
 

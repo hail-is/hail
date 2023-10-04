@@ -154,7 +154,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
             val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr")
             val xptr2 = cb.newLocal[Long]("linreg_agg_seqop_xptr2")
             cb.assign(xptr, pt.firstElementOffset(xAddr, k))
-            cb.whileLoop(i < k,
+            cb.while_(i < k,
               {
                 cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * y))
                 cb.assign(i, i + 1)
@@ -166,11 +166,11 @@ class LinearRegressionAggregator() extends StagedAggregator {
             cb.assign(sptr, vector.firstElementOffset(xtx, k))
             cb.assign(xptr, pt.firstElementOffset(xAddr, k))
 
-            cb.whileLoop(i < k,
+            cb.while_(i < k,
               {
                 cb.assign(j, 0)
                 cb.assign(xptr2, pt.firstElementOffset(xAddr, k))
-                cb.whileLoop(j < k,
+                cb.while_(j < k,
                   {
                     // add x[i] * x[j] to the value at sptr
                     cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * Region.loadDouble(xptr2)))
@@ -183,7 +183,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
               })
 
           case _ =>
-            cb.whileLoop(i < k,
+            cb.while_(i < k,
               {
                 cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.value * y)
                 cb.assign(i, i + 1)
@@ -193,10 +193,10 @@ class LinearRegressionAggregator() extends StagedAggregator {
             cb.assign(i, 0)
             cb.assign(sptr, vector.firstElementOffset(xtx, k))
 
-            cb.whileLoop(i < k,
+            cb.while_(i < k,
               {
                 cb.assign(j, 0)
-                cb.whileLoop(j < k,
+                cb.while_(j < k,
                   {
                     // add x[i] * x[j] to the value at sptr
                     cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
@@ -245,7 +245,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
       optr := vector.firstElementOffset(oxty, n)
     )
 
-    cb.whileLoop(i < n, {
+    cb.while_(i < n, {
       cb += Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
@@ -261,7 +261,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
       optr := vector.firstElementOffset(oxtx, n)
     )
 
-    cb.whileLoop(i < n, {
+    cb.while_(i < n, {
       cb += Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,

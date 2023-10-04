@@ -399,7 +399,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
     mb.voidWithBuilder { cb =>
       val i = cb.newLocal[Int]("combine_i")
-      cb.forLoop(cb.assign(i, 0), i < other.ab.size, cb.assign(i, i + 1), {
+      cb.for_(cb.assign(i, 0), i < other.ab.size, cb.assign(i, i + 1), {
         val offset = other.elementOffset(cb, i)
         val indexOffset = cb.memoize(indexedKeyType.fieldOffset(eltTuple.loadField(offset, 0), 1))
         cb += Region.storeLong(indexOffset, Region.loadLong(indexOffset) + maxIndex)
@@ -477,14 +477,14 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.assign(pivotIndex, (low + high) / 2)
           cb.assign(pivotOffset, elementOffset(cb, indexAt(cb, pivotIndex)))
           cb.assign(continue, true)
-          cb.whileLoop(continue, {
-            cb.whileLoop({
+          cb.while_(continue, {
+            cb.while_({
               cb.assign(tmpOffset, elementOffset(cb, indexAt(cb, low)))
               compareElt(cb, tmpOffset, pivotOffset) < 0
             }, {
               cb.assign(low, low + 1)
             })
-            cb.whileLoop({
+            cb.while_({
               cb.assign(tmpOffset, elementOffset(cb, indexAt(cb, high)))
               compareElt(cb, tmpOffset, pivotOffset) > 0
             }, {
@@ -523,7 +523,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
       def indexOffset(idx: Code[Int]): Code[Long] = indicesToSort + idx.toL * 4L
 
-      cb.whileLoop(i < ab.size, {
+      cb.while_(i < ab.size, {
         cb += Region.storeInt(indexOffset(i), i)
         cb.assign(i, i + 1)
       })

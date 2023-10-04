@@ -164,7 +164,7 @@ object StringFunctions extends RegistryFunctions {
 
     val LreturnWithoutAppending = CodeLabel()
 
-    cb.whileLoop(i < string.length(), {
+    cb.while_(i < string.length(), {
       val c = cb.newLocal[Char]("c", string(i))
 
       val l = getPatternMatch(i, c)
@@ -181,7 +181,7 @@ object StringFunctions extends RegistryFunctions {
               cb.assign(i, i + 1) // skip quote
               cb.assign(lastFieldStart, i)
 
-              cb.whileLoop(i < string.length() && string(i).cne(qc), {
+              cb.while_(i < string.length() && string(i).cne(qc), {
                 cb.assign(i, i + 1)
               })
 
@@ -457,7 +457,7 @@ object StringFunctions extends RegistryFunctions {
             val m = l1.cne(l2)
 
             IEmitCode(cb, m, {
-              cb.whileLoop(i < l1, {
+              cb.while_(i < l1, {
                 cb.ifx(v1.invoke[Int, Char]("charAt", i).toI.cne(v2.invoke[Int, Char]("charAt", i).toI),
                   cb.assign(n, n + 1))
                 cb.assign(i, i + 1)

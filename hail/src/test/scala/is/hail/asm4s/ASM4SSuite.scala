@@ -143,7 +143,7 @@ class ASM4SSuite extends HailSuite {
     fb.emitWithBuilder[Int] { cb =>
       val r = cb.newLocal[Int]("r")
       cb.assign(r, 1)
-      cb.whileLoop(i > 1, {
+      cb.while_(i > 1, {
         cb.assign(r, r * i)
         cb.assign(i, i - 1)
       })
@@ -196,7 +196,7 @@ class ASM4SSuite extends HailSuite {
         val vn_2 = cb.newLocal[Int]("vn_2")
         cb.assign(vn_1, 1)
         cb.assign(vn_2, 1)
-        cb.whileLoop(i > 3, {
+        cb.while_(i > 3, {
           val temp = fb.newLocal[Int]()
           cb.assign(temp, vn_2 + vn_1)
           cb.assign(vn_1, temp)
@@ -455,7 +455,7 @@ class ASM4SSuite extends HailSuite {
       val acc = cb.newLocal[Int]("signum")
       cb.ifx(a > 0, cb.assign(acc, 1), cb.assign(acc, -1))
 
-      cb.whileLoop(a cne 0, {
+      cb.while_(a cne 0, {
         cb.assign(a, a - acc)
         cb.assign(b, b + acc)
       })
@@ -477,7 +477,7 @@ class ASM4SSuite extends HailSuite {
 
       val acc = cb.newLocal[Int]("signum")
 
-      cb.forLoop(
+      cb.for_(
         setup = cb.ifx(a > 0, cb.assign(acc, 1), cb.assign(acc, -1)),
         cond = a cne 0,
         incr = cb.assign(a, a - acc),

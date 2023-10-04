@@ -92,7 +92,7 @@ class SIndexablePointerValue(
         val idx = cb.newLocal[Int]("foreach_pca_idx", 0)
         val elementPtr = cb.newLocal[Long]("foreach_pca_elt_ptr", elementsAddress)
         val et = pca.elementType
-        cb.whileLoop(idx < length, {
+        cb.while_(idx < length, {
           cb.ifx(isElementMissing(cb, idx),
             {}, // do nothing,
             {

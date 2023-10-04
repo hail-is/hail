@@ -59,7 +59,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           val shift = Code.newLocal[Int]("shift")
           cb.assign(b, 0)
           cb.assign(shift, 0)
-          cb.whileLoop(i < prefixLen, {
+          cb.while_(i < prefixLen, {
             cb.ifx(value.isElementMissing(cb, i), cb.assign(b, b | (const(1) << shift)))
             cb.assign(shift, shift + 1)
             cb.assign(i, i + 1)
@@ -73,7 +73,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
         }
     }
 
-    cb.forLoop(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
+    cb.for_(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
       value.loadElement(cb, i).consume(cb, {
         if (elementType.required)
           cb._fatal(s"required array element saw missing value at index ", i.toS, " in encode")
@@ -108,7 +108,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     if (!elementType.required)
       cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
 
-    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
+    cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
       val elemAddr = cb.memoize(arrayType.elementOffset(array, len, i))
       if (elementType.required)
         readElemF(cb, region, elemAddr, in)
@@ -125,12 +125,12 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val len = cb.newLocal[Int]("len", in.readInt())
     val i = cb.newLocal[Int]("i")
     if (elementType.required) {
-      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
+      cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
     } else {
       val nMissing = cb.newLocal[Int]("nMissing", UnsafeUtils.packBitsToBytes(len))
       val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), nMissing.toL))
       cb += in.readBytes(r, mbytes, nMissing)
-      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
+      cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
         cb.ifx(!Region.loadBit(mbytes, i.toL), skip(cb, r, in)))
     }
   }

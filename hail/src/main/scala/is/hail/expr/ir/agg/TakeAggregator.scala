@@ -77,7 +77,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
   def combine(cb: EmitCodeBuilder, other: TakeRVAS): Unit = {
     val j = kb.genFieldThisRef[Int]()
     cb.assign(j, 0)
-    cb.whileLoop((builder.size < maxSize) && (j < other.builder.size),
+    cb.while_((builder.size < maxSize) && (j < other.builder.size),
       {
         other.builder.loadElement(cb, j).toI(cb)
           .consume(cb,

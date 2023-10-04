@@ -17,7 +17,7 @@ object IterableOrdering {
     ): Unit = {
       val i = cb.newLocal[Int]("i")
       val lim = cb.newLocal("lim", lhs.loadLength().min(rhs.loadLength()))
-      cb.forLoop(cb.assign(i, 0), i < lim, cb.assign(i, i + 1), {
+      cb.for_(cb.assign(i, 0), i < lim, cb.assign(i, i + 1), {
         val left = cb.memoize(lhs.loadElement(cb, i))
         val right = cb.memoize(rhs.loadElement(cb, i))
         f(left, right)
