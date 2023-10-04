@@ -226,12 +226,12 @@ class Method private[lir] (
 
         assert(L.first != null)
         val x = L.last.asInstanceOf[ControlX]
-        var i = 0
-        while (i < x.targetArity()) {
+        var i = x.targetArity() - 1
+        while (i >= 0) {
           val target = x.target(i)
           assert(target != null)
           s.push(target)
-          i += 1
+          i -= 1
         }
         visited += L
       }
