@@ -446,6 +446,19 @@ class ASM4SSuite extends HailSuite {
     assert(test() == 1)
   }
 
+  @Test def testIf(): Unit = {
+    val Main = FunctionBuilder[Int, Int]("If")
+    Main.emitWithBuilder[Int] { cb =>
+      val a = cb.mb.getArg[Int](1)
+      val t = cb.newLocal[Int]("t")
+      cb.ifx(a > 0, cb.assign(t, a), cb.assign(t, -a))
+      t
+    }
+
+    val abs = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    Prop.forAll { (x: Int) => abs(x) == x.abs }.check()
+  }
+
   @Test def testWhile(): Unit = {
     val Main = FunctionBuilder[Int, Int, Int]("While")
     Main.emitWithBuilder[Int] { cb =>
@@ -463,9 +476,9 @@ class ASM4SSuite extends HailSuite {
       b
     }
 
-    val f = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    val add = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10))
-      { (x, y) => f(x, y) == x + y }
+      { (x, y) => add(x, y) == x + y }
       .check()
   }
 
@@ -487,8 +500,8 @@ class ASM4SSuite extends HailSuite {
       b
     }
 
-    val f = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10)) { (x, y) => f(x, y) == x + y }
+    val add = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10)) { (x, y) => add(x, y) == x + y }
       .check()
   }
 

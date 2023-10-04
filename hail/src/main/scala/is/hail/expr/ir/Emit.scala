@@ -2323,10 +2323,10 @@ class Emit[C](
         val msg = cb.newLocal[String]("die_msg")
         cm.consume(cb,
           cb.assign(msg, "<exception message missing>"),
-          { sc => cb.assign(msg, sc.asString.loadString(cb)) })
+          { sc => cb.assign(msg, sc.asString.loadString(cb)) }
+        )
         cb._throw[HailException](Code.newInstance[HailException, String, Int](msg, errorId))
-
-        IEmitCode.present(cb, SUnreachable.fromVirtualType(typ).defaultValue)
+        IEmitCode(CodeLabel(), CodeLabel(), SUnreachable.fromVirtualType(typ).defaultValue, true)
 
       case ConsoleLog(message, result) =>
         val cm = emitI(message)
