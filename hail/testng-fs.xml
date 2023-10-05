@@ -1,7 +1,7 @@
 <suite name="SuiteAll" verbose="1">
   <test name="TestAll">
     <packages>
-      <package name="is.hail.fs.*"></package>
+      <package name="is.hail.io.fs.*"></package>
     </packages>
   </test>
 </suite>

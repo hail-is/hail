@@ -6,6 +6,9 @@ import is.hail.io.fs.HadoopFS
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
 import org.apache.hadoop
+import org.sparkproject.guava.util.concurrent.MoreExecutors
+
+import scala.collection.mutable.ArrayBuffer
 
 class UtilsSuite extends HailSuite {
   @Test def testD_==() {
@@ -83,13 +86,13 @@ class UtilsSuite extends HailSuite {
     assert(!rdd1.exists(_ < 0))
   }
 
-  @Test def testSortFileStatus() {
+  @Test def testSortFileListEntry() {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
     val partFileNames = fs.glob("src/test/resources/part-*")
-      .map { fileStatus =>
-        (fileStatus, new hadoop.fs.Path(fileStatus.getPath))
-      }.sortBy { case (fileStatus, path) =>
+      .map { fileListEntry =>
+        (fileListEntry, new hadoop.fs.Path(fileListEntry.getPath))
+      }.sortBy { case (fileListEntry, path) =>
         getPartNumber(path.getName)
       }.map(_._2.getName)
 
@@ -197,4 +200,54 @@ class UtilsSuite extends HailSuite {
     assert(treeAggDepth(401, 20) == 3)
     assert(treeAggDepth(0, 20) == 1)
   }
+
+  @Test def testRunAll(): Unit = {
+    type F[_] = ArrayBuffer[Int]
+
+    val (failures, successes) =
+      runAll[F, Int](
+        MoreExecutors.sameThreadExecutor()
+      )(
+        { case (acc, (_, index)) => acc :+ index }
+      )(
+        new ArrayBuffer[Int](2)
+      )(
+        for {k <- 0 until 4}
+          yield (() => if (k % 2 == 0) k else throw new Exception(), k)
+      )
+
+    assert(failures == Seq(1, 3))
+    assert(successes == Seq(0 -> 0, 2 -> 2))
+  }
+
+  @Test def testMerge(): Unit = {
+    val lt: (Int, Int) => Boolean =
+      _ < _
+
+    val empty: IndexedSeq[Int] =
+      IndexedSeq.empty
+
+    assert(merge(empty, empty, lt) == empty)
+
+    val ones: IndexedSeq[Int] =
+      Array(1)
+
+    assert(merge(ones, empty, lt) == ones)
+    assert(merge(empty, ones, lt) == ones)
+
+    val twos: IndexedSeq[Int] =
+      Array(2)
+
+    assert(merge(ones, twos, lt) == (1 to 2))
+    assert(merge(twos, ones, lt) == (1 to 2))
+
+    val threes: IndexedSeq[Int] =
+      Array(3)
+
+    assert(merge(twos, ones ++ threes, lt) == (1 to 3))
+
+    // inputs need to be sorted
+    assert(merge(twos, threes ++ ones, lt) == Seq(2, 3, 1))
+  }
+
 }

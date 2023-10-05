@@ -10,6 +10,8 @@ from hail.utils import hadoop_open, hadoop_copy, hadoop_ls
 from hailtop.utils import secret_alnum_string
 from hail.utils.java import FatalError
 
+from ..helpers import qobtest
+
 
 def touch(fs, filename: str):
     with fs.open(filename, 'w') as fobj:
@@ -30,6 +32,7 @@ def tmpdir(request) -> Generator[str, None, None]:
     fs.rmtree(tmpdir)
 
 
+@qobtest
 def test_hadoop_methods_1(tmpdir: str):
     data = ['foo', 'bar', 'baz']
     data.extend(map(str, range(100)))
@@ -45,6 +48,7 @@ def test_hadoop_methods_1(tmpdir: str):
     assert data == data2
 
 
+@qobtest
 def test_hadoop_methods_2(tmpdir: str):
     data = ['foo', 'bar', 'baz']
     data.extend(map(str, range(100)))
@@ -59,6 +63,8 @@ def test_hadoop_methods_2(tmpdir: str):
 
     assert data == data3
 
+
+@qobtest
 def test_hadoop_methods_3(tmpdir: str):
     data = ['foo', 'bar', 'baz']
     data.extend(map(str, range(100)))
@@ -79,6 +85,8 @@ def test_hadoop_methods_3(tmpdir: str):
     print(f'contents of my tmpdir, {tmpdir}:')
     print(repr(hadoop_ls(tmpdir)))
 
+
+@qobtest
 def test_read_overwrite(tmpdir):
     with fs.open(os.path.join(tmpdir, 'randomBytes'), 'wb') as f:
         f.write(secrets.token_bytes(2048))
@@ -94,6 +102,7 @@ def test_read_overwrite(tmpdir):
     assert b == b2
 
 
+@qobtest
 def test_hadoop_exists(tmpdir: str):
     with hadoop_open(f'{tmpdir}/test_exists.txt', 'w') as f:
         f.write("HELLO WORLD")
@@ -104,6 +113,7 @@ def test_hadoop_exists(tmpdir: str):
     assert not hl.hadoop_exists(r_not_exists)
 
 
+@qobtest
 def test_hadoop_is_file(tmpdir: str):
     a_file = f'{tmpdir}/test_hadoop_is_file.txt'
     with hadoop_open(a_file, 'w') as f:
@@ -114,6 +124,7 @@ def test_hadoop_is_file(tmpdir: str):
     assert not hl.hadoop_is_file(f'{tmpdir}/invalid-path')
 
 
+@qobtest
 def test_hadoop_stat(tmpdir: str):
     data = ['foo', 'bar', 'baz']
     data.extend(map(str, range(100)))
@@ -137,6 +148,7 @@ def test_hadoop_stat(tmpdir: str):
     assert 'path' in stat2
 
 
+@qobtest
 def test_subdirs(tmpdir: str):
     dir = f'{tmpdir}foo/'
     subdir1 = f'{dir}foo/'
@@ -203,12 +215,14 @@ def test_subdirs(tmpdir: str):
     assert not fs.is_dir(dir)
 
 
+@qobtest
 def test_rmtree_empty_is_ok(tmpdir: str):
     dir = f'{tmpdir}foo/'
     fs.mkdir(dir)
     fs.rmtree(dir)
 
 
+@qobtest
 def test_rmtree_empty_subdir_is_ok(tmpdir: str):
     dir = f'{tmpdir}foo/'
     fs.mkdir(f'{tmpdir}foo/')
@@ -216,6 +230,7 @@ def test_rmtree_empty_subdir_is_ok(tmpdir: str):
     fs.rmtree(dir)
 
 
+@qobtest
 def test_remove_and_rmtree(tmpdir: str):
     dir = f'{tmpdir}foo/'
     subdir1 = f'{dir}foo/'

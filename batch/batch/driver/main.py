@@ -35,7 +35,7 @@ from gear import (
     setup_aiohttp_session,
     transaction,
 )
-from gear.auth import AIOHTTPHandler
+from gear.auth import AIOHTTPHandler, UserData
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
@@ -68,7 +68,6 @@ from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
 from ..utils import (
     add_metadata_to_request,
     authorization_token,
-    batch_only,
     json_to_value,
     query_billing_projects_with_cost,
 )
@@ -115,6 +114,17 @@ def instance_from_request(request):
 # auth mechanism
 def instance_token(request):
     return request.headers.get('X-Hail-Instance-Token') or authorization_token(request)
+
+
+def batch_only(fun: AIOHTTPHandler):
+    @wraps(fun)
+    @auth.authenticated_users_only()
+    async def wrapped(request: web.Request, userdata: UserData):
+        if userdata['username'] != 'batch':
+            raise web.HTTPUnauthorized()
+        return await fun(request)
+
+    return wrapped
 
 
 def activating_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.StreamResponse]]) -> AIOHTTPHandler:
@@ -185,7 +195,7 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/check_invariants')
-@auth.rest_authenticated_developers_only
+@auth.authenticated_developers_only()
 async def get_check_invariants(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     incremental_result, resource_agg_result = await asyncio.gather(
@@ -242,22 +252,6 @@ async def delete_batch(request):
     return web.Response()
 
 
-# deprecated
-async def get_gsa_key_1(instance):
-    log.info(f'returning gsa-key to activating instance {instance}')
-    with open('/gsa-key/key.json', 'r', encoding='utf-8') as f:
-        key = json.loads(f.read())
-    return json_response({'key': key})
-
-
-async def get_credentials_1(instance):
-    log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
-    credentials_file = '/gsa-key/key.json'
-    with open(credentials_file, 'r', encoding='utf-8') as f:
-        key = json.loads(f.read())
-    return json_response({'key': key})
-
-
 async def activate_instance_1(request, instance):
     body = await json_request(request)
     ip_address = body['ip_address']
@@ -268,20 +262,6 @@ async def activate_instance_1(request, instance):
     await instance.mark_healthy()
 
     return json_response({'token': token})
-
-
-# deprecated
-@routes.get('/api/v1alpha/instances/gsa_key')
-@activating_instances_only
-async def get_gsa_key(_, instance: Instance) -> web.Response:
-    return await asyncio.shield(get_gsa_key_1(instance))
-
-
-# deprecated
-@routes.get('/api/v1alpha/instances/credentials')
-@activating_instances_only
-async def get_credentials(_, instance: Instance) -> web.Response:
-    return await asyncio.shield(get_credentials_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')
@@ -306,8 +286,7 @@ async def deactivate_instance(_, instance: Instance) -> web.Response:
 
 
 @routes.post('/instances/{instance_name}/kill')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def kill_instance(request: web.Request, _) -> NoReturn:
     instance_name = request.match_info['instance_name']
 
@@ -449,7 +428,7 @@ async def billing_update(request, instance):
 
 @routes.get('/')
 @routes.get('')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -480,7 +459,7 @@ FROM user_inst_coll_resources;
 
 
 @routes.get('/quotas')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
         return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": None})
@@ -569,8 +548,7 @@ def validate_int(session, name, value, predicate, description):
 
 
 @routes.post('/configure-feature-flags')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def configure_feature_flags(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -593,8 +571,7 @@ UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
 
 
 @routes.post('/config-update/pool/{pool}')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def pool_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -802,8 +779,7 @@ async def pool_config_update(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/config-update/jpim')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def job_private_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -881,7 +857,7 @@ async def job_private_config_update(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/inst_coll/pool/{pool}')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -918,7 +894,7 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -947,8 +923,7 @@ async def get_job_private_inst_manager(request, userdata):
 
 
 @routes.post('/freeze')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def freeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -972,8 +947,7 @@ UPDATE globals SET frozen = 1;
 
 
 @routes.post('/unfreeze')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def unfreeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -997,7 +971,7 @@ UPDATE globals SET frozen = 0;
 
 
 @routes.get('/user_resources')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1601,14 +1575,12 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT instance_id, internal_token, frozen FROM globals;
+SELECT instance_id, frozen FROM globals;
 '''
     )
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
-    app['internal_token'] = row['internal_token']
-    app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
     app['frozen'] = row['frozen']
 
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
@@ -1627,9 +1599,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    credentials_file = '/gsa-key/key.json'
     app['driver'] = await get_cloud_driver(
-        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
+        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, task_manager
     )
 
     app['canceller'] = await Canceller.create(app)
@@ -1677,7 +1648,9 @@ async def on_cleanup(app):
 def run():
     install_profiler_if_requested('batch-driver')
 
-    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
+    app = web.Application(
+        client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[check_csrf_token, monitor_endpoints_middleware]
+    )
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.driver')

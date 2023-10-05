@@ -42,11 +42,21 @@ def curl(
     ctx: typer.Context,
 ):
     '''Issue authenticated curl requests to Hail infrastructure.'''
+    from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
+    async_to_blocking(_curl(namespace, service, path, ctx))
+
+
+async def _curl(
+    namespace: str,
+    service: str,
+    path: str,
+    ctx: typer.Context,
+):
     from hailtop.auth import hail_credentials  # pylint: disable=import-outside-toplevel
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
-    from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
 
-    headers_dict = async_to_blocking(hail_credentials(namespace=namespace).auth_headers())
+    async with hail_credentials(namespace=namespace) as credentials:
+        headers_dict = await credentials.auth_headers()
     headers = [x for k, v in headers_dict.items() for x in ['-H', f'{k}: {v}']]
     path = get_deploy_config().url(service, path)
     os.execvp('curl', ['curl', *headers, *ctx.args, path])

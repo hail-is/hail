@@ -135,7 +135,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 
 @routes.get('')
 @routes.get('/')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def index(request: web.Request, userdata: UserData) -> web.Response:
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
     page_context = {'watched_branches': wb_configs, 'frozen_merge_deploy': request.app['frozen_merge_deploy']}
@@ -167,7 +167,7 @@ def filter_jobs(jobs):
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     wb, pr = wb_and_pr_from_request(request)
 
@@ -228,8 +228,7 @@ async def retry_pr(wb, pr, request):
 
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@auth.authenticated_developers_only(redirect=False)
 async def post_retry_pr(request: web.Request, _) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
 
@@ -238,7 +237,7 @@ async def post_retry_pr(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/batches')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
     batches = [b async for b in batch_client.list_batches()]
@@ -248,7 +247,7 @@ async def get_batches(request, userdata):
 
 
 @routes.get('/batches/{batch_id}')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
@@ -298,7 +297,7 @@ def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
 
 
 @routes.get('/me')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_user(request: web.Request, userdata: UserData) -> web.Response:
     for authorized_user in AUTHORIZED_USERS:
         if authorized_user.hail_username == userdata['username']:
@@ -331,8 +330,7 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/authorize_source_sha')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@auth.authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -428,7 +426,7 @@ async def batch_callback_handler(request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
-@auth.rest_authenticated_developers_only
+@auth.authenticated_developers_only()
 async def deploy_status(request: web.Request, _) -> web.Response:
     batch_client = request.app['batch_client']
 
@@ -462,7 +460,7 @@ async def deploy_status(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/update')
-@auth.rest_authenticated_developers_only
+@auth.authenticated_developers_only()
 async def post_update(request: web.Request, _) -> web.Response:
     log.info('developer triggered update')
 
@@ -475,7 +473,7 @@ async def post_update(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@auth.rest_authenticated_developers_only
+@auth.authenticated_developers_only()
 async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     try:
@@ -588,8 +586,7 @@ async def batch_callback(request):
 
 
 @routes.post('/freeze_merge_deploy')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def freeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -613,8 +610,7 @@ UPDATE globals SET frozen_merge_deploy = 1;
 
 
 @routes.post('/unfreeze_merge_deploy')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -638,7 +634,7 @@ UPDATE globals SET frozen_merge_deploy = 0;
 
 
 @routes.get('/namespaces')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def get_active_namespaces(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     namespaces = [
@@ -661,8 +657,7 @@ GROUP BY active_namespaces.namespace'''
 
 
 @routes.post('/namespaces/{namespace}/services/add')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def add_namespaced_service(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
@@ -690,8 +685,7 @@ WHERE namespace = %s AND service = %s
 
 
 @routes.post('/namespaces/add')
-@check_csrf_token
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def add_namespace(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
@@ -802,7 +796,6 @@ SELECT frozen_merge_deploy FROM globals;
     app['frozen_merge_deploy'] = row['frozen_merge_deploy']
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    app['task_manager'].ensure_future(update_loop(app))
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()
@@ -810,7 +803,8 @@ SELECT frozen_merge_deploy FROM globals;
         app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
         app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db']))
 
-    headers = await hail_credentials().auth_headers()
+    async with hail_credentials() as creds:
+        headers = await creds.auth_headers()
     users = await retry_transient_errors(
         client_session.get_read_json,
         deploy_config.url('auth', '/api/v1alpha/users'),
@@ -826,6 +820,8 @@ SELECT frozen_merge_deploy FROM globals;
         )
     ]
 
+    app['task_manager'].ensure_future(update_loop(app))
+
 
 async def on_cleanup(app):
     try:
@@ -839,7 +835,7 @@ async def on_cleanup(app):
 def run():
     install_profiler_if_requested('ci')
 
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[check_csrf_token, monitor_endpoints_middleware])
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)
 

@@ -1,8 +1,9 @@
 import logging
 import secrets
-from functools import wraps
 
 from aiohttp import web
+
+from .auth import AIOHTTPHandler
 
 log = logging.getLogger('gear.auth')
 
@@ -11,15 +12,16 @@ def new_csrf_token():
     return secrets.token_urlsafe(64)
 
 
-def check_csrf_token(fun):
-    @wraps(fun)
-    async def wrapped(request, *args, **kwargs):
+@web.middleware
+async def check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
+    # CSRF prevention is only relevant to requests that use browser
+    # cookies for authentication.
+    if request.cookies and request.method not in {'GET', 'HEAD', 'OPTIONS'}:
         token1 = request.cookies.get('_csrf')
         post = await request.post()
         token2 = post.get('_csrf')
-        if token1 is not None and token2 is not None and token1 == token2:
-            return await fun(request, *args, **kwargs)
-        log.info('request made with invalid csrf tokens')
-        raise web.HTTPUnauthorized()
+        if token1 is None or token2 is None or token1 != token2:
+            log.info('request made with invalid csrf tokens')
+            raise web.HTTPUnauthorized()
 
-    return wrapped
+    return await handler(request)
