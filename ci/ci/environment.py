@@ -21,8 +21,6 @@ DEPLOY_STEPS = tuple(json.loads(os.environ.get('HAIL_CI_DEPLOY_STEPS', '[]')))
 
 if CLOUD == 'gcp':
     REGION = get_gcp_config().region
-    PROJECT = get_gcp_config().project
 else:
     assert CLOUD == 'azure', CLOUD
     REGION = get_azure_config().region
-    PROJECT = None

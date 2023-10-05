@@ -5,6 +5,7 @@ import urllib.parse
 from typing import List, Optional
 
 from gear import Database
+from gear.cloud_config import get_gcp_config
 
 
 def generate_token(size=12):
@@ -39,14 +40,28 @@ ON DUPLICATE KEY UPDATE namespace = namespace;
     )
 
 
-def generate_gcp_service_logging_url(
+def severity_query_str(severity: List[str]) -> str:
+    severity_queries = []
+    for level in severity:
+        severity_queries.append(f'severity={level}')
+    return ' OR '.join(severity_queries)
+
+
+def timestamp_query_str(start_time: str, end_time: Optional[str]) -> str:
+    timestamp_query = f';startTime={start_time}'
+    if end_time is not None:
+        timestamp_query += f';endTime={end_time}'
+    return timestamp_query
+
+
+def gcp_service_logging_url(
     project: str,
     services: List[str],
     namespace: str,
     start_time: str,
     end_time: Optional[str],
     severity: Optional[List[str]],
-):
+) -> str:
     service_queries = []
     for service in services:
         service_queries.append(
@@ -62,21 +77,16 @@ resource.labels.container_name="{service}"
     query = ' OR '.join(service_queries)
 
     if severity is not None:
-        severity_queries = []
-        for level in severity:
-            severity_queries.append(f'severity={level}')
-        query += ' OR '.join(severity_queries)
+        query += severity_query_str(severity)
 
-    timestamp_query = f';startTime={start_time}'
-    if end_time is not None:
-        timestamp_query += f';endTime={end_time}'
+    timestamp_query = timestamp_query_str(start_time, end_time)
 
     return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote(query)};{urllib.parse.quote(timestamp_query)}?project={project}'
 
 
-def generate_gcp_worker_logging_url(
+def gcp_worker_logging_url(
     project: str, namespace: str, start_time: str, end_time: Optional[str], severity: Optional[List[str]]
-):
+) -> str:
     query = f'''
 (
 resource.type="gce_instance"
@@ -86,13 +96,31 @@ labels.namespace="{namespace}"
 '''
 
     if severity is not None:
-        severity_queries = []
-        for level in severity:
-            severity_queries.append(f'severity={level}')
-        query += ' OR '.join(severity_queries)
+        query += severity_query_str(severity)
 
-    timestamp_query = f';startTime={start_time}'
-    if end_time is not None:
-        timestamp_query += f';endTime={end_time}'
+    timestamp_query = timestamp_query_str(start_time, end_time)
 
     return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote(query)};{urllib.parse.quote(timestamp_query)}?project={project}'
+
+
+def gcp_logging_queries(namespace: str, start_time: str, end_time: Optional[str]):
+    project = get_gcp_config().project
+    return {
+        'batch-k8s-error-warning': gcp_service_logging_url(
+            project,
+            ['batch', 'batch-driver'],
+            namespace,
+            start_time,
+            end_time,
+            ['ERROR', 'WARNING'],
+        ),
+        'batch-workers-error-warning': gcp_worker_logging_url(
+            project, namespace, start_time, end_time, ['ERROR', 'WARNING']
+        ),
+        'ci-k8s-error-warning': gcp_service_logging_url(
+            project, ['ci'], namespace, start_time, end_time, ['ERROR', 'WARNING']
+        ),
+        'auth-k8s-error-warning': gcp_service_logging_url(
+            project, ['auth', 'auth-driver'], namespace, start_time, end_time, ['ERROR', 'WARNING']
+        ),
+    }

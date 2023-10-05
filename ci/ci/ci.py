@@ -40,10 +40,10 @@ from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
-from .environment import CLOUD, DEFAULT_NAMESPACE, PROJECT, STORAGE_URI
+from .environment import CLOUD, DEFAULT_NAMESPACE, STORAGE_URI
 from .envoy import create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
-from .utils import generate_gcp_service_logging_url, generate_gcp_worker_logging_url
+from .utils import gcp_logging_queries
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
@@ -191,27 +191,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
                 start_time = status['time_created']
                 end_time = status['time_completed']
                 assert start_time is not None
-                assert PROJECT is not None
-
-                page_context['logging_queries'] = {
-                    'batch-k8s-error-warning': generate_gcp_service_logging_url(
-                        PROJECT,
-                        ['batch', 'batch-driver'],
-                        DEFAULT_NAMESPACE,
-                        start_time,
-                        end_time,
-                        ['ERROR', 'WARNING'],
-                    ),
-                    'batch-workers-error-warning': generate_gcp_worker_logging_url(
-                        PROJECT, DEFAULT_NAMESPACE, start_time, end_time, ['ERROR', 'WARNING']
-                    ),
-                    'ci-k8s-error-warning': generate_gcp_service_logging_url(
-                        PROJECT, ['ci'], DEFAULT_NAMESPACE, start_time, end_time, ['ERROR', 'WARNING']
-                    ),
-                    'auth-k8s-error-warning': generate_gcp_service_logging_url(
-                        PROJECT, ['auth', 'auth-driver'], DEFAULT_NAMESPACE, start_time, end_time, ['ERROR', 'WARNING']
-                    ),
-                }
+                page_context['logging_queries'] = gcp_logging_queries(DEFAULT_NAMESPACE, start_time, end_time)
             else:
                 page_context['logging_queries'] = None
         else:
