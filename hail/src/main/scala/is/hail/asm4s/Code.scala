@@ -1011,6 +1011,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def numberOfTrailingZeros: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfTrailingZeros", lhs)
 
+  def reverseBytes: Code[Long] = Code.invokeStatic1[java.lang.Long, Long, Long]("reverseBytes", lhs)
+
   def bitCount: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("bitCount", lhs)
 }
 

@@ -61,6 +61,9 @@ trait PArrayBackedContainer extends PContainer {
   override def setElementPresent(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
     arrayRep.setElementPresent(cb, aoff, i)
 
+  override def firstElementOffset(aoff: Long): Long =
+    arrayRep.firstElementOffset(aoff)
+
   override def firstElementOffset(aoff: Long, length: Int): Long =
     arrayRep.firstElementOffset(aoff, length)
 
@@ -81,6 +84,18 @@ trait PArrayBackedContainer extends PContainer {
 
   override def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     arrayRep.elementOffset(aoff, length, i)
+
+  override def incrementElementOffset(currentOffset: Long, increment: Int): Long =
+    arrayRep.incrementElementOffset(currentOffset, increment)
+
+  override def incrementElementOffset(currentOffset: Code[Long], increment: Code[Int]): Code[Long] =
+    arrayRep.incrementElementOffset(currentOffset, increment)
+
+  override def pastLastElementOffset(aoff: Long, length: Int): Long =
+    arrayRep.pastLastElementOffset(aoff, length)
+
+  override def pastLastElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
+    arrayRep.pastLastElementOffset(aoff, length)
 
   override def loadElement(aoff: Long, length: Int, i: Int): Long =
     arrayRep.loadElement(aoff, length, i)
@@ -129,12 +144,6 @@ trait PArrayBackedContainer extends PContainer {
 
   override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     arrayRep.copyFromAddress(sm, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
-
-  override def nextElementAddress(currentOffset: Long): Long =
-    arrayRep.nextElementAddress(currentOffset)
-
-  override def nextElementAddress(currentOffset: Code[Long]): Code[Long] =
-    arrayRep.nextElementAddress(currentOffset)
 
   override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     arrayRep.unstagedStoreAtAddress(sm, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)

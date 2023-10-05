@@ -148,13 +148,19 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
     }
 
+  def incrementElementOffset(currentOffset: Long, increment: Int): Long =
+    currentOffset + increment * elementByteSize
+
+  def incrementElementOffset(currentOffset: Code[Long], increment: Code[Int]): Code[Long] =
+    currentOffset + increment.toL * elementByteSize
+
+  def pastLastElementOffset(aoff: Long, length: Int): Long =
+    firstElementOffset(aoff, length) + length * elementByteSize
+
+  def pastLastElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
+    firstElementOffset(aoff, length) + length.toL * elementByteSize
+
   private def elementOffsetFromFirst(firstElementAddr: Code[Long], i: Code[Int]): Code[Long] = firstElementAddr + i.toL * const(elementByteSize)
-
-  def nextElementAddress(currentOffset: Long) =
-    currentOffset + elementByteSize
-
-  def nextElementAddress(currentOffset: Code[Long]) =
-    currentOffset + elementByteSize
 
   def loadElement(aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
@@ -521,7 +527,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       else {
         elementType.unstagedStoreJavaObjectAtAddress(sm, curElementAddress, is(i), region)
       }
-      curElementAddress = nextElementAddress(curElementAddress)
+      curElementAddress = nextElementOffset(curElementAddress)
       i += 1
     }
 

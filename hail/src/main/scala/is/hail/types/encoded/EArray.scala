@@ -100,66 +100,74 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
     val len = cb.newLocal[Int]("len", in.readInt())
     val array = cb.newLocal[Long]("array", arrayType.allocate(region, len))
-    val elemAddr = cb.newLocal[Long]("elemAddr", arrayType.firstElementOffset(array, len))
     arrayType.storeLength(cb, array, len)
 
-    val i = cb.newLocal[Int]("i")
-    val mbyteOffset = cb.newLocal[Long]("mbyteOffset", array + arrayType.lengthHeaderBytes)
-    val mbyte = cb.newLocal[Byte]("mbyte", 0.toByte)
-    val presentBitsLong = cb.newLocal[Long]("presentBitsLong", 0)
-    val inBlockIndexToPresentValue = cb.newLocal[Int]("inBlockIndexToPresentValue", 0)
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
+    val pastLastFull64BlockOff = cb.memoize(arrayType.elementOffset(array, len, len - 64))
+    val pastLastOff = cb.memoize(arrayType.elementOffset(array, len, len))
 
-    if (!elementType.required)
-      cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
-
-    val LONG_MASK_ALL_BUT_FIRST = const(0x7fffffffffffffffL)
-
-    cb.assign(i, 0)
     if (elementType.required) {
-      cb.forLoop({}, i + 64 < len, cb.assign(i, i + 64), {
-        for (_ <- 0 to 63) {
-          readElemF(cb, region, elemAddr, in)
-          cb.assign(elemAddr, arrayType.nextElementAddress(elemAddr))
-        }
+      // val i = cb.newLocal[Int]("i")
+      // cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
+      //   val elemOff = cb.memoize(arrayType.elementOffset(array, len, i))
+      //   readElemF(cb, region, elemOff, in)
+      // })
+      //
+      // cb.forLoop({}, elemOff < pastLastFull64BlockOff, {}, {
+      //   for (_ <- 0 to 63) {
+      //     readElemF(cb, region, elemOff, in)
+      //     cb.assign(elemOff, arrayType.nextElementOffset(elemOff))
+      //   }
+      // })
+      val elemOff = cb.newLocal[Long]("elemOff", arrayType.firstElementOffset(array, len))
+      cb.forLoop({}, elemOff < pastLastOff, cb.assign(elemOff, arrayType.nextElementOffset(elemOff)), {
+        readElemF(cb, region, elemOff, in)
       })
     } else {
-      cb.forLoop({}, i + 64 < len, cb.assign(i, i + 64), {
-        cb.assign(presentBitsLong, ~Region.loadLong(mbyteOffset))
-        cb.assign(mbyteOffset, mbyteOffset + 8)
-        cb.assign(inBlockIndexToPresentValue, presentBitsLong.numberOfLeadingZeros)
+      cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
 
-        cb.whileLoop(inBlockIndexToPresentValue < 64, {
-          cb.assign(elemAddr,
-            arrayType.elementOffset(array, len, i + inBlockIndexToPresentValue))
-          readElemF(cb, region, elemAddr, in)
+      def unsetRightMostBit(x: Value[Long]): Code[Long] =
+        x & (x - 1)
 
-          cb.assign(inBlockIndexToPresentValue,
-            (presentBitsLong & (LONG_MASK_ALL_BUT_FIRST >>> inBlockIndexToPresentValue)).numberOfLeadingZeros)
-        })
-      })
-      cb.assign(elemAddr, arrayType.elementOffset(array, len, i))
-    }
-    cb.forLoop({}, i < len,
-      {
-        cb.assign(i, i + 1)
-        cb.assign(elemAddr, arrayType.nextElementAddress(elemAddr))
-      },
-      {
-        if (elementType.required) {
-          readElemF(cb, region, elemAddr, in)
-        } else {
-          cb.ifx((i % 8).ceq(0),
-            {
-              cb.assign(mbyte, Region.loadByte(mbyteOffset))
-              cb.assign(mbyteOffset, mbyteOffset + 1)
-            }
-          )
-          cb.ifx((mbyte.load() & (const(1) << (i & 7))).ceq(0),
-            readElemF(cb, region, elemAddr, in))
+      val presentBits = cb.newLocal[Long]("presentBits", 0L)
+      val mbyteOffset = cb.newLocal[Long]("mbyteOffset", array + arrayType.lengthHeaderBytes)
+      val blockOff = cb.newLocal[Long]("blockOff", arrayType.firstElementOffset(array, len))
+      val inBlockIndexToPresentValue = cb.newLocal[Int]("inBlockIndexToPresentValue", 0)
+
+      cb.forLoop(
+        {},
+        blockOff < pastLastFull64BlockOff,
+        cb.assign(blockOff, arrayType.incrementElementOffset(blockOff, 64)),
+        {
+          cb.assign(presentBits, ~Region.loadLong(mbyteOffset).reverseBytes)
+          cb.assign(mbyteOffset, mbyteOffset + 8)
+          cb.whileLoop(presentBits.cne(0L), {
+            cb.assign(inBlockIndexToPresentValue, presentBits.numberOfTrailingZeros)
+            val elemOff = cb.memoize(
+              arrayType.incrementElementOffset(blockOff, inBlockIndexToPresentValue))
+            readElemF(cb, region, elemOff, in)
+            cb.assign(presentBits, unsetRightMostBit(presentBits))
+          })
         }
-      }
-    )
+      )
+      val i = cb.newLocal[Int]("i", len - (len % 64))
+      cb.forLoop({}, i < len, cb.assign(i, i + 1), {
+        cb.ifx(arrayType.isElementDefined(array, i),
+          readElemF(cb, region, cb.memoize(arrayType.elementOffset(array, len, i)), in))
+      })
+      // cb.forLoop({}, blockOff < pastLastOff, {}, {
+      //   cb.assign(presentBits, (~(Region.loadByte(mbyteOffset).toL)) & 0xFF.toByte)
+      //   cb.assign(mbyteOffset, mbyteOffset + 1)
+      //   cb.whileLoop(presentBits.cne(0L), {
+      //     cb.assign(inBlockIndexToPresentValue, presentBits.numberOfTrailingZeros)
+      //     val elemOff = cb.memoize(
+      //       arrayType.incrementElementOffset(blockOff, inBlockIndexToPresentValue))
+      //     readElemF(cb, region, elemOff, in)
+      //     cb.assign(presentBits, unsetRightMostBit(presentBits))
+      //   })
+      //   cb.assign(blockOff, arrayType.incrementElementOffset(blockOff, 8))
+      // })
+    }
 
     new SIndexablePointerValue(st, array, len, cb.memoize(arrayType.firstElementOffset(array, len)))
   }

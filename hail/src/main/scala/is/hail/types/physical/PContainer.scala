@@ -43,6 +43,12 @@ abstract class PContainer extends PIterable {
 
   def firstElementOffset(aoff: Long, length: Int): Long
 
+  def firstElementOffset(aoff: Long): Long
+
+  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long]
+
+  def firstElementOffset(aoff: Code[Long]): Code[Long]
+
   def elementOffset(aoff: Long, length: Int, i: Int): Long
 
   def elementOffset(aoff: Long, i: Int): Long
@@ -51,9 +57,17 @@ abstract class PContainer extends PIterable {
 
   def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long]
 
-  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long]
+  def nextElementOffset(currentOffset: Long): Long = incrementElementOffset(currentOffset, 1)
 
-  def firstElementOffset(aoff: Code[Long]): Code[Long]
+  def nextElementOffset(currentOffset: Code[Long]): Code[Long] = incrementElementOffset(currentOffset, 1)
+
+  def incrementElementOffset(currentOffset: Long, increment: Int): Long
+
+  def incrementElementOffset(currentOffset: Code[Long], increment: Code[Int]): Code[Long]
+
+  def pastLastElementOffset(aoff: Long, length: Int): Long
+
+  def pastLastElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long]
 
   def loadElement(aoff: Long, length: Int, i: Int): Long
 
@@ -80,8 +94,4 @@ abstract class PContainer extends PIterable {
   def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long]
 
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean]
-
-  def nextElementAddress(currentOffset: Long): Long
-
-  def nextElementAddress(currentOffset: Code[Long]): Code[Long]
 }
