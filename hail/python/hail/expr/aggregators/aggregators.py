@@ -287,8 +287,8 @@ def _check_agg_bindings(expr, bindings):
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 
-@typecheck(expr=expr_numeric, k=int)
-def approx_cdf(expr, k=100):
+@typecheck(expr=expr_numeric, k=int, raw=bool)
+def approx_cdf(expr, k=100, *, raw=False):
     """Produce a summary of the distribution of values.
 
     Notes
@@ -333,16 +333,25 @@ def approx_cdf(expr, k=100):
     res = _agg_func('ApproxCDF', [hl.float64(expr)],
                     tstruct(levels=tarray(tint32), items=tarray(tfloat64), _compaction_counts=tarray(tint32)),
                     init_op_args=[k])
-    res = _func('approxCDFResult',
-                tstruct(values=tarray(tfloat64), ranks=tarray(tint64), _compaction_counts=tarray(tint32)),
-                res)
     conv = {
         tint32: lambda x: x.map(hl.int),
         tint64: lambda x: x.map(hl.int64),
         tfloat32: lambda x: x.map(hl.float32),
         tfloat64: identity
     }
-    return hl.struct(values=conv[expr.dtype](res['values']), ranks=res.ranks, _compaction_counts=res._compaction_counts)
+    if raw:
+        return res.annotate(items=conv[expr.dtype](res['items']))
+    else:
+        res = _func('approxCDFResult',
+                    tstruct(values=tarray(tfloat64), ranks=tarray(tint64), _compaction_counts=tarray(tint32)),
+                    res)
+        conv = {
+            tint32: lambda x: x.map(hl.int),
+            tint64: lambda x: x.map(hl.int64),
+            tfloat32: lambda x: x.map(hl.float32),
+            tfloat64: identity
+        }
+        return res.annotate(values=conv[expr.dtype](res['values']))
 
 
 @typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)

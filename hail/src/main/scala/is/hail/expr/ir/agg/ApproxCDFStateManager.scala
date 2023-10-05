@@ -2,6 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
+import is.hail.expr.ir.agg.ApproxCDFStateManager.defaultM
 import is.hail.expr.ir.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PInt32, PInt64, PStruct, PType}
 import is.hail.types.virtual._
@@ -481,11 +482,28 @@ class ApproxCDFCombiner(
 }
 
 object ApproxCDFStateManager {
+  val defaultM: Int = 8
+
+  def apply(k: Int): ApproxCDFStateManager = {
+    val m: Int = defaultM
+    val initLevelsCapacity: Int = QuantilesAggregator.findInitialLevelsCapacity(k, m)
+    val combiner: ApproxCDFCombiner = ApproxCDFCombiner(
+      initLevelsCapacity,
+      QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m))
+    new ApproxCDFStateManager(k, 0, combiner)
+  }
+
   def deserializeFrom(k: Int, ib: InputBuffer): ApproxCDFStateManager = {
-    val a = new ApproxCDFStateManager(k)
+    val a = ApproxCDFStateManager(k)
     a.n = ib.readLong()
     a.combiner = ApproxCDFCombiner.deserializeFrom(ib)
     a
+  }
+
+  def fromData(k: Int, n: Int, levels: Array[Int], items: Array[Double], compactionCounts: Array[Int], numLevels: Int): ApproxCDFStateManager = {
+    val combiner: ApproxCDFCombiner = new ApproxCDFCombiner(
+      levels, items, compactionCounts, numLevels, new java.util.Random)
+    new ApproxCDFStateManager(k, n, combiner)
   }
 }
 
@@ -505,10 +523,11 @@ object ApproxCDFStateManager {
  * represents the approximation [0,0,0,2,5,6,6,6,9,9], with the value
  * `values(i)` occupying indices `ranks(i)` to `ranks(i+1)` (again half-open).
  */
-class ApproxCDFStateManager(val k: Int) {
-  val m: Int = 8
-  val growthRate: Int = 4
-  val eager: Boolean = false
+class ApproxCDFStateManager(val k: Int, var n: Long, var combiner: ApproxCDFCombiner) {
+  val m: Int = defaultM
+  private val growthRate: Int = 4
+  private val eager: Boolean = false
+  private val capacities: Array[Int] = QuantilesAggregator.capacities(k, m)
 
   /* The sketch maintains a sample of items seen, organized into levels.
    *
@@ -547,13 +566,6 @@ class ApproxCDFStateManager(val k: Int) {
    * [KLL] "Optimal Quantile Approximation in Streams", Karnin, Lang, and Liberty
    * https://github.com/DataSketches/sketches-core/tree/master/src/main/java/com/yahoo/sketches/kll
    */
-
-  var n: Long = 0
-  var initLevelsCapacity: Int = QuantilesAggregator.findInitialLevelsCapacity(k, m)
-  var combiner: ApproxCDFCombiner = ApproxCDFCombiner(
-    initLevelsCapacity,
-    QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m))
-  private[agg] var capacities: Array[Int] = QuantilesAggregator.capacities(k, m)
 
   def levels: Array[Int] = combiner.levels
 
