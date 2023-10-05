@@ -103,10 +103,18 @@ class ResourceUsageMonitor:
         self.out.flush()
 
     def cpu_ns(self) -> Optional[int]:
-        usage_file = f'/sys/fs/cgroup/cpu/{self.container_name}/cpuacct.usage'
+        # See below for a nice breakdown of the cpu cgroupv2:
+        # https://facebookmicrosites.github.io/cgroup2/docs/cpu-controller.html#interface-files
+        #
+        # and here for the authoritative source:
+        # https://git.kernel.org/pub/scm/linux/kernel/git/tj/cgroup.git/tree/Documentation/admin-guide/cgroup-v2.rst#n1038
+        usage_file = f'/sys/fs/cgroup/{self.container_name}/cpu.stat'
         if os.path.exists(usage_file):
             with open(usage_file, 'r', encoding='utf-8') as f:
-                return int(f.read().rstrip())
+                for line in f.readlines():
+                    stat, val = line.strip().split(' ')
+                    if stat == 'usage_usec':
+                        return int(val) * 1000
         return None
 
     def percent_cpu_usage(self) -> Optional[float]:
@@ -114,19 +122,21 @@ class ResourceUsageMonitor:
         now_cpu_ns = self.cpu_ns()
 
         if now_cpu_ns is None or self.last_cpu_ns is None or self.last_time_ns is None:
-            self.last_time_ns = now_time_ns
-            self.last_cpu_ns = now_cpu_ns
-            return None
-
-        cpu_usage = (now_cpu_ns - self.last_cpu_ns) / (now_time_ns - self.last_time_ns)
+            cpu_usage = None
+        else:
+            cpu_usage = (now_cpu_ns - self.last_cpu_ns) / (now_time_ns - self.last_time_ns)
 
         self.last_time_ns = now_time_ns
         self.last_cpu_ns = now_cpu_ns
-
         return cpu_usage
 
     def memory_usage_bytes(self) -> Optional[int]:
-        usage_file = f'/sys/fs/cgroup/memory/{self.container_name}/memory.usage_in_bytes'
+        # See below for a nice breakdown of the memory cgroupv2:
+        # https://facebookmicrosites.github.io/cgroup2/docs/memory-controller.html#core-interface-files
+        #
+        # and here for the authoritative source:
+        # https://git.kernel.org/pub/scm/linux/kernel/git/tj/cgroup.git/tree/Documentation/admin-guide/cgroup-v2.rst#n1156
+        usage_file = f'/sys/fs/cgroup/{self.container_name}/memory.current'
         try:
             if os.path.exists(usage_file):
                 with open(usage_file, 'r', encoding='utf-8') as f:
