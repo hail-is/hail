@@ -7,6 +7,8 @@ from typing import List, Optional
 from gear import Database
 from gear.cloud_config import get_gcp_config
 
+from .environment import DEFAULT_NAMESPACE
+
 
 def generate_token(size=12):
     assert size > 0
@@ -103,8 +105,9 @@ labels.namespace="{namespace}"
     return f'https://console.cloud.google.com/logs/query;query={urllib.parse.quote(query)};{urllib.parse.quote(timestamp_query)}?project={project}'
 
 
-def gcp_logging_queries(namespace: str, start_time: str, end_time: Optional[str]):
+def gcp_logging_queries(start_time: str, end_time: Optional[str]):
     project = get_gcp_config().project
+    namespace = DEFAULT_NAMESPACE
     return {
         'batch-k8s-error-warning': gcp_service_logging_url(
             project,

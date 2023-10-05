@@ -191,7 +191,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
                 start_time = status['time_created']
                 end_time = status['time_completed']
                 assert start_time is not None
-                page_context['logging_queries'] = gcp_logging_queries(DEFAULT_NAMESPACE, start_time, end_time)
+                page_context['logging_queries'] = gcp_logging_queries(start_time, end_time)
             else:
                 page_context['logging_queries'] = None
         else:
