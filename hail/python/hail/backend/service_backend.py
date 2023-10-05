@@ -381,7 +381,7 @@ class ServiceBackend(Backend):
                    worker_memory: Optional[str] = None,
                    ):
         timings = Timings()
-        with TemporaryDirectory(ensure_exists=False) as iodir:
+        async with TemporaryDirectory(ensure_exists=False) as iodir:
             readonly_fuse_buckets = set()
             storage_requirement_bytes = 0
 
