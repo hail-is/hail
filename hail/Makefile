@@ -357,7 +357,9 @@ upload-qob-jar: $(SHADOW_JAR)
 
 # if the installation of Hail has changed, i.e. you pip-installed a non-development version of Hail,
 # this file will be newer than "install-editable"
-install-editable: $(shell pip3 show hail | grep Location: | sed 's/Location: //')/hail/__init__.py
+CURRENT_INSTALL = $(shell pip3 show -qq hail | grep Location: | sed 's/Location: //')
+
+install-editable: $(if ($(CURRENT_INSTALL),),,$(CURRENT_INSTALL)/hail/__init__.py)
 install-editable: python/setup.py
 install-editable: python/requirements.txt
 install-editable: python/README.md
