@@ -89,10 +89,13 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     incrCount(cb, n)
   }
 
-  private def pushMissing(cb: EmitCodeBuilder, n: Node): Unit = {
-    bufferType.setElementMissing(cb, buffer(n), count(n))
-    incrCount(cb, n)
-  }
+  private def pushMissing(cb: EmitCodeBuilder, n: Node): Unit =
+    if (elemType.required)
+      cb._fatal(s"Cannot insert missing element of ptype '${elemType.asIdent}' after index ", count(n).toS, ".")
+    else {
+      bufferType.setElementMissing(cb, buffer(n), count(n))
+      incrCount(cb, n)
+    }
 
   private def allocateNode(cb: EmitCodeBuilder, dstNode: Settable[Long])(r: Value[Region], cap: Code[Int]): Unit = {
     val capMemo = cb.memoize[Int](cap)
@@ -117,17 +120,14 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.assign(lastNode, newNode)
   }
 
-  private def foreachNode(cb: EmitCodeBuilder, tmpNode: Settable[Long])(body: EmitCodeBuilder => Unit): Unit = {
-    val present = cb.newLocal[Boolean]("bll_foreachnode_present")
-    cb.assign(tmpNode, firstNode)
-    cb.assign(present, true)
-    cb.while_(present,
-      {
-        body(cb)
-        cb.assign(present, hasNext(tmpNode))
-        cb.assign(tmpNode, next(tmpNode))
-      })
-  }
+  private def foreachNode(cb: EmitCodeBuilder, tmpNode: Settable[Long])
+                         (body: EmitCodeBuilder => Unit): Unit =
+    cb.for_(
+      cb.assign(tmpNode, firstNode),
+      hasNext(tmpNode),
+      cb.assign(tmpNode, next(tmpNode)),
+      body(cb)
+    )
 
   private def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit): Unit = {
     val n = cb.newLocal[Long]("bll_foreach_n")
