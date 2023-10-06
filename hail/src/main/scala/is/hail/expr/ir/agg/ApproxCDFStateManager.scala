@@ -2,14 +2,10 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.expr.ir.agg.ApproxCDFStateManager.defaultM
 import is.hail.expr.ir.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
-import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PInt32, PInt64, PStruct, PType}
-import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PFloat64, PInt32}
 import is.hail.utils._
-import org.apache.commons.lang.SerializationUtils
-import org.apache.spark.sql.Row
 
 object ApproxCDFHelper {
   def sort(a: Array[Double], begin: Int, end: Int): Unit = java.util.Arrays.sort(a, begin, end)
@@ -199,6 +195,16 @@ class ApproxCDFCombiner(
   def maxNumLevels = levels.length - 1
 
   def capacity = items.length
+
+  def n: Int = {
+    var n = 0
+    var i = 0
+    while (i < numLevels) {
+      n += (levels(i + 1) - levels(i)) << i
+      i += 1
+    }
+    n
+  }
 
   def isFull = levels(0) == 0
 
@@ -490,20 +496,19 @@ object ApproxCDFStateManager {
     val combiner: ApproxCDFCombiner = ApproxCDFCombiner(
       initLevelsCapacity,
       QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m))
-    new ApproxCDFStateManager(k, 0, combiner)
+    new ApproxCDFStateManager(k, combiner)
   }
 
   def deserializeFrom(k: Int, ib: InputBuffer): ApproxCDFStateManager = {
     val a = ApproxCDFStateManager(k)
-    a.n = ib.readLong()
     a.combiner = ApproxCDFCombiner.deserializeFrom(ib)
     a
   }
 
-  def fromData(k: Int, n: Int, levels: Array[Int], items: Array[Double], compactionCounts: Array[Int], numLevels: Int): ApproxCDFStateManager = {
+  def fromData(k: Int, levels: Array[Int], items: Array[Double], compactionCounts: Array[Int]): ApproxCDFStateManager = {
     val combiner: ApproxCDFCombiner = new ApproxCDFCombiner(
-      levels, items, compactionCounts, numLevels, new java.util.Random)
-    new ApproxCDFStateManager(k, n, combiner)
+      levels, items, compactionCounts, levels.length - 1, new java.util.Random)
+    new ApproxCDFStateManager(k, combiner)
   }
 }
 
@@ -523,8 +528,8 @@ object ApproxCDFStateManager {
  * represents the approximation [0,0,0,2,5,6,6,6,9,9], with the value
  * `values(i)` occupying indices `ranks(i)` to `ranks(i+1)` (again half-open).
  */
-class ApproxCDFStateManager(val k: Int, var n: Long, var combiner: ApproxCDFCombiner) {
-  val m: Int = defaultM
+class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
+  val m: Int = ApproxCDFStateManager.defaultM
   private val growthRate: Int = 4
   private val eager: Boolean = false
   private val capacities: Array[Int] = QuantilesAggregator.capacities(k, m)
@@ -571,9 +576,13 @@ class ApproxCDFStateManager(val k: Int, var n: Long, var combiner: ApproxCDFComb
 
   def items: Array[Double] = combiner.items
 
+  def compactionCounts: Array[Int] = combiner.compactionCounts
+
   def numLevels = combiner.numLevels
 
   def levelsCapacity = combiner.maxNumLevels
+
+  def n: Int = combiner.n
 
   private[agg] def capacity: Int = combiner.capacity
 
@@ -585,7 +594,6 @@ class ApproxCDFStateManager(val k: Int, var n: Long, var combiner: ApproxCDFComb
         compact()
     }
 
-    n += 1
     combiner.push(x)
   }
 
@@ -606,25 +614,28 @@ class ApproxCDFStateManager(val k: Int, var n: Long, var combiner: ApproxCDFComb
     val counts = combiner.compactionCounts
     rvb.startBaseStruct()
 
-    rvb.startArray(levels.length)
+    val numItems = levels(numLevels) - levels(0)
+    val offset = levels(0)
+
+    rvb.startArray(numLevels + 1)
     var i = 0
-    while (i < levels.length) {
-      rvb.addInt(levels(i))
+    while (i <= numLevels) {
+      rvb.addInt(levels(i) - offset)
       i += 1
     }
     rvb.endArray()
 
-    rvb.startArray(items.length)
-    i = 0
-    while (i < items.length) {
+    rvb.startArray(numItems)
+    i = levels(0)
+    while (i < levels(numLevels)) {
       rvb.addDouble(items(i))
       i += 1
     }
     rvb.endArray()
 
-    rvb.startArray(counts.length)
+    rvb.startArray(numLevels)
     i = 0
-    while (i < counts.length) {
+    while (i < numLevels) {
       rvb.addInt(counts(i))
       i += 1
     }
@@ -641,7 +652,6 @@ class ApproxCDFStateManager(val k: Int, var n: Long, var combiner: ApproxCDFComb
   }
 
   def clear() {
-    n = 0
     combiner.clear()
   }
 
@@ -712,14 +722,12 @@ class ApproxCDFStateManager(val k: Int, var n: Long, var combiner: ApproxCDFComb
       combiner = ApproxCDFCombiner(finalNumLevels, computeTotalCapacity(finalNumLevels))
 
     combiner.copyFrom(mergedCombiner)
-    n = finalN
   }
 
   private def computeTotalCapacity(numLevels: Int): Int =
     QuantilesAggregator.computeTotalCapacity(numLevels, k, m)
 
   def serializeTo(ob: OutputBuffer): Unit = {
-    ob.writeLong(n)
     combiner.serializeTo(ob)
   }
 }

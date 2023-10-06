@@ -29,8 +29,6 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   private val k = kb.genFieldThisRef[Int]("k")
   private val kOffset: Code[Long] => Code[Long] = storageType.loadField(_, "k")
 
-  IndexedSeq().toArray
-
   def init(cb: EmitCodeBuilder, k: Code[Int]): Unit = {
       cb.assign(this.k, k)
       cb.assign(aggr, Code.invokeScalaObject1[Int, ApproxCDFStateManager](ApproxCDFStateManager.getClass, "apply", this.k))
