@@ -2,7 +2,7 @@ package is.hail.asm4s
 
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
-import is.hail.lir.{Block, ControlX, StmtX, ValueX}
+import is.hail.lir.{Block, ControlX, ValueX}
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type

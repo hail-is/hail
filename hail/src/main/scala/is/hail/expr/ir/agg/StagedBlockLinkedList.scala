@@ -254,7 +254,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       other.foreach(cb) { (cb, elt) =>
         elt.toI(cb)
           .consume(cb,
-            bufferType.setElementMissing(cb, buf, i),
+            PContainer.unsafeSetElementMissing(cb, bufferType, buf, i),
             { sc =>
               bufferType.setElementPresent(cb, buf, i)
               elemType.storeAtAddress(cb, bufferType.elementOffset(buf, i), r, sc, deepCopy = true)

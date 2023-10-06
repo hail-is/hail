@@ -464,7 +464,6 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         val pivotIndex = mb.newLocal[Int]("pivotIndex")
         val pivotOffset = mb.newLocal[Long]("pivot")
         val tmpOffset = mb.newLocal[Long]("tmpOffset")
-        val continue = mb.newLocal[Boolean]("continue")
 
         def indexOffset(cb: EmitCodeBuilder, idx: Value[Int]): Value[Long] =
           cb.memoize(indices + idx.toL * 4L)
@@ -476,28 +475,32 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.ifx(low.ceq(high), cb.append(Code._return(low)))
           cb.assign(pivotIndex, (low + high) / 2)
           cb.assign(pivotOffset, elementOffset(cb, indexAt(cb, pivotIndex)))
-          cb.assign(continue, true)
-          cb.while_(continue, {
-            cb.while_({
+
+          cb.loop { Lrecur =>
+            cb.loop { Linner =>
               cb.assign(tmpOffset, elementOffset(cb, indexAt(cb, low)))
-              compareElt(cb, tmpOffset, pivotOffset) < 0
-            }, {
-              cb.assign(low, low + 1)
-            })
-            cb.while_({
+              cb.ifx(compareElt(cb, tmpOffset, pivotOffset) < 0, {
+                cb.assign(low, low + 1)
+                cb.goto(Linner)
+              })
+            }
+
+            cb.loop { Linner =>
               cb.assign(tmpOffset, elementOffset(cb, indexAt(cb, high)))
-              compareElt(cb, tmpOffset, pivotOffset) > 0
-            }, {
-              cb.assign(high, high - 1)
-            })
-            cb.ifx(low >= high, {
-              cb.assign(continue, false)
-            }, {
+              cb.ifx(compareElt(cb, tmpOffset, pivotOffset) > 0, {
+                cb.assign(high, high - 1)
+                cb.goto(Linner)
+              })
+            }
+
+            cb.ifx(high > low, {
               swap(cb, indexOffset(cb, low), indexOffset(cb, high))
               cb.assign(low, low + 1)
               cb.assign(high, high - 1)
+              cb.goto(Lrecur)
             })
-          })
+          }
+
           high
         }
         mb.invokeCode(_, _, _, _)

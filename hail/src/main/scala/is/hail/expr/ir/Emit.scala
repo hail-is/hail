@@ -92,8 +92,7 @@ object Emit {
 
         val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)))  // this, region, ...
         val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
-          cb._throw[RuntimeException](
-            Code.newInstance[RuntimeException, String]("cannot return empty"))
+          cb._throw(Code.newInstance[RuntimeException, String]("cannot return empty"))
         })
 
         val scp = SingleCodeSCode.fromSCode(cb, sc, region)

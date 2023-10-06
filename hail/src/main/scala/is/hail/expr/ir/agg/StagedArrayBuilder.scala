@@ -103,7 +103,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
 
   def overwrite(cb: EmitCodeBuilder, elt: EmitValue, idx: Value[Int], deepCopy: Boolean = true): Unit = {
     elt.toI(cb).consume(cb,
-      eltArray.setElementMissing(cb, data, idx),
+      PContainer.unsafeSetElementMissing(cb, eltArray, data, idx),
       value => eltType.storeAtAddress(cb, eltArray.elementOffset(data, capacity, idx), region, value, deepCopy))
   }
 
