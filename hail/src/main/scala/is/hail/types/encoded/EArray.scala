@@ -109,12 +109,21 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       val elemOff = cb.newLocal[Long]("elemOff", arrayType.firstElementOffset(array, len))
       if (arrayType.trivialElements) {
         // elements have 0 size, so all elements have the same address
-        // still need to read `len` elements from the input stream
+        // still need to read `len` elements from the input stream, as they may have non-zero size
         val i = cb.newLocal[Int]("i", 0)
-        cb.forLoop({}, i < len, cb.assign(i, i+1), readElemF(cb, region, elemOff, in))
+        cb.forLoop({}, i < (len & -8), cb.assign(i, i + 8), {
+          for (k <- 0 until 8)
+            readElemF(cb, region, cb.memoize(arrayType.incrementElementOffset(elemOff, k)), in)
+        })
+        cb.forLoop({}, i < len, cb.assign(i, i + 1), readElemF(cb, region, elemOff, in))
       } else {
+        val lastBlockAddr = cb.memoize(arrayType.elementOffset(array, len, len & -8))
+        cb.forLoop({}, elemOff < lastBlockAddr, cb.assign(elemOff, arrayType.incrementElementOffset(elemOff, 8)), {
+          for (i <- 0 until 8)
+            readElemF(cb, region, cb.memoize(arrayType.incrementElementOffset(elemOff, i)), in)
+        })
         cb.forLoop({}, elemOff < pastLastOff, cb.assign(elemOff, arrayType.nextElementAddress(elemOff)), {
-            readElemF(cb, region, elemOff, in)
+          readElemF(cb, region, elemOff, in)
         })
       }
     } else {
