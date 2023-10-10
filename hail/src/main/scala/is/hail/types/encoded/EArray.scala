@@ -90,7 +90,6 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
-    cb.println("in decoder")
     val st = decodedSType(t).asInstanceOf[SIndexablePointer]
 
     val arrayType: PCanonicalArray = st.pType match {
@@ -106,26 +105,27 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
 
     val pastLastOff = cb.memoize(arrayType.pastLastElementOffset(array, len))
-
     if (elementType.required) {
       val elemOff = cb.newLocal[Long]("elemOff", arrayType.firstElementOffset(array, len))
-      cb.forLoop(
-        {}, elemOff < pastLastOff, cb.assign(elemOff, arrayType.nextElementAddress(elemOff)), {
-          readElemF(cb, region, elemOff, in)
+      if (arrayType.trivialElements) {
+        // elements have 0 size, so all elements have the same address
+        // still need to read `len` elements from the input stream
+        val i = cb.newLocal[Int]("i", 0)
+        cb.forLoop({}, i < len, cb.assign(i, i+1), readElemF(cb, region, elemOff, in))
+      } else {
+        cb.forLoop({}, elemOff < pastLastOff, cb.assign(elemOff, arrayType.nextElementAddress(elemOff)), {
+            readElemF(cb, region, elemOff, in)
         })
+      }
     } else {
       cb += in.readBytes(region, array + const(arrayType.missingBytesOffset), arrayType.nMissingBytes(len))
-      cb.println("len = ", len.toS)
-      arrayType.printDebug(cb, array)
 
-//      cb.ifx((len % 64).cne(0), {
-//        // ensure that the last missing block has all missing bits set past the last element
-////        arrayType.printDebug(cb, array)
-//        val lastMissingBlockAddr = cb.memoize(arrayType.firstElementOffset(array) - 8)
-//        val lastMissingBlock = cb.memoize(Region.loadLong(lastMissingBlockAddr))
-//        cb += Region.storeLong(lastMissingBlockAddr, (lastMissingBlock | (const(-1L) << len)))
-////        arrayType.printDebug(cb, array)
-//      })
+      cb.ifx((len % 64).cne(0), {
+        // ensure that the last missing block has all missing bits set past the last element
+        val lastMissingBlockAddr = cb.memoize((arrayType.pastLastMissingByteAddr(array, len) - 1) & -8)
+        val lastMissingBlock = cb.memoize(Region.loadLong(lastMissingBlockAddr))
+        cb += Region.storeLong(lastMissingBlockAddr, lastMissingBlock | (const(-1L) << len))
+      })
 
       def unsetRightMostBit(x: Value[Long]): Code[Long] =
         x & (x - 1)
@@ -133,21 +133,18 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       val presentBits = cb.newLocal[Long]("presentBits", 0L)
       val mbyteOffset = cb.newLocal[Long]("mbyteOffset", array + arrayType.missingBytesOffset)
       val blockOff = cb.newLocal[Long]("blockOff", arrayType.firstElementOffset(array, len))
+      val pastLastMissingByteAddr = cb.memoize(arrayType.pastLastMissingByteAddr(array, len), "pastLastMissingByteAddr")
       val inBlockIndexToPresentValue = cb.newLocal[Int]("inBlockIndexToPresentValue", 0)
-      val pastLastFull64BlockOff = cb.memoize(arrayType.elementOffset(array, len, len - (len % 64)))
 
       cb.forLoop(
         {},
-          blockOff < pastLastOff,
-          cb.assign(blockOff, arrayType.incrementElementOffset(blockOff, 64)),
+        mbyteOffset < pastLastMissingByteAddr,
         {
-          cb.assign(presentBits, Region.loadLong(mbyteOffset))
-          cb.ifx(blockOff.ceq(pastLastFull64BlockOff), {
-//            cb.println("last block misssing bits = ", Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", presentBits))
-            cb.assign(presentBits, presentBits | (const(-1L) << len))
-          } )
-          cb.assign(presentBits, ~presentBits)
+          cb.assign(blockOff, arrayType.incrementElementOffset(blockOff, 64))
           cb.assign(mbyteOffset, mbyteOffset + 8)
+        },
+        {
+          cb.assign(presentBits, ~Region.loadLong(mbyteOffset))
           cb.whileLoop(
             presentBits.cne(0L), {
               cb.assign(inBlockIndexToPresentValue, presentBits.numberOfTrailingZeros)
@@ -158,8 +155,6 @@ final case class EArray(val elementType: EType, override val required: Boolean =
             })
         })
     }
-
-    cb.println("after decoder")
 
     new SIndexablePointerValue(st, array, len, cb.memoize(arrayType.firstElementOffset(array, len)))
   }

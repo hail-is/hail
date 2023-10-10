@@ -37,9 +37,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   private val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
-  private val contentsAlignment: Long = elementType.alignment.max(4)
+  def trivialElements: Boolean = elementByteSize == 0
 
-  private val lengthHeaderBytes: Long = 4
+  private val contentsAlignment: Long = 8
+
+  private val lengthHeaderBytes: Long = 8
 
   override val byteSize: Long = 8
 
@@ -98,6 +100,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def missingBytesOffset: Long = lengthHeaderBytes
+
+  def pastLastMissingByteAddr(aoff: Code[Long], len: Code[Int]): Code[Long] =
+    aoff + lengthHeaderBytes + nMissingBytes(len).toL
 
   def isElementDefined(aoff: Long, i: Int): Boolean =
     elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i)
@@ -578,8 +583,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     else
       PCanonicalArray(copiedElement, required)
   }
-
-
 
   def forEachDefined(cb: EmitCodeBuilder, aoff: Value[Long])(f: (EmitCodeBuilder, Value[Int], SValue) => Unit) {
     val length = cb.memoize(loadLength(aoff))
