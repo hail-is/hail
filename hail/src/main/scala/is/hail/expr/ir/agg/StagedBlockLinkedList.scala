@@ -91,7 +91,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
 
   private def pushMissing(cb: EmitCodeBuilder, n: Node): Unit =
     if (elemType.required)
-      cb._fatal(s"Cannot insert missing element of ptype '${elemType.asIdent}' after index ", count(n).toS, ".")
+      cb._fatal(s"Cannot insert missing element of ptype '${elemType.asIdent}' at index ", count(n).toS, ".")
     else {
       bufferType.setElementMissing(cb, buffer(n), count(n))
       incrCount(cb, n)

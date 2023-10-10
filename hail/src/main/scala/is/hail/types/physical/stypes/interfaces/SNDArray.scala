@@ -872,22 +872,20 @@ trait SNDArrayValue extends SValue {
           val ptr = cb.mb.newLocal[Long](s"NDArray_setToZero_ptr_$dim")
           val end = cb.mb.newLocal[Long](s"NDArray_setToZero_end_$dim")
           cb.assign(ptr, startPtr)
-          cb.assign(end, ptr + strides(dim-1) * shapes(dim-1))
+          cb.assign(end, startPtr + strides(dim-1) * shapes(dim-1))
           cb.for_({}, ptr < end, cb.assign(ptr, ptr + strides(dim-1)), recur(ptr, dim - 1, contiguousDims))
         }
       } else {
         eltType.storePrimitiveAtAddress(cb, startPtr, primitive(eltType.virtualType, eltType.zero))
       }
 
-    cb.ifx(contiguousDims >= 2, {
-      recur(firstDataAddress, st.nDims, 2)
-    }, {
-      cb.ifx(contiguousDims.ceq(1), {
-        recur(firstDataAddress, st.nDims, 1)
-      }, {
-        recur(firstDataAddress, st.nDims, 0)
-      })
-    })
+    cb.switch(contiguousDims,
+      recur(firstDataAddress, st.nDims, 2),
+      FastSeq(
+        () => recur(firstDataAddress, st.nDims, 0),
+        () => recur(firstDataAddress, st.nDims, 1),
+      )
+    )
   }
 
   def setElement(indices: IndexedSeq[Value[Long]], value: SValue, cb: EmitCodeBuilder): Unit = {
