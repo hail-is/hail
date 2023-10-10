@@ -51,7 +51,7 @@ object Bindings {
     case StreamBufferedAggregate(stream, _,  _, _, name, _, _) => if (i > 0) Array(name -> tcoerce[TStream](stream.typ).elementType) else empty
     case RunAggScan(a, name, _, _, _, _) => if (i == 2 || i == 3) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> tcoerce[TStream](a.typ).elementType) else empty
-    case StreamAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStream].elementType) else empty
+    case StreamAggScan(a, name, _) => if (i == 1) FastSeq(name -> a.typ.asInstanceOf[TStream].elementType) else empty
     case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => if (i == 2) Array(l -> tcoerce[TStream](ll.typ).elementType, r -> tcoerce[TStream](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> tcoerce[TStream](a.typ).elementType, right -> tcoerce[TStream](a.typ).elementType) else empty
     case ArrayMaximalIndependentSet(a, Some((left, right, _))) =>
@@ -62,10 +62,10 @@ object Bindings {
       } else {
         empty
       }
-    case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32) else empty
+    case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastSeq(indexName -> TInt32) else empty
     case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) => {
-      if (i == 1) FastIndexedSeq(accumName -> zero.typ)
-      else if (i == 2) FastIndexedSeq(accumName -> zero.typ, otherAccumName -> zero.typ)
+      if (i == 1) FastSeq(accumName -> zero.typ)
+      else if (i == 2) FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ)
       else empty
     }
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> tcoerce[TNDArray](nd.typ).elementType) else empty
@@ -107,15 +107,15 @@ object AggBindings {
       Some(bindings)
     }
 
-    def base: Option[Iterable[(String, Type)]] = parent.agg.map(_ => FastIndexedSeq())
+    def base: Option[Iterable[(String, Type)]] = parent.agg.map(_ => FastSeq())
 
     x match {
-      case AggLet(name, value, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else None
+      case AggLet(name, value, _, false) => if (i == 1) wrapped(FastSeq(name -> value.typ)) else None
       case AggFilter(_, _, false) => if (i == 0) None else base
       case AggGroupBy(_, _, false) => if (i == 0) None else base
-      case AggExplode(a, name, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
-      case AggArrayPerElement(a, elementName, indexName, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType, indexName -> TInt32)) else if (i == 2) base else None
-      case StreamAgg(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case AggExplode(a, name, _, false) => if (i == 1) wrapped(FastSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
+      case AggArrayPerElement(a, elementName, indexName, _, _, false) => if (i == 1) wrapped(FastSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType, indexName -> TInt32)) else if (i == 2) base else None
+      case StreamAgg(a, name, _) => if (i == 1) Some(FastSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
       case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else None
       case RelationalLet(_, _, _) => None
@@ -148,16 +148,16 @@ object ScanBindings {
       Some(bindings)
     }
 
-    def base: Option[Iterable[(String, Type)]] = parent.scan.map(_ => FastIndexedSeq())
+    def base: Option[Iterable[(String, Type)]] = parent.scan.map(_ => FastSeq())
 
     x match {
-      case AggLet(name, value, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else None
+      case AggLet(name, value, _, true) => if (i == 1) wrapped(FastSeq(name -> value.typ)) else None
       case AggFilter(_, _, true) => if (i == 0) None else base
       case AggGroupBy(_, _, true) => if (i == 0) None else base
-      case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
-      case AggArrayPerElement(a, elementName, indexName, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType, indexName -> TInt32)) else if (i == 2) base else None
+      case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
+      case AggArrayPerElement(a, elementName, indexName, _, _, true) => if (i == 1) wrapped(FastSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType, indexName -> TInt32)) else if (i == 2) base else None
       case AggFold(_, _, _, _, _, true) =>  None
-      case StreamAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case StreamAggScan(a, name, _) => if (i == 1) Some(FastSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(_, _) => None
       case MatrixAggregate(_, _) => None
       case RelationalLet(_, _, _) => None
@@ -182,10 +182,10 @@ object RelationalBindings {
 
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = {
     x match {
-      case RelationalLet(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
-      case RelationalLetTable(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
-      case RelationalLetMatrixTable(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
-      case RelationalLetBlockMatrix(name, value, _) => if (i == 1) FastIndexedSeq(name -> value.typ) else empty
+      case RelationalLet(name, value, _) => if (i == 1) FastSeq(name -> value.typ) else empty
+      case RelationalLetTable(name, value, _) => if (i == 1) FastSeq(name -> value.typ) else empty
+      case RelationalLetMatrixTable(name, value, _) => if (i == 1) FastSeq(name -> value.typ) else empty
+      case RelationalLetBlockMatrix(name, value, _) => if (i == 1) FastSeq(name -> value.typ) else empty
       case _ => empty
     }
   }

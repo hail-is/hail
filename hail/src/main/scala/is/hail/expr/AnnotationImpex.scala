@@ -304,7 +304,7 @@ object TableAnnotationImpex {
       "NA"
     else {
       t match {
-        case TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
+        case TFloat64 => "%.4e".format(a.asInstanceOf[Double])
         case TString => a.asInstanceOf[String]
         case t: TContainer => JsonMethods.compact(t.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))

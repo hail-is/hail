@@ -31,7 +31,7 @@ abstract class AzureStorageFSURL(
   val container: String,
   val path: String,
   val sasToken: Option[String]
-) extends FSURL[AzureStorageFSURL] {
+) extends FSURL {
 
   def addPathComponent(c: String): AzureStorageFSURL = {
     if (path == "")
@@ -140,21 +140,21 @@ object AzureStorageFS {
   }
 }
 
-object AzureStorageFileStatus {
-  def apply(path: String, isDir: Boolean, blobProperties: BlobProperties): BlobStorageFileStatus = {
+object AzureStorageFileListEntry {
+  def apply(path: String, isDir: Boolean, blobProperties: BlobProperties): BlobStorageFileListEntry = {
     if (isDir) {
-      new BlobStorageFileStatus(path, null, 0, true)
+      new BlobStorageFileListEntry(path, null, 0, true)
     } else {
-      new BlobStorageFileStatus(path, blobProperties.getLastModified.toEpochSecond, blobProperties.getBlobSize, false)
+      new BlobStorageFileListEntry(path, blobProperties.getLastModified.toEpochSecond, blobProperties.getBlobSize, false)
     }
   }
 
-  def apply(blobPath: String, blobItem: BlobItem): BlobStorageFileStatus = {
+  def apply(blobPath: String, blobItem: BlobItem): BlobStorageFileListEntry = {
     if (blobItem.isPrefix) {
-      new BlobStorageFileStatus(blobPath, null, 0, true)
+      new BlobStorageFileListEntry(blobPath, null, 0, true)
     } else {
       val properties = blobItem.getProperties
-      new BlobStorageFileStatus(blobPath, properties.getLastModified.toEpochSecond, properties.getContentLength, false)
+      new BlobStorageFileListEntry(blobPath, properties.getLastModified.toEpochSecond, properties.getContentLength, false)
     }
   }
 }
@@ -197,14 +197,17 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   import AzureStorageFS.log
 
-  def validUrl(filename: String): Boolean = {
+  override def parseUrl(filename: String): URL = AzureStorageFS.parseUrl(filename)
+
+  override def validUrl(filename: String): Boolean =
     try {
-      AzureStorageFS.parseUrl(filename)
+      parseUrl(filename)
       true
     } catch {
       case _: IllegalArgumentException => false
     }
-  }
+
+  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
 
   def getConfiguration(): Unit = ()
 
@@ -213,13 +216,13 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   // ABS errors if you attempt credentialed access for a public container,
   // so we try once with credentials, if that fails use anonymous access for
   // that container going forward.
-  def handlePublicAccessError[T](filename: String)(f: => T): T = {
+  def handlePublicAccessError[T](url: URL)(f: => T): T = {
     retryTransientErrors {
       try {
         f
       } catch {
         case e: BlobStorageException if e.getStatusCode == 401 =>
-          serviceClientCache.setPublicAccessServiceClient(AzureStorageFS.parseUrl(filename))
+          serviceClientCache.setPublicAccessServiceClient(url)
           f
       }
     }
@@ -254,16 +257,15 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   // https://docs.microsoft.com/en-us/rest/api/storageservices/setting-timeouts-for-blob-service-operations
   private val timeout = Duration.ofSeconds(30)
 
-  def getBlobClient(url: AzureStorageFSURL): BlobClient = retryTransientErrors {
+  def getBlobClient(url: URL): BlobClient = retryTransientErrors {
     serviceClientCache.getServiceClient(url).getBlobContainerClient(url.container).getBlobClient(url.path)
   }
 
-  def getContainerClient(url: AzureStorageFSURL): BlobContainerClient = retryTransientErrors {
+  def getContainerClient(url: URL): BlobContainerClient = retryTransientErrors {
     serviceClientCache.getServiceClient(url).getBlobContainerClient(url.container)
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = handlePublicAccessError(filename) {
-    val url = AzureStorageFS.parseUrl(filename)
+  def openNoCompression(url: URL): SeekableDataInputStream = handlePublicAccessError(url) {
     val blobClient: BlobClient = getBlobClient(url)
     val blobSize = blobClient.getProperties.getBlobSize
 
@@ -306,8 +308,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     new WrappedSeekableDataInputStream(is)
   }
 
-  override def readNoCompression(filename: String): Array[Byte] = handlePublicAccessError(filename) {
-    val url = AzureStorageFS.parseUrl(filename)
+  override def readNoCompression(url: URL): Array[Byte] = handlePublicAccessError(url) {
     val client = getBlobClient(url)
     val size = client.getProperties.getBlobSize
     if (size < 2 * 1024 * 1024 * 1024) { // https://learn.microsoft.com/en-us/java/api/com.azure.storage.blob.specialized.blobclientbase?view=azure-java-stable#com-azure-storage-blob-specialized-blobclientbase-downloadcontent()
@@ -323,8 +324,8 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
-  def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
-    val blockBlobClient = getBlobClient(AzureStorageFS.parseUrl(filename)).getBlockBlobClient
+  def createNoCompression(url: URL): PositionedDataOutputStream = retryTransientErrors {
+    val blockBlobClient = getBlobClient(url).getBlockBlobClient
 
     val os: PositionedOutputStream = new FSPositionedOutputStream(4 * 1024 * 1024) {
       private[this] val client: BlockBlobClient = blockBlobClient
@@ -353,8 +354,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     new WrappedPositionedDataOutputStream(os)
   }
 
-  def delete(filename: String, recursive: Boolean): Unit = retryTransientErrors {
-    val url = AzureStorageFS.parseUrl(filename)
+  def delete(url: URL, recursive: Boolean): Unit = retryTransientErrors {
     val blobClient: BlobClient = getBlobClient(url)
 
     if (recursive) {
@@ -371,7 +371,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
       })
     } else {
       try {
-        if (fileStatus(filename).isFile) {
+        if (fileListEntry(url).isFile) {
           blobClient.delete()
         }
       } catch {
@@ -380,11 +380,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
-  def listStatus(filename: String): Array[FileStatus] = handlePublicAccessError(filename) {
-    val url = AzureStorageFS.parseUrl(filename)
-
+  def listDirectory(url: URL): Array[FileListEntry] = handlePublicAccessError(url) {
     val blobContainerClient: BlobContainerClient = getContainerClient(url)
-    val statList: ArrayBuffer[FileStatus] = ArrayBuffer()
+    val statList: ArrayBuffer[FileListEntry] = ArrayBuffer()
 
     val prefix = dropTrailingSlash(url.path) + "/"
     // collect all children of this directory (blobs and subdirectories)
@@ -392,20 +390,19 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
     prefixMatches.forEach(blobItem => {
       val blobPath = dropTrailingSlash(url.withPath(blobItem.getName).toString())
-      statList += AzureStorageFileStatus(blobPath, blobItem)
+      statList += AzureStorageFileListEntry(blobPath, blobItem)
     })
 
     statList.toArray
   }
 
-  def glob(filename: String): Array[FileStatus] = handlePublicAccessError(filename) {
-    val url = AzureStorageFS.parseUrl(filename)
+  def glob(url: URL): Array[FileListEntry] = handlePublicAccessError(url) {
     globWithPrefix(prefix = url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
-  override def fileStatus(url: AzureStorageFSURL): FileStatus = retryTransientErrors {
+  override def fileListEntry(url: URL): FileListEntry = retryTransientErrors {
     if (url.path == "") {
-      return new BlobStorageFileStatus(url.toString, null, 0, true)
+      return new BlobStorageFileListEntry(url.toString, null, 0, true)
     }
 
     val blobClient: BlobClient = getBlobClient(url)
@@ -431,12 +428,14 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     } else
       null
 
-    AzureStorageFileStatus(filename, isDir, blobProperties)
+    AzureStorageFileListEntry(filename, isDir, blobProperties)
   }
 
-  def fileStatus(filename: String): FileStatus = handlePublicAccessError(filename) {
-    fileStatus(AzureStorageFS.parseUrl(filename))
-  }
+  override def eTag(url: URL): Some[String] =
+    handlePublicAccessError(url) {
+      Some(getBlobClient(url).getProperties.getETag)
+    }
+
 
   def makeQualified(filename: String): String = {
     AzureStorageFS.parseUrl(filename)

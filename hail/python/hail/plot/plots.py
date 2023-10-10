@@ -6,6 +6,7 @@ import pandas as pd
 import bokeh
 import bokeh.io
 import bokeh.models
+import warnings
 from bokeh.models import (HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper,
                           CategoricalColorMapper, ColumnDataSource, BasicTicker, Plot, CDSView,
                           GroupFilter, IntersectionFilter, Legend, LegendItem, Renderer, CustomJS,
@@ -17,11 +18,12 @@ from bokeh.transform import transform
 from bokeh.layouts import gridplot
 
 from hail.expr import aggregators
-from hail.expr.expressions import Expression, NumericExpression, \
-    StringExpression, Int32Expression, Int64Expression, \
-    Float32Expression, Float64Expression, \
-    expr_numeric, expr_float64, expr_any, expr_locus, expr_str, \
-    check_row_indexed
+from hail.expr.expressions import (
+    Expression, NumericExpression, StringExpression, LocusExpression,
+    Int32Expression, Int64Expression, Float32Expression, Float64Expression,
+    expr_numeric, expr_float64, expr_any, expr_locus, expr_str, check_row_indexed
+)
+from hail.expr.functions import _error_from_cdf_python
 from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
     sequenceof, dictof
 from hail import Table, MatrixTable
@@ -131,34 +133,6 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False) -> figu
     return p
 
 
-def _cdf_single_error(cdf, failure_prob):
-    s = 0
-    for i in range(len(cdf._compaction_counts)):
-        s += cdf._compaction_counts[i] << (2 * i)
-    s = s / (cdf.ranks[-1] ** 2)
-    return math.sqrt(math.log(2 / failure_prob) * s / 2)
-
-
-def _cdf_error(cdf, failure_prob):
-    s = 0
-    for i in range(len(cdf._compaction_counts)):
-        s += cdf._compaction_counts[i] << (2 * i)
-    s = s / (cdf.ranks[-1] ** 2)
-
-    if s == 0:
-        # no compactions ergo no error
-        return 0
-
-    def update_grid_size(p):
-        return 4 * math.sqrt(math.log(2 * p / failure_prob) / (2 * s))
-
-    p = 1 / failure_prob
-    for i in range(5):
-        p = update_grid_size(p)
-
-    return 1 / p + math.sqrt(math.log(2 * p / failure_prob) * s / 2)
-
-
 def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False) -> Union[figure, Tuple[figure, Callable]]:
     if isinstance(data, Expression):
         if data._indices is None:
@@ -189,7 +163,7 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
     x = np.array(data['values'][1:-1])
     min_x = data['values'][0]
     max_x = data['values'][-1]
-    err = _cdf_error(data, 10 ** (-confidence))
+    err = _error_from_cdf_python(data, 10 ** (-confidence), all_quantiles=True)
 
     new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
     slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
@@ -201,7 +175,7 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
     if interactive:
         def mk_interact(handle):
             def update(confidence=confidence):
-                err = _cdf_error(data, 10 ** (-confidence)) / 1.8
+                err = _error_from_cdf_python(data, 10 ** (-confidence), all_quantiles=True) / 1.8
                 new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
                 slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
                 if log:
@@ -223,7 +197,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
     def compare(x1, y1, x2, y2):
         return x1 * y2 - x2 * y1
 
-    new_y = np.full_like(x, 0)
+    new_y = np.full_like(x, 0.0, dtype=np.float64)
     keep = np.full_like(x, False, dtype=np.bool_)
 
     fx = min_x  # fixed x
@@ -908,13 +882,39 @@ def _get_scatter_plot_elements(
     return sp, legend_items, legend, color_bar, color_mappers, all_renderers
 
 
+def _downsampling_factor(fname: str,
+                         n_divisions: Optional[int],
+                         collect_all: Optional[bool]
+                         ) -> Optional[int]:
+    if collect_all is not None:
+        warnings.warn(f'{fname}: `collect_all` has been deprecated. Use `n_divisions` instead.')
+        if n_divisions is not None and collect_all is not None:
+            raise ValueError('At most one of `collect_all` or `n_divisions` must be specified.')
+
+    n_divisions = None if collect_all else n_divisions
+
+    if n_divisions is not None and n_divisions < 1:
+        raise ValueError('`n_divisions` must be a positive whole number or `None`')
+
+    return n_divisions
+
+
 @typecheck(x=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
            y=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
-           label=nullable(oneof(dictof(str, expr_any), expr_any)), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
+           label=nullable(oneof(dictof(str, expr_any), expr_any)),
+           title=nullable(str),
+           xlabel=nullable(str),
+           ylabel=nullable(str),
+           size=int,
+           legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, collect_all=bool, n_divisions=nullable(int), missing_label=str)
+           width=int,
+           height=int,
+           collect_all=nullable(bool),
+           n_divisions=nullable(int),
+           missing_label=str
+           )
 def scatter(
         x: Union[NumericExpression, Tuple[str, NumericExpression]],
         y: Union[NumericExpression, Tuple[str, NumericExpression]],
@@ -928,7 +928,7 @@ def scatter(
         colors: Optional[Union[ColorMapper, Dict[str, ColorMapper]]] = None,
         width: int = 800,
         height: int = 800,
-        collect_all: bool = False,
+        collect_all: Optional[bool] = None,
         n_divisions: Optional[int] = 500,
         missing_label: str = 'NA'
 ) -> Union[Plot, Column]:
@@ -987,10 +987,12 @@ def scatter(
         Plot width
     height: int
         Plot height
-    collect_all : bool
-        Whether to collect all values or downsample before plotting.
+    collect_all : bool, optional
+        Deprecated. Use `n_divisions` instead.
     n_divisions : int, optional
-        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+        Factor by which to downsample (default value = 500).
+        A lower input results in fewer output datapoints.
+        Use `None` to collect all points.
     missing_label: str
         Label to use when a point is missing data for a categorical label
 
@@ -1025,11 +1027,13 @@ def scatter(
     else:
         _y = y
 
-    source_pd = _collect_scatter_plot_data(_x,
-                                           _y,
-                                           fields={**hover_fields, **label_by_col},
-                                           n_divisions=None if collect_all else n_divisions,
-                                           missing_label=missing_label)
+    source_pd = _collect_scatter_plot_data(
+        _x,
+        _y,
+        fields={**hover_fields, **label_by_col},
+        n_divisions=_downsampling_factor('scatter', n_divisions, collect_all),
+        missing_label=missing_label
+    )
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
     sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(
         sp, source_pd, _x[0], _y[0], label_cols, colors_by_col, size,
@@ -1086,11 +1090,19 @@ def scatter(
 
 @typecheck(x=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
            y=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
-           label=nullable(oneof(dictof(str, expr_any), expr_any)), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
+           label=nullable(oneof(dictof(str, expr_any), expr_any)),
+           title=nullable(str),
+           xlabel=nullable(str), ylabel=nullable(str),
+           size=int,
+           legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, collect_all=bool, n_divisions=nullable(int), missing_label=str)
+           width=int,
+           height=int,
+           collect_all=nullable(bool),
+           n_divisions=nullable(int),
+           missing_label=str
+           )
 def joint_plot(
         x: Union[NumericExpression, Tuple[str, NumericExpression]],
         y: Union[NumericExpression, Tuple[str, NumericExpression]],
@@ -1104,7 +1116,7 @@ def joint_plot(
         colors: Optional[Union[ColorMapper, Dict[str, ColorMapper]]] = None,
         width: int = 800,
         height: int = 800,
-        collect_all: bool = False,
+        collect_all: Optional[bool] = None,
         n_divisions: Optional[int] = 500,
         missing_label: str = 'NA'
 ) -> GridPlot:
@@ -1163,10 +1175,12 @@ def joint_plot(
             Plot width
         height: int
             Plot height
-        collect_all : bool
-            Whether to collect all values or downsample before plotting.
+        collect_all : bool, optional
+            Deprecated. Use `n_divisions` instead.
         n_divisions : int, optional
-            Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+            Factor by which to downsample (default value = 500).
+            A lower input results in fewer output datapoints.
+            Use `None` to collect all points.
         missing_label: str
             Label to use when a point is missing data for a categorical label
 
@@ -1202,7 +1216,13 @@ def joint_plot(
         _y = y
 
     label_cols = list(label_by_col.keys())
-    source_pd = _collect_scatter_plot_data(_x, _y, fields={**hover_fields, **label_by_col}, n_divisions=None if collect_all else None, missing_label=missing_label)
+    source_pd = _collect_scatter_plot_data(
+        _x,
+        _y,
+        fields={**hover_fields, **label_by_col},
+        n_divisions=_downsampling_factor('join_plot', n_divisions, collect_all),
+        missing_label=missing_label
+    )
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
     sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(
         sp, source_pd, _x[0], _y[0], label_cols, colors_by_col, size,
@@ -1248,7 +1268,6 @@ def joint_plot(
                 density_renderers.append((factor_col, factor, p.line('x', 'y', color=factor_colors.get(factor, 'gray'), source=cds)))
                 max_densities[factor_col] = np.max(list(dens) + [max_densities.get(factor_col, 0)])
 
-        p.legend.visible = False
         p.grid.visible = False
         p.outline_line_color = None
         return p, density_renderers, max_densities
@@ -1336,11 +1355,20 @@ def joint_plot(
 
 
 @typecheck(pvals=expr_numeric,
-           label=nullable(oneof(dictof(str, expr_any), expr_any)), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
+           label=nullable(oneof(dictof(str, expr_any), expr_any)),
+           title=nullable(str),
+           xlabel=nullable(str),
+           ylabel=nullable(str),
+           size=int,
+           legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, collect_all=bool, n_divisions=nullable(int), missing_label=str)
+           width=int,
+           height=int,
+           collect_all=nullable(bool),
+           n_divisions=nullable(int),
+           missing_label=str
+           )
 def qq(
         pvals: NumericExpression,
         label: Optional[Union[Expression, Dict[str, Expression]]] = None,
@@ -1353,7 +1381,7 @@ def qq(
         colors: Optional[Union[ColorMapper, Dict[str, ColorMapper]]] = None,
         width: int = 800,
         height: int = 800,
-        collect_all: bool = False,
+        collect_all: Optional[bool] = None,
         n_divisions: Optional[int] = 500,
         missing_label: str = 'NA'
 ) -> Union[figure, Column]:
@@ -1407,9 +1435,11 @@ def qq(
     height: int
         Plot height
     collect_all : bool
-        Whether to collect all values or downsample before plotting.
+        Deprecated. Use `n_divisions` instead.
     n_divisions : int, optional
-        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+        Factor by which to downsample (default value = 500).
+        A lower input results in fewer output datapoints.
+        Use `None` to collect all points.
     missing_label: str
         Label to use when a point is missing data for a categorical label
 
@@ -1454,10 +1484,8 @@ def qq(
         colors=colors,
         width=width,
         height=height,
-        collect_all=collect_all,
-        n_divisions=n_divisions,
+        n_divisions=_downsampling_factor('qq', n_divisions, collect_all),
         missing_label=missing_label
-
     )
     from hail.methods.statgen import _lambda_gc_agg
     lambda_gc, max_p = ht.aggregate((_lambda_gc_agg(ht['p_value']), hail.agg.max(hail.max(ht.observed_p, ht.expected_p))))
@@ -1477,27 +1505,44 @@ def qq(
     return p
 
 
-@typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int, significance_line=nullable(numeric))
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8) -> Plot:
+@typecheck(pvals=expr_float64,
+           locus=nullable(expr_locus()),
+           title=nullable(str),
+           size=int,
+           hover_fields=nullable(dictof(str, expr_any)),
+           collect_all=nullable(bool),
+           n_divisions=nullable(int),
+           significance_line=nullable(numeric)
+           )
+def manhattan(pvals: 'Float64Expression',
+              locus: 'Optional[LocusExpression]' = None,
+              title: 'Optional[str]' = None,
+              size: int = 4,
+              hover_fields: 'Optional[Dict[str, Expression]]' = None,
+              collect_all: 'Optional[bool]' = None,
+              n_divisions: 'Optional[int]' = 500,
+              significance_line: 'Optional[Union[int, float]]' = 5e-8
+              ) -> Plot:
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
     ----------
     pvals : :class:`.Float64Expression`
         P-values to be plotted.
-    locus : :class:`.LocusExpression`
+    locus : :class:`.LocusExpression`, optional
         Locus values to be plotted.
-    title : str
+    title : str, optional
         Title of the plot.
     size : int
         Size of markers in screen space units.
-    hover_fields : Dict[str, :class:`.Expression`]
+    hover_fields : Dict[str, :class:`.Expression`], optional
         Dictionary of field names and values to be shown in the HoverTool of the plot.
-    collect_all : bool
-        Whether to collect all values or downsample before plotting.
-    n_divisions : int
-        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+    collect_all : bool, optional
+        Deprecated - use `n_divisions` instead.
+    n_divisions : int, optional.
+        Factor by which to downsample (default value = 500).
+        A lower input results in fewer output datapoints.
+        Use `None` to collect all points.
     significance_line : float, optional
         p-value at which to add a horizontal, dotted red line indicating
         genome-wide significance.  If ``None``, no line is added.
@@ -1522,7 +1567,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
         ('_global_locus', locus.global_position()),
         ('_pval', pvals),
         fields=hover_fields,
-        n_divisions=None if collect_all else n_divisions
+        n_divisions=_downsampling_factor('manhattan', n_divisions, collect_all)
     )
     source_pd['p_value'] = [10 ** (-p) for p in source_pd['_pval']]
     source_pd['_contig'] = [locus.split(":")[0] for locus in source_pd['locus']]

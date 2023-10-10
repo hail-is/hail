@@ -13,7 +13,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import gcp_machine_type_to_worker_type_and_cores
+from ..resource_utils import gcp_machine_type_to_worker_type_and_cores, machine_family_to_gpu
 
 log = logging.getLogger('create_instance')
 
@@ -43,7 +43,8 @@ def create_vm_config(
     _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
 
     region = instance_config.region_for(zone)
-
+    machine_family = machine_type.split('-')[0]
+    docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_family_to_gpu(machine_family) else ''
     if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
@@ -60,7 +61,7 @@ def create_vm_config(
                 'diskSizeGb': str(data_disk_size_gb),
             },
         }
-        worker_data_disk_name = 'sdb'
+        worker_data_disk_name = 'nvme0n2' if 'g2' in machine_type else 'sdb'
 
     if job_private:
         unreserved_disk_storage_gb = data_disk_size_gb
@@ -128,7 +129,7 @@ tag jvm-{idx}.log
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-13',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-14',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
@@ -187,6 +188,27 @@ WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
 
+CORES=$(nproc)
+NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
+ACTIVATION_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/activation_token")
+IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
+PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
+
+BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_storage_uri")
+INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
+INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
+MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
+REGION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/region")
+
+NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
+ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
+
+BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
+DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
+DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
+
+INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
+
 # format worker data disk
 sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
@@ -238,17 +260,6 @@ enable_ruby
 </filter>
 EOF
 
-sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
-<source>
-@type tail
-format syslog
-path /var/log/syslog
-pos_file /var/lib/google-fluentd/pos/syslog.pos
-read_from_head true
-tag syslog
-</source>
-EOF
-
 sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
 <source>
 @type tail
@@ -279,27 +290,6 @@ mkdir -p /batch/jvm-container-logs/
 {jvm_touch_command}
 
 sudo service google-fluentd restart
-
-CORES=$(nproc)
-NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
-ACTIVATION_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/activation_token")
-IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip")
-PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
-
-BATCH_LOGS_STORAGE_URI=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_storage_uri")
-INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
-INSTANCE_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_config")
-MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
-REGION=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/region")
-
-NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
-ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
-
-BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
-DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
-DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
-
-INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
 
 # private job network = 172.20.0.0/16
 # public job network = 172.21.0.0/16
@@ -381,6 +371,7 @@ docker run \
 --security-opt apparmor:unconfined \
 --network host \
 --cgroupns host \
+{docker_run_gpu_args} \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 

@@ -9,12 +9,13 @@ import aiohttp
 import orjson
 import secrets
 
+from hailtop import is_notebook
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
 from hailtop.utils import bounded_gather, sleep_before_try
-from hailtop.utils.rich_progress_bar import is_notebook, BatchProgressBar, BatchProgressBarTask
+from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
 from .types import GetJobsResponseV1Alpha, JobListEntryV1Alpha, GetJobResponseV1Alpha
@@ -781,16 +782,12 @@ class Batch:
                       max_bunch_bytesize: int,
                       max_bunch_size: int,
                       disable_progress_bar: bool,
-                      min_bunches_for_progress_bar: Optional[int],
                       progress: BatchProgressBar) -> Optional[int]:
         n_jobs = len(self._jobs)
         byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(self._job_specs, max_bunch_bytesize, max_bunch_size)
         n_job_bunches = len(byte_job_specs_bunches)
 
-        if min_bunches_for_progress_bar is not None and n_job_bunches < 100:
-            progress.progress.disable = True
-
-        with progress.with_task('submit job bunches', total=n_jobs, disable=disable_progress_bar) as job_progress_task:
+        with progress.with_task('submit job bunches', total=n_jobs, disable=(disable_progress_bar or n_job_bunches < 100)) as job_progress_task:
             if not self.is_created:
                 if n_job_bunches == 0:
                     await self._open_batch()
@@ -835,10 +832,10 @@ class Batch:
         assert max_bunch_size > 0
 
         if progress:
-            start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, None, progress)
+            start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress)
         else:
             with BatchProgressBar(disable=disable_progress_bar) as progress2:
-                start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, 100, progress2)
+                start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress2)
 
         assert self.is_created
 

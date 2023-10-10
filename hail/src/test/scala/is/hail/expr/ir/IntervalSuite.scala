@@ -17,7 +17,7 @@ class IntervalSuite extends HailSuite {
   val tinterval1 = TInterval(tpoint1)
   val na = NA(tinterval1)
 
-  def point(i: Int): IR = MakeTuple.ordered(FastIndexedSeq(I32(i)))
+  def point(i: Int): IR = MakeTuple.ordered(FastSeq(I32(i)))
   def interval(start: IR, end: IR, includeStart: java.lang.Boolean, includeEnd: java.lang.Boolean): IR = {
     invoke("Interval", TInterval(start.typ), start, end, Literal.coerce(TBoolean, includeStart), Literal.coerce(TBoolean, includeEnd))
   }
@@ -72,7 +72,7 @@ class IntervalSuite extends HailSuite {
   val points: IndexedSeq[Int] = 1 to 4
 
   val testIntervals: IndexedSeq[SetInterval] =
-    FastIndexedSeq(
+    FastSeq(
       SetInterval(1, 1, true, true),
       SetInterval(1, 1, true, false),
       SetInterval(1, 3, false, true),
@@ -158,7 +158,7 @@ class IntervalSuite extends HailSuite {
   }
 
   @Test def testsortedNonOverlappingIntervalsContain() {
-    val intervals = Literal(TArray(TInterval(TInt32)), FastIndexedSeq(
+    val intervals = Literal(TArray(TInterval(TInt32)), FastSeq(
       Interval(0, 1, includesStart = true, includesEnd = true),
       Interval(10, 20, includesStart = true, includesEnd = true),
       Interval(30, 32, includesStart = false, includesEnd = false),
@@ -210,7 +210,7 @@ class IntervalSuite extends HailSuite {
   @Test def testPointPartitionIntervalEndpointComparison() {
     def assertComp(point: IndexedSeq[Int], intervalEndpoint: IndexedSeq[Int], leansRight: Boolean, function: String, expected: Boolean) {
       val pointIR = MakeTuple.ordered(point.map(I32))
-      val endpointIR = MakeTuple.ordered(FastIndexedSeq(
+      val endpointIR = MakeTuple.ordered(FastSeq(
         MakeTuple.ordered(Array.tabulate(3)(i =>
           if (i < intervalEndpoint.length) I32(intervalEndpoint(i)) else NA(TInt32))),
         I32(intervalEndpoint.length)))

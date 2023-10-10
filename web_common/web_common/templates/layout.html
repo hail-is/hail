@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <meta charset="utf-8">
     <title>Hail | {% block title %}{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <link rel="shortcut icon" href="{{ base_path }}/common_static/hail_logo_sq.ico" type="image/x-icon"/>
@@ -13,11 +14,7 @@
   </head>
   <body>
     <div id="main">
-      {% if notebook_service is defined and notebook_service == 'workshop' %}
-      {% include 'workshop/header.html' %}
-      {% else %}
       {% include 'header.html' %}
-      {% endif %}
       <div id="content">
         {% if message is defined %}
         <div id="message" class="message-{{ message['type'] }}">

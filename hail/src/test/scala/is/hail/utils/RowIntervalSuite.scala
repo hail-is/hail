@@ -1,15 +1,12 @@
 package is.hail.utils
 
-import is.hail.{ExecStrategy, HailSuite}
-import is.hail.annotations.Region
-import is.hail.types.virtual.{TBoolean, TInt32, TStruct, TTuple}
-import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
-import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
-import is.hail.TestUtils._
 import is.hail.expr.ir
 import is.hail.expr.ir.In
+import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
+import is.hail.types.virtual.{TBoolean, TInt32, TStruct}
+import is.hail.{ExecStrategy, HailSuite}
+import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 class RowIntervalSuite extends HailSuite {
   lazy val t = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
@@ -31,7 +28,7 @@ class RowIntervalSuite extends HailSuite {
 
     assertEvalsTo(
       ir.invoke("partitionIntervalContains", TBoolean, in1, in2),
-      args = FastIndexedSeq((intervalIRRep, irRepIntervalType), (point, tt)),
+      args = FastSeq((intervalIRRep, irRepIntervalType), (point, tt)),
       shouldContain)(ExecStrategy.compileOnly)
   }
 

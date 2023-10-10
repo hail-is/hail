@@ -40,8 +40,10 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     time_completed = _time_msecs_str(record['time_completed'])
 
     if record['time_created'] and record['time_completed']:
-        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_created'])
+        duration_ms = record['time_completed'] - record['time_created']
+        duration = humanize_timedelta_msecs(duration_ms)
     else:
+        duration_ms = None
         duration = None
 
     if record['cost_breakdown'] is not None:
@@ -63,6 +65,7 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
         'time_created': time_created,
         'time_closed': time_closed,
         'time_completed': time_completed,
+        'duration_ms': duration_ms,
         'duration': duration,
         'msec_mcpu': record['msec_mcpu'],
         'cost': coalesce(record.get('cost'), 0),

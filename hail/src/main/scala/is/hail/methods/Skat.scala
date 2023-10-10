@@ -1,21 +1,18 @@
 package is.hail.methods
 
-import is.hail.utils._
-import is.hail.types._
-import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD, GeneralizedChiSquaredDistribution}
-import is.hail.annotations.{Annotation, BroadcastRow, Region, UnsafeRow}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
+import is.hail.HailContext
+import is.hail.annotations.{Annotation, Region, UnsafeRow}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
+import is.hail.stats.{GeneralizedChiSquaredDistribution, LogisticRegressionModel, RegressionUtils, eigSymD}
+import is.hail.types._
+import is.hail.types.virtual.{TFloat64, TInt32, TStruct, Type}
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import com.sun.jna.Native
-import com.sun.jna.ptr.IntByReference
-import is.hail.HailContext
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
-import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.types.virtual.{TFloat64, TInt32, TStruct, Type}
-import is.hail.rvd.RVDType
 
 /*
 Skat implements the burden test described in:
@@ -172,7 +169,7 @@ case class Skat(
       ("q_stat", TFloat64),
       ("p_value", TFloat64),
       ("fault", TInt32))
-    TableType(skatSchema, FastIndexedSeq("id"), TStruct.empty)
+    TableType(skatSchema, FastSeq("id"), TStruct.empty)
   }
 
   def preservesPartitionCounts: Boolean = false

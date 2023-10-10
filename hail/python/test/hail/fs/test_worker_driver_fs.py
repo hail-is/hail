@@ -14,7 +14,7 @@ def test_requester_pays_no_settings():
     try:
         hl.import_table('gs://hail-test-requester-pays-fds32/hello')
     except Exception as exc:
-        assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
+        assert "Bucket is a requester pays bucket but no user project provided" in str(exc)
     else:
         assert False
 
@@ -25,7 +25,7 @@ def test_requester_pays_write_no_settings():
     try:
         hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
     except Exception as exc:
-        assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
+        assert "Bucket is a requester pays bucket but no user project provided" in str(exc)
     else:
         hl.current_backend().fs.rmtree(random_filename)
         assert False
@@ -63,7 +63,7 @@ def test_requester_pays_with_project():
     try:
         hl.import_table('gs://hail-test-requester-pays-fds32/hello')
     except Exception as exc:
-        assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
+        assert "Bucket is a requester pays bucket but no user project provided" in str(exc)
     else:
         assert False
 
@@ -114,7 +114,7 @@ def test_requester_pays_with_project_more_than_one_partition():
     try:
         hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', min_partitions=8)
     except Exception as exc:
-        assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
+        assert "Bucket is a requester pays bucket but no user project provided" in str(exc)
     else:
         assert False
 

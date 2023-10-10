@@ -5,9 +5,9 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR, IRParserEnvironment, Literal, LowerMatrixIR, MakeStruct, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, PartitionReader, ReadPartition, Ref, StreamTake, TableExecuteIntermediate, TableNativeReader, TableReader, TableValue, ToStream}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR, IRParserEnvironment, Literal, LowerMatrixIR, MakeStruct, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, PartitionReader, ReadPartition, Ref, TableNativeReader, TableReader, ToStream}
 import is.hail.io._
-import is.hail.io.fs.{FS, FileStatus, SeekableDataInputStream}
+import is.hail.io.fs.{FS, FileListEntry, SeekableDataInputStream}
 import is.hail.io.index.{IndexReader, StagedIndexReader}
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.RVDPartitioner
@@ -17,7 +17,6 @@ import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
 import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
@@ -109,7 +108,7 @@ object LoadBgen {
     val nVariants = is.readInt()
     val nSamples = is.readInt()
 
-    val magicNumber = is.readBytes(4).map(_.toInt).toFastIndexedSeq
+    val magicNumber = is.readBytes(4).map(_.toInt).toFastSeq
 
     if (magicNumber != FastSeq(0, 0, 0, 0) && magicNumber != FastSeq(98, 103, 101, 110))
       fatal(s"expected magic number [0000] or [bgen], got [${ magicNumber.mkString }]")
@@ -149,24 +148,24 @@ object LoadBgen {
            |  ${ notVersionTwo.mkString("\n  ") }""".stripMargin)
   }
 
-  def getAllFileStatuses(fs: FS, files: Array[String]): Array[FileStatus] = {
+  def getAllFileListEntries(fs: FS, files: Array[String]): Array[FileListEntry] = {
     val badFiles = new BoxedArrayBuilder[String]()
 
-    val statuses = files.flatMap { file =>
+    val fileListEntries = files.flatMap { file =>
       val matches = fs.glob(file)
       if (matches.isEmpty)
         badFiles += file
 
-      matches.flatMap { status =>
-        val file = status.getPath.toString
+      matches.flatMap { fileListEntry =>
+        val file = fileListEntry.getPath.toString
         if (!file.endsWith(".bgen"))
           warn(s"input file does not have .bgen extension: $file")
 
         if (fs.isDir(file))
-          fs.listStatus(file)
-            .filter(status => ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.matches(status.getPath.toString))
+          fs.listDirectory(file)
+            .filter(fileListEntry => ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.matches(fileListEntry.getPath.toString))
         else
-          Array(status)
+          Array(fileListEntry)
       }
     }
 
@@ -175,11 +174,11 @@ object LoadBgen {
         s"""The following paths refer to no files:
            |  ${ badFiles.result().mkString("\n  ") }""".stripMargin)
 
-    statuses
+    fileListEntries
   }
 
   def getAllFilePaths(fs: FS, files: Array[String]): Array[String] =
-    getAllFileStatuses(fs, files).map(_.getPath.toString)
+    getAllFileListEntries(fs, files).map(_.getPath.toString)
 
 
   def getBgenFileMetadata(ctx: ExecuteContext, files: Array[String], indexFiles: Array[String]): Array[BgenFileMetadata] = {
@@ -226,7 +225,7 @@ object LoadBgen {
   }
 
   def getIndexFileNames(fs: FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
-    def absolutePath(rel: String): String = fs.fileStatus(rel).getPath.toString
+    def absolutePath(rel: String): String = fs.fileListEntry(rel).getPath.toString
 
     val fileMapping = Option(indexFileMap)
       .getOrElse(Map.empty[String, String])
@@ -543,7 +542,7 @@ class MatrixBGENReader(
           globals = globals,
           partitioner = partitioner,
           dependency = TableStageDependency.none,
-          contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastIndexedSeq)),
+          contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastSeq)),
           (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader)
         )
 
@@ -568,7 +567,7 @@ class MatrixBGENReader(
           globals = globals,
           partitioner = partitioner,
           dependency = TableStageDependency.none,
-          contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastIndexedSeq)),
+          contexts = ToStream(Literal(TArray(reader.contextType), contexts.result().toFastSeq)),
           (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader)
         )
     }
@@ -627,7 +626,7 @@ case class BgenPartitionReaderWithVariantFilter(fileMetadata: Array[BgenFileMeta
               vs.initialize(cb, outerRegion)
 
               cb.assign(fileIdx, context.loadField(cb, "file_index").get(cb).asInt.value)
-              val metadata = cb.memoize(mb.getObject[IndexedSeq[BgenFileMetadata]](fileMetadata.toFastIndexedSeq)
+              val metadata = cb.memoize(mb.getObject[IndexedSeq[BgenFileMetadata]](fileMetadata.toFastSeq)
                 .invoke[Int, BgenFileMetadata]("apply", fileIdx))
               val fileName = cb.memoize(metadata.invoke[String]("path"))
               val indexName = cb.memoize(metadata.invoke[String]("indexPath"))
@@ -756,7 +755,7 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
 
           cb.assign(fileIdx, context.loadField(cb, "file_index").get(cb).asInt.value)
-          val metadata = cb.memoize(mb.getObject[IndexedSeq[BgenFileMetadata]](fileMetadata.toFastIndexedSeq)
+          val metadata = cb.memoize(mb.getObject[IndexedSeq[BgenFileMetadata]](fileMetadata.toFastSeq)
             .invoke[Int, BgenFileMetadata]("apply", fileIdx))
           val fileName = cb.memoize(metadata.invoke[String]("path"))
           val indexName = cb.memoize(metadata.invoke[String]("indexPath"))

@@ -5,7 +5,6 @@ import abc
 from pandas import DataFrame
 
 import pandas as pd
-import numpy as np
 
 import hail as hl
 from hail.utils.java import warning
@@ -150,14 +149,9 @@ class StatCDF(Stat):
         result = []
 
         for grouped_struct, data in agg_result.items():
-            n = data['ranks'][-1]
-            weights = np.diff(data['ranks'][1:-1])
-            min = data['values'][0]
-            max = data['values'][-1]
-            values = np.array(data['values'][1:-1])
-            df = pd.DataFrame({'value': values, 'weight': weights})
+            df = pd.DataFrame()
             df.attrs.update(**grouped_struct)
-            df.attrs.update({'min': min, 'max': max, 'n': n})
+            df.attrs.update({"data": data})
 
             result.append(df)
         return result

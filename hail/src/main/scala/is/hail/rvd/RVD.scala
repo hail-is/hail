@@ -7,8 +7,8 @@ import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.expr.ir.InferPType
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.io.index.IndexWriter
 import is.hail.io._
+import is.hail.io.index.IndexWriter
 import is.hail.sparkextras._
 import is.hail.types._
 import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct}
@@ -981,7 +981,7 @@ object RVD {
 
   def unkeyed(rowType: PStruct, crdd: ContextRDD[Long]): RVD =
     new RVD(
-      RVDType(rowType, FastIndexedSeq()),
+      RVDType(rowType, FastSeq()),
       RVDPartitioner.unkeyed(null, crdd.getNumPartitions),
       crdd)
 
@@ -1106,7 +1106,7 @@ object RVD {
     if (keyInfo.isEmpty)
       return emptyCoercer
 
-    val bounds = keyInfo.map(_.interval).toFastIndexedSeq
+    val bounds = keyInfo.map(_.interval).toFastSeq
     val pkBounds = bounds.map(_.coarsen(partitionKey))
 
     def orderPartitions = { crdd: CRDD =>

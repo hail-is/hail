@@ -2,8 +2,9 @@ from typing import List, Union
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import family_worker_type_cores_to_gcp_machine_type, gcp_machine_type_to_parts
+from .resource_utils import gcp_machine_type_to_parts, machine_family_to_gpu
 from .resources import (
+    GCPAcceleratorResource,
     GCPComputeResource,
     GCPDynamicSizedDiskResource,
     GCPIPFeeResource,
@@ -12,6 +13,7 @@ from .resources import (
     GCPResource,
     GCPServiceFeeResource,
     GCPStaticSizedDiskResource,
+    GCPSupportLogsSpecsAndFirewallFees,
     gcp_resource_from_dict,
 )
 
@@ -57,7 +59,12 @@ class GCPSlimInstanceConfig(InstanceConfig):
             GCPDynamicSizedDiskResource.create(product_versions, 'pd-ssd', region),
             GCPIPFeeResource.create(product_versions, 1024),
             GCPServiceFeeResource.create(product_versions),
+            GCPSupportLogsSpecsAndFirewallFees.create(product_versions),
         ]
+
+        accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family)
+        if accelerator_family:
+            resources.append(GCPAcceleratorResource.create(product_versions, accelerator_family, preemptible, region))
 
         return GCPSlimInstanceConfig(
             machine_type=machine_type,
@@ -103,57 +110,17 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     @staticmethod
     def from_dict(data: dict) -> 'GCPSlimInstanceConfig':
-        if data['version'] < 4:
-            disks = data['disks']
-            assert len(disks) == 2, data
-            assert disks[0]['boot']
-            boot_disk_size_gb = disks[0]['size']
-            assert not disks[1]['boot']
-            local_ssd_data_disk = disks[1]['type'] == 'local-ssd'
-            data_disk_size_gb = disks[1]['size']
-            job_private = data['job-private']
-            preemptible = data['instance']['preemptible']
-            machine_type = family_worker_type_cores_to_gcp_machine_type(
-                data['instance']['family'],
-                data['instance']['type'],
-                data['instance']['cores'],
-            )
-            instance_family = data['instance']['family']
-        else:
-            machine_type = data['machine_type']
-            preemptible = data['preemptible']
-            local_ssd_data_disk = data['local_ssd_data_disk']
-            data_disk_size_gb = data['data_disk_size_gb']
-            boot_disk_size_gb = data['boot_disk_size_gb']
-            job_private = data['job_private']
+        assert data['version'] == GCP_INSTANCE_CONFIG_VERSION
 
-            machine_type_parts = gcp_machine_type_to_parts(machine_type)
-            assert machine_type_parts is not None, machine_type
-            instance_family = machine_type_parts.machine_family
+        machine_type = data['machine_type']
+        preemptible = data['preemptible']
+        local_ssd_data_disk = data['local_ssd_data_disk']
+        data_disk_size_gb = data['data_disk_size_gb']
+        boot_disk_size_gb = data['boot_disk_size_gb']
+        job_private = data['job_private']
 
-        resources = data.get('resources')
-        if resources is None:
-            assert data['version'] < 5, data
-
-            preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
-
-            if local_ssd_data_disk:
-                data_disk_resource = GCPStaticSizedDiskResource('disk/local-ssd/1', data_disk_size_gb)
-            else:
-                data_disk_resource = GCPStaticSizedDiskResource('disk/pd-ssd/1', data_disk_size_gb)
-
-            # hard coded product versions "/1" are for backwards compatibility
-            resources = [
-                GCPComputeResource(f'compute/{instance_family}-{preemptible_str}/1'),
-                GCPMemoryResource(f'memory/{instance_family}-{preemptible_str}/1'),
-                GCPStaticSizedDiskResource('disk/pd-ssd/1', boot_disk_size_gb),
-                data_disk_resource,
-                GCPDynamicSizedDiskResource('disk/pd-ssd/1'),
-                GCPServiceFeeResource('service-fee/1'),
-                GCPIPFeeResource('ip-fee/1024/1'),
-            ]
-        else:
-            resources = [gcp_resource_from_dict(data) for data in resources]
+        assert 'resources' in data and data['resources'] is not None
+        resources = [gcp_resource_from_dict(data) for data in data['resources']]
 
         return GCPSlimInstanceConfig(
             machine_type,

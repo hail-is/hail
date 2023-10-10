@@ -9,6 +9,7 @@ import random
 import re
 import signal
 import traceback
+from contextlib import AsyncExitStack
 from functools import wraps
 from numbers import Number
 from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union, cast
@@ -24,7 +25,27 @@ import plotly.graph_objects as go
 import pymysql
 import uvloop
 from aiohttp import web
+from plotly.subplots import make_subplots
+from prometheus_async.aio.web import server_stats  # type: ignore
+from typing_extensions import ParamSpec
+
+from gear import (
+    AuthServiceAuthenticator,
+    Database,
+    Transaction,
+    UserData,
+    check_csrf_token,
+    json_request,
+    json_response,
+    monitor_endpoints_middleware,
+    setup_aiohttp_session,
+    transaction,
+)
+from gear.clients import get_cloud_async_fs
+from gear.database import CallError
+from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, version
+from hailtop.auth import hail_credentials
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.batch_client.types import GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
 from hailtop.config import get_deploy_config
@@ -41,25 +62,6 @@ from hailtop.utils import (
     time_msecs,
     time_msecs_str,
 )
-from plotly.subplots import make_subplots
-from prometheus_async.aio.web import server_stats  # type: ignore
-from typing_extensions import ParamSpec
-
-from gear import (
-    AuthClient,
-    Database,
-    Transaction,
-    UserData,
-    check_csrf_token,
-    json_request,
-    json_response,
-    monitor_endpoints_middleware,
-    setup_aiohttp_session,
-    transaction,
-)
-from gear.clients import get_cloud_async_fs
-from gear.database import CallError
-from gear.profiling import install_profiler_if_requested
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import batch_record_to_dict, cancel_batch_in_db, job_record_to_dict
@@ -109,7 +111,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthClient()
+auth = AuthServiceAuthenticator()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
@@ -121,8 +123,8 @@ T = TypeVar('T')
 P = ParamSpec('P')
 
 
-def rest_authenticated_developers_or_auth_only(fun: Callable[[web.Request], Awaitable[web.StreamResponse]]):
-    @auth.rest_authenticated_users_only
+def authenticated_developers_or_auth_only(fun: Callable[[web.Request], Awaitable[web.StreamResponse]]):
+    @auth.authenticated_users_only()
     @wraps(fun)
     async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
         if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
@@ -164,24 +166,9 @@ WHERE id = %s AND billing_project_users.`user_cs` = %s;
     return record is not None
 
 
-def rest_billing_project_users_only(fun: Callable[[web.Request, UserData, int], Awaitable[web.StreamResponse]]):
-    @auth.rest_authenticated_users_only
-    @wraps(fun)
-    async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
-        db = request.app['db']
-        batch_id = int(request.match_info['batch_id'])
-        user = userdata['username']
-        permitted_user = await _user_can_access(db, batch_id, user)
-        if not permitted_user:
-            raise web.HTTPNotFound()
-        return await fun(request, userdata, batch_id)
-
-    return wrapped
-
-
-def web_billing_project_users_only(redirect=True):
+def billing_project_users_only(redirect: Optional[bool] = None):
     def wrap(fun: Callable[[web.Request, UserData, int], Awaitable[web.StreamResponse]]):
-        @auth.web_authenticated_users_only(redirect)
+        @auth.authenticated_users_only(redirect)
         @wraps(fun)
         async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
             db = request.app['db']
@@ -219,7 +206,7 @@ async def rest_cloud(_) -> web.Response:
 
 
 @routes.get('/api/v1alpha/supported_regions')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 async def rest_get_supported_regions(request: web.Request, _) -> web.Response:
     return json_response(list(request.app['regions'].keys()))
 
@@ -363,7 +350,7 @@ async def _query_batch_jobs(
 
 
 @routes.get('/api/v1alpha/batches/completed')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 async def get_completed_batches_ordered_by_completed_time(request, userdata):
     db = request.app['db']
     where_args = [userdata['username']]
@@ -444,7 +431,7 @@ WHERE id = %s AND NOT deleted;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
-@rest_billing_project_users_only
+@billing_project_users_only()
 @add_metadata_to_request
 async def get_jobs_v1(request: web.Request, _, batch_id: int) -> web.Response:
     q = request.query.get('q', '')
@@ -455,7 +442,7 @@ async def get_jobs_v1(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/api/v2alpha/batches/{batch_id}/jobs')
-@rest_billing_project_users_only
+@billing_project_users_only()
 @add_metadata_to_request
 async def get_jobs_v2(request: web.Request, _, batch_id: int) -> web.Response:
     q = request.query.get('q', '')
@@ -466,7 +453,7 @@ async def get_jobs_v2(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/resources')
-@rest_billing_project_users_only
+@billing_project_users_only()
 async def get_jobs_for_billing(request, userdata, batch_id):
     """
     Get jobs for batch to check the amount of resources used.
@@ -504,7 +491,7 @@ async def get_jobs_for_billing(request, userdata, batch_id):
     }
     """
 
-    # just noting the @rest_billing_project_users_only decorator
+    # just noting the @billing_project_users_only() decorator
     #   does the permission checks for us
     jobs, last_job_id = await _query_batch_jobs_for_billing(request, batch_id)
     resp = {'jobs': jobs}
@@ -788,7 +775,7 @@ async def _get_full_job_status(app, record):
 
 # deprecated
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
-@rest_billing_project_users_only
+@billing_project_users_only()
 @add_metadata_to_request
 async def get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
@@ -817,7 +804,7 @@ async def get_job_container_log(request, batch_id):
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}')
-@rest_billing_project_users_only
+@billing_project_users_only()
 @add_metadata_to_request
 async def rest_get_job_container_log(request, _, batch_id) -> web.Response:
     return await get_job_container_log(request, batch_id)
@@ -843,7 +830,7 @@ async def _query_batches(request, user: str, q: str, version: int, last_batch_id
 
 
 @routes.get('/api/v1alpha/batches')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
@@ -859,7 +846,7 @@ async def get_batches_v1(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/api/v2alpha/batches')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
@@ -888,7 +875,7 @@ def check_service_account_permissions(user, sa):
 
 # Deprecated. Use create_jobs_for_update instead
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
@@ -898,7 +885,7 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def create_jobs_for_update(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
@@ -928,8 +915,7 @@ async def _create_jobs(
     file_store: FileStore = app['file_store']
     user = userdata['username']
 
-    # restrict to what's necessary; in particular, drop the session
-    # which is sensitive
+    # restrict to what's necessary
     userdata = {
         'username': user,
         'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
@@ -1392,7 +1378,7 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/api/v1alpha/batches/create-fast')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def create_batch_fast(request, userdata):
     app = request.app
@@ -1416,7 +1402,7 @@ async def create_batch_fast(request, userdata):
 
 
 @routes.post('/api/v1alpha/batches/create')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def create_batch(request, userdata):
     app = request.app
@@ -1550,7 +1536,7 @@ VALUES (%s, %s, %s)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/update-fast')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def update_batch_fast(request, userdata):
     app = request.app
@@ -1583,7 +1569,7 @@ async def update_batch_fast(request, userdata):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/create')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def create_update(request, userdata):
     app = request.app
@@ -1740,14 +1726,14 @@ WHERE id = %s AND NOT deleted;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
-@rest_billing_project_users_only
+@billing_project_users_only()
 @add_metadata_to_request
 async def get_batch(request: web.Request, _, batch_id: int) -> web.Response:
     return json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
-@rest_billing_project_users_only
+@billing_project_users_only()
 @add_metadata_to_request
 async def cancel_batch(request: web.Request, _, batch_id: int) -> web.Response:
     await _handle_api_error(_cancel_batch, request.app, batch_id)
@@ -1756,7 +1742,7 @@ async def cancel_batch(request: web.Request, _, batch_id: int) -> web.Response:
 
 # deprecated
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -1792,7 +1778,7 @@ WHERE batch_id = %s AND update_id = 1;
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 @add_metadata_to_request
 async def commit_update(request: web.Request, userdata):
     app = request.app
@@ -1841,13 +1827,13 @@ async def _commit_update(app: web.Application, batch_id: int, update_id: int, us
         retry_transient_errors(
             client_session.patch,
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
-            headers=app['batch_headers'],
+            headers=await app['hail_credentials'].auth_headers(),
         )
     )
 
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
-@rest_billing_project_users_only
+@billing_project_users_only()
 @add_metadata_to_request
 async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
     await _delete_batch(request.app, batch_id)
@@ -1855,7 +1841,7 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/batches/{batch_id}')
-@web_billing_project_users_only()
+@billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
     app = request.app
@@ -1893,8 +1879,7 @@ async def ui_batch(request, userdata, batch_id):
 
 
 @routes.post('/batches/{batch_id}/cancel')
-@check_csrf_token
-@web_billing_project_users_only(redirect=False)
+@billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
 async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
     post = await request.post()
@@ -1912,8 +1897,7 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
 
 
 @routes.post('/batches/{batch_id}/delete')
-@check_csrf_token
-@web_billing_project_users_only(redirect=False)
+@billing_project_users_only(redirect=False)
 @catch_ui_error_in_dev
 async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
     post = await request.post()
@@ -1929,7 +1913,7 @@ async def ui_delete_batch(request: web.Request, _, batch_id: int) -> NoReturn:
 
 
 @routes.get('/batches', name='batches')
-@auth.web_authenticated_users_only()
+@auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_batches(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
@@ -2051,12 +2035,13 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
                 end_time = time_msecs()
             duration_msecs = max(end_time - start_time, 0)
             attempt['duration'] = humanize_timedelta_msecs(duration_msecs)
+            attempt['duration_ms'] = duration_msecs
 
     return attempts
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
-@rest_billing_project_users_only
+@billing_project_users_only()
 async def get_attempts(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     attempts = await _get_attempts(request.app, batch_id, job_id)
@@ -2064,7 +2049,7 @@ async def get_attempts(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
-@rest_billing_project_users_only
+@billing_project_users_only()
 @add_metadata_to_request
 async def get_job(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
@@ -2262,7 +2247,7 @@ def plot_resource_usage(
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/jvm_profile')
-@web_billing_project_users_only()
+@billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Response:
     app = request.app
@@ -2274,7 +2259,7 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@web_billing_project_users_only()
+@billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job(request, userdata, batch_id):
     app = request.app
@@ -2397,14 +2382,14 @@ async def ui_get_job(request, userdata, batch_id):
 
 # This should really be the exact same thing as the REST endpoint
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log/{container}')
-@web_billing_project_users_only()
+@billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.StreamResponse:
     return await get_job_container_log(request, batch_id)
 
 
 @routes.get('/billing_limits')
-@auth.web_authenticated_users_only()
+@auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_limits(request, userdata):
     app = request.app
@@ -2473,7 +2458,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
 
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
-@rest_authenticated_developers_or_auth_only
+@authenticated_developers_or_auth_only
 async def post_edit_billing_limits(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2484,8 +2469,7 @@ async def post_edit_billing_limits(request: web.Request) -> web.Response:
 
 
 @routes.post('/billing_limits/{billing_project}/edit')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -2571,7 +2555,7 @@ GROUP BY billing_project, `user`;
 
 
 @routes.get('/billing')
-@auth.web_authenticated_users_only()
+@auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
     is_developer = userdata['is_developer'] == 1
@@ -2618,7 +2602,7 @@ async def ui_get_billing(request, userdata):
 
 
 @routes.get('/billing_projects')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
@@ -2631,7 +2615,7 @@ async def ui_get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
@@ -2645,7 +2629,7 @@ async def get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2710,8 +2694,7 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -2727,7 +2710,7 @@ async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
-@rest_authenticated_developers_or_auth_only
+@authenticated_developers_or_auth_only
 async def api_get_billing_projects_remove_user(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2780,8 +2763,7 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -2799,7 +2781,7 @@ async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
-@rest_authenticated_developers_or_auth_only
+@authenticated_developers_or_auth_only
 async def api_billing_projects_add_user(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     user = request.match_info['user']
@@ -2838,8 +2820,7 @@ VALUES (%s, %s);
 
 
 @routes.post('/billing_projects/create')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_create_billing_projects(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -2855,7 +2836,7 @@ async def post_create_billing_projects(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
-@rest_authenticated_developers_or_auth_only
+@authenticated_developers_or_auth_only
 async def api_get_create_billing_projects(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2899,8 +2880,7 @@ FOR UPDATE;
 
 
 @routes.post('/billing_projects/{billing_project}/close')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_close_billing_projects(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -2915,7 +2895,7 @@ async def post_close_billing_projects(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
-@rest_authenticated_developers_or_auth_only
+@authenticated_developers_or_auth_only
 async def api_close_billing_projects(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2944,10 +2924,9 @@ async def _reopen_billing_project(db, billing_project):
 
 
 @routes.post('/billing_projects/{billing_project}/reopen')
-@check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@auth.authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
-async def post_reopen_billing_projects(request: web.Request) -> NoReturn:
+async def post_reopen_billing_projects(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -2960,7 +2939,7 @@ async def post_reopen_billing_projects(request: web.Request) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
-@rest_authenticated_developers_or_auth_only
+@authenticated_developers_or_auth_only
 async def api_reopen_billing_projects(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2990,7 +2969,7 @@ async def _delete_billing_project(db, billing_project):
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
-@rest_authenticated_developers_or_auth_only
+@authenticated_developers_or_auth_only
 async def api_delete_billing_projects(request: web.Request) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3019,7 +2998,7 @@ SELECT frozen FROM globals;
 
 @routes.get('')
 @routes.get('/')
-@auth.web_authenticated_users_only()
+@auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def index(request: web.Request, _) -> NoReturn:
     location = request.app.router['batches'].url_for()
@@ -3031,7 +3010,7 @@ async def cancel_batch_loop_body(app):
     await retry_transient_errors(
         client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
-        headers=app['batch_headers'],
+        headers=await app['hail_credentials'].auth_headers(),
     )
 
     should_wait = True
@@ -3043,7 +3022,7 @@ async def delete_batch_loop_body(app):
     await retry_transient_errors(
         client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
-        headers=app['batch_headers'],
+        headers=await app['hail_credentials'].auth_headers(),
     )
 
     should_wait = True
@@ -3083,7 +3062,7 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
+SELECT instance_id, n_tokens, frozen FROM globals;
 '''
     )
 
@@ -3093,9 +3072,7 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
 
-    app['internal_token'] = row['internal_token']
-
-    app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
+    app['hail_credentials'] = hail_credentials()
 
     app['frozen'] = row['frozen']
 
@@ -3131,23 +3108,20 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
 
 async def on_cleanup(app):
-    try:
-        app['task_manager'].shutdown()
-    finally:
-        try:
-            await app['client_session'].close()
-        finally:
-            try:
-                await app['file_store'].close()
-            finally:
-                await app['db'].async_close()
+    async with AsyncExitStack() as stack:
+        stack.callback(app['task_manager'].shutdown)
+        stack.push_async_callback(app['hail_credentials'].close)
+        stack.push_async_callback(app['client_session'].close)
+        stack.push_async_callback(app['file_store'].close)
+        stack.push_async_callback(app['db'].async_close)
 
 
 def run():
     install_profiler_if_requested('batch')
 
     app = web.Application(
-        client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[unavailable_if_frozen, monitor_endpoints_middleware]
+        client_max_size=HTTP_CLIENT_MAX_SIZE,
+        middlewares=[check_csrf_token, unavailable_if_frozen, monitor_endpoints_middleware],
     )
     setup_aiohttp_session(app)
 

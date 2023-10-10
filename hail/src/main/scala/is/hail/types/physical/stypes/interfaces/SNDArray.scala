@@ -7,10 +7,10 @@ import is.hail.linalg.{BLAS, LAPACK}
 import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue}
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PNumeric, PPrimitive, PType}
+import is.hail.types.physical._
 import is.hail.types.virtual.TInt32
 import is.hail.types.{RNDArray, TypeWithRequiredness}
-import is.hail.utils.{FastIndexedSeq, toRichIterable, valueToRichCodeRegion}
+import is.hail.utils.{FastSeq, toRichIterable, valueToRichCodeRegion}
 
 import scala.collection.mutable
 
@@ -27,8 +27,8 @@ object SNDArray {
 
   def coiterate(cb: EmitCodeBuilder, arrays: (SNDArrayValue, String)*)(body: IndexedSeq[SValue] => Unit): Unit = {
     if (arrays.isEmpty) return
-    val indexVars = Array.tabulate(arrays(0)._1.st.nDims)(i => s"i$i").toFastIndexedSeq
-    val indices = Array.range(0, arrays(0)._1.st.nDims).toFastIndexedSeq
+    val indexVars = Array.tabulate(arrays(0)._1.st.nDims)(i => s"i$i").toFastSeq
+    val indices = Array.range(0, arrays(0)._1.st.nDims).toFastSeq
     coiterate(cb, indexVars, arrays.map { case (array, name) => (array, indices, name) }: _*)(body)
   }
 
@@ -248,7 +248,7 @@ object SNDArray {
   def copyVector(cb: EmitCodeBuilder, X: SNDArrayValue, Y: SNDArrayValue): Unit = {
     val Seq(n) = X.shapes
 
-    Y.assertHasShape(cb, FastIndexedSeq(n), "copy: vectors have different sizes: ", Y.shapes(0).toS, ", ", n.toS)
+    Y.assertHasShape(cb, FastSeq(n), "copy: vectors have different sizes: ", Y.shapes(0).toS, ", ", n.toS)
     val ldX = X.eltStride(0).max(1)
     val ldY = Y.eltStride(0).max(1)
     cb += Code.invokeScalaObject5[Int, Long, Int, Long, Int, Unit](BLAS.getClass, "dcopy",
@@ -259,7 +259,7 @@ object SNDArray {
 
   def copyMatrix(cb: EmitCodeBuilder, uplo: String, X: SNDArrayValue, Y: SNDArrayValue): Unit = {
     val Seq(m, n) = X.shapes
-    Y.assertHasShape(cb, FastIndexedSeq(m, n), "copyMatrix: matrices have different shapes")
+    Y.assertHasShape(cb, FastSeq(m, n), "copyMatrix: matrices have different shapes")
     val ldX = X.eltStride(1).max(1)
     val ldY = Y.eltStride(1).max(1)
     cb += Code.invokeScalaObject7[String, Int, Int, Long, Int, Long, Int, Unit](LAPACK.getClass, "dlacpy",
@@ -287,11 +287,11 @@ object SNDArray {
     val Seq(m, n) = A.shapes
     val errMsg = "gemv: incompatible dimensions"
     if (trans == "N") {
-      X.assertHasShape(cb, FastIndexedSeq(n), errMsg)
-      Y.assertHasShape(cb, FastIndexedSeq(m), errMsg)
+      X.assertHasShape(cb, FastSeq(n), errMsg)
+      Y.assertHasShape(cb, FastSeq(m), errMsg)
     } else {
-      X.assertHasShape(cb, FastIndexedSeq(m), errMsg)
-      Y.assertHasShape(cb, FastIndexedSeq(n), errMsg)
+      X.assertHasShape(cb, FastSeq(m), errMsg)
+      Y.assertHasShape(cb, FastSeq(n), errMsg)
     }
     assertColMajor(cb, "gemv", A)
 
@@ -317,13 +317,13 @@ object SNDArray {
     val errMsg = "gemm: incompatible matrix dimensions"
 
     if (tA == "N")
-      A.assertHasShape(cb, FastIndexedSeq(m, k), errMsg)
+      A.assertHasShape(cb, FastSeq(m, k), errMsg)
     else
-      A.assertHasShape(cb, FastIndexedSeq(k, m), errMsg)
+      A.assertHasShape(cb, FastSeq(k, m), errMsg)
     if (tB == "N")
-      B.assertHasShape(cb, FastIndexedSeq(k, n), errMsg)
+      B.assertHasShape(cb, FastSeq(k, n), errMsg)
     else
-      B.assertHasShape(cb, FastIndexedSeq(n, k), errMsg)
+      B.assertHasShape(cb, FastSeq(n, k), errMsg)
     assertColMajor(cb, "gemm", A, B, C)
 
     val ldA = A.eltStride(1).max(1)
@@ -363,7 +363,7 @@ object SNDArray {
     if (A.st.nDims == 2) assertColMajor(cb, "geqrt", A) else assertVector(A)
     assertVector(work, T)
 
-    val Seq(m, n) = if (A.st.nDims == 2) A.shapes else FastIndexedSeq(A.shapes(0), SizeValueStatic(1))
+    val Seq(m, n) = if (A.st.nDims == 2) A.shapes else FastSeq(A.shapes(0), SizeValueStatic(1))
     val nb = blocksize
     val min = cb.memoize(m.min(n))
     cb.ifx((nb > min && min > 0) || nb < 1, cb._fatal("geqrt: invalid block size: ", nb.toS))
@@ -389,7 +389,7 @@ object SNDArray {
     assert(side == "L" || side == "R")
     assert(trans == "T" || trans == "N")
     val Seq(l, k) = V.shapes
-    val Seq(m, n) = if (C.st.nDims == 2) C.shapes else FastIndexedSeq(C.shapes(0), SizeValueStatic(1))
+    val Seq(m, n) = if (C.st.nDims == 2) C.shapes else FastSeq(C.shapes(0), SizeValueStatic(1))
     val nb = blocksize
     cb.ifx((nb > k && k > 0) || nb < 1, cb._fatal("gemqrt: invalid block size: ", nb.toS))
     cb.ifx(T.shapes(0) < nb*k, cb._fatal("gemqrt: invalid T size"))
@@ -424,7 +424,7 @@ object SNDArray {
     Q.setToZero(cb)
     val i = cb.mb.newLocal[Long]("i")
     cb.forLoop(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
-      Q.setElement(FastIndexedSeq(i, i), primitive(1.0), cb)
+      Q.setElement(FastSeq(i, i), primitive(1.0), cb)
     })
     SNDArray.gemqrt("L", "N", A, T, Q, work, blocksize, cb)
   }
@@ -459,8 +459,8 @@ object SNDArray {
       A.firstDataAddress, ldA,
       T.firstDataAddress, Tsize.toI,
       work.firstDataAddress, lwork.toI))
-    val optTsize = T.loadElement(FastIndexedSeq(0), cb).asFloat64.value.toI
-    val optLwork = work.loadElement(FastIndexedSeq(0), cb).asFloat64.value.toI
+    val optTsize = T.loadElement(FastSeq(0), cb).asFloat64.value.toI
+    val optLwork = work.loadElement(FastSeq(0), cb).asFloat64.value.toI
     cb.ifx(optTsize > Tsize.toI, cb._fatal(s"dgeqr: T too small"))
     cb.ifx(optLwork > lwork.toI, cb._fatal(s"dgeqr: work too small"))
     cb.ifx(info.cne(0), cb._fatal(s"LAPACK error dgeqr. Error code = ", info.toS))
@@ -475,7 +475,7 @@ object SNDArray {
     assert(side == "L" || side == "R")
     assert(trans == "T" || trans == "N")
     val Seq(l, k) = A.shapes
-    val Seq(m, n) = if (C.st.nDims == 2) C.shapes else FastIndexedSeq(C.shapes(0), SizeValueStatic(1))
+    val Seq(m, n) = if (C.st.nDims == 2) C.shapes else FastSeq(C.shapes(0), SizeValueStatic(1))
     if (side == "L") {
       cb.ifx(l.cne(m), cb._fatal("gemqr: invalid dimensions"))
     } else {
@@ -507,7 +507,7 @@ object SNDArray {
     Q.setToZero(cb)
     val i = cb.mb.newLocal[Long]("i")
     cb.forLoop(cb.assign(i, 0L), i < n, cb.assign(i, i+1), {
-      Q.setElement(FastIndexedSeq(i, i), primitive(1.0), cb)
+      Q.setElement(FastSeq(i, i), primitive(1.0), cb)
     })
     SNDArray.gemqr(cb, "L", "N", A, T, Q, work)
   }
@@ -521,7 +521,7 @@ object SNDArray {
     val nb = blocksize
     cb.ifx(nb > n || nb < 1, cb._fatal("tpqrt: invalid block size"))
     cb.ifx(T.shapes(0) < nb*n, cb._fatal("tpqrt: T too small"))
-    A.assertHasShape(cb, FastIndexedSeq(n, n), "tpqrt: invalid shapes")
+    A.assertHasShape(cb, FastSeq(n, n), "tpqrt: invalid shapes")
     cb.ifx(work.shapes(0) < nb * n, cb._fatal("tpqrt: work array too small"))
 
     val error = cb.mb.newLocal[Int]()
@@ -551,11 +551,11 @@ object SNDArray {
     if (side == "L") {
       cb.ifx(l.cne(m), cb._fatal("tpmqrt: invalid dimensions"))
       cb.ifx(work.shapes(0) < nb * n, cb._fatal("tpmqrt: work array too small"))
-      A.assertHasShape(cb, FastIndexedSeq(k, n), "tpmqrt: invalid shapes")
+      A.assertHasShape(cb, FastSeq(k, n), "tpmqrt: invalid shapes")
     } else {
       cb.ifx(l.cne(n), cb._fatal("invalid dimensions"))
       cb.ifx(work.shapes(0) < nb * m, cb._fatal("work array too small"))
-      A.assertHasShape(cb, FastIndexedSeq(m, k), "tpmqrt: invalid shapes")
+      A.assertHasShape(cb, FastSeq(m, k), "tpmqrt: invalid shapes")
     }
 
     val error = cb.mb.newLocal[Int]()
@@ -823,7 +823,7 @@ trait SNDArrayValue extends SValue {
     shapes == otherShape
 
   def hasShapeStatic(otherShape: SizeValue*): Boolean =
-    hasShapeStatic(otherShape.toFastIndexedSeq)
+    hasShapeStatic(otherShape.toFastSeq)
 
   def isVector: Boolean = shapes.length == 1
 
@@ -832,7 +832,7 @@ trait SNDArrayValue extends SValue {
   def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue
 
   def coerceToShape(cb: EmitCodeBuilder, otherShape: SizeValue*): SNDArrayValue =
-    coerceToShape(cb, otherShape.toFastIndexedSeq)
+    coerceToShape(cb, otherShape.toFastSeq)
 
   def contiguousDimensions(cb: EmitCodeBuilder): Value[Int] = {
     val tmp = cb.mb.newLocal[Int]("NDArray_setToZero_tmp")
@@ -899,8 +899,8 @@ trait SNDArrayValue extends SValue {
     coiterateMutate(cb, region, false, arrays: _*)(body)
 
   def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean, arrays: (SNDArrayValue, String)*)(body: IndexedSeq[SValue] => SValue): Unit = {
-    val indexVars = Array.tabulate(st.nDims)(i => s"i$i").toFastIndexedSeq
-    val indices = Array.range(0, st.nDims).toFastIndexedSeq
+    val indexVars = Array.tabulate(st.nDims)(i => s"i$i").toFastSeq
+    val indices = Array.range(0, st.nDims).toFastSeq
     coiterateMutate(cb, region, deepCopy, indexVars, indices, arrays.map { case (array, name) => (array, indices, name) }: _*)(body)
   }
 

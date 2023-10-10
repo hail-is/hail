@@ -8,8 +8,8 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.EmitStream
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -36,7 +36,7 @@ object Compile {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(params.map { case (n, _) => n -> n }: _*))
-    val k = CodeCacheKey(FastIndexedSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
+    val k = CodeCacheKey(FastSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
     (ctx.backend.lookupOrCompileCachedFunction[F](k) {
 
       var ir = body
@@ -175,10 +175,10 @@ object CompileIterator {
     printWriter: Option[PrintWriter]
   ): (PType, (HailClassLoader, FS, HailTaskContext, Region) => F) = {
 
-    val fb = EmitFunctionBuilder.apply[F](ctx, s"stream_${body.getClass.getSimpleName}", argTypeInfo.toFastIndexedSeq, CodeParamType(BooleanInfo), Some("Emit.scala"))
+    val fb = EmitFunctionBuilder.apply[F](ctx, s"stream_${body.getClass.getSimpleName}", argTypeInfo.toFastSeq, CodeParamType(BooleanInfo), Some("Emit.scala"))
     val outerRegionField = fb.genFieldThisRef[Region]("outerRegion")
     val eltRegionField = fb.genFieldThisRef[Region]("eltRegion")
-    val setF = fb.newEmitMethod("setRegions", FastIndexedSeq(CodeParamType(typeInfo[Region]), CodeParamType(typeInfo[Region])), CodeParamType(typeInfo[Unit]))
+    val setF = fb.newEmitMethod("setRegions", FastSeq(CodeParamType(typeInfo[Region]), CodeParamType(typeInfo[Region])), CodeParamType(typeInfo[Unit]))
     setF.emit(Code(outerRegionField := setF.getCodeParam[Region](1), eltRegionField := setF.getCodeParam[Region](2)))
 
     val stepF = fb.apply_method
@@ -247,7 +247,7 @@ object CompileIterator {
     }
 
 
-    val getMB = fb.newEmitMethod("loadAddress", FastIndexedSeq(), LongInfo)
+    val getMB = fb.newEmitMethod("loadAddress", FastSeq(), LongInfo)
     getMB.emit(elementAddress.load())
 
     (returnType, fb.resultWithIndex(writeIRs, printWriter))

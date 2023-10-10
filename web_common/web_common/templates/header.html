@@ -51,21 +51,6 @@
   {% if userdata['is_developer'] == 1 %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
-      <a href="{{ notebook_base_url }}/notebook" class="header-dropdown-link">Notebook</a>
-      <div class="header-dropdown-menu">
-        <div class="notebook-caret header-dropdown-menu-caret"></div>
-        <a class="header-dropdown-menu-link" href="{{ notebook_base_url }}/workshop-admin">Workshop Admin</a>
-        <a class="header-dropdown-menu-link" href="{{ workshop_base_url }}">Workshop</a>
-      </div>
-    </div>
-  </div>
-  {% else %}
-  <a class="header-link" href="{{ notebook_base_url }}/notebook">Notebook</a>
-  {% endif %}
-
-  {% if userdata['is_developer'] == 1 %}
-  <div class="header-dropdown">
-    <div class="header-dropdown-item-margin">
       <span class="disabled-header-dropdown-item">Monitoring</span>
       <div class="header-dropdown-menu">
         <div class="monitoring-caret header-dropdown-menu-caret"></div>

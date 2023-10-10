@@ -5,10 +5,11 @@ from hailtop.utils import time_msecs
 
 
 class Price(abc.ABC):
-    region: str
-    effective_start_date: int
-    effective_end_date: Optional[int]
-    time_updated: int
+    def __init__(self, *, region: str, effective_start_date: int, effective_end_date: Optional[int], sku: str):
+        self.region = region
+        self.effective_start_date = effective_start_date
+        self.effective_end_date = effective_end_date
+        self.sku = sku
 
     def is_current_price(self):
         now = time_msecs()
@@ -19,9 +20,11 @@ class Price(abc.ABC):
         return str(self.effective_start_date)
 
     @property
-    def product(self):
-        raise NotImplementedError
+    @abc.abstractmethod
+    def product(self) -> str:
+        pass
 
     @property
-    def rate(self):
-        raise NotImplementedError
+    @abc.abstractmethod
+    def rate(self) -> float:
+        pass

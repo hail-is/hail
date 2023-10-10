@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.15
 SPARK_VERSION ?= 3.3.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 122
+HAIL_PATCH_VERSION := 124
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 8
@@ -69,14 +69,17 @@ PYTHON_VERSION_INFO += python/hail/docs/_static/hail_version.js
 SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
 SHADOW_JAR := build/libs/hail-all-spark.jar
+NON_SHADOW_JAR := build/libs/hail.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
+FAST_PYTHON_JAR := python/hail/backend/hail.jar
+FAST_PYTHON_JAR_EXTRA_CLASSPATH := python/hail/backend/extra_classpath
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
+GCP_PROJECT = $(shell kubectl get secret global-config --template={{.data.gcp_project}} | base64 --decode)
 CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
 CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
@@ -94,6 +97,18 @@ $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTI
 	./gradlew shadowJar $(GRADLE_ARGS)
 ifdef HAIL_DEBUG_MODE
 	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+endif
+
+ifdef HAIL_COMPILE_NATIVES
+$(NON_SHADOW_JAR): native-lib-prebuilt
+endif
+ifdef HAIL_DEBUG_MODE
+$(NON_SHADOW_JAR): $(JAR_DEBUG_CLASSES)
+endif
+$(NON_SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
+	./gradlew jar $(GRADLE_ARGS)
+ifdef HAIL_DEBUG_MODE
+	$(JAR) -uf $(NON_SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
 
 .PHONY: shadowTestJar
@@ -121,13 +136,13 @@ endif
 services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	./gradlew testServices $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
-.PHONY: services-jvm-test
+.PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
-fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	[ -n $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
-	[ -n $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
+fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-qob-test-resources
+	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
+	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
@@ -175,12 +190,18 @@ python/README.md: ../README.md
 $(PYTHON_JAR): $(SHADOW_JAR)
 	cp -f $(SHADOW_JAR) $@
 
+$(FAST_PYTHON_JAR): $(NON_SHADOW_JAR)
+	cp -f $(NON_SHADOW_JAR) $@
+
+$(FAST_PYTHON_JAR_EXTRA_CLASSPATH): build.gradle
+	./gradlew -q printClasspath > $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
+
 .PHONY: python-jar
 python-jar: $(PYTHON_JAR)
 
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-pytest: python/README.md $(PYTHON_JAR)
+pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	cd python && $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
@@ -222,7 +243,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
 
 .PHONY: doctest
 doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-doctest: python/README.md $(PYTHON_JAR)
+doctest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	cd python && $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
@@ -273,12 +294,6 @@ $(WHEEL): copy-py-files
 	# Clear the bdist build cache before building the wheel
 	cd build/deploy; rm -rf build; $(HAIL_PYTHON3) setup.py -q sdist bdist_wheel
 
-.PHONY: egg
-egg: $(EGG)
-
-$(EGG): copy-py-files
-	cd build/deploy; $(HAIL_PYTHON3) setup.py -q sdist bdist_egg
-
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
 DEV_CLARIFIER ?= $(shell whoami)-dev
@@ -326,11 +341,17 @@ upload-artifacts: $(WHEEL)
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day. To trigger this target to re-run,
 # > rm upload-qob-test-resources
-upload-qob-test-resources: $(JAR_TEST_SOURCES)
+upload-qob-test-resources: $(shell git ls-files src/test/resources)
+upload-qob-test-resources: $(shell git ls-files python/hail/docs/data)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
 	gcloud storage cp src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
 	gcloud storage cp python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
-	touch $@
+	# # In Azure, use the following instead of gcloud storage cp
+	# python3 -m hailtop.aiotools.copy -vvv 'null' '[\
+        #      {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
+        #      {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
+        # ]'
+	# touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day if using a dev NAMESPACE.
@@ -340,16 +361,25 @@ upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
 	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
 
-.PHONY: install-editable
+# if the installation of Hail has changed, i.e. you pip-installed a non-development version of Hail,
+# this file will be newer than "install-editable"
+CURRENT_INSTALL = $(shell pip3 show -qq hail | grep Location: | sed 's/Location: //')
+
+install-editable: $(if ($(CURRENT_INSTALL),),,$(CURRENT_INSTALL)/hail/__init__.py)
+install-editable: python/setup.py
+install-editable: python/requirements.txt
+install-editable: python/README.md
 install-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-install-editable: python/README.md $(PYTHON_JAR)
+install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	-$(PIP) uninstall -y hail
 	cd python && $(PIP) install -e .
 	hailctl config set query/backend spark
+	touch install-editable
 
 .PHONY: install-for-qob
 install-for-qob: upload-qob-jar install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
+	javac -version 2>&1 | grep -e '1\.8\.0'  # install-for-qob requires javac version 1.8, see https://discuss.hail.is/t/on-mac-os-x-how-do-i-install-and-use-java-8-if-i-already-have-a-different-version-of-java-installed/831/2
 	hailctl config set query/backend batch
 	hailctl config set query/jar_url $$(cat upload-qob-jar)
 	hailctl dev config set default_namespace $(NAMESPACE)
@@ -390,11 +420,20 @@ test-dataproc-38: install-hailctl
 # create the hailgenetics/hail image (see /docker) and place it somewhere skopeo can access it
 # set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd
 #
+# create the hailgenetics/hail image using the Python 3.10 ubuntu base image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAIL_IMAGE_PY_3_10 to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd-py3.10
+#
+# create the hailgenetics/hail image using the Python 3.11 ubuntu base image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAIL_IMAGE_PY_3_11 to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd-py3.11
+#
 # create the hailgenetics/hailtop image (see /docker) and place it somewhere skopeo can access it
 # set HAIL_GENETICS_HAILTOP_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hailtop:1234abcd
 #
 # create the hailgenetics/vep-grch37-85 image (see /docker) and place it somewhere skopeo can access it
 # set HAIL_GENETICS_VEP_GRCH37_85_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/vep-grch37-85:1234abcd
+#
+# create the hailgenetics/vep-grch38-95 image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_VEP_GRCH38_95_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/vep-grch38-95:1234abcd
 #
 # cluster to find the correct Scala and Spark versions because the version webpage does not include
 # sufficient detail)
@@ -404,7 +443,7 @@ test-dataproc-38: install-hailctl
 #
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR) $(GCP_PROJECT) $(HAIL_HAIL_DIR)/../infra/gcp-broad/gcp-ar-cleanup-policy.txt
 
 .PHONY: benchmark
 benchmark: $(WHEEL)
@@ -500,6 +539,8 @@ clean: clean-env clean-libs native-lib-clean
 	./gradlew clean $(GRADLE_ARGS)
 	rm -rf build/
 	rm -rf $(PYTHON_JAR)
+	rm -rf $(FAST_PYTHON_JAR)
+	rm -rf $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	rm -rf python/README.md
 	rm -rf $(SCALA_BUILD_INFO)
 	rm -rf $(PYTHON_VERSION_INFO)

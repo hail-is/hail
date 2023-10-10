@@ -18,6 +18,7 @@ from test.hail.matrixtable.test_file_formats import create_all_values_datasets
 
 
 class Tests(unittest.TestCase):
+    @qobtest
     def test_annotate(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -110,6 +111,7 @@ class Tests(unittest.TestCase):
             x36=True
         )
 
+    @qobtest
     def test_aggregate1(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -1819,6 +1821,7 @@ def test_keys_before_scans():
     assert ht.idx_scan.collect() == [[5, 4, 3, 2, 1], [5, 4, 3, 2], [5, 4, 3], [5, 4], [5], []]
 
 
+@qobtest
 @lower_only()
 def test_lowered_persist():
     ht = hl.utils.range_table(100, 10).persist()
@@ -1827,6 +1830,7 @@ def test_lowered_persist():
 
 
 
+@qobtest
 @lower_only()
 def test_lowered_shuffle():
     ht = hl.utils.range_table(100, 10)
@@ -1854,6 +1858,7 @@ def test_empty_tree_aggregate():
     assert ht.aggregate(hl.agg.counter(ht.idx)) == {}
 
 
+@qobtest
 def test_interval_filter_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
@@ -2144,6 +2149,9 @@ def test_table_randomness_interval_join():
     t2 = hl.utils.range_table(4, 3)
     t2 = t2.key_by(k=hl.interval(t2.idx * 3, (t2.idx + 1) * 3))
     t = t1.annotate(x=t2[t1.idx].idx)
+    assert_contains_node(t, ir.TableIntervalJoin)
+    assert_unique_uids(t)
+    t = t1.annotate(x=t2.index(t1.idx, all_matches=True).idx)
     assert_contains_node(t, ir.TableIntervalJoin)
     assert_unique_uids(t)
 

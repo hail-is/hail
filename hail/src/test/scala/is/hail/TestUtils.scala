@@ -1,24 +1,21 @@
 package is.hail
 
-import java.io.{File, PrintWriter}
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
-import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir._
-import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType, stypes}
-import is.hail.types.virtual._
+import is.hail.expr.ir._
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
+import java.io.PrintWriter
 import scala.collection.mutable
 
 object ExecStrategy extends Enumeration {
@@ -111,7 +108,7 @@ object TestUtils {
   }
 
   def eval(x: IR): Any = ExecuteContext.scoped(){ ctx =>
-    eval(x, Env.empty, FastIndexedSeq(), None, None, true, ctx)
+    eval(x, Env.empty, FastSeq(), None, None, true, ctx)
   }
 
   def eval(x: IR,
@@ -168,9 +165,9 @@ object TestUtils {
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 
           val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction3RegionLongLongLong](ctx,
-            FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))),
+            FastSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))),
               (aggArrayVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(aggArrayPType)))),
-            FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+            FastSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
             aggIR,
             print = bytecodePrinter,
             optimize = optimize)
@@ -202,8 +199,8 @@ object TestUtils {
 
         case None =>
           val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction2RegionLongLong](ctx,
-            FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)))),
-            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+            FastSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)))),
+            FastSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
             optimize = optimize,
             print = bytecodePrinter)
@@ -228,7 +225,7 @@ object TestUtils {
   }
 
   def assertEvalSame(x: IR) {
-    assertEvalSame(x, Env.empty, FastIndexedSeq())
+    assertEvalSame(x, Env.empty, FastSeq())
   }
 
   def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]) {
@@ -254,7 +251,7 @@ object TestUtils {
   }
 
   def assertThrows[E <: Throwable : Manifest](x: IR, regex: String) {
-    assertThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], regex)
+    assertThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
   }
 
   def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
@@ -284,7 +281,7 @@ object TestUtils {
   }
 
   def assertCompiledThrows[E <: Throwable : Manifest](x: IR, regex: String) {
-    assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], regex)
+    assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
   }
 
   def assertCompiledFatal(x: IR, regex: String) {

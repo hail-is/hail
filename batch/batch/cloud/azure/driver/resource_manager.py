@@ -2,9 +2,9 @@ import logging
 from typing import List, Optional, Tuple
 
 import aiohttp
-import dateutil.parser
 
 from hailtop.aiocloud import aioazure
+from hailtop.utils.time import parse_timestamp_msecs
 
 from ....driver.instance import Instance
 from ....driver.resource_manager import (
@@ -29,12 +29,6 @@ from .billing_manager import AzureBillingManager
 from .create_instance import create_vm_config
 
 log = logging.getLogger('resource_manager')
-
-
-def parse_azure_timestamp(timestamp: Optional[str]) -> Optional[int]:
-    if timestamp is None:
-        return None
-    return int(dateutil.parser.isoparse(timestamp).timestamp() * 1000 + 0.5)
 
 
 class AzureResourceManager(CloudResourceManager):
@@ -83,7 +77,7 @@ class AzureResourceManager(CloudResourceManager):
                 ):
                     return VMStateCreating(spec, instance.time_created)
                 if code == 'ProvisioningState/succeeded':
-                    last_start_timestamp_msecs = parse_azure_timestamp(status.get('time'))
+                    last_start_timestamp_msecs = parse_timestamp_msecs(status.get('time'))
                     assert last_start_timestamp_msecs is not None
                     return VMStateRunning(spec, last_start_timestamp_msecs)
                 if any(
@@ -130,9 +124,6 @@ class AzureResourceManager(CloudResourceManager):
             job_private,
             location,
         )
-
-    def instance_config_from_dict(self, data: dict) -> AzureSlimInstanceConfig:
-        return AzureSlimInstanceConfig.from_dict(data)
 
     async def create_vm(
         self,

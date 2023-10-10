@@ -52,7 +52,7 @@ async def copy(*,
                                  s3_kwargs=s3_kwargs) as fs:
             sema = asyncio.Semaphore(max_simultaneous_transfers)
             async with sema:
-                with RichProgressBar(transient=True) as progress:
+                with RichProgressBar(transient=True, disable=not verbose) as progress:
                     file_tid = progress.add_task(description='files', total=0, visible=verbose)
                     bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
                     copy_report = await Copier.copy(

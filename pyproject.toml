@@ -51,7 +51,6 @@ ignore = [
     "hail/python/hail",
     "hail/python/test/hail",
     "hail/python/hailtop/batch/docs",
-    "notebook",
     "query",
     "datasets",
     "benchmark",

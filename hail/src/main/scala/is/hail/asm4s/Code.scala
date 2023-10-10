@@ -1,15 +1,14 @@
 package is.hail.asm4s
 
-import java.io.PrintStream
-import java.lang.reflect
-
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
-import is.hail.lir.{LdcX, ValueX}
+import is.hail.lir.ValueX
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 
+import java.io.PrintStream
+import java.lang.reflect
 import scala.reflect.ClassTag
 
 abstract class Thrower[T] {
@@ -104,35 +103,35 @@ object Code {
   }
 
   def apply[T](c1: Code[Unit], c2: Code[T]): Code[T] =
-    sequence1(FastIndexedSeq(c1), c2)
+    sequence1(FastSeq(c1), c2)
 
   def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[T]): Code[T] =
-    sequence1(FastIndexedSeq(c1, c2), c3)
+    sequence1(FastSeq(c1, c2), c3)
 
   def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[T]): Code[T] =
-    sequence1(FastIndexedSeq(c1, c2, c3), c4)
+    sequence1(FastSeq(c1, c2, c3), c4)
 
   def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[T]): Code[T] =
-    sequence1(FastIndexedSeq(c1, c2, c3, c4), c5)
+    sequence1(FastSeq(c1, c2, c3, c4), c5)
 
   def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[T]): Code[T] =
-    sequence1(FastIndexedSeq(c1, c2, c3, c4, c5), c6)
+    sequence1(FastSeq(c1, c2, c3, c4, c5), c6)
 
   def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[T]): Code[T] =
-    sequence1(FastIndexedSeq(c1, c2, c3, c4, c5, c6), c7)
+    sequence1(FastSeq(c1, c2, c3, c4, c5, c6), c7)
 
   def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[Unit], c8: Code[T]): Code[T] =
-    sequence1(FastIndexedSeq(c1, c2, c3, c4, c5, c6, c7), c8)
+    sequence1(FastSeq(c1, c2, c3, c4, c5, c6, c7), c8)
 
   def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[Unit], c8: Code[Unit], c9: Code[T]): Code[T] =
-    sequence1(FastIndexedSeq(c1, c2, c3, c4, c5, c6, c7, c8), c9)
+    sequence1(FastSeq(c1, c2, c3, c4, c5, c6, c7, c8), c9)
 
   def apply(cs: Seq[Code[Unit]]): Code[Unit] = {
     if (cs.isEmpty)
       Code(null: lir.ValueX)
     else {
       assert(cs.forall(_.v == null))
-      val fcs = cs.toFastIndexedSeq
+      val fcs = cs.toFastSeq
       sequence1(fcs.init, fcs.last)
     }
   }
@@ -224,7 +223,7 @@ object Code {
       L,
       cond.mux(
         Code(
-          Code(body.toFastIndexedSeq),
+          Code(body.toFastSeq),
           L.goto),
         Code._empty))
   }
@@ -1118,7 +1117,7 @@ class CodeString(val lhs: Code[String]) extends AnyVal {
 class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
   assert(lhs.ti.asInstanceOf[ArrayInfo[_]].tti == tti)
   def apply(i: Code[Int]): Code[T] = {
-    val f: (ValueX, ValueX) => ValueX = (v1: ValueX, v2: ValueX) => lir.insn(tti.aloadOp, tti, FastIndexedSeq(v1, v2))
+    val f: (ValueX, ValueX) => ValueX = (v1: ValueX, v2: ValueX) => lir.insn(tti.aloadOp, tti, FastSeq(v1, v2))
     Code(lhs, i, f)
   }
 
@@ -1443,6 +1442,14 @@ class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
     a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], sct: ClassTag[S]): Code[S] = {
     invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass,
       a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8))
+  }
+
+  def invoke[A1, A2, A3, A4, A5, A6, A7, A8, A9, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4],
+    a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8], a9: Code[A9])
+    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5],
+      a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], a9ct: ClassTag[A9], sct: ClassTag[S]): Code[S] = {
+    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass,
+      a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass, a9ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8, a9))
   }
 }
 

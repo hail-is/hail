@@ -1,11 +1,10 @@
 package is.hail.variant
 
-import java.io.Serializable
-
 import is.hail.check.Gen
 import is.hail.expr.Parser
 import is.hail.utils._
 
+import java.io.Serializable
 import scala.annotation.switch
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
@@ -60,7 +59,7 @@ object Call2 {
 }
 
 object CallN {
-  def apply(alleles: java.util.List[Int], phased: Boolean): Call = apply(alleles.asScala.toFastIndexedSeq, phased)
+  def apply(alleles: java.util.List[Int], phased: Boolean): Call = apply(alleles.asScala.toFastSeq, phased)
 
   def apply(alleles: IndexedSeq[Int], phased: Boolean = false): Call = {
     val ploidy = alleles.length

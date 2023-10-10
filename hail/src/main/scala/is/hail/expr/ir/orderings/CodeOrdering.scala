@@ -1,12 +1,12 @@
 package is.hail.expr.ir.orderings
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 object CodeOrdering {
 
@@ -92,7 +92,7 @@ abstract class CodeOrdering {
 
     val cacheKey = ("ordering", reversed, type1, type2, context)
     val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
-      FastIndexedSeq(arg1.st.paramType, arg2.st.paramType), ti) { mb =>
+      FastSeq(arg1.st.paramType, arg2.st.paramType), ti) { mb =>
 
       mb.emitWithBuilder[T] { cb =>
         val arg1 = mb.getSCodeParam(1)
@@ -112,7 +112,7 @@ abstract class CodeOrdering {
 
     val cacheKey = ("ordering", reversed, arg1.emitType, arg2.emitType, context, missingEqual)
     val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
-      FastIndexedSeq(arg1.emitParamType, arg2.emitParamType), ti) { mb =>
+      FastSeq(arg1.emitParamType, arg2.emitParamType), ti) { mb =>
 
       mb.emitWithBuilder[T] { cb =>
         val arg1 = mb.getEmitParam(cb, 1)

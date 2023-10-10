@@ -1,9 +1,11 @@
-FROM {{ hail_ubuntu_image.image }} AS base
+ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+FROM $BASE_IMAGE AS base
 
 # libyajl-dev: crun runtime dependency
 RUN hail-apt-get-install \
     iproute2 \
     iptables \
+    ca-certificates-java \
     openjdk-8-jre-headless \
     liblapack3 \
     xfsprogs \
@@ -13,11 +15,19 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
 
 {% if global.cloud == "gcp" %}
 RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
-    hail-apt-get-install curl gnupg && \
-    export GCSFUSE_REPO=gcsfuse-bionic && \
-    echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
-    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
-    hail-apt-get-install fuse gcsfuse=0.41.12
+    hail-apt-get-install curl gnupg fuse && \
+    eval $(apt-config shell arch APT::Architecture) && ver=1.2.0 && \
+    curl -LO https://github.com/GoogleCloudPlatform/gcsfuse/releases/download/v$ver/gcsfuse_${ver}_$arch.deb && \
+    dpkg -i gcsfuse_${ver}_$arch.deb && \
+    rm gcsfuse_${ver}_$arch.deb
+
+RUN curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg && \
+    curl -s -L https://nvidia.github.io/libnvidia-container/ubuntu22.04/libnvidia-container.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+
+RUN apt-get update && \
+    hail-apt-get-install nvidia-container-toolkit
 
 {% elif global.cloud == "azure" %}
 RUN apt-get update && \

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 from collections import defaultdict, namedtuple
+from contextlib import AsyncExitStack
 from typing import Any, Dict, List
 
 import aiohttp_session
@@ -12,7 +13,7 @@ import prometheus_client as pc  # type: ignore
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthClient, Database, json_response, setup_aiohttp_session, transaction
+from gear import AuthServiceAuthenticator, Database, json_response, setup_aiohttp_session, transaction
 from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
@@ -37,7 +38,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthClient()
+auth = AuthServiceAuthenticator()
 
 GCP_REGION = os.environ['HAIL_GCP_REGION']
 BATCH_GCP_REGIONS = set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS']))
@@ -135,7 +136,7 @@ async def _billing(request: web.Request):
 
 
 @routes.get('/api/v1alpha/billing')
-@auth.rest_authenticated_developers_only
+@auth.authenticated_developers_only()
 async def get_billing(request: web.Request, _) -> web.Response:
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     resp = {
@@ -148,7 +149,7 @@ async def get_billing(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/billing')
-@auth.web_authenticated_developers_only()
+@auth.authenticated_developers_only()
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     context = {
@@ -354,13 +355,10 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    try:
-        await app['db'].async_close()
-    finally:
-        try:
-            await app['client_session'].close()
-        finally:
-            app['task_manager'].shutdown()
+    async with AsyncExitStack() as cleanup:
+        cleanup.push_async_callback(app['db'].async_close)
+        cleanup.push_async_callback(app['client_session'].close)
+        cleanup.callback(app['task_manager'].shutdown)
 
 
 def run():

@@ -29,8 +29,8 @@ that allows a user to see job progress and access logs.
 Sign Up
 -------
 
-For Broad Institute users, you can click the Sign Up button at `<https://notebook.hail.is>`__.
-This will allow you to authorize with your Broad Institute email address and create
+For Broad Institute users, you can sign up at `<https://auth.hail.is/signup>`__.
+This will allow you to authenticate with your Broad Institute email address and create
 a Batch Service account. A :ref:`Google Service Account <service-accounts>` is created
 on your behalf. A trial Batch billing project is also created for you at
 :code:`<USERNAME>-trial`. You can view these at `<https://auth.hail.is/user>`__.
@@ -91,13 +91,14 @@ has the following prefix `us-docker.pkg.dev/<MY_PROJECT>`:
     gcloud artifacts repositories add-iam-policy-binding <REPO> \
            --member=<SERVICE_ACCOUNT_NAME> --role=roles/artifactregistry.repoAdmin
 
-If you want to run gcloud commands within your Batch jobs, the service account file is available at
-`/gsa-key/key.json` in the main container. You can authenticate using the service account by adding
+If you want to run gcloud commands within your Batch jobs, the service account file is available in
+the main container with its path specified in the `$GOOGLE_APPLICATION_CREDENTIALS` environment
+variable. You can authenticate using the service account by adding
 the following line to your user code and using a Docker image that has gcloud installed.
 
 .. code-block:: sh
 
-    gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
+    gcloud -q auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
 
 
 Billing

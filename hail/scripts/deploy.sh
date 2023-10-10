@@ -10,7 +10,7 @@ retry() {
         (sleep 5 && "$@");
 }
 
-[[ $# -eq 11 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAILTOP_IMAGE HAIL_GENETICS_VEP_GRCH37_85_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
+[[ $# -eq 16 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAIL_IMAGE_PY_3_10 HAIL_GENETICS_HAIL_IMAGE_PY_3_11 HAIL_GENETICS_HAILTOP_IMAGE HAIL_GENETICS_VEP_GRCH37_85_IMAGE HAIL_GENETICS_VEP_GRCH38_95_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR GCP_PROJECT GCP_AR_CLEANUP_POLICY" ; exit 1)
 
 HAIL_PIP_VERSION=$1
 HAIL_VERSION=$2
@@ -19,14 +19,22 @@ REMOTE=$4
 WHEEL=$5
 GITHUB_OAUTH_HEADER_FILE=$6
 HAIL_GENETICS_HAIL_IMAGE=$7
-HAIL_GENETICS_HAILTOP_IMAGE=$8
-HAIL_GENETICS_VEP_GRCH37_85_IMAGE=$9
-WHEEL_FOR_AZURE=${10}
-WEBSITE_TAR=${11}
+HAIL_GENETICS_HAIL_IMAGE_PY_3_10=$8
+HAIL_GENETICS_HAIL_IMAGE_PY_3_11=$9
+HAIL_GENETICS_HAILTOP_IMAGE=${10}
+HAIL_GENETICS_VEP_GRCH37_85_IMAGE=${11}
+HAIL_GENETICS_VEP_GRCH38_95_IMAGE=${12}
+WHEEL_FOR_AZURE=${13}
+WEBSITE_TAR=${14}
+GCP_PROJECT=${15}
+GCP_AR_CLEANUP_POLICY=${16}
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
+retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE_PY_3_10 || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE_PY_3_10" ; exit 1)
+retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE_PY_3_11 || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE_PY_3_11" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_HAILTOP_IMAGE || (echo "could not pull $HAIL_GENETICS_HAILTOP_IMAGE" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_VEP_GRCH37_85_IMAGE || (echo "could not pull $HAIL_GENETICS_VEP_GRCH37_85_IMAGE" ; exit 1)
+retry skopeo inspect $HAIL_GENETICS_VEP_GRCH38_95_IMAGE || (echo "could not pull $HAIL_GENETICS_VEP_GRCH38_95_IMAGE" ; exit 1)
 
 if git ls-remote --exit-code --tags $REMOTE $HAIL_PIP_VERSION
 then
@@ -79,11 +87,25 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/h
 }'
 
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION-py3.9
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION-py3.9
+
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE_PY_3_10 docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION-py3.10
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE_PY_3_10 docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION-py3.10
+
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE_PY_3_11 docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION-py3.11
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE_PY_3_11 docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION-py3.11
+
 retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://docker.io/hailgenetics/hailtop:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:$HAIL_PIP_VERSION
+
 retry skopeo copy $HAIL_GENETICS_VEP_GRCH37_85_IMAGE docker://docker.io/hailgenetics/vep-grch37-85:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_VEP_GRCH37_85_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch37-85:$HAIL_PIP_VERSION
+
+retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://docker.io/hailgenetics/vep-grch38-95:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep/grch38-95:$HAIL_PIP_VERSION
+
 
 # deploy to PyPI
 twine upload $WHEEL
@@ -138,3 +160,9 @@ make_pr_for() {
 
 make_pr_for terra-jupyter-hail
 make_pr_for terra-jupyter-aou
+
+gcloud artifacts repositories set-cleanup-policies hail \
+    --project=$GCP_PROJECT \
+    --location=us \
+    --policy=$GCP_AR_CLEANUP_POLICY \
+    --no-dry-run

@@ -1,13 +1,16 @@
 package is.hail.io.fs
 
 import is.hail.utils._
-
 import org.apache.hadoop
-import org.apache.hadoop.fs.{FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.fs.{EtagSource, FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.io.MD5Hash
 
 import java.io._
+import java.security.MessageDigest
+import java.util.Base64
+import scala.util.Try
 
-class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
+class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
   val normalizedPath = fs.getPath
 
   def getPath: String = fs.getPath.toString
@@ -70,21 +73,26 @@ object HadoopFS {
 }
 
 
-case class LocalFSURL(val path: String) extends FSURL[LocalFSURL] {
-  def addPathComponent(c: String): LocalFSURL = LocalFSURL(s"$path/$c")
+case class HadoopFSURL(val path: String, conf: SerializableHadoopConfiguration) extends FSURL {
+  val hadoopPath = new hadoop.fs.Path(path)
+  val hadoopFs = hadoopPath.getFileSystem(conf.value)
+
+  def addPathComponent(c: String): HadoopFSURL = HadoopFSURL(s"$path/$c", conf)
   def getPath: String = path
-  def fromString(s: String): LocalFSURL = LocalFSURL(s)
+  def fromString(s: String): HadoopFSURL = HadoopFSURL(s, conf)
   override def toString(): String = path
 }
 
 
 class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends FS {
-  type URL = LocalFSURL
+  type URL = HadoopFSURL
 
-  def validUrl(filename: String): Boolean = {
-    val uri = new java.net.URI(filename)
-    uri.getScheme == null || uri.getScheme == "file"
-  }
+  override def parseUrl(filename: String): URL = HadoopFSURL(filename, conf)
+
+  override def validUrl(filename: String): Boolean =
+    Try(getFileSystem(filename)).isSuccess
+
+  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
 
   def getConfiguration(): SerializableHadoopConfiguration = conf
 
@@ -92,23 +100,19 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     conf = _conf.asInstanceOf[SerializableHadoopConfiguration]
   }
 
-  def createNoCompression(filename: String): PositionedDataOutputStream = {
-    val fs = getFileSystem(filename)
-    val hPath = new hadoop.fs.Path(filename)
-    val os = fs.create(hPath)
+  def createNoCompression(url: URL): PositionedDataOutputStream = {
+    val os = url.hadoopFs.create(url.hadoopPath)
     new WrappedPositionedDataOutputStream(
       HadoopFS.toPositionedOutputStream(os))
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = {
-    val fs = getFileSystem(filename)
-    val hPath = new hadoop.fs.Path(filename)
+  def openNoCompression(url: URL): SeekableDataInputStream = {
     val is = try {
-      fs.open(hPath)
+      url.hadoopFs.open(url.hadoopPath)
     } catch {
       case e: FileNotFoundException =>
-        if (isDir(filename))
-          throw new FileNotFoundException(s"'$filename' is a directory (or native Table/MatrixTable)")
+        if (isDir(url))
+          throw new FileNotFoundException(s"'$url' is a directory (or native Table/MatrixTable)")
         else
           throw e
     }
@@ -122,22 +126,20 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
   }
 
-  def listStatus(filename: String): Array[FileStatus] = {
-    val fs = getFileSystem(filename)
-    val hPath = new hadoop.fs.Path(filename)
-    var statuses = fs.globStatus(hPath)
+  def listDirectory(url: URL): Array[FileListEntry] = {
+    var statuses = url.hadoopFs.globStatus(url.hadoopPath)
     if (statuses == null) {
-      throw new FileNotFoundException(filename)
+      throw new FileNotFoundException(url.toString)
     } else {
       statuses.par.map(_.getPath)
-        .flatMap(fs.listStatus(_))
-        .map(new HadoopFileStatus(_))
+        .flatMap(url.hadoopFs.listStatus(_))
+        .map(new HadoopFileListEntry(_))
         .toArray
     }
   }
 
-  override def mkDir(dirname: String): Unit = {
-    getFileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
+  override def mkDir(url: URL): Unit = {
+    url.hadoopFs.mkdirs(url.hadoopPath)
   }
 
   def remove(fname: String): Unit = {
@@ -148,22 +150,11 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true)
   }
 
-  def delete(filename: String, recursive: Boolean) {
-    getFileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
+  def delete(url: URL, recursive: Boolean) {
+    url.hadoopFs.delete(url.hadoopPath, recursive)
   }
 
-  override def globAll(filenames: Iterable[String]): Array[String] = {
-    filenames.iterator
-      .flatMap { arg =>
-        val fss = glob(arg)
-        val files = fss.map(_.getPath.toString)
-        if (files.isEmpty)
-          warn(s"'$arg' refers to no files")
-        files
-      }.toArray
-  }
-
-  override def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = {
+  override def globAll(filenames: Iterable[String]): Array[FileListEntry] = {
     filenames.flatMap { filename =>
       val statuses = glob(filename)
       if (statuses.isEmpty)
@@ -172,20 +163,23 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     }.toArray
   }
 
-  def glob(filename: String): Array[FileStatus] = {
-    val fs = getFileSystem(filename)
-    val path = new hadoop.fs.Path(filename)
-
-    var files = fs.globStatus(path)
+  def glob(url: URL): Array[FileListEntry] = {
+    var files = url.hadoopFs.globStatus(url.hadoopPath)
     if (files == null)
       files = Array.empty
-    log.info(s"globbing path $filename returned ${ files.length } files: ${ files.map(_.getPath.getName).mkString(",") }")
-    files.map(fileStatus => new HadoopFileStatus(fileStatus))
+    log.info(s"globbing path $url returned ${ files.length } files: ${ files.map(_.getPath.getName).mkString(",") }")
+    files.map(fileListEntry => new HadoopFileListEntry(fileListEntry))
   }
 
-  def fileStatus(filename: String): FileStatus = {
-    val p = new hadoop.fs.Path(filename)
-    new HadoopFileStatus(p.getFileSystem(conf.value).getFileStatus(p))
+  def fileListEntry(url: URL): FileListEntry = {
+    new HadoopFileListEntry(url.hadoopFs.getFileStatus(url.hadoopPath))
+  }
+
+  override def eTag(url: URL): Option[String] = {
+    if (url.hadoopFs.hasPathCapability(url.hadoopPath, "fs.capability.etags.available"))
+      Some(url.hadoopFs.getFileStatus(url.hadoopPath).asInstanceOf[EtagSource].getEtag)
+    else
+      None
   }
 
   def makeQualified(path: String): String = {
@@ -194,10 +188,8 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     pathFS.makeQualified(ppath).toString
   }
 
-  override def deleteOnExit(filename: String): Unit = {
-    val ppath = new hadoop.fs.Path(filename)
-    val pathFS = ppath.getFileSystem(conf.value)
-    pathFS.deleteOnExit(ppath)
+  override def deleteOnExit(url: URL): Unit = {
+    url.hadoopFs.deleteOnExit(url.hadoopPath)
   }
 
   def supportsScheme(scheme: String): Boolean = {

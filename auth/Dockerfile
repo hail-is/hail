@@ -1,14 +1,13 @@
-FROM {{ hail_ubuntu_image.image }}
+ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+FROM $BASE_IMAGE
 
 COPY hail/python/hailtop/pinned-requirements.txt hailtop-requirements.txt
 COPY gear/pinned-requirements.txt gear-requirements.txt
 COPY web_common/pinned-requirements.txt web_common-requirements.txt
-COPY auth/pinned-requirements.txt auth-requirements.txt
 RUN hail-pip-install \
       -r hailtop-requirements.txt \
       -r gear-requirements.txt \
-      -r web_common-requirements.txt \
-      -r auth-requirements.txt
+      -r web_common-requirements.txt
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in

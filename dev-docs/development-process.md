@@ -213,6 +213,15 @@ that Batch Workers are not running as pods in Kubernetes, and are immutable. So
 if you want to update code running on a Batch Worker, you will need to `make`
 deploy and then delete existing workers in your namespace.
 
+##### Migration testing
+
+If your change involves adding migrations, you can spin up a database locally
+and run those migrations by running `make batch-db` (or sub any service for `batch`)
+in the root of the repository. Multiple invocations of `make batch-db` will run
+any new migrations since the previous run. Note that migrations are immutable!
+So if you *alter* your migration, you need to first drop the database with
+`make batch-db DROP=1` before you run the migrations again.
+
 ## PR
 
 Once you have a branch that you are happy with, then you create a Pull Request

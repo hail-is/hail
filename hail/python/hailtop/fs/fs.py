@@ -1,7 +1,7 @@
 import abc
 from typing import IO, List
 
-from .stat_result import StatResult
+from .stat_result import FileListEntry
 
 
 class FS(abc.ABC):
@@ -26,11 +26,11 @@ class FS(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def stat(self, path: str) -> StatResult:
+    def stat(self, path: str) -> FileListEntry:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def ls(self, path: str) -> List[StatResult]:
+    def ls(self, path: str) -> List[FileListEntry]:
         raise NotImplementedError
 
     @abc.abstractmethod

@@ -5,7 +5,12 @@ from typing import Dict, List
 from gear import Database
 from hailtop.aiocloud import aioazure
 
-from ....driver.billing_manager import CloudBillingManager, ProductVersions, refresh_product_versions_from_db
+from ....driver.billing_manager import (
+    CloudBillingManager,
+    ProductVersionInfo,
+    ProductVersions,
+    refresh_product_versions_from_db,
+)
 from .pricing import AzureVMPrice, fetch_prices
 
 log = logging.getLogger('billing_manager')
@@ -32,7 +37,7 @@ class AzureBillingManager(CloudBillingManager):
         db: Database,
         pricing_client: aioazure.AzurePricingClient,
         regions: List[str],
-        product_versions_dict: dict,
+        product_versions_dict: Dict[str, ProductVersionInfo],
     ):
         self.db = db
         self.product_versions = ProductVersions(product_versions_dict)

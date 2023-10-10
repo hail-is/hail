@@ -52,11 +52,37 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.124
+
+Released 2023-09-21
+
+### New Features
+
+- (hail#13608) Change default behavior of hl.ggplot.geom_density to use a new method. The old method is still available using the flag smoothed=True. The new method is typically a much more accurate representation, and works well for any distribution, not just smooth ones.
+
+## Version 0.2.123
+
+Released 2023-09-18
+
+### New Features
+
+- (hail#13610) Additional setup is no longer required when using hail.plot or hail.ggplot in a Jupyter notebook (calling bokeh.io.output_notebook or hail.plot.output_notebook and/or setting plotly.io.renderers.default = 'iframe' is no longer necessary).
+
+### Bug Fixes
+- (hail#13634) Fix a bug which caused Query-on-Batch pipelines with a large number of partitions (close to 100k) to run out of memory on the driver after all partitions finish.
+- (hail#13619) Fix an optimization bug that, on some pipelines, since at least 0.2.58 (commit 23813af), resulted in Hail using essentially unbounded amounts of memory.
+- (hail#13609) Fix a bug in hail.ggplot.scale_color_continuous that sometimes caused errors by generating invalid colors.
+
 ## Version 0.2.122
 
 Released 2023-09-07
 
+### New Features
+
+- (hail#13508) The n parameter of MatrixTable.tail is deprecated in favor of a new n_rows parameter.
+
 ### Bug Fixes
+- (hail#13498) Fix a bug where field names can shadow methods on the StructExpression class, e.g. "items", "keys", "values". Now the only way to access such fields is through the getitem syntax, e.g. "some_struct['items']". It's possible this could break existing code that uses such field names.
 - (hail#13585) Fix bug introduced in 0.2.121 where Query-on-Batch
   users could not make requests to `batch.hail.is` without a domain configuration
   set.

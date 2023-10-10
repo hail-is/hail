@@ -16,7 +16,7 @@ from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusS
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.config import get_deploy_config
-from hailtop.utils import sleep_before_try
+from hailtop.utils import first_extant_file, sleep_before_try
 
 log = logging.getLogger('gear.database')
 
@@ -100,30 +100,28 @@ async def resolve_test_db_endpoint(sql_config: SQLConfig) -> SQLConfig:
 
 
 def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
-    if maybe_config_file is None:
-        config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
+    config_file = first_extant_file(
+        maybe_config_file,
+        os.environ.get('HAIL_DATABASE_CONFIG_FILE'),
+        '/sql-config/sql-config.json',
+    )
+    if config_file is not None:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            sql_config = SQLConfig.from_json(f.read())
+        sql_config.check()
+        log.info('using tls and verifying server certificates for MySQL')
     else:
-        config_file = maybe_config_file
-    with open(config_file, 'r', encoding='utf-8') as f:
-        sql_config = SQLConfig.from_json(f.read())
-    sql_config.check()
-    log.info('using tls and verifying server certificates for MySQL')
+        sql_config = SQLConfig.local_insecure_config()
+        log.info('Using unencrypted config for database on localhost')
     return sql_config
 
 
-database_ssl_context = None
-
-
-def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLContext:
-    global database_ssl_context
-    if database_ssl_context is None:
-        if sql_config is None:
-            sql_config = get_sql_config()
-        database_ssl_context = ssl.create_default_context(cafile=sql_config.ssl_ca)
-        if sql_config.ssl_cert is not None and sql_config.ssl_key is not None:
-            database_ssl_context.load_cert_chain(sql_config.ssl_cert, keyfile=sql_config.ssl_key, password=None)
-        database_ssl_context.verify_mode = ssl.CERT_REQUIRED
-        database_ssl_context.check_hostname = False
+def get_database_ssl_context(sql_config: SQLConfig) -> ssl.SSLContext:
+    database_ssl_context = ssl.create_default_context(cafile=sql_config.ssl_ca)
+    if sql_config.ssl_cert is not None and sql_config.ssl_key is not None:
+        database_ssl_context.load_cert_chain(sql_config.ssl_cert, keyfile=sql_config.ssl_key, password=None)
+    database_ssl_context.verify_mode = ssl.CERT_REQUIRED
+    database_ssl_context.check_hostname = False
     return database_ssl_context
 
 
@@ -134,8 +132,11 @@ async def create_database_pool(
     sql_config = get_sql_config(config_file)
     if get_deploy_config().location() != 'k8s' and sql_config.host.endswith('svc.cluster.local'):
         sql_config = await resolve_test_db_endpoint(sql_config)
-    ssl_context = get_database_ssl_context(sql_config)
-    assert ssl_context is not None
+    if sql_config.host == 'localhost':
+        ssl_context = None
+    else:
+        ssl_context = get_database_ssl_context(sql_config)
+        assert ssl_context is not None
     return await aiomysql.create_pool(
         maxsize=maxsize,
         # connection args

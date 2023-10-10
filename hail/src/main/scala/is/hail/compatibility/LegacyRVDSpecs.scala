@@ -1,14 +1,12 @@
 package is.hail.compatibility
 
-import is.hail.HailContext
 import is.hail.backend.HailStateManager
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.io._
+import is.hail.rvd.{AbstractRVDSpec, IndexSpec2, IndexedRVDSpec2, RVDPartitioner}
 import is.hail.types.encoded._
 import is.hail.types.virtual._
-import is.hail.io._
-import is.hail.io.fs.FS
-import is.hail.rvd.{AbstractRVDSpec, IndexSpec2, IndexedRVDSpec2, RVD, RVDPartitioner}
-import is.hail.utils.{FastIndexedSeq, Interval}
+import is.hail.utils.{FastSeq, Interval}
 import org.json4s.JValue
 
 case class IndexSpec private(
@@ -25,24 +23,24 @@ case class IndexSpec private(
   val (keyVType, keyEType) = LegacyEncodedTypeParser.parseTypeAndEType(keyType)
   val (annotationVType, annotationEType) = LegacyEncodedTypeParser.parseTypeAndEType(annotationType)
 
-  val leafEType = EBaseStruct(FastIndexedSeq(
+  val leafEType = EBaseStruct(FastSeq(
     EField("first_idx", EInt64Required, 0),
-    EField("keys", EArray(EBaseStruct(FastIndexedSeq(
+    EField("keys", EArray(EBaseStruct(FastSeq(
       EField("key", keyEType, 0),
       EField("offset", EInt64Required, 1),
       EField("annotation", annotationEType, 2)
     ), required = true), required = true), 1)
   ))
-  val leafVType = TStruct(FastIndexedSeq(
+  val leafVType = TStruct(FastSeq(
     Field("first_idx", TInt64, 0),
-    Field("keys", TArray(TStruct(FastIndexedSeq(
+    Field("keys", TArray(TStruct(FastSeq(
       Field("key", keyVType, 0),
       Field("offset", TInt64, 1),
       Field("annotation", annotationVType, 2)
     ))), 1)))
 
-  val internalNodeEType = EBaseStruct(FastIndexedSeq(
-    EField("children", EArray(EBaseStruct(FastIndexedSeq(
+  val internalNodeEType = EBaseStruct(FastSeq(
+    EField("children", EArray(EBaseStruct(FastSeq(
       EField("index_file_offset", EInt64Required, 0),
       EField("first_idx", EInt64Required, 1),
       EField("first_key", keyEType, 2),
@@ -51,8 +49,8 @@ case class IndexSpec private(
     ), required = true), required = true), 0)
   ))
 
-  val internalNodeVType = TStruct(FastIndexedSeq(
-    Field("children", TArray(TStruct(FastIndexedSeq(
+  val internalNodeVType = TStruct(FastSeq(
+    Field("children", TArray(TStruct(FastSeq(
       Field("index_file_offset", TInt64, 0),
       Field("first_idx", TInt64, 1),
       Field("first_key", keyVType, 2),
@@ -116,7 +114,7 @@ case class UnpartitionedRVDSpec private(
 
   def partitioner(sm: HailStateManager): RVDPartitioner = RVDPartitioner.unkeyed(sm, partFiles.length)
 
-  def key: IndexedSeq[String] = FastIndexedSeq()
+  def key: IndexedSeq[String] = FastSeq()
 
   def typedCodecSpec: AbstractTypedCodecSpec = TypedCodecSpec(rowEType.setRequired(true), rowVType, codecSpec.child)
 

@@ -1,16 +1,16 @@
 package is.hail.io.compress
 
+import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import is.hail.HailSuite
+import is.hail.TestUtils._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
-import is.hail.utils._
-import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import is.hail.expr.ir.GenericLines
+import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.apache.spark.sql.Row
 import org.apache.{hadoop => hd}
 import org.testng.annotations.Test
-import is.hail.TestUtils._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -73,9 +73,9 @@ class BGzipCodecSuite extends HailSuite {
   }
 
   @Test def testGenericLinesSimpleUncompressed() {
-    val lines = Source.fromFile(uncompPath).getLines().toFastIndexedSeq
+    val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
-    val uncompStatus = fs.fileStatus(uncompPath)
+    val uncompStatus = fs.fileListEntry(uncompPath)
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
@@ -87,9 +87,9 @@ class BGzipCodecSuite extends HailSuite {
   }
 
   @Test def testGenericLinesSimpleBGZ() {
-    val lines = Source.fromFile(uncompPath).getLines().toFastIndexedSeq
+    val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
-    val compStatus = fs.fileStatus(compPath)
+    val compStatus = fs.fileListEntry(compPath)
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
@@ -101,10 +101,10 @@ class BGzipCodecSuite extends HailSuite {
   }
 
   @Test def testGenericLinesSimpleGZ() {
-    val lines = Source.fromFile(uncompPath).getLines().toFastIndexedSeq
+    val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     // won't split, just run once
-    val gzStatus = fs.fileStatus(gzPath)
+    val gzStatus = fs.fileListEntry(gzPath)
     val lines2 = GenericLines.collect(
       fs,
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, true))
@@ -113,13 +113,13 @@ class BGzipCodecSuite extends HailSuite {
 
   @Test def testGenericLinesRefuseGZ() {
     interceptFatal("Cowardly refusing") {
-      val gzStatus = fs.fileStatus(gzPath)
+      val gzStatus = fs.fileListEntry(gzPath)
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, false)
     }
   }
 
   @Test def testGenericLinesRandom() {
-    val lines = Source.fromFile(uncompPath).getLines().toFastIndexedSeq
+    val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compLength = 195353
     val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310, 112477, 112505, 124593,

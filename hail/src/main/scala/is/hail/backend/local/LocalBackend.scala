@@ -1,9 +1,9 @@
 package is.hail.backend.local
 
-import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
@@ -18,9 +18,11 @@ import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeTy
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.hadoop
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 import java.io.PrintWriter
 import scala.collection.JavaConverters._
@@ -103,9 +105,11 @@ class LocalBackend(
 
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
-  def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags)(f)
-  }
+  def withExecuteContext[T](timer: ExecutionTimer): (ExecuteContext => T) => T =
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags, new BackendContext {
+      override val executionCache: ExecutionCache =
+        ExecutionCache.fromFlags(flags, fs, tmpdir)
+    })
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 
@@ -117,20 +121,23 @@ class LocalBackend(
     current
   }
 
-  def parallelizeAndComputeWithIndex(
+  override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    collection: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]] = {
+  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
+  : (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
     val stageId = nextStageId()
-    collection.zipWithIndex.map { case (c, i) =>
-      using(new LocalTaskContext(i, stageId)) { htc =>
-        val bytes = f(c, htc, theHailClassLoader, fs)
-        bytes
+    runAllKeepFirstError(MoreExecutors.sameThreadExecutor) {
+      collection.map { case (c, i) =>
+        (
+          () => using(new LocalTaskContext(i, stageId)) {
+            f(c, _, theHailClassLoader, fs)
+          },
+          i
+        )
       }
     }
   }
@@ -148,8 +155,8 @@ class LocalBackend(
     if (ir.typ == TVoid) {
       val (pt, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionUnit](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), UnitInfo,
+          FastSeq(),
+          FastSeq(classInfo[Region]), UnitInfo,
           ir,
           print = print)
       }
@@ -161,8 +168,8 @@ class LocalBackend(
     } else {
       val (pt, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
+          FastSeq(),
+          FastSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(ir)),
           print = print)
       }
@@ -178,6 +185,7 @@ class LocalBackend(
     Validate(ir)
     val queryID = Backend.nextID()
     log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
+    ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
     val res = _jvmLowerAndExecute(ctx, ir)
     log.info(s"finished execution of query $queryID")
     res
@@ -313,23 +321,21 @@ class LocalBackend(
     }
   }
 
-  def lowerDistributedSort(
+  override def lowerDistributedSort(
     ctx: ExecuteContext,
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable,
     nPartitions: Option[Int]
-  ): TableReader = {
-
+  ): TableReader =
     LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, nPartitions)
-  }
 
   def pyLoadReferencesFromDataset(path: String): String = {
     val rgs = ReferenceGenome.fromHailDataset(fs, path)
     rgs.foreach(addReference)
 
     implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(rgs.map(_.toJSON).toFastIndexedSeq)
+    Serialization.write(rgs.map(_.toJSON).toFastSeq)
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =

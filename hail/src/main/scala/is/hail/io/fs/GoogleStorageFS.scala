@@ -1,29 +1,25 @@
 package is.hail.io.fs
 
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.auth.oauth2.ServiceAccountCredentials
+import com.google.cloud.http.HttpTransportOptions
+import com.google.cloud.storage.Storage.{BlobGetOption, BlobListOption, BlobWriteOption, BlobSourceOption}
+import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageException, StorageOptions}
+import com.google.cloud.{ReadChannel, WriteChannel}
+import is.hail.io.fs.FSUtil.dropTrailingSlash
+import is.hail.services.{retryTransientErrors, isTransientError}
+import is.hail.utils._
+import org.apache.log4j.Logger
+
 import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.Paths
-import java.util.concurrent._
-import org.apache.log4j.Logger
-import com.google.auth.oauth2.ServiceAccountCredentials
-import com.google.cloud.{ReadChannel, WriteChannel}
-import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSourceOption}
-import com.google.cloud.storage.{Option => StorageOption, _}
-import com.google.cloud.http.HttpTransportOptions
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
-import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
-import is.hail.services.retryTransientErrors
-import is.hail.utils.fatal
-
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.{concurrent => scalaConcurrent}
-import scala.reflect.ClassTag
+import scala.jdk.CollectionConverters.{asJavaIterableConverter, asScalaIteratorConverter, iterableAsScalaIterableConverter}
 
 
-case class GoogleStorageFSURL(val bucket: String, val path: String) extends FSURL[GoogleStorageFSURL] {
+case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
   def addPathComponent(c: String): GoogleStorageFSURL = {
     if (path == "")
       withPath(c)
@@ -64,13 +60,13 @@ object GoogleStorageFS {
   }
 }
 
-object GoogleStorageFileStatus {
-  def apply(blob: Blob): BlobStorageFileStatus = {
+object GoogleStorageFileListEntry {
+  def apply(blob: Blob): BlobStorageFileListEntry = {
     val isDir = blob.isDirectory
 
     val name = dropTrailingSlash(blob.getName)
 
-    new BlobStorageFileStatus(
+    new BlobStorageFileListEntry(
       s"gs://${ blob.getBucket }/$name",
       if (isDir)
         null
@@ -112,11 +108,14 @@ class GoogleStorageFS(
 ) extends FS {
   type URL = GoogleStorageFSURL
 
-  import GoogleStorageFS._
+  import GoogleStorageFS.log
 
-  def validUrl(filename: String): Boolean = {
+  override def parseUrl(filename: String): URL = GoogleStorageFS.parseUrl(filename)
+
+  override def validUrl(filename: String): Boolean =
     filename.startsWith("gs://")
-  }
+
+  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
 
   def getConfiguration(): Option[RequesterPaysConfiguration] = {
     requesterPaysConfiguration
@@ -142,39 +141,27 @@ class GoogleStorageFS(
   }
 
   private[this] def retryIfRequesterPays[T, U](
-    exc: Exception,
-    message: String,
-    code: Int,
-    makeRequest: Seq[U] => T,
-    makeUserProjectOption: String => U,
-    bucket: String
-  ): T = {
-    if (message == null) {
-      throw exc
-    }
-
-    val probablyNeedsRequesterPays = message.equals("userProjectMissing") || (code == 400 && message.contains("requester pays"))
-    if (!probablyNeedsRequesterPays) {
-      throw exc
-    }
-
-    makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
-  }
-
-  def retryIfRequesterPays[T, U](
     exc: Throwable,
     makeRequest: Seq[U] => T,
     makeUserProjectOption: String => U,
     bucket: String
-  ): T = exc match {
-    case exc: IOException if exc.getCause() != null =>
-      retryIfRequesterPays(exc.getCause(), makeRequest, makeUserProjectOption, bucket)
-    case exc: StorageException =>
-      retryIfRequesterPays(exc, exc.getMessage(), exc.getCode(), makeRequest, makeUserProjectOption, bucket)
-    case exc: GoogleJsonResponseException =>
-      retryIfRequesterPays(exc, exc.getMessage(), exc.getStatusCode(), makeRequest, makeUserProjectOption, bucket)
-    case exc: Throwable =>
+  ): T = {
+    if (isRequesterPaysException(exc)) {
+      makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
+    } else {
       throw exc
+    }
+  }
+
+  def isRequesterPaysException(exc: Throwable): Boolean = exc match {
+    case exc: IOException if exc.getCause() != null =>
+      isRequesterPaysException(exc.getCause())
+    case exc: StorageException =>
+      exc.getMessage != null && (exc.getMessage.equals("userProjectMissing") || (exc.getCode == 400 && exc.getMessage.contains("requester pays")))
+    case exc: GoogleJsonResponseException =>
+      exc.getMessage != null && (exc.getMessage.equals("userProjectMissing") || (exc.getStatusCode == 400 && exc.getMessage.contains("requester pays")))
+    case exc: Throwable =>
+      false
   }
 
   private[this] def handleRequesterPays[T, U](
@@ -213,33 +200,31 @@ class GoogleStorageFS(
     }
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
-    val url = parseUrl(filename)
-
+  def openNoCompression(url: URL): SeekableDataInputStream = retryTransientErrors {
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] var reader: ReadChannel = null
-
-      private[this] def retryingRead(): Int = {
-        retryTransientErrors(
-          { reader.read(bb) },
-          reset = Some({ () => reader.seek(getPosition) })
-        )
-      }
+      private[this] var options: Option[Seq[BlobSourceOption]] = None
 
       private[this] def readHandlingRequesterPays(bb: ByteBuffer): Int = {
-        if (reader != null) {
-          retryingRead()
-        } else {
-          handleRequesterPays(
-            { (options: Seq[BlobSourceOption]) =>
-              reader = retryTransientErrors { storage.reader(url.bucket, url.path, options:_*) }
+        while (true) {
+          try {
+            if (reader == null) {
+              val opts = options.getOrElse(FastSeq())
+              reader = storage.reader(url.bucket, url.path, opts:_*)
               reader.seek(getPosition)
-              retryingRead()
-            },
-            BlobSourceOption.userProject _,
-            url.bucket
-          )
+            }
+            return reader.read(bb)
+          } catch {
+            case exc: Exception if isRequesterPaysException(exc) && options.isEmpty =>
+              reader = null
+              bb.clear()
+              options = Some(requesterPaysOptions(url.bucket, BlobSourceOption.userProject))
+            case exc: Exception if isTransientError(exc) =>
+              reader = null
+              bb.clear()
+          }
         }
+        throw new RuntimeException("unreachable")
       }
 
       override def close(): Unit = {
@@ -278,14 +263,12 @@ class GoogleStorageFS(
     new WrappedSeekableDataInputStream(is)
   }
 
-  override def readNoCompression(filename: String): Array[Byte] = retryTransientErrors {
-    val url = parseUrl(filename)
+  override def readNoCompression(url: URL): Array[Byte] = retryTransientErrors {
     storage.readAllBytes(url.bucket, url.path)
   }
 
-  def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
-    log.info(f"createNoCompression: ${filename}")
-    val url = parseUrl(filename)
+  def createNoCompression(url: URL): PositionedDataOutputStream = retryTransientErrors {
+    log.info(f"createNoCompression: ${url}")
 
     val blobId = BlobId.of(url.bucket, url.path)
     val blobInfo = BlobInfo.newBuilder(blobId)
@@ -303,7 +286,7 @@ class GoogleStorageFS(
               writer = retryTransientErrors { storage.writer(blobInfo, options:_*) }
               f
             },
-            BlobWriteOption.userProject _,
+            BlobWriteOption.userProject,
             url.bucket
           )
         }
@@ -321,7 +304,7 @@ class GoogleStorageFS(
       }
 
       override def close(): Unit = {
-        log.info(f"close: ${filename}")
+        log.info(f"close: ${url}")
         if (!closed) {
           flush()
           retryTransientErrors {
@@ -331,18 +314,16 @@ class GoogleStorageFS(
           }
           closed = true
         }
-        log.info(f"closed: ${filename}")
+        log.info(f"closed: ${url}")
       }
     }
 
     new WrappedPositionedDataOutputStream(os)
   }
 
-  override def copy(src: String, dst: String, deleteSource: Boolean = false): Unit = {
-    val srcUrl = parseUrl(src)
-    val dstUrl = parseUrl(dst)
-    val srcId = BlobId.of(srcUrl.bucket, srcUrl.path)
-    val dstId = BlobId.of(dstUrl.bucket, dstUrl.path)
+  override def copy(src: URL, dst: URL, deleteSource: Boolean = false): Unit = {
+    val srcId = BlobId.of(src.bucket, src.path)
+    val dstId = BlobId.of(dst.bucket, dst.path)
 
     // There is only one userProject for the whole request, the source takes precedence over the target.
     // https://github.com/googleapis/java-storage/blob/0bd17b1f70e47081941a44f018e3098b37ba2c47/google-cloud-storage/src/main/java/com/google/cloud/storage/spi/v1/HttpStorageRpc.java#L1016-L1019
@@ -366,14 +347,14 @@ class GoogleStorageFS(
             .setTarget(dstId)
             .build()
         case Some(RequesterPaysConfiguration(project, Some(buckets))) =>
-          if (buckets.contains(srcUrl.bucket) && buckets.contains(dstUrl.bucket)) {
+          if (buckets.contains(src.bucket) && buckets.contains(dst.bucket)) {
             Storage.CopyRequest.newBuilder()
               .setSourceOptions(BlobSourceOption.userProject(project))
               .setSource(srcId)
               .setTarget(dstId)
               .build()
-          } else if (buckets.contains(srcUrl.bucket) || buckets.contains(dstUrl.bucket)) {
-            throw new RuntimeException(s"both ${srcUrl.bucket} and ${dstUrl.bucket} must be specified in the requester_pays_buckets to copy between these buckets", exc)
+          } else if (buckets.contains(src.bucket) || buckets.contains(dst.bucket)) {
+            throw new RuntimeException(s"both ${src.bucket} and ${dst.bucket} must be specified in the requester_pays_buckets to copy between these buckets", exc)
           } else {
             throw exc
           }
@@ -409,13 +390,12 @@ class GoogleStorageFS(
       storage.delete(srcId)
   }
 
-  def delete(filename: String, recursive: Boolean): Unit = retryTransientErrors {
-    val url = parseUrl(filename)
+  def delete(url: URL, recursive: Boolean): Unit = retryTransientErrors {
     if (recursive) {
       var page = retryTransientErrors {
         handleRequesterPays(
           (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(url.path) +: options):_*),
-          BlobListOption.userProject _,
+          BlobListOption.userProject,
           url.bucket
         )
       }
@@ -425,13 +405,13 @@ class GoogleStorageFS(
           if (blobs.iterator().hasNext) {
             handleRequesterPays(
               { (options: Seq[BlobSourceOption]) =>
-                if (options.size == 0) {
+                if (options.isEmpty) {
                   storage.delete(blobs)
                 } else {
                   blobs.asScala.foreach(storage.delete(_, options:_*))
                 }
               },
-              BlobSourceOption.userProject _,
+              BlobSourceOption.userProject,
               url.bucket
             )
           }
@@ -442,48 +422,43 @@ class GoogleStorageFS(
       // Storage.delete is idempotent. it returns a Boolean which is false if the file did not exist
       handleRequesterPays(
         (options: Seq[BlobSourceOption]) => storage.delete(url.bucket, url.path, options:_*),
-        BlobSourceOption.userProject _,
+        BlobSourceOption.userProject,
         url.bucket
       )
     }
   }
 
-  def glob(filename: String): Array[FileStatus] = retryTransientErrors {
-    val url = parseUrl(filename)
+  def glob(url: URL): Array[FileListEntry] = retryTransientErrors {
     globWithPrefix(url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
-  def listStatus(filename: String): Array[FileStatus] = listStatus(parseUrl(filename))
-
-  override def listStatus(url: GoogleStorageFSURL): Array[FileStatus] = retryTransientErrors {
+  override def listDirectory(url: URL): Array[FileListEntry] = retryTransientErrors {
     val path = if (url.path.endsWith("/")) url.path else url.path + "/"
 
     val blobs = retryTransientErrors {
       handleRequesterPays(
         (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options):_*),
-        BlobListOption.userProject _,
+        BlobListOption.userProject,
         url.bucket
       )
     }
 
     blobs.iterateAll().iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
-      .map(b => GoogleStorageFileStatus(b))
+      .map(b => GoogleStorageFileListEntry(b))
       .toArray
   }
 
-  def fileStatus(filename: String): FileStatus = fileStatus(parseUrl(filename))
-
-  override def fileStatus(url: GoogleStorageFSURL): FileStatus = retryTransientErrors {
+  override def fileListEntry(url: URL): FileListEntry = retryTransientErrors {
     val path = dropTrailingSlash(url.path)
 
     if (url.path == "")
-      return new BlobStorageFileStatus(s"gs://${url.bucket}", null, 0, true)
+      return new BlobStorageFileListEntry(s"gs://${url.bucket}", null, 0, true)
 
     val blobs = retryTransientErrors {
       handleRequesterPays(
         (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options):_*),
-        BlobListOption.userProject _,
+        BlobListOption.userProject,
         url.bucket
       )
     }
@@ -495,10 +470,22 @@ class GoogleStorageFS(
       while (name.endsWith("/"))
         name = name.dropRight(1)
       if (name == path)
-        return GoogleStorageFileStatus(b)
+        return GoogleStorageFileListEntry(b)
     }
 
-    throw new FileNotFoundException(url.toString)
+    throw new FileNotFoundException(url.toString())
+  }
+
+  override def eTag(url: URL): Some[String] = {
+    val GoogleStorageFSURL(bucket, blob) = url
+    handleRequesterPays(
+      (options: Seq[BlobGetOption]) =>
+        retryTransientErrors {
+          Some(storage.get(bucket, blob, options:_*).getEtag)
+        },
+      BlobGetOption.userProject,
+      bucket
+    )
   }
 
   def makeQualified(filename: String): String = {
