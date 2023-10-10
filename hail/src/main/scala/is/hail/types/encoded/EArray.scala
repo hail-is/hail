@@ -90,6 +90,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
+    cb.println("in decoder")
     val st = decodedSType(t).asInstanceOf[SIndexablePointer]
 
     val arrayType: PCanonicalArray = st.pType match {
@@ -98,24 +99,67 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       case t: PCanonicalDict => t.arrayRep
     }
 
-    val len = cb.newLocal[Int]("len", in.readInt())
-    val array = cb.newLocal[Long]("array", arrayType.allocate(region, len))
+    val len = cb.memoize(in.readInt())
+    val array = cb.memoize(arrayType.allocate(region, len))
     arrayType.storeLength(cb, array, len)
 
-    val i = cb.newLocal[Int]("i")
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
 
-    if (!elementType.required)
-      cb += in.readBytes(region, array + arrayType.missingBytesOffset, arrayType.nMissingBytes(len))
+    val pastLastOff = cb.memoize(arrayType.pastLastElementOffset(array, len))
 
-    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
-      val elemAddr = cb.memoize(arrayType.elementOffset(array, len, i))
-      if (elementType.required)
-        readElemF(cb, region, elemAddr, in)
-      else
-        cb.ifx(arrayType.isElementDefined(array, i),
-          readElemF(cb, region, elemAddr, in))
-    })
+    if (elementType.required) {
+      val elemOff = cb.newLocal[Long]("elemOff", arrayType.firstElementOffset(array, len))
+      cb.forLoop(
+        {}, elemOff < pastLastOff, cb.assign(elemOff, arrayType.nextElementAddress(elemOff)), {
+          readElemF(cb, region, elemOff, in)
+        })
+    } else {
+      cb += in.readBytes(region, array + const(arrayType.missingBytesOffset), arrayType.nMissingBytes(len))
+      cb.println("len = ", len.toS)
+      arrayType.printDebug(cb, array)
+
+//      cb.ifx((len % 64).cne(0), {
+//        // ensure that the last missing block has all missing bits set past the last element
+////        arrayType.printDebug(cb, array)
+//        val lastMissingBlockAddr = cb.memoize(arrayType.firstElementOffset(array) - 8)
+//        val lastMissingBlock = cb.memoize(Region.loadLong(lastMissingBlockAddr))
+//        cb += Region.storeLong(lastMissingBlockAddr, (lastMissingBlock | (const(-1L) << len)))
+////        arrayType.printDebug(cb, array)
+//      })
+
+      def unsetRightMostBit(x: Value[Long]): Code[Long] =
+        x & (x - 1)
+
+      val presentBits = cb.newLocal[Long]("presentBits", 0L)
+      val mbyteOffset = cb.newLocal[Long]("mbyteOffset", array + arrayType.missingBytesOffset)
+      val blockOff = cb.newLocal[Long]("blockOff", arrayType.firstElementOffset(array, len))
+      val inBlockIndexToPresentValue = cb.newLocal[Int]("inBlockIndexToPresentValue", 0)
+      val pastLastFull64BlockOff = cb.memoize(arrayType.elementOffset(array, len, len - (len % 64)))
+
+      cb.forLoop(
+        {},
+          blockOff < pastLastOff,
+          cb.assign(blockOff, arrayType.incrementElementOffset(blockOff, 64)),
+        {
+          cb.assign(presentBits, Region.loadLong(mbyteOffset))
+          cb.ifx(blockOff.ceq(pastLastFull64BlockOff), {
+//            cb.println("last block misssing bits = ", Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", presentBits))
+            cb.assign(presentBits, presentBits | (const(-1L) << len))
+          } )
+          cb.assign(presentBits, ~presentBits)
+          cb.assign(mbyteOffset, mbyteOffset + 8)
+          cb.whileLoop(
+            presentBits.cne(0L), {
+              cb.assign(inBlockIndexToPresentValue, presentBits.numberOfTrailingZeros)
+              val elemOff = cb.memoize(
+                arrayType.incrementElementOffset(blockOff, inBlockIndexToPresentValue))
+              readElemF(cb, region, elemOff, in)
+              cb.assign(presentBits, unsetRightMostBit(presentBits))
+            })
+        })
+    }
+
+    cb.println("after decoder")
 
     new SIndexablePointerValue(st, array, len, cb.memoize(arrayType.firstElementOffset(array, len)))
   }

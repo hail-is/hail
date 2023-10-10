@@ -61,7 +61,7 @@ class CodeSuite extends HailSuite {
       }
       sarray.sizeToStoreInBytes(cb).value
     })
-    assert(fb.result(ctx)(theHailClassLoader)(ctx.r) == 28L) // 2 missing bytes 4 byte aligned + 4 header bytes + 5 elements * 4 bytes for ints.
+    assert(fb.result(ctx)(theHailClassLoader)(ctx.r) == 36L) // 2 missing bytes 8 byte aligned + 8 header bytes + 5 elements * 4 bytes for ints.
   }
 
   @Test def testIntervalSizeInBytes(): Unit = {

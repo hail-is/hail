@@ -37,9 +37,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   private val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
-  private val contentsAlignment: Long = 8
+  private val contentsAlignment: Long = elementType.alignment.max(4)
 
-  private val lengthHeaderBytes: Long = 8
+  private val lengthHeaderBytes: Long = 4
 
   override val byteSize: Long = 8
 
