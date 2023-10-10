@@ -120,30 +120,23 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.assign(lastNode, newNode)
   }
 
-  private def foreachNode(cb: EmitCodeBuilder, tmpNode: Settable[Long])
-                         (body: EmitCodeBuilder => Unit): Unit =
-    cb.for_(
-      cb.assign(tmpNode, firstNode),
-      hasNext(tmpNode),
-      cb.assign(tmpNode, next(tmpNode)),
-      body(cb)
-    )
+  private def foreachNode(cb: EmitCodeBuilder)(body: Value[Long] => Unit): Unit = {
+    val node = cb.newLocal[Long]("bll_foreach_node")
+    cb.for_(cb.assign(node, firstNode), node cne nil, cb.assign(node, next(node)), body(node))
+  }
 
   private def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit): Unit = {
-    val n = cb.newLocal[Long]("bll_foreach_n")
-    foreachNode(cb, n) { cb =>
+    foreachNode(cb) { n =>
       val i = cb.newLocal[Int]("bll_foreach_i")
-      cb.assign(i, 0)
-      cb.while_(i < count(n),
-        {
-          val elt = EmitCode.fromI(cb.emb) { cb =>
-            IEmitCode(cb,
-              bufferType.isElementMissing(buffer(n), i),
-              elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i)))
-          }
-          f(cb, elt)
-          cb.assign(i, i + 1)
-        })
+      cb.for_(cb.assign(i, 0), i < count(n), cb.assign(i, i + 1), {
+        val elt = EmitCode.fromI(cb.emb) { cb =>
+          IEmitCode(cb,
+            bufferType.isElementMissing(buffer(n), i),
+            elemType.loadCheapSCode(cb, bufferType.loadElement(buffer(n), capacity(n), i))
+          )
+        }
+        f(cb, elt)
+      })
     }
   }
 
@@ -202,10 +195,8 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       typeInfo[Unit])
     val ob = serF.getCodeParam[OutputBuffer](2)
     serF.voidWithBuilder { cb =>
-      val n = cb.newLocal[Long]("bll_serialize_n")
-      val i = cb.newLocal[Int]("bll_serialize_i")
       val b = cb.newLocal[Long]("bll_serialize_b")
-      foreachNode(cb, n) { cb =>
+      foreachNode(cb) { n =>
         cb += ob.writeBoolean(true)
         cb.assign(b, buffer(n))
         bufferEType.buildPrefixEncoder(cb, bufferType.loadCheapSCode(cb, b), ob, count(n))

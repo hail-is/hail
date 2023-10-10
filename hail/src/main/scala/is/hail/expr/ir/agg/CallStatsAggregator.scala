@@ -47,18 +47,13 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
   def dump(cb: CodeBuilderLike, tag: String): Unit = {
     val i = cb.newLocal[Int]("i")
     cb += Code._println(s"at tag $tag")
-    cb.for_(
-      setup = cb.assign(i, 0),
-      cond = i < nAlleles,
-      incr = cb.assign(i, i + 1),
-      body = {
-        cb += Code._println(
-          const("at i=") + i.toS +
-            ", AC=" + alleleCountAtIndex(i, nAlleles).toS +
-            ", HOM=" + homCountAtIndex(i, nAlleles).toS
-        )
-      }
-    )
+    cb.for_(cb.assign(i, 0), i < nAlleles, cb.assign(i, i + 1), {
+      cb += Code._println(
+        const("at i=") + i.toS +
+          ", AC=" + alleleCountAtIndex(i, nAlleles).toS +
+          ", HOM=" + homCountAtIndex(i, nAlleles).toS
+      )
+    })
   }
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {

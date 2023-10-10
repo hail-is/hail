@@ -2035,16 +2035,8 @@ class Emit[C](
             val curWriteAddress = cb.newLocal[Long]("ndarray_qr_curr_write_addr", rDataAddress)
 
             // I think this just copies out the upper triangle into new ndarray in column major order
-            cb.for_({
-              cb.assign(currCol, 0L)
-            }, currCol < rCols, {
-              cb.assign(currCol, currCol + 1L)
-            }, {
-              cb.for_({
-                cb.assign(currRow, 0L)
-              }, currRow < rRows, {
-                cb.assign(currRow, currRow + 1L)
-              }, {
+            cb.for_(cb.assign(currCol, 0L), currCol < rCols, cb.assign(currCol, currCol + 1L), {
+              cb.for_(cb.assign(currRow, 0L), currRow < rRows, cb.assign(currRow, currRow + 1L), {
                 cb.append(Region.storeDouble(
                   curWriteAddress,
                   (currCol >= currRow).mux(
