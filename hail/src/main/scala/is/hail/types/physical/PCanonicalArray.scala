@@ -22,12 +22,24 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     sb.append("]")
   }
 
+  def printDebug(cb: EmitCodeBuilder, addr: Value[Long]): Unit = {
+    val a = cb.newLocal[Long]("a", addr)
+    val l = cb.memoize(loadLength(addr))
+    cb.println("array header:")
+    cb.whileLoop(a < firstElementOffset(addr, l), {
+      cb.println("  ", Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", Region.loadLong(a)),
+                 " (", Code.invokeStatic1[java.lang.Integer, Int, String]("toHexString", Region.loadInt(a)),
+                 " ", Code.invokeStatic1[java.lang.Integer, Int, String]("toHexString", Region.loadInt(a+4)),
+                 ")")
+      cb.assign(a, a + 8)
+    })
+  }
 
   private val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
-  private val contentsAlignment: Long = elementType.alignment.max(4)
+  private val contentsAlignment: Long = 8
 
-  private val lengthHeaderBytes: Long = 4
+  private val lengthHeaderBytes: Long = 8
 
   override val byteSize: Long = 8
 
@@ -61,15 +73,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   private def _elementsOffset(length: Int): Long =
     if (elementRequired)
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, contentsAlignment)
     else
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), contentsAlignment)
 
   private def _elementsOffset(length: Code[Int]): Code[Long] =
     if (elementRequired)
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, contentsAlignment)
     else
-      UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, contentsAlignment)
 
   private lazy val lengthOffsetTable = 10
   private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
