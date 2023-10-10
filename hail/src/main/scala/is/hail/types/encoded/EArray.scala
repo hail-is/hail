@@ -98,8 +98,8 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       case t: PCanonicalDict => t.arrayRep
     }
 
-    val len = cb.memoize(in.readInt())
-    val array = cb.memoize(arrayType.allocate(region, len))
+    val len = cb.memoize(in.readInt(), "len")
+    val array = cb.memoize(arrayType.allocate(region, len), "array")
     arrayType.storeLength(cb, array, len)
 
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
