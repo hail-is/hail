@@ -46,8 +46,8 @@ final case class EArray(val elementType: EType, override val required: Boolean =
         if (!elementType.required) {
           val nMissingLocal = cb.newLocal[Int]("nMissingBytes", pArray.nMissingBytes(prefixLen))
           cb.ifx(nMissingLocal > 0, {
-            cb += out.writeBytes(array + const(pArray.lengthHeaderBytes), nMissingLocal - 1)
-            cb += out.writeByte((Region.loadByte(array + const(pArray.lengthHeaderBytes)
+            cb += out.writeBytes(array + pArray.missingBytesOffset, nMissingLocal - 1)
+            cb += out.writeByte((Region.loadByte(array + pArray.missingBytesOffset
               + (nMissingLocal - 1).toL) & EType.lowBitMask(prefixLen)).toB)
           })
         }
@@ -106,7 +106,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
 
     if (!elementType.required)
-      cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
+      cb += in.readBytes(region, array + arrayType.missingBytesOffset, arrayType.nMissingBytes(len))
 
     cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
       val elemAddr = cb.memoize(arrayType.elementOffset(array, len, i))

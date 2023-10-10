@@ -7,19 +7,11 @@ import is.hail.expr.ir.EmitCodeBuilder
 abstract class PContainer extends PIterable {
   override def containsPointers: Boolean = true
 
-  def elementByteSize: Long
-
-  def contentsAlignment: Long
-
   def loadLength(aoff: Long): Int
 
   def loadLength(aoff: Code[Long]): Code[Int]
 
   def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit
-
-  def nMissingBytes(len: Code[Int]): Code[Int]
-
-  def lengthHeaderBytes: Long
 
   def elementsOffset(length: Int): Long
 
@@ -63,6 +55,10 @@ abstract class PContainer extends PIterable {
 
   def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long]
 
+  def contentsByteSize(length: Int): Long
+
+  def contentsByteSize(length: Code[Int]): Code[Long]
+
   def allocate(region: Region, length: Int): Long
 
   def allocate(region: Code[Region], length: Code[Int]): Code[Long]
@@ -84,4 +80,12 @@ abstract class PContainer extends PIterable {
   def nextElementAddress(currentOffset: Long): Long
 
   def nextElementAddress(currentOffset: Code[Long]): Code[Long]
+
+  def incrementElementOffset(currentOffset: Long, increment: Int): Long
+
+  def incrementElementOffset(currentOffset: Code[Long], increment: Code[Int]): Code[Long]
+
+  def pastLastElementOffset(aoff: Long, length: Int): Long
+
+  def pastLastElementOffset(aoff: Code[Long], length: Value[Int]): Code[Long]
 }
