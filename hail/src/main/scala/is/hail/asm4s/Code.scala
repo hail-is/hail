@@ -92,13 +92,8 @@ object Code {
   def sequence1[T](cs: IndexedSeq[Code[Unit]], v: Code[T]): Code[T] = {
     val start = new lir.Block()
     val end = (cs :+ v).foldLeft(start) { (end, c) =>
-      c match {
-        case l: CodeLabel if end.last.isInstanceOf[ControlX] =>
-          l.end
-        case _ =>
-          end.append(lir.goto(c.start))
-          c.end
-      }
+      end.append(lir.goto(c.start))
+      c.end
     }
     assert(end eq v.end)
     val newC = new VCode(start, end, v.v)
@@ -780,21 +775,11 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   def mux[T](csq: Code[T], alt: Code[T])(implicit ev: T =!= Unit): Code[T] = {
     assert(alt.v != null)
     assert(csq.v.ti.desc == alt.v.ti.desc, s"${csq.v.ti.desc} == ${alt.v.ti.desc}")
-
-    val Ltrue = CodeLabel()
-    val Lfalse = CodeLabel()
-    val Lexit = CodeLabel()
-    val t = Code.newLocal[T]("mux")(csq.v.ti.asInstanceOf[TypeInfo[T]])
-    Code(
-      branch(Ltrue, Lfalse),
-      Ltrue,
-      t := csq,
-      Lexit.goto,
-      Lfalse,
-      t := alt,
-      Lexit,
-      t.load()
-    )
+    CodeBuilder.scopedCode(null) { cb =>
+      val t = Code.newLocal[T]("mux")(csq.v.ti.asInstanceOf[TypeInfo[T]])
+      cb.ifx(lhs, cb.assign(t, csq), cb.assign(t, alt))
+      t
+    }
   }
 
   def &(rhs: Code[Boolean]): Code[Boolean] = Code(lhs, rhs, lir.insn2(IAND))
