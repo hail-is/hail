@@ -871,14 +871,9 @@ trait SNDArrayValue extends SValue {
         else {
           val ptr = cb.mb.newLocal[Long](s"NDArray_setToZero_ptr_$dim")
           val end = cb.mb.newLocal[Long](s"NDArray_setToZero_end_$dim")
-
+          cb.assign(ptr, startPtr)
           cb.assign(end, ptr + strides(dim-1) * shapes(dim-1))
-          cb.for_(
-            cb.assign(ptr, startPtr),
-            ptr < end,
-            cb.assign(ptr, ptr + strides(dim-1)),
-            recur(ptr, dim - 1, contiguousDims)
-          )
+          cb.for_({}, ptr < end, cb.assign(ptr, ptr + strides(dim-1)), recur(ptr, dim - 1, contiguousDims))
         }
       } else {
         eltType.storePrimitiveAtAddress(cb, startPtr, primitive(eltType.virtualType, eltType.zero))

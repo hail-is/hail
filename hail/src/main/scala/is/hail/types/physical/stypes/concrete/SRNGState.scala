@@ -131,9 +131,8 @@ class SCanonicalRNGStateValue(
 
     cb.ifx(numWordsInLastBlock < 4, {
       cb.switch(numWordsInLastBlock,
-        cb._fatal("invalid numWordsInLastBlock"),
-        for {i <- 0 until 4}
-          yield () => cb.assign(newLastDynBlock(i), idx)
+        cb._fatal("invalid numWordsInLastBlock: ", numWordsInLastBlock.toS),
+        for {i <- 0 until 4} yield () => cb.assign(newLastDynBlock(i), idx)
       )
       cb.assign(newNumWordsInLastBlock, newNumWordsInLastBlock + 1)
     }, {
@@ -156,9 +155,14 @@ class SCanonicalRNGStateValue(
     val finalTweak = cb.memoize((numWordsInLastBlock ceq 4).mux(Threefry.finalBlockNoPadTweak, Threefry.finalBlockPaddedTweak))
     for (i <- 0 until 4) cb.assign(x(i), x(i) ^ lastDynBlock(i))
     cb.switch(numWordsInLastBlock,
-      cb._fatal("invalid numWordsInLastBlock"),
-      for {i <- 0 until 4}
-        yield () => cb.assign(x(i), x(i) ^ 1L)
+      cb._fatal("invalid numWordsInLastBlock: ", numWordsInLastBlock.toS),
+      FastSeq(
+        () => cb += (x(0) := x(0) ^ 1L),
+        () => cb += (x(1) := x(1) ^ 1L),
+        () => cb += (x(2) := x(2) ^ 1L),
+        () => cb += (x(3) := x(3) ^ 1L),
+        () => {}
+      )
     )
     Threefry.encrypt(cb, key, Array(finalTweak, const(0L)), x)
     x
@@ -170,9 +174,14 @@ class SCanonicalRNGStateValue(
     val finalTweak = (numWordsInLastBlock ceq 4).mux(Threefry.finalBlockNoPadTweak, Threefry.finalBlockPaddedTweak)
     for (i <- 0 until 4) cb.assign(x(i), x(i) ^ lastDynBlock(i))
     cb.switch(numWordsInLastBlock,
-      cb._fatal("invalid numWordsInLastBlock"),
-      for {i <- 0 until 4}
-        yield () => cb.assign(x(i), x(i) ^ 1L)
+      cb._fatal("invalid numWordsInLastBlock: ", numWordsInLastBlock.toS),
+      FastSeq(
+        () => cb += (x(0) := x(0) ^ 1L),
+        () => cb += (x(1) := x(1) ^ 1L),
+        () => cb += (x(2) := x(2) ^ 1L),
+        () => cb += (x(3) := x(3) ^ 1L),
+        () => {}
+      )
     )
     cb += tf.invoke[Long, Long, Long, Long, Long, Unit]("resetState", x(0), x(1), x(2), x(3), finalTweak)
   }
