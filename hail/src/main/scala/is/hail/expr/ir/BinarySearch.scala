@@ -4,7 +4,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 import scala.language.existentials
 
@@ -292,7 +292,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C],
   getKey: (EmitCodeBuilder, EmitValue) => EmitValue,
   bound: String = "lower") {
   val containerElementType: EmitType = containerType.elementEmitType
-  val findElt = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](containerType.paramType, eltType.paramType), typeInfo[Int])
+  val findElt = mb.genEmitMethod("findElt", FastSeq[ParamType](containerType.paramType, eltType.paramType), typeInfo[Int])
 
   // Returns i in [0, n] such that a(j) < key for j in [0, i), and a(j) >= key
   // for j in [i, n)

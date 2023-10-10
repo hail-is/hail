@@ -1,27 +1,24 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
+import is.hail.io.exportTypes
 import is.hail.io.fs.FS
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PStruct}
 import is.hail.types.virtual.{Field, TArray, TStruct}
 import is.hail.types.{MatrixType, TableType}
-import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDPartitioner, RVDType}
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.JsonMethods
 
 object TableExecuteIntermediate {
   def apply(tv: TableValue): TableExecuteIntermediate = new TableValueIntermediate(tv)
@@ -183,7 +180,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         globals
       else
         globals.cast(
-          globalsT.insertFields(FastIndexedSeq(
+          globalsT.insertFields(FastSeq(
             colsFieldName -> PCanonicalArray(colsT.elementType.setRequired(true), true))))
 
     val newTV = TableValue(ctx, typ, globals2, rvd)

@@ -7,7 +7,7 @@ class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
     a match {
       case null | None => sb.append("NA")
       case Some(x) => tsvAppend(x)
-      case d: Double => sb.append(d.formatted("%.5e"))
+      case d: Double => sb.append("%.5e".format(d))
       case i: Iterable[_] =>
         var first = true
         i.foreach { x =>

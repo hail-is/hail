@@ -1,18 +1,13 @@
 package is.hail.utils.richUtils
 
-import java.io.PrintWriter
-
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
-import is.hail.backend.HailStateManager
+import is.hail.annotations.{Region, RegionValue}
 import is.hail.types.physical.PStruct
-import is.hail.types.virtual.TStruct
-import is.hail.rvd.RVDContext
-
-import scala.collection.JavaConverters._
-import scala.io.Source
 import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
 import org.apache.spark.sql.Row
 
+import java.io.PrintWriter
+import scala.collection.JavaConverters._
+import scala.io.Source
 import scala.reflect.ClassTag
 
 class RichIteratorLong(val it: Iterator[Long]) extends AnyVal {
@@ -142,9 +137,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       }
     }
 
-  def toFastSeq(implicit tct: ClassTag[T]): Seq[T] = toFastIndexedSeq
-
-  def toFastIndexedSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = it.toArray[T]
+  def toFastSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = it.toArray[T]
 
   def headOption: Option[T] = if (it.isEmpty) None else Some(it.next())
 }

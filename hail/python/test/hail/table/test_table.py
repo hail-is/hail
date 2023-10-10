@@ -2151,6 +2151,9 @@ def test_table_randomness_interval_join():
     t = t1.annotate(x=t2[t1.idx].idx)
     assert_contains_node(t, ir.TableIntervalJoin)
     assert_unique_uids(t)
+    t = t1.annotate(x=t2.index(t1.idx, all_matches=True).idx)
+    assert_contains_node(t, ir.TableIntervalJoin)
+    assert_unique_uids(t)
 
 
 def test_table_randomness_union():

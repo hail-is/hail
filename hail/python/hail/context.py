@@ -140,6 +140,7 @@ class HailContext(object):
         return self._default_ref
 
     def stop(self):
+        assert self._backend
         self._backend.stop()
         self._backend = None
         Env._hc = None

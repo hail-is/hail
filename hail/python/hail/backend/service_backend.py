@@ -8,7 +8,7 @@ import orjson
 import logging
 import warnings
 
-from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, version
 from hail.utils import FatalError
 from hail.expr.types import HailType, dtype, ttuple, tvoid
 from hail.expr.table_type import ttable
@@ -225,17 +225,22 @@ class ServiceBackend(Backend):
         if batch_client is None:
             batch_client = await aiohb.BatchClient.create(billing_project, _token=credentials_token)
         bc = hb.BatchClient.from_async(batch_client)
-        batch_attributes: Dict[str, str] = dict()
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
         jar_url = configuration_of(ConfigVariable.QUERY_JAR_URL, jar_url, None)
         jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
 
+        name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
+        batch_attributes: Dict[str, str] = {
+            'hail-version': version(),
+        }
+        if name_prefix:
+            batch_attributes['name'] = name_prefix
+
         driver_cores = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_CORES, driver_cores, None)
         driver_memory = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_MEMORY, driver_memory, None)
         worker_cores = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, None)
         worker_memory = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None)
-        name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
 
         if regions is None:
             regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, None)
@@ -282,7 +287,6 @@ class ServiceBackend(Backend):
             driver_memory=driver_memory,
             worker_cores=worker_cores,
             worker_memory=worker_memory,
-            name_prefix=name_prefix or '',
             regions=regions
         )
         sb._initialize_flags(flags)
@@ -302,7 +306,6 @@ class ServiceBackend(Backend):
                  driver_memory: Optional[str],
                  worker_cores: Optional[Union[int, str]],
                  worker_memory: Optional[str],
-                 name_prefix: str,
                  regions: List[str]):
         super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
@@ -322,7 +325,6 @@ class ServiceBackend(Backend):
         self.driver_memory = driver_memory
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
-        self.name_prefix = name_prefix
         self.regions = regions
 
         self._batch: aiohb.Batch = self._create_batch()
@@ -433,10 +435,6 @@ class ServiceBackend(Backend):
                     await inputs(infile, self._batch.token)
 
             with timings.step("submit batch"):
-                batch_attributes = self.batch_attributes
-                if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': self.name_prefix}
-
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
                 if driver_cores is not None:
                     resources['cpu'] = str(driver_cores)

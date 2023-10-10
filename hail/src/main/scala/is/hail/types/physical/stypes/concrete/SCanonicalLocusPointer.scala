@@ -4,11 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.virtual.Type
-import is.hail.utils.FastIndexedSeq
-import is.hail.variant.ReferenceGenome
+import is.hail.utils.FastSeq
 
 
 final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
@@ -33,7 +32,7 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
         new SCanonicalLocusPointerValue(this, locusCopy, contigCopy, value.position(cb))
     }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo, LongInfo, IntInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalLocusPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked], contig: Settable[Long@unchecked], position: Settable[Int@unchecked]) = settables
@@ -66,7 +65,7 @@ class SCanonicalLocusPointerValue(
 ) extends SLocusValue {
   val pt: PCanonicalLocus = st.pType
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, _contig, _position)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a, _contig, _position)
 
   override def contig(cb: EmitCodeBuilder): SStringValue = {
     pt.contigType.loadCheapSCode(cb, _contig).asString
@@ -95,7 +94,7 @@ final class SCanonicalLocusPointerSettable(
   _contig: Settable[Long],
   override val _position: Settable[Int]
 ) extends SCanonicalLocusPointerValue(st, a, _contig, _position) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, _position)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a, _contig, _position)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SCanonicalLocusPointerValue =>

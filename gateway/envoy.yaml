@@ -97,6 +97,8 @@ data:
                 - name: envoy.filters.http.ext_authz
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                    status_on_error:
+                      code: 503
                     http_service:
                       server_uri:
                         uri: https://auth:443

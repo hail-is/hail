@@ -42,10 +42,10 @@ package object services {
     // Based on AWS' recommendations:
     // - https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
     // - https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java
-    val multiplier = 1 << math.min(tries, LOG_2_MAX_MULTIPLIER)
-    val ceilingForDelayMs = baseDelayMs * multiplier
+    val multiplier = 1L << math.min(tries, LOG_2_MAX_MULTIPLIER)
+    val ceilingForDelayMs = math.min(baseDelayMs * multiplier, maxDelayMs).toInt
     val proposedDelayMs = ceilingForDelayMs / 2 + Random.nextInt(ceilingForDelayMs / 2 + 1)
-    return math.min(proposedDelayMs, maxDelayMs)
+    return proposedDelayMs
   }
 
   def sleepBeforTry(

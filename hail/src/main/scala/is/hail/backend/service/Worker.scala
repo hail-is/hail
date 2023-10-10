@@ -121,9 +121,13 @@ object Worker {
     timer.start("readInputs")
     val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
-    // FIXME: HACK: working around the memory service until the issue is resolved:
-    // https://hail.zulipchat.com/#narrow/stream/223457-Hail-Batch-support/topic/Batch.20Query.3A.20possible.20overloading.20of.20.60memory.60.20service/near/280823230
-    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
+    def open(x: String): SeekableDataInputStream = {
+      fs.openNoCompression(x)
+    }
+
+    def write(x: String)(writer: PositionedDataOutputStream => Unit): Unit = {
+      fs.writePDOS(x)(writer)
+    }
 
     val fFuture = Future {
       retryTransientErrors {

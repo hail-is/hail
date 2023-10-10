@@ -18,7 +18,7 @@ from .cloud.resource_utils import (
     valid_machine_types,
 )
 from .cloud.utils import possible_cloud_locations
-from .driver.billing_manager import ProductVersions
+from .driver.billing_manager import ProductVersionInfo, ProductVersions
 from .instance_config import InstanceConfig
 
 log = logging.getLogger('inst_coll_config')
@@ -296,9 +296,9 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         }
 
     @staticmethod
-    async def product_versions_from_db(db: Database) -> Dict[str, str]:
+    async def product_versions_from_db(db: Database) -> Dict[str, ProductVersionInfo]:
         return {
-            record['product']: record['version']
+            record['product']: ProductVersionInfo(latest_version=record['version'], sku=record['sku'])
             async for record in db.execute_and_fetchall('SELECT * FROM latest_product_versions;')
         }
 
@@ -307,7 +307,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         name_pool_config: Dict[str, PoolConfig],
         jpim_config: JobPrivateInstanceManagerConfig,
         resource_rates: Dict[str, float],
-        product_versions_data: Dict[str, str],
+        product_versions_data: Dict[str, ProductVersionInfo],
     ):
         self.name_pool_config = name_pool_config
         self.jpim_config = jpim_config

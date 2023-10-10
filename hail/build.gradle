@@ -89,6 +89,8 @@ compileScala {
 }
 
 configurations {
+    justSpark
+
     all {
         resolutionStrategy {
             eachDependency { DependencyResolveDetails details ->
@@ -96,14 +98,20 @@ configurations {
                     details.useVersion(sparkVersion)
                 }
             }
-	}
+        }
     }
 
-    testCompileOnly.extendsFrom shadow
+    hailJar.extendsFrom implementation
+    hailJar {
+        exclude group: 'org.scala-lang', module: 'scala-library'
+        exclude group: 'org.apache.spark'
+    }
+
+    testImplementation.extendsFrom shadow
 }
 
 dependencies {
-    shadow ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
+    justSpark('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude group: 'org.scalanlp'
     }
 
@@ -134,7 +142,7 @@ dependencies {
     implementation 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
     implementation 'com.github.fommil.netlib:all:1.1.2'
-    implementation('com.github.samtools:htsjdk:3.0.4') {
+    implementation('com.github.samtools:htsjdk:3.0.5') {  // htsjdk >=4.0.0 requires Java >=17
         transitive = false
     }
 
@@ -161,7 +169,7 @@ dependencies {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.26.1') {
+    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.27.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -185,7 +193,7 @@ dependencies {
     shadow group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     implementation group: 'commons-codec', name: 'commons-codec', version: '1.15'
     implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.12.0'
-    implementation(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
+    implementation(group: 'org.apache.avro', name: 'avro', version: '1.11.2') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -334,12 +342,13 @@ tasks.withType(ShadowJar) {
 
 shadowJar {
     archiveClassifier = 'spark'
+    from project.sourceSets.main.output
+    configurations = [project.configurations.hailJar]
 }
 
 task shadowTestJar(type: ShadowJar) {
     archiveClassifier = 'spark-test'
-    from sourceSets.test.output
-    from sourceSets.main.output
+    from project.sourceSets.main.output, project.sourceSets.test.output
     configurations = [project.configurations.testRuntimeClasspath]
 }
 

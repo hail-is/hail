@@ -4,10 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.{PCanonicalNDArray, PNumeric, PPrimitive, PType}
+import is.hail.types.physical.stypes.{SType, SValue}
+import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
-import is.hail.utils.{FastIndexedSeq, toRichIterable}
+import is.hail.utils.{FastSeq, toRichIterable}
 
 final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   require(!pType.required)
@@ -67,7 +67,7 @@ class SNDArrayPointerValue(
 ) extends SNDArrayValue {
   val pt: PCanonicalNDArray = st.pType
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a) ++ shapes ++ strides ++ FastIndexedSeq(firstDataAddress)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a) ++ shapes ++ strides ++ FastSeq(firstDataAddress)
 
   override def shapeStruct(cb: EmitCodeBuilder): SBaseStructValue =
     pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape"))
@@ -97,7 +97,7 @@ class SNDArrayPointerValue(
   )(body: IndexedSeq[SValue] => SValue
   ): Unit = {
     SNDArray._coiterate(cb, indexVars, (this, destIndices, "dest") +: arrays: _*) { ptrs =>
-      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
+      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastSeq.map { case (array, ptr) =>
         val pt: PType = array.st.pType.elementType
         pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
       }
@@ -123,7 +123,7 @@ final class SNDArrayPointerSettable(
   override val strides: IndexedSeq[Settable[Long]],
   override val firstDataAddress: Settable[Long]
 ) extends SNDArrayPointerValue(st, a, shape.map(SizeValueDyn.apply), strides, firstDataAddress) with SNDArraySettable {
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(firstDataAddress)
+  def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a) ++ shape ++ strides ++ FastSeq(firstDataAddress)
 
   def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SNDArrayPointerValue =>

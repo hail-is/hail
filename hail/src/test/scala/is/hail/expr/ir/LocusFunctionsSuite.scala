@@ -1,10 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
-import is.hail.HailSuite
-import is.hail.types.physical.{PCanonicalLocus, PInterval}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
+import is.hail.utils.{FastSeq, Interval}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -58,8 +56,8 @@ class LocusFunctionsSuite extends HailSuite {
   }
 
   @Test def minRep() {
-    val alleles = MakeArray(FastIndexedSeq(Str("AA"), Str("AT")), TArray(TString))
-    assertEvalsTo(invoke("min_rep", tvariant, locusIR, alleles), Row(Locus("chr22", 2), FastIndexedSeq("A", "T")))
+    val alleles = MakeArray(FastSeq(Str("AA"), Str("AT")), TArray(TString))
+    assertEvalsTo(invoke("min_rep", tvariant, locusIR, alleles), Row(Locus("chr22", 2), FastSeq("A", "T")))
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, NA(TArray(TString))), null)
   }
 
