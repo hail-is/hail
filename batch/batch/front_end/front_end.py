@@ -350,7 +350,7 @@ async def _query_batch_jobs(
 
 
 @routes.get('/api/v1alpha/batches/completed')
-@auth.rest_authenticated_users_only
+@auth.authenticated_users_only()
 async def get_completed_batches_ordered_by_completed_time(request, userdata):
     db = request.app['db']
     where_args = [userdata['username']]
@@ -453,7 +453,7 @@ async def get_jobs_v2(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/resources')
-@rest_billing_project_users_only
+@billing_project_users_only()
 async def get_jobs_for_billing(request, userdata, batch_id):
     """
     Get jobs for batch to check the amount of resources used.
@@ -491,7 +491,7 @@ async def get_jobs_for_billing(request, userdata, batch_id):
     }
     """
 
-    # just noting the @rest_billing_project_users_only decorator
+    # just noting the @billing_project_users_only() decorator
     #   does the permission checks for us
     jobs, last_job_id = await _query_batch_jobs_for_billing(request, batch_id)
     resp = {'jobs': jobs}
