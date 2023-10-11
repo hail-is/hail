@@ -124,8 +124,8 @@ trait BackendWithCodeCache {
       case Some(v) => v.asInstanceOf[CompiledFunction[T]]
       case None =>
         val compiledFunction = f
-        codeCache += ((k, f))
-        f
+        codeCache += ((k, compiledFunction))
+        compiledFunction
     }
   }
 }
