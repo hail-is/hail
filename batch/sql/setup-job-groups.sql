@@ -19,8 +19,8 @@ CREATE INDEX `job_groups_time_created` ON `job_groups` (`batch_id`, `time_create
 CREATE INDEX `job_groups_time_completed` ON `job_groups` (`batch_id`, `time_completed`);  # used in list job groups and UI
 CREATE INDEX `job_groups_state_cancel_after_n_failures` ON `job_groups` (`state`, `cancel_after_n_failures`);  # used in cancelling any cancel fast job groups
 
-DROP TABLE IF EXISTS `job_group_parents`;
-CREATE TABLE IF NOT EXISTS `job_group_parents` (
+DROP TABLE IF EXISTS `job_group_tree`;
+CREATE TABLE IF NOT EXISTS `job_group_tree` (
   `batch_id` BIGINT NOT NULL,
   `job_group_id` INT NOT NULL,
   `parent_id` INT NOT NULL,
@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS `job_group_parents` (
   FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `parent_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX `job_group_parents_parent_id_level` ON `job_group_parents` (`batch_id`, `parent_id`, `level`);
-CREATE INDEX `job_group_parents_job_group_id_level` ON `job_group_parents` (`batch_id`, `job_group_id`, `level`);
+CREATE INDEX `job_group_tree_parent_id_level` ON `job_group_tree` (`batch_id`, `parent_id`, `level`);
+CREATE INDEX `job_group_tree_job_group_id_level` ON `job_group_tree` (`batch_id`, `job_group_id`, `level`);
 
 ALTER TABLE batches ADD COLUMN migrated_batch BOOLEAN NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
 
@@ -65,7 +65,7 @@ BEGIN
     INSERT INTO job_groups (batch_id, job_group_id, `user`, cancel_after_n_failures, `state`, n_jobs, time_created, time_completed, callback, attributes)
     VALUES (NEW.id, 0, NEW.`user`, NEW.cancel_after_n_failures, NEW.state, NEW.n_jobs, NEW.time_created, NEW.time_completed, NEW.callback, NEW.attributes);
 
-    INSERT INTO job_group_parents (batch_id, job_group_id, parent_id, `level`)
+    INSERT INTO job_group_tree (batch_id, job_group_id, parent_id, `level`)
     VALUES (NEW.id, 0, 0, 0);
   END IF;
 END $$
@@ -235,6 +235,8 @@ BEGIN
   END IF;
 END $$
 
+# https://dev.mysql.com/doc/refman/8.0/en/cursors.html
+# https://stackoverflow.com/questions/5817395/how-can-i-loop-through-all-rows-of-a-table-mysql/16350693#16350693
 DROP PROCEDURE IF EXISTS mark_job_group_complete $$
 CREATE PROCEDURE mark_job_group_complete(
   IN in_batch_id BIGINT,
@@ -249,7 +251,7 @@ BEGIN
 
   DECLARE job_group_cursor CURSOR FOR
   SELECT parent_id
-  FROM job_group_parents
+  FROM job_group_tree
   WHERE batch_id = in_batch_id AND job_group_id = in_job_group_id
   ORDER BY job_group_id ASC;
 
@@ -375,7 +377,7 @@ BEGIN
     UPDATE batches_n_jobs_in_complete_states
     INNER JOIN (
       SELECT batch_id, parent_id
-      FROM job_group_parents
+      FROM job_group_tree
       WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id AND job_group_id != 0
       ORDER BY job_group_id ASC
     ) AS t ON batches_n_jobs_in_complete_states.id = t.batch_id AND batches_n_jobs_in_complete_states.job_group_id = t.parent_id
