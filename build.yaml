@@ -1462,7 +1462,7 @@ steps:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
         FROM $BASE_IMAGE
-        RUN hail-apt-get-install make
+        RUN hail-apt-get-install git make
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
         COPY gear/pinned-requirements.txt gear-requirements.txt
@@ -2791,6 +2791,7 @@ steps:
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/tls/create_test_db_config.sh ./ci/test/resources/
       cp /io/repo/pylintrc ./
+      cp /io/repo/check-sql.sh ./
       cp /io/repo/pyproject.toml ./
       cp -R /io/repo/docker ./
       cp -R /io/repo/gear ./

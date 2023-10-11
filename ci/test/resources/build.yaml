@@ -219,6 +219,28 @@ steps:
         to: /io/pyproject.toml
     dependsOn:
       - hello_image
+  - kind: runImage
+    name: check_sql_linting
+    image:
+      valueFrom: git_make_bash_image.image
+    script: |
+      set -ex
+      cd /io/repo/ci/test/resources
+      echo "foo" >> sql/create-hello-tables.sql
+
+      set +e
+      bash /io/repo/check-sql.sh
+
+      if [[ $? -eq 0 ]]
+      then
+          echo "check-sql.sh passed when it should have failed"
+      fi
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - git_make_bash_image
+      - merge_code
   - kind: createDatabase2
     name: hello_database
     databaseName: hello
