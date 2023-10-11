@@ -127,20 +127,25 @@ class LocalBackend(Py4JBackend):
         hail_jar_path = os.environ.get('HAIL_JAR')
         if hail_jar_path is None:
             try:
-                hail_jar_path = local_jar_information().path
+                local_jar_info = local_jar_information()
+                hail_jar_path = local_jar_info.path
+                extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path, *local_jar_info.extra_classpath])
             except ValueError:
                 raise RuntimeError('local backend requires a packaged jar or HAIL_JAR to be set')
+        else:
+            extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path])
 
         jvm_opts = []
         if jvm_heap_size is not None:
             jvm_opts.append(f'-Xmx{jvm_heap_size}')
+
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
             java_path=None,
             javaopts=jvm_opts,
             jarpath=f'{spark_home}/jars/py4j-0.10.9.5.jar',
-            classpath=f'{spark_home}/jars/*:{hail_jar_path}',
+            classpath=extra_classpath,
             die_on_exit=True)
         self._gateway = JavaGateway(
             gateway_parameters=GatewayParameters(port=port, auto_convert=True))
