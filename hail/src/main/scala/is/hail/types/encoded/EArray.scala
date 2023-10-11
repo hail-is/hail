@@ -44,11 +44,11 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
         val array = value.asInstanceOf[SIndexablePointerValue].a
         if (!elementType.required) {
-          val nMissingLocal = cb.newLocal[Int]("nMissingBytes", pArray.nMissingBytes(prefixLen))
-          cb.ifx(nMissingLocal > 0, {
-            cb += out.writeBytes(array + pArray.missingBytesOffset, nMissingLocal - 1)
+          val nMissingBytes = cb.memoize(pArray.nMissingBytes(prefixLen), "nMissingBytes")
+          cb.ifx(nMissingBytes > 0, {
+            cb += out.writeBytes(array + pArray.missingBytesOffset, nMissingBytes - 1)
             cb += out.writeByte((Region.loadByte(array + pArray.missingBytesOffset
-              + (nMissingLocal - 1).toL) & EType.lowBitMask(prefixLen)).toB)
+              + (nMissingBytes - 1).toL) & EType.lowBitMask(prefixLen)).toB)
           })
         }
       case _ =>
@@ -107,18 +107,18 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val pastLastOff = cb.memoize(arrayType.pastLastElementOffset(array, len))
     if (elementType.required) {
       val elemOff = cb.newLocal[Long]("elemOff", arrayType.firstElementOffset(array, len))
-      if (arrayType.trivialElements) {
+      if (arrayType.zeroSizeElements) {
         // elements have 0 size, so all elements have the same address
         // still need to read `len` elements from the input stream, as they may have non-zero size
         val i = cb.newLocal[Int]("i", 0)
-        cb.forLoop({}, i < (len & -8), cb.assign(i, i + 8), {
+        cb.forLoop({}, i < UnsafeUtils.roundDownAlignment(len, 8), cb.assign(i, i + 8), {
           for (k <- 0 until 8)
-            readElemF(cb, region, cb.memoize(arrayType.incrementElementOffset(elemOff, k)), in)
+            readElemF(cb, region, elemOff, in)
         })
         cb.forLoop({}, i < len, cb.assign(i, i + 1), readElemF(cb, region, elemOff, in))
       } else {
-        val lastBlockAddr = cb.memoize(arrayType.elementOffset(array, len, len & -8))
-        cb.forLoop({}, elemOff < lastBlockAddr, cb.assign(elemOff, arrayType.incrementElementOffset(elemOff, 8)), {
+        val lastBlockOffset = cb.memoize(arrayType.elementOffset(array, len, UnsafeUtils.roundDownAlignment(len, 8)))
+        cb.forLoop({}, elemOff < lastBlockOffset, cb.assign(elemOff, arrayType.incrementElementOffset(elemOff, 8)), {
           for (i <- 0 until 8)
             readElemF(cb, region, cb.memoize(arrayType.incrementElementOffset(elemOff, i)), in)
         })
@@ -131,9 +131,9 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
       cb.ifx((len % 64).cne(0), {
         // ensure that the last missing block has all missing bits set past the last element
-        val lastMissingBlockAddr = cb.memoize((arrayType.pastLastMissingByteAddr(array, len) - 1) & -8)
-        val lastMissingBlock = cb.memoize(Region.loadLong(lastMissingBlockAddr))
-        cb += Region.storeLong(lastMissingBlockAddr, lastMissingBlock | (const(-1L) << len))
+        val lastMissingBlockOff = cb.memoize(UnsafeUtils.roundDownAlignment(arrayType.pastLastMissingByteOff(array, len) - 1, 8))
+        val lastMissingBlock = cb.memoize(Region.loadLong(lastMissingBlockOff))
+        cb += Region.storeLong(lastMissingBlockOff, lastMissingBlock | (const(-1L) << len))
       })
 
       def unsetRightMostBit(x: Value[Long]): Code[Long] =
@@ -142,12 +142,12 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       val presentBits = cb.newLocal[Long]("presentBits", 0L)
       val mbyteOffset = cb.newLocal[Long]("mbyteOffset", array + arrayType.missingBytesOffset)
       val blockOff = cb.newLocal[Long]("blockOff", arrayType.firstElementOffset(array, len))
-      val pastLastMissingByteAddr = cb.memoize(arrayType.pastLastMissingByteAddr(array, len), "pastLastMissingByteAddr")
+      val pastLastMissingByteOff = cb.memoize(arrayType.pastLastMissingByteOff(array, len), "pastLastMissingByteAddr")
       val inBlockIndexToPresentValue = cb.newLocal[Int]("inBlockIndexToPresentValue", 0)
 
       cb.forLoop(
         {},
-        mbyteOffset < pastLastMissingByteAddr,
+        mbyteOffset < pastLastMissingByteOff,
         {
           cb.assign(blockOff, arrayType.incrementElementOffset(blockOff, 64))
           cb.assign(mbyteOffset, mbyteOffset + 8)

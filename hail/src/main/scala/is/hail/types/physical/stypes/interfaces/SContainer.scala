@@ -81,10 +81,9 @@ trait SIndexableValue extends SValue {
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
     val storageType = this.st.storageType().asInstanceOf[PContainer]
     val length = this.loadLength()
-    val totalSize = cb.newLocal[Long]("sindexableptr_size_in_bytes")
+    val totalSize = cb.newLocal[Long]("sindexableptr_size_in_bytes", storageType.elementsOffset(length).toL)
     if (this.st.elementType.containsPointers) {
       this.forEachDefined(cb) { (cb, _, element) =>
-        cb.assign(totalSize, storageType.elementsOffset(length).toL)
         cb.assign(totalSize, totalSize + element.sizeToStoreInBytes(cb).value)
       }
     } else {
