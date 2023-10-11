@@ -59,7 +59,9 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   def getCurrentBlock(): Long = currentBlock
 
   private def allocateBigChunk(size: Long): Long = {
-    val (chunkPointer, chunkSize) = pool.getChunk(size)
+    val ret = pool.getChunk(size)
+    val chunkPointer = ret._1
+    val chunkSize = ret._2
     bigChunks.add(chunkPointer)
     totalChunkMemory += chunkSize
     chunkPointer
