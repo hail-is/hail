@@ -1,5 +1,6 @@
 from typing import Callable, TypeVar, cast
 from typing_extensions import ParamSpec
+import base64
 import copy
 import json
 from collections import defaultdict
@@ -3639,6 +3640,27 @@ class Literal(IR):
     def _eq(self, other):
         return other._typ == self._typ and \
             other.value == self.value
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return self._typ
+
+
+class EncodedLiteral(IR):
+    @typecheck_method(typ=hail_type, value=anytype)
+    def __init__(self, typ, value):
+        super(EncodedLiteral, self).__init__()
+        self._typ: HailType = typ
+        self.encoded_value = base64.b64encode(typ._to_encoding(value)).decode('utf-8')
+
+    def copy(self):
+        return EncodedLiteral(self._typ, self.encoded_value)
+
+    def head_str(self):
+        return f'{self._typ._parsable_string()} "{self.encoded_value}"'
+
+    def _eq(self, other):
+        return other._typ == self._typ and \
+            other.encoded_value == self.encoded_value
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         return self._typ

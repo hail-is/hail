@@ -1,5 +1,6 @@
 import re
 import unittest
+import numpy as np
 import hail as hl
 import hail.ir as ir
 from hail.ir.renderer import CSERenderer
@@ -570,3 +571,22 @@ class CSETests(unittest.TestCase):
                     ' (bar (GetField idx (Ref row)))))'
         )
         assert expected == CSERenderer()(x)
+
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        1,
+        5.0,
+        "foo",
+        [1, 2, 3, 4],
+        (5, 6, 7, 8),
+        {"foo", "bar", "baz"},
+        {"a": 1, "b": 2},
+        np.array([[1, 2], [3, 4], [5, 6]]),
+    ]
+)
+def test_literal_encoding(value):
+    lit = hl.literal(value)
+    round_trip = lit.dtype._from_encoding(lit.dtype._to_encoding(value))
+    assert hl.eval(round_trip == lit)
