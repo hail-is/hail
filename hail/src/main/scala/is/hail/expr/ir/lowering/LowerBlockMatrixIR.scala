@@ -252,6 +252,8 @@ abstract class BMSContexts {
 
   def irValue: IR
 
+  def isPresent(row: IR, col: IR): IR
+
   def apply(row: IR, col: IR): IR
 
   // body args: (rowIdx, colIdx, position, old context)
@@ -285,6 +287,8 @@ case class DenseContexts(nRows: TrivialIR, nCols: TrivialIR, contexts: TrivialIR
   def print(ctx: ExecuteContext): Unit = {
     println(s"DenseContexts:\n  nRows = ${Pretty(ctx, nRows)}\n  nCols = ${Pretty(ctx, nCols)}\n  contexts = ${Pretty(ctx, contexts)}")
   }
+
+  def isPresent(row: IR, col: IR): IR = True()
 
   def apply(row: IR, col: IR): IR = ArrayRef(contexts, (col * nRows) + row)
 
@@ -398,6 +402,14 @@ case class SparseContexts(nRows: TrivialIR, nCols: TrivialIR, rowPos: TrivialIR,
 
   def print(ctx: ExecuteContext): Unit = {
     println(s"SparseContexts:\n  nRows = ${ Pretty(ctx, nRows) }\n  nCols = ${ Pretty(ctx, nCols) }\n  contexts = ${ Pretty(ctx, contexts) }")
+  }
+
+  def isPresent(row: IR, col: IR): IR = {
+    val startPos = ArrayRef(rowPos, col)
+    val endPos = ArrayRef(rowPos, col + 1)
+    bindIR(
+      Apply("lowerBound", Seq(), FastSeq(rowIdx, row, startPos, endPos), TInt32, ErrorIDs.NO_ERROR)
+    )(pos => ArrayRef(rowIdx, pos).ceq(row))
   }
 
   def apply(row: IR, col: IR): IR = {
@@ -867,31 +879,40 @@ object LowerBlockMatrixIR {
     analyses: LoweringAnalyses
   ): TableStage = {
     val ib = new IRBuilder()
-    val bms = lower(bmir, ib, typesToLower, ctx, analyses).toOldBMS
-    val typ = bmir.typ
-    val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(FastSeq(0 -> i, 1 -> j))}
-    val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
-      Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
-    }
+    val bmStage = lower(bmir, ib, typesToLower, ctx, analyses)
     val emptyGlobals = MakeStruct(FastSeq())
-    val globalsId = genUID()
-    val letBindings = ib.getBindings :+ globalsId -> emptyGlobals
-    val contextsIR = MakeStream(blocksRowMajor.map{ case (i, j) =>  bmsWithCtx.blockContext((i, j)) }, TStream(bmsWithCtx.ctxType))
-
-    val ctxRef = Ref(genUID(), bmsWithCtx.ctxType)
-    val body = bmsWithCtx.blockBody(ctxRef)
-    val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
-    val bcFields = (bmsWithCtx.broadcastVals
-      .filter { case Ref(f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
-      .map { ref => ref.name -> ref }
-      :+ globalsId -> Ref(globalsId, emptyGlobals.typ))
-
-    def tsPartitionFunction(ctxRef: Ref): IR = {
-      val s = MakeStruct(FastSeq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
-      MakeStream(FastSeq(s), TStream(s.typ))
+    val globalsRef = Ref(genUID(), emptyGlobals.typ)
+    val letBindings = ib.getBindings :+ globalsRef.name -> emptyGlobals
+    val broadcastVals = (bmStage.broadcastVals.map { ref => ref.name -> ref }) :+ (globalsRef.name -> globalsRef)
+    val nRowBlocks = bmStage.contexts.nRows
+    val nColBlocks = bmStage.contexts.nCols
+    val contexts = flatMapIR(rangeIR(nRowBlocks)) { row =>
+      mapIR(
+        filterIR(rangeIR(nColBlocks))(col => bmStage.contexts.isPresent(row, col))
+      )(col => maketuple(row, col, bmStage.contexts(row, col)))
     }
-    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(ctx.stateManager, blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
-    ts
+    def body(tableCtx: Ref): IR = {
+      val row = GetTupleElement(tableCtx, 0)
+      val col = GetTupleElement(tableCtx, 1)
+      val ctx = GetTupleElement(tableCtx, 2)
+      val block = MakeStruct(FastSeq(
+        "blockRow" -> row,
+        "blockCol" -> col,
+        "block" -> bindIR(ctx)(bmStage.blockIR _)
+      ))
+
+      MakeStream(FastSeq(block), TStream(block.typ))
+    }
+
+    TableStage(
+      letBindings,
+      broadcastVals,
+      globalsRef,
+      RVDPartitioner.unkeyed(ctx.stateManager, bmir.typ.nDefinedBlocks),
+      TableStageDependency.none,
+      contexts,
+      body
+    )
   }
 
   private def unimplemented[T](ctx: ExecuteContext, node: BaseIR): T =
