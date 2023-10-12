@@ -4,7 +4,7 @@ import typer
 from typer import Option as Opt, Argument as Arg
 import json
 
-from typing import Optional, List, Annotated as Ann, cast, Dict, Any
+from typing import Optional, List, Annotated as Ann, cast, Dict, Any, Tuple
 
 from . import list_batches
 from . import billing
@@ -165,6 +165,9 @@ def submit(
     files: Ann[
         Optional[List[str]], Opt(help='Files or directories to add to the working directory of the job.')
     ] = None,
+    mounts: Ann[
+        Optional[List[str]], Opt(help='Files or directories to add to a specific mount location in the job. Equivalent to -v src:dest in Docker.')
+    ] = None,
     name: Ann[str, Opt(help='The name of the batch.')] = '',
     image_name: Ann[Optional[str], Opt(help='Name of Docker image for the job (default: hailgenetics/hail)')] = None,
     output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
@@ -177,7 +180,7 @@ def submit(
 
     $ hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
     '''
-    asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
+    asyncio.run(_submit.submit(name, image_name, files or [], mounts or [], output, script, [*(arguments or []), *ctx.args]))
 
 
 @app.command('init', help='Initialize a Hail Batch environment.')

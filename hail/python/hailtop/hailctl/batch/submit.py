@@ -4,7 +4,7 @@ from shlex import quote as shq
 from hailtop import pip_version
 
 
-async def submit(name, image_name, files, output, script, arguments):
+async def submit(name, image_name, files, mounts, output, script, arguments):
     import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
     from hailtop.aiotools.copy import copy_from_dict  # pylint: disable=import-outside-toplevel
     from hailtop.config import (  # pylint: disable=import-outside-toplevel
@@ -17,6 +17,7 @@ async def submit(name, image_name, files, output, script, arguments):
         unpack_comma_delimited_inputs,
     )
 
+    script = os.path.expanduser(script)
     files = unpack_comma_delimited_inputs(files)
     user_config = get_user_config_path()
     quiet = output != 'text'
@@ -32,8 +33,15 @@ async def submit(name, image_name, files, output, script, arguments):
     j = b.new_bash_job()
     j.image(image_name or os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}'))
 
-    rel_file_paths = [os.path.relpath(file) for file in files]
+    rel_file_paths = []
+    for file in files:
+        rel_path = os.path.relpath(file)
+        if rel_path.startswith('..'):
+            raise ValueError(f'File {file} is located in a parent of the current directory. Use the --mounts option with a mount point specified instead.')
+        rel_file_paths.append(rel_path)
+
     local_files_to_cloud_files = [{'from': local, 'to': cloud_prefix(local)} for local in rel_file_paths]
+
     await copy_from_dict(
         files=[
             {'from': script, 'to': cloud_prefix(script)},
@@ -46,6 +54,34 @@ async def submit(name, image_name, files, output, script, arguments):
         cloud_file = file['to']
         in_file = b.read_input(cloud_file)
         j.command(f'ln -s {in_file} {local_file}')
+
+    mount_files_to_cloud_files = []
+    for input in mounts:
+        if input.startswith('file://'):
+            input = input[7:]
+        if ':' not in input:
+            raise ValueError(f'Must specify mount point separated by a colon (ex: foo.py:/foo/)')
+
+        source, mount = input.split(':')
+        source = os.path.expanduser(source)
+
+        if not mount.startswith('/'):
+            raise ValueError(f'Mount point must start with a "/". Found {mount} for source {source}.')
+
+        if os.path.isfile(source):
+            mount = mount.rstrip('/') + '/'
+            dest = mount + os.path.basename(source)
+        else:
+            dest = mount
+
+        cloud_file = cloud_prefix(dest.lstrip('/'))
+
+        mount_files_to_cloud_files.append({'from': source, 'to': cloud_file})
+
+        in_file = b.read_input(cloud_file)
+        j.command(f'mkdir -p {os.path.dirname(dest)}; ln -s {in_file} {dest}')
+
+    await copy_from_dict(files=[*mount_files_to_cloud_files])
 
     script_file = b.read_input(cloud_prefix(script))
     config_file = b.read_input(cloud_prefix(user_config))
