@@ -1,23 +1,19 @@
 package is.hail
 
-import javax.net.ssl.SSLException
-import java.net._
-import java.io.EOFException
-import java.util.concurrent.TimeoutException
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.api.client.http.HttpResponseException
+import com.google.cloud.storage.StorageException
+import is.hail.shadedazure.reactor.core.Exceptions.ReactiveException
+import is.hail.shadedazure.com.azure.storage.common.implementation.Constants
 import is.hail.utils._
-
-import org.apache.http.NoHttpResponseException
-import org.apache.http.ConnectionClosedException
+import org.apache.http.{ConnectionClosedException, NoHttpResponseException}
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
-import is.hail.shadedazure.reactor.core.Exceptions.ReactiveException
-import is.hail.shadedazure.com.azure.storage.common.implementation.Constants
+import java.io.{EOFException, IOException, PrintWriter, StringWriter}
+import java.net.{NoRouteToHostException, SocketException, SocketTimeoutException, UnknownHostException}
+import javax.net.ssl.SSLException
 import scala.util.Random
-import java.io._
-import com.google.cloud.storage.StorageException
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
-import com.google.api.client.http.HttpResponseException
 
 package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -42,10 +38,10 @@ package object services {
     // Based on AWS' recommendations:
     // - https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
     // - https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java
-    val multiplier = 1 << math.min(tries, LOG_2_MAX_MULTIPLIER)
-    val ceilingForDelayMs = baseDelayMs * multiplier
+    val multiplier = 1L << math.min(tries, LOG_2_MAX_MULTIPLIER)
+    val ceilingForDelayMs = math.min(baseDelayMs * multiplier, maxDelayMs).toInt
     val proposedDelayMs = ceilingForDelayMs / 2 + Random.nextInt(ceilingForDelayMs / 2 + 1)
-    return math.min(proposedDelayMs, maxDelayMs)
+    return proposedDelayMs
   }
 
   def sleepBeforTry(

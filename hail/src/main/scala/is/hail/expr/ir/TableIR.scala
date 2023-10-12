@@ -7,7 +7,7 @@ import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction}
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LowerTableIRHelpers, LowererUnsupportedOperation, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
@@ -17,7 +17,6 @@ import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlock
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
-import is.hail.types.tcoerce
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
@@ -26,7 +25,6 @@ import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
-import is.hail.variant._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
@@ -156,12 +154,12 @@ object LoweredTableReader {
       case None =>
         info(s"scanning $context for sortedness...")
         val prevkey = AggSignature(PrevNonnull(),
-          FastIndexedSeq(),
-          FastIndexedSeq(keyType))
+          FastSeq(),
+          FastSeq(keyType))
 
         val count = AggSignature(Count(),
-          FastIndexedSeq(),
-          FastIndexedSeq())
+          FastSeq(),
+          FastSeq())
 
         val xType = TStruct(
           "key" -> keyType,
@@ -169,20 +167,20 @@ object LoweredTableReader {
           "prevkey" -> keyType)
 
         val samplekey = AggSignature(TakeBy(),
-          FastIndexedSeq(TInt32),
-          FastIndexedSeq(keyType, TFloat64))
+          FastSeq(TInt32),
+          FastSeq(keyType, TFloat64))
 
         val sum = AggSignature(Sum(),
-          FastIndexedSeq(),
-          FastIndexedSeq(TInt64))
+          FastSeq(),
+          FastSeq(TInt64))
 
         val minkey = AggSignature(TakeBy(),
-          FastIndexedSeq(TInt32),
-          FastIndexedSeq(keyType, keyType))
+          FastSeq(TInt32),
+          FastSeq(keyType, keyType))
 
         val maxkey = AggSignature(TakeBy(Descending),
-          FastIndexedSeq(TInt32),
-          FastIndexedSeq(keyType, keyType))
+          FastSeq(TInt32),
+          FastSeq(keyType, keyType))
 
         val scanBody = (ctx: IR) => StreamAgg(
           StreamAggScan(
@@ -193,30 +191,30 @@ object LoweredTableReader {
               (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
               (requestedType: Type) => keys(requestedType.asInstanceOf[TStruct]))),
             "key",
-            MakeStruct(FastIndexedSeq(
+            MakeStruct(FastSeq(
               "key" -> Ref("key", keyType),
               "token" -> invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0)),
-              "prevkey" -> ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("key", keyType)), prevkey)))),
+              "prevkey" -> ApplyScanOp(FastSeq(), FastSeq(Ref("key", keyType)), prevkey)))),
           "x",
-          Let("n", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), count),
+          Let("n", ApplyAggOp(FastSeq(), FastSeq(), count),
             AggLet("key", GetField(Ref("x", xType), "key"),
-              MakeStruct(FastIndexedSeq(
+              MakeStruct(FastSeq(
                 "n" -> Ref("n", TInt64),
                 "minkey" ->
                   ApplyAggOp(
-                    FastIndexedSeq(I32(1)),
-                    FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                    FastSeq(I32(1)),
+                    FastSeq(Ref("key", keyType), Ref("key", keyType)),
                     minkey),
                 "maxkey" ->
                   ApplyAggOp(
-                    FastIndexedSeq(I32(1)),
-                    FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                    FastSeq(I32(1)),
+                    FastSeq(Ref("key", keyType), Ref("key", keyType)),
                     maxkey),
                 "ksorted" ->
                   ApplyComparisonOp(EQ(TInt64),
                     ApplyAggOp(
-                      FastIndexedSeq(),
-                      FastIndexedSeq(
+                      FastSeq(),
+                      FastSeq(
                         invoke("toInt64", TInt64,
                           invoke("lor", TBoolean,
                             IsNA(GetField(Ref("x", xType), "prevkey")),
@@ -228,8 +226,8 @@ object LoweredTableReader {
                 "pksorted" ->
                   ApplyComparisonOp(EQ(TInt64),
                     ApplyAggOp(
-                      FastIndexedSeq(),
-                      FastIndexedSeq(
+                      FastSeq(),
+                      FastSeq(
                         invoke("toInt64", TInt64,
                           invoke("lor", TBoolean,
                             IsNA(selectPK(GetField(Ref("x", xType), "prevkey"))),
@@ -239,14 +237,14 @@ object LoweredTableReader {
                       sum),
                     Ref("n", TInt64)),
                 "sample" -> ApplyAggOp(
-                  FastIndexedSeq(I32(samplesPerPartition)),
-                  FastIndexedSeq(GetField(Ref("x", xType), "key"), GetField(Ref("x", xType), "token")),
+                  FastSeq(I32(samplesPerPartition)),
+                  FastSeq(GetField(Ref("x", xType), "key"), GetField(Ref("x", xType), "token")),
                   samplekey))),
               isScan = false)))
 
         val scanResult = CollectDistributedArray(
           ToStream(Literal(TArray(contextType), contexts)),
-          MakeStruct(FastIndexedSeq()),
+          MakeStruct(FastSeq()),
           "context",
           "globals",
           scanBody(Ref("context", contextType)), NA(TString), "table_coerce_sortedness")
@@ -258,7 +256,7 @@ object LoweredTableReader {
                 rangeIR(I32(0), ArrayLen(scanResult))) { i =>
                 InsertFields(
                   ArrayRef(scanResult, i),
-                  FastIndexedSeq("i" -> i))
+                  FastSeq("i" -> i))
               }) { row => ArrayLen(GetField(row, "minkey")) > 0 }
           ) { row =>
             InsertFields(row, FastSeq(
@@ -274,7 +272,7 @@ object LoweredTableReader {
 
         val summary =
           Let("sortedPartData", sortedPartDataIR,
-            MakeStruct(FastIndexedSeq(
+            MakeStruct(FastSeq(
               "ksorted" ->
                 invoke("land", TBoolean,
                   StreamFold(ToStream(Ref("sortedPartData", sortedPartDataIR.typ)),
@@ -328,8 +326,8 @@ object LoweredTableReader {
               "sortedPartData" -> Ref("sortedPartData", sortedPartDataIR.typ))))
 
         val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
+          FastSeq(),
+          FastSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
           summary,
           optimize = true)
 
@@ -489,8 +487,8 @@ abstract class TableReader {
         globals,
         RVDPartitioner.empty(ctx, requestedType.keyType),
         TableStageDependency.none,
-        MakeStream(FastIndexedSeq(), TStream(TStruct.empty)),
-        (_: Ref) => MakeStream(FastIndexedSeq(), TStream(requestedType.rowType)))
+        MakeStream(FastSeq(), TStream(TStruct.empty)),
+        (_: Ref) => MakeStream(FastSeq(), TStream(requestedType.rowType)))
     } else {
       lower(ctx, requestedType)
     }
@@ -573,8 +571,8 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
     requestedType: TStruct): IEmitCode = {
 
     val (Some(PTypeReferenceSingleCodeType(upcastPType: PBaseStruct)), upcast) = Compile[AsmFunction2RegionLongLong](ctx,
-      FastIndexedSeq(("elt", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)))),
-      FastIndexedSeq(classInfo[Region], LongInfo),
+      FastSeq(("elt", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)))),
+      FastSeq(classInfo[Region], LongInfo),
       LongInfo,
       PruneDeadFields.upcast(ctx, Ref("elt", rvd.rowType), requestedType))
 
@@ -781,9 +779,9 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
 
       val pathsType = VirtualTypeWithReq.fullyRequired(TArray(TString))
       val rowsPath = tableSpec.rowsComponent.absolutePath(tablePath)
-      val partitionPathsRuntime = cb.memoizeField(mb.addLiteral(cb, rowsSpec.absolutePartPaths(rowsPath).toFastIndexedSeq, pathsType), "partitionPathsRuntime")
+      val partitionPathsRuntime = cb.memoizeField(mb.addLiteral(cb, rowsSpec.absolutePartPaths(rowsPath).toFastSeq, pathsType), "partitionPathsRuntime")
         .asIndexable
-      val indexPathsRuntime = cb.memoizeField(mb.addLiteral(cb, rowsSpec.partFiles.map(partPath => s"${ rowsPath }/${ indexSpec.relPath }/${ partPath }.idx").toFastIndexedSeq, pathsType), "indexPathsRuntime")
+      val indexPathsRuntime = cb.memoizeField(mb.addLiteral(cb, rowsSpec.partFiles.map(partPath => s"${ rowsPath }/${ indexSpec.relPath }/${ partPath }.idx").toFastSeq, pathsType), "indexPathsRuntime")
         .asIndexable
 
       val currIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
@@ -943,7 +941,7 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
               elementRegion,
               eltSType.virtualType.asInstanceOf[TStruct],
               uidFieldName -> EmitValue.present(uidSType.fromEmitCodes(cb,
-                FastIndexedSeq(
+                FastSeq(
                 EmitCode.present(mb, primitive(currPartitionIdx)),
                 EmitCode.present(mb, primitive(currIdxInPartition))))))
             else decRow)
@@ -1529,8 +1527,8 @@ case class TableNativeZippedReader(
 
   def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong) = {
     val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
-      FastIndexedSeq("left" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pLeft)), "right" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pRight))),
-      FastIndexedSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
+      FastSeq("left" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pLeft)), "right" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pRight))),
+      FastSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
       InsertFields(Ref("left", pLeft.virtualType),
         pRight.fieldNames.map(f =>
           f -> GetField(Ref("right", pRight.virtualType), f))))
@@ -1668,7 +1666,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
       fatal(s"bad type:\n  full type: ${tr.fullType}\n  requested: $typ\n  reader: $tr", e)
   }
 
-  override def partitionCounts: Option[IndexedSeq[Long]] = if (dropRows) Some(FastIndexedSeq(0L)) else tr.partitionCounts
+  override def partitionCounts: Option[IndexedSeq[Long]] = if (dropRows) Some(FastSeq(0L)) else tr.partitionCounts
 
   def isDistinctlyKeyed: Boolean = tr.isDistinctlyKeyed
 
@@ -1695,7 +1693,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
   private val rowsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("rows").asInstanceOf[TArray]
   private val globalsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global").asInstanceOf[TStruct]
 
-  val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(rowsAndGlobal)
+  val childrenSeq: IndexedSeq[BaseIR] = FastSeq(rowsAndGlobal)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
     val IndexedSeq(newrowsAndGlobal: IR) = newChildren
@@ -1704,7 +1702,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
   val typ: TableType = TableType(
     rowsType.elementType.asInstanceOf[TStruct],
-    FastIndexedSeq(),
+    FastSeq(),
     globalsType)
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
@@ -1870,7 +1868,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 
   private val partCounts = partition(n, nPartitionsAdj)
 
-  override val partitionCounts = Some(partCounts.map(_.toLong).toFastIndexedSeq)
+  override val partitionCounts = Some(partCounts.map(_.toLong).toFastSeq)
 
   lazy val rowCountUpperBound: Option[Long] = Some(n.toLong)
 
@@ -1931,10 +1929,10 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
     val (Some(BooleanSingleCodeType), f) = ir.Compile[AsmFunction3RegionLongLongBoolean](
       ctx,
-      FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType))),
+      FastSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType))),
         ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), BooleanInfo,
-      Coalesce(FastIndexedSeq(pred, False())))
+      FastSeq(classInfo[Region], LongInfo, LongInfo), BooleanInfo,
+      Coalesce(FastSeq(pred, False())))
 
     new TableValueIntermediate(
       tv.filterWithPartitionOp(ctx.theHailClassLoader, ctx.fsBc, f)((rowF, ctx, ptr, globalPtr) => rowF(ctx.region, ptr, globalPtr)))
@@ -1953,7 +1951,7 @@ trait TableSubset extends TableIR {
 
   def typ: TableType = child.typ
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
     child.partitionCounts.map(subsetKind match {
@@ -2006,7 +2004,7 @@ case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends Table
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRepartition = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -2224,7 +2222,7 @@ case class TableMultiWayZipJoin(childrenSeq: IndexedSeq[TableIR], fieldName: Str
     val sm = ctx.stateManager
     val childValues = childrenSeq.map(_.execute(ctx, r).asTableValue(ctx))
 
-    val childRVDs = RVD.unify(ctx, childValues.map(_.rvd)).toFastIndexedSeq
+    val childRVDs = RVD.unify(ctx, childValues.map(_.rvd)).toFastSeq
     assert(childRVDs.forall(_.typ.key.startsWith(typ.key)))
 
     val repartitionedRVDs =
@@ -2430,10 +2428,10 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     if (extracted.aggs.isEmpty) {
       val (Some(PTypeReferenceSingleCodeType(rTyp)), f) = ir.Compile[AsmFunction3RegionLongLongLong](
         ctx,
-        FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
+        FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
           ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)))),
-        FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-        Coalesce(FastIndexedSeq(
+        FastSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+        Coalesce(FastSeq(
           extracted.postAggIR,
           Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ))))
 
@@ -2484,17 +2482,17 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val (_, initF) = ir.CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
-      Begin(FastIndexedSeq(extracted.init)))
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
+      FastSeq(classInfo[Region], LongInfo), UnitInfo,
+      Begin(FastSeq(extracted.init)))
 
     val serializeF = extracted.serialize(ctx, spec)
 
     val (_, eltSeqF) = ir.CompileWithAggregators[AsmFunction3RegionLongLongUnit](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
         ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)))),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
+      FastSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.eltOp(ctx))
 
     val read = extracted.deserialize(ctx, spec)
@@ -2503,11 +2501,11 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val (Some(PTypeReferenceSingleCodeType(rTyp)), f) = ir.CompileWithAggregators[AsmFunction3RegionLongLongLong](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
         ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)))),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+      FastSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
       Let(scanRef, extracted.results,
-        Coalesce(FastIndexedSeq(
+        Coalesce(FastSeq(
           extracted.postAggIR,
           Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ)))))
     assert(rTyp.virtualType == newRow.typ)
@@ -2745,9 +2743,9 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
     val tv = child.execute(ctx, r).asTableValue(ctx)
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = Compile[AsmFunction2RegionLongLong](ctx,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-      Coalesce(FastIndexedSeq(
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)))),
+      FastSeq(classInfo[Region], LongInfo), LongInfo,
+      Coalesce(FastSeq(
         newGlobals,
         Die("Internal error: TableMapGlobals: globals missing", newGlobals.typ))))
 
@@ -2769,7 +2767,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   private val childRowType = child.typ.rowType
 
   private val length: IR = {
-    Coalesce(FastIndexedSeq(
+    Coalesce(FastSeq(
       ArrayLen(CastToArray(
         path.foldLeft[IR](Ref("row", childRowType))((struct, field) =>
           GetField(struct, field)))),
@@ -2783,7 +2781,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
     path.zip(refs).zipWithIndex.foldRight[IR](idx) {
       case (((field, ref), i), arg) =>
-        InsertFields(ref, FastIndexedSeq(field ->
+        InsertFields(ref, FastSeq(field ->
           (if (i == refs.length - 1)
             ArrayRef(CastToArray(GetField(ref, field)), arg)
           else
@@ -2802,14 +2800,14 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
     val prev = child.execute(ctx, r).asTableValue(ctx)
 
     val (len, l) = Compile[AsmFunction2RegionLongInt](ctx,
-      FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)))),
-      FastIndexedSeq(classInfo[Region], LongInfo), IntInfo,
+      FastSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)))),
+      FastSeq(classInfo[Region], LongInfo), IntInfo,
       length)
     val (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), f) = Compile[AsmFunction3RegionLongIntLong](
       ctx,
-      FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
+      FastSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
         (idx.name, SingleCodeEmitParamType(true, Int32SingleCodeType))),
-      FastIndexedSeq(classInfo[Region], LongInfo, IntInfo), LongInfo,
+      FastSeq(classInfo[Region], LongInfo, IntInfo), LongInfo,
       newRow)
     assert(newRowType.virtualType == typ.rowType)
 
@@ -2962,10 +2960,10 @@ case class TableKeyByAndAggregate(
 
     val localKeyType = keyType
     val (Some(PTypeReferenceSingleCodeType(localKeyPType: PStruct)), makeKeyF) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
-      FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
+      FastSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
         ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-      Coalesce(FastIndexedSeq(
+      FastSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+      Coalesce(FastSeq(
         newKey,
         Die("Internal error: TableKeyByAndAggregate: newKey missing", newKey.typ))))
 
@@ -2978,21 +2976,21 @@ case class TableKeyByAndAggregate(
 
     val (_, makeInit) = ir.CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
+      FastSeq(classInfo[Region], LongInfo), UnitInfo,
       extracted.init)
 
     val (_, makeSeq) = ir.CompileWithAggregators[AsmFunction3RegionLongLongUnit](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
         ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)))),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
+      FastSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.seqPerElt)
 
     val (Some(PTypeReferenceSingleCodeType(rTyp: PStruct)), makeAnnotate) = ir.CompileWithAggregators[AsmFunction2RegionLongLong](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
+      FastSeq(classInfo[Region], LongInfo), LongInfo,
       Let(res, extracted.results, extracted.postAggIR))
     assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
@@ -3121,15 +3119,15 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
     val (_, makeInit) = ir.CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
-      FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
+      FastSeq(classInfo[Region], LongInfo), UnitInfo,
       extracted.init)
 
     val (_, makeSeq) = ir.CompileWithAggregators[AsmFunction3RegionLongLongUnit](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
         ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prevRVD.rowPType)))),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
+      FastSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.seqPerElt)
 
     val valueIR = Let(res, extracted.results, extracted.postAggIR)
@@ -3139,9 +3137,9 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val value = Ref(genUID(), valueIR.typ)
     val (Some(PTypeReferenceSingleCodeType(rowType: PStruct)), makeRow) = ir.CompileWithAggregators[AsmFunction3RegionLongLongLong](ctx,
       extracted.states,
-      FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
+      FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
         (key.name, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(keyType)))),
-      FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
+      FastSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
       Let(value.name, valueIR,
         InsertFields(key, typ.valueType.fieldNames.map(n => n -> GetField(value, n)))))
 
@@ -3231,14 +3229,14 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
-  val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableOrderBy = {
     val IndexedSeq(newChild) = newChildren
     TableOrderBy(newChild.asInstanceOf[TableIR], sortFields)
   }
 
-  val typ: TableType = child.typ.copy(key = FastIndexedSeq())
+  val typ: TableType = child.typ.copy(key = FastSeq())
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val prev = child.execute(ctx, r).asTableValue(ctx)
@@ -3280,7 +3278,7 @@ case class CastMatrixToTable(
 
   lazy val typ: TableType = child.typ.toTableType(entriesFieldName, colsFieldName)
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): CastMatrixToTable = {
     val IndexedSeq(newChild) = newChildren
@@ -3308,7 +3306,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRename = {
     val IndexedSeq(newChild: TableIR) = newChildren

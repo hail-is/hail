@@ -1,22 +1,20 @@
 package is.hail.backend.service
 
-import java.util
-import java.io._
-import java.nio.charset._
-import java.util.{concurrent => javaConcurrent}
-
 import is.hail.asm4s._
-import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
-import org.apache.commons.io.IOUtils
+import is.hail.{HAIL_REVISION, HailContext}
 import org.apache.log4j.Logger
 
+import java.io._
+import java.nio.charset._
+import java.util
+import java.util.{concurrent => javaConcurrent}
 import scala.collection.mutable
-import scala.concurrent.duration.{Duration, MILLISECONDS}
-import scala.concurrent.{Future, Await, ExecutionContext}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
@@ -121,7 +119,13 @@ object Worker {
     timer.start("readInputs")
     val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
-    val (open, write) = ((x: String) => fs.openNoCompression(x), fs.writePDOS _)
+    def open(x: String): SeekableDataInputStream = {
+      fs.openNoCompression(x)
+    }
+
+    def write(x: String)(writer: PositionedDataOutputStream => Unit): Unit = {
+      fs.writePDOS(x)(writer)
+    }
 
     val fFuture = Future {
       retryTransientErrors {

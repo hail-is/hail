@@ -8,7 +8,6 @@ import is.hail.expr.ir.functions.IntervalFunctions
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
-import is.hail.lir.ValueX
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
@@ -167,8 +166,8 @@ object EmitStream {
       var producer: StreamProducer = null
       var producerRequired: Boolean = false
 
-      val next = ecb.newEmitMethod("next", FastIndexedSeq[ParamType](), LongInfo)
-      val ctor = ecb.newEmitMethod("<init>", FastIndexedSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
+      val next = ecb.newEmitMethod("next", FastSeq[ParamType](), LongInfo)
+      val ctor = ecb.newEmitMethod("<init>", FastSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
       ctor.voidWithBuilder { cb =>
         val L = new lir.Block()
         L.append(
@@ -178,7 +177,7 @@ object EmitStream {
             "()V",
             false,
             UnitInfo,
-            FastIndexedSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+            FastSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
         cb += new VCode(L, L, null)
 
         val newEnv = restoreEnv(cb, 3)
@@ -218,7 +217,7 @@ object EmitStream {
         ret
       }
 
-      val init = ecb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
+      val init = ecb.newEmitMethod("init", FastSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
       init.voidWithBuilder { cb =>
         val outerRegion = init.getCodeParam[Region](1)
         val eltRegion = init.getCodeParam[Region](2)
@@ -230,18 +229,18 @@ object EmitStream {
       }
 
 
-      val isEOS = ecb.newEmitMethod("eos", FastIndexedSeq[ParamType](), BooleanInfo)
+      val isEOS = ecb.newEmitMethod("eos", FastSeq[ParamType](), BooleanInfo)
       isEOS.emitWithBuilder[Boolean](cb => eosField)
 
-      val isMissingMethod = ecb.newEmitMethod("isMissing", FastIndexedSeq[ParamType](), BooleanInfo)
+      val isMissingMethod = ecb.newEmitMethod("isMissing", FastSeq[ParamType](), BooleanInfo)
       isMissingMethod.emitWithBuilder[Boolean](cb => isMissing)
 
 
-      val close = ecb.newEmitMethod("close", FastIndexedSeq[ParamType](), UnitInfo)
+      val close = ecb.newEmitMethod("close", FastSeq[ParamType](), UnitInfo)
       close.voidWithBuilder(cb => producer.close(cb))
 
       val obj = cb.memoize(Code.newInstance(ecb.cb, ctor.mb,
-        FastIndexedSeq(cb.emb.partitionRegion.get, cb.emb.ecb.literalsArray().get) ++ envParams.map(_.get)))
+        FastSeq(cb.emb.partitionRegion.get, cb.emb.ecb.literalsArray().get) ++ envParams.map(_.get)))
 
       val iter = cb.emb.genFieldThisRef[NoBoxLongIterator]("iter")
       cb.assign(iter, Code.checkcast[NoBoxLongIterator](obj))
@@ -530,7 +529,7 @@ object EmitStream {
                 EmitCodeBuilder.scopedVoid(mb) { cb =>
                   cb.goto(LendOfStream)
                 },
-                args.toFastIndexedSeq.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).map { elem =>
+                args.toFastSeq.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).map { elem =>
                   EmitCodeBuilder.scopedVoid(mb) { cb =>
                     cb.assign(eltField, elem.toI(cb).map(cb)(pc => pc.castTo(cb, region, unifiedType.st, false)))
                     cb.goto(LendOfSwitch)

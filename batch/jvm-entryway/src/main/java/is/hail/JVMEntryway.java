@@ -149,13 +149,6 @@ class JVMEntryway {
           completedThread = gather.take();
         } catch (Throwable t) {
           entrywayException = t;
-        } finally {
-          QoBOutputStreamManager.flushAllAppenders();
-          LoggerContext context = (LoggerContext) LogManager.getContext(false);
-          ClassLoader loader = JVMEntryway.class.getClassLoader();
-          URL url = loader.getResource("log4j2.properties");
-          System.err.println("reconfiguring logging " + url.toString());
-          context.setConfigLocation(url.toURI()); // this will force a reconfiguration
         }
 
         if (entrywayException != null) {
@@ -199,6 +192,13 @@ class JVMEntryway {
                           mainThread);
           }
         }
+      } finally {
+        QoBOutputStreamManager.flushAllAppenders();
+        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        ClassLoader loader = JVMEntryway.class.getClassLoader();
+        URL url = loader.getResource("log4j2.properties");
+        System.err.println("reconfiguring logging " + url.toString());
+        context.setConfigLocation(url.toURI()); // this will force a reconfiguration
       }
       System.err.println("waiting for next connection");
       System.err.flush();

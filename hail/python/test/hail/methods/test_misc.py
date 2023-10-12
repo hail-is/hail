@@ -137,6 +137,14 @@ class Tests(unittest.TestCase):
         actual = hl.maximal_independent_set(t.l, t.r, keep=False, tie_breaker=lambda l,r: l.x - r.x).collect()
         assert actual == expected
 
+    def test_maximal_independent_set_string_node_names(self):
+        ht = hl.Table.parallelize([hl.Struct(i='A', j='B', kin=0.25),
+                                   hl.Struct(i='A', j='C', kin=0.25),
+                                   hl.Struct(i='D', j='E', kin=0.5)])
+        ret = hl.maximal_independent_set(ht.i, ht.j, False).collect()
+        exp = [hl.Struct(node='A'), hl.Struct(node='D')]
+        assert exp == ret
+
     def test_matrix_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
 

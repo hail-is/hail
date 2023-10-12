@@ -4,17 +4,12 @@ import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.SimpleFeature
 import htsjdk.tribble.index.tabix.{TabixFormat, TabixIndexCreator}
 import is.hail
-import is.hail.annotations.Region
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.MatrixValue
 import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
 import is.hail.io.fs.FS
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
-import is.hail.types.MatrixType
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Call, ReferenceGenome, RegionValueVariant}
+import is.hail.variant.ReferenceGenome
 
 object ExportVCF {
   def infoNumber(t: Type): String = t match {
@@ -24,8 +19,8 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def fmtFloat(fmt: String, value: Float): String = value.formatted(fmt)
-  def fmtDouble(fmt: String, value: Double): String = value.formatted(fmt)
+  def fmtFloat(fmt: String, value: Float): String = fmt.format(value)
+  def fmtDouble(fmt: String, value: Double): String = fmt.format(value)
 
   def infoType(t: Type): Option[String] = t match {
     case TInt32 | TInt64 => Some("Integer")
@@ -69,6 +64,35 @@ object ExportVCF {
     }
   }
 
+  def validInfoType(typ: Type): Boolean = {
+    typ match {
+      case TString => true
+      case TFloat64 => true
+      case TFloat32 => true
+      case TInt32 => true
+      case TInt64 => true
+      case TBoolean => true
+      case _ => false
+    }
+  }
+
+  def checkInfoSignature(ti: TStruct) {
+    val invalid = ti.fields.flatMap { fd =>
+      val valid = fd.typ match {
+        case it: TContainer if it.elementType != TBoolean => validInfoType(it.elementType)
+        case t => validInfoType(t)
+      }
+      if (valid) {
+        None
+      } else {
+        Some(s"\t'${ fd.name }': '${ fd.typ }'.")
+      }
+    }
+    if (!invalid.isEmpty) {
+      fatal("VCF does not support the type(s) for the following INFO field(s):\n" + invalid.mkString("\n"))
+    }
+  }
+
   def validFormatType(typ: Type): Boolean = {
     typ match {
       case TString => true
@@ -82,13 +106,19 @@ object ExportVCF {
   }
 
   def checkFormatSignature(tg: TStruct) {
-    tg.fields.foreach { fd =>
+    val invalid = tg.fields.flatMap { fd =>
       val valid = fd.typ match {
         case it: TContainer => validFormatType(it.elementType)
         case t => validFormatType(t)
       }
-      if (!valid)
-        fatal(s"Invalid type for format field '${ fd.name }'. Found '${ fd.typ }'.")
+      if (valid) {
+        None
+      } else {
+        Some(s"\t'${ fd.name }': '${ fd.typ }'.")
+      }
+    }
+    if (!invalid.isEmpty) {
+      fatal("VCF does not support the type(s) for the following FORMAT field(s):\n" + invalid.mkString("\n"))
     }
   }
 

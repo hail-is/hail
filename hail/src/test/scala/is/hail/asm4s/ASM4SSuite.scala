@@ -448,6 +448,7 @@ class ASM4SSuite extends HailSuite {
     val a = Main.newStaticField[Int]("a")
     Main.emitClinit { a.put(1) }
     Main.emit { a.get() }
+
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(test() == 1)
   }
@@ -482,4 +483,5 @@ class ASM4SSuite extends HailSuite {
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(test() == 6)
   }
+
 }

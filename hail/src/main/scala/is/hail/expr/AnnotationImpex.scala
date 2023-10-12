@@ -1,8 +1,7 @@
 package is.hail.expr
 
-import is.hail.annotations.{Annotation, NDArray, SafeNDArray, UnsafeNDArray}
-import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.types.physical.{PBoolean, PCanonicalArray, PCanonicalBinary, PCanonicalString, PCanonicalStruct, PFloat32, PFloat64, PInt32, PInt64, PType}
+import is.hail.annotations.{Annotation, NDArray, SafeNDArray}
+import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
@@ -304,7 +303,7 @@ object TableAnnotationImpex {
       "NA"
     else {
       t match {
-        case TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
+        case TFloat64 => "%.4e".format(a.asInstanceOf[Double])
         case TString => a.asInstanceOf[String]
         case t: TContainer => JsonMethods.compact(t.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))

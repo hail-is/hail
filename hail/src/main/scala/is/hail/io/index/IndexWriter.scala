@@ -1,18 +1,14 @@
 package is.hail.io.index
 
-import java.io.OutputStream
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
-import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.asm4s.{HailClassLoader, _}
-import is.hail.backend.{ExecuteContext, HailTaskContext}
-import is.hail.backend.spark.SparkTaskContext
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types
-import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PType}
@@ -20,6 +16,8 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import org.json4s.jackson.Serialization
+
+import java.io.OutputStream
 
 trait AbstractIndexMetadata {
   def fileVersion: Int
@@ -243,12 +241,12 @@ object StagedIndexWriter {
     branchingFactor: Int = 4096
   ): (String, HailClassLoader, HailTaskContext, RegionPool, Map[String, Any]) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](ctx, "indexwriter",
-      FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
+      FastSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
       typeInfo[Unit])
     val cb = fb.ecb
     val siw = new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
 
-    cb.newEmitMethod("init", FastIndexedSeq[ParamType](typeInfo[String], classInfo[Map[String, Any]]), typeInfo[Unit])
+    cb.newEmitMethod("init", FastSeq[ParamType](typeInfo[String], classInfo[Map[String, Any]]), typeInfo[Unit])
       .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1), cb.emb.getCodeParam[Map[String, Any]](2)))
     fb.emb.voidWithBuilder { cb =>
       siw.add(cb,
@@ -256,10 +254,10 @@ object StagedIndexWriter {
         fb.getCodeParam[Long](2),
         IEmitCode(cb, false, annotationType.loadCheapSCode(cb, fb.getCodeParam[Long](3))))
     }
-    cb.newEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
+    cb.newEmitMethod("close", FastSeq[ParamType](), typeInfo[Unit])
       .voidWithBuilder(siw.close)
 
-    cb.newEmitMethod("trackedOS", FastIndexedSeq[ParamType](), typeInfo[ByteTrackingOutputStream])
+    cb.newEmitMethod("trackedOS", FastSeq[ParamType](), typeInfo[ByteTrackingOutputStream])
       .emitWithBuilder[ByteTrackingOutputStream] { _ => Code.checkcast[ByteTrackingOutputStream](siw.utils.os) }
 
     val makeFB = fb.resultWithIndex()

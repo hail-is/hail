@@ -1,14 +1,13 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{BooleanInfo, Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.asm4s.{BooleanInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalValue}
 import is.hail.types.physical.{PInterval, PType}
 import is.hail.types.virtual.Type
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.FastSeq
 
 
 final case class SIntervalPointer(pType: PInterval) extends SInterval {
@@ -25,7 +24,7 @@ final case class SIntervalPointer(pType: PInterval) extends SInterval {
 
   override lazy val virtualType: Type = pType.virtualType
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, BooleanInfo, BooleanInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo, BooleanInfo, BooleanInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SIntervalPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked], includesStart: Settable[Boolean@unchecked], includesEnd: Settable[Boolean@unchecked]) = settables
@@ -59,7 +58,7 @@ class SIntervalPointerValue(
   val includesStart: Value[Boolean],
   val includesEnd: Value[Boolean]
 ) extends SIntervalValue {
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, includesStart, includesEnd)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a, includesStart, includesEnd)
 
   val pt: PInterval = st.pType
 
@@ -95,7 +94,7 @@ final class SIntervalPointerSettable(
   override val includesStart: Settable[Boolean],
   override val includesEnd: Settable[Boolean]
 ) extends SIntervalPointerValue(st, a, includesStart, includesEnd) with SSettable {
-  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, includesStart, includesEnd)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a, includesStart, includesEnd)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SIntervalPointerValue =>

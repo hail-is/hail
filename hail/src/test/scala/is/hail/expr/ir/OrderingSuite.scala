@@ -1,20 +1,16 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
-import is.hail.HailSuite
-import is.hail.annotations._
-import is.hail.backend.HailStateManager
-import is.hail.check.{Gen, Prop}
-import is.hail.asm4s._
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
+import is.hail.annotations._
+import is.hail.asm4s._
+import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.rvd.RVDType
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -339,7 +335,7 @@ class OrderingSuite extends HailSuite {
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
       val ord = if (asc) t.ordering(sm).toOrdering else t.ordering(sm).reverse.toOrdering
       assertEvalsTo(ArraySort(ToStream(In(0, TArray(t))), Literal.coerce(TBoolean, asc)),
-        FastIndexedSeq(a -> TArray(t)),
+        FastSeq(a -> TArray(t)),
         expected = a.sorted(ord))
       true
     }
@@ -355,7 +351,7 @@ class OrderingSuite extends HailSuite {
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
       val array = a ++ a
       assertEvalsTo(ToArray(ToSet(In(0, TArray(t)))),
-        FastIndexedSeq(array -> TArray(t)),
+        FastSeq(array -> TArray(t)),
         expected = array.sorted(t.ordering(sm).toOrdering).distinct)
       true
     }
@@ -377,8 +373,8 @@ class OrderingSuite extends HailSuite {
       assertEvalsTo(
         ToArray(StreamMap(ToStream(In(0, TArray(telt))),
         "x", GetField(Ref("x", tdict.elementType), "key"))),
-        FastIndexedSeq(array -> TArray(telt)),
-        expected = expectedMap.keys.toFastIndexedSeq.sorted(telt.types(0).ordering(sm).toOrdering))
+        FastSeq(array -> TArray(telt)),
+        expected = expectedMap.keys.toFastSeq.sorted(telt.types(0).ordering(sm).toOrdering))
       true
     }
     p.check()
@@ -402,13 +398,13 @@ class OrderingSuite extends HailSuite {
       if (set.nonEmpty) {
         assertEvalsTo(
           invoke("contains", TBoolean, In(0, tset), In(1, telt)),
-          FastIndexedSeq(set -> tset, set.head -> telt),
+          FastSeq(set -> tset, set.head -> telt),
           expected = true)
       }
 
       assertEvalsTo(
         invoke("contains", TBoolean, In(0, tset), In(1, telt)),
-        FastIndexedSeq(set -> tset, test1 -> telt),
+        FastSeq(set -> tset, test1 -> telt),
         expected = set.contains(test1))
       true
     }
@@ -424,7 +420,7 @@ class OrderingSuite extends HailSuite {
     }
     val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any]@unchecked, testKey1) =>
       assertEvalsTo(invoke("get", tdict.valueType, In(0, tdict), In(1, tdict.keyType)),
-        FastIndexedSeq(dict -> tdict,
+        FastSeq(dict -> tdict,
           testKey1 -> tdict.keyType),
         dict.getOrElse(testKey1, null))
 
@@ -432,7 +428,7 @@ class OrderingSuite extends HailSuite {
         val testKey2 = dict.keys.toSeq.head
         val expected2 = dict(testKey2)
         assertEvalsTo(invoke("get", tdict.valueType, In(0, tdict), In(1, tdict.keyType)),
-          FastIndexedSeq(dict -> tdict,
+          FastSeq(dict -> tdict,
             testKey2 -> tdict.keyType),
           expected2)
       }
@@ -493,7 +489,7 @@ class OrderingSuite extends HailSuite {
       pool.scopedRegion { region =>
         val soff = pDict.unstagedStoreJavaObject(sm, dict, region)
 
-        val ptuple = PCanonicalTuple(false, FastIndexedSeq(pDict.keyType): _*)
+        val ptuple = PCanonicalTuple(false, FastSeq(pDict.keyType): _*)
         val eoff = ptuple.unstagedStoreJavaObject(sm, Row(key), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
@@ -565,7 +561,7 @@ class OrderingSuite extends HailSuite {
     a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
     val t = TArray(TFloat64)
 
-    val args = FastIndexedSeq(a -> t, a2 -> t)
+    val args = FastSeq(a -> t, a2 -> t)
 
     assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
@@ -585,7 +581,7 @@ class OrderingSuite extends HailSuite {
 
     val s = if (a != null) a.toSet else null
     val s2 = if (a2 != null) a2.toSet else null
-    val args = FastIndexedSeq(s -> t, s2 -> t)
+    val args = FastSeq(s -> t, s2 -> t)
 
     assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
@@ -602,7 +598,7 @@ class OrderingSuite extends HailSuite {
   def rowDoubleOrderingData(): Array[Array[Any]] = {
     val xs = Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
     val as = Array(null: IndexedSeq[Any]) ++
-      (for (x <- xs) yield FastIndexedSeq[Any](x))
+      (for (x <- xs) yield FastSeq[Any](x))
     val ss = Array[Any](null, "a", "aa")
 
     val rs = for (x <- xs; s <- ss)
@@ -617,7 +613,7 @@ class OrderingSuite extends HailSuite {
     r: Row, r2: Row) {
     val t = TStruct("x" -> TFloat64, "s" -> TString)
 
-    val args = FastIndexedSeq(r -> t, r2 -> t)
+    val args = FastSeq(r -> t, r2 -> t)
 
     assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)

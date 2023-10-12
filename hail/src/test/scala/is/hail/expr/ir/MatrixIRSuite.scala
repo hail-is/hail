@@ -1,13 +1,13 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
@@ -26,7 +26,7 @@ class MatrixIRSuite extends HailSuite {
 
     val writer1 = MatrixNativeWriter(path, overwrite = true)
     val partType = TArray(TInterval(TStruct("row_idx" -> TInt32)))
-    val parts = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(FastIndexedSeq(Interval(Row(0), Row(10), true, false)), partType))
+    val parts = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(FastSeq(Interval(Row(0), Row(10), true, false)), partType))
     val writer2 = MatrixNativeWriter(path, overwrite = true, partitions = parts.toString, partitionsTypeStr = partType.parsableString())
 
     for (writer <- Array(writer1, writer2)) {
@@ -35,7 +35,7 @@ class MatrixIRSuite extends HailSuite {
       val read = MatrixIR.read(fs, path, dropCols = false, dropRows = false, None)
       val droppedRows = MatrixIR.read(fs, path, dropCols = false, dropRows = true, None)
 
-      val expectedCols = Array.tabulate(10)(i => Row(i, Row(0L, i.toLong))).toFastIndexedSeq
+      val expectedCols = Array.tabulate(10)(i => Row(i, Row(0L, i.toLong))).toFastSeq
       val expectedRows = if (writer eq writer1) {
         val uids = for {
           (partSize, partIndex) <- partition(10, 3).zipWithIndex
@@ -43,14 +43,14 @@ class MatrixIRSuite extends HailSuite {
         } yield Row(partIndex.toLong, i.toLong)
         (0 until 10, uids).zipped.map { (i, uid) => Row(i, uid, expectedCols.map { case Row(j, _) => Row(i, j) }) }
       } else
-        Array.tabulate(10)(i => Row(i, Row(0L, i.toLong), expectedCols.map { case Row(j, _) => Row(i, j) })).toFastIndexedSeq
+        Array.tabulate(10)(i => Row(i, Row(0L, i.toLong), expectedCols.map { case Row(j, _) => Row(i, j) })).toFastSeq
       val expectedGlobals = Row(0, expectedCols);
       {
         implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
         assertEvalsTo(
-          TableCollect(TableKeyBy(CastMatrixToTable(read, "entries", "cols"), FastIndexedSeq())),
+          TableCollect(TableKeyBy(CastMatrixToTable(read, "entries", "cols"), FastSeq())),
           Row(expectedRows, expectedGlobals))
-        assertEvalsTo(TableCollect(TableKeyBy(CastMatrixToTable(droppedRows, "entries", "cols"), FastIndexedSeq())), Row(FastIndexedSeq(), expectedGlobals))
+        assertEvalsTo(TableCollect(TableKeyBy(CastMatrixToTable(droppedRows, "entries", "cols"), FastSeq())), Row(FastSeq(), expectedGlobals))
       }
     }
   }
@@ -142,21 +142,21 @@ class MatrixIRSuite extends HailSuite {
     val row = Ref("va", baseRange.typ.rowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
-        MatrixKeyRowsBy(baseRange, FastIndexedSeq()),
+        MatrixKeyRowsBy(baseRange, FastSeq()),
         InsertFields(
           row,
-          FastIndexedSeq("row_idx" -> (GetField(row, "row_idx") + start)))),
-      FastIndexedSeq("row_idx"))
+          FastSeq("row_idx" -> (GetField(row, "row_idx") + start)))),
+      FastSeq("row_idx"))
   }
 
   @DataProvider(name = "unionRowsData")
   def unionRowsData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq(0 -> 0, 5 -> 7)),
-    Array(FastIndexedSeq(0 -> 1, 5 -> 7)),
-    Array(FastIndexedSeq(0 -> 6, 5 -> 7)),
-    Array(FastIndexedSeq(2 -> 3, 0 -> 1, 5 -> 7)),
-    Array(FastIndexedSeq(2 -> 4, 0 -> 3, 5 -> 7)),
-    Array(FastIndexedSeq(3 -> 6, 0 -> 1, 5 -> 7)))
+    Array(FastSeq(0 -> 0, 5 -> 7)),
+    Array(FastSeq(0 -> 1, 5 -> 7)),
+    Array(FastSeq(0 -> 6, 5 -> 7)),
+    Array(FastSeq(2 -> 3, 0 -> 1, 5 -> 7)),
+    Array(FastSeq(2 -> 4, 0 -> 3, 5 -> 7)),
+    Array(FastSeq(3 -> 6, 0 -> 1, 5 -> 7)))
 
   @Test(dataProvider = "unionRowsData")
   def testMatrixUnionRows(ranges: IndexedSeq[(Int, Int)]) {
@@ -174,14 +174,14 @@ class MatrixIRSuite extends HailSuite {
 
   @DataProvider(name = "explodeRowsData")
   def explodeRowsData(): Array[Array[Any]] = Array(
-    Array(FastIndexedSeq("empty"), FastIndexedSeq()),
-    Array(FastIndexedSeq("null"), null),
-    Array(FastIndexedSeq("set"), FastIndexedSeq(1, 3)),
-    Array(FastIndexedSeq("one"), FastIndexedSeq(3)),
-    Array(FastIndexedSeq("na"), FastIndexedSeq(null)),
-    Array(FastIndexedSeq("x", "y"), FastIndexedSeq(3)),
-    Array(FastIndexedSeq("foo", "bar"), FastIndexedSeq(1, 3)),
-    Array(FastIndexedSeq("a", "b", "c"), FastIndexedSeq()))
+    Array(FastSeq("empty"), FastSeq()),
+    Array(FastSeq("null"), null),
+    Array(FastSeq("set"), FastSeq(1, 3)),
+    Array(FastSeq("one"), FastSeq(3)),
+    Array(FastSeq("na"), FastSeq(null)),
+    Array(FastSeq("x", "y"), FastSeq(3)),
+    Array(FastSeq("foo", "bar"), FastSeq(1, 3)),
+    Array(FastSeq("a", "b", "c"), FastSeq()))
 
   @Test(dataProvider = "explodeRowsData")
   def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]) {
@@ -189,10 +189,10 @@ class MatrixIRSuite extends HailSuite {
     val range = rangeMatrix(5, 2, None)
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
-    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rowType), FastIndexedSeq(field)))
+    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rowType), FastSeq(field)))
 
     val q = annotated.typ.rowType.query(path: _*)
-    val exploded = getRows(MatrixExplodeRows(annotated, path.toFastIndexedSeq)).map(q(_).asInstanceOf[Integer])
+    val exploded = getRows(MatrixExplodeRows(annotated, path.toFastSeq)).map(q(_).asInstanceOf[Integer])
 
     val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
     assert(exploded sameElements expected)
@@ -206,20 +206,20 @@ class MatrixIRSuite extends HailSuite {
       "animal" -> TString,
       "__entries" -> TArray(TStruct("ent1" -> TString, "ent2" -> TFloat64))
     )
-    val keyNames = FastIndexedSeq("row_idx")
+    val keyNames = FastSeq("row_idx")
 
     val colSig = TStruct("col_idx" -> TInt32, "tag" -> TString)
     val globalType = TStruct(("__cols", TArray(colSig)))
     var tv = TableValue(ctx, rowSig, keyNames, rowRdd)
-    tv = tv.copy(typ = tv.typ.copy(globalType = globalType), globals = BroadcastRow(ctx, Row(cdata.toFastIndexedSeq), globalType))
+    tv = tv.copy(typ = tv.typ.copy(globalType = globalType), globals = BroadcastRow(ctx, Row(cdata.toFastSeq), globalType))
     TableLiteral(tv, theHailClassLoader)
   }
 
   @Test def testCastTableToMatrix() {
     val rdata = Array(
-      Row(1, "fish", FastIndexedSeq(Row("a", 1.0), Row("x", 2.0))),
-      Row(2, "cat", FastIndexedSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", FastIndexedSeq(Row("c", -1.0), Row("z", 30.0)))
+      Row(1, "fish", FastSeq(Row("a", 1.0), Row("x", 2.0))),
+      Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val cdata = Array(
       Row(1, "atag"),
@@ -246,9 +246,9 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testCastTableToMatrixErrors() {
     val rdata = Array(
-      Row(1, "fish", FastIndexedSeq(Row("x", 2.0))),
-      Row(2, "cat", FastIndexedSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", FastIndexedSeq(Row("c", -1.0), Row("z", 30.0)))
+      Row(1, "fish", FastSeq(Row("x", 2.0))),
+      Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val cdata = Array(
       Row(1, "atag"),
@@ -270,8 +270,8 @@ class MatrixIRSuite extends HailSuite {
 
     val rdata2 = Array(
       Row(1, "fish", null),
-      Row(2, "cat", FastIndexedSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", FastIndexedSeq(Row("c", -1.0), Row("z", 30.0)))
+      Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
     val mir2 = CastTableToMatrix(rowTab2, "__entries", "__cols", Array("col_idx"))
@@ -282,7 +282,7 @@ class MatrixIRSuite extends HailSuite {
   @Test def testMatrixFiltersWorkWithRandomness() {
     val range = rangeMatrix(20, 20, Some(4), uids = true)
     def rand(rng: IR): IR =
-      ApplySeeded("rand_bool", FastIndexedSeq(0.5), rng, 0, TBoolean)
+      ApplySeeded("rand_bool", FastSeq(0.5), rng, 0, TBoolean)
 
     val colUID = GetField(Ref("sa", range.typ.colType), MatrixReader.colUIDFieldName)
     val colRNG = RNGSplit(RNGStateLiteral(), colUID)
@@ -323,7 +323,7 @@ class MatrixIRSuite extends HailSuite {
     val path1 = ctx.createTmpPath("test1")
     val path2 = ctx.createTmpPath("test2")
     intercept[java.lang.IllegalArgumentException] {
-      val ir = MatrixMultiWrite(FastIndexedSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2)))
+      val ir = MatrixMultiWrite(FastSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2)))
     }
   }
 }

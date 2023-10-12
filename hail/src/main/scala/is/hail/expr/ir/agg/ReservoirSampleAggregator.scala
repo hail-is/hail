@@ -86,7 +86,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
 
   def gc(cb: EmitCodeBuilder): Unit =
     cb.invokeVoid(
-      cb.emb.ecb.getOrGenEmitMethod("reservoir_sample_gc", (this, "gc"), FastIndexedSeq(), UnitInfo) { mb =>
+      cb.emb.ecb.getOrGenEmitMethod("reservoir_sample_gc", (this, "gc"), FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
           cb.ifx(garbage > (maxSize.toL * 2L + 1024L), {
             val oldRegion = mb.newLocal[Region]("old_region")

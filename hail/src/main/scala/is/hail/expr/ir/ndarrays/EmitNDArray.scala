@@ -3,9 +3,9 @@ package is.hail.expr.ir.ndarrays
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 

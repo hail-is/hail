@@ -40,7 +40,7 @@ case object SemanticHash extends Logging {
           // to differentiate between IR trees that look identical when flattened
           for ((ir, index) <- levelOrder(nameNormalizedIR)) {
             encode(ctx.fs, ir, index) match {
-              case Right(bytes) => 
+              case Right(bytes) =>
                 hash = extend(hash, bytes)
               case Left(failure) =>
                 log.warn(s"Failed to compute SemanticHash: $failure")

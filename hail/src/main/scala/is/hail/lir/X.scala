@@ -1,13 +1,11 @@
 package is.hail.lir
 
-import java.io.PrintWriter
-
-import is.hail.HailContext
-
-import scala.collection.mutable
 import is.hail.asm4s._
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
+
+import java.io.PrintWriter
+import scala.collection.mutable
 
 // FIXME move typeinfo stuff lir
 
@@ -226,12 +224,12 @@ class Method private[lir] (
 
         assert(L.first != null)
         val x = L.last.asInstanceOf[ControlX]
-        var i = 0
-        while (i < x.targetArity()) {
+        var i = x.targetArity() - 1
+        while (i >= 0) {
           val target = x.target(i)
           assert(target != null)
           s.push(target)
-          i += 1
+          i -= 1
         }
         visited += L
       }

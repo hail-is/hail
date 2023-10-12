@@ -10,7 +10,7 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerValue, SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
+import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -40,9 +40,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   private val (garbage, maxGarbage) = if (canHaveGarbage) (kb.genFieldThisRef[Int](), kb.genFieldThisRef[Int]()) else (null, null)
 
   private val garbageFields: IndexedSeq[(String, PType)] = if (canHaveGarbage)
-    FastIndexedSeq(("current_garbage", PInt32Required), ("max_garbage", PInt32Required))
+    FastSeq(("current_garbage", PInt32Required), ("max_garbage", PInt32Required))
   else
-    FastIndexedSeq()
+    FastSeq()
 
   val storageType: PStruct =
     PCanonicalStruct(true,
@@ -289,7 +289,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   private lazy val gc: EmitCodeBuilder => Unit = {
     if (canHaveGarbage) {
-      val mb = kb.genEmitMethod("take_by_garbage_collect", FastIndexedSeq[ParamType](), UnitInfo)
+      val mb = kb.genEmitMethod("take_by_garbage_collect", FastSeq[ParamType](), UnitInfo)
       val oldRegion = mb.newLocal[Region]("old_region")
       mb.voidWithBuilder { cb =>
         cb.assign(garbage, garbage + 1)
@@ -356,7 +356,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   def seqOp(cb: EmitCodeBuilder, v: EmitCode, k: EmitCode): Unit = {
     val mb = cb.emb.ecb.genEmitMethod("take_by_seqop",
-      FastIndexedSeq[ParamType](v.emitParamType, k.emitParamType),
+      FastSeq(v.emitParamType, k.emitParamType),
       UnitInfo
     )
 
@@ -392,7 +392,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   def combine(cb: EmitCodeBuilder, other: TakeByRVAS): Unit = {
-    val mb = cb.emb.ecb.genEmitMethod("take_by_combop", FastIndexedSeq[ParamType](), UnitInfo)
+    val mb = cb.emb.ecb.genEmitMethod("take_by_combop", FastSeq(), UnitInfo)
 
     mb.voidWithBuilder { cb =>
       val i = cb.newLocal[Int]("combine_i")
@@ -428,7 +428,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
     val swap: EmitMethodBuilder[_] =
       cb.emb.ecb.defineEmitMethod(genName("m", "quicksort_swap"),
-        FastIndexedSeq[ParamType](LongInfo, LongInfo),
+        FastSeq(LongInfo, LongInfo),
         UnitInfo
       ) { mb =>
 

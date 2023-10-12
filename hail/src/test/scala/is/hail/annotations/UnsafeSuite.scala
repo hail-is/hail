@@ -1,18 +1,17 @@
 package is.hail.annotations
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import is.hail.HailSuite
 import is.hail.check._
-import is.hail.types.physical._
-import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
+import is.hail.types.physical._
+import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import scala.util.Random
 
 class UnsafeSuite extends HailSuite {
@@ -137,14 +136,14 @@ class UnsafeSuite extends HailSuite {
   }
 
   @Test def testCodecForNonWrappedTypes() {
-    val valuesAndTypes = FastIndexedSeq(
+    val valuesAndTypes = FastSeq(
       5 -> PInt32(),
       6L -> PInt64(),
       5.5f -> PFloat32(),
       5.7d -> PFloat64(),
       "foo" -> PCanonicalString(),
       Array[Byte](61, 62, 63) -> PCanonicalBinary(),
-      FastIndexedSeq[Int](1, 2, 3) -> PCanonicalArray(PInt32()))
+      FastSeq[Int](1, 2, 3) -> PCanonicalArray(PInt32()))
 
     valuesAndTypes.foreach { case (v, t) =>
       pool.scopedRegion { region =>

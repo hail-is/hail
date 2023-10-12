@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, sum => breezeSum, _}
 import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
-import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
+import breeze.stats.distributions.RandBasis
 import is.hail._
 import is.hail.annotations._
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
@@ -19,7 +19,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.{ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble}
 import org.apache.commons.lang3.StringUtils
-import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.mllib.linalg.distributed._
@@ -53,7 +52,7 @@ class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RD
           if (j == i)
             0 until n
           else
-            FastIndexedSeq.empty
+            FastSeq.empty
       }
     }
 
@@ -1346,7 +1345,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    TableValue(ctx, rowType, FastIndexedSeq(), entriesRDD)
+    TableValue(ctx, rowType, FastSeq(), entriesRDD)
   }
 }
 
@@ -1571,7 +1570,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
 
-  @transient private val blockIndices = blockParentMap.keys.toFastIndexedSeq.sorted
+  @transient private val blockIndices = blockParentMap.keys.toFastSeq.sorted
   @transient private val newGPMaybeBlocks = if (blockIndices.length == tempDenseGP.maxNBlocks)  None else Some(blockIndices)
   private val newGP = tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks)
 
@@ -1666,7 +1665,7 @@ private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
 
-  @transient private val blockIndices = blockParentMap.keys.toFastIndexedSeq.sorted
+  @transient private val blockIndices = blockParentMap.keys.toFastSeq.sorted
   @transient private val newGPMaybeBlocks = if (blockIndices.length == tempDenseGP.maxNBlocks)  None else Some(blockIndices)
   private val newGP = tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks)
 

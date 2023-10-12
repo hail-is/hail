@@ -11,8 +11,8 @@ class TrapNodeSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
   @Test def testTrapNode() {
-    assertEvalsTo(Trap(ArrayRef(Literal(TArray(TInt32), FastIndexedSeq(0, 1, 2)), I32(1))), Row(null, 1))
-    val res = eval(Trap(ArrayRef(Literal(TArray(TInt32), FastIndexedSeq(0, 1, 2)), I32(-1))))
+    assertEvalsTo(Trap(ArrayRef(Literal(TArray(TInt32), FastSeq(0, 1, 2)), I32(1))), Row(null, 1))
+    val res = eval(Trap(ArrayRef(Literal(TArray(TInt32), FastSeq(0, 1, 2)), I32(-1))))
     res match {
       case Row(Row(msg: String, id: Int), null) =>
         assert(id == -1)
@@ -23,7 +23,7 @@ class TrapNodeSuite extends HailSuite {
   }
 
   @Test def testTrapNodeInLargerContext() {
-    def resultByIdx(idx: Int): IR = bindIR(Trap(ArrayRef(Literal(TArray(TInt32), FastIndexedSeq(100, 200, 300)), I32(idx)))) { value =>
+    def resultByIdx(idx: Int): IR = bindIR(Trap(ArrayRef(Literal(TArray(TInt32), FastSeq(100, 200, 300)), I32(idx)))) { value =>
       If(IsNA(GetTupleElement(value, 0)),
         GetTupleElement(value, 1),
         I32(-1)

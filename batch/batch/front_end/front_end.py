@@ -30,7 +30,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
 
 from gear import (
-    AuthClient,
+    AuthServiceAuthenticator,
     Database,
     Transaction,
     UserData,
@@ -111,7 +111,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthClient()
+auth = AuthServiceAuthenticator()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
@@ -1827,6 +1827,7 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
                 end_time = time_msecs()
             duration_msecs = max(end_time - start_time, 0)
             attempt['duration'] = humanize_timedelta_msecs(duration_msecs)
+            attempt['duration_ms'] = duration_msecs
 
     return attempts
 

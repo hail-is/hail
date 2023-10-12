@@ -242,6 +242,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
 
     async def __aenter__(self):
         async def periodically_measure():
+            start = time_msecs()
             cancelled = False
             tries = 0
             while True:
@@ -260,7 +261,10 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
                 finally:
                     if not cancelled:
                         tries += 1
-                        await sleep_before_try(tries, max_delay_ms=5_000)
+                        if time_msecs() - start < 5_000:
+                            await asyncio.sleep(0.1)
+                        else:
+                            await sleep_before_try(tries, max_delay_ms=5_000)
 
         os.makedirs(os.path.dirname(self.output_file_path), exist_ok=True)
         self.out = open(self.output_file_path, 'wb')  # pylint: disable=consider-using-with

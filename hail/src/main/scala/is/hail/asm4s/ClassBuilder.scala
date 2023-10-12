@@ -1,7 +1,5 @@
 package is.hail.asm4s
 
-import java.io._
-import java.nio.charset.StandardCharsets
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.utils._
@@ -9,9 +7,10 @@ import javassist.bytecode.DuplicateMemberException
 import org.apache.spark.TaskContext
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.tree._
 import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 
+import java.io._
+import java.nio.charset.StandardCharsets
 import scala.collection.mutable
 
 object Field {
@@ -142,7 +141,7 @@ class ModuleBuilder() {
             "()V",
             false,
             UnitInfo,
-            FastIndexedSeq(lir.load(ctor._this.asInstanceOf[LocalRef[_]].l))))
+            FastSeq(lir.load(ctor._this.asInstanceOf[LocalRef[_]].l))))
         cb += new VCode(L, L, null)
         fields.zipWithIndex.foreach { case (f, i) =>
             cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
@@ -294,7 +293,7 @@ class ClassBuilder[C](
   private[this] val lazyFieldMemo: mutable.Map[Any, Value[_]] =
     mutable.Map.empty
 
-  private[this] val lInitBuilder = new MethodBuilder[C](this, "<init>", FastIndexedSeq(), UnitInfo)
+  private[this] val lInitBuilder = new MethodBuilder[C](this, "<init>", FastSeq(), UnitInfo)
   private[this] val lInit = lInitBuilder.lmethod
 
   private[this] var initBody: Code[Unit] = {
@@ -331,7 +330,7 @@ class ClassBuilder[C](
   def emitClinit(c: Code[Unit]): Unit = {
     clinitBody match {
       case None =>
-        lClinit = lclass.newMethod("<clinit>", FastIndexedSeq(), UnitInfo, isStatic = true)
+        lClinit = lclass.newMethod("<clinit>", FastSeq(), UnitInfo, isStatic = true)
         clinitBody = Some(c)
       case Some(body) =>
         clinitBody = Some(Code(body, c))
@@ -440,6 +439,7 @@ class ClassBuilder[C](
 
   def classBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): Array[(String, Array[Byte])] = {
     assert(initBody.start != null)
+    initBody.end.append(lir.returnx())
     lInit.setEntry(initBody.start)
     initBody.end.append(lir.returnx())
 
@@ -501,22 +501,22 @@ class ClassBuilder[C](
     newMethod(genName("m", baseName), argsInfo, returnInfo)
 
   def genMethod[R: TypeInfo](baseName: String): MethodBuilder[C] =
-    genMethod(baseName, FastIndexedSeq[TypeInfo[_]](), typeInfo[R])
+    genMethod(baseName, FastSeq[TypeInfo[_]](), typeInfo[R])
 
   def genMethod[A: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] =
-    genMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
+    genMethod(baseName, FastSeq[TypeInfo[_]](typeInfo[A]), typeInfo[R])
 
   def genMethod[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] =
-    genMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2]), typeInfo[R])
+    genMethod(baseName, FastSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2]), typeInfo[R])
 
   def genMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] =
-    genMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3]), typeInfo[R])
+    genMethod(baseName, FastSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3]), typeInfo[R])
 
   def genMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] =
-    genMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4]), typeInfo[R])
+    genMethod(baseName, FastSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4]), typeInfo[R])
 
   def genMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, A5: TypeInfo, R: TypeInfo](baseName: String): MethodBuilder[C] =
-    genMethod(baseName, FastIndexedSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4], typeInfo[A5]), typeInfo[R])
+    genMethod(baseName, FastSeq[TypeInfo[_]](typeInfo[A1], typeInfo[A2], typeInfo[A3], typeInfo[A4], typeInfo[A5]), typeInfo[R])
 
   def genStaticMethod(baseName: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder[C] =
     newStaticMethod(genName("sm", baseName), argsInfo, returnInfo)
@@ -540,7 +540,7 @@ object FunctionBuilder {
   }
 
   def apply[R: TypeInfo](baseName: String): FunctionBuilder[AsmFunction0[R]] =
-    apply[AsmFunction0[R]](baseName, FastIndexedSeq.empty[MaybeGenericTypeInfo[_]], GenericTypeInfo[R])
+    apply[AsmFunction0[R]](baseName, FastSeq.empty[MaybeGenericTypeInfo[_]], GenericTypeInfo[R])
 
   def apply[A1: TypeInfo, R: TypeInfo](baseName: String): FunctionBuilder[AsmFunction1[A1, R]] =
     apply[AsmFunction1[A1, R]](baseName, Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
@@ -655,7 +655,7 @@ class MethodBuilder[C](
   }
 
   def invokeCode[T](args: Value[_]*): Code[T] = {
-    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq.map(_.get))
+    val (start, end, argvs) = Code.sequenceValues(args.toFastSeq.map(_.get))
     val op = if (isStatic) INVOKESTATIC else INVOKEVIRTUAL
     if (returnTypeInfo eq UnitInfo) {
       end.append(lir.methodStmt(op, lmethod, argvs))

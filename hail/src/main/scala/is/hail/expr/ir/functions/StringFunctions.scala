@@ -118,7 +118,7 @@ object StringFunctions extends RegistryFunctions {
     val missing: Value[Array[String]] = missingSV.st match {
       case SJavaArrayString(elementRequired) => missingSV.asInstanceOf[SJavaArrayStringSettable].array
       case _ =>
-        val mb = cb.emb.ecb.newEmitMethod("convert_region_to_str_array", FastIndexedSeq(missingSV.st.paramType), arrayInfo[String])
+        val mb = cb.emb.ecb.newEmitMethod("convert_region_to_str_array", FastSeq(missingSV.st.paramType), arrayInfo[String])
         mb.emitWithBuilder[Array[String]] { cb =>
           val sv = mb.getSCodeParam(1).asIndexable
           val m = cb.newLocal[Array[String]]("missingvals", Code.newArray[String](sv.loadLength()))

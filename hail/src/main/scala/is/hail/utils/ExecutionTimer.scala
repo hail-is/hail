@@ -97,7 +97,7 @@ class ExecutionTimer(val rootName: String) {
 
   def logInfo(): Unit = {
     assert(finished)
-    rootBlock.logInfo(FastIndexedSeq.empty[String])
+    rootBlock.logInfo(FastSeq.empty[String])
   }
 
   def toMap: Map[String, Any] = {
