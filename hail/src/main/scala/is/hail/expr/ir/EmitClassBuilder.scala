@@ -30,7 +30,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
     modb
       .classes
       .find(kb => kb.className == name && kb.sourceFile == sourceFile)
-      .map(kb => new EmitClassBuilder[C](this, kb.asInstanceOf[ClassBuilder[C]]))
+      .map(kb => new EmitClassBuilder[C](this, kb.asInstanceOf[ClassBuilder[C]]) { })
       .getOrElse {
         val kb = newEmitClass[C](name, sourceFile)
         body(kb)
@@ -39,7 +39,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
 
   def newEmitClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
-    new EmitClassBuilder(this, modb.newClass(name, sourceFile))
+    new EmitClassBuilder[C](this, modb.newClass[C](name, sourceFile)) {}
 
   def genEmitClass[C](baseName: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName), sourceFile)
@@ -270,10 +270,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
       getFS.invoke[String, OutputStream]("create", path))
 }
 
-class EmitClassBuilder[C](
-  val emodb: EmitModuleBuilder,
-  val cb: ClassBuilder[C]
-) extends WrappedEmitModuleBuilder { self =>
+abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuilder[C])
+  extends WrappedEmitModuleBuilder { self =>
   // wrapped ClassBuilder methods
   def className: String = cb.className
 
@@ -631,7 +629,8 @@ class EmitClassBuilder[C](
     new EmitMethodBuilder[C](FastSeq(), CodeParamType(UnitInfo), this, cb.ctor, null)
 
   def emitInitI(f: EmitCodeBuilder => Unit): Unit =
-    EmitCodeBuilder.scopedVoid(ctor)(f)
+    ctor.cb.emitInit(EmitCodeBuilder.scopedVoid(ctor)(f))
+
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {
     val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(argsInfo, returnInfo)

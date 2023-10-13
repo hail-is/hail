@@ -1,16 +1,12 @@
 package is.hail.asm4s
 
-import java.io.PrintWriter
 import is.hail.HailSuite
 import is.hail.asm4s.Code._
-import is.hail.asm4s.FunctionBuilder._
 import is.hail.check.{Gen, Prop}
 import is.hail.utils.FastSeq
-import org.apache.curator.shaded.com.google.common.reflect.ClassPath.ClassInfo
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-import scala.collection.mutable
+import java.io.PrintWriter
 import scala.language.postfixOps
 
 trait Z2Z { def apply(z:Boolean): Boolean }
