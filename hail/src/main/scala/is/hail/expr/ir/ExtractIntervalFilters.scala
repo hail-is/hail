@@ -12,13 +12,10 @@ import org.apache.spark.sql.Row
 
 import scala.collection.{GenTraversableOnce, mutable}
 
-trait JoinLattice {
+trait Lattice {
   type Value <: AnyRef
   def top: Value
-  def combine(l: Value, r: Value): Value
-}
-
-trait AbstractLattice extends JoinLattice {
+  def join(l: Value, r: Value): Value
   def bottom: Value
   def meet(l: Value, r: Value): Value
 }
@@ -100,8 +97,8 @@ object ExtractIntervalFilters {
 
 // A set of key values, represented by an ordered sequence of disjoint intervals
 // Supports lattice ops, plus complements.
-class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends AbstractLattice {
-  type Value = IndexedSeq[Interval]
+class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
+  override type Value = IndexedSeq[Interval]
   type KeySet = Value
 
   object KeySet {
@@ -142,11 +139,11 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends AbstractLatti
     }
   }
 
-  def top: Value = KeySet(Interval(Row(), Row(), true, true))
+  override def top: Value = KeySet(Interval(Row(), Row(), true, true))
 
-  def bottom: Value = KeySet.empty
+  override def bottom: Value = KeySet.empty
 
-  def combine(l: Value, r: Value): Value = {
+  override def join(l: Value, r: Value): Value = {
     if (l == bottom) r
     else if (r == bottom) l
     else KeySet(Interval.union(l ++ r, iord))
@@ -156,7 +153,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends AbstractLatti
     KeySet(Interval.union(vs.flatten.toFastSeq, iord))
   }
 
-  def meet(l: Value, r: Value): Value = {
+  override def meet(l: Value, r: Value): Value = {
     if (l == top) r
     else if (r == top) l
     else KeySet(Interval.intersection(l, r, iord))
@@ -204,7 +201,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   // These categories are not disjoint. In particular, a value can be both a
   // (key field or constant) and a (struct or boolean). We represent these
   // overlaps with subclasses.
-  object Lattice extends JoinLattice {
+  object AbstractLattice extends Lattice {
     abstract class Value
 
     object ConstantValue {
@@ -268,6 +265,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       def isKeyPrefix: Boolean
     }
 
+    // Stores an abstract value for each field of the struct. Since in this analysis,
+    // we expect most fields to be top (they neither contain any key fields nor
+    // booleans derived from key comparisons), we don't store top valued fields,
+    // and let all missing fields be top implicitly.
     private case class ConcreteStruct(fields: Map[String, Value]) extends StructValue {
       def apply(field: String): Value = fields.getOrElse(field, top)
 
@@ -290,9 +291,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
       def apply(trueBound: KeySet, falseBound: KeySet, naBound: KeySet): BoolValue = {
         if (trueBound == all && falseBound == all && naBound == all)
-          Lattice.top
+          AbstractLattice.top
         else if (trueBound == none && falseBound == none && naBound == none)
-          Lattice.bottom
+          AbstractLattice.bottom
         else
           ConcreteBool(trueBound, falseBound, naBound)
       }
@@ -302,7 +303,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           assert(lKeySet eq rKeySet)
           ConstantBool(l || r, lKeySet)
         case _ => ConcreteBool(
-          KeySetLattice.combine(l.trueBound, r.trueBound),
+          KeySetLattice.join(l.trueBound, r.trueBound),
           KeySetLattice.meet(l.falseBound, r.falseBound),
           KeySetLattice.combineMulti(
             KeySetLattice.meet(l.naBound, r.falseBound),
@@ -316,7 +317,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           ConstantBool(l && r, lKeySet)
         case _ => ConcreteBool(
           KeySetLattice.meet(l.trueBound, r.trueBound),
-          KeySetLattice.combine(l.falseBound, r.falseBound),
+          KeySetLattice.join(l.falseBound, r.falseBound),
           KeySetLattice.combineMulti(
             KeySetLattice.meet(l.naBound, r.trueBound),
             KeySetLattice.meet(l.naBound, r.naBound),
@@ -330,7 +331,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
       def isNA(x: BoolValue): BoolValue = x match {
         case ConstantBool(x, keySet) => ConstantBool(false, keySet)
-        case _ => ConcreteBool(x.naBound, KeySetLattice.combine(x.trueBound, x.falseBound), KeySetLattice.bottom)
+        case _ => ConcreteBool(x.naBound, KeySetLattice.join(x.trueBound, x.falseBound), KeySetLattice.bottom)
       }
 
       def fromComparison(v: Any, op: ComparisonOp[_], wrapped: Boolean = true): BoolValue = {
@@ -429,7 +430,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
       def restrict(keySet: KeySet): BoolValue
 
-      def isNA(): BoolValue = ConcreteBool(naBound, KeySetLattice.combine(trueBound, falseBound), KeySetLattice.bottom)
+      def isNA(): BoolValue = ConcreteBool(naBound, KeySetLattice.join(trueBound, falseBound), KeySetLattice.bottom)
     }
 
     private case class ConcreteBool(
@@ -513,7 +514,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     def top: StructValue with BoolValue = Top
     def bottom: StructValue with BoolValue = Bottom
 
-    def combine(l: Value, r: Value): Value = (l, r) match {
+    def join(l: Value, r: Value): Value = (l, r) match {
       case (Bottom, x) => x
       case (x, Bottom) => x
       case (l: ConstantValue, r: ConstantValue) if l.value == r.value => l
@@ -526,12 +527,12 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         l
       case (ConcreteStruct(l), ConcreteStruct(r)) =>
         StructValue(l.keySet.intersect(r.keySet).view.map {
-          f => f -> combine(l(f), r(f))
+          f => f -> join(l(f), r(f))
         }.toMap)
       case (l: BoolValue, r: BoolValue) => BoolValue(
-        KeySetLattice.combine(l.trueBound, r.trueBound),
-        KeySetLattice.combine(l.falseBound, r.falseBound),
-        KeySetLattice.combine(l.naBound, r.naBound))
+        KeySetLattice.join(l.trueBound, r.trueBound),
+        KeySetLattice.join(l.falseBound, r.falseBound),
+        KeySetLattice.join(l.naBound, r.naBound))
       case _ => Top
     }
 
@@ -611,30 +612,17 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
   }
 
-  import Lattice.{ Value => AbstractValue, ConstantValue, KeyField, StructValue, BoolValue, Contig, Position }
+  import AbstractLattice.{ Value => AbstractValue, ConstantValue, KeyField, StructValue, BoolValue, Contig, Position }
 
   case class AbstractEnv(keySet: KeySet, env: Env[AbstractValue]) {
-    def lookupOption(name: String): Option[AbstractValue] =
-      env.lookupOption(name)
+    def apply(name: String): AbstractValue =
+      env.lookupOption(name).getOrElse(AbstractLattice.top)
 
     def bind(bindings: (String, AbstractValue)*): AbstractEnv =
-      copy(env = env.bind(bindings: _*))
+      copy(env = env.bind(bindings.filter(_._2 != AbstractLattice.top): _*))
 
     def restrict(k: KeySet): AbstractEnv =
       copy(keySet = KeySetLattice.meet(keySet, k))
-  }
-
-  object AbstractEnvLattice extends JoinLattice {
-    type Value = AbstractEnv
-    val top: Value = AbstractEnv(KeySetLattice.top, Env.empty)
-
-    def combine(l: Value, r: Value): Value = {
-      val keys = l.env.m.keySet.intersect(r.env.m.keySet)
-      val env = Env.fromSeq(keys.map { k =>
-        k -> Lattice.combine(l.env(k), r.env(k))
-      })
-      AbstractEnv(KeySetLattice.combine(l.keySet, r.keySet), env)
-    }
   }
 
   def firstKeyOrd: ExtendedOrdering = keyType.types.head.ordering(ctx.stateManager)
@@ -734,21 +722,21 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     case Literal(_, value) => ConstantValue(value, x.typ)
     case ApplySpecial("lor", _, _, _, _) => children match {
       case Seq(ConstantValue(l: Boolean), ConstantValue(r: Boolean)) => ConstantValue(l || r, TBoolean)
-      case _ => Lattice.top
+      case _ => AbstractLattice.top
     }
     case ApplySpecial("land", _, _, _, _) => children match {
       case Seq(ConstantValue(l: Boolean), ConstantValue(r: Boolean)) => ConstantValue(l && r, TBoolean)
-      case _ => Lattice.top
+      case _ => AbstractLattice.top
     }
     case Apply("contig", _, Seq(k), _, _) => children match {
       case Seq(KeyField(0)) => Contig(k.typ.asInstanceOf[TLocus].rg)
-      case _ => Lattice.top
+      case _ => AbstractLattice.top
     }
     case Apply("position", _, Seq(k), _, _) => children match {
       case Seq(KeyField(0)) => Position(k.typ.asInstanceOf[TLocus].rg)
-      case _ => Lattice.top
+      case _ => AbstractLattice.top
     }
-    case _ => Lattice.top
+    case _ => AbstractLattice.top
   }
 
   private def computeBoolean(x: IR, children: IndexedSeq[AbstractValue], keySet: KeySet): BoolValue = (x, children) match {
@@ -800,7 +788,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         }
       }
     case (ApplyComparisonOp(op, _, _), Seq(l, r)) =>
-      Lattice.compare(l, r, op, keySet)
+      AbstractLattice.compare(l, r, op, keySet)
     case (ApplySpecial("lor", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
       BoolValue.or(l, r)
     case (ApplySpecial("land", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
@@ -818,11 +806,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     def recur(x: IR, env: AbstractEnv = env): AbstractValue =
       _analyze(x, env, rewrites)
 
-    var res: Lattice.Value = if (env.keySet == KeySetLattice.bottom)
-      Lattice.bottom
+    var res: AbstractLattice.Value = if (env.keySet == KeySetLattice.bottom)
+      AbstractLattice.bottom
     else x match {
       case Let(name, value, body) => recur(body, env.bind(name -> recur(value)))
-      case Ref(name, _) => env.lookupOption(name).getOrElse(Lattice.top)
+      case Ref(name, _) => env(name)
       case GetField(o, name) => recur(o).asInstanceOf[StructValue](name)
       case MakeStruct(fields) => StructValue(fields.view.map { case (name, field) =>
         name -> recur(field)
@@ -832,11 +820,13 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         StructValue(fields.view.map(name => name -> oldVal.asInstanceOf[StructValue](name)))
       case If(cond, cnsq, altr) =>
         val c = recur(cond).asInstanceOf[BoolValue]
-        val res = Lattice.combine(
+        val res = AbstractLattice.join(
           recur(cnsq, env.restrict(c.trueBound)),
           recur(altr, env.restrict(c.falseBound)))
+        // If cond is missing, then the result of If is missing. But only
+        // our boolean abstraction tracks missingness.
         if (x.typ == TBoolean)
-          Lattice.combine(res, BoolValue(KeySetLattice.bottom, KeySetLattice.bottom, c.naBound))
+          AbstractLattice.join(res, BoolValue(KeySetLattice.bottom, KeySetLattice.bottom, c.naBound))
         else
           res
       case ToStream(a, _) => recur(a)
@@ -845,24 +835,24 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               .foldLeft(recur(zero)) { (accum, value) =>
                 recur(body, env.bind(accumName -> accum, valueName -> ConstantValue(value, TIterable.elementType(a.typ))))
               }
-          case _ => Lattice.top
+          case _ => AbstractLattice.top
         }
       case x@Coalesce(values) =>
         val aVals = values.map(recur(_))
         if (x.typ == TBoolean) {
           val bVals = aVals.asInstanceOf[Seq[BoolValue]]
           val trueBound = bVals.foldRight(KeySetLattice.bottom) { (x, acc) =>
-            KeySetLattice.combine(x.trueBound, KeySetLattice.meet(x.naBound, acc))
+            KeySetLattice.join(x.trueBound, KeySetLattice.meet(x.naBound, acc))
           }
           val falseBound = bVals.foldRight(KeySetLattice.bottom) { (x, acc) =>
-            KeySetLattice.combine(x.falseBound, KeySetLattice.meet(x.naBound, acc))
+            KeySetLattice.join(x.falseBound, KeySetLattice.meet(x.naBound, acc))
           }
           val naBound = bVals.foldRight(KeySetLattice.top) { (x, acc) =>
             KeySetLattice.meet(x.naBound, acc)
           }
           BoolValue(trueBound, falseBound, naBound)
         } else {
-          aVals.reduce(Lattice.combine)
+          aVals.reduce(AbstractLattice.join)
         }
       case _ =>
         null
@@ -872,7 +862,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastSeq
       val keyOrConstVal = computeKeyOrConst(x, children)
       if (x.typ == TBoolean) {
-        if (keyOrConstVal == Lattice.top)
+        if (keyOrConstVal == AbstractLattice.top)
           computeBoolean(x, children, env.keySet)
         else
           keyOrConstVal.asInstanceOf[BoolValue].restrict(env.keySet)
@@ -896,9 +886,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     rewrites.foreach { rw =>
       if (x.typ == TBoolean) {
         val bool = res.asInstanceOf[BoolValue]
-        if (KeySetLattice.meet(KeySetLattice.combine(bool.falseBound, bool.naBound), env.keySet) == KeySetLattice.bottom)
+        if (KeySetLattice.meet(KeySetLattice.join(bool.falseBound, bool.naBound), env.keySet) == KeySetLattice.bottom)
           rw.replaceWithTrue += RefEquality(x)
-        else if (KeySetLattice.meet(KeySetLattice.combine(bool.trueBound, bool.naBound), env.keySet) == KeySetLattice.bottom) {
+        else if (KeySetLattice.meet(KeySetLattice.join(bool.trueBound, bool.naBound), env.keySet) == KeySetLattice.bottom) {
           rw.replaceWithFalse += RefEquality(x)
         }
       }
