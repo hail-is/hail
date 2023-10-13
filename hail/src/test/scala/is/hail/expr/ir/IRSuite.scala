@@ -1747,10 +1747,14 @@ class IRSuite extends HailSuite {
     assertNDEvals(NDArrayConcat(nds(nd1, rowwise), 0), rowwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, rowwise, emptyRowwise), 0), rowwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, emptyRowwise, rowwise), 0), rowwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(emptyRowwise, nd1, rowwise), 0), rowwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(emptyRowwise), 0), FastSeq())
 
     assertNDEvals(NDArrayConcat(nds(nd1, colwise), 1), colwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, colwise, emptyColwise), 1), colwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, emptyColwise, colwise), 1), colwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(emptyColwise, nd1, colwise), 1), colwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(emptyColwise), 1), FastSeq(FastSeq(), FastSeq()))
 
     assertNDEvals(NDArrayConcat(nds(nd1, na), 1), null)
     assertNDEvals(NDArrayConcat(nds(na, na), 1), null)
