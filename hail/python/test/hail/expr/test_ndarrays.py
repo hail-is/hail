@@ -1123,40 +1123,66 @@ def test_concatenate_differing_shapes():
         ])
 
 
-def test_vstack_1():
-    ht = hl.utils.range_table(10)
-
-    a = np.array([1, 2, 3])
-    b = np.array([2, 3, 4])
-
-    seq = (a, b)
-    seq2 = hl.array([a, b])
-    assert(np.array_equal(hl.eval(hl.nd.vstack(seq)), np.vstack(seq)))
-    assert(np.array_equal(hl.eval(hl.nd.vstack(seq2)), np.vstack(seq)))
-    ht2 = ht.annotate(x=hl.nd.array(a), y=hl.nd.array(b))
-    ht2 = ht2.annotate(stacked=hl.nd.vstack([ht2.x, ht2.y]))
-    assert np.array_equal(ht2.collect()[0].stacked, np.vstack([a, b]))
-
-def test_vstack_2():
-    ht = hl.utils.range_table(10)
-
+def make_test_vstack_data():
     a = np.array([[1], [2], [3]])
     b = np.array([[2], [3], [4]])
     empty = np.array([], np.int64).reshape((0, 1))
 
-    assert(np.array_equal(hl.eval(hl.nd.vstack((a, b))), np.vstack((a, b))))
-    assert(np.array_equal(hl.eval(hl.nd.vstack(hl.array([a, b]))), np.vstack((a, b))))
-    assert(np.array_equal(hl.eval(hl.nd.vstack((a, empty, b))), np.vstack((a, empty, b))))
-    assert(np.array_equal(hl.eval(hl.nd.vstack(hl.array([a, empty, b]))), np.vstack((a, empty, b))))
-    assert(np.array_equal(hl.eval(hl.nd.vstack((empty, a, b))), np.vstack((empty, a, b))))
-    assert(np.array_equal(hl.eval(hl.nd.vstack(hl.array([empty, a, b]))), np.vstack((empty, a, b))))
+    yield a, b
+    yield a, empty, b
+    yield empty, a, b
+
+
+    a = np.array([1, 2, 3])
+    b = np.array([2, 3, 4])
+    yield a, b
+
+
+@pytest.mark.parametrize("data", make_test_vstack_data())
+def test_vstack(data):
+    assert(np.array_equal(hl.eval(hl.nd.vstack(data)), np.vstack(data)))
+    assert(np.array_equal(hl.eval(hl.nd.vstack(hl.array(list(data)))), np.vstack(data)))
+
+
+def make_test_vstack_2_data():
+    a = np.array([[1], [2], [3]])
+    b = np.array([[2], [3], [4]])
+    empty = np.array([], np.int64).reshape((0, 1))
+
+    yield (a, b)
+    yield (a, empty)
+    yield (empty, a)
+
+    a = np.array([1, 2, 3])
+    b = np.array([2, 3, 4])
+    yield (a, b)
+
+
+@pytest.mark.parametrize("a,b", make_test_vstack_2_data())
+def test_vstack_2(a, b):
+    ht = hl.utils.range_table(10)
 
     ht2 = ht.annotate(x=hl.nd.array(a), y=hl.nd.array(b))
     ht2 = ht2.annotate(stacked=hl.nd.vstack([ht2.x, ht2.y]))
     assert np.array_equal(ht2.collect()[0].stacked, np.vstack([a, b]))
 
 
-def test_hstack():
+def make_test_hstack_data():
+    a = np.array([1, 2, 3])
+    b = np.array([2, 3, 4])
+    yield a, b
+
+    a = np.array([[1], [2], [3]])
+    b = np.array([[2], [3], [4]])
+    yield a, b
+
+    empty = np.array([], np.int64).reshape((3, 0))
+    yield a, empty
+    yield empty, a
+
+
+@pytest.mark.parametrize("a,b", make_test_hstack_data())
+def test_hstack(a, b):
     ht = hl.utils.range_table(10)
 
     def assert_table(a, b):
@@ -1164,25 +1190,9 @@ def test_hstack():
         ht2 = ht2.annotate(stacked=hl.nd.hstack([ht2.x, ht2.y]))
         assert np.array_equal(ht2.collect()[0].stacked, np.hstack([a, b]))
 
-    a = np.array([1, 2, 3])
-    b = np.array([2, 3, 4])
     assert(np.array_equal(hl.eval(hl.nd.hstack((a, b))), np.hstack((a, b))))
     assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([a, b]))), np.hstack((a, b))))
     assert_table(a, b)
-
-    a = np.array([[1], [2], [3]])
-    b = np.array([[2], [3], [4]])
-    assert(np.array_equal(hl.eval(hl.nd.hstack((a, b))), np.hstack((a, b))))
-    assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([a, b]))), np.hstack((a, b))))
-    assert_table(a, b)
-
-    empty = np.array([], np.int64).reshape((3, 0))
-    assert(np.array_equal(hl.eval(hl.nd.hstack((a, empty))), np.hstack((a, empty))))
-    assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([a, empty]))), np.hstack((a, empty))))
-    assert(np.array_equal(hl.eval(hl.nd.hstack((empty, a))), np.hstack((empty, a))))
-    assert(np.array_equal(hl.eval(hl.nd.hstack(hl.array([empty, a]))), np.hstack((empty, a))))
-    assert_table(a, empty)
-    assert_table(empty, a)
 
 
 def test_eye():
