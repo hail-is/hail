@@ -71,7 +71,7 @@ object EmitMinHeap {
           kb.defineEmitMethod("load", FastSeq(IntInfo), SCodeParamType(elemType)) { mb =>
             mb.emitSCode { cb =>
               val idx = mb.getCodeParam[Int](1)
-              heap.loadElement(cb, idx).toI(cb).get(cb)
+              heap.loadElement(cb, idx).toI(cb).get(cb, errorMsg = idx.toS)
             }
           }
 
@@ -117,30 +117,47 @@ object EmitMinHeap {
           }
         }
 
+        val swap: EmitMethodBuilder[_] =
+          kb.defineEmitMethod("swap", FastSeq(IntInfo, IntInfo), UnitInfo) { mb =>
+            mb.voidWithBuilder { cb =>
+              val x = mb.getCodeParam[Int](1)
+              val y = mb.getCodeParam[Int](2)
+              heap.swap(cb, x, y)
+            }
+          }
+
         val heapify: EmitMethodBuilder[_] =
           kb.defineEmitMethod("heapify", FastSeq(), UnitInfo) { mb =>
             mb.voidWithBuilder { cb =>
-              val index = cb.newLocal[Int]("index", 0)
-
               val Ldone = CodeLabel()
               cb.ifx(heap.size <= 1, cb.goto(Ldone))
 
+              val index = cb.newLocal[Int]("index", 0)
+              val smallest = cb.newLocal[Int]("smallest", index)
+
+              val child = cb.newLocal[Int]("child")
               cb.loop { Lrecur =>
-                val child = cb.newLocal[Int]("child")
+                // left child
+                cb.assign(child, index * 2 + 1)
+                cb.ifx(child < heap.size,
+                  cb.ifx(
+                    cb.invokeCode[Int](compareAtIndex, cb._this, child, index) < 0,
+                    cb.assign(smallest, child)
+                  )
+                )
 
-                cb.assign(child, index * 2 + 1) // left child
-                val smallest = cb.newLocal[Int]("smallest", index)
-                cb.ifx(child < heap.size && cb.invokeCode[Int](compareAtIndex, cb._this, child, index) < 0, {
-                  cb.assign(smallest, child)
-                })
-
-                cb.assign(child, index * 2 + 2) // right child
-                cb.ifx(child < heap.size && cb.invokeCode[Int](compareAtIndex, cb._this, child, smallest) < 0, {
-                  cb.assign(smallest, child)
-                })
+                // right child
+                cb.assign(child, index * 2 + 2)
+                cb.ifx(child < heap.size,
+                  cb.ifx(
+                    cb.invokeCode[Int](compareAtIndex, cb._this, child, smallest) < 0,
+                    cb.assign(smallest, child)
+                  )
+                )
 
                 cb.ifx(smallest ceq index, cb.goto(Ldone))
-                heap.swap(cb, index, smallest)
+
+                cb.invokeVoid(swap, cb._this, index, smallest)
                 cb.assign(index, smallest)
                 cb.goto(Lrecur)
               }
@@ -154,38 +171,40 @@ object EmitMinHeap {
             cb += Code._assert(cb.invokeCode[Boolean](nonEmpty, cb._this), s"${kb.className}: poll empty")
 
             val newSize = cb.memoize(heap.size - 1)
-            heap.swap(cb, 0, newSize)
+            cb.invokeVoid(swap, cb._this, const(0), newSize)
             cb.assign(heap.size, newSize)
             cb.assign(garbage, garbage + 1L)
-
             cb.invokeVoid(heapify, cb._this)
           }
         }
 
+        val append: EmitMethodBuilder[_] =
+          kb.defineEmitMethod("append", FastSeq(SCodeParamType(elemType)), UnitInfo) { mb =>
+            mb.voidWithBuilder { cb =>
+              heap.append(cb, mb.getSCodeParam(1))
+            }
+          }
+
         kb.defineEmitMethod("add", FastSeq(SCodeParamType(elemType)), UnitInfo) { mb =>
           mb.voidWithBuilder { cb =>
-            val elem = mb.getSCodeParam(1)
-            heap.append(cb, elem)
+            cb.invokeVoid(append, cb._this, mb.getSCodeParam(1))
 
             val Ldone = CodeLabel()
-            val current = cb.newLocal[Int]("current", heap.size - 1)
-            cb.ifx(current <= 1, cb.goto(Ldone))
-
+            val current = cb.newLocal[Int]("index", heap.size - 1)
             val parent = cb.newLocal[Int]("parent")
-            cb.loop { Lrecur =>
+
+            cb.whileLoop(current > 0, {
               cb.assign(parent, (current - 1) / 2)
               val cmp = cb.invokeCode[Int](compareAtIndex, cb._this, parent, current)
-              cb.ifx(cmp >= 0, cb.goto(Ldone))
+              cb.ifx(cmp <= 0, cb.goto(Ldone))
 
-              heap.swap(cb, parent, current)
+              cb.invokeVoid(swap, cb._this, parent, current)
               cb.assign(current, parent)
-              cb.goto(Lrecur)
-            }
+            })
 
             cb.define(Ldone)
           }
         }
-
 
         val arrayTy = PCanonicalArray(elemType.storageType(), required = true)
         kb.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), arrayTy.sType.paramType) { mb =>
