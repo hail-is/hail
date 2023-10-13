@@ -34,8 +34,8 @@ def submit(
         if pyfiles_list:
             tfile = tempfile.mkstemp(suffix='.zip', prefix='pyscripts_')[1]
             with zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for hail_script_entry in pyfiles_list:
-                    hail_script_entry = os.path.expanduser(hail_script_entry)
+                for _hail_script_entry in pyfiles_list:
+                    hail_script_entry = os.path.expanduser(_hail_script_entry)
                     if hail_script_entry.endswith('.py'):
                         zipf.write(hail_script_entry, arcname=os.path.basename(hail_script_entry))
                     else:
