@@ -13,7 +13,7 @@ from hail.utils.java import FatalError, Env
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.matrix_type import tmatrix
 from hail.expr.table_type import ttable
-from hail.expr.types import dtype
+from hail.expr.types import dtype, tvoid
 
 from .backend import Backend, fatal_error_from_java_error_triplet
 
@@ -75,7 +75,11 @@ class Py4JBackend(Backend):
         try:
             result_tuple = self._jbackend.executeEncode(jir, stream_codec, timed)
             (result, timings) = (result_tuple._1(), result_tuple._2())
-            value = ir.typ._from_encoding(result)
+
+            if ir.typ == tvoid:
+                value = None
+            else:
+                value = ir.typ._from_encoding(result)
 
             return (value, timings) if timed else value
         except FatalError as e:

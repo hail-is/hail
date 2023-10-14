@@ -276,9 +276,9 @@ class HailType(object):
         return self._convert_from_encoding(ByteReader(memoryview(encoding)))
 
     def _to_encoding(self, value) -> bytes:
-        writer = ByteWriter(bytearray())
-        self._convert_to_encoding(writer, value)
-        return bytes(writer._buf)
+        buf = bytearray()
+        self._convert_to_encoding(ByteWriter(buf), value)
+        return bytes(buf)
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
         raise ValueError("Not implemented yet")
