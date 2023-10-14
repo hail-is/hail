@@ -347,11 +347,11 @@ class _tvoid(HailType):
     def clear(self):
         pass
 
-    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
-        return None
+    def _convert_from_encoding(self, *_):
+        raise ValueError("Cannot decode void type")
 
     def _convert_to_encoding(self, *_):
-        pass
+        raise ValueError("Cannot encode void type")
 
 
 class _tint32(HailType):
