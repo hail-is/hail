@@ -1735,7 +1735,7 @@ class ttuple(HailType, Sequence):
         return HailTypeContext.union(*self.types)
 
 
-def allele_pair(j, k):
+def allele_pair(j: int, k: int):
     assert j >= 0 and j <= 0xffff
     assert k >= 0 and k <= 0xffff
     return j | (k << 16)
@@ -1851,8 +1851,30 @@ class _tcall(HailType):
 
         return genetics.Call(alleles, phased)
 
-    def _convert_to_encoding(self, byte_writer, value):
-        pass  # TODO
+    def _convert_to_encoding(self, byte_writer, value: genetics.Call):
+        int_rep = 0
+
+        int_rep |= value.ploidy << 1
+        if value.phased:
+            int_rep |= 1
+
+        def diploid_gt_index(j: int, k: int):
+            assert j <= k
+            return k * (k + 1) // 2 + j
+
+        def allele_pair_rep(c: genetics.Call):
+            [j, k] = c.alleles
+            if c.phased:
+                return diploid_gt_index(j, j + k)
+            return diploid_gt_index(j, k)
+
+        assert value.ploidy <= 2
+        if value.ploidy == 1:
+            int_rep |= value.alleles[0] << 3
+        elif value.ploidy == 2:
+            int_rep |= allele_pair_rep(value) << 3
+
+        byte_writer.write_int32(int_rep)
 
     def unify(self, t):
         return t == tcall

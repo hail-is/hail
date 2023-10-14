@@ -573,6 +573,12 @@ class CSETests(unittest.TestCase):
         assert expected == CSERenderer()(x)
 
 
+def _assert_encoding_roundtrip(value):
+    lit = hl.literal(value)
+    round_trip = lit.dtype._from_encoding(lit.dtype._to_encoding(value))
+    assert hl.eval(round_trip == lit)
+
+
 @pytest.mark.parametrize(
     'value',
     [
@@ -586,7 +592,27 @@ class CSETests(unittest.TestCase):
         np.array([[1, 2], [3, 4], [5, 6]]),
     ]
 )
-def test_literal_encoding(value):
-    lit = hl.literal(value)
-    round_trip = lit.dtype._from_encoding(lit.dtype._to_encoding(value))
-    assert hl.eval(round_trip == lit)
+def test_python_value_literal_encodings(value):
+    _assert_encoding_roundtrip(value)
+
+
+def test_call_encoding():
+    calls = [
+        hl.Call([0, 1]),
+        hl.Call([1, 0], phased=True),
+        hl.Call([2], phased=True),
+        hl.Call([]),
+        hl.Call([1, 1]),
+        hl.Call([17495, 17495]),
+    ]
+    for call in calls:
+        _assert_encoding_roundtrip(call)
+
+
+def test_locus_interval_encoding():
+    start = hl.Locus(contig='chr1', position=10001, reference_genome='GRCh38')
+    end = hl.Locus(contig='chr1', position=11001, reference_genome='GRCh38')
+    interval = hl.Interval(start=start, end=end, includes_start=True, includes_end=False)
+    _assert_encoding_roundtrip(start)
+    _assert_encoding_roundtrip(end)
+    _assert_encoding_roundtrip(interval)
