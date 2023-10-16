@@ -60,7 +60,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def allocateBigChunk(size: Long): Long = {
     val ret = pool.getChunk(size)
-    val chunkPointer = ret._1
+    val chunkPointer = ret._1  // Match expressions allocate https://github.com/hail-is/hail/pull/13794
     val chunkSize = ret._2
     bigChunks.add(chunkPointer)
     totalChunkMemory += chunkSize
