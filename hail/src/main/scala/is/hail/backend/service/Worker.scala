@@ -193,7 +193,7 @@ object Worker {
     timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")
 
-    if (throwableWhileExecutingUserCode != null) {
+    result.left.map { throwableWhileExecutingUserCode =>
       log.info("throwing the exception so that this Worker job is marked as failed.")
       throw throwableWhileExecutingUserCode
     }
