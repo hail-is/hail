@@ -7,8 +7,6 @@ from typing import List, Optional
 from gear import Database
 from gear.cloud_config import get_gcp_config
 
-from .environment import DEFAULT_NAMESPACE
-
 
 def generate_token(size=12):
     assert size > 0
