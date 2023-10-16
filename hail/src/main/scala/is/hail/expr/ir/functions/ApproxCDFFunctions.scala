@@ -15,12 +15,6 @@ import org.apache.spark.sql.Row
 object ApproxCDFFunctions extends RegistryFunctions {
   val statePType = QuantilesAggregator.resultPType
   val stateType = statePType.virtualType
-  val resultPType: PCanonicalStruct =
-    PCanonicalStruct(required = false,
-      "values" -> PCanonicalArray(PFloat64(true), required = true),
-      "ranks" -> PCanonicalArray(PInt64(true), required = true),
-      "_compaction_counts" -> PCanonicalArray(PInt32(true), required = true))
-  val resultSType = SBaseStructPointer(resultPType)
 
   def rowToStateManager(k: Int, row: Row): ApproxCDFStateManager = {
     val levels = row.getAs[IndexedSeq[Int]](0).toArray
@@ -53,7 +47,7 @@ object ApproxCDFFunctions extends RegistryFunctions {
         val leftState = makeStateManager(cb, r.region, k.value, left)
         val rightState = makeStateManager(cb, r.region, k.value, right)
 
-        leftState.invoke[ApproxCDFStateManager, Unit]("combOp", rightState)
+        cb += leftState.invoke[ApproxCDFStateManager, Unit]("combOp", rightState)
 
         fromStateManager(cb, r.region, leftState)
     }

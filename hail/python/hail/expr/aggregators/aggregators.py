@@ -339,10 +339,10 @@ def approx_cdf(expr, k=100, *, _raw=False):
         tfloat32: lambda x: x.map(hl.float32),
         tfloat64: identity
     }
-    raw_res = raw_res.annotate(items=conv[expr.dtype](raw_res['items']))
     if _raw:
         return raw_res
     else:
+        raw_res = raw_res.annotate(items=conv[expr.dtype](raw_res['items']))
         return _result_from_raw_cdf(raw_res)
 
 
