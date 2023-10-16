@@ -5,7 +5,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 
 from .router_fs import RouterAsyncFS
-from ..utils.rich_progress_bar import SimpleRichProgressBar
+from ..utils.rich_progress_bar import SimpleCopyToolProgressBar
 
 
 async def delete(paths: List[str]) -> None:
@@ -14,7 +14,7 @@ async def delete(paths: List[str]) -> None:
         async with RouterAsyncFS(local_kwargs=kwargs, s3_kwargs=kwargs) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
-                with SimpleRichProgressBar(
+                with SimpleCopyToolProgressBar(
                         description='files',
                         transient=True,
                         total=0) as file_pbar:

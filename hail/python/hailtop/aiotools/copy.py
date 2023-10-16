@@ -7,7 +7,7 @@ import sys
 
 from concurrent.futures import ThreadPoolExecutor
 
-from ..utils.rich_progress_bar import RichProgressBar, make_listener
+from ..utils.rich_progress_bar import CopyToolProgressBar, make_listener
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
 
@@ -52,7 +52,7 @@ async def copy(*,
                                  s3_kwargs=s3_kwargs) as fs:
             sema = asyncio.Semaphore(max_simultaneous_transfers)
             async with sema:
-                with RichProgressBar(transient=True, disable=not verbose) as progress:
+                with CopyToolProgressBar(transient=True, disable=not verbose) as progress:
                     file_tid = progress.add_task(description='files', total=0, visible=verbose)
                     bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
                     copy_report = await Copier.copy(

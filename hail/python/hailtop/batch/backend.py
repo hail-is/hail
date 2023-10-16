@@ -16,7 +16,7 @@ from rich.progress import track
 
 from hailtop import pip_version
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
-from hailtop.utils.rich_progress_bar import SimpleRichProgressBar
+from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 
@@ -688,9 +688,9 @@ class ServiceBackend(Backend[bc.Batch]):
         )
 
         disable_setup_steps_progress_bar = disable_progress_bar or len(unsubmitted_jobs) < 10_000
-        with SimpleRichProgressBar(total=len(unsubmitted_jobs),
-                                   description='upload code',
-                                   disable=disable_setup_steps_progress_bar) as pbar:
+        with SimpleCopyToolProgressBar(total=len(unsubmitted_jobs),
+                                       description='upload code',
+                                       disable=disable_setup_steps_progress_bar) as pbar:
             async def compile_job(job):
                 used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir, dry_run=dry_run)
                 pbar.update(1)
