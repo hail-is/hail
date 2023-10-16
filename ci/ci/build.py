@@ -1328,7 +1328,7 @@ EOF
                 regions=[REGION],
             )
 
-        n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
+        n_cores = 16 if scope == 'deploy' and not is_test_deployment else 1
 
         self.create_database_job = batch.create_job(
             self.image,
