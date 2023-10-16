@@ -102,20 +102,20 @@ LIMIT 100;
         print(f'missing records in job groups: {bad_batch_ids}')
         raise Exception('audit failed. missing records in job_groups')
 
-    bad_parent_records = db.execute_and_fetchall(
+    bad_records = db.execute_and_fetchall(
         '''
 SELECT id AS batch_id
 FROM batches
-LEFT JOIN job_group_parents ON batches.id = job_group_parents.batch_id
-WHERE job_group_parents.batch_id IS NULL
+LEFT JOIN job_group_self_and_ancestors ON batches.id = job_group_self_and_ancestors.batch_id
+WHERE job_group_self_and_ancestors.batch_id IS NULL
 LIMIT 100;
 ''')
 
-    bad_batch_ids = [record['batch_id'] async for record in bad_parent_records]
+    bad_batch_ids = [record['batch_id'] async for record in bad_records]
 
     if bad_batch_ids:
-        print(f'missing records in job group_parents: {bad_batch_ids}')
-        raise Exception('audit failed. missing records in job_group_parents')
+        print(f'missing records in job_group_self_and_ancestors: {bad_batch_ids}')
+        raise Exception('audit failed. missing records in job_group_self_and_ancestors')
 
 
 async def main(chunk_size=100):
