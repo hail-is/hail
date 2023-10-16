@@ -907,7 +907,7 @@ def retry_response_returning_functions(fun, *args, **kwargs):
     return response
 
 
-def external_requests_client_session(headers: Dict[str, Any] = None, timeout: int = 5) -> requests.Session:
+def external_requests_client_session(headers: Optional[Dict[str, Any]] = None, timeout: int = 5) -> requests.Session:
     session = requests.Session()
     adapter = TimeoutHTTPAdapter(max_retries=1, timeout=timeout)
     session.mount('http://', adapter)
