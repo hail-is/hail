@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from hailtop.utils import async_to_blocking, ait_to_blocking
 from ..config import DeployConfig
@@ -94,6 +94,109 @@ class Job:
 
     def attempts(self):
         return async_to_blocking(self._async_job.attempts())
+
+
+class JobGroup:
+    def __init__(self, async_job_group: aioclient.JobGroup):
+        self._async_job_group = async_job_group
+
+    async def name(self):
+        return async_to_blocking(self._async_job_group.name())
+
+    async def attributes(self):
+        return async_to_blocking(self._async_job_group.attributes())
+
+    @property
+    def batch_id(self) -> int:
+        return self._async_job_group.batch_id
+
+    @property
+    def job_group_id(self) -> int:
+        return self._async_job_group.job_group_id
+
+    @property
+    def id(self) -> Tuple[int, int]:
+        return (self.batch_id, self.job_group_id)
+
+    async def cancel(self):
+        return async_to_blocking(self._async_job_group.cancel())
+
+    async def jobs(self,
+                   q: Optional[str] = None,
+                   version: Optional[int] = None,
+                   recursive: bool = False):
+        return ait_to_blocking(self._async_job_group.jobs(q, version, recursive))
+
+    # {
+    #   batch_id: int
+    #   job_group_id: int
+    #   state: str, (failure, cancelled, success, running)
+    #   complete: bool
+    #   n_jobs: int
+    #   n_completed: int
+    #   n_succeeded: int
+    #   n_failed: int
+    #   n_cancelled: int
+    #   time_created: optional(str), (date)
+    #   time_completed: optional(str), (date)
+    #   duration: optional(str)
+    #   attributes: optional(dict(str, str))
+    #   cost: float
+    # }
+    async def status(self) -> Dict[str, Any]:
+        return async_to_blocking(self._async_job_group.status())
+
+    async def last_known_status(self) -> Dict[str, Any]:
+        return async_to_blocking(self._async_job_group.status())
+
+    # FIXME Error if this is called while in a job within the same job group
+    async def wait(self, *args, **kwargs) -> Dict[str, Any]:
+        return async_to_blocking(self._async_job_group.wait(*args, **kwargs))
+
+    async def debug_info(self, *args, **kwargs):
+        return async_to_blocking(self._async_job_group.debug_info(*args, **kwargs))
+
+    def create_job(self,
+                   image,
+                   command,
+                   *,
+                   env=None,
+                   port=None, resources=None, secrets=None,
+                   service_account=None, attributes=None, parents=None,
+                   input_files=None, output_files=None, always_run=False,
+                   timeout=None, cloudfuse=None, requester_pays_project=None,
+                   mount_tokens=False, network: Optional[str] = None,
+                   unconfined: bool = False, user_code: Optional[str] = None,
+                   regions: Optional[List[str]] = None,
+                   always_copy_output: bool = False) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_job_group.create_job(
+            image, command, env=env,
+            port=port, resources=resources, secrets=secrets,
+            service_account=service_account,
+            attributes=attributes, parents=parents,
+            input_files=input_files, output_files=output_files, always_run=always_run,
+            always_copy_output=always_copy_output, timeout=timeout, cloudfuse=cloudfuse,
+            requester_pays_project=requester_pays_project, mount_tokens=mount_tokens,
+            network=network, unconfined=unconfined, user_code=user_code,
+            regions=regions)
+
+        return Job(async_job)
+
+    def create_jvm_job(self, command, *, profile: bool = False, parents=None, **kwargs) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_job_group.create_jvm_job(command, profile=profile, parents=parents, **kwargs)
+
+        return Job(async_job)
+
+
+class BatchSubmissionInfo:
+    def __init__(self, used_fast_path: Optional[bool] = None):
+        self.used_fast_path = used_fast_path
 
 
 class Batch:

@@ -7,7 +7,6 @@ from hailtop.batch_client.types import CostBreakdownEntry, JobListEntryV1Alpha
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
-from .constants import ROOT_JOB_GROUP_ID
 from .exceptions import NonExistentBatchError, OpenBatchError
 from .utils import coalesce
 
@@ -80,6 +79,59 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
+def job_group_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
+    if record['n_failed'] > 0:
+        state = 'failure'
+    elif record['cancelled'] or record['n_cancelled'] > 0:
+        state = 'cancelled'
+    elif record['state'] == 'complete':
+        assert record['n_succeeded'] == record['n_jobs']
+        state = 'success'
+    else:
+        state = 'running'
+
+    def _time_msecs_str(t):
+        if t:
+            return time_msecs_str(t)
+        return None
+
+    time_created = _time_msecs_str(record['time_created'])
+    time_completed = _time_msecs_str(record['time_completed'])
+
+    if record['time_created'] and record['time_completed']:
+        duration_ms = record['time_completed'] - record['time_created']
+        duration = humanize_timedelta_msecs(duration_ms)
+    else:
+        duration_ms = None
+        duration = None
+
+    if record['cost_breakdown'] is not None:
+        record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
+
+    d = {
+        'id': record['id'],
+        'state': state,
+        'complete': record['state'] == 'complete',
+        'n_jobs': record['n_jobs'],
+        'n_completed': record['n_completed'],
+        'n_succeeded': record['n_succeeded'],
+        'n_failed': record['n_failed'],
+        'n_cancelled': record['n_cancelled'],
+        'time_created': time_created,
+        'time_completed': time_completed,
+        'duration_ms': duration_ms,
+        'duration': duration,
+        'cost': coalesce(record['cost'], 0),
+        'cost_breakdown': record['cost_breakdown'],
+    }
+
+    attributes = json.loads(record['attributes'])
+    if attributes:
+        d['attributes'] = attributes
+
+    return d
+
+
 def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEntryV1Alpha:
     format_version = BatchFormatVersion(record['format_version'])
 
@@ -109,7 +161,7 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
     }
 
 
-async def cancel_batch_in_db(db, batch_id):
+async def cancel_job_group_in_db(db, batch_id, job_group_id):
     @transaction(db)
     async def cancel(tx):
         record = await tx.execute_and_fetchone(
@@ -126,6 +178,6 @@ FOR UPDATE;
         if record['state'] == 'open':
             raise OpenBatchError(batch_id)
 
-        await tx.just_execute('CALL cancel_job_group(%s, %s);', (batch_id, ROOT_JOB_GROUP_ID))
+        await tx.just_execute('CALL cancel_job_group(%s, %s);', (batch_id, job_group_id))
 
     await cancel()
