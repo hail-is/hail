@@ -31,7 +31,7 @@ def make_variants_matrix_table(mt: MatrixTable,
     transform_row = _transform_variant_function_map.get((mt.row.dtype, info_key))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         def get_lgt(gt, n_alleles, has_non_ref, row):
-            index = gt.unphased_diploid_gt_index()
+            index = gt.unphase().unphased_diploid_gt_index()
             n_no_nonref = n_alleles - hl.int(has_non_ref)
             triangle_without_nonref = hl.triangle(n_no_nonref)
             return (hl.case()
@@ -39,7 +39,7 @@ def make_variants_matrix_table(mt: MatrixTable,
                           hl.or_missing(gt[0] < n_no_nonref, gt))
                     .when(index < triangle_without_nonref, gt)
                     .when(index < hl.triangle(n_alleles), hl.missing('call'))
-                    .or_error('invalid GT ' + hl.str(gt) + ' at site ' + hl.str(row.locus)))
+                    .or_error('invalid call ' + hl.str(gt) + ' at site ' + hl.str(row.locus)))
 
         def make_entry_struct(e, alleles_len, has_non_ref, row):
             handled_fields = dict()
