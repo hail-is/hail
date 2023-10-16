@@ -52,7 +52,7 @@ from hailtop.utils import (
 )
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from ..batch import cancel_batch_in_db
+from ..batch import cancel_job_group_in_db
 from ..batch_configuration import (
     BATCH_STORAGE_URI,
     CLOUD,
@@ -1222,7 +1222,7 @@ LOCK IN SHARE MODE;
 
 async def _cancel_batch(app, batch_id):
     try:
-        await cancel_batch_in_db(app['db'], batch_id)
+        await cancel_job_group_in_db(app['db'], batch_id, ROOT_JOB_GROUP_ID)
     except BatchUserError as exc:
         log.info(f'cannot cancel batch because {exc.message}')
         return
