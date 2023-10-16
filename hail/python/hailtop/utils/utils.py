@@ -17,6 +17,7 @@ import asyncio
 import aiohttp
 import urllib.parse
 import urllib3.exceptions
+import google.api_core.exceptions
 import secrets
 import socket
 import requests
@@ -158,10 +159,12 @@ def async_to_blocking(coro: Awaitable[T]) -> T:
     try:
         return loop.run_until_complete(task)
     finally:
-        if not task.done():
+        if task.done() and not task.cancelled():
+            exc = task.exception()
+            if exc:
+                raise exc
+        else:
             task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                loop.run_until_complete(task)
 
 
 def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
@@ -205,9 +208,9 @@ class AsyncThrottledGather(Generic[T]):
         self._results: List[Union[T, Exception, None]] = [None] * len(pfs)
         self._errors: List[BaseException] = []
 
-        self._workers = []
+        self._workers: List[asyncio.Task] = []
         for _ in range(parallelism):
-            self._workers.append(asyncio.ensure_future(self._worker()))
+            self._workers.append(asyncio.create_task(self._worker()))
 
         for i, pf in enumerate(pfs):
             self._queue.put_nowait((i, pf))
@@ -215,7 +218,12 @@ class AsyncThrottledGather(Generic[T]):
     def _cancel_workers(self):
         for worker in self._workers:
             try:
-                worker.cancel()
+                if worker.done() and not worker.cancelled():
+                    exc = worker.exception()
+                    if exc:
+                        raise exc
+                else:
+                    worker.cancel()
             except Exception:
                 pass
 
@@ -385,15 +393,14 @@ class OnlineBoundedGather2:
             return
 
         # shut down the pending tasks
-        tasks = []
         for _, t in self._pending.items():
-            if not t.done():
+            if t.done() and not t.cancelled():
+                exc = t.exception()
+                if exc:
+                    raise exc
+            else:
                 t.cancel()
-            tasks.append(t)
         self._pending = None
-
-        if tasks:
-            await asyncio.wait(tasks)
 
         self._done_event.set()
 
@@ -542,7 +549,11 @@ async def bounded_gather2_raise_exceptions(
         _, exc, _ = sys.exc_info()
         if exc is not None:
             for task in tasks:
-                if not task.done():
+                if task.done() and not task.cancelled():
+                    exc = task.exception()
+                    if exc:
+                        raise exc
+                else:
                     task.cancel()
             if tasks:
                 async with WithoutSemaphore(sema):
@@ -556,6 +567,8 @@ async def bounded_gather2(
         cancel_on_error: bool = False
 ) -> List[T]:
     if return_exceptions:
+        if cancel_on_error:
+            raise ValueError('cannot request return_exceptions and cancel_on_error')
         return await bounded_gather2_return_exceptions(sema, *pfs)  # type: ignore
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
@@ -594,7 +607,7 @@ RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES = {
 }
 
 
-def is_limited_retries_error(e):
+def is_limited_retries_error(e: BaseException) -> bool:
     # An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     # provider can manifest as this exception *and* that manifestation is indistinguishable from a
     # true error.
@@ -610,11 +623,11 @@ def is_limited_retries_error(e):
     if isinstance(e, ConnectionRefusedError):
         return True
     if e.__cause__ is not None:
-        return is_transient_error(e.__cause__)
+        return is_limited_retries_error(e.__cause__)
     return False
 
 
-def is_transient_error(e):
+def is_transient_error(e: BaseException) -> bool:
     # observed exceptions:
     #
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host <host> ssl:None [Connect call failed ('<ip>', 80)]
@@ -681,8 +694,15 @@ def is_transient_error(e):
     if isinstance(e, asyncio.TimeoutError):
         return True
     if (isinstance(e, aiohttp.ClientConnectorError)
-            and hasattr(e, 'os_error')
             and is_transient_error(e.os_error)):
+        return True
+    if (isinstance(e, aiohttp.ClientOSError)
+            and len(e.args) >= 2
+            and e.args[0] == 1
+            and 'sslv3 alert bad record mac' in e.args[1]):
+        # aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)
+        #
+        # This appears to be a symptom of Google rate-limiting as of 2023-10-15
         return True
     # appears to happen when the connection is lost prematurely, see:
     # https://github.com/aio-libs/aiohttp/issues/4581
@@ -711,6 +731,10 @@ def is_transient_error(e):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
         # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
         return True
+    if isinstance(e, google.api_core.exceptions.GatewayTimeout):
+        return True
+    if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
+        return True
     if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True
     if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
@@ -732,7 +756,7 @@ def is_transient_error(e):
     return False
 
 
-def is_delayed_warning_error(e):
+def is_delayed_warning_error(e: BaseException) -> bool:
     if isinstance(e, aiohttp.ClientResponseError) and e.status in (503, 429):
         # 503 service unavailable
         # 429 "Temporarily throttled, too many requests"
@@ -775,8 +799,8 @@ def sync_sleep_before_try(
     time.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
 
 
-def retry_all_errors(msg=None, error_logging_interval=10):
-    async def _wrapper(f, *args, **kwargs):
+def retry_all_errors(msg: Optional[str] = None, error_logging_interval: int = 10):
+    async def _wrapper(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
         tries = 0
         while True:
             try:
@@ -793,7 +817,7 @@ def retry_all_errors(msg=None, error_logging_interval=10):
     return _wrapper
 
 
-def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10):
+def retry_all_errors_n_times(max_errors: int = 10, msg: Optional[str] = None, error_logging_interval: int = 10):
     async def _wrapper(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> T:
         tries = 0
         while True:
@@ -854,7 +878,7 @@ async def retry_transient_errors_with_debug_string(debug_string: str, warning_de
         await asyncio.sleep(delay)
 
 
-def sync_retry_transient_errors(f, *args, **kwargs):
+def sync_retry_transient_errors(f: Callable[..., T], *args, **kwargs) -> T:
     tries = 0
     while True:
         try:
@@ -888,7 +912,7 @@ def retry_response_returning_functions(fun, *args, **kwargs):
     return response
 
 
-def external_requests_client_session(headers=None, timeout=5) -> requests.Session:
+def external_requests_client_session(headers: Dict[str, Any] = None, timeout: int = 5) -> requests.Session:
     session = requests.Session()
     adapter = TimeoutHTTPAdapter(max_retries=1, timeout=timeout)
     session.mount('http://', adapter)
@@ -947,7 +971,7 @@ async def retry_long_running(name: str, f: Callable[P, Awaitable[T]], *args: P.a
                 30.0)
 
 
-async def run_if_changed(changed, f, *args, **kwargs):
+async def run_if_changed(changed: asyncio.Event, f: Callable[..., Awaitable[bool]], *args, **kwargs):
     while True:
         changed.clear()
         should_wait = await f(*args, **kwargs)
@@ -962,7 +986,7 @@ async def run_if_changed(changed, f, *args, **kwargs):
             await changed.wait()
 
 
-async def run_if_changed_idempotent(changed, f, *args, **kwargs):
+async def run_if_changed_idempotent(changed: asyncio.Event, f: Callable[..., Awaitable[bool]], *args, **kwargs):
     while True:
         should_wait = await f(*args, **kwargs)
         changed.clear()
@@ -970,7 +994,7 @@ async def run_if_changed_idempotent(changed, f, *args, **kwargs):
             await changed.wait()
 
 
-async def periodically_call(period: int, f, *args, **kwargs):
+async def periodically_call(period: Union[int, float], f: Callable[..., Awaitable[Any]], *args, **kwargs):
     async def loop():
         log.info(f'starting loop for {f.__name__}')
         while True:
@@ -979,7 +1003,7 @@ async def periodically_call(period: int, f, *args, **kwargs):
     await retry_long_running(f.__name__, loop)
 
 
-async def periodically_call_with_dynamic_sleep(period: Callable[[], int], f, *args, **kwargs):
+async def periodically_call_with_dynamic_sleep(period: Callable[[], Union[int, float]], f, *args, **kwargs):
     async def loop():
         log.info(f'starting loop for {f.__name__}')
         while True:
