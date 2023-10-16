@@ -687,6 +687,14 @@ def is_transient_error(e):
     if (isinstance(e, aiohttp.ClientPayloadError)
             and e.args[0] == "Response payload is not completed"):
         return True
+    if (isinstance(e, aiohttp.ClientOSError)
+            and len(e.args) >= 2
+            and e.args[0] == 1
+            and 'sslv3 alert bad record mac' in e.args[1]):
+        # aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)
+        #
+        # This appears to be a symptom of Google rate-limiting as of 2023-10-15
+        return True
     if isinstance(e, OSError) and e.errno in RETRYABLE_ERRNOS:
         return True
     if isinstance(e, urllib3.exceptions.ReadTimeoutError):
