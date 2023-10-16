@@ -1550,7 +1550,7 @@ WHERE id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    await db.just_execute('CALL cancel_batch(%s);', (batch_id,))
+    await db.just_execute('CALL cancel_job_group(%s, %s);', (batch_id, ROOT_JOB_GROUP_ID))
     await db.execute_update('UPDATE batches SET deleted = 1 WHERE id = %s;', (batch_id,))
 
     if record['state'] == 'running':

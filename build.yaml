@@ -2361,6 +2361,9 @@ steps:
       - name: remove-v2-billing-writes
         script: /io/sql/remove-v2-billing-writes.sql
         online: true
+      - name: finalize-job-groups
+        script: /io/sql/finalize-job-groups.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

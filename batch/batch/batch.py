@@ -7,6 +7,7 @@ from hailtop.batch_client.types import CostBreakdownEntry, JobListEntryV1Alpha
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
+from .constants import ROOT_JOB_GROUP_ID
 from .exceptions import NonExistentBatchError, OpenBatchError
 from .utils import coalesce
 
@@ -125,6 +126,6 @@ FOR UPDATE;
         if record['state'] == 'open':
             raise OpenBatchError(batch_id)
 
-        await tx.just_execute('CALL cancel_batch(%s);', (batch_id,))
+        await tx.just_execute('CALL cancel_job_group(%s, %s);', (batch_id, ROOT_JOB_GROUP_ID))
 
     await cancel()
