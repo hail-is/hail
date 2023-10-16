@@ -113,7 +113,7 @@ async def async_describe(
 
     gcs_kwargs = {}
     if requester_pays_project_id:
-        gcs_kwargs['project'] = requester_pays_project_id
+        gcs_kwargs['gcs_requester_pays_configuration'] = requester_pays_project_id
 
     async with aio_contextlib.closing(RouterAsyncFS(gcs_kwargs=gcs_kwargs)) as fs:
         j = orjson.loads(decompress(await fs.read(path.join(file, 'metadata.json.gz')), 16 + MAX_WBITS))
