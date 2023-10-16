@@ -14,6 +14,9 @@ from hail.utils.java import FatalError, Env
 
 from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
 
+import http.client
+http.client._MAXLINE = 2 ** 20
+
 
 def handle_java_exception(f):
     def deco(*args, **kwargs):
