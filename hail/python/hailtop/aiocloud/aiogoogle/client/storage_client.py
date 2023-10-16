@@ -60,7 +60,7 @@ class PageIterator:
 class InsertObjectStream(WritableStream):
     def __init__(self,
                  it: FeedableAsyncIterable[bytes],
-                 request_task: asyncio.Future):  # in Python 3.9: asyncio.Future[aiohttp.ClientResponse]
+                 request_task: asyncio.Task[aiohttp.ClientResponse]):
         super().__init__()
         self._it = it
         self._request_task = request_task
@@ -72,7 +72,9 @@ class InsertObjectStream(WritableStream):
         fut = asyncio.ensure_future(self._it.feed(b))
         try:
             await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
-            if fut.done():
+            if fut.done() and not fut.cancelled():
+                if exc := fut.exception():
+                    raise exc
                 return len(b)
             raise ValueError('request task finished early')
         finally:
@@ -85,7 +87,11 @@ class InsertObjectStream(WritableStream):
             async with await self._request_task as resp:
                 self._value = await resp.json()
         finally:
-            fut.cancel()
+            if fut.done() and not fut.cancelled():
+                if exc := fut.exception():
+                    raise exc
+            else:
+                fut.cancel()
 
 
 class _TaskManager:
@@ -346,7 +352,7 @@ class GoogleStorageClient(GoogleBaseClient):
         if upload_type == 'media':
             it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
             kwargs['data'] = aiohttp.AsyncIterablePayload(it)
-            request_task: asyncio.Future = asyncio.ensure_future(self._session.post(
+            request_task = asyncio.create_task(self._session.post(
                 f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
                 retry=False,
                 **kwargs))
