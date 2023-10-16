@@ -51,6 +51,60 @@ class ServiceBackendContext(
 
 object ServiceBackend {
   private val log = Logger.getLogger(getClass.getName())
+
+  def apply(
+    jarLocation: String,
+    name: String,
+    theHailClassLoader: HailClassLoader,
+    batchClient: BatchClient,
+    batchId: Option[Long],
+    scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
+    rpcConfig: ServiceBackendRPCPayload
+  ): ServiceBackend = {
+
+    val flags = HailFeatureFlags.fromMap(rpcConfig.flags)
+    val shouldProfile = flags.get("profile") != null
+    val fs = FS.cloudSpecificFS(s"${scratchDir}/secrets/gsa-key/key.json", Some(flags))
+
+    val backendContext = new ServiceBackendContext(
+      rpcConfig.billing_project,
+      rpcConfig.remote_tmpdir,
+      rpcConfig.worker_cores,
+      rpcConfig.worker_memory,
+      rpcConfig.storage,
+      rpcConfig.regions,
+      rpcConfig.cloudfuse_configs,
+      shouldProfile,
+      ExecutionCache.fromFlags(flags, fs, rpcConfig.remote_tmpdir)
+    )
+
+    val backend = new ServiceBackend(
+      jarLocation,
+      name,
+      new HailClassLoader(getClass().getClassLoader()),
+      batchClient,
+      batchId,
+      flags,
+      rpcConfig.tmp_dir,
+      fs,
+      backendContext,
+      scratchDir
+    )
+
+    rpcConfig.custom_references.foreach { s =>
+      backend.addReference(ReferenceGenome.fromJSON(s))
+    }
+    rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
+      liftoversForSource.foreach { case (destGenome, chainFile) =>
+        backend.addLiftover(sourceGenome, chainFile, destGenome)
+      }
+    }
+    rpcConfig.sequences.foreach { case (rg, (fastaFile, indexFile)) =>
+      backend.addSequence(rg, fastaFile, indexFile)
+    }
+
+    backend
+  }
 }
 
 class ServiceBackend(
@@ -59,6 +113,10 @@ class ServiceBackend(
   val theHailClassLoader: HailClassLoader,
   val batchClient: BatchClient,
   val curBatchId: Option[Long],
+  val flags: HailFeatureFlags,
+  val tmpdir: String,
+  val fs: FS,
+  val serviceBackendContext: ServiceBackendContext,
   val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
 ) extends Backend with BackendWithNoCodeCache {
   import ServiceBackend.log
@@ -341,10 +399,30 @@ class ServiceBackend(
 
   def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T = { f =>
     ExecutionTimer.logTime(methodName) { timer =>
-      ExecuteContext.scoped(null, null, this, null, timer, null, theHailClassLoader, this.references, null, new BackendContext {
-        override val executionCache: ExecutionCache =
-          ExecutionCache.fromFlags(null, null, null)
-      })(f)
+      ExecuteContext.scoped(
+        tmpdir,
+        "file:///tmp",
+        this,
+        fs,
+        timer,
+        null,
+        theHailClassLoader,
+        references,
+        flags,
+        serviceBackendContext
+      )(f)
+    }
+  }
+
+  def addLiftover(name: String, chainFile: String, destRGName: String): Unit = {
+    withExecuteContext("addLiftover") { ctx =>
+      references(name).addLiftover(ctx, chainFile, destRGName)
+    }
+  }
+
+  def addSequence(name: String, fastaFile: String, indexFile: String): Unit = {
+    withExecuteContext("addSequence") { ctx =>
+      references(name).addSequence(ctx, fastaFile, indexFile)
     }
   }
 }
@@ -379,9 +457,15 @@ object ServiceBackendSocketAPI2 {
     var batchId = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
     log.info("BatchConfig parsed.")
 
+    implicit val formats: Formats = DefaultFormats
+    val input = using(fs.openNoCompression(inputURL))(JsonMethods.parse(_))
+    val rpcConfig = (input \ "config").extract[ServiceBackendRPCPayload]
+
     // FIXME: when can the classloader be shared? (optimizer benefits!)
-    val backend = new ServiceBackend(
-      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchClient, batchId, scratchDir)
+    val backend = ServiceBackend(
+      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchClient, batchId, scratchDir,
+      rpcConfig
+    )
     log.info("ServiceBackend allocated.")
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
@@ -392,7 +476,9 @@ object ServiceBackendSocketAPI2 {
       log.info("HailContexet initialized.")
     }
 
-    new ServiceBackendSocketAPI2(backend, fs, inputURL, outputURL).executeOneCommand()
+    val action = (input \ "action").extract[Int]
+    val payload = (input \ "payload")
+    new ServiceBackendSocketAPI2(backend, fs, outputURL).executeOneCommand(action, payload)
   }
 }
 
@@ -440,7 +526,6 @@ case class ServiceBackendRPCPayload(
   storage: String,
   cloudfuse_configs: Array[(String, String, Boolean)],
   regions: Array[String],
-  idempotency_token: String,
   flags: Map[String, String],
   custom_references: Array[String],
   liftovers: Map[String, Map[String, String]],
@@ -449,6 +534,7 @@ case class ServiceBackendRPCPayload(
 
 case class ServiceBackendExecutePayload(
   functions: Array[SerializedIRFunction],
+  idempotency_token: String,
   payload: ExecutePayload,
 )
 
@@ -464,7 +550,6 @@ case class SerializedIRFunction(
 class ServiceBackendSocketAPI2(
   private[this] val backend: ServiceBackend,
   private[this] val fs: FS,
-  private[this] val inputURL: String,
   private[this] val outputURL: String,
 ) extends Thread {
   private[this] val LOAD_REFERENCES_FROM_DATASET = 1
@@ -479,125 +564,55 @@ class ServiceBackendSocketAPI2(
 
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  private[this] def parseInputToCommandThunk(): () => Array[Byte] = retryTransientErrors {
+  private[this] def doAction(action: Int, payload: JValue): Array[Byte] = retryTransientErrors {
     implicit val formats: Formats = DefaultFormats
-    using(fs.openNoCompression(inputURL)) { inputStream =>
-      val input = JsonMethods.parse(inputStream)
-
-      val config = (input \ "config").extract[ServiceBackendRPCPayload]
-      val flagsMap = config.flags
-      config.custom_references.foreach { s =>
-        backend.addReference(ReferenceGenome.fromJSON(s))
-      }
-      val liftovers = config.liftovers
-      val addedSequences = config.sequences
-      val workerCores = config.worker_cores
-      val workerMemory = config.worker_memory
-      val regions = config.regions
-      val storageRequirement = config.storage
-      val cloudfuseConfig = config.cloudfuse_configs
-      val tmpdir = config.tmp_dir
-      val billingProject = config.billing_project
-      val remoteTmpDir = config.remote_tmpdir
-
-      def withExecuteContext(
-        methodName: String,
-        method: ExecuteContext => Array[Byte]
-      ): () => Array[Byte] = {
-        val flags = HailFeatureFlags.fromMap(flagsMap)
-        val shouldProfile = flags.get("profile") != null
-        val fs = FS.cloudSpecificFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
-
-        { () =>
-          ExecutionTimer.logTime(methodName) { timer =>
-            ExecuteContext.scoped(
-              tmpdir,
-              "file:///tmp",
-              backend,
-              fs,
-              timer,
-              null,
-              backend.theHailClassLoader,
-              backend.references,
-              flags,
-              new ServiceBackendContext(billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig, shouldProfile,
-                ExecutionCache.fromFlags(flags, fs, remoteTmpDir)
-              )
-            ) { ctx =>
-              liftovers.foreach { case (sourceGenome, liftoversForSource) =>
-                liftoversForSource.foreach { case (destGenome, chainFile) =>
-                  ctx.getReference(sourceGenome).addLiftover(ctx, chainFile, destGenome)
-                }
-              }
-              addedSequences.foreach { case (rg, (fastaFile, indexFile)) =>
-                ctx.getReference(rg).addSequence(ctx, fastaFile, indexFile)
-              }
-              method(ctx)
-            }
+    (action: @switch) match {
+      case LOAD_REFERENCES_FROM_DATASET =>
+        val path = payload.extract[LoadReferencesFromDatasetPayload].path
+        backend.loadReferencesFromDataset(path)
+      case VALUE_TYPE =>
+        val ir = payload.extract[IRTypePayload].ir
+        backend.valueType(ir)
+      case TABLE_TYPE =>
+        val ir = payload.extract[IRTypePayload].ir
+        backend.tableType(ir)
+      case MATRIX_TABLE_TYPE =>
+        val ir = payload.extract[IRTypePayload].ir
+        backend.matrixTableType(ir)
+      case BLOCK_MATRIX_TYPE =>
+        val ir = payload.extract[IRTypePayload].ir
+        backend.blockMatrixType(ir)
+      case EXECUTE =>
+        val qobExecutePayload = payload.extract[ServiceBackendExecutePayload]
+        val bufferSpecString = qobExecutePayload.payload.stream_codec
+        val code = qobExecutePayload.payload.ir
+        val token = qobExecutePayload.idempotency_token
+        backend.withExecuteContext("ServiceBackend.execute") { ctx =>
+          withIRFunctionsReadFromInput(qobExecutePayload.functions, ctx) { () =>
+            backend.execute(ctx, code, token, bufferSpecString)
           }
         }
-      }
-
-      val action = (input \ "action").extract[Int]
-      val payload = input \ "payload"
-      (action: @switch) match {
-        case LOAD_REFERENCES_FROM_DATASET =>
-          val path = payload.extract[LoadReferencesFromDatasetPayload].path
-          () => backend.loadReferencesFromDataset(path)
-        case VALUE_TYPE =>
-          val ir = payload.extract[IRTypePayload].ir
-          () => backend.valueType(ir)
-        case TABLE_TYPE =>
-          val ir = payload.extract[IRTypePayload].ir
-          () => backend.tableType(ir)
-        case MATRIX_TABLE_TYPE =>
-          val ir = payload.extract[IRTypePayload].ir
-          () => backend.matrixTableType(ir)
-        case BLOCK_MATRIX_TYPE =>
-          val ir = payload.extract[IRTypePayload].ir
-          () => backend.blockMatrixType(ir)
-        case EXECUTE =>
-          val qobExecutePayload = payload.extract[ServiceBackendExecutePayload]
-          val bufferSpecString = qobExecutePayload.payload.stream_codec
-          val code = qobExecutePayload.payload.ir
-          val token = config.idempotency_token
-          withExecuteContext(
-            "ServiceBackend.execute",
-            { ctx =>
-              withIRFunctionsReadFromInput(qobExecutePayload.functions, ctx) { () =>
-                backend.execute(ctx, code, token, bufferSpecString)
-              }
-            }
-          )
-        case PARSE_VCF_METADATA =>
-          val path = payload.extract[ParseVCFMetadataPayload].path
-          () => backend.parseVCFMetadata(path)
-        case IMPORT_FAM =>
-          val famPayload = payload.extract[ImportFamPayload]
-          val path = famPayload.path
-          val quantPheno = famPayload.quant_pheno
-          val delimiter = famPayload.delimiter
-          val missing = famPayload.missing
-          withExecuteContext(
-            "ServiceBackend.importFam",
-            backend.importFam(_, path, quantPheno, delimiter, missing).getBytes(StandardCharsets.UTF_8)
-          )
-        case FROM_FASTA_FILE =>
-          val fastaPayload = payload.extract[FromFASTAFilePayload]
-          withExecuteContext(
-            "ServiceBackend.fromFASTAFile",
-            backend.fromFASTAFile(
-              _,
-              fastaPayload.name,
-              fastaPayload.fasta_file,
-              fastaPayload.index_file,
-              fastaPayload.x_contigs,
-              fastaPayload.y_contigs,
-              fastaPayload.mt_contigs,
-              fastaPayload.par
-            ).getBytes(StandardCharsets.UTF_8)
-          )
-      }
+      case PARSE_VCF_METADATA =>
+        val path = payload.extract[ParseVCFMetadataPayload].path
+        backend.parseVCFMetadata(path)
+      case IMPORT_FAM =>
+        val famPayload = payload.extract[ImportFamPayload]
+        val path = famPayload.path
+        val quantPheno = famPayload.quant_pheno
+        val delimiter = famPayload.delimiter
+        val missing = famPayload.missing
+        backend.importFam(path, quantPheno, delimiter, missing)
+      case FROM_FASTA_FILE =>
+        val fastaPayload = payload.extract[FromFASTAFilePayload]
+        backend.fromFASTAFile(
+          fastaPayload.name,
+          fastaPayload.fasta_file,
+          fastaPayload.index_file,
+          fastaPayload.x_contigs,
+          fastaPayload.y_contigs,
+          fastaPayload.mt_contigs,
+          fastaPayload.par
+        )
     }
   }
 
@@ -625,11 +640,9 @@ class ServiceBackendSocketAPI2(
     }
   }
 
-  def executeOneCommand(): Unit = {
-    val commandThunk = parseInputToCommandThunk()
-
+  def executeOneCommand(action: Int, payload: JValue): Unit = {
     try {
-      val result = commandThunk()
+      val result = doAction(action, payload)
       retryTransientErrors {
         using(fs.createNoCompression(outputURL)) { outputStream =>
           val output = new HailSocketAPIOutputStream(outputStream)

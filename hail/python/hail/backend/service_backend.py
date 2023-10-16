@@ -137,6 +137,7 @@ class IRFunction:
 @dataclass
 class ServiceBackendExecutePayload(ActionPayload):
     functions: List[SerializedIRFunction]
+    idempotency_token: str
     payload: ExecutePayload
 
 
@@ -150,7 +151,6 @@ class ServiceBackendRPCConfig:
     storage: str
     cloudfuse_configs: List[Tuple[str, str, bool]]
     regions: List[str]
-    idempotency_token: str
     flags: Dict[str, str]
     custom_references: List[str]
     liftovers: Dict[str, Dict[str, str]]
@@ -480,7 +480,7 @@ class ServiceBackend(Backend):
     async def _async_rpc(self, action: ActionTag, payload: ActionPayload):
         if action == ActionTag.EXECUTE:
             assert isinstance(payload, ExecutePayload)
-            payload = ServiceBackendExecutePayload([f.to_dataclass() for f in self.functions], payload)
+            payload = ServiceBackendExecutePayload([f.to_dataclass() for f in self.functions], self._batch.token, payload)
 
         storage_requirement_bytes = 0
         readonly_fuse_buckets = set()
@@ -505,7 +505,6 @@ class ServiceBackend(Backend):
             storage=storage_gib_str,
             cloudfuse_configs=[(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets],
             regions=self.regions,
-            idempotency_token=self._batch.token,
             flags=self.flags,
             custom_references=[orjson.dumps(rg._config).decode('utf-8') for rg in self._references.values() if rg.name not in BUILTIN_REFERENCES],
             liftovers={rg.name: rg._liftovers for rg in self._references.values() if len(rg._liftovers) > 0},
