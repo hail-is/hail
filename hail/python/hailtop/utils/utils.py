@@ -17,7 +17,6 @@ import asyncio
 import aiohttp
 import urllib.parse
 import urllib3.exceptions
-import google.api_core.exceptions
 import secrets
 import socket
 import requests
@@ -730,10 +729,6 @@ def is_transient_error(e: BaseException) -> bool:
     if isinstance(e, socket.gaierror) and e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
         # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
-        return True
-    if isinstance(e, google.api_core.exceptions.GatewayTimeout):
-        return True
-    if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
         return True
     if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True
