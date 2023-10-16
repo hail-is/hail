@@ -1,4 +1,5 @@
-from typing import Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator, Callable, Dict, List, ClassVar
+from typing import (Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator, Callable, Dict, List,
+                    ClassVar, Iterator)
 from types import TracebackType
 import os
 import os.path
@@ -7,6 +8,7 @@ import stat
 import asyncio
 import datetime
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import AbstractContextManager
 import urllib.parse
 
 from ..utils import blocking_to_async, OnlineBoundedGather2
@@ -35,7 +37,7 @@ class LocalStatFileStatus(FileStatus):
 
 
 class LocalFileListEntry(FileListEntry):
-    def __init__(self, thread_pool, base_url, entry):
+    def __init__(self, thread_pool: ThreadPoolExecutor, base_url: str, entry: os.DirEntry):
         assert '/' not in entry.name
         self._thread_pool = thread_pool
         if not base_url.endswith('/'):
@@ -292,7 +294,10 @@ class LocalAsyncFS(AsyncFS):
     # Traceback (most recent call last):
     #   File "<stdin>", line 1, in <module>
     # AttributeError: module 'posix' has no attribute 'ScandirIterator'
-    async def _listfiles_recursive(self, url: str, entries) -> AsyncIterator[FileListEntry]:
+    async def _listfiles_recursive(self,
+                                   url: str,
+                                   entries: AbstractContextManager[Iterator[os.DirEntry]]
+                                   ) -> AsyncIterator[FileListEntry]:
         async for file in self._listfiles_flat(url, entries):
             if await file.is_file():
                 yield file
@@ -303,9 +308,12 @@ class LocalAsyncFS(AsyncFS):
                 async for subfile in self._listfiles_recursive(new_url, new_entries):
                     yield subfile
 
-    async def _listfiles_flat(self, url: str, entries) -> AsyncIterator[FileListEntry]:
-        with entries:
-            for entry in entries:
+    async def _listfiles_flat(self,
+                              url: str,
+                              entries: AbstractContextManager[Iterator[os.DirEntry]]
+                              ) -> AsyncIterator[FileListEntry]:
+        with entries as it:
+            for entry in it:
                 yield LocalFileListEntry(self._thread_pool, url, entry)
 
     async def listfiles(self,
