@@ -1520,7 +1520,7 @@ object EmitStream {
                 override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   lProd.initialize(cb, outerRegion)
                   rProd.initialize(cb, outerRegion)
-                  minHeap.initialize(cb, mb.ecb.pool())
+                  minHeap.init(cb, mb.ecb.pool())
                 }
 
                 override val elementRegion: Settable[Region] =
@@ -1536,13 +1536,17 @@ object EmitStream {
                     val row = lProd.element.toI(cb).get(cb).asBaseStruct
                     val key = row.subset(lKeyNames: _*)
 
-                    cb.whileLoop(
-                      minHeap.nonEmpty(cb) && {
-                        val interval = cb.invokeSCode(loadInterval, cb._this, minHeap.peek(cb)).asInterval
-                        IntervalFunctions.intervalContains(cb, interval, key).get(cb).asBoolean.value
-                      },
-                      minHeap.poll(cb)
-                    )
+                    cb.loop { Lrecur =>
+                      cb.ifx(minHeap.nonEmpty(cb),
+                        cb.ifx({
+                          val interval = cb.invokeSCode(loadInterval, cb._this, minHeap.peek(cb)).asInterval
+                          IntervalFunctions.intervalContains(cb, interval, key).get(cb).asBoolean.value
+                        }, {
+                          minHeap.pop(cb)
+                          cb.goto(Lrecur)
+                        })
+                      )
+                    }
 
                     minHeap.realloc(cb)
 
@@ -1569,7 +1573,7 @@ object EmitStream {
 
                     // we've found the first interval that contains key
                     // add interval to minheap
-                    minHeap.add(cb, rElem)
+                    minHeap.push(cb, rElem)
                     cb.goto(rProd.LproduceElement)
 
                     cb.define(LallIntervalsFound)

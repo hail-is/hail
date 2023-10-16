@@ -10,209 +10,215 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.utils.FastSeq
 
 import scala.language.implicitConversions
+import scala.util.Random
 
 sealed trait StagedMinHeap {
   
-  def initialize(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit
+  def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit
 
   def realloc(cb: EmitCodeBuilder): Unit
 
   def close(cb: EmitCodeBuilder): Unit
 
-
-  def nonEmpty(cb: EmitCodeBuilder): Value[Boolean]
-
+  def push(cb: EmitCodeBuilder, a: SValue): Unit
   def peek(cb: EmitCodeBuilder): SValue
-
-  def poll(cb: EmitCodeBuilder): Unit
-
-  def add(cb: EmitCodeBuilder, a: SValue): Unit
+  def pop(cb: EmitCodeBuilder): Unit
+  def nonEmpty(cb: EmitCodeBuilder): Value[Boolean]
 
   def toArray(cb: EmitCodeBuilder, region: Value[Region]): SIndexableValue
 }
 
 object EmitMinHeap {
 
+  private sealed trait MinHeap
+
   def apply(modb: EmitModuleBuilder, elemType: SType)
            (mkComparator: EmitClassBuilder[_] => StagedComparator)
   : EmitClassBuilder[_] => StagedMinHeap = {
-    sealed trait MinHeap
 
     val classBuilder: EmitClassBuilder[MinHeap] =
-      modb.getOrEmitClass[MinHeap](s"MinHeap_${elemType.asIdent}") { kb =>
-        val pool: ThisFieldRef[RegionPool] =
-          kb.genFieldThisRef[RegionPool]("pool")
+      modb.genEmitClass[MinHeap](s"MinHeap${elemType.asIdent}")
 
-        val region: ThisFieldRef[Region] =
-          kb.genFieldThisRef[Region]("region")
+    val pool: ThisFieldRef[RegionPool] =
+      classBuilder.genFieldThisRef[RegionPool]("pool")
 
-        val garbage: ThisFieldRef[Long] =
-          kb.genFieldThisRef[Long]("n_garbage_points")
+    val region: ThisFieldRef[Region] =
+      classBuilder.genFieldThisRef[Region]("region")
 
-        val heap = new StagedArrayBuilder(elemType.storageType(), kb, region)
-        val comparator = mkComparator(kb)
+    val garbage: ThisFieldRef[Long] =
+      classBuilder.genFieldThisRef[Long]("n_garbage_points")
 
-        // `RegionPool`s are set added after construction therefore need a separate init method.
-        // See `EmitClassBuilder.resultWithIndex`.
-        kb.defineEmitMethod("init", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo) { mb =>
-          val outerRef = mb.getCodeParam[AnyRef](1)
-          val poolRef = mb.getCodeParam[RegionPool](2)
+    val heap = new StagedArrayBuilder(elemType.storageType(), classBuilder, region)
+    val comparator = mkComparator(classBuilder)
 
-          mb.voidWithBuilder { cb =>
-            cb.assign(pool, poolRef)
-            cb.assign(region, poolRef.invoke[Region]("getRegion"))
-            cb.assign(garbage, cb.memoize(0L))
-            comparator.initialize(cb, outerRef)
-            heap.initialize(cb)
-          }
+    // `RegionPool`s are set added after construction therefore need a separate init method.
+    // See `EmitClassBuilder.resultWithIndex`.
+    val initB: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("init", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo) { mb =>
+        val outerRef = mb.getCodeParam[AnyRef](1)
+        val poolRef = mb.getCodeParam[RegionPool](2)
+
+        mb.voidWithBuilder { cb =>
+          cb.assign(pool, poolRef)
+          cb.assign(region, poolRef.invoke[Region]("getRegion"))
+          cb.assign(garbage, cb.memoize(0L))
+          comparator.initialize(cb, outerRef)
+          heap.initialize(cb)
         }
+      }
 
-        val load: EmitMethodBuilder[_] =
-          kb.defineEmitMethod("load", FastSeq(IntInfo), SCodeParamType(elemType)) { mb =>
-            mb.emitSCode { cb =>
-              val idx = mb.getCodeParam[Int](1)
-              heap.loadElement(cb, idx).toI(cb).get(cb, errorMsg = idx.toS)
-            }
-          }
-
-        val compareAtIndex: EmitMethodBuilder[_] =
-          kb.defineEmitMethod("compareAtIndex", FastSeq(IntInfo, IntInfo), IntInfo) { mb =>
-            mb.emitWithBuilder[Int] { cb =>
-              val l = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](1))
-              val r = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](2))
-              comparator.apply(cb, l, r)
-            }
-          }
-
-        kb.defineEmitMethod("realloc", FastSeq(), UnitInfo) { mb =>
-          mb.voidWithBuilder { cb =>
-            cb.ifx(garbage > heap.size.toL * 2L + 1024L, {
-              val oldRegion = cb.newLocal[Region]("tmp", region)
-              cb.assign(region, pool.invoke[Region]("getRegion"))
-              heap.reallocateData(cb)
-              cb.assign(garbage, 0L)
-              cb += oldRegion.invoke[Unit]("invalidate")
-            })
-          }
+    val load: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("load", FastSeq(IntInfo), SCodeParamType(elemType)) { mb =>
+        mb.emitSCode { cb =>
+          val idx = mb.getCodeParam[Int](1)
+          heap.loadElement(cb, idx).toI(cb).get(cb, errorMsg = idx.toS)
         }
+      }
 
-        kb.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
-          mb.voidWithBuilder { cb =>
-            comparator.close(cb)
-            cb += region.invoke[Unit]("invalidate")
-          }
+    val compareAtIndex: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("compareAtIndex", FastSeq(IntInfo, IntInfo), IntInfo) { mb =>
+        mb.emitWithBuilder[Int] { cb =>
+          val l = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](1))
+          val r = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](2))
+          comparator.apply(cb, l, r)
         }
+      }
 
-        val nonEmpty: EmitMethodBuilder[_] =
-          kb.defineEmitMethod("nonEmpty", FastSeq(), BooleanInfo) { mb =>
-            mb.emitWithBuilder { cb =>
-              cb.memoize(heap.size > 0)
-            }
-          }
-
-        kb.defineEmitMethod("peek", FastSeq(), SCodeParamType(elemType)) { mb =>
-          mb.emitSCode { cb =>
-            cb += Code._assert(cb.invokeCode[Boolean](nonEmpty, cb._this), s"${kb.className}: peek empty")
-            cb.invokeSCode(load, cb._this, cb.memoize(0))
-          }
+    val reallocB: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("realloc", FastSeq(), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          cb.ifx(garbage > heap.size.toL * 2L + 1024L, {
+            val oldRegion = cb.newLocal[Region]("tmp", region)
+            cb.assign(region, pool.invoke[Region]("getRegion"))
+            heap.reallocateData(cb)
+            cb.assign(garbage, 0L)
+            cb += oldRegion.invoke[Unit]("invalidate")
+          })
         }
+      }
 
-        val swap: EmitMethodBuilder[_] =
-          kb.defineEmitMethod("swap", FastSeq(IntInfo, IntInfo), UnitInfo) { mb =>
-            mb.voidWithBuilder { cb =>
-              val x = mb.getCodeParam[Int](1)
-              val y = mb.getCodeParam[Int](2)
-              heap.swap(cb, x, y)
-            }
-          }
-
-        val heapify: EmitMethodBuilder[_] =
-          kb.defineEmitMethod("heapify", FastSeq(), UnitInfo) { mb =>
-            mb.voidWithBuilder { cb =>
-              val Ldone = CodeLabel()
-              cb.ifx(heap.size <= 1, cb.goto(Ldone))
-
-              val index = cb.newLocal[Int]("index", 0)
-              val smallest = cb.newLocal[Int]("smallest", index)
-
-              val child = cb.newLocal[Int]("child")
-              cb.loop { Lrecur =>
-                // left child
-                cb.assign(child, index * 2 + 1)
-                cb.ifx(child < heap.size,
-                  cb.ifx(
-                    cb.invokeCode[Int](compareAtIndex, cb._this, child, index) < 0,
-                    cb.assign(smallest, child)
-                  )
-                )
-
-                // right child
-                cb.assign(child, index * 2 + 2)
-                cb.ifx(child < heap.size,
-                  cb.ifx(
-                    cb.invokeCode[Int](compareAtIndex, cb._this, child, smallest) < 0,
-                    cb.assign(smallest, child)
-                  )
-                )
-
-                cb.ifx(smallest ceq index, cb.goto(Ldone))
-
-                cb.invokeVoid(swap, cb._this, index, smallest)
-                cb.assign(index, smallest)
-                cb.goto(Lrecur)
-              }
-
-              cb.define(Ldone)
-            }
-          }
-
-        kb.defineEmitMethod("poll", FastSeq(), UnitInfo) { mb =>
-          mb.voidWithBuilder { cb =>
-            cb += Code._assert(cb.invokeCode[Boolean](nonEmpty, cb._this), s"${kb.className}: poll empty")
-
-            val newSize = cb.memoize(heap.size - 1)
-            cb.invokeVoid(swap, cb._this, const(0), newSize)
-            cb.assign(heap.size, newSize)
-            cb.assign(garbage, garbage + 1L)
-            cb.invokeVoid(heapify, cb._this)
-          }
+    val closeB: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          comparator.close(cb)
+          cb += region.invoke[Unit]("invalidate")
         }
+      }
 
-        val append: EmitMethodBuilder[_] =
-          kb.defineEmitMethod("append", FastSeq(SCodeParamType(elemType)), UnitInfo) { mb =>
-            mb.voidWithBuilder { cb =>
-              heap.append(cb, mb.getSCodeParam(1))
-            }
-          }
-
-        kb.defineEmitMethod("add", FastSeq(SCodeParamType(elemType)), UnitInfo) { mb =>
-          mb.voidWithBuilder { cb =>
-            cb.invokeVoid(append, cb._this, mb.getSCodeParam(1))
-
-            val Ldone = CodeLabel()
-            val current = cb.newLocal[Int]("index", heap.size - 1)
-            val parent = cb.newLocal[Int]("parent")
-
-            cb.whileLoop(current > 0, {
-              cb.assign(parent, (current - 1) / 2)
-              val cmp = cb.invokeCode[Int](compareAtIndex, cb._this, parent, current)
-              cb.ifx(cmp <= 0, cb.goto(Ldone))
-
-              cb.invokeVoid(swap, cb._this, parent, current)
-              cb.assign(current, parent)
-            })
-
-            cb.define(Ldone)
-          }
+    val nonEmptyB: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("nonEmpty", FastSeq(), BooleanInfo) { mb =>
+        mb.emitWithBuilder { cb =>
+          cb.memoize(heap.size > 0)
         }
+      }
 
-        val arrayTy = PCanonicalArray(elemType.storageType(), required = true)
-        kb.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), arrayTy.sType.paramType) { mb =>
-          val region = mb.getCodeParam[Region](1)
-          mb.emitSCode { cb =>
-            arrayTy.constructFromElements(cb, region, heap.size, true) {
-              case (cb, idx) => heap.loadElement(cb, idx).toI(cb)
-            }
+    val peekB: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("peek", FastSeq(), SCodeParamType(elemType)) { mb =>
+        mb.emitSCode { cb =>
+          cb += Code._assert(cb.invokeCode[Boolean](nonEmptyB, cb._this), s"${classBuilder.className}: peek empty")
+          cb.invokeSCode(load, cb._this, cb.memoize(0))
+        }
+      }
+
+    val swap: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("swap", FastSeq(IntInfo, IntInfo), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          val x = mb.getCodeParam[Int](1)
+          val y = mb.getCodeParam[Int](2)
+          heap.swap(cb, x, y)
+        }
+      }
+
+    val heapify: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("heapify", FastSeq(), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          val Ldone = CodeLabel()
+          cb.ifx(heap.size <= 1, cb.goto(Ldone))
+
+          val index = cb.newLocal[Int]("index", 0)
+          val smallest = cb.newLocal[Int]("smallest", index)
+
+          val child = cb.newLocal[Int]("child")
+          cb.loop { Lrecur =>
+            // left child
+            cb.assign(child, index * 2 + 1)
+            cb.ifx(child < heap.size,
+              cb.ifx(
+                cb.invokeCode[Int](compareAtIndex, cb._this, child, index) < 0,
+                cb.assign(smallest, child)
+              )
+            )
+
+            // right child
+            cb.assign(child, index * 2 + 2)
+            cb.ifx(child < heap.size,
+              cb.ifx(
+                cb.invokeCode[Int](compareAtIndex, cb._this, child, smallest) < 0,
+                cb.assign(smallest, child)
+              )
+            )
+
+            cb.ifx(smallest ceq index, cb.goto(Ldone))
+
+            cb.invokeVoid(swap, cb._this, index, smallest)
+            cb.assign(index, smallest)
+            cb.goto(Lrecur)
+          }
+
+          cb.define(Ldone)
+        }
+      }
+
+    val popB: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("pop", FastSeq(), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          cb += Code._assert(cb.invokeCode[Boolean](nonEmptyB, cb._this), s"${classBuilder.className}: poll empty")
+
+          val newSize = cb.memoize(heap.size - 1)
+          cb.invokeVoid(swap, cb._this, const(0), newSize)
+          cb.assign(heap.size, newSize)
+          cb.assign(garbage, garbage + 1L)
+          cb.invokeVoid(heapify, cb._this)
+        }
+      }
+
+    val append: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("append", FastSeq(SCodeParamType(elemType)), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          heap.append(cb, mb.getSCodeParam(1))
+        }
+      }
+
+    val pushB: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("push", FastSeq(SCodeParamType(elemType)), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          cb.invokeVoid(append, cb._this, mb.getSCodeParam(1))
+
+          val Ldone = CodeLabel()
+          val current = cb.newLocal[Int]("index", heap.size - 1)
+          val parent = cb.newLocal[Int]("parent")
+
+          cb.whileLoop(current > 0, {
+            cb.assign(parent, (current - 1) / 2)
+            val cmp = cb.invokeCode[Int](compareAtIndex, cb._this, parent, current)
+            cb.ifx(cmp <= 0, cb.goto(Ldone))
+
+            cb.invokeVoid(swap, cb._this, parent, current)
+            cb.assign(current, parent)
+          })
+
+          cb.define(Ldone)
+        }
+      }
+
+    val arrayTy = PCanonicalArray(elemType.storageType(), required = true)
+
+    val toArrayB: EmitMethodBuilder[_] =
+      classBuilder.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), arrayTy.sType.paramType) { mb =>
+        val region = mb.getCodeParam[Region](1)
+        mb.emitSCode { cb =>
+          arrayTy.constructFromElements(cb, region, heap.size, true) {
+            case (cb, idx) => heap.loadElement(cb, idx).toI(cb)
           }
         }
       }
@@ -221,10 +227,9 @@ object EmitMinHeap {
       private[this] val _this: ThisFieldRef[_] =
         ecb.genFieldThisRef("minheap")(classBuilder.cb.ti)
 
-      override def initialize(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit = {
+      override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit = {
         cb.assignAny(_this, Code.newInstance(classBuilder.cb, classBuilder.ctor.mb, FastSeq()))
-        cb.invokeVoid(
-          classBuilder.getEmitMethod("init", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo),
+        cb.invokeVoid(initB,
           _this,
           cb.memoize(Code.checkcast[AnyRef](cb._this)), // `this` of the parent class
           pool
@@ -232,48 +237,25 @@ object EmitMinHeap {
       }
 
       override def realloc(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(
-          classBuilder.getEmitMethod("realloc", FastSeq(), UnitInfo),
-          _this
-        )
+        cb.invokeVoid(reallocB, _this)
 
       override def close(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(
-          classBuilder.getEmitMethod("close", FastSeq(), UnitInfo),
-          _this
-        )
+        cb.invokeVoid(closeB, _this)
 
-      override def nonEmpty(cb: EmitCodeBuilder): Value[Boolean] =
-        cb.invokeCode(
-          classBuilder.getEmitMethod("nonEmpty", FastSeq(), BooleanInfo),
-          _this
-        )
+      override def push(cb: EmitCodeBuilder, a: SValue): Unit =
+        cb.invokeVoid(pushB, _this, a)
 
       override def peek(cb: EmitCodeBuilder): SValue =
-        cb.invokeSCode(
-          classBuilder.getEmitMethod("peek", FastSeq(), elemType.paramType),
-          _this
-        )
+        cb.invokeSCode(peekB, _this)
 
-      override def poll(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(
-          classBuilder.getEmitMethod("poll", FastSeq(), UnitInfo),
-          _this
-        )
+      override def pop(cb: EmitCodeBuilder): Unit =
+        cb.invokeVoid(popB, _this)
 
-      override def add(cb: EmitCodeBuilder, a: SValue): Unit =
-        cb.invokeVoid(
-          classBuilder.getEmitMethod("add", FastSeq(elemType.paramType), UnitInfo),
-          _this,
-          a
-        )
+      override def nonEmpty(cb: EmitCodeBuilder): Value[Boolean] =
+        cb.invokeCode(nonEmptyB, _this)
 
       override def toArray(cb: EmitCodeBuilder, region: Value[Region]): SIndexableValue =
-        cb.invokeSCode(
-          classBuilder.getEmitMethod("toArray", FastSeq(typeInfo[Region]), PCanonicalArray(elemType.storageType()).sType.paramType),
-          _this,
-          region
-        ).asIndexable
+        cb.invokeSCode(toArrayB, _this, region).asIndexable
     }
   }
 
