@@ -299,7 +299,7 @@ object EType {
       ENDArrayColumnMajor(fromTypeAndAnalysis(t.elementType, rndarray.elementType), t.nDims, rndarray.required)
   }
 
-  def fromTypeAllOptional(t: Type): EType = t match {
+  def fromPythonTypeEncoding(t: Type): EType = t match {
     case TInt32 => EInt32(false)
     case TInt64 => EInt64(false)
     case TFloat32 => EFloat32(false)
@@ -316,21 +316,21 @@ object EType {
     case t: TInterval =>
       EBaseStruct(
         Array(
-          EField("start", fromTypeAllOptional(t.pointType), 0),
-          EField("end", fromTypeAllOptional(t.pointType), 1),
+          EField("start", fromPythonTypeEncoding(t.pointType), 0),
+          EField("end", fromPythonTypeEncoding(t.pointType), 1),
           EField("includesStart", EBoolean(false), 2),
           EField("includesEnd", EBoolean(false), 3)),
         required = false)
-    case t: TIterable => EArray(fromTypeAllOptional(t.elementType), false)
+    case t: TIterable => EArray(fromPythonTypeEncoding(t.elementType), false)
     case t: TBaseStruct =>
       EBaseStruct(Array.tabulate(t.size) { i =>
         val f = t.fields(i)
         if (f.index != i)
           throw new AssertionError(s"${t} [$i]")
-        EField(f.name, fromTypeAllOptional(t.fields(i).typ), f.index)
+        EField(f.name, fromPythonTypeEncoding(t.fields(i).typ), f.index)
       }, required = false)
     case t: TNDArray =>
-      ENDArrayColumnMajor(fromTypeAllOptional(t.elementType).setRequired(true), t.nDims, false)
+      ENDArrayColumnMajor(fromPythonTypeEncoding(t.elementType).setRequired(true), t.nDims, false)
   }
 
   def eTypeParser(it: TokenIterator): EType = {

@@ -847,7 +847,7 @@ object IRParser {
         val typ = type_expr(it)
         val encodedValue = Base64.getDecoder.decode(string_literal(it))
         val codec = TypedCodecSpec(
-          EType.fromTypeAllOptional(typ),
+          EType.fromPythonTypeEncoding(typ),
           typ,
           BufferSpec.unblockedUncompressed
         )

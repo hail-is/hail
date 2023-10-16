@@ -214,7 +214,7 @@ class LocalBackend(
           val elementType = pt.fields(0).typ
           assert(pt.isFieldDefined(a, 0))
           val codec = TypedCodecSpec(
-            EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
+            EType.fromPythonTypeEncoding(elementType.virtualType), elementType.virtualType, bs)
           codec.encode(ctx, elementType, pt.loadField(a, 0))
       }
       result

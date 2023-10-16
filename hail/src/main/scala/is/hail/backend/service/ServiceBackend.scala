@@ -313,7 +313,7 @@ class ServiceBackend(
       val retPType = pt.asInstanceOf[PBaseStruct]
       val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       val codec = TypedCodecSpec(
-        EType.fromTypeAllOptional(retPType.virtualType),
+        EType.fromPythonTypeEncoding(retPType.virtualType),
         retPType.virtualType,
         BufferSpec.parseOrDefault(bufferSpecString)
       )

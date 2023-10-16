@@ -555,7 +555,7 @@ class SparkBackend(
     assert(t.size == 1)
     val elementType = t.fields(0).typ
     val codec = TypedCodecSpec(
-      EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
+      EType.fromPythonTypeEncoding(elementType.virtualType), elementType.virtualType, bs)
     assert(t.isFieldDefined(off, 0))
     codec.encode(ctx, elementType, t.loadField(off, 0))
   }
