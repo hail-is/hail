@@ -689,7 +689,6 @@ def is_transient_error(e):
         return True
     if (isinstance(e, aiohttp.ClientOSError)
             and len(e.args) >= 2
-            and e.args[0] == 1
             and 'sslv3 alert bad record mac' in e.args[1]):
         # aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)
         #
