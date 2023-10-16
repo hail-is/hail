@@ -593,16 +593,6 @@ def _assert_encoding_roundtrip(value):
         (5, 6, 7, 8),
         {"foo", "bar", "baz"},
         {"a": 1, "b": 2},
-        np.array([[1, 2], [3, 4], [5, 6]]),
-        np.array([[1, 2], [3, 4], [5, 6]]).T,
-    ]
-)
-def test_python_value_literal_encodings(value):
-    _assert_encoding_roundtrip(value)
-
-
-def test_call_encoding():
-    calls = [
         hl.Call([0, 1]),
         hl.Call([1, 0], phased=True),
         hl.Call([2], phased=True),
@@ -610,8 +600,23 @@ def test_call_encoding():
         hl.Call([1, 1]),
         hl.Call([17495, 17495]),
     ]
-    for call in calls:
-        _assert_encoding_roundtrip(call)
+)
+def test_literal_encodings(value):
+    _assert_encoding_roundtrip(value)
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        np.array([]),
+        np.array([1]),
+        np.array([1, 2, 3, 4]),
+        np.array([[1, 2], [3, 4], [5, 6]]),
+        np.array([[[[1]], [[2]]], [[[3]], [[4]]], [[[5]], [[6]]]]),
+    ]
+)
+def test_literal_ndarray_encodings(value):
+    _assert_encoding_roundtrip(value)
+    _assert_encoding_roundtrip(value.T)
 
 
 def test_locus_interval_encoding():
