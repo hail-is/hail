@@ -25,7 +25,7 @@ backend.close()
 
 
 def write_hello(filename: str):
-    os.makedirs(filename, exist_ok=True)
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
         f.write('hello\n')
 
