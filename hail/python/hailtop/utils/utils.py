@@ -21,6 +21,7 @@ import secrets
 import socket
 import requests
 import botocore.exceptions
+import itertools
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
@@ -111,12 +112,14 @@ def digits_needed(i: int) -> int:
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
+def grouped(n: int, ls: Iterable[T]) -> Iterable[List[T]]:
+    it = iter(ls)
     if n < 1:
         raise ValueError('invalid value for n: found {n}')
-    while len(ls) != 0:
-        group = ls[:n]
-        ls = ls[n:]
+    while True:
+        group = list(itertools.islice(it, n))
+        if len(group) == 0:
+            break
         yield group
 
 
