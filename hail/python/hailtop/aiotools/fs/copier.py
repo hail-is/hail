@@ -405,7 +405,10 @@ class SourceCopier:
             try:
                 copy_thunks = []
                 async for srcentry in srcentries:
-                    bytes_to_copy += await (await srcentry.status()).size()  # this is almost never a syscall/net-request (afaik: only local symlinks)
+                    # In cloud FSes, status and size never make a network request. In local FS, they
+                    # can make system calls on symlinks. This line will be fairly expensive if
+                    # copying a tree with a lot of symlinks.
+                    bytes_to_copy += await (await srcentry.status()).size()
                     copy_thunks.append(functools.partial(copy_source, srcentry))
                 return (copy_thunks, bytes_to_copy)
             finally:
