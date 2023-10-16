@@ -17,6 +17,7 @@ import org.apache.log4j.Logger
 import scala.collection.mutable
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 import scala.concurrent.{Future, Await, ExecutionContext}
+import scala.util.control.NonFatal
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
@@ -159,15 +160,13 @@ object Worker {
         new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None))
     }
 
-    var result: Array[Byte] = null
-    var errorWhileExecutingUserCode: Exception = null
-    using(new ServiceTaskContext(i)) { htc =>
+    val result = using(new ServiceTaskContext(i)) { htc =>
       try {
         retryTransientErrors {
-          result = f(context, htc, theHailClassLoader, fs)
+          Right(f(context, htc, theHailClassLoader, fs))
         }
       } catch {
-        case err: Exception => errorWhileExecutingUserCode = err
+        case NonFatal(err) => Left(err)
       }
     }
 
@@ -176,19 +175,16 @@ object Worker {
 
     retryTransientErrors {
       write(s"$root/result.$i") { dos =>
-        if (result != null) {
-          assert(errorWhileExecutingUserCode == null)
-
-          dos.writeBoolean(true)
-          dos.write(result)
-        } else {
-          assert(errorWhileExecutingUserCode != null)
-          val (shortMessage, expandedMessage, errorId) = handleForPython(errorWhileExecutingUserCode)
-
-          dos.writeBoolean(false)
-          writeString(dos, shortMessage)
-          writeString(dos, expandedMessage)
-          dos.writeInt(errorId)
+        result match {
+          case Right(bytes) =>
+            dos.writeBoolean(true)
+            dos.write(bytes)
+          case Left(throwableWhileExecutingUserCode) =>
+            val (shortMessage, expandedMessage, errorId) = handleForPython(throwableWhileExecutingUserCode)
+            dos.writeBoolean(false)
+            writeString(dos, shortMessage)
+            writeString(dos, expandedMessage)
+            dos.writeInt(errorId)
         }
       }
     }
@@ -197,9 +193,9 @@ object Worker {
     timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")
 
-    if (errorWhileExecutingUserCode != null) {
+    if (throwableWhileExecutingUserCode != null) {
       log.info("throwing the exception so that this Worker job is marked as failed.")
-      throw errorWhileExecutingUserCode
+      throw throwableWhileExecutingUserCode
     }
   }
 }
