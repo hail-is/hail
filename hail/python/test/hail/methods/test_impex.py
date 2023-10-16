@@ -473,8 +473,8 @@ class VCFTests(unittest.TestCase):
         vds.reference_data._force_count_rows()
         vds.variant_data._force_count_rows()
 
-    def test_combiner_parse_as_annotations(self):
-        from hail.vds.combiner.combine import parse_as_fields
+    def test_combiner_parse_allele_specific_annotations(self):
+        from hail.vds.combiner.combine import parse_allele_specific_fields
         infos = hl.array([
             hl.struct(
                 AS_QUALapprox="|1171|",
