@@ -594,6 +594,7 @@ def _assert_encoding_roundtrip(value):
         {"foo", "bar", "baz"},
         {"a": 1, "b": 2},
         np.array([[1, 2], [3, 4], [5, 6]]),
+        np.array([[1, 2], [3, 4], [5, 6]]).T,
     ]
 )
 def test_python_value_literal_encodings(value):
