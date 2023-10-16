@@ -18,8 +18,8 @@ from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
+from .globals import ROOT_JOB_GROUP_ID, tasks, complete_states
 from .types import GetJobsResponseV1Alpha, JobListEntryV1Alpha, GetJobResponseV1Alpha
-from .globals import tasks, complete_states
 
 log = logging.getLogger('batch_client.aioclient')
 
@@ -301,6 +301,210 @@ class Job:
         return await resp.json()
 
 
+class JobGroupDebugInfo(TypedDict):
+    status: Dict[str, Any]
+    jobs: List[JobListEntryV1Alpha]
+
+
+class AbsoluteJobGroupId(int):
+    pass
+
+
+class InUpdateJobGroupId(int):
+    pass
+
+
+class JobGroupAlreadySubmittedError(Exception):
+    pass
+
+
+class JobGroupNotSubmittedError(Exception):
+    pass
+
+
+class JobGroup:
+    def __init__(self,
+                 batch: 'Batch',
+                 job_group_id: Union[AbsoluteJobGroupId, InUpdateJobGroupId],
+                 *,
+                 attributes: Optional[dict] = None,
+                 callback: Optional[str] = None,
+                 cancel_after_n_failures: Optional[int] = None,
+                 ):
+        self._batch = batch
+        self._job_group_id = job_group_id
+
+        attributes = attributes or {}
+        self._name = attributes.get('name')
+
+        self._attributes = attributes
+        self.callback = callback
+        self.cancel_after_n_failures = cancel_after_n_failures
+        self._last_known_status = None
+
+    def _raise_if_not_submitted(self):
+        if not self.is_submitted:
+            raise JobGroupNotSubmittedError
+
+    def _raise_if_submitted(self):
+        if self.is_submitted:
+            raise JobGroupAlreadySubmittedError
+
+    async def name(self):
+        return self._name
+
+    async def attributes(self):
+        if not self.is_submitted:
+            return self._attributes
+        status = await self.status()
+        return status.get('attributes', {})
+
+    @property
+    def is_submitted(self):
+        return self._batch.is_created
+
+    @property
+    def batch_id(self) -> int:
+        return self._batch.id
+
+    @property
+    def job_group_id(self) -> int:
+        self._raise_if_not_submitted()
+        return self._job_group_id
+
+    @property
+    def id(self) -> Tuple[int, int]:
+        self._raise_if_not_submitted()
+        return (self.batch_id, self.job_group_id)
+
+    @property
+    def _client(self) -> 'BatchClient':
+        return self._batch._client
+
+    async def cancel(self):
+        self._raise_if_not_submitted()
+        await self._client._patch(f'/api/v1alpha/batches/{self.batch_id}/job-groups/{self.job_group_id}/cancel')
+
+    async def jobs(self,
+                   q: Optional[str] = None,
+                   version: Optional[int] = None,
+                   recursive: bool = False,
+                   ) -> AsyncIterator[JobListEntryV1Alpha]:
+        self._raise_if_not_submitted()
+        if version is None:
+            version = 1
+        last_job_id = None
+        while True:
+            params: Dict[str, Any] = {'recursive': str(recursive)}
+            if q is not None:
+                params['q'] = q
+            if last_job_id is not None:
+                params['last_job_id'] = last_job_id
+            resp = await self._client._get(f'/api/v{version}alpha/batches/{self.batch_id}/job-groups/{self.job_group_id}/jobs', params=params)
+            body = cast(
+                GetJobsResponseV1Alpha,
+                await resp.json()
+            )
+            for job in body['jobs']:
+                yield job
+            last_job_id = body.get('last_job_id')
+            if last_job_id is None:
+                break
+
+    # {
+    #   batch_id: int
+    #   job_group_id: int
+    #   state: str, (failure, cancelled, success, running)
+    #   complete: bool
+    #   n_jobs: int
+    #   n_completed: int
+    #   n_succeeded: int
+    #   n_failed: int
+    #   n_cancelled: int
+    #   time_created: optional(str), (date)
+    #   time_completed: optional(str), (date)
+    #   duration: optional(str)
+    #   attributes: optional(dict(str, str))
+    #   cost: float
+    # }
+    async def status(self) -> Dict[str, Any]:
+        self._raise_if_not_submitted()
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/job-groups/{self.job_group_id}')
+        json_status = await resp.json()
+        assert isinstance(json_status, dict), json_status
+        self._last_known_status = json_status
+        return self._last_known_status
+
+    async def last_known_status(self) -> Dict[str, Any]:
+        self._raise_if_not_submitted()
+        if self._last_known_status is None:
+            return await self.status()  # updates _last_known_status
+        return self._last_known_status
+
+    async def _wait(self,
+                    description: str,
+                    progress: BatchProgressBar,
+                    disable_progress_bar: bool,
+                    starting_job: int,
+                    ) -> Dict[str, Any]:
+        self._raise_if_not_submitted()
+        deploy_config = get_deploy_config()
+        url = deploy_config.external_url('batch', f'/batches/{self.batch_id}')
+        i = 0
+        status = await self.status()
+
+        if is_notebook():
+            description += f'[link={url}]{self.batch_id}[/link]'
+        else:
+            description += url
+
+        with progress.with_task(description,
+                                total=status['n_jobs'] - starting_job + 1,
+                                disable=disable_progress_bar) as progress_task:
+            while True:
+                status = await self.status()
+                progress_task.update(None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1)
+                if status['complete']:
+                    return status
+                j = random.randrange(math.floor(1.1 ** i))
+                await asyncio.sleep(0.100 * j)
+                # max 44.5s
+                if i < 64:
+                    i = i + 1
+
+    # FIXME Error if this is called while in a job within the same job group
+    async def wait(self,
+                   *,
+                   disable_progress_bar: bool = False,
+                   description: str = '',
+                   progress: Optional[BatchProgressBar] = None,
+                   starting_job: int = 1,
+                   ) -> Dict[str, Any]:
+        self._raise_if_not_submitted()
+        if description:
+            description += ': '
+        if progress is not None:
+            return await self._wait(description, progress, disable_progress_bar, starting_job)
+        with BatchProgressBar(disable=disable_progress_bar) as progress2:
+            return await self._wait(description, progress2, disable_progress_bar, starting_job)
+
+    async def debug_info(self,
+                         _jobs_query_string: Optional[str] = None,
+                         _max_jobs: Optional[int] = None,
+                         ) -> JobGroupDebugInfo:
+        self._raise_if_not_submitted()
+        status = await self.status()
+        jobs = []
+        async for j_status in self.jobs(q=_jobs_query_string):
+            if _max_jobs and len(jobs) == _max_jobs:
+                break
+
+            id = j_status['job_id']
+            log, job = await asyncio.gather(self._batch.get_job_log(id), self._batch.get_job(id))
+            jobs.append({'log': log, 'status': job._status})
+        return {'status': status, 'jobs': jobs}
+
+
 class BatchSubmissionInfo:
     def __init__(self, used_fast_path: Optional[bool] = None):
         self.used_fast_path = used_fast_path
@@ -313,10 +517,6 @@ class BatchNotCreatedError(Exception):
 class BatchAlreadyCreatedError(Exception):
     pass
 
-
-class BatchDebugInfo(TypedDict):
-    status: Dict[str, Any]
-    jobs: List[JobListEntryV1Alpha]
 
 class Batch:
     def __init__(self,
@@ -345,6 +545,8 @@ class Batch:
         self._job_specs: List[Dict[str, Any]] = []
         self._jobs: List[Job] = []
 
+        self._root_job_group = JobGroup(self, AbsoluteJobGroupId(ROOT_JOB_GROUP_ID))
+
     def _raise_if_not_created(self):
         if not self.is_created:
             raise BatchNotCreatedError
@@ -363,34 +565,20 @@ class Batch:
     def is_created(self):
         return self._id is not None
 
+    def get_job_group(self, job_group_id: int) -> JobGroup:
+        self._raise_if_not_created()
+        return JobGroup(self, AbsoluteJobGroupId(job_group_id))
+
     async def cancel(self):
         self._raise_if_not_created()
-        await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
+        await self._root_job_group.cancel()
 
-    async def jobs(self,
-                   q: Optional[str] = None,
-                   version: Optional[int] = None
-                   ) -> AsyncIterator[JobListEntryV1Alpha]:
+    def jobs(self,
+             q: Optional[str] = None,
+             version: Optional[int] = None
+             ) -> AsyncIterator[JobListEntryV1Alpha]:
         self._raise_if_not_created()
-        if version is None:
-            version = 1
-        last_job_id = None
-        while True:
-            params = {}
-            if q is not None:
-                params['q'] = q
-            if last_job_id is not None:
-                params['last_job_id'] = last_job_id
-            resp = await self._client._get(f'/api/v{version}alpha/batches/{self.id}/jobs', params=params)
-            body = cast(
-                GetJobsResponseV1Alpha,
-                await resp.json()
-            )
-            for job in body['jobs']:
-                yield job
-            last_job_id = body.get('last_job_id')
-            if last_job_id is None:
-                break
+        return self._root_job_group.jobs(q, version, recursive=True)
 
     async def get_job(self, job_id: int) -> Job:
         self._raise_if_not_created()
@@ -435,35 +623,6 @@ class Batch:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
-    async def _wait(self,
-                    description: str,
-                    progress: BatchProgressBar,
-                    disable_progress_bar: bool,
-                    starting_job: int
-                    ) -> Dict[str, Any]:
-        self._raise_if_not_created()
-        deploy_config = get_deploy_config()
-        url = deploy_config.external_url('batch', f'/batches/{self.id}')
-        i = 0
-        status = await self.status()
-        if is_notebook():
-            description += f'[link={url}]{self.id}[/link]'
-        else:
-            description += url
-        with progress.with_task(description,
-                                total=status['n_jobs'] - starting_job + 1,
-                                disable=disable_progress_bar) as progress_task:
-            while True:
-                status = await self.status()
-                progress_task.update(None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1)
-                if status['complete']:
-                    return status
-                j = random.randrange(math.floor(1.1 ** i))
-                await asyncio.sleep(0.100 * j)
-                # max 44.5s
-                if i < 64:
-                    i = i + 1
-
     # FIXME Error if this is called while within a job of the same Batch
     async def wait(self,
                    *,
@@ -473,28 +632,13 @@ class Batch:
                    starting_job: int = 1,
                    ) -> Dict[str, Any]:
         self._raise_if_not_created()
-        if description:
-            description += ': '
-        if progress is not None:
-            return await self._wait(description, progress, disable_progress_bar, starting_job)
-        with BatchProgressBar(disable=disable_progress_bar) as progress2:
-            return await self._wait(description, progress2, disable_progress_bar, starting_job)
+        return await self._root_job_group.wait(disable_progress_bar=disable_progress_bar, description=description, progress=progress, starting_job=starting_job)
 
     async def debug_info(self,
                          _jobs_query_string: Optional[str] = None,
                          _max_jobs: Optional[int] = None,
-                         ) -> BatchDebugInfo:
-        self._raise_if_not_created()
-        batch_status = await self.status()
-        jobs = []
-        async for j_status in self.jobs(q=_jobs_query_string):
-            if _max_jobs and len(jobs) == _max_jobs:
-                break
-
-            id = j_status['job_id']
-            log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
-            jobs.append({'log': log, 'status': job._status})
-        return {'status': batch_status, 'jobs': jobs}
+                         ) -> JobGroupDebugInfo:
+        return await self._root_job_group.debug_info(_jobs_query_string, _max_jobs)
 
     async def delete(self):
         self._raise_if_not_created()
@@ -832,7 +976,6 @@ class Batch:
                      ):
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
-
         if progress:
             start_job_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress)
         else:

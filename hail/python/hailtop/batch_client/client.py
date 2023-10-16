@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from hailtop.utils import async_to_blocking, ait_to_blocking
 from ..config import DeployConfig
@@ -94,6 +94,72 @@ class Job:
 
     def attempts(self):
         return async_to_blocking(self._async_job.attempts())
+
+
+class JobGroup:
+    def __init__(self, async_job_group: aioclient.JobGroup):
+        self._async_job_group = async_job_group
+
+    def name(self):
+        return async_to_blocking(self._async_job_group.name())
+
+    def attributes(self):
+        return async_to_blocking(self._async_job_group.attributes())
+
+    @property
+    def batch_id(self) -> int:
+        return self._async_job_group.batch_id
+
+    @property
+    def job_group_id(self) -> int:
+        return self._async_job_group.job_group_id
+
+    @property
+    def id(self) -> Tuple[int, int]:
+        return (self.batch_id, self.job_group_id)
+
+    def cancel(self):
+        return async_to_blocking(self._async_job_group.cancel())
+
+    def jobs(self,
+             q: Optional[str] = None,
+             version: Optional[int] = None,
+             recursive: bool = False):
+        return ait_to_blocking(self._async_job_group.jobs(q, version, recursive))
+
+    # {
+    #   batch_id: int
+    #   job_group_id: int
+    #   state: str, (failure, cancelled, success, running)
+    #   complete: bool
+    #   n_jobs: int
+    #   n_completed: int
+    #   n_succeeded: int
+    #   n_failed: int
+    #   n_cancelled: int
+    #   time_created: optional(str), (date)
+    #   time_completed: optional(str), (date)
+    #   duration: optional(str)
+    #   attributes: optional(dict(str, str))
+    #   cost: float
+    # }
+    def status(self) -> Dict[str, Any]:
+        return async_to_blocking(self._async_job_group.status())
+
+    def last_known_status(self) -> Dict[str, Any]:
+        return async_to_blocking(self._async_job_group.status())
+
+    # FIXME Error if this is called while in a job within the same job group
+    def wait(self, *args, **kwargs) -> Dict[str, Any]:
+        return async_to_blocking(self._async_job_group.wait(*args, **kwargs))
+
+    def debug_info(self, *args, **kwargs):
+        return async_to_blocking(self._async_job_group.debug_info(*args, **kwargs))
+
+
+class BatchSubmissionInfo:
+    def __init__(self, used_fast_path: Optional[bool] = None):
+        self.used_fast_path = used_fast_path
 
 
 class Batch:

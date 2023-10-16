@@ -176,7 +176,9 @@ LIMIT 51;
 # <unquoted-partial-match-query> ::= <str>
 
 
-def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int]) -> Tuple[str, List[Any]]:
+def parse_batch_jobs_query_v2(
+    batch_id: int, job_group_id: int, q: str, last_job_id: Optional[int], recursive: bool
+) -> Tuple[str, List[Any]]:
     queries: List[Query] = []
 
     # logic to make time interval queries fast
@@ -235,6 +237,18 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
     # batch has already been validated
     where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
     where_args = [batch_id]
+
+    if recursive:
+        jg_cond = '''
+((jobs.batch_id, jobs.job_group_id) IN
+ (SELECT batch_id, job_group_id FROM job_group_self_and_ancestors
+  WHERE ancestor_id = %s))
+'''
+    else:
+        jg_cond = '(jobs.job_group_id = %s)'
+
+    where_conditions.append(jg_cond)
+    where_args.append(job_group_id)
 
     if last_job_id is not None:
         where_conditions.append('(jobs.job_id > %s)')
