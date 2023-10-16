@@ -3671,14 +3671,14 @@ class Table(ExprContainer):
             pretty_str = pprint.pformat(obj, width=columns)
             return ''.join('        ' + line for line in pretty_str.splitlines(keepends=True))
 
-        is_failure = False
+        is_same = True
         if mismatched_globals is not None:
             print(f'''Table._same: globals differ:
     Left:
 {pretty(mismatched_globals.left_globals)}
     Right:
 {pretty(mismatched_globals.right_globals)}''')
-            is_failure = True
+            is_same = False
 
         if len(mismatched_rows) > 0:
             print('Table._same: rows differ:')
@@ -3688,9 +3688,9 @@ class Table(ExprContainer):
 {pretty(r.left_row)}
     Right:
 {pretty(r.right_row)}''')
-            is_failure = True
+            is_same = False
 
-        return is_failure
+        return is_same
 
     def collect_by_key(self, name: str = 'values') -> 'Table':
         """Collect values for each unique key into an array.
