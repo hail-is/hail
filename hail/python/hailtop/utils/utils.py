@@ -112,7 +112,7 @@ def digits_needed(i: int) -> int:
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n: int, ls: Iterable[T]) -> Iterable[List[T]]:
+def grouped(n: int, ls: Iterable[T]) -> Iterable[List[T]]:  # replace with itertools.batched in Python 3.12
     it = iter(ls)
     if n < 1:
         raise ValueError('invalid value for n: found {n}')
