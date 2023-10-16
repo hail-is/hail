@@ -682,7 +682,7 @@ class _TemporaryFilenameManager:
 
     def __exit__(self, type, value, traceback):
         try:
-            return self.fs.remove(self.name)
+            self.fs.remove(self.name)
         except FileNotFoundError:
             pass
 
@@ -696,7 +696,7 @@ class _TemporaryFilenameManager:
         exc_tb: Optional[TracebackType],
     ):
         try:
-            return await self.fs.aremove(self.name)
+            await self.fs.aremove(self.name)
         except FileNotFoundError:
             pass
 
@@ -749,7 +749,7 @@ class _TemporaryDirectoryManager:
 
     def __exit__(self, type, value, traceback):
         try:
-            return self.fs.rmtree(self.name)
+            self.fs.rmtree(self.name)
         except FileNotFoundError:
             pass
 
@@ -765,7 +765,7 @@ class _TemporaryDirectoryManager:
         exc_tb: Optional[TracebackType],
     ):
         try:
-            return await self.fs.armtree(self.name)
+            await self.fs.armtree(self.name)
         except FileNotFoundError:
             pass
 
