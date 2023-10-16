@@ -231,7 +231,7 @@ class ServiceBackend(
               val shortMessage = readString(is)
               val expandedMessage = readString(is)
               val errorId = is.readInt()
-              throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+              throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
             }
           },
           i
@@ -838,6 +838,8 @@ class ServiceBackendSocketAPI2(
             output.writeInt(exc.errorId)
           }
         }
+        log.error("A worker failed. The exception was written for Python but we will also throw an exception to fail this driver job.")
+        throw exc
       case t: Throwable =>
         val (shortMessage, expandedMessage, errorId) = handleForPython(t)
         retryTransientErrors {
@@ -849,6 +851,8 @@ class ServiceBackendSocketAPI2(
             output.writeInt(errorId)
           }
         }
+        log.error("An exception occurred in the driver. The exception was written for Python but we will re-throw to fail this driver job.")
+        throw t
     }
   }
 }
