@@ -1,6 +1,7 @@
 import re
 import unittest
 import numpy as np
+from numpy.testing import assert_array_equal
 import hail as hl
 import hail.ir as ir
 from hail.ir.renderer import CSERenderer
@@ -576,7 +577,10 @@ class CSETests(unittest.TestCase):
 def _assert_encoding_roundtrip(value):
     lit = hl.literal(value)
     round_trip = lit.dtype._from_encoding(lit.dtype._to_encoding(value))
-    assert hl.eval(round_trip == lit)
+    if isinstance(value, np.ndarray):
+        assert_array_equal(round_trip, value)
+    else:
+        assert round_trip == value
 
 
 @pytest.mark.parametrize(

@@ -330,7 +330,7 @@ object EType {
         EField(f.name, fromTypeAllOptional(t.fields(i).typ), f.index)
       }, required = false)
     case t: TNDArray =>
-      ENDArrayColumnMajor(fromTypeAllOptional(t.elementType), t.nDims, false)
+      ENDArrayColumnMajor(fromTypeAllOptional(t.elementType).setRequired(true), t.nDims, false)
   }
 
   def eTypeParser(it: TokenIterator): EType = {
