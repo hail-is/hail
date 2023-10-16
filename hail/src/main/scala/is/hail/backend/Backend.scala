@@ -37,7 +37,7 @@ case class FromFASTAFilePayload(name: String, fasta_file: String, index_file: St
     par: Array[String])
 case class ParseVCFMetadataPayload(path: String)
 case class ImportFamPayload(path: String, quant_pheno: Boolean, delimiter: String, missing: String)
-case class ExecutePayload(ir: String, stream_codec: String)
+case class ExecutePayload(ir: String, stream_codec: String, timed: Boolean)
 
 object BackendServer {
   def apply(backend: Backend) = new BackendServer(backend)
@@ -69,7 +69,7 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
       val body = using(exchange.getRequestBody)(JsonMethods.parse(_))
       if (exchange.getRequestURI.getPath == "/execute") {
           val config = body.extract[ExecutePayload]
-          backend.execute(config.ir, false) { (ctx, res, timings) =>
+          backend.execute(config.ir, config.timed) { (ctx, res, timings) =>
             exchange.getResponseHeaders().add("X-Hail-Timings", timings)
             res match {
               case Left(_) => exchange.sendResponseHeaders(200, -1L)

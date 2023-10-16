@@ -99,6 +99,7 @@ class IRTypePayload(ActionPayload):
 class ExecutePayload(ActionPayload):
     ir: str
     stream_codec: str
+    timed: bool
 
 @dataclass
 class LoadReferencesFromDatasetPayload(ActionPayload):
@@ -172,7 +173,7 @@ class Backend(abc.ABC):
         pass
 
     def execute(self, ir: BaseIR, timed: bool = False) -> Any:
-        payload = ExecutePayload(self._render_ir(ir), '{"name":"StreamBufferSpec"}')
+        payload = ExecutePayload(self._render_ir(ir), '{"name":"StreamBufferSpec"}', timed)
         try:
             result, timings = self._rpc(ActionTag.EXECUTE, payload)
         except FatalError as e:
