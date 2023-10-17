@@ -106,7 +106,7 @@ class LocalBackend(
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer): (ExecuteContext => T) => T =
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags, new BackendContext {
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, flags, new BackendContext {
       override val executionCache: ExecutionCache =
         ExecutionCache.fromFlags(flags, fs, tmpdir)
     })

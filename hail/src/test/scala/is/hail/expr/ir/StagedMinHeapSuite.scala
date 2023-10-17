@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.annotations.{Region, SafeIndexedSeq}
 import is.hail.asm4s._
-import is.hail.check.Arbitrary
+import is.hail.check.{Arbitrary, Gen}
 import is.hail.check.Prop.forAll
 import is.hail.expr.ir.streams.EmitMinHeap
 import is.hail.types.physical.stypes.SValue
@@ -28,92 +28,100 @@ class StagedMinHeapSuite extends HailSuite {
       }
     }.check()
 
-
-  lazy val GRCh38: ReferenceGenome =
-    ctx.getReference(ReferenceGenome.GRCh38)
-
-  implicit lazy val loci: Arbitrary[Locus] =
-    Arbitrary(Locus.gen(GRCh38))
-
   @Test def testClosure(): Unit =
-    forAll { (loci: IndexedSeq[Locus]) =>
-      trait LocusHeap extends Heap { def pop(): Locus }
+    forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
+      using(genome(rg)) { _ =>
 
-      val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
-      val Main = modb.genEmitClass[LocusHeap with AutoCloseable]("Closure")
-      Main.cb.addInterface(implicitly[TypeInfo[AutoCloseable]].iname)
+        trait LocusHeap extends Heap { def pop(): Locus }
 
-      val eltPTy: PCanonicalLocus =
-        PCanonicalLocus(GRCh38.name, required = true)
+        val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
+        val Main = modb.genEmitClass[LocusHeap with AutoCloseable]("Closure")
+        Main.cb.addInterface(implicitly[TypeInfo[AutoCloseable]].iname)
 
-      val compare: EmitMethodBuilder[_] =
-        Main.defineEmitMethod("compare", Array.fill(2)(eltPTy.sType.paramType), IntInfo) { mb =>
-          mb.emitWithBuilder[Int] { cb =>
-            cb.memoize({
-              val p = mb.getSCodeParam(1).asLocus.getLocusObj(cb)
-              val q = mb.getSCodeParam(2).asLocus.getLocusObj(cb)
-              mb.getReferenceGenome(eltPTy.rg)
-                .invoke[Ordering[Locus]]("locusOrdering")
-                .invoke[Object, Object, Int]("compare", p, q)
-            })
+        val eltPTy: PCanonicalLocus =
+          PCanonicalLocus(rg.name, required = true)
+
+        val compare: EmitMethodBuilder[_] =
+          Main.defineEmitMethod("compare", Array.fill(2)(eltPTy.sType.paramType), IntInfo) { mb =>
+            mb.emitWithBuilder[Int] { cb =>
+              val p = mb.getSCodeParam(1)
+              val q = mb.getSCodeParam(2)
+              Main.getOrdering(eltPTy.sType, eltPTy.sType).compareNonnull(cb, p, q)
+            }
+          }
+
+        // The reference genome is added to the "Main" class by `resultWithIndex` and is not
+        // accessible from the MinHeap. Thus, we need a reference to the outer class (Main)
+        // to dispatch
+        val MinHeap = EmitMinHeap(modb, eltPTy.sType) { classBuilder =>
+          new EmitMinHeap.StagedComparator {
+            val parent: ThisFieldRef[_] =
+              classBuilder.genFieldThisRef("parent")(Main.cb.ti)
+
+            override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
+              cb.assignAny(parent, Code.checkcast(enclosingRef)(Main.cb.ti))
+
+            override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] =
+              cb.invokeCode[Int](compare, parent, a, b)
+          }
+        }(Main)
+
+        Main.defineEmitMethod("init", FastSeq(), UnitInfo) { mb =>
+          mb.voidWithBuilder { cb =>
+            MinHeap.init(cb, Main.pool())
+            for (x <- loci) {
+              val slocus = eltPTy.constructFromContigAndPosition(cb, Main.partitionRegion, x.contig, x.position)
+              MinHeap.push(cb, slocus)
+            }
           }
         }
 
-      val MinHeap = EmitMinHeap(modb, eltPTy.sType) { classBuilder =>
-        new EmitMinHeap.StagedComparator {
-          val parent: ThisFieldRef[_] =
-            classBuilder.genFieldThisRef("parent")(Main.cb.ti)
-
-          override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
-            cb.assignAny(parent, Code.checkcast(enclosingRef)(Main.cb.ti))
-
-          override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] =
-            cb.invokeCode[Int](compare, parent, a, b)
-        }
-      }(Main)
-
-      Main.defineEmitMethod("init", FastSeq(), UnitInfo) { mb =>
-        mb.voidWithBuilder { cb =>
-          MinHeap.init(cb, Main.pool())
-          for (x <- loci) {
-            val slocus = eltPTy.constructFromContigAndPosition(cb, Main.partitionRegion, x.contig, x.position)
-            MinHeap.push(cb, slocus)
-          }
-        }
-      }
-
-      Main.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
-        mb.voidWithBuilder { MinHeap.close }
-      }
-
-      Main.defineEmitMethod("pop", FastSeq(), typeInfo[Locus]) { mb =>
-        mb.emitWithBuilder[Locus] { cb =>
-          val res = MinHeap.peek(cb).asLocus.getLocusObj(cb)
-          MinHeap.pop(cb)
-          MinHeap.realloc(cb)
-          res
-        }
-      }
-
-      Main.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), LongInfo) { mb =>
-        mb.emitWithBuilder { cb =>
-          val region = mb.getCodeParam[Region](1)
-          val arr = MinHeap.toArray(cb, region)
-          arr.asInstanceOf[SIndexablePointerValue].a
-        }
-      }
-
-      val sortedLoci =
-        pool.scopedRegion { r =>
-          using(Main.resultWithIndex(ctx.shouldWriteIRFiles())(theHailClassLoader, ctx.fs, ctx.taskContext, r)) {
-            heap =>
-              heap.init()
-              IndexedSeq.fill(loci.size)(heap.pop())
+        Main.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
+          mb.voidWithBuilder {
+            MinHeap.close
           }
         }
 
-      sortedLoci == loci.sorted(GRCh38.locusOrdering)
+        Main.defineEmitMethod("pop", FastSeq(), typeInfo[Locus]) { mb =>
+          mb.emitWithBuilder[Locus] { cb =>
+            val res = MinHeap.peek(cb).asLocus.getLocusObj(cb)
+            MinHeap.pop(cb)
+            MinHeap.realloc(cb)
+            res
+          }
+        }
+
+        Main.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), LongInfo) { mb =>
+          mb.emitWithBuilder { cb =>
+            val region = mb.getCodeParam[Region](1)
+            val arr = MinHeap.toArray(cb, region)
+            arr.asInstanceOf[SIndexablePointerValue].a
+          }
+        }
+
+        val sortedLoci =
+          pool.scopedRegion { r =>
+            using(Main.resultWithIndex(ctx.shouldWriteIRFiles())(theHailClassLoader, ctx.fs, ctx.taskContext, r)) {
+              heap =>
+                heap.init()
+                IndexedSeq.fill(loci.size)(heap.pop())
+            }
+          }
+
+        sortedLoci == loci.sorted(rg.locusOrdering)
+      }
     }.check()
+
+  val loci: Gen[(ReferenceGenome, IndexedSeq[Locus])] =
+    for {
+      genome <- ReferenceGenome.gen
+      loci <- Gen.buildableOf(Locus.gen(genome))
+    } yield (genome, loci)
+
+  def genome(rg: ReferenceGenome): AutoCloseable = {
+    ctx.backend.addReference(rg)
+    () => ctx.backend.removeReference(rg.name)
+  }
 
   def sort(xs: IndexedSeq[Int]): IndexedSeq[Int] =
     intHeap("Sort", xs) { heap =>

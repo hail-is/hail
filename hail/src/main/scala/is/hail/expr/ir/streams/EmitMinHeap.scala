@@ -77,7 +77,7 @@ object EmitMinHeap {
         mb.emitWithBuilder[Int] { cb =>
           val l = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](1))
           val r = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](2))
-          comparator.apply(cb, l, r)
+          comparator(cb, l, r)
         }
       }
 

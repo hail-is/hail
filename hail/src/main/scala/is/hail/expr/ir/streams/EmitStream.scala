@@ -1465,18 +1465,17 @@ object EmitStream {
               rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName)).paramType
 
             val loadInterval: EmitMethodBuilder[_] =
-              mb.ecb.defineEmitMethod("loadInterval", FastSeq(), intrvlParamTy) { mb =>
-                mb.emitSCode { cb =>
-                  mb.getEmitParam(cb, 0)
-                    .get(cb)
-                    .asBaseStruct
-                    .loadField(cb, rIntrvlName)
-                    .get(cb)
-                }
-              }
+              mb.ecb.genEmitMethod("loadInterval", FastSeq(rElemSTy.paramType), intrvlParamTy)
+
+            loadInterval.emitSCode { cb =>
+              cb.emb.getEmitParam(cb, 1)
+                .get(cb)
+                .asBaseStruct
+                .loadField(cb, rIntrvlName)
+                .get(cb)
+            }
 
             val leftStructField = mb.newPField(lProd.element.st)
-            val intervalResultField = mb.newPField(PCanonicalArray(rProd.element.st.storageType(), required = true).sType)
             val eltRegion = mb.genFieldThisRef[Region]("interval_join_region")
 
             val minHeap: StagedMinHeap =
@@ -1486,26 +1485,17 @@ object EmitStream {
                   val parent: ThisFieldRef[_] =
                     heapClassBuilder.genFieldThisRef("parent")(mb.cb.ti)
 
-                  val compare: EmitMethodBuilder[_] =
-                    heapClassBuilder.defineEmitMethod("intervalRightEndpointCompare",
-                      FastSeq(rElemSTy.paramType, rElemSTy.paramType),
-                      IntInfo
-                    ) { emb =>
-                      emb.emitWithBuilder[Int] { cb =>
-                        val l = cb.invokeSCode(loadInterval, parent, cb.emb.getEmitParam(cb, 1)).asInterval
-                        val r = cb.invokeSCode(loadInterval, parent, cb.emb.getEmitParam(cb, 2)).asInterval
-                        IntervalFunctions.intervalEndpointCompare(cb,
-                          l.loadEnd(cb).get(cb), l.includesEnd,
-                          r.loadEnd(cb).get(cb), r.includesEnd
-                        )
-                      }
-                    }
-
                   override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
                     cb.assignAny(parent, Code.checkcast(enclosingRef)(mb.cb.ti))
 
-                  override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] =
-                    cb.invokeCode(compare, cb._this, a, b)
+                  override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] = {
+                    val l = cb.invokeSCode(loadInterval, parent, a).asInterval
+                    val r = cb.invokeSCode(loadInterval, parent, b).asInterval
+                    IntervalFunctions.intervalEndpointCompare(cb,
+                      l.loadEnd(cb).get(cb), l.includesEnd,
+                      r.loadEnd(cb).get(cb), r.includesEnd
+                    )
+                  }
                 }
               }(mb.ecb)
 
@@ -1540,7 +1530,7 @@ object EmitStream {
                       cb.ifx(minHeap.nonEmpty(cb),
                         cb.ifx({
                           val interval = cb.invokeSCode(loadInterval, cb._this, minHeap.peek(cb)).asInterval
-                          IntervalFunctions.intervalContains(cb, interval, key).get(cb).asBoolean.value
+                          !IntervalFunctions.intervalContains(cb, interval, key).get(cb).asBoolean.value
                         }, {
                           minHeap.pop(cb)
                           cb.goto(Lrecur)
@@ -1578,7 +1568,6 @@ object EmitStream {
 
                     cb.define(LallIntervalsFound)
                     cb.assign(leftStructField, row)
-                    cb.assign(intervalResultField, minHeap.toArray(cb, eltRegion))
                     cb.goto(LproduceElementDone)
 
                     cb.define(lProd.LendOfStream)
@@ -1589,7 +1578,7 @@ object EmitStream {
                   EmitCode.fromI(mb) { cb =>
                     emit(body, cb, region = eltRegion, env = env.bind(
                       lEltName -> EmitValue.present(leftStructField),
-                      rEltName -> EmitValue.present(intervalResultField)
+                      rEltName -> EmitValue.present(minHeap.toArray(cb, eltRegion))
                     ))
                   }
 

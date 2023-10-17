@@ -331,7 +331,6 @@ class SparkBackend(
       timer,
       if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
       theHailClassLoader,
-      this.references,
       flags,
       new BackendContext {
         override val executionCache: ExecutionCache =
@@ -350,7 +349,6 @@ class SparkBackend(
       timer,
       if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
       theHailClassLoader,
-      this.references,
       flags,
       new BackendContext {
         override val executionCache: ExecutionCache =

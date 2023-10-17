@@ -275,7 +275,6 @@ class SemanticHashSuite extends HailSuite {
         ctx.timer,
         ctx.tempFileManager,
         ctx.theHailClassLoader,
-        ctx.referenceGenomes,
         ctx.flags,
         ctx.backendContext,
         ctx.irMetadata

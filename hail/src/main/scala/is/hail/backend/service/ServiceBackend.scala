@@ -656,7 +656,6 @@ class ServiceBackendSocketAPI2(
               timer,
               null,
               backend.theHailClassLoader,
-              backend.references,
               flags,
               new ServiceBackendContext(billingProject, remoteTmpDir, workerCores, workerMemory, storageRequirement, regions, cloudfuseConfig, shouldProfile,
                 ExecutionCache.fromFlags(flags, fs, remoteTmpDir)
