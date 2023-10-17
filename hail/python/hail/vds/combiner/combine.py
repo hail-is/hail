@@ -1,6 +1,5 @@
 import math
-from typing import Collection, Optional, Set
-from typing import List, Tuple, Dict
+from typing import Collection, Optional, Set, Union, List, Tuple, Dict
 
 import hail as hl
 from hail import MatrixTable, Table
@@ -426,7 +425,7 @@ _allele_specific_field_parsers = {
 
 
 def parse_allele_specific_fields(info: hl.StructExpression,
-                                 has_non_ref: hl.BooleanExpression
+                                 has_non_ref: Union[bool, hl.BooleanExpression]
                                  ) -> hl.StructExpression:
     def parse_field(field: str) -> hl.Expression:
         if parse := _allele_specific_field_parsers.get(field):

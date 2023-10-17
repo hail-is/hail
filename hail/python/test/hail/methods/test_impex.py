@@ -491,7 +491,7 @@ class VCFTests(unittest.TestCase):
                 AS_RAW_MQRankSum="|NaN|NaN",
                 AS_RAW_ReadPosRankSum="|NaN|NaN")])
 
-        output = hl.eval(infos.map(lambda info: parse_as_fields(info, False)))
+        output = hl.eval(infos.map(lambda info: parse_allele_specific_fields(info, False)))
         expected = [
             hl.Struct(
                 AS_QUALapprox=[None, 1171, None],
