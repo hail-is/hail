@@ -3646,14 +3646,21 @@ class Literal(IR):
 
 
 class EncodedLiteral(IR):
-    @typecheck_method(typ=hail_type, value=anytype)
-    def __init__(self, typ, value):
+    @typecheck_method(typ=hail_type, value=anytype, encoded_value=nullable(str))
+    def __init__(self, typ, value, *, encoded_value = None):
         super(EncodedLiteral, self).__init__()
         self._typ: HailType = typ
-        self.encoded_value = base64.b64encode(typ._to_encoding(value)).decode('utf-8')
+        self._value = value
+        self._encoded_value = encoded_value
+
+    @property
+    def encoded_value(self):
+        if self._encoded_value is None:
+            self._encoded_value = base64.b64encode(self._typ._to_encoding(self._value)).decode('utf-8')
+        return self._encoded_value
 
     def copy(self):
-        return EncodedLiteral(self._typ, self.encoded_value)
+        return EncodedLiteral(self._typ, self._value, encoded_value=self._encoded_value)
 
     def head_str(self):
         return f'{self._typ._parsable_string()} "{self.encoded_value}"'
