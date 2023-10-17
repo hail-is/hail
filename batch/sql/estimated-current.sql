@@ -214,13 +214,13 @@ DROP TABLE IF EXISTS `job_group_self_and_ancestors`;
 CREATE TABLE IF NOT EXISTS `job_group_self_and_ancestors` (
   `batch_id` BIGINT NOT NULL,
   `job_group_id` INT NOT NULL,
-  `parent_id` INT NOT NULL,
+  `ancestor_id` INT NOT NULL,
   `level` INT NOT NULL,
-  PRIMARY KEY (`batch_id`, `job_group_id`, `parent_id`),
+  PRIMARY KEY (`batch_id`, `job_group_id`, `ancestor_id`),
   FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`batch_id`, `parent_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`, `ancestor_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX `job_group_self_and_ancestors_parent_id_level` ON `job_group_self_and_ancestors` (`batch_id`, `parent_id`, `level`);
+CREATE INDEX `job_group_self_and_ancestors_ancestor_id_level` ON `job_group_self_and_ancestors` (`batch_id`, `ancestor_id`, `level`);
 CREATE INDEX `job_group_self_and_ancestors_job_group_id_level` ON `job_group_self_and_ancestors` (`batch_id`, `job_group_id`, `level`);
 
 CREATE TABLE IF NOT EXISTS `batch_updates` (
@@ -702,7 +702,7 @@ BEGIN
     INSERT INTO job_groups (batch_id, job_group_id, `user`, cancel_after_n_failures, `state`, n_jobs, time_created, time_completed, callback, attributes)
     VALUES (NEW.id, 0, NEW.`user`, NEW.cancel_after_n_failures, NEW.state, NEW.n_jobs, NEW.time_created, NEW.time_completed, NEW.callback, NEW.attributes);
 
-    INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, parent_id, `level`)
+    INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, `level`)
     VALUES (NEW.id, 0, 0, 0);
   END IF;
 END $$
@@ -1569,7 +1569,7 @@ BEGIN
   DECLARE cur_n_completed INT;
 
   DECLARE job_group_cursor CURSOR FOR
-  SELECT parent_id
+  SELECT ancestor_id
   FROM job_group_self_and_ancestors
   WHERE batch_id = in_batch_id AND job_group_id = in_job_group_id
   ORDER BY job_group_id ASC;
@@ -1695,11 +1695,11 @@ BEGIN
     # necessary for backwards compatibility
     UPDATE batches_n_jobs_in_complete_states
     INNER JOIN (
-      SELECT batch_id, parent_id
+      SELECT batch_id, ancestor_id
       FROM job_group_self_and_ancestors
       WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id AND job_group_id != 0
       ORDER BY job_group_id ASC
-    ) AS t ON batches_n_jobs_in_complete_states.id = t.batch_id AND batches_n_jobs_in_complete_states.job_group_id = t.parent_id
+    ) AS t ON batches_n_jobs_in_complete_states.id = t.batch_id AND batches_n_jobs_in_complete_states.job_group_id = t.ancestor_id
     SET n_completed = n_completed + 1,
         n_cancelled = n_cancelled + (new_state = 'Cancelled'),
         n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),

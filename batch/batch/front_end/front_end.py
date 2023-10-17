@@ -1338,7 +1338,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 
         await tx.execute_insertone(
             '''
-INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, parent_id, level)
+INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
 VALUES (%s, %s, %s, %s);
 ''',
             (
