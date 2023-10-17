@@ -323,19 +323,20 @@ class ServiceBackend(
       ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       Array()
     } else {
-      val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
+      val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = Compile[AsmFunction1RegionLong](ctx,
         FastSeq(),
-        FastSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
+        FastSeq(classInfo[Region]), LongInfo,
         MakeTuple.ordered(FastSeq(x)),
         optimize = true)
       val retPType = pt.asInstanceOf[PBaseStruct]
+      val elementType = pt.fields(0).typ
       val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       val codec = TypedCodecSpec(
-        EType.fromTypeAllOptional(retPType.virtualType),
-        retPType.virtualType,
+        EType.fromTypeAllOptional(elementType.virtualType),
+        elementType.virtualType,
         BufferSpec.parseOrDefault(bufferSpecString)
       )
-      codec.encode(ctx, retPType, off)
+      codec.encode(ctx, elementType, pt.loadField(off, 0))
     }
   }
 
