@@ -24,20 +24,6 @@ import scala.language.existentials
 
 class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
-  def getOrEmitClass[C: TypeInfo](name: String, sourceFile: Option[String] = None)
-                                 (body: EmitClassBuilder[C] => Unit)
-  : EmitClassBuilder[C] =
-    modb
-      .classes
-      .find(kb => kb.className == name && kb.sourceFile == sourceFile)
-      .map(kb => new EmitClassBuilder[C](this, kb.asInstanceOf[ClassBuilder[C]]) { })
-      .getOrElse {
-        val kb = newEmitClass[C](name, sourceFile)
-        body(kb)
-        kb
-      }
-
-
   def newEmitClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     new EmitClassBuilder[C](this, modb.newClass[C](name, sourceFile)) {}
 

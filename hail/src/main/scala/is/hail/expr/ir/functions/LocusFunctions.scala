@@ -25,7 +25,7 @@ object LocusFunctions extends RegistryFunctions {
 
   def emitLocus(cb: EmitCodeBuilder, r: Value[Region], locus: Code[Locus], rt: PCanonicalLocus): SCanonicalLocusPointerValue = {
     val loc = cb.newLocal[Locus]("emit_locus_memo", locus)
-    rt.constructFromPositionAndString(cb, r,
+    rt.constructFromContigAndPosition(cb, r,
       loc.invoke[String]("contig"),
       loc.invoke[Int]("position"))
   }
@@ -117,7 +117,7 @@ object LocusFunctions extends RegistryFunctions {
           cb.assign(newPos, (basePos + bps).max(1)),
           cb.assign(newPos, (basePos + bps).min(cb.emb.getReferenceGenome(rt.rg).invoke[String, Int]("contigLength", contig)))
         )
-        rt.pType.constructFromPositionAndString(cb, r.region, contig, newPos)
+        rt.pType.constructFromContigAndPosition(cb, r.region, contig, newPos)
     }
 
     registerSCode2("min_rep", tlocus("T"), TArray(TString), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString)), {
@@ -245,7 +245,7 @@ object LocusFunctions extends RegistryFunctions {
     }) {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), contig, pos, _) =>
         cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contig.asString.loadString(cb), pos.asInt.value)
-        rt.constructFromPositionAndString(cb, r.region, contig.asString.loadString(cb), pos.asInt.value)
+        rt.constructFromContigAndPosition(cb, r.region, contig.asString.loadString(cb), pos.asInt.value)
     }
 
     registerSCode1("LocusAlleles", TString, tvariant("T"), {
@@ -353,7 +353,7 @@ object LocusFunctions extends RegistryFunctions {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), globalPos, _) =>
         val locus = cb.newLocal[Locus]("global_pos_locus",
           rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPos.asLong.value))
-        rt.constructFromPositionAndString(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position"))
+        rt.constructFromContigAndPosition(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position"))
     }
 
     registerSCode1("locusToGlobalPos", tlocus("T"), TInt64, (_: Type, _: SType) => SInt64) {

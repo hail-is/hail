@@ -9,9 +9,6 @@ import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.utils.FastSeq
 
-import scala.language.implicitConversions
-import scala.util.Random
-
 sealed trait StagedMinHeap {
   
   def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit
@@ -51,18 +48,18 @@ object EmitMinHeap {
     val heap = new StagedArrayBuilder(elemType.storageType(), classBuilder, region)
     val comparator = mkComparator(classBuilder)
 
-    // `RegionPool`s are set added after construction therefore need a separate init method.
-    // See `EmitClassBuilder.resultWithIndex`.
-    val initB: EmitMethodBuilder[_] =
-      classBuilder.defineEmitMethod("init", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo) { mb =>
+    val init_ : EmitMethodBuilder[MinHeap] =
+      classBuilder.defineEmitMethod("<init>", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo) { mb =>
+        val super_ = Invokeable(classOf[Object], classOf[Object].getConstructor())
         val outerRef = mb.getCodeParam[AnyRef](1)
         val poolRef = mb.getCodeParam[RegionPool](2)
 
         mb.voidWithBuilder { cb =>
+          cb += super_.invoke(coerce[Object](cb._this), Array())
           cb.assign(pool, poolRef)
           cb.assign(region, poolRef.invoke[Region]("getRegion"))
           cb.assign(garbage, cb.memoize(0L))
-          comparator.initialize(cb, outerRef)
+          comparator.init(cb, outerRef)
           heap.initialize(cb)
         }
       }
@@ -84,7 +81,7 @@ object EmitMinHeap {
         }
       }
 
-    val reallocB: EmitMethodBuilder[_] =
+    val realloc_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("realloc", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
           cb.ifx(garbage > heap.size.toL * 2L + 1024L, {
@@ -97,7 +94,7 @@ object EmitMinHeap {
         }
       }
 
-    val closeB: EmitMethodBuilder[_] =
+    val close_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
           comparator.close(cb)
@@ -105,17 +102,17 @@ object EmitMinHeap {
         }
       }
 
-    val nonEmptyB: EmitMethodBuilder[_] =
+    val nonEmpty_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("nonEmpty", FastSeq(), BooleanInfo) { mb =>
         mb.emitWithBuilder { cb =>
           cb.memoize(heap.size > 0)
         }
       }
 
-    val peekB: EmitMethodBuilder[_] =
+    val peek_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("peek", FastSeq(), SCodeParamType(elemType)) { mb =>
         mb.emitSCode { cb =>
-          cb += Code._assert(cb.invokeCode[Boolean](nonEmptyB, cb._this), s"${classBuilder.className}: peek empty")
+          cb += Code._assert(cb.invokeCode[Boolean](nonEmpty_, cb._this), s"${classBuilder.className}: peek empty")
           cb.invokeSCode(load, cb._this, cb.memoize(0))
         }
       }
@@ -169,10 +166,10 @@ object EmitMinHeap {
         }
       }
 
-    val popB: EmitMethodBuilder[_] =
+    val pop_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("pop", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
-          cb += Code._assert(cb.invokeCode[Boolean](nonEmptyB, cb._this), s"${classBuilder.className}: poll empty")
+          cb += Code._assert(cb.invokeCode[Boolean](nonEmpty_, cb._this), s"${classBuilder.className}: poll empty")
 
           val newSize = cb.memoize(heap.size - 1)
           cb.invokeVoid(swap, cb._this, const(0), newSize)
@@ -189,7 +186,7 @@ object EmitMinHeap {
         }
       }
 
-    val pushB: EmitMethodBuilder[_] =
+    val push_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("push", FastSeq(SCodeParamType(elemType)), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
           cb.invokeVoid(append, cb._this, mb.getSCodeParam(1))
@@ -213,7 +210,7 @@ object EmitMinHeap {
 
     val arrayTy = PCanonicalArray(elemType.storageType(), required = true)
 
-    val toArrayB: EmitMethodBuilder[_] =
+    val toArray_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), arrayTy.sType.paramType) { mb =>
         val region = mb.getCodeParam[Region](1)
         mb.emitSCode { cb =>
@@ -227,40 +224,39 @@ object EmitMinHeap {
       private[this] val _this: ThisFieldRef[_] =
         ecb.genFieldThisRef("minheap")(classBuilder.cb.ti)
 
-      override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit = {
-        cb.assignAny(_this, Code.newInstance(classBuilder.cb, classBuilder.ctor.mb, FastSeq()))
-        cb.invokeVoid(initB,
-          _this,
-          cb.memoize(Code.checkcast[AnyRef](cb._this)), // `this` of the parent class
-          pool
+      override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit =
+        cb.assignAny(_this,
+          Code.newInstance(classBuilder.cb, init_.mb, FastSeq(
+            cb.memoize(Code.checkcast[AnyRef](cb._this)), // `this` of the parent class
+            pool
+          ))
         )
-      }
 
       override def realloc(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(reallocB, _this)
+        cb.invokeVoid(realloc_, _this)
 
       override def close(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(closeB, _this)
+        cb.invokeVoid(close_, _this)
 
       override def push(cb: EmitCodeBuilder, a: SValue): Unit =
-        cb.invokeVoid(pushB, _this, a)
+        cb.invokeVoid(push_, _this, a)
 
       override def peek(cb: EmitCodeBuilder): SValue =
-        cb.invokeSCode(peekB, _this)
+        cb.invokeSCode(peek_, _this)
 
       override def pop(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(popB, _this)
+        cb.invokeVoid(pop_, _this)
 
       override def nonEmpty(cb: EmitCodeBuilder): Value[Boolean] =
-        cb.invokeCode(nonEmptyB, _this)
+        cb.invokeCode(nonEmpty_, _this)
 
       override def toArray(cb: EmitCodeBuilder, region: Value[Region]): SIndexableValue =
-        cb.invokeSCode(toArrayB, _this, region).asIndexable
+        cb.invokeSCode(toArray_, _this, region).asIndexable
     }
   }
 
   trait StagedComparator {
-    def initialize(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit = ()
+    def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit = ()
 
     def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int]
 

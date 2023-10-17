@@ -20,13 +20,12 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   private val capacity = kb.genFieldThisRef[Int]("capacity")
   val data = kb.genFieldThisRef[Long]("data")
 
-  private val tmpOff = kb.genFieldThisRef[Long]("tmp_offset")
   private val currentSizeOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 0)
   private val capacityOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 1)
   private val dataOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 2)
 
   def loadFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
-    cb.assign(tmpOff, src)
+    val tmpOff = cb.memoize(src)
     cb.assign(size, Region.loadInt(currentSizeOffset(tmpOff)))
     cb.assign(capacity, Region.loadInt(capacityOffset(tmpOff)))
     cb.assign(data, Region.loadAddress(dataOffset(tmpOff)))
@@ -34,14 +33,13 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
 
 
   def cloneFrom(cb: EmitCodeBuilder, other: StagedArrayBuilder): Unit = {
-    cb.assign(tmpOff, other.tmpOff)
     cb.assign(size, other.size)
     cb.assign(data, other.data)
     cb.assign(capacity, other.capacity)
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
-    cb.assign(tmpOff, src)
+    val tmpOff = cb.memoize(src)
     cb.assign(size, Region.loadInt(currentSizeOffset(tmpOff)))
     cb.assign(capacity, Region.loadInt(capacityOffset(tmpOff)))
     cb.assign(data, eltArray.store(cb, region, eltArray.loadCheapSCode(cb, Region.loadAddress(dataOffset(tmpOff))), deepCopy = true))
@@ -52,7 +50,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   }
 
   def storeTo(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
-    cb.assign(tmpOff, dest)
+    val tmpOff = cb.memoize(dest)
     cb += Region.storeInt(currentSizeOffset(tmpOff), size)
     cb += Region.storeInt(capacityOffset(tmpOff), capacity)
     cb += Region.storeAddress(dataOffset(tmpOff), data)
@@ -127,9 +125,12 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   }
 
   def swap(cb: EmitCodeBuilder, p: Value[Int], q: Value[Int]): Unit = {
-    val tmp = loadElement(cb, p).memoize(cb, "tmp")
-    overwrite(cb, loadElement(cb, q).memoize(cb, ""), p)
-    overwrite(cb, tmp, q)
+    val pOff = elementOffset(cb, p)
+    val qOff = elementOffset(cb, q)
+    val tmpOff = elementOffset(cb, size)
+    cb += Region.copyFrom(pOff, tmpOff, eltType.byteSize)
+    cb += Region.copyFrom(qOff, pOff, eltType.byteSize)
+    cb += Region.copyFrom(tmpOff, qOff, eltType.byteSize)
   }
 
   private def resize(cb: EmitCodeBuilder): Unit = {

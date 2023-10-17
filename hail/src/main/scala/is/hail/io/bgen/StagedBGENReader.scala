@@ -155,7 +155,7 @@ object StagedBGENReader {
         val pc = requestedType.field("locus").typ match {
           case TLocus(rg) =>
             val pt = SCanonicalLocusPointer(PCanonicalLocus(rg))
-            pt.pType.constructFromPositionAndString(cb, region, contigRecoded, position)
+            pt.pType.constructFromContigAndPosition(cb, region, contigRecoded, position)
           case t: TStruct =>
             val contig = SJavaString.constructFromString(cb, region, contigRecoded)
             SStackStruct.constructFromArgs(cb, region, t,

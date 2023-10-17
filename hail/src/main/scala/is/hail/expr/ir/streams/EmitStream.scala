@@ -1501,7 +1501,7 @@ object EmitStream {
                       }
                     }
 
-                  override def initialize(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
+                  override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
                     cb.assignAny(parent, Code.checkcast(enclosingRef)(mb.cb.ti))
 
                   override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] =

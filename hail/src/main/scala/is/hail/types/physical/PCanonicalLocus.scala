@@ -142,7 +142,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
     addr
   }
 
-  def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SCanonicalLocusPointerValue = {
+  def constructFromContigAndPosition(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SCanonicalLocusPointerValue = {
     val position = cb.memoize(pos)
     val contigType = representation.fieldType("contig").asInstanceOf[PCanonicalString]
     val contigCode = contigType.sType.constructFromString(cb, r, contig)
