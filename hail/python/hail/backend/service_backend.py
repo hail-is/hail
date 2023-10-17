@@ -31,7 +31,6 @@ from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 
 from .backend import Backend, fatal_error_from_java_error_triplet, ActionTag, ActionPayload, ExecutePayload
 from ..builtin_references import BUILTIN_REFERENCES
-from ..ir import BaseIR
 from ..utils import ANY_REGION
 from hailtop.aiotools.validators import validate_file
 
@@ -346,10 +345,6 @@ class ServiceBackend(Backend):
         self.functions = []
         self._registered_ir_function_names = set()
 
-    def render(self, ir):
-        r = CSERenderer()
-        return r(finalize_randomness(ir))
-
     async def _run_on_batch(
         self,
         name: str,
@@ -423,9 +418,9 @@ class ServiceBackend(Backend):
 
             with timings.step("read output"):
                 result_bytes = await retry_transient_errors(self._read_output, None, iodir + '/out', iodir + '/in')
-                return result_bytes, timings
+                return result_bytes, str(timings.to_dict())
 
-    async def _read_output(self, ir: Optional[BaseIR], output_uri: str, input_uri: str) -> bytes:
+    async def _read_output(self, output_uri: str, input_uri: str) -> bytes:
         try:
             driver_output = await self._async_fs.open(output_uri)
         except FileNotFoundError as exc:
@@ -448,10 +443,7 @@ class ServiceBackend(Backend):
                 expanded_message = await read_str(outfile)
                 error_id = await read_int(outfile)
 
-                reconstructed_error = fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
-                if ir is None:
-                    raise reconstructed_error
-                raise reconstructed_error.maybe_user_error(ir)
+                raise fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
         except UnexpectedEOFError as exc:
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
