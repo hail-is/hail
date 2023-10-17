@@ -172,7 +172,7 @@ object Simplify {
     }
 
     def hoistUnaryOp = (ir: IR) => ir match {
-      case ApplyUnaryPrimOp(f@(_: Negate | _: BitNot | _: Bang), x) => x match {
+      case ApplyUnaryPrimOp(f@(Negate | BitNot | Bang), x) => x match {
         case ApplyUnaryPrimOp(g, y) if g == f => Some(y)
         case _ => None
       }
@@ -188,20 +188,20 @@ object Simplify {
             else None
 
           case Subtract() =>
-            if (x == pure(0)) Some(ApplyUnaryPrimOp(Negate(), y))
+            if (x == pure(0)) Some(ApplyUnaryPrimOp(Negate, y))
             else if (y == pure(0)) Some(x)
             else None
 
           case Multiply() =>
             if (x == pure(1)) Some(y)
-            else if (x == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), y))
+            else if (x == pure(-1)) Some(ApplyUnaryPrimOp(Negate, y))
             else if (y == pure(1)) Some(x)
-            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), x))
+            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate, x))
             else None
 
           case RoundToNegInfDivide() =>
             if (y == pure(1)) Some(x)
-            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate(), x))
+            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate, x))
             else None
 
           case _ =>
@@ -259,7 +259,7 @@ object Simplify {
       else
         If(IsNA(c), NA(cnsq.typ), cnsq)
 
-    case If(ApplyUnaryPrimOp(Bang(), c), cnsq, altr) => If(c, altr, cnsq)
+    case If(ApplyUnaryPrimOp(Bang, c), cnsq, altr) => If(c, altr, cnsq)
 
     case If(c1, If(c2, cnsq2, _), altr1) if c1 == c2 => If(c1, cnsq2, altr1)
 
@@ -636,11 +636,11 @@ object Simplify {
     // simplify Boolean equality
     case ApplyComparisonOp(EQ(_, _), expr, True()) => expr
     case ApplyComparisonOp(EQ(_, _), True(), expr) => expr
-    case ApplyComparisonOp(EQ(_, _), expr, False()) => ApplyUnaryPrimOp(Bang(), expr)
-    case ApplyComparisonOp(EQ(_, _), False(), expr) => ApplyUnaryPrimOp(Bang(), expr)
+    case ApplyComparisonOp(EQ(_, _), expr, False()) => ApplyUnaryPrimOp(Bang, expr)
+    case ApplyComparisonOp(EQ(_, _), False(), expr) => ApplyUnaryPrimOp(Bang, expr)
 
-    case ApplyUnaryPrimOp(Bang(), ApplyComparisonOp(op, l, r)) =>
-      ApplyComparisonOp(ComparisonOp.invert(op.asInstanceOf[ComparisonOp[Boolean]]), l, r)
+    case ApplyUnaryPrimOp(Bang, ApplyComparisonOp(op, l, r)) =>
+      ApplyComparisonOp(ComparisonOp.negate(op.asInstanceOf[ComparisonOp[Boolean]]), l, r)
 
     case StreamAgg(_, _, query) if {
       def canBeLifted(x: IR): Boolean = x match {
@@ -929,11 +929,11 @@ object Simplify {
       val newOpts = tr.params.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
           val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
-            Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
+            Interval.intersection(Interval.union(preIntervals, iord), Interval.union(intervals, iord), iord),
             intervalPointType, true)
       }
       TableRead(t, false, new TableNativeReader(TableNativeReaderParameters(tr.params.path, Some(newOpts)), tr.spec))
@@ -945,11 +945,11 @@ object Simplify {
       val newOpts = tr.options match {
         case None =>
           val pt = t.keyType
-          NativeReaderOptions(Interval.union(intervals.toArray, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
+          NativeReaderOptions(Interval.union(intervals, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering), pt, true)
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
           val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
-            Interval.intersection(Interval.union(preIntervals.toArray, iord), Interval.union(intervals.toArray, iord), iord),
+            Interval.intersection(Interval.union(preIntervals, iord), Interval.union(intervals, iord), iord),
             intervalPointType, true)
       }
       TableRead(t, false, TableNativeZippedReader(tr.pathLeft, tr.pathRight, Some(newOpts), tr.specLeft, tr.specRight))

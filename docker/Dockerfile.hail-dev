@@ -2,4 +2,5 @@ ARG HAIL_IMAGE={{ hailgenetics_hail_image.image }}
 FROM $HAIL_IMAGE
 
 COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
-RUN hail-pip-install -r dev-requirements.txt
+RUN hail-pip-install -r dev-requirements.txt && \
+    python3 -m pyright --version # Force the installation of node and npm pyright in the image

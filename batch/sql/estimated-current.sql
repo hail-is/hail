@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `token` VARCHAR(100) DEFAULT NULL,
   `format_version` INT NOT NULL,
   `cancel_after_n_failures` INT DEFAULT NULL,
+  `migrated_batch` BOOLEAN NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
@@ -187,6 +188,40 @@ CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
+
+DROP TABLE IF EXISTS `job_groups`;
+CREATE TABLE IF NOT EXISTS `job_groups` (
+  `batch_id` BIGINT NOT NULL,
+  `job_group_id` INT NOT NULL,
+  `user` VARCHAR(100) NOT NULL,
+  `attributes` TEXT,
+  `cancel_after_n_failures` INT DEFAULT NULL,
+  `state` ENUM('running', 'complete') NOT NULL,
+  `n_jobs` INT NOT NULL,
+  `time_created` BIGINT NOT NULL,
+  `time_completed` BIGINT,
+  `callback` VARCHAR(255),
+  PRIMARY KEY (`batch_id`, `job_group_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX `job_groups_user_state` ON `job_groups` (`user`, `state`);  # used to get cancelled job groups by user
+CREATE INDEX `job_groups_state_callback` ON `job_groups` (`batch_id`, `state`, `callback`);  # used in callback on job group completion
+CREATE INDEX `job_groups_time_created` ON `job_groups` (`batch_id`, `time_created`);  # used in list job groups and UI
+CREATE INDEX `job_groups_time_completed` ON `job_groups` (`batch_id`, `time_completed`);  # used in list job groups and UI
+CREATE INDEX `job_groups_state_cancel_after_n_failures` ON `job_groups` (`state`, `cancel_after_n_failures`);  # used in cancelling any cancel fast job groups
+
+DROP TABLE IF EXISTS `job_group_self_and_ancestors`;
+CREATE TABLE IF NOT EXISTS `job_group_self_and_ancestors` (
+  `batch_id` BIGINT NOT NULL,
+  `job_group_id` INT NOT NULL,
+  `ancestor_id` INT NOT NULL,
+  `level` INT NOT NULL,
+  PRIMARY KEY (`batch_id`, `job_group_id`, `ancestor_id`),
+  FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `ancestor_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX `job_group_self_and_ancestors_ancestor_id_level` ON `job_group_self_and_ancestors` (`batch_id`, `ancestor_id`, `level`);
+CREATE INDEX `job_group_self_and_ancestors_job_group_id_level` ON `job_group_self_and_ancestors` (`batch_id`, `job_group_id`, `level`);
 
 CREATE TABLE IF NOT EXISTS `batch_updates` (
   `batch_id` BIGINT NOT NULL,
@@ -206,6 +241,7 @@ CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start
 
 CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
   `id` BIGINT NOT NULL,
+  `job_group_id` INT NOT NULL DEFAULT 0,
   `n_completed` INT NOT NULL DEFAULT 0,
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
@@ -216,6 +252,7 @@ CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
 
 CREATE TABLE IF NOT EXISTS `batches_cancelled` (
   `id` BIGINT NOT NULL,
+  `job_group_id` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -223,6 +260,7 @@ CREATE TABLE IF NOT EXISTS `batches_cancelled` (
 CREATE TABLE IF NOT EXISTS `batches_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
+  `job_group_id` INT NOT NULL DEFAULT 0,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
@@ -234,10 +272,12 @@ CREATE TABLE IF NOT EXISTS `batches_inst_coll_staging` (
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_inst_coll_staging_inst_coll` ON `batches_inst_coll_staging` (`inst_coll`);
+CREATE INDEX batches_inst_coll_staging_batch_id_jg_id ON batches_inst_coll_staging (`batch_id`, `job_group_id`);
 
 CREATE TABLE `batch_inst_coll_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
+  `job_group_id` INT NOT NULL DEFAULT 0,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   # neither run_always nor cancelled
@@ -252,6 +292,7 @@ CREATE TABLE `batch_inst_coll_cancellable_resources` (
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `batch_inst_coll_cancellable_resources_inst_coll` ON `batch_inst_coll_cancellable_resources` (`inst_coll`);
+CREATE INDEX batch_inst_coll_cancellable_resources_jg_id ON `batch_inst_coll_cancellable_resources` (`batch_id`, `job_group_id`);
 
 CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
@@ -269,6 +310,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `inst_coll` VARCHAR(255),
   `n_regions` INT DEFAULT NULL,
   `regions_bits_rep` BIGINT DEFAULT NULL,
+  `job_group_id` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
@@ -279,6 +321,7 @@ CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `
 CREATE INDEX `jobs_batch_id_update_id` ON `jobs` (`batch_id`, `update_id`);
 CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
+CREATE INDEX `jobs_batch_id_job_group_id` ON `jobs` (`batch_id`, `job_group_id`);
 
 CREATE TABLE IF NOT EXISTS `jobs_telemetry` (
   `batch_id` BIGINT NOT NULL,
@@ -352,6 +395,7 @@ CREATE TABLE IF NOT EXISTS `regions` (
 
 CREATE TABLE IF NOT EXISTS `batch_attributes` (
   `batch_id` BIGINT NOT NULL,
+  `job_group_id` INT NOT NULL DEFAULT 0,
   `key` VARCHAR(100) NOT NULL,
   `value` TEXT,
   PRIMARY KEY (`batch_id`, `key`),
@@ -359,6 +403,8 @@ CREATE TABLE IF NOT EXISTS `batch_attributes` (
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
 CREATE INDEX batch_attributes_value ON `batch_attributes` (`value`(256));
+CREATE INDEX batch_attributes_batch_id_key_value ON `batch_attributes` (`batch_id`, `job_group_id`, `key`, `value`(256));
+CREATE INDEX batch_attributes_batch_id_value ON `batch_attributes` (`batch_id`, `job_group_id`, `value`(256));
 
 DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v2`;
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_v2` (
@@ -392,6 +438,7 @@ CREATE INDEX aggregated_billing_project_user_resources_by_date_v2_user ON `aggre
 DROP TABLE IF EXISTS `aggregated_batch_resources_v2`;
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_v2` (
   `batch_id` BIGINT NOT NULL,
+  `job_group_id` INT NOT NULL DEFAULT 0,
   `resource_id` INT NOT NULL,
   `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
@@ -443,6 +490,7 @@ CREATE INDEX aggregated_billing_project_user_resources_by_date_v3_token ON `aggr
 
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_v3` (
   `batch_id` BIGINT NOT NULL,
+  `job_group_id` INT NOT NULL DEFAULT 0,
   `resource_id` INT NOT NULL,
   `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
@@ -643,6 +691,19 @@ BEGIN
       aggregated_billing_project_user_resources_by_date_v2.token = rand_token
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id AND migrated = 1
     ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_by_date_v3.`usage` + msec_diff_rollup * quantity;
+  END IF;
+END $$
+
+DROP TRIGGER IF EXISTS batches_after_update $$
+CREATE TRIGGER batches_after_update AFTER UPDATE ON batches
+FOR EACH ROW
+BEGIN
+  IF OLD.migrated_batch = 0 AND NEW.migrated_batch = 1 THEN
+    INSERT INTO job_groups (batch_id, job_group_id, `user`, cancel_after_n_failures, `state`, n_jobs, time_created, time_completed, callback, attributes)
+    VALUES (NEW.id, 0, NEW.`user`, NEW.cancel_after_n_failures, NEW.state, NEW.n_jobs, NEW.time_created, NEW.time_completed, NEW.callback, NEW.attributes);
+
+    INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, `level`)
+    VALUES (NEW.id, 0, 0, 0);
   END IF;
 END $$
 
@@ -1101,9 +1162,10 @@ BEGIN
   ELSE
     SELECT COALESCE(SUM(n_jobs), 0) INTO staging_n_jobs
     FROM batches_inst_coll_staging
-    WHERE batch_id = in_batch_id AND update_id = in_update_id
+    WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
     FOR UPDATE;
 
+    # we can only check staged equals expected for the root job group
     IF staging_n_jobs = expected_n_jobs THEN
       UPDATE batch_updates
       SET committed = 1, time_committed = in_timestamp
@@ -1115,11 +1177,21 @@ BEGIN
         n_jobs = n_jobs + expected_n_jobs
       WHERE id = in_batch_id;
 
+      UPDATE job_groups
+      INNER JOIN (
+        SELECT batch_id, job_group_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
+        FROM batches_inst_coll_staging
+        WHERE batch_id = in_batch_id AND update_id = in_update_id
+        GROUP BY batch_id, job_group_id
+      ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
+      SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
+
+      # compute global number of new ready jobs from root job group
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
       SELECT user, inst_coll, 0, @n_ready_jobs := COALESCE(SUM(n_ready_jobs), 0), @ready_cores_mcpu := COALESCE(SUM(ready_cores_mcpu), 0)
       FROM batches_inst_coll_staging
       JOIN batches ON batches.id = batches_inst_coll_staging.batch_id
-      WHERE batch_id = in_batch_id AND update_id = in_update_id
+      WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
       GROUP BY `user`, inst_coll
       ON DUPLICATE KEY UPDATE
         n_ready_jobs = n_ready_jobs + @n_ready_jobs,
@@ -1223,7 +1295,8 @@ BEGIN
     # there are no cancellable jobs left, they have been cancelled
     DELETE FROM batch_inst_coll_cancellable_resources WHERE batch_id = in_batch_id;
 
-    INSERT INTO batches_cancelled VALUES (in_batch_id);
+    # cancel root job group only
+    INSERT INTO batches_cancelled (id, job_group_id) VALUES (in_batch_id, 0);
   END IF;
 
   COMMIT;
@@ -1481,6 +1554,58 @@ BEGIN
   SELECT 0 as rc, delta_cores_mcpu;
 END $$
 
+# https://dev.mysql.com/doc/refman/8.0/en/cursors.html
+# https://stackoverflow.com/questions/5817395/how-can-i-loop-through-all-rows-of-a-table-mysql/16350693#16350693
+DROP PROCEDURE IF EXISTS mark_job_group_complete $$
+CREATE PROCEDURE mark_job_group_complete(
+  IN in_batch_id BIGINT,
+  IN in_job_group_id INT,
+  IN new_timestamp BIGINT
+)
+BEGIN
+  DECLARE cursor_job_group_id INT;
+  DECLARE done BOOLEAN DEFAULT FALSE;
+  DECLARE total_jobs_in_job_group INT;
+  DECLARE cur_n_completed INT;
+
+  DECLARE job_group_cursor CURSOR FOR
+  SELECT ancestor_id
+  FROM job_group_self_and_ancestors
+  WHERE batch_id = in_batch_id AND job_group_id = in_job_group_id
+  ORDER BY job_group_id ASC;
+
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN job_group_cursor;
+  update_job_group_loop: LOOP
+    FETCH job_group_cursor INTO cursor_job_group_id;
+
+    IF done THEN
+      LEAVE update_job_group_loop;
+    END IF;
+
+    SELECT n_jobs INTO total_jobs_in_job_group
+    FROM job_groups
+    WHERE batch_id = in_batch_id AND job_group_id = cursor_job_group_id
+    LOCK IN SHARE MODE;
+
+    SELECT n_completed INTO cur_n_completed
+    FROM batches_n_jobs_in_complete_states
+    WHERE id = in_batch_id AND job_group_id = cursor_job_group_id
+    LOCK IN SHARE MODE;
+
+    # Grabbing an exclusive lock on job groups here could deadlock,
+    # but this IF should only execute for the last job
+    IF cur_n_completed = total_jobs_in_job_group THEN
+      UPDATE job_groups
+      SET time_completed = new_timestamp,
+        `state` = 'complete'
+      WHERE batch_id = in_batch_id AND job_group_id = cursor_job_group_id;
+    END IF;
+  END LOOP;
+  CLOSE job_group_cursor;
+END $$
+
 DROP PROCEDURE IF EXISTS mark_job_complete $$
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,
@@ -1495,6 +1620,7 @@ CREATE PROCEDURE mark_job_complete(
   IN new_timestamp BIGINT
 )
 BEGIN
+  DECLARE cur_job_group_id INT;
   DECLARE cur_job_state VARCHAR(40);
   DECLARE cur_instance_state VARCHAR(40);
   DECLARE cur_cores_mcpu INT;
@@ -1507,8 +1633,8 @@ BEGIN
 
   SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
 
-  SELECT state, cores_mcpu
-  INTO cur_job_state, cur_cores_mcpu
+  SELECT state, cores_mcpu, job_group_id
+  INTO cur_job_state, cur_cores_mcpu, cur_job_group_id
   FROM jobs
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
@@ -1547,12 +1673,14 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
+    # update only the record for the root job group
+    # backwards compatibility for job groups that do not exist
     UPDATE batches_n_jobs_in_complete_states
       SET n_completed = (@new_n_completed := n_completed + 1),
           n_cancelled = n_cancelled + (new_state = 'Cancelled'),
           n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
           n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
-      WHERE id = in_batch_id;
+      WHERE id = in_batch_id AND job_group_id = 0;
 
     # Grabbing an exclusive lock on batches here could deadlock,
     # but this IF should only execute for the last job
@@ -1562,6 +1690,22 @@ BEGIN
           `state` = 'complete'
       WHERE id = in_batch_id;
     END IF;
+
+    # update the rest of the non-root job groups if they exist
+    # necessary for backwards compatibility
+    UPDATE batches_n_jobs_in_complete_states
+    INNER JOIN (
+      SELECT batch_id, ancestor_id
+      FROM job_group_self_and_ancestors
+      WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id AND job_group_id != 0
+      ORDER BY job_group_id ASC
+    ) AS t ON batches_n_jobs_in_complete_states.id = t.batch_id AND batches_n_jobs_in_complete_states.job_group_id = t.ancestor_id
+    SET n_completed = n_completed + 1,
+        n_cancelled = n_cancelled + (new_state = 'Cancelled'),
+        n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
+        n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
+
+    CALL mark_job_group_complete(in_batch_id, cur_job_group_id, new_timestamp);
 
     UPDATE jobs
       LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id

@@ -198,10 +198,10 @@ object Interpret {
         if (xValue == null)
           null
         else op match {
-          case Bang() =>
+          case Bang =>
             assert(x.typ == TBoolean)
             !xValue.asInstanceOf[Boolean]
-          case Negate() =>
+          case Negate =>
             assert(x.typ.isInstanceOf[TNumeric])
             x.typ match {
               case TInt32 => -xValue.asInstanceOf[Int]
@@ -209,13 +209,13 @@ object Interpret {
               case TFloat32 => -xValue.asInstanceOf[Float]
               case TFloat64 => -xValue.asInstanceOf[Double]
             }
-          case BitNot() =>
+          case BitNot =>
             assert(x.typ.isInstanceOf[TIntegral])
             x.typ match {
               case TInt32 => ~xValue.asInstanceOf[Int]
               case TInt64 => ~xValue.asInstanceOf[Long]
             }
-          case BitCount() =>
+          case BitCount =>
             assert(x.typ.isInstanceOf[TIntegral])
             x.typ match {
               case TInt32 => Integer.bitCount(xValue.asInstanceOf[Int])

@@ -10,12 +10,6 @@ import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePoin
 trait PArrayBackedContainer extends PContainer {
   val arrayRep: PArray
 
-  override lazy val elementByteSize = arrayRep.elementByteSize
-
-  override lazy val contentsAlignment = arrayRep.contentsAlignment
-
-  override lazy val lengthHeaderBytes: Long = arrayRep.lengthHeaderBytes
-
   override lazy val byteSize: Long = arrayRep.byteSize
 
   override def loadLength(aoff: Long): Int =
@@ -26,9 +20,6 @@ trait PArrayBackedContainer extends PContainer {
 
   override def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit =
     arrayRep.storeLength(cb, aoff, length)
-
-  override def nMissingBytes(len: Code[Int]): Code[Int] =
-    arrayRep.nMissingBytes(len)
 
   override def elementsOffset(length: Int): Long =
     arrayRep.elementsOffset(length)
@@ -106,6 +97,12 @@ trait PArrayBackedContainer extends PContainer {
   override def clearMissingBits(aoff: Long, length: Int) =
     arrayRep.clearMissingBits(aoff, length)
 
+  def contentsByteSize(length: Int): Long =
+    arrayRep.contentsByteSize(length)
+
+  def contentsByteSize(length: Code[Int]): Code[Long] =
+    arrayRep.contentsByteSize(length)
+
   override def initialize(aoff: Long, length: Int, setMissing: Boolean = false) =
     arrayRep.initialize(aoff, length, setMissing)
 
@@ -135,6 +132,18 @@ trait PArrayBackedContainer extends PContainer {
 
   override def nextElementAddress(currentOffset: Code[Long]): Code[Long] =
     arrayRep.nextElementAddress(currentOffset)
+
+  override def incrementElementOffset(currentOffset: Long, increment: Int): Long =
+    arrayRep.incrementElementOffset(currentOffset, increment)
+
+  override def incrementElementOffset(currentOffset: Code[Long], increment: Code[Int]): Code[Long] =
+    arrayRep.incrementElementOffset(currentOffset, increment)
+
+  override def pastLastElementOffset(aoff: Long, length: Int): Long =
+    arrayRep.pastLastElementOffset(aoff, length)
+
+  override def pastLastElementOffset(aoff: Code[Long], length: Value[Int]): Code[Long] =
+    arrayRep.pastLastElementOffset(aoff, length)
 
   override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     arrayRep.unstagedStoreAtAddress(sm, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)

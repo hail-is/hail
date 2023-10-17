@@ -25,7 +25,7 @@
       <button type="submit">Retry</button>
     </form>
 
-    {% if logging_queries is defined %}
+    {% if logging_queries is not none %}
     <h2>Logging Queries</h2>
     <div class="logging-queries">
     {% for name, link in logging_queries.items() %}

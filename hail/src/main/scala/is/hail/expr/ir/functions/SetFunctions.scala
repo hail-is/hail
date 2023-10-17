@@ -71,7 +71,7 @@ object SetFunctions extends RegistryFunctions {
       val x = genUID()
       ToSet(
         StreamFilter(ToStream(s1), x,
-          ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
+          ApplyUnaryPrimOp(Bang, contains(s2, Ref(x, t)))))
     }
 
     registerIR2("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (_, s, w, errorID) =>
