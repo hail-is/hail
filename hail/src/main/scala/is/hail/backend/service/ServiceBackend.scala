@@ -367,35 +367,11 @@ class ServiceBackend(
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
 
-  def importFam(
-    ctx: ExecuteContext,
-    path: String,
-    quantPheno: Boolean,
-    delimiter: String,
-    missing: String
-  ): String = {
-    LoadPlink.importFamJSON(ctx.fs, path, quantPheno, delimiter, missing)
-  }
-
   def tableToTableStage(ctx: ExecuteContext,
     inputIR: TableIR,
     analyses: LoweringAnalyses
   ): TableStage = {
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
-  }
-
-  def fromFASTAFile(
-    ctx: ExecuteContext,
-    name: String,
-    fastaFile: String,
-    indexFile: String,
-    xContigs: Array[String],
-    yContigs: Array[String],
-    mtContigs: Array[String],
-    parInput: Array[String]
-  ): String = {
-    val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile, xContigs, yContigs, mtContigs, parInput)
-    rg.toJSONString
   }
 
   def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T = { f =>
