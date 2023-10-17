@@ -50,8 +50,8 @@ class StagedMinHeapSuite extends HailSuite {
           }
 
         // The reference genome is added to the "Main" class by `resultWithIndex` and is not
-        // accessible from the MinHeap. Thus, we need a reference to the outer class (Main)
-        // to dispatch
+        // accessible from the MinHeap. Thus, we need to dispatch to a comparator defined in
+        // the outer class (Main).
         val MinHeap = EmitMinHeap(modb, eltPTy.sType) { classBuilder =>
           new EmitMinHeap.StagedComparator {
             val parent: ThisFieldRef[_] =
@@ -76,9 +76,7 @@ class StagedMinHeapSuite extends HailSuite {
         }
 
         Main.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
-          mb.voidWithBuilder {
-            MinHeap.close
-          }
+          mb.voidWithBuilder { MinHeap.close }
         }
 
         Main.defineEmitMethod("pop", FastSeq(), typeInfo[Locus]) { mb =>
@@ -119,7 +117,7 @@ class StagedMinHeapSuite extends HailSuite {
 
   def withGenome[A](rg: ReferenceGenome)(f: => A): A = {
     ctx.backend.addReference(rg)
-    using(() => ctx.backend.removeReference(rg.name))(_ => f)
+    try { f } finally { ctx.backend.removeReference(rg.name) }
   }
 
   def sort(xs: IndexedSeq[Int]): IndexedSeq[Int] =
