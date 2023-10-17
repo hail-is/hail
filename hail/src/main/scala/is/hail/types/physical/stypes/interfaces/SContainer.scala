@@ -87,7 +87,7 @@ trait SIndexableValue extends SValue {
         cb.assign(totalSize, totalSize + element.sizeToStoreInBytes(cb).value)
       }
     } else {
-      cb.assign(totalSize, totalSize + (length.toL * storageType.elementByteSize))
+      cb.assign(totalSize, storageType.contentsByteSize(length))
     }
 
     new SInt64Value(totalSize)

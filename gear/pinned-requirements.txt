@@ -50,7 +50,7 @@ certifi==2023.7.22
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   kubernetes-asyncio
     #   requests
-charset-normalizer==3.2.0
+charset-normalizer==3.3.0
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -71,9 +71,9 @@ frozenlist==1.4.0
     #   aiosignal
 google-api-core==2.12.0
     # via google-api-python-client
-google-api-python-client==2.101.0
+google-api-python-client==2.102.0
     # via google-cloud-profiler
-google-auth==2.23.0
+google-auth==2.23.2
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -213,15 +213,14 @@ typing-extensions==4.8.0
     #   janus
 uritemplate==4.1.1
     # via google-api-python-client
-urllib3==1.26.16
+urllib3==1.26.17
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
-    #   google-auth
     #   kubernetes-asyncio
     #   requests
-wcwidth==0.2.6
+wcwidth==0.2.8
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   prompt-toolkit

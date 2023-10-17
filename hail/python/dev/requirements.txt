@@ -30,7 +30,8 @@ types-PyYAML
 types-chardet
 types-decorator
 types-python-dateutil
-types-requests
+# https://github.com/python/typeshed/blob/main/stubs/requests/METADATA.toml#L5-L10
+types-requests<2.31.0.7
 types-setuptools
 types-six
 types-tabulate

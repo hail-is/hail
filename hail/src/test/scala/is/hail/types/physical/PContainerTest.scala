@@ -16,17 +16,17 @@ class PContainerTest extends PhysicalTestUtils {
     })
   }
 
-  def testContainsNonZeroBits(sourceType: PArray, data: IndexedSeq[Any]) = {
+  def testContainsNonZeroBits(sourceType: PCanonicalArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region(pool=pool)
     val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
     log.info(s"Testing $data")
 
-    val res = Region.containsNonZeroBits(src + sourceType.lengthHeaderBytes, sourceType.loadLength(src))
+    val res = Region.containsNonZeroBits(src + sourceType.missingBytesOffset, sourceType.loadLength(src))
     res
   }
 
-  def testContainsNonZeroBitsStaged(sourceType: PArray, data: IndexedSeq[Any]) = {
+  def testContainsNonZeroBitsStaged(sourceType: PCanonicalArray, data: IndexedSeq[Any]) = {
     val srcRegion = Region(pool=pool)
     val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
@@ -35,7 +35,7 @@ class PContainerTest extends PhysicalTestUtils {
     val fb = EmitFunctionBuilder[Long, Boolean](ctx, "not_empty")
     val value = fb.getCodeParam[Long](1)
 
-    fb.emit(Region.containsNonZeroBits(value + sourceType.lengthHeaderBytes, sourceType.loadLength(value).toL))
+    fb.emit(Region.containsNonZeroBits(value + sourceType.missingBytesOffset, sourceType.loadLength(value).toL))
 
     val res = fb.result()(theHailClassLoader)(src)
     res

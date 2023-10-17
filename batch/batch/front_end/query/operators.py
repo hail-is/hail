@@ -19,11 +19,11 @@ class MatchOperator(Operator, abc.ABC):
 
 
 class PartialMatchOperator(MatchOperator, abc.ABC):
-    pass
+    symbols: ClassVar[Set[str]] = {'!~', '=~'}
 
 
 class ExactMatchOperator(MatchOperator, abc.ABC):
-    pass
+    symbols: ClassVar[Set[str]] = {'=', '!='}
 
 
 class GreaterThanEqualOperator(ComparisonOperator):

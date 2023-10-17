@@ -12,10 +12,10 @@ import is.hail.utils._
 object UnaryOp {
 
   private val returnType: ((UnaryOp, Type)) => Option[Type] = lift {
-    case (Negate(), t@(TInt32 | TInt64 | TFloat32 | TFloat64)) => t
-    case (Bang(), TBoolean) => TBoolean
-    case (BitNot(), t@(TInt32 | TInt64)) => t
-    case (BitCount(), TInt32 | TInt64) => TInt32
+    case (Negate, t@(TInt32 | TInt64 | TFloat32 | TFloat64)) => t
+    case (Bang, TBoolean) => TBoolean
+    case (BitNot, t@(TInt32 | TInt64)) => t
+    case (BitCount, TInt32 | TInt64) => TInt32
   }
 
   def returnTypeOption(op: UnaryOp, t: Type): Option[Type] =
@@ -37,50 +37,50 @@ object UnaryOp {
     case TBoolean =>
       val xx = coerce[Boolean](x)
       op match {
-        case Bang() => !xx
+        case Bang => !xx
         case _ => incompatible(t, op)
       }
     case TInt32 =>
       val xx = coerce[Int](x)
       op match {
-        case Negate() => -xx
-        case BitNot() => ~xx
-        case BitCount() => xx.bitCount
+        case Negate => -xx
+        case BitNot => ~xx
+        case BitCount => xx.bitCount
         case _ => incompatible(t, op)
       }
     case TInt64 =>
       val xx = coerce[Long](x)
       op match {
-        case Negate() => -xx
-        case BitNot() => ~xx
-        case BitCount() => xx.bitCount
+        case Negate => -xx
+        case BitNot => ~xx
+        case BitCount => xx.bitCount
         case _ => incompatible(t, op)
       }
     case TFloat32 =>
       val xx = coerce[Float](x)
       op match {
-        case Negate() => -xx
+        case Negate => -xx
         case _ => incompatible(t, op)
       }
     case TFloat64 =>
       val xx = coerce[Double](x)
       op match {
-        case Negate() => -xx
+        case Negate => -xx
         case _ => incompatible(t, op)
       }
     case _ => incompatible(t, op)
   }
 
   val fromString: PartialFunction[String, UnaryOp] = {
-    case "-" | "Negate" => Negate()
-    case "!" | "Bang" => Bang()
-    case "~" | "BitNot" => BitNot()
-    case "BitCount" => BitCount()
+    case "-" | "Negate" => Negate
+    case "!" | "Bang" => Bang
+    case "~" | "BitNot" => BitNot
+    case "BitCount" => BitCount
   }
 }
 
-sealed trait UnaryOp { }
-case class Negate() extends UnaryOp { }
-case class Bang() extends UnaryOp { }
-case class BitNot() extends UnaryOp
-case class BitCount() extends UnaryOp
+sealed trait UnaryOp
+case object Negate extends UnaryOp
+case object Bang extends UnaryOp
+case object BitNot extends UnaryOp
+case object BitCount extends UnaryOp

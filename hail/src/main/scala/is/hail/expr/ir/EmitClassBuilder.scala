@@ -567,6 +567,7 @@ class EmitClassBuilder[C](
         case CodeOrdering.StructLt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
         case CodeOrdering.StructLteq(missingEqual) => ord.lteq(cb, v1, v2, missingEqual)
         case CodeOrdering.StructGt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructGteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
         case CodeOrdering.StructCompare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
       }
       cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti, implicitly[op.ReturnType =!= Unit])

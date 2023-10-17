@@ -2,13 +2,14 @@ package is.hail.io
 
 import java.io._
 import java.util
+import java.util.function.Supplier
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 
-import com.github.luben.zstd.Zstd
+import com.github.luben.zstd.{Zstd, ZstdCompressCtx}
 
 trait OutputBuffer extends Closeable {
   def flush(): Unit
@@ -73,7 +74,7 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
 
   def indexOffset(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 
-  override def writeByte(b: Byte): Unit = out.write(Array(b))
+  override def writeByte(b: Byte): Unit = out.write(b.toInt)
 
   override def writeInt(i: Int) {
     Memory.storeInt(buf, 0, i)
@@ -345,17 +346,27 @@ final class LZ4SizeBasedCompressingOutputBlockBuffer(lz4: LZ4, blockSize: Int, m
   def getPos(): Long = out.getPos()
 }
 
+object ZstdCompressLib {
+  val instance = ThreadLocal.withInitial(new Supplier[ZstdCompressCtx]() {
+    def get = {
+      val zstd = new ZstdCompressCtx()
+      zstd.setLevel(Zstd.defaultCompressionLevel())
+      zstd.setChecksum(false)
+      zstd
+    }
+  })
+}
+
 final class ZstdOutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
-  private val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+  private[this] val zstd = ZstdCompressLib.instance.get
+  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
 
   def flush(): Unit = out.flush()
 
   def close(): Unit = out.close()
 
   def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
-    val compLen = Zstd.compressByteArray(comp, 4, comp.length - 4, buf, 0, decompLen, Zstd.defaultCompressionLevel())
-    if (Zstd.isError(compLen))
-      throw new com.github.luben.zstd.ZstdException(compLen)
+    val compLen = zstd.compressByteArray(comp, 4, comp.length - 4, buf, 0, decompLen)
     Memory.storeInt(comp, 0, decompLen.toInt)
     out.writeBlock(comp, compLen.toInt + 4)
   }
@@ -364,7 +375,8 @@ final class ZstdOutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extend
 }
 
 final class ZstdSizedBasedOutputBlockBuffer(blockSize: Int, minCompressionSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
-  private val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+  private[this] val zstd = ZstdCompressLib.instance.get
+  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
 
   def flush(): Unit = out.flush()
 
@@ -376,9 +388,7 @@ final class ZstdSizedBasedOutputBlockBuffer(blockSize: Int, minCompressionSize: 
       Memory.storeInt(comp, 0, 0)
       decompLen
     } else {
-      val compLen = Zstd.compressByteArray(comp, 4, comp.length - 4, buf, 0, decompLen, Zstd.defaultCompressionLevel())
-      if (Zstd.isError(compLen))
-        throw new com.github.luben.zstd.ZstdException(compLen)
+      val compLen = zstd.compressByteArray(comp, 4, comp.length - 4, buf, 0, decompLen)
       Memory.storeInt(comp, 0, (decompLen << 1) + 1)
       compLen.toInt
     }

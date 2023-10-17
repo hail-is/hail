@@ -132,13 +132,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
     cb.ifx(size.ceq(capacity),
       {
         cb.assign(capacity, capacity * 2)
-        cb.assign(newDataOffset, eltArray.allocate(region, capacity))
-        eltArray.stagedInitialize(cb, newDataOffset, capacity, setMissing = true)
-        cb += Region.copyFrom(data + eltArray.lengthHeaderBytes, newDataOffset + eltArray.lengthHeaderBytes, eltArray.nMissingBytes(size).toL)
-        cb += Region.copyFrom(data + eltArray.elementsOffset(size),
-          newDataOffset + eltArray.elementsOffset(capacity.load()),
-          size.toL * const(eltArray.elementByteSize))
-        cb.assign(data, newDataOffset)
+        cb.assign(data, eltArray.padWithMissing(cb, region, size, capacity, data))
       })
   }
 }

@@ -1017,11 +1017,7 @@ class Emit[C](
       case ArrayZeros(length) =>
         emitI(length).map(cb) { case n: SInt32Value =>
           val outputPType = PCanonicalArray(PInt32Required)
-          val elementSize = outputPType.elementByteSize
-          val numElements = n.value
-          val arrayAddress = cb.newLocal[Long]("array_addr", outputPType.allocate(region, numElements))
-          outputPType.stagedInitialize(cb, arrayAddress, numElements)
-          cb += Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
+          val arrayAddress = outputPType.zeroes(cb, region, n.value)
           outputPType.loadCheapSCode(cb, arrayAddress)
         }
 

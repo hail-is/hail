@@ -986,8 +986,8 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def toF: IR = Cast(self, TFloat32)
   def toD: IR = Cast(self, TFloat64)
 
-  def unary_-(): IR = ApplyUnaryPrimOp(Negate(), self)
-  def unary_!(): IR = ApplyUnaryPrimOp(Bang(), self)
+  def unary_-(): IR = ApplyUnaryPrimOp(Negate, self)
+  def unary_!(): IR = ApplyUnaryPrimOp(Bang, self)
 
   def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA(self.typ, other.typ), self, other)
   def cne(other: IR): IR = ApplyComparisonOp(NEQWithNA(self.typ, other.typ), self, other)

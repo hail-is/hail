@@ -275,56 +275,51 @@ object EmitNDArray {
                 cb._fatal("need at least one ndarray to concatenate")
               })
 
-              val missing: Code[Boolean] = {
-                if (ndsArraySValue.st.elementEmitType.required)
-                  const(false)
-                else {
-                  val missing = cb.newLocal[Boolean]("ndarray_concat_result_missing")
-                  cb.assign(missing, false)
-                  // Need to check if the any of the ndarrays are missing.
-                  val missingCheckLoopIdx = cb.newLocal[Int]("ndarray_concat_missing_check_idx")
-                  cb.for_(cb.assign(missingCheckLoopIdx, 0), missingCheckLoopIdx < arrLength, cb.assign(missingCheckLoopIdx, missingCheckLoopIdx + 1),
-                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(cb, missingCheckLoopIdx))
-                  )
-                  missing
+              IEmitCode(cb, ndsArraySValue.hasMissingValues(cb), {
+                val firstND = ndsArraySValue.loadElement(cb, 0).get(cb).asNDArray
+
+                // compute array of sizes along concat axis, and total size of concat axis
+                val arrayLongPType = PCanonicalArray(PInt64(), true)
+                val (pushSize, finishSizes) = arrayLongPType.constructFromFunctions(cb, region, arrLength, false)
+
+                val concatAxisSize = cb.newLocal[Long](s"ndarray_concat_axis_size", 0L)
+
+                ndsArraySValue.forEachDefined(cb) { (cb, i, nd) =>
+                  val dimLength = nd.asNDArray.shapes(axis)
+                  pushSize(cb, EmitCode(Code._empty, false, primitive(dimLength)).toI(cb))
+                  cb.assign(concatAxisSize, concatAxisSize + dimLength)
                 }
-              }
+                val stagedArrayOfSizes = finishSizes(cb)
 
-              IEmitCode(cb, missing, {
-                val loopIdx = cb.newLocal[Int]("ndarray_concat_shape_check_idx")
-                val firstND = ndsArraySValue.loadElement(cb, 0).map(cb) { sCode => sCode.asNDArray }.get(cb)
+                // compute index of first input which has non-zero concat axis size
+                val firstNonEmpty = cb.newLocal[Int]("ndarray_concat_first_nonempty", 0)
+                cb.while_(stagedArrayOfSizes.loadElement(cb, firstNonEmpty).get(cb).asInt64.value.ceq(0L), {
+                  cb.assign(firstNonEmpty, firstNonEmpty + 1)
+                })
 
-                val stagedArrayOfSizesPType = PCanonicalArray(PInt64(), true)
-                val (pushElement, finish) = stagedArrayOfSizesPType.constructFromFunctions(cb, region, arrLength, false)
-
-                val newShape = (0 until x.typ.nDims).map { dimIdx =>
-                  val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${dimIdx}")
-                  val ndShape = firstND.shapes
-                  cb.assign(localDim, ndShape(dimIdx))
-                  if (dimIdx == axis) {
-                    pushElement(cb, EmitCode(Code._empty, false, primitive(localDim)).toI(cb))
+                // check that all sizes along other axes are consistent
+                ndsArraySValue.forEachDefined(cb) { case (cb, _, nd: SNDArrayValue) =>
+                  val mismatchedDim = cb.newLocal[Int]("ndarray_concat_mismatched_dim", -1)
+                  val expected = cb.newLocal[Long]("ndarray_concat_expected_size")
+                  val found = cb.newLocal[Long]("ndarray_concat_found_size")
+                  for (i <- (0 until firstND.st.nDims).reverse if i != axis) {
+                    cb.ifx(firstND.shapes(i).cne(nd.shapes(i)), {
+                      cb.assign(mismatchedDim, i)
+                      cb.assign(expected, firstND.shapes(i))
+                      cb.assign(found, nd.shapes(i))
+                    })
                   }
-
-                  cb.for_(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
-                    val shapeOfNDAtIdx = ndsArraySValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shapeStruct(cb)
-                    val dimLength = cb.newLocal[Long]("dimLength", shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).asInt64.value)
-
-                    if (dimIdx == axis) {
-                      pushElement(cb, EmitCode(Code._empty, false, primitive(dimLength)).toI(cb))
-                      cb.assign(localDim, localDim + dimLength)
-                    }
-                    else {
-                      cb.ifx(dimLength.cne(localDim),
-                        cb._fatal(const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis ").concat(loopIdx.toS).concat(": expected ")
-                          .concat(localDim.toS).concat(", got ")
-                          .concat(dimLength.toS))
-                      )
-                    }
-                  })
-                  localDim
+                  cb.ifx(mismatchedDim.cne(-1),
+                    cb._fatal(const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis ")
+                                .concat(mismatchedDim.toS)
+                                .concat(": expected ").concat(expected.toS)
+                                .concat(", got ").concat(found.toS)))
                 }
 
-                val stagedArrayOfSizes = finish(cb)
+                // compute shape of result
+                val newShape = (0 until x.typ.nDims).map { i =>
+                  if (i == axis) concatAxisSize else firstND.shapes(i)
+                }
 
                 new NDArrayProducer {
                   override def elementType: PType = firstND.st.elementPType
@@ -337,13 +332,13 @@ object EmitNDArray {
 
                   override val initAll: EmitCodeBuilder => Unit = { cb =>
                     idxVars.foreach(idxVar => cb.assign(idxVar, 0L))
-                    cb.assign(currentNDArrayIdx, 0)
+                    cb.assign(currentNDArrayIdx, firstNonEmpty)
                   }
                   override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] =
                     shape.indices.map(i => (cb: EmitCodeBuilder) => {
                       cb.assign(idxVars(i), 0L)
                       if (i == axis) {
-                        cb.assign(currentNDArrayIdx, 0)
+                        cb.assign(currentNDArrayIdx, firstNonEmpty)
                       }
                     })
                   override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {

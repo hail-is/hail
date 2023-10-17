@@ -21,6 +21,7 @@ import secrets
 import socket
 import requests
 import botocore.exceptions
+import itertools
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
@@ -111,12 +112,14 @@ def digits_needed(i: int) -> int:
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
+def grouped(n: int, ls: Iterable[T]) -> Iterable[List[T]]:  # replace with itertools.batched in Python 3.12
+    it = iter(ls)
     if n < 1:
         raise ValueError('invalid value for n: found {n}')
-    while len(ls) != 0:
-        group = ls[:n]
-        ls = ls[n:]
+    while True:
+        group = list(itertools.islice(it, n))
+        if len(group) == 0:
+            break
         yield group
 
 
@@ -686,6 +689,13 @@ def is_transient_error(e):
     # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85
     if (isinstance(e, aiohttp.ClientPayloadError)
             and e.args[0] == "Response payload is not completed"):
+        return True
+    if (isinstance(e, aiohttp.ClientOSError)
+            and len(e.args) >= 2
+            and 'sslv3 alert bad record mac' in e.args[1]):
+        # aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)
+        #
+        # This appears to be a symptom of Google rate-limiting as of 2023-10-15
         return True
     if isinstance(e, OSError) and e.errno in RETRYABLE_ERRNOS:
         return True
