@@ -119,6 +119,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Apply('land', hl.tbool, b, c),
             ir.Apply('toFloat64', hl.tfloat64, i),
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
+            ir.EncodedLiteral(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
             ir.TableGetGlobals(table),
             ir.TableCollect(ir.TableKeyBy(table, [], False)),

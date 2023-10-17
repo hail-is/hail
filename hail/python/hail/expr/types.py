@@ -823,11 +823,12 @@ class tndarray(HailType):
         for dim in value.shape:
             byte_writer.write_int64(dim)
 
-        if self.element_type in _numeric_types:
-            byte_writer.write_bytes(value.data)
-        else:
-            for elem in np.nditer(value, order='F'):
-                self.element_type._convert_to_encoding(byte_writer, elem)
+        if value.size > 0:
+            if self.element_type in _numeric_types:
+                byte_writer.write_bytes(value.data)
+            else:
+                for elem in np.nditer(value, order='F'):
+                    self.element_type._convert_to_encoding(byte_writer, elem)
 
 
 class tarray(HailType):
