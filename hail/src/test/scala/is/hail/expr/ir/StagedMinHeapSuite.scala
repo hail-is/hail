@@ -30,8 +30,7 @@ class StagedMinHeapSuite extends HailSuite {
 
   @Test def testClosure(): Unit =
     forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
-      using(genome(rg)) { _ =>
-
+      withGenome(rg) {
         trait LocusHeap extends Heap { def pop(): Locus }
 
         val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
@@ -118,9 +117,9 @@ class StagedMinHeapSuite extends HailSuite {
       loci <- Gen.buildableOf(Locus.gen(genome))
     } yield (genome, loci)
 
-  def genome(rg: ReferenceGenome): AutoCloseable = {
+  def withGenome[A](rg: ReferenceGenome)(f: => A): A = {
     ctx.backend.addReference(rg)
-    () => ctx.backend.removeReference(rg.name)
+    using(() => ctx.backend.removeReference(rg.name))(_ => f)
   }
 
   def sort(xs: IndexedSeq[Int]): IndexedSeq[Int] =
