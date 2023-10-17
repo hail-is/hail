@@ -90,6 +90,7 @@ object ServiceBackend {
       backendContext,
       scratchDir
     )
+    backend.addDefaultReferences()
 
     rpcConfig.custom_references.foreach { s =>
       backend.addReference(ReferenceGenome.fromJSON(s))
@@ -469,7 +470,6 @@ object ServiceBackendSocketAPI2 {
     log.info("ServiceBackend allocated.")
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
-      backend.addDefaultReferences()
       log.info("Default references added to already initialized HailContexet.")
     } else {
       HailContext(backend, 50, 3)
