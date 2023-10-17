@@ -208,6 +208,8 @@ pytest-inter-cloud: upload-remote-test-resources install-editable
           HAIL_TEST_S3_BUCKET=hail-test-dy5rg \
           HAIL_TEST_AZURE_ACCOUNT=hailtest \
           HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei \
+          HAIL_TEST_AZURE_RESGRP=hail-dev \
+          HAIL_TEST_AZURE_SUBID=22cd45fe-f996-4c51-af67-ef329d977519 \
           $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \

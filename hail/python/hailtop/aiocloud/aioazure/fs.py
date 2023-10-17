@@ -238,8 +238,15 @@ class AzureFileListEntry(FileListEntry):
         self._blob_props = blob_props
         self._status: Optional[AzureFileStatus] = None
 
+    def __repr__(self):
+        return f'AzureFileListEntry({self._url}, {self._blob_props})'
+
     def basename(self) -> str:
-        return os.path.basename(self._url.base.rstrip('/'))
+        url_no_sas = self._url.base
+        if self._is_dir():
+            assert url_no_sas[-1] == '/'
+            url_no_sas = url_no_sas[:-1]
+        return os.path.basename(url_no_sas)
 
     async def url(self) -> str:
         return self._url.base
@@ -250,8 +257,11 @@ class AzureFileListEntry(FileListEntry):
     async def is_file(self) -> bool:
         return self._blob_props is not None
 
-    async def is_dir(self) -> bool:
+    def _is_dir(self) -> bool:
         return self._blob_props is None
+
+    async def is_dir(self) -> bool:
+        return self._is_dir()
 
     async def status(self) -> FileStatus:
         if self._status is None:
@@ -266,8 +276,11 @@ class AzureFileStatus(FileStatus):
         self.blob_props = blob_props
         self._url = url
 
+    def __repr__(self):
+        return f'AzureFileStatus({self.blob_props}, {self._url})'
+
     def basename(self) -> str:
-        return os.path.basename(self._url.base.rstrip('/'))
+        return os.path.basename(self._url.base)
 
     def url(self) -> str:
         return str(self._url)
@@ -546,9 +559,11 @@ class AzureAsyncFS(AsyncFS):
     @handle_public_access_error
     async def isdir(self, url: str) -> bool:
         fs_url = self.parse_url(url)
-        assert not fs_url.path or fs_url.path.endswith('/'), fs_url.path
         client = self.get_container_client(fs_url)
-        async for _ in client.walk_blobs(name_starts_with=fs_url.path, include=['metadata'], delimiter='/'):
+        path = fs_url.path
+        if path[-1] != '/':
+            path = path + '/'
+        async for _ in client.walk_blobs(name_starts_with=path, include=['metadata'], delimiter='/'):
             return True
         return False
 

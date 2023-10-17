@@ -534,6 +534,27 @@ async def test_basename_is_not_path(filesystem: Tuple[asyncio.Semaphore, AsyncFS
     assert (await fs.statfile(str(base.with_new_path_component('abc123')))).basename() == 'abc123'
 
 
+async def test_basename_of_file_ending_in_slash_is_empty_in_cloud(
+    filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL],
+):
+    _, fs, base = filesystem
+
+    if base.scheme in ('', 'file'):
+        return
+
+    await fs.write(str(base.with_new_path_component('file-is-folder/')), b'')
+
+    files = [x async for x in await fs.listfiles(str(base))]
+    assert len(files) == 1
+    file = files[0]
+    assert file.basename() == 'file-is-folder' and file.is_dir()
+
+    files = [x async for x in await fs.listfiles(str(await file.url()), exclude_trailing_slash_files=False)]
+    assert len(files) == 1
+    file = files[0]
+    assert file.basename() == '' and file.is_file()
+
+
 async def test_listfiles(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 

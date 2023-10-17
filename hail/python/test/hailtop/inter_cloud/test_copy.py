@@ -3,18 +3,23 @@ import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+import tempfile
 import functools
 import pytest
 from hailtop.utils import url_scheme, bounded_gather2
-from hailtop.aiotools import LocalAsyncFS, Transfer, FileAndDirectoryError, Copier, AsyncFS, FileListEntry
+from hailtop.aiotools.plan import plan, PlanError
+from hailtop.aiotools.sync import sync, SyncError
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
-from hailtop.aiocloud.aioaws import S3AsyncFS
-from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.aiotools import (
+    Transfer,
+    FileAndDirectoryError,
+    Copier,
+    AsyncFS,
+    FileListEntry,
+)
 
 
 from .generate_copy_test_specs import run_test_spec, create_test_file, create_test_dir
-
 from .copy_test_specs import COPY_TEST_SPECS
 
 
@@ -36,7 +41,9 @@ async def cloud_scheme(request):
 
 
 @pytest.fixture(scope='module')
-async def router_filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
+async def router_filesystem(
+    request,
+) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
     token = secrets.token_hex(16)
 
     with ThreadPoolExecutor() as thread_pool:
@@ -57,23 +64,28 @@ async def router_filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, A
             azure_container = os.environ['HAIL_TEST_AZURE_CONTAINER']
             azure_base = f'https://{azure_account}.blob.core.windows.net/{azure_container}/tmp/{token}/'
 
-            bases = {'file': file_base, 'gs': gs_base, 's3': s3_base, 'azure-https': azure_base}
+            bases = {
+                'file': file_base,
+                'gs': gs_base,
+                's3': s3_base,
+                'azure-https': azure_base,
+            }
 
             sema = asyncio.Semaphore(50)
             async with sema:
                 yield (sema, fs, bases)
-                await bounded_gather2(
-                    sema,
-                    functools.partial(fs.rmtree, sema, file_base),
-                    functools.partial(fs.rmtree, sema, gs_base),
-                    functools.partial(fs.rmtree, sema, s3_base),
-                    functools.partial(fs.rmtree, sema, azure_base),
-                )
+            #     await bounded_gather2(
+            #         sema,
+            #         functools.partial(fs.rmtree, sema, file_base),
+            #         functools.partial(fs.rmtree, sema, gs_base),
+            #         functools.partial(fs.rmtree, sema, s3_base),
+            #         functools.partial(fs.rmtree, sema, azure_base),
+            #     )
 
-            assert not await fs.isdir(file_base)
-            assert not await fs.isdir(gs_base)
-            assert not await fs.isdir(s3_base)
-            assert not await fs.isdir(azure_base)
+            # assert not await fs.isdir(file_base)
+            # assert not await fs.isdir(gs_base)
+            # assert not await fs.isdir(s3_base)
+            # assert not await fs.isdir(azure_base)
 
 
 async def fresh_dir(fs, bases, scheme):
@@ -145,6 +157,61 @@ async def expect_file(fs, path, expected):
     assert actual == expected, (actual, expected)
 
 
+async def copier_copy(fs, sema, transfer):
+    await Copier.copy(fs, sema, transfer)
+
+
+async def sync_tool(fs: RouterAsyncFS, sema, transfer: Transfer):
+    max_parallelism = sema._value
+
+    sources = transfer.src
+    if isinstance(sources, str):
+        sources = [sources]
+
+    copy_to = []
+    copy_into = []
+
+    if transfer.treat_dest_as == Transfer.DEST_DIR or (
+        transfer.treat_dest_as == Transfer.INFER_DEST and await fs.isdir(transfer.dest)
+    ):
+        copy_into = [(src, transfer.dest) for src in sources]
+    elif transfer.treat_dest_as == Transfer.DEST_IS_TARGET or (
+        transfer.treat_dest_as == Transfer.INFER_DEST and not await fs.isdir(transfer.dest)
+    ):
+        if await fs.isfile(transfer.dest):
+            if len(sources) > 1 or await fs.isdir(sources[0]):
+                raise NotADirectoryError(transfer.dest)
+        copy_to = [(src, transfer.dest) for src in sources]
+    else:
+        raise ValueError(f'unsupported treat_dest_as: {transfer.treat_dest_as}')
+
+    with tempfile.TemporaryDirectory() as folder:
+        try:
+            await plan(
+                os.path.join(folder, 'planfolder'),
+                copy_to,
+                copy_into,
+                None,
+                True,
+                max_parallelism,
+            )
+            await sync(os.path.join(folder, 'planfolder'), None, True, max_parallelism)
+        except (PlanError, SyncError) as err:
+            if err.__cause__:
+                raise err.__cause__
+            else:
+                raise err
+
+
+@pytest.fixture(params=['Copier.copy', 'hailctl_sync'])
+def copy_tool(request):
+    if request.param == 'Copier.copy':
+        return copier_copy
+    if request.param == 'hailctl_sync':
+        return sync_tool
+    raise ValueError('bad: ' + request.param)
+
+
 class DidNotRaiseError(Exception):
     pass
 
@@ -174,24 +241,24 @@ class RaisesOrObjectStore:
         return True
 
 
-async def test_copy_doesnt_exist(copy_test_context):
+async def test_copy_doesnt_exist(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     with pytest.raises(FileNotFoundError):
-        await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base))
+        await copy_tool(fs, sema, Transfer(f'{src_base}a', dest_base))
 
 
-async def test_copy_file(copy_test_context):
+async def test_copy_file(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await copy_tool(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
 
-async def test_copy_large_file(copy_test_context):
+async def test_copy_large_file(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     # mainly needs to be larger than the transfer block size (8K)
@@ -199,44 +266,54 @@ async def test_copy_large_file(copy_test_context):
     async with await fs.create(f'{src_base}a') as f:
         await f.write(contents)
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await copy_tool(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     async with await fs.open(f'{dest_base}a') as f:
         copy_contents = await f.read()
     assert copy_contents == contents
 
 
-async def test_copy_rename_file(copy_test_context):
+async def test_copy_rename_file(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x'))
+    await copy_tool(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x'))
 
     await expect_file(fs, f'{dest_base}x', 'src/a')
 
 
-async def test_copy_rename_file_dest_target_file(copy_test_context):
+async def test_copy_rename_file_dest_target_file(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
+    await copy_tool(
+        fs,
+        sema,
+        Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET),
+    )
 
     await expect_file(fs, f'{dest_base}x', 'src/a')
 
 
-async def test_copy_file_dest_target_directory_doesnt_exist(copy_test_context):
+async def test_copy_file_dest_target_directory_doesnt_exist(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
     # SourceCopier._copy_file creates destination directories as needed
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_DIR))
+    await copy_tool(
+        fs,
+        sema,
+        Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_DIR),
+    )
     await expect_file(fs, f'{dest_base}x/a', 'src/a')
 
 
-async def test_overwrite_rename_file(copy_test_context):
+async def test_overwrite_rename_file(
+    copy_test_context,
+):  # hailctl fs sync does not support overwriting
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
@@ -247,153 +324,183 @@ async def test_overwrite_rename_file(copy_test_context):
     await expect_file(fs, f'{dest_base}x', 'src/a')
 
 
-async def test_copy_rename_dir(copy_test_context):
+async def test_copy_rename_dir(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_dir(fs, 'src', src_base, 'a/')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x'))
+    await copy_tool(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x'))
 
     await expect_file(fs, f'{dest_base}x/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}x/subdir/file2', 'src/a/subdir/file2')
 
 
-async def test_copy_rename_dir_dest_is_target(copy_test_context):
+async def test_copy_rename_dir_dest_is_target(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_dir(fs, 'src', src_base, 'a/')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
+    await copy_tool(
+        fs,
+        sema,
+        Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET),
+    )
 
     await expect_file(fs, f'{dest_base}x/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}x/subdir/file2', 'src/a/subdir/file2')
 
 
 async def test_overwrite_rename_dir(copy_test_context):
+    copy_tool = Copier.copy  # hailctl fs sync does not support overwrite
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_dir(fs, 'src', src_base, 'a/')
     await create_test_dir(fs, 'dest', dest_base, 'x/')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET))
+    await copy_tool(
+        fs,
+        sema,
+        Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.DEST_IS_TARGET),
+    )
 
     await expect_file(fs, f'{dest_base}x/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}x/subdir/file2', 'src/a/subdir/file2')
     await expect_file(fs, f'{dest_base}x/file3', 'dest/x/file3')
 
 
-async def test_copy_file_dest_trailing_slash_target_dir(copy_test_context):
+async def test_copy_file_dest_trailing_slash_target_dir(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base, treat_dest_as=Transfer.DEST_DIR))
+    await copy_tool(fs, sema, Transfer(f'{src_base}a', dest_base, treat_dest_as=Transfer.DEST_DIR))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
 
-async def test_copy_file_dest_target_dir(copy_test_context):
+async def test_copy_file_dest_target_dir(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
+    await copy_tool(
+        fs,
+        sema,
+        Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR),
+    )
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
 
-async def test_copy_file_dest_target_file(copy_test_context):
+async def test_copy_file_dest_target_file(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', f'{dest_base}a', treat_dest_as=Transfer.DEST_IS_TARGET))
+    await copy_tool(
+        fs,
+        sema,
+        Transfer(f'{src_base}a', f'{dest_base}a', treat_dest_as=Transfer.DEST_IS_TARGET),
+    )
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
 
-async def test_copy_dest_target_file_is_dir(copy_test_context):
+async def test_copy_dest_target_file_is_dir(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
     with RaisesOrObjectStore(dest_base, IsADirectoryError):
-        await Copier.copy(
-            fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET)
+        await copy_tool(
+            fs,
+            sema,
+            Transfer(
+                f'{src_base}a',
+                dest_base.rstrip('/'),
+                treat_dest_as=Transfer.DEST_IS_TARGET,
+            ),
         )
 
 
 async def test_overwrite_file(copy_test_context):
+    copy_tool = Copier.copy  # hailctl fs sync does not support overwriting
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
     await create_test_file(fs, 'dest', dest_base, 'a')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await copy_tool(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
 
 
 async def test_copy_file_src_trailing_slash(copy_test_context):
+    copy_tool = Copier.copy  # hailctl fs sync does not support trailing slashes on files
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
     with pytest.raises(FileNotFoundError):
-        await Copier.copy(fs, sema, Transfer(f'{src_base}a/', dest_base))
+        await copy_tool(fs, sema, Transfer(f'{src_base}a/', dest_base))
 
 
-async def test_copy_dir(copy_test_context):
+async def test_copy_dir(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_dir(fs, 'src', src_base, 'a/')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await copy_tool(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}a/subdir/file2', 'src/a/subdir/file2')
 
 
 async def test_overwrite_dir(copy_test_context):
+    copy_tool = Copier.copy  # hailctl fs sync does not support overwrite
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_dir(fs, 'src', src_base, 'a/')
     await create_test_dir(fs, 'dest', dest_base, 'a/')
 
-    await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+    await copy_tool(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a/file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}a/subdir/file2', 'src/a/subdir/file2')
     await expect_file(fs, f'{dest_base}a/file3', 'dest/a/file3')
 
 
-async def test_copy_multiple(copy_test_context):
+async def test_copy_multiple(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
     await create_test_file(fs, 'src', src_base, 'b')
 
-    await Copier.copy(fs, sema, Transfer([f'{src_base}a', f'{src_base}b'], dest_base.rstrip('/')))
+    await copy_tool(fs, sema, Transfer([f'{src_base}a', f'{src_base}b'], dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
     await expect_file(fs, f'{dest_base}b', 'src/b')
 
 
-async def test_copy_multiple_dest_target_file(copy_test_context):
+async def test_copy_multiple_dest_target_file(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
     await create_test_file(fs, 'src', src_base, 'b')
 
     with RaisesOrObjectStore(dest_base, NotADirectoryError):
-        await Copier.copy(
+        await copy_tool(
             fs,
             sema,
-            Transfer([f'{src_base}a', f'{src_base}b'], dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET),
+            Transfer(
+                [f'{src_base}a', f'{src_base}b'],
+                dest_base.rstrip('/'),
+                treat_dest_as=Transfer.DEST_IS_TARGET,
+            ),
         )
 
 
-async def test_copy_multiple_dest_file(copy_test_context):
+async def test_copy_multiple_dest_file(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
@@ -401,22 +508,28 @@ async def test_copy_multiple_dest_file(copy_test_context):
     await create_test_file(fs, 'dest', dest_base, 'x')
 
     with RaisesOrObjectStore(dest_base, NotADirectoryError):
-        await Copier.copy(fs, sema, Transfer([f'{src_base}a', f'{src_base}b'], f'{dest_base}x'))
+        await copy_tool(fs, sema, Transfer([f'{src_base}a', f'{src_base}b'], f'{dest_base}x'))
 
 
-async def test_file_overwrite_dir(copy_test_context):
+async def test_file_overwrite_dir(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_file(fs, 'src', src_base, 'a')
 
     with RaisesOrObjectStore(dest_base, IsADirectoryError):
-        await Copier.copy(
-            fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_IS_TARGET)
+        await copy_tool(
+            fs,
+            sema,
+            Transfer(
+                f'{src_base}a',
+                dest_base.rstrip('/'),
+                treat_dest_as=Transfer.DEST_IS_TARGET,
+            ),
         )
 
 
 async def test_file_and_directory_error(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str, copy_tool
 ):
     sema, fs, bases = router_filesystem
 
@@ -427,18 +540,22 @@ async def test_file_and_directory_error(
     await create_test_file(fs, 'src', src_base, 'a/subfile')
 
     with pytest.raises(FileAndDirectoryError):
-        await Copier.copy(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
+        await copy_tool(fs, sema, Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
 
-async def test_copy_src_parts(copy_test_context):
+async def test_copy_src_parts(copy_test_context, copy_tool):
     sema, fs, src_base, dest_base = copy_test_context
 
     await create_test_dir(fs, 'src', src_base, 'a/')
 
-    await Copier.copy(
+    await copy_tool(
         fs,
         sema,
-        Transfer([f'{src_base}a/file1', f'{src_base}a/subdir'], dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR),
+        Transfer(
+            [f'{src_base}a/file1', f'{src_base}a/subdir'],
+            dest_base.rstrip('/'),
+            treat_dest_as=Transfer.DEST_DIR,
+        ),
     )
 
     await expect_file(fs, f'{dest_base}file1', 'src/a/file1')
@@ -454,39 +571,72 @@ async def collect_files(it: AsyncIterator[FileListEntry]) -> List[str]:
     return [await x.url() async for x in it]
 
 
-async def test_file_and_directory_error_with_slash_empty_file(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+async def test_size_zero_directory_named_files_are_not_copied_but_do_not_impair_other_copies(
+    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
+    cloud_scheme: str,
+    copy_tool,
 ):
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, cloud_scheme)
 
-    await write_file(fs, f'{src_base}empty/', '')
-    await write_file(fs, f'{src_base}empty/foo', b'foo')
+    await write_file(fs, f'{src_base}folder-and-file/', '')
+    await write_file(fs, f'{src_base}folder-and-file/just-a-file', b'just-a-file')
+    await write_file(fs, f'{src_base}folder-and-file/nested-folder-and-file/', '')
+    await write_file(fs, f'{src_base}folder-and-file/nested-folder-and-file/nested-just-a-file', b'nested-just-a-file')
+    await write_file(fs, f'{src_base}folder-and-file/file-with-trailing-slash-but-not-a-folder/', '')
 
     await collect_files(await fs.listfiles(f'{src_base}'))
     await collect_files(await fs.listfiles(f'{src_base}', recursive=True))
-    await collect_files(await fs.listfiles(f'{src_base}empty/'))
-    await collect_files(await fs.listfiles(f'{src_base}empty/', recursive=True))
+    await collect_files(await fs.listfiles(f'{src_base}folder-and-file/'))
+    await collect_files(await fs.listfiles(f'{src_base}folder-and-file/', recursive=True))
 
-    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
-        dest_base = await fresh_dir(fs, bases, cloud_scheme)
+    for transfer_type in (
+        Transfer.DEST_IS_TARGET,
+        Transfer.DEST_DIR,
+        Transfer.INFER_DEST,
+    ):
+        destination = await fresh_dir(fs, bases, cloud_scheme)
 
-        await Copier.copy(fs, sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        await copy_tool(
+            fs,
+            sema,
+            Transfer(f'{src_base}folder-and-file/', destination, treat_dest_as=transfer_type),
+        )
 
-        await collect_files(await fs.listfiles(f'{dest_base}'))
-        await collect_files(await fs.listfiles(f'{dest_base}', recursive=True))
+        if transfer_type == Transfer.DEST_DIR or (transfer_type == Transfer.INFER_DEST and destination[-1] == '/'):
+            destination = destination + 'folder-and-file/'
 
-        if transfer_type == Transfer.DEST_DIR:
-            exp_dest = f'{dest_base}empty/foo'
-            await expect_file(fs, exp_dest, 'foo')
-            assert not await fs.isfile(f'{dest_base}empty/')
-            assert await fs.isdir(f'{dest_base}empty/')
-            await collect_files(await fs.listfiles(f'{dest_base}empty/'))
-            await collect_files(await fs.listfiles(f'{dest_base}empty/', recursive=True))
-        else:
-            exp_dest = f'{dest_base}foo'
-            await expect_file(fs, exp_dest, 'foo')
+        assert not await fs.isfile(destination), (transfer_type, destination)
+        assert await fs.isdir(destination), (transfer_type, destination)
+
+        just_a_file_url = f'{destination}just-a-file'
+        assert await fs.read(just_a_file_url) == b'just-a-file', (transfer_type, destination)
+
+        nested_folder_url = f'{destination}nested-folder-and-file/'
+        assert not await fs.exists(nested_folder_url), (transfer_type, destination)
+
+        nested_just_a_file_url = f'{destination}nested-folder-and-file/nested-just-a-file'
+        assert await fs.read(nested_just_a_file_url) == b'nested-just-a-file', (transfer_type, destination)
+
+        file_with_trailing_slash_url = f'{destination}file-with-trailing-slash-but-not-a-folder/'
+        assert not await fs.exists(file_with_trailing_slash_url), (transfer_type, destination)
+
+        expected = [nested_folder_url, just_a_file_url]
+        actual = await collect_files(await fs.listfiles(destination))
+        assert actual == expected, (transfer_type, destination)
+
+        expected = [just_a_file_url, nested_just_a_file_url]
+        actual = await collect_files(await fs.listfiles(destination, recursive=True))
+        assert actual == expected, (transfer_type, destination)
+
+        expected = [nested_just_a_file_url]
+        actual = await collect_files(await fs.listfiles(nested_folder_url))
+        assert actual == expected, (transfer_type, destination)
+
+        expected = [nested_just_a_file_url]
+        actual = await collect_files(await fs.listfiles(nested_folder_url, recursive=True))
+        assert actual == expected, (transfer_type, destination)
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_for_google_non_recursive(
@@ -507,7 +657,9 @@ async def test_file_and_directory_error_with_slash_non_empty_file_for_google_non
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
+    cloud_scheme: str,
+    copy_tool,
 ):
     sema, fs, bases = router_filesystem
 
@@ -522,11 +674,21 @@ async def test_file_and_directory_error_with_slash_non_empty_file(
     with pytest.raises(FileAndDirectoryError):
         await collect_files(await fs.listfiles(f'{src_base}not-empty/', recursive=True))
 
-    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+    for transfer_type in (
+        Transfer.DEST_IS_TARGET,
+        Transfer.DEST_DIR,
+        Transfer.INFER_DEST,
+    ):
         dest_base = await fresh_dir(fs, bases, cloud_scheme)
 
-        await Copier.copy(
-            fs, sema, Transfer(f'{src_base}not-empty/bar', dest_base.rstrip('/'), treat_dest_as=transfer_type)
+        await copy_tool(
+            fs,
+            sema,
+            Transfer(
+                f'{src_base}not-empty/bar',
+                dest_base.rstrip('/'),
+                treat_dest_as=transfer_type,
+            ),
         )
         if transfer_type == Transfer.DEST_DIR:
             exp_dest = f'{dest_base}bar'
@@ -540,16 +702,26 @@ async def test_file_and_directory_error_with_slash_non_empty_file(
 
         with pytest.raises(FileAndDirectoryError):
             dest_base = await fresh_dir(fs, bases, cloud_scheme)
-            await Copier.copy(
-                fs, sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type)
+            await copy_tool(
+                fs,
+                sema,
+                Transfer(
+                    f'{src_base}not-empty/',
+                    dest_base.rstrip('/'),
+                    treat_dest_as=transfer_type,
+                ),
             )
 
         with pytest.raises(FileAndDirectoryError):
             dest_base = await fresh_dir(fs, bases, cloud_scheme)
-            await Copier.copy(fs, sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+            await copy_tool(
+                fs,
+                sema,
+                Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type),
+            )
 
 
-async def test_file_and_directory_error_with_slash_non_empty_file_only_for_google_non_recursive(
+async def test_copying_a_folder_with_only_a_size_zero_directory_named_file_copies_nothing_and_does_not_error_in_google(
     router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
 ):
     sema, fs, bases = router_filesystem
@@ -561,10 +733,22 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only_for_googl
     await collect_files(await fs.listfiles(f'{src_base}'))
     await collect_files(await fs.listfiles(f'{src_base}empty-only/'))
 
-    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+    for transfer_type in (
+        Transfer.DEST_IS_TARGET,
+        Transfer.DEST_DIR,
+        Transfer.INFER_DEST,
+    ):
         dest_base = await fresh_dir(fs, bases, 'gs')
-        await Copier.copy(
-            fs, sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=transfer_type)
+        await Copier.copy(  # hailctl fs sync errors when the source is an empty directory or
+            # non-extant file (excluding the size-zero, ending in trailing slash
+            # files).
+            fs,
+            sema,
+            Transfer(
+                f'{src_base}empty-only/',
+                dest_base.rstrip('/'),
+                treat_dest_as=transfer_type,
+            ),
         )
 
         # We ignore empty directories when copying
@@ -572,8 +756,9 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only_for_googl
             await collect_files(await fs.listfiles(f'{dest_base}empty-only/'))
 
 
-async def test_file_and_directory_error_with_slash_empty_file_only(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+async def test_copying_a_folder_with_only_a_size_zero_directory_named_file_copies_nothing_and_does_not_error(
+    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
+    cloud_scheme: str,
 ):
     sema, fs, bases = router_filesystem
 
@@ -584,17 +769,35 @@ async def test_file_and_directory_error_with_slash_empty_file_only(
     await collect_files(await fs.listfiles(f'{src_base}', recursive=True))
     await collect_files(await fs.listfiles(f'{src_base}empty-only/', recursive=True))
 
-    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+    for transfer_type in (
+        Transfer.DEST_IS_TARGET,
+        Transfer.DEST_DIR,
+        Transfer.INFER_DEST,
+    ):
         dest_base = await fresh_dir(fs, bases, cloud_scheme)
-        await Copier.copy(
-            fs, sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=transfer_type)
+        await Copier.copy(  # hailctl fs sync errors when the source is an empty directory or
+            # non-extant file (excluding the size-zero, ending in trailing slash
+            # files).
+            fs,
+            sema,
+            Transfer(
+                f'{src_base}empty-only/',
+                dest_base.rstrip('/'),
+                treat_dest_as=transfer_type,
+            ),
         )
 
         with pytest.raises(FileNotFoundError):
             await collect_files(await fs.listfiles(f'{dest_base}empty-only/', recursive=True))
 
         dest_base = await fresh_dir(fs, bases, cloud_scheme)
-        await Copier.copy(fs, sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        await Copier.copy(  # hailctl fs sync errors when the source is an empty directory or
+            # non-extant file (excluding the size-zero, ending in trailing slash
+            # files).
+            fs,
+            sema,
+            Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type),
+        )
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_only_google_non_recursive(
@@ -614,7 +817,9 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only_google_no
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_only(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
+    cloud_scheme: str,
+    copy_tool,
 ):
     sema, fs, bases = router_filesystem
 
@@ -628,15 +833,27 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only(
     with pytest.raises(FileAndDirectoryError):
         await collect_files(await fs.listfiles(f'{src_base}not-empty-file-w-slash/', recursive=True))
 
-    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+    for transfer_type in (
+        Transfer.DEST_IS_TARGET,
+        Transfer.DEST_DIR,
+        Transfer.INFER_DEST,
+    ):
         with pytest.raises(FileAndDirectoryError):
             dest_base = await fresh_dir(fs, bases, cloud_scheme)
-            await Copier.copy(
+            await copy_tool(
                 fs,
                 sema,
-                Transfer(f'{src_base}not-empty-file-w-slash/', dest_base.rstrip('/'), treat_dest_as=transfer_type),
+                Transfer(
+                    f'{src_base}not-empty-file-w-slash/',
+                    dest_base.rstrip('/'),
+                    treat_dest_as=transfer_type,
+                ),
             )
 
         with pytest.raises(FileAndDirectoryError):
             dest_base = await fresh_dir(fs, bases, cloud_scheme)
-            await Copier.copy(fs, sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+            await copy_tool(
+                fs,
+                sema,
+                Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type),
+            )

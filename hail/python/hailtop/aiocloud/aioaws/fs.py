@@ -92,8 +92,11 @@ class S3HeadObjectFileStatus(FileStatus):
         self.head_object_resp = head_object_resp
         self._url = url
 
+    def __repr__(self):
+        return f'S3HeadObjectFileStatus({self.head_object_resp}, {self._url})'
+
     def basename(self) -> str:
-        return os.path.basename(self._url.rstrip('/'))
+        return os.path.basename(self._url)
 
     def url(self) -> str:
         return self._url
@@ -120,8 +123,11 @@ class S3ListFilesFileStatus(FileStatus):
         self._item = item
         self._url = url
 
+    def __repr__(self):
+        return f'S3ListFilesFileStatus({self._item}, {self._url})'
+
     def basename(self) -> str:
-        return os.path.basename(self._url.rstrip('/'))
+        return os.path.basename(self._url)
 
     def url(self) -> str:
         return self._url
@@ -194,8 +200,15 @@ class S3FileListEntry(FileListEntry):
         self._item = item
         self._status: Optional[S3ListFilesFileStatus] = None
 
+    def __repr__(self):
+        return f'S3FileListEntry({self._bucket}, {self._key}, {self._item})'
+
     def basename(self) -> str:
-        return os.path.basename(self._key.rstrip('/'))
+        object_name = self._key
+        if self._is_dir():
+            assert object_name[-1] == '/'
+            object_name = object_name[:-1]
+        return os.path.basename(object_name)
 
     async def url(self) -> str:
         return f's3://{self._bucket}/{self._key}'
@@ -203,8 +216,11 @@ class S3FileListEntry(FileListEntry):
     async def is_file(self) -> bool:
         return self._item is not None
 
-    async def is_dir(self) -> bool:
+    def _is_dir(self) -> bool:
         return self._item is None
+
+    async def is_dir(self) -> bool:
+        return self._is_dir()
 
     async def status(self) -> FileStatus:
         if self._status is None:
