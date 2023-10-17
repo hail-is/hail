@@ -143,7 +143,7 @@ class CopyReport:
         self._end_time = time_msecs()
         self._duration = self._end_time - self._start_time
 
-    def summarize(self):
+    def summarize(self, include_sources: bool = True):
         source_reports = []
 
         def add_source_reports(transfer_report):
@@ -177,9 +177,10 @@ class CopyReport:
             file_rate = total_files / (self._duration / 1000)
             print(f'  Average file rate: {file_rate:,.1f}/s')
 
-        print('Sources:')
-        for sr in source_reports:
-            print(f'  {sr._source}: {sr._files} files, {humanize.naturalsize(sr._bytes)}')
+        if include_sources:
+            print('Sources:')
+            for sr in source_reports:
+                print(f'  {sr._source}: {sr._files} files, {humanize.naturalsize(sr._bytes)}')
 
 
 class SourceCopier:
@@ -239,6 +240,7 @@ class SourceCopier:
         part_creator: MultiPartCreate,
         return_exceptions: bool,
     ) -> None:
+        total_written = 0
         try:
             async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, this_part_size)):
                 async with await self.router_fs.open_from(
@@ -254,8 +256,9 @@ class SourceCopier:
                                 raise UnexpectedEOFError()
                             written = await destf.write(b)
                             assert written == len(b)
-                            source_report.finish_bytes(written)
+                            total_written += written
                             n -= len(b)
+            source_report.finish_bytes(total_written)
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)

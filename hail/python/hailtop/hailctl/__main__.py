@@ -1,4 +1,6 @@
+from typing import cast
 import typer
+import click
 import os
 
 from .auth import cli as auth_cli
@@ -8,6 +10,7 @@ from .describe import describe
 from .dataproc import cli as dataproc_cli
 from .dev import cli as dev_cli
 from .hdinsight import cli as hdinsight_cli
+from .fs import cli as fs_cli
 
 
 app = typer.Typer(
@@ -69,4 +72,6 @@ app.command(help='Describe Hail Matrix Table and Table files.')(describe)
 
 
 def main():
-    app()
+    click_app = cast(click.Group, typer.main.get_command(app))
+    click_app.add_command(fs_cli.app)
+    click_app()
