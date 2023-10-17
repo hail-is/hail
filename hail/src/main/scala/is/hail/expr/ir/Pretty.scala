@@ -35,8 +35,11 @@ object Pretty {
   def prettyBooleanLiteral(b: Boolean): String =
     if (b) "True" else "False"
 
-  def prettyClass(x: AnyRef): String =
-    x.getClass.getName.split("\\.").last
+  def prettyClass(x: AnyRef): String = {
+    val name = x.getClass.getName.split("\\.").last
+    if (name.endsWith("$")) name.substring(0, name.length - 1)
+    else name
+  }
 }
 
 class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, allowUnboundRefs: Boolean, useSSA: Boolean) {

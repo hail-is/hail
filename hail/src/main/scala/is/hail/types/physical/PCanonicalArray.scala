@@ -22,12 +22,26 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     sb.append("]")
   }
 
+  def printDebug(cb: EmitCodeBuilder, addr: Value[Long]): Unit = {
+    val a = cb.newLocal[Long]("a", addr)
+    val l = cb.memoize(loadLength(addr))
+    cb.println("array header:")
+    cb.whileLoop(a < firstElementOffset(addr, l), {
+      cb.println("  ", Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", Region.loadLong(a)),
+                 " (", Code.invokeStatic1[java.lang.Integer, Int, String]("toHexString", Region.loadInt(a)),
+                 " ", Code.invokeStatic1[java.lang.Integer, Int, String]("toHexString", Region.loadInt(a+4)),
+                 ")")
+      cb.assign(a, a + 8)
+    })
+  }
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
+  private val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
-  val contentsAlignment: Long = elementType.alignment.max(4)
+  def zeroSizeElements: Boolean = elementByteSize == 0
 
-  val lengthHeaderBytes: Long = 4
+  private val contentsAlignment: Long = 8
+
+  private val lengthHeaderBytes: Long = 8
 
   override val byteSize: Long = 8
 
@@ -61,15 +75,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   private def _elementsOffset(length: Int): Long =
     if (elementRequired)
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, contentsAlignment)
     else
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), contentsAlignment)
 
   private def _elementsOffset(length: Code[Int]): Code[Long] =
     if (elementRequired)
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, contentsAlignment)
     else
-      UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, contentsAlignment)
 
   private lazy val lengthOffsetTable = 10
   private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
@@ -84,6 +98,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def elementsOffset(length: Code[Int]): Code[Long] = {
     _elementsOffset(length)
   }
+
+  def missingBytesOffset: Long = lengthHeaderBytes
+
+  def pastLastMissingByteOff(aoff: Code[Long], len: Code[Int]): Code[Long] =
+    aoff + lengthHeaderBytes + nMissingBytes(len).toL
 
   def isElementDefined(aoff: Long, i: Int): Boolean =
     elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i)
@@ -149,6 +168,18 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
 
   private def elementOffsetFromFirst(firstElementAddr: Code[Long], i: Code[Int]): Code[Long] = firstElementAddr + i.toL * const(elementByteSize)
+
+  override def incrementElementOffset(currentOffset: Long, increment: Int): Long =
+    currentOffset + increment * elementByteSize
+
+  override def incrementElementOffset(currentOffset: Code[Long], increment: Code[Int]): Code[Long] =
+    currentOffset + increment.toL * elementByteSize
+
+  override def pastLastElementOffset(aoff: Long, length: Int): Long =
+    firstElementOffset(aoff, length) + length * elementByteSize
+
+  override def pastLastElementOffset(aoff: Code[Long], length: Value[Int]): Code[Long] =
+    firstElementOffset(aoff, length) + length.toL * elementByteSize
 
   def nextElementAddress(currentOffset: Long) =
     currentOffset + elementByteSize
@@ -240,8 +271,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long] = {
     require(elementType.isNumeric)
     val lengthMem = cb.memoize(length)
-    val aoff = cb.newLocal[Long]("pcanonical_array_zeroes_aoff")
-    cb.assign(aoff, allocate(region, lengthMem))
+    val aoff = cb.memoize[Long](allocate(region, lengthMem))
     stagedInitialize(cb, aoff, lengthMem)
     cb += Region.setMemory(aoff + elementsOffset(lengthMem), lengthMem.toL * elementByteSize, 0.toByte)
     aoff
@@ -431,6 +461,17 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   private def deepRenameArray(t: TArray): PArray =
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 
+  def padWithMissing(cb: EmitCodeBuilder, region: Value[Region], oldLength: Value[Int], newLength: Value[Int], srcAddress: Value[Long]): Value[Long] = {
+    val dstAddress = cb.memoize(allocate(region, newLength))
+    stagedInitialize(cb, dstAddress, newLength, setMissing = true)
+    cb += Region.copyFrom(srcAddress + lengthHeaderBytes, dstAddress + lengthHeaderBytes, nMissingBytes(oldLength).toL)
+    cb += Region.copyFrom(
+      srcAddress + elementsOffset(oldLength),
+      dstAddress + elementsOffset(newLength),
+      oldLength.toL * elementByteSize)
+    dstAddress
+  }
+
   def constructFromElements(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean)
     (f: (EmitCodeBuilder, Value[Int]) => IEmitCode): SIndexablePointerValue = {
 
@@ -541,5 +582,23 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       this
     else
       PCanonicalArray(copiedElement, required)
+  }
+
+  def forEachDefined(cb: EmitCodeBuilder, aoff: Value[Long])(f: (EmitCodeBuilder, Value[Int], SValue) => Unit) {
+    val length = cb.memoize(loadLength(aoff))
+    val elementsAddress = cb.memoize(firstElementOffset(aoff))
+    val idx = cb.newLocal[Int]("foreach_pca_idx", 0)
+    val elementPtr = cb.newLocal[Long]("foreach_pca_elt_ptr", elementsAddress)
+    val et = elementType
+    cb.whileLoop(idx < length, {
+      cb.ifx(isElementMissing(aoff, idx),
+        {}, // do nothing,
+        {
+          val elt = et.loadCheapSCode(cb, et.loadFromNested(elementPtr))
+          f(cb, idx, elt)
+        })
+      cb.assign(idx, idx + 1)
+      cb.assign(elementPtr, elementPtr + elementByteSize)
+    })
   }
 }

@@ -865,7 +865,7 @@ object LowerMatrixIR {
               ) { case (e, c) =>
                 MakeTuple.ordered(FastSeq(e, c))
               }) { filterTuple =>
-              ApplyUnaryPrimOp(Bang(), IsNA(GetTupleElement(filterTuple, 0)))
+              ApplyUnaryPrimOp(Bang, IsNA(GetTupleElement(filterTuple, 0)))
             }) { explodedTuple =>
             AggLet("g", GetTupleElement(explodedTuple, 0),
               AggLet("sa", GetTupleElement(explodedTuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),

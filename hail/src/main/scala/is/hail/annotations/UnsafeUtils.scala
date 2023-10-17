@@ -18,6 +18,30 @@ object UnsafeUtils {
     (offset + (alignment - 1)) & ~(alignment - 1)
   }
 
+  def roundDownAlignment(offset: Long, alignment: Long): Long = {
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
+    offset & -alignment
+  }
+
+  def roundDownAlignment(offset: Code[Long], alignment: Long): Code[Long] = {
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
+    offset & -alignment
+  }
+
+  def roundDownAlignment(offset: Int, alignment: Int): Int = {
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
+    offset & -alignment
+  }
+
+  def roundDownAlignment(offset: Code[Int], alignment: Int): Code[Int] = {
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
+    offset & -alignment
+  }
+
   def packBitsToBytes(nBits: Int): Int =
     (nBits + 7) >>> 3
 
