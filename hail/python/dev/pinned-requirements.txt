@@ -554,7 +554,7 @@ typing-extensions==4.8.0
     #   pylint
 uri-template==1.3.0
     # via jsonschema
-urllib3==1.26.17
+urllib3==1.26.18
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   requests
