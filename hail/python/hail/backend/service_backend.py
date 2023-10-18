@@ -6,6 +6,7 @@ import struct
 from hail.expr.expressions.base_expression import Expression
 import orjson
 import logging
+from contextlib import AsyncExitStack
 import warnings
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, version
@@ -359,8 +360,12 @@ class ServiceBackend(Backend):
         return log
 
     def stop(self):
-        async_to_blocking(self._async_fs.close())
-        async_to_blocking(self._batch_client.close())
+        asyncio.run(self._stop())
+
+    async def _stop(self):
+        async with AsyncExitStack() as stack:
+            stack.push_async_callback(self._async_fs.close)
+            stack.push_async_callback(self._batch_client.close)
         self.functions = []
         self._registered_ir_function_names = set()
 
