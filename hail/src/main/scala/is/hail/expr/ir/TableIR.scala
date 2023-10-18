@@ -16,12 +16,12 @@ import is.hail.io.index.StagedIndexReader
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
+import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream

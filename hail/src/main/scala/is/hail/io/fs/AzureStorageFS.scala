@@ -7,20 +7,24 @@ import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 import is.hail.shadedazure.com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
 import is.hail.shadedazure.com.azure.core.http.HttpClient
 import is.hail.shadedazure.com.azure.core.util.HttpClientOptions
-import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.retryTransientErrors
-import is.hail.utils._
+import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
+import is.hail.services.Requester.httpClient
 import org.apache.log4j.Logger
-import org.json4s.Formats
-import org.json4s.jackson.JsonMethods
+import org.apache.commons.io.IOUtils
 
-import java.io.{ByteArrayOutputStream, FileNotFoundException, OutputStream}
 import java.net.URI
+import is.hail.utils._
+import org.json4s
+import org.json4s.jackson.JsonMethods
+import org.json4s.Formats
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileNotFoundException, OutputStream}
 import java.nio.file.Paths
 import java.time.Duration
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-
+import org.json4s.{DefaultFormats, Formats, JInt, JObject, JString, JValue}
 
 abstract class AzureStorageFSURL(
   val account: String,
@@ -190,6 +194,8 @@ class AzureBlobServiceClientCache(credential: TokenCredential, val httpClientOpt
 
 class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   type URL = AzureStorageFSURL
+
+  import AzureStorageFS.log
 
   override def parseUrl(filename: String): URL = AzureStorageFS.parseUrl(filename)
 

@@ -4,9 +4,10 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
+import is.hail.types.physical.PFloat32
 import is.hail.utils._
 
-import scala.reflect._
+import scala.reflect.{ClassTag, _}
 
 case object TFloat32 extends TNumeric {
   def _toPretty = "Float32"

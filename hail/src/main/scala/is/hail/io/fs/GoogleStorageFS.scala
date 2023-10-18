@@ -4,12 +4,12 @@ package is.hail.io.fs
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.http.HttpTransportOptions
-import com.google.cloud.storage.Storage.{BlobGetOption, BlobListOption, BlobSourceOption, BlobWriteOption}
+import com.google.cloud.storage.Storage.{BlobGetOption, BlobListOption, BlobWriteOption, BlobSourceOption}
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageException, StorageOptions}
 import com.google.cloud.{ReadChannel, WriteChannel}
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.services.{isTransientError, retryTransientErrors}
-import is.hail.utils.{FastSeq, fatal}
+import is.hail.services.{retryTransientErrors, isTransientError}
+import is.hail.utils._
 import org.apache.log4j.Logger
 
 import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}

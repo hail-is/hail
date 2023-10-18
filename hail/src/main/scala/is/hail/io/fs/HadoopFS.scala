@@ -3,8 +3,11 @@ package is.hail.io.fs
 import is.hail.utils._
 import org.apache.hadoop
 import org.apache.hadoop.fs.{EtagSource, FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.io.MD5Hash
 
 import java.io._
+import java.security.MessageDigest
+import java.util.Base64
 import scala.util.Try
 
 class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {

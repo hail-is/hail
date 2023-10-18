@@ -4,10 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.linalg.{BLAS, LAPACK}
-import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue}
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
+import is.hail.types.physical._
 import is.hail.types.virtual.TInt32
 import is.hail.types.{RNDArray, TypeWithRequiredness}
 import is.hail.utils.{FastSeq, toRichIterable, valueToRichCodeRegion}

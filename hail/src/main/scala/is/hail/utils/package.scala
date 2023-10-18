@@ -30,6 +30,7 @@ import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
+import org.apache.spark.sql.Row
 
 package utils {
   trait Truncatable {

@@ -1,13 +1,15 @@
 package is.hail.io
 
-import com.github.luben.zstd.{Zstd, ZstdDecompressCtx}
+import java.io._
+import java.util
+import java.util.UUID
+import java.util.function.Supplier
+
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
 import is.hail.utils._
 
-import java.io._
-import java.util.UUID
-import java.util.function.Supplier
+import com.github.luben.zstd.{Zstd, ZstdDecompressCtx}
 
 trait InputBuffer extends Closeable {
   def close(): Unit
