@@ -57,6 +57,16 @@ def test_file_mount_in_child_dir_to_root_dir(runner: CliRunner):
         assert res.exit_code == 0
 
 
+def test_mount_multiple_files(runner: CliRunner):
+    with tempfile.TemporaryDirectory() as dir:
+        os.chdir(dir)
+        write_hello(f'{dir}/child/hello1.txt')
+        write_hello(f'{dir}/child/hello2.txt')
+        write_script(dir, '/hello1.txt')
+        res = runner.invoke(cli.app, ['submit', '--mounts', 'child/hello1.txt:/', '--mounts', 'child/hello2.txt:/', 'test_job.py'])
+        assert res.exit_code == 0
+
+
 def test_dir_mount_in_child_dir_to_child_dir(runner: CliRunner):
     with tempfile.TemporaryDirectory() as dir:
         os.chdir(dir)
