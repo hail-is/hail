@@ -1611,6 +1611,10 @@ class Job(abc.ABC):
         self.project_id = Job.get_next_xfsquota_project_id()
 
     @property
+    def job_group_id(self):
+        return self.job_spec['job_group_id']
+
+    @property
     def job_id(self):
         return self.job_spec['job_id']
 
@@ -1737,6 +1741,7 @@ class DockerJob(Job):
             {'name': 'HAIL_REGION', 'value': REGION},
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
             {'name': 'HAIL_JOB_ID', 'value': str(self.job_id)},
+            {'name': 'HAIL_JOB_GROUP_ID', 'value': str(self.job_group_id)},
             {'name': 'HAIL_ATTEMPT_ID', 'value': str(self.attempt_id)},
             {'name': 'HAIL_IDENTITY_PROVIDER_JSON', 'value': json.dumps(self.credentials.identity_provider_json)},
         ]
@@ -3077,6 +3082,7 @@ class Worker:
         job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         job_spec = json.loads(job_spec)
 
+        job_spec['job_group_id'] = addtl_spec['job_group_id']
         job_spec['attempt_id'] = addtl_spec['attempt_id']
         job_spec['secrets'] = addtl_spec['secrets']
 

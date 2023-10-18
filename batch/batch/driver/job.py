@@ -16,6 +16,7 @@ from hailtop.utils import Notice, retry_transient_errors, time_msecs
 from ..batch import batch_record_to_dict
 from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
+from ..constants import ROOT_JOB_GROUP_ID
 from ..file_store import FileStore
 from ..globals import STATUS_FORMAT_VERSION, complete_states, tasks
 from ..instance_config import QuantifiedResource
@@ -39,26 +40,27 @@ SELECT batches.*,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled
-FROM batches
+FROM job_groups
+LEFT JOIN batches ON job_groups.batch_id = batches.id
 LEFT JOIN job_groups_n_jobs_in_complete_states
-  ON batches.id = job_groups_n_jobs_in_complete_states.id
+  ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
-    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    SELECT batch_id, job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_job_group_resources_v3
-    WHERE batches.id = aggregated_job_group_resources_v3.batch_id
-    GROUP BY batch_id, resource_id
+    WHERE job_groups.batch_id = aggregated_job_group_resources_v3.batch_id AND job_groups.job_group_id = aggregated_job_group_resources_v3.job_group_id
+    GROUP BY batch_id, job_group_id, resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id
+  GROUP BY batch_id, job_group_id
 ) AS cost_t ON TRUE
 LEFT JOIN job_groups_cancelled
-  ON batches.id = job_groups_cancelled.id
-WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
-   batches.`state` = 'complete';
+  ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND job_groups.callback IS NOT NULL AND
+   job_groups.`state` = 'complete';
 ''',
-        (batch_id,),
+        (batch_id, ROOT_JOB_GROUP_ID),
         'notify_batch_job_complete',
     )
 
@@ -333,7 +335,7 @@ async def unschedule_job(app, record):
     log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')
 
 
-async def job_config(app, record, attempt_id):
+async def job_config(app, record, attempt_id, job_group_id):
     k8s_cache: K8sCache = app['k8s_cache']
     db: Database = app['db']
 
@@ -352,6 +354,7 @@ async def job_config(app, record, attempt_id):
         job_spec = db_spec
 
     job_spec['attempt_id'] = attempt_id
+    job_spec['job_group_id'] = job_group_id
 
     userdata = json.loads(record['userdata'])
 
@@ -436,6 +439,7 @@ users:
     return {
         'batch_id': batch_id,
         'job_id': job_id,
+        'job_group_id': job_group_id,
         'format_version': format_version.format_version,
         'token': spec_token,
         'start_job_id': start_job_id,
@@ -446,7 +450,7 @@ users:
     }
 
 
-async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_version, error_msg):
+async def mark_job_errored(app, batch_id, job_id, attempt_id, job_group_id, user, format_version, error_msg):
     file_store: FileStore = app['file_store']
 
     status = {
@@ -454,6 +458,7 @@ async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_versi
         'worker': None,
         'batch_id': batch_id,
         'job_id': job_id,
+        'job_group_id': job_group_id,
         'attempt_id': attempt_id,
         'user': user,
         'state': 'error',
@@ -478,17 +483,18 @@ async def schedule_job(app, record, instance):
     batch_id = record['batch_id']
     job_id = record['job_id']
     attempt_id = record['attempt_id']
+    job_group_id = record['job_group_id']
     format_version = BatchFormatVersion(record['format_version'])
 
     id = (batch_id, job_id)
 
     try:
-        body = await job_config(app, record, attempt_id)
+        body = await job_config(app, record, attempt_id, job_group_id)
     except Exception:
         log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
 
         await mark_job_errored(
-            app, batch_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
+            app, batch_id, job_id, attempt_id, job_group_id, record['user'], format_version, traceback.format_exc()
         )
         raise
 
