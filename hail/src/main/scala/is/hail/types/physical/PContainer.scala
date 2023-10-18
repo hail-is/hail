@@ -89,3 +89,12 @@ abstract class PContainer extends PIterable {
 
   def pastLastElementOffset(aoff: Code[Long], length: Value[Int]): Code[Long]
 }
+
+object PContainer {
+  def unsafeSetElementMissing(cb: EmitCodeBuilder, p: PContainer, aoff: Code[Long], i: Code[Int]): Unit = {
+    if (p.elementType.required)
+      cb._fatal("Missing element at index ", i.toS, s" of ptype ${p.elementType.asIdent}'.")
+    else
+      p.setElementMissing(cb, aoff, i)
+  }
+}

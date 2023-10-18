@@ -36,9 +36,9 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
       case _: UnitInfo.type =>
         coerce[T](Code._empty)
       case cti: ClassInfo[_] =>
-        cb.memoize(Code.checkcast[T](x)(cti))(cti)
+        cb.memoize(Code.checkcast[T](x)(cti))
       case ati: ArrayInfo[_] =>
-        cb.memoize(Code.checkcast[T](x)(ati))(ati)
+        cb.memoize(Code.checkcast[T](x)(ati))
     }
   }
 

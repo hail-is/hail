@@ -81,9 +81,9 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
         .apply(cb, region, ib)
       cb.assign(data, eltArray.store(cb, region, decValue, deepCopy = false))
 
-      cb += ib.readInt()
-        .cne(const(StagedArrayBuilder.END_SERIALIZATION))
-        .orEmpty(Code._fatal[Unit](s"StagedArrayBuilder serialization failed"))
+      cb.if_(ib.readInt() cne StagedArrayBuilder.END_SERIALIZATION,
+        cb._fatal(s"StagedArrayBuilder serialization failed")
+      )
     }
   }
 
@@ -103,7 +103,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
 
   def overwrite(cb: EmitCodeBuilder, elt: EmitValue, idx: Value[Int], deepCopy: Boolean = true): Unit = {
     elt.toI(cb).consume(cb,
-      eltArray.setElementMissing(cb, data, idx),
+      PContainer.unsafeSetElementMissing(cb, eltArray, data, idx),
       value => eltType.storeAtAddress(cb, eltArray.elementOffset(data, capacity, idx), region, value, deepCopy))
   }
 
@@ -129,7 +129,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
 
   private def resize(cb: EmitCodeBuilder): Unit = {
     val newDataOffset = kb.genFieldThisRef[Long]("new_data_offset")
-    cb.ifx(size.ceq(capacity),
+    cb.if_(size.ceq(capacity),
       {
         cb.assign(capacity, capacity * 2)
         cb.assign(data, eltArray.padWithMissing(cb, region, size, capacity, data))

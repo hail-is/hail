@@ -99,7 +99,7 @@ case class BlockMatrixNativeMetadataWriter(path: String, stageLocally: Boolean, 
     val n = cb.newLocal[Int]("n", pc.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
-    cb.whileLoop(i < n, {
+    cb.while_(i < n, {
       val s = pc.loadElement(cb, i).get(cb, "file name can't be missing!").asString
       cb += partFiles.update(i, s.loadString(cb))
       cb.assign(i, i + 1)

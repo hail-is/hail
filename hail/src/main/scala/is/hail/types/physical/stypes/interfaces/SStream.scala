@@ -104,7 +104,7 @@ class SStreamConcrete(val st: SStreamIteratorLong, val it: Value[NoBoxLongIterat
       override val requiresMemoryManagementPerElement: Boolean = st.requiresMemoryManagement
       override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
         cb.assign(next, it.invoke[Long]("next"))
-        cb.ifx(it.invoke[Boolean]("eos"), cb.goto(LendOfStream))
+        cb.if_(it.invoke[Boolean]("eos"), cb.goto(LendOfStream))
         cb.goto(LproduceElementDone)
       }
       override val element: EmitCode = {
