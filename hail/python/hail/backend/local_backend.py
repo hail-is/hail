@@ -167,7 +167,7 @@ class LocalBackend(Py4JBackend):
             skip_logging_configuration
         )
         self._jhc = hail_package.HailContext.apply(
-            self._jbackend, branching_factor, optimizer_iterations)
+            self._jbackend, branching_factor, optimizer_iterations, True)
 
         self._backend_server = hail_package.backend.BackendServer.apply(self._jbackend)
         self._backend_server_port: int = self._backend_server.port()
