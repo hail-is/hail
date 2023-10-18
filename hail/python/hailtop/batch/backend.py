@@ -23,7 +23,7 @@ from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetic
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
-from hailtop.batch_client.aioclient import AioBatchClient
+from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
@@ -101,8 +101,9 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     def _fs(self) -> RouterAsyncFS:
         raise NotImplementedError()
 
-    def _close(self):
-        return
+    @abc.abstractmethod
+    async def _async_close(self):
+        raise NotImplementedError()
 
     def close(self):
         """
@@ -113,8 +114,11 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         This method should be called after executing your batches at the
         end of your script.
         """
+        asyncio.run(self.async_close())
+
+    async def async_close(self):
         if not self._closed:
-            self._close()
+            await self._async_close()
             self._closed = True
 
     def __del__(self):
@@ -297,9 +301,7 @@ class LocalBackend(Backend[None]):
                 code += ['\n']
                 run_code(code)
 
-            async_to_blocking(
-                batch._serialize_python_functions_to_input_files(tmpdir, dry_run=dry_run)
-            )
+            await batch._serialize_python_functions_to_input_files(tmpdir, dry_run=dry_run)
 
             jobs = batch._unsubmitted_jobs
             child_jobs = collections.defaultdict(set)
@@ -321,7 +323,7 @@ class LocalBackend(Backend[None]):
                     print(f'Job {job} was cancelled. Not running')
                     cancel_child_jobs(job)
                     continue
-                async_to_blocking(job._compile(tmpdir, tmpdir, dry_run=dry_run))
+                await job._compile(tmpdir, tmpdir, dry_run=dry_run)
 
                 os.makedirs(f'{tmpdir}/{job._dirname}/', exist_ok=True)
 
@@ -412,8 +414,8 @@ class LocalBackend(Backend[None]):
 
         return _get_random_name()
 
-    def _close(self):
-        async_to_blocking(self._fs.close())
+    async def _async_close(self):
+        await self._fs.close()
 
 
 class ServiceBackend(Backend[bc.Batch]):
@@ -520,7 +522,8 @@ class ServiceBackend(Backend[bc.Batch]):
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
-        self._batch_client = AioBatchClient(billing_project, _token=token)
+        self._billing_project = billing_project
+        self._token = token
 
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir)
 
@@ -550,6 +553,12 @@ class ServiceBackend(Backend[bc.Batch]):
         elif regions == ServiceBackend.ANY_REGION:
             regions = None
         self.regions = regions
+        self.__batch_client: Optional[AioBatchClient] = None
+
+    async def _batch_client(self) -> AioBatchClient:
+        if self.__batch_client is None:
+            self.__batch_client = await AioBatchClient.create(self._billing_project, _token=self._token)
+        return self.__batch_client
 
     @property
     def _fs(self) -> RouterAsyncFS:
@@ -559,9 +568,12 @@ class ServiceBackend(Backend[bc.Batch]):
         validate_file(uri, fs, validate_scheme=True)
 
     def _close(self):
-        if hasattr(self, '_batch_client'):
-            async_to_blocking(self._batch_client.close())
-        async_to_blocking(self._fs.close())
+        async_to_blocking(self._async_close())
+
+    async def _async_close(self):
+        if self.__batch_client is not None:
+            await self.__batch_client.close()
+        await self._fs.close()
 
     async def _async_run(
         self,
@@ -621,7 +633,7 @@ class ServiceBackend(Backend[bc.Batch]):
             attributes['name'] = batch.name
 
         if batch._batch_handle is None:
-            batch._batch_handle = self._batch_client.create_batch(
+            batch._batch_handle = (await self._batch_client()).create_batch(
                 attributes=attributes, callback=callback, token=token, cancel_after_n_failures=batch._cancel_after_n_failures
             )
 
@@ -792,7 +804,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             n_jobs_submitted += 1
 
-            job._client_job = j
+            job._client_job = bc.Job(j)
             jobs_to_command[j] = cmd
 
         if dry_run:

@@ -50,7 +50,7 @@ async def submit(name, image_name, files, output, script, arguments):
     command = 'python3' if script.endswith('.py') else 'bash'
     script_arguments = " ".join(shq(x) for x in arguments)
     j.command(f'{command} {script_file} {script_arguments}')
-    batch_handle: aiobc.Batch = b.run(wait=False, disable_progress_bar=quiet)._async_batch  # type: ignore
+    batch_handle: aiobc.Batch = await b._async_run(wait=False, disable_progress_bar=quiet)._async_batch  # type: ignore
 
     if output == 'text':
         deploy_config = get_deploy_config()
@@ -60,4 +60,4 @@ async def submit(name, image_name, files, output, script, arguments):
         assert output == 'json'
         print(orjson.dumps({'id': batch_handle.id}).decode('utf-8'))
 
-    backend.close()
+    await backend.async_close()
