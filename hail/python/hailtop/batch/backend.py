@@ -507,7 +507,8 @@ class ServiceBackend(Backend[bc.Batch]):
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
-        self._batch_client = BatchClient(billing_project, _token=token)
+        self._sync_batch_client = BatchClient(billing_project, _token=token)
+        self._batch_client = self._sync_batch_client._async_client
 
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir)
 
@@ -547,7 +548,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
     def _close(self):
         if hasattr(self, '_batch_client'):
-            self._batch_client.close()
+            async_to_blocking(self._batch_client.close())
         async_to_blocking(self._fs.close())
 
     def _run(self,
@@ -669,9 +670,11 @@ class ServiceBackend(Backend[bc.Batch]):
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
-                j = batch._batch_handle.create_job(image=HAIL_GENETICS_HAILTOP_IMAGE,
-                                                   command=write_cmd,
-                                                   attributes={'name': 'write_external_inputs'})
+                j = batch._batch_handle.create_job(
+                    image=HAIL_GENETICS_HAILTOP_IMAGE,
+                    command=write_cmd,
+                    attributes={'name': 'write_external_inputs'}
+                )
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
                 n_jobs_submitted += 1
 
@@ -768,22 +771,24 @@ class ServiceBackend(Backend[bc.Batch]):
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 
-            j = batch_handle.create_job(image=image,
-                                        command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
-                                        parents=parents,
-                                        attributes=attributes,
-                                        resources=resources,
-                                        input_files=inputs if len(inputs) > 0 else None,
-                                        output_files=outputs if len(outputs) > 0 else None,
-                                        always_run=job._always_run,
-                                        timeout=job._timeout,
-                                        cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
-                                        env=env,
-                                        requester_pays_project=batch.requester_pays_project,
-                                        mount_tokens=True,
-                                        user_code=user_code,
-                                        regions=job._regions,
-                                        always_copy_output=job._always_copy_output)
+            j = batch_handle.create_job(
+                image=image,
+                command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
+                parents=parents,
+                attributes=attributes,
+                resources=resources,
+                input_files=inputs if len(inputs) > 0 else None,
+                output_files=outputs if len(outputs) > 0 else None,
+                always_run=job._always_run,
+                timeout=job._timeout,
+                cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
+                env=env,
+                requester_pays_project=batch.requester_pays_project,
+                mount_tokens=True,
+                user_code=user_code,
+                regions=job._regions,
+                always_copy_output=job._always_copy_output
+            )
 
             n_jobs_submitted += 1
 
@@ -801,14 +806,15 @@ class ServiceBackend(Backend[bc.Batch]):
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
                 attributes={'name': 'remove_tmpdir'},
-                always_run=True)
+                always_run=True
+            )
             n_jobs_submitted += 1
 
         if verbose:
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        batch_handle.submit(disable_progress_bar=disable_progress_bar)
+        await batch_handle.submit(disable_progress_bar=disable_progress_bar)
 
         batch_id = batch_handle.id
 
@@ -833,9 +839,9 @@ class ServiceBackend(Backend[bc.Batch]):
                 print(f'Waiting for batch {batch_id}...')
             starting_job_id: int = min(j._client_job.job_id for j in unsubmitted_jobs)  # type: ignore
             await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
-            status = await batch_handle._async_batch.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
+            status = await batch_handle.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
             print(f'batch {batch_id} complete: {status["state"]}')
 
         batch._python_function_defs.clear()
         batch._python_function_files.clear()
-        return batch_handle
+        return bc.Batch(batch_handle)
