@@ -343,9 +343,6 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
          for y in wrap_to_list(y)
          ]
 
-    # for yi in y:
-    #     raise_unless_column_indexed('linear_regression_rows/y', yi)
-
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
         analyze('linear_regression_rows/y', e, mt._col_indices)
 
