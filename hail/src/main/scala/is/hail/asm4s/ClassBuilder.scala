@@ -14,16 +14,13 @@ import java.nio.charset.StandardCharsets
 import scala.collection.mutable
 
 object Field {
-  def apply[T: TypeInfo](cb: ClassBuilder[_], name: String): Field[T] =
-    new Field[T](cb.lclass.newField(name, implicitly[TypeInfo[T]]))
+  def apply[T](cb: ClassBuilder[_], name: String)(implicit ti: TypeInfo[T]): Field[T] =
+    new Field[T](cb.lclass.newField(name, ti))
 }
 
 case class Field[T] private(lf: lir.Field) extends AnyVal {
   def name: String =
     lf.name
-
-  def ti: TypeInfo[T] =
-    lf.ti.asInstanceOf[TypeInfo[T]]
 
   def get(obj: Value[_]): Value[T] = new Value[T] {
     override def get: Code[T] = Code(obj, lir.getField(lf))
@@ -42,18 +39,13 @@ case class Field[T] private(lf: lir.Field) extends AnyVal {
 }
 
 object StaticField {
-  def apply[T: TypeInfo](cb: ClassBuilder[_], name: String): StaticField[T] =
-    new StaticField[T](cb.lclass.newStaticField(name, implicitly[TypeInfo[T]]))
+  def apply[T](cb: ClassBuilder[_], name: String)(implicit ti: TypeInfo[T]): StaticField[T] =
+    new StaticField[T](cb.lclass.newStaticField(name, ti))
 }
 
 case class StaticField[T] private(lf: lir.StaticField) extends AnyVal {
   def name: String =
     lf.name
-
-
-  def ti: TypeInfo[T] =
-    lf.ti.asInstanceOf[TypeInfo[T]]
-
 
   def get(): Code[T] = Code(lir.getStaticField(lf))
 

@@ -902,19 +902,6 @@ object EmitFunctionBuilder {
     new EmitFunctionBuilder(apply)
   }
 
-  def define[F: TypeInfo](ctx: ExecuteContext,
-                          baseName: String,
-                          paramTypes: IndexedSeq[ParamType],
-                          returnType: ParamType,
-                          sourceFile: Option[String] = None
-                         )
-                         (use: EmitFunctionBuilder[F] => Unit)
-  : EmitFunctionBuilder[F] = {
-    val efb = EmitFunctionBuilder[F](ctx, baseName, paramTypes, returnType, sourceFile)
-    use(efb)
-    efb
-  }
-
   def apply[R: TypeInfo](ctx: ExecuteContext, baseName: String): EmitFunctionBuilder[AsmFunction0[R]] =
     EmitFunctionBuilder[AsmFunction0[R]](ctx, baseName, FastSeq[MaybeGenericTypeInfo[_]](), GenericTypeInfo[R])
 

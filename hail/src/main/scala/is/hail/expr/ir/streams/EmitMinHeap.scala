@@ -12,9 +12,7 @@ import is.hail.utils.FastSeq
 sealed trait StagedMinHeap {
   
   def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit
-
   def realloc(cb: EmitCodeBuilder): Unit
-
   def close(cb: EmitCodeBuilder): Unit
 
   def push(cb: EmitCodeBuilder, a: SValue): Unit
@@ -257,9 +255,7 @@ object EmitMinHeap {
 
   trait StagedComparator {
     def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit = ()
-
     def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int]
-
     def close(cb: EmitCodeBuilder): Unit = ()
   }
 
