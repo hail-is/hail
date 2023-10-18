@@ -504,7 +504,7 @@ class Batch:
             if err.code != 404:
                 raise
 
-    def create_job(self, image: str, command: List[str], **kwargs):
+    def create_job(self, image: str, command: List[str], **kwargs) -> Job:
         return self._create_job(
             {'command': command, 'image': image, 'type': 'docker'}, **kwargs
         )
@@ -535,7 +535,8 @@ class Batch:
                     network: Optional[str] = None,
                     unconfined: bool = False,
                     user_code: Optional[str] = None,
-                    regions: Optional[List[str]] = None):
+                    regions: Optional[List[str]] = None
+                    ) -> Job:
         self._job_idx += 1
 
         if parents is None:

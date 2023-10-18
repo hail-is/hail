@@ -1,4 +1,5 @@
 import os
+import asyncio
 import warnings
 import re
 from typing import Callable, Optional, Dict, Union, List, Any, Set, Literal, overload
@@ -10,6 +11,7 @@ from hailtop.aiotools import AsyncFS
 from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch_client.client as _bc
+import hailtop.batch_client.aioclient as _aiobc
 from hailtop.config import ConfigVariable, configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
@@ -113,7 +115,7 @@ class Batch:
         return uid
 
     @staticmethod
-    def from_batch_id(batch_id: int, *args, **kwargs):
+    def from_batch_id(batch_id: int, *args, **kwargs) -> 'Batch':
         """
         Create a Batch from an existing batch id.
 
@@ -137,14 +139,18 @@ class Batch:
         -------
         A Batch object that can append jobs to an existing batch.
         """
+        return async_to_blocking(Batch._async_from_batch_id(batch_id, *args, **kwargs))
+
+    @staticmethod
+    async def _async_from_batch_id(batch_id: int, *args, **kwargs) -> 'Batch':
         b = Batch(*args, **kwargs)
         assert isinstance(b._backend, _backend.ServiceBackend)
-        b._batch_handle = b._backend._batch_client.get_batch(batch_id)
+        b._batch_handle = await (await b._backend._batch_client()).get_batch(batch_id)
         return b
 
     def __init__(self,
                  name: Optional[str] = None,
-                 backend: Optional[_backend.Backend] = None,
+                 backend: Optional[Union[_backend.LocalBackend, _backend.ServiceBackend]] = None,
                  attributes: Optional[Dict[str, str]] = None,
                  requester_pays_project: Optional[str] = None,
                  default_image: Optional[str] = None,
@@ -205,7 +211,7 @@ class Batch:
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
 
-        self._batch_handle: Optional[_bc.Batch] = None
+        self._batch_handle: Optional[_aiobc.Batch] = None
 
     @property
     def _unsubmitted_jobs(self):
@@ -649,10 +655,7 @@ class Batch:
 
         return [job for job in self._jobs if job.name is not None and re.match(pattern, job.name) is not None]
 
-    @overload
-    def run(self, dry_run: Literal[False] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> _bc.Batch: ...
-    @overload
-    def run(self, dry_run: Literal[True] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> None: ...
+    # Do not try to overload this based on dry_run. LocalBackend.run also returns None.
     def run(self,
             dry_run: bool = False,
             verbose: bool = False,
@@ -683,7 +686,16 @@ class Batch:
         backend_kwargs:
             See :meth:`.Backend._run` for backend-specific arguments.
         """
+        return asyncio.run(self._async_run(dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))  # type: ignore
 
+    # Do not try to overload this based on dry_run. LocalBackend.run also returns None.
+    async def _async_run(
+        self,
+        dry_run: bool = False,
+        verbose: bool = False,
+        delete_scratch_on_exit: bool = True,
+        **backend_kwargs: Any
+    ) -> Optional[_bc.Batch]:
         seen = set()
         ordered_jobs = []
 
@@ -709,10 +721,10 @@ class Batch:
                     raise BatchException("cycle detected in dependency graph")
 
         self._jobs = ordered_jobs
-        run_result = self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
+        run_result = await self._backend._async_run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
         if self._DEPRECATED_fs is not None:
             # best effort only because this is deprecated
-            async_to_blocking(self._DEPRECATED_fs.close())
+            await self._DEPRECATED_fs.close()
             self._DEPRECATED_fs = None
         return run_result
 
