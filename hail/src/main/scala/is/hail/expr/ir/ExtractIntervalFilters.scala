@@ -722,11 +722,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     case Str(v) => ConstantValue(v, x.typ)
     case NA(_) => ConstantValue(null, x.typ)
     case Literal(_, value) => ConstantValue(value, x.typ)
-    // case EncodedLiteral(codec, arrays) =>
-    //   ConstantValue(RegionPool.scoped(_.scopedRegion { region =>
-    //     val (pt, addr) = codec.decodeArrays(ctx, codec.encodedVirtualType, arrays.ba, region)
-    //     SafeRow.read(pt, addr)
-    //   }), x.typ)
+    case EncodedLiteral(codec, arrays) =>
+      ConstantValue(ctx.r.getPool().scopedRegion { r =>
+        val (pt, addr) = codec.decodeArrays(ctx, codec.encodedVirtualType, arrays.ba, ctx.r)
+        SafeRow.read(pt, addr)
+      }, x.typ)
     case ApplySpecial("lor", _, _, _, _) => children match {
       case Seq(ConstantValue(l: Boolean), ConstantValue(r: Boolean)) => ConstantValue(l || r, TBoolean)
       case _ => AbstractLattice.top
