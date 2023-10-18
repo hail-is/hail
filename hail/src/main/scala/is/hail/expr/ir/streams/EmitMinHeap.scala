@@ -28,7 +28,7 @@ object EmitMinHeap {
   private sealed trait MinHeap
 
   def apply(modb: EmitModuleBuilder, elemType: SType)
-           (mkComparator: EmitClassBuilder[_] => StagedComparator)
+           (mkComparator: EmitClassBuilder[MinHeap] => StagedComparator)
   : EmitClassBuilder[_] => StagedMinHeap = {
 
     val classBuilder: EmitClassBuilder[MinHeap] =
@@ -48,12 +48,11 @@ object EmitMinHeap {
 
     val init_ : EmitMethodBuilder[MinHeap] =
       classBuilder.defineEmitMethod("<init>", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo) { mb =>
-        val super_ = Invokeable(classOf[Object], classOf[Object].getConstructor())
         val outerRef = mb.getCodeParam[AnyRef](1)
         val poolRef = mb.getCodeParam[RegionPool](2)
 
         mb.voidWithBuilder { cb =>
-          cb += super_.invoke(coerce[Object](cb._this), Array())
+          cb += classBuilder.cb.super_.invoke(coerce[Object](cb._this), Array())
           cb.assign(pool, poolRef)
           cb.assign(region, poolRef.invoke[Region]("getRegion"))
           cb.assign(garbage, cb.memoize(0L))

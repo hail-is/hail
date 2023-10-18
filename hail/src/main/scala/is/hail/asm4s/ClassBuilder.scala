@@ -19,6 +19,10 @@ object Field {
 }
 
 case class Field[T] private(lf: lir.Field) extends AnyVal {
+
+  def ti: TypeInfo[T] =
+    lf.ti.asInstanceOf[TypeInfo[T]]
+
   def name: String =
     lf.name
 
@@ -44,6 +48,10 @@ object StaticField {
 }
 
 case class StaticField[T] private(lf: lir.StaticField) extends AnyVal {
+
+  def ti: TypeInfo[T] =
+    lf.ti.asInstanceOf[TypeInfo[T]]
+
   def name: String =
     lf.name
 
@@ -136,7 +144,7 @@ class ModuleBuilder() {
             FastSeq(lir.load(ctor._this.asInstanceOf[LocalRef[_]].l))))
         cb += new VCode(L, L, null)
         fields.zipWithIndex.foreach { case (f, i) =>
-            cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
+          cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
         }
         Code._empty
       }
@@ -288,20 +296,11 @@ class ClassBuilder[C](
   private[this] val lInitBuilder = new MethodBuilder[C](this, "<init>", FastSeq(), UnitInfo)
   private[this] val lInit = lInitBuilder.lmethod
 
-  private[this] var initBody: Code[Unit] = {
-    val L = new lir.Block()
-    L.append(
-      lir.methodStmt(INVOKESPECIAL,
-        "java/lang/Object",
-        "<init>",
-        "()V",
-        false,
-        UnitInfo,
-        FastSeq(lir.load(lInit.getParam(0)))
-      )
-    )
-    new VCode(L, L, null)
-  }
+  val super_ : Invokeable[Object, Unit] =
+    Invokeable(classOf[Object], classOf[Object].getConstructor())
+
+  private[this] var initBody: Code[Unit] =
+    super_.invoke(coerce[Object](_this), Array())
 
   private[this] var lClinit: lir.Method = _
 
