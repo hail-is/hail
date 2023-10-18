@@ -43,7 +43,7 @@ class ServiceBackendContext(
   val workerMemory: String,
   val storageRequirement: String,
   val regions: Array[String],
-  val cloudfuseConfig: Array[(String, String, Boolean)],
+  val cloudfuseConfig: Array[CloudfuseConfig],
   val profile: Boolean,
   val executionCache: ExecutionCache,
 ) extends BackendContext with Serializable {
@@ -100,8 +100,8 @@ object ServiceBackend {
         backend.addLiftover(sourceGenome, chainFile, destGenome)
       }
     }
-    rpcConfig.sequences.foreach { case (rg, (fastaFile, indexFile)) =>
-      backend.addSequence(rg, fastaFile, indexFile)
+    rpcConfig.sequences.foreach { case (rg, seq) =>
+      backend.addSequence(rg, seq.fasta, seq.index)
     }
 
     backend
@@ -235,11 +235,11 @@ class ServiceBackend(
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
         "regions" -> JArray(backendContext.regions.map(JString).toList),
-        "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map { case (bucket, mountPoint, readonly) =>
+        "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map { config =>
           JObject(
-            "bucket" -> JString(bucket),
-            "mount_path" -> JString(mountPoint),
-            "read_only" -> JBool(readonly)
+            "bucket" -> JString(config.bucket),
+            "mount_path" -> JString(config.mount_path),
+            "read_only" -> JBool(config.read_only)
           )
         }.toList)
       )
@@ -494,6 +494,10 @@ private class HailSocketAPIOutputStream(
   }
 }
 
+case class CloudfuseConfig(bucket: String, mount_path: String, read_only: Boolean)
+
+case class SequenceConfig(fasta: String, index: String)
+
 case class ServiceBackendRPCPayload(
   tmp_dir: String,
   remote_tmpdir: String,
@@ -501,12 +505,12 @@ case class ServiceBackendRPCPayload(
   worker_cores: String,
   worker_memory: String,
   storage: String,
-  cloudfuse_configs: Array[(String, String, Boolean)],
+  cloudfuse_configs: Array[CloudfuseConfig],
   regions: Array[String],
   flags: Map[String, String],
   custom_references: Array[String],
   liftovers: Map[String, Map[String, String]],
-  sequences: Map[String, (String, String)],
+  sequences: Map[String, SequenceConfig],
 )
 
 case class ServiceBackendExecutePayload(

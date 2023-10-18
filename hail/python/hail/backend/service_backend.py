@@ -141,6 +141,19 @@ class ServiceBackendExecutePayload(ActionPayload):
 
 
 @dataclass
+class CloudfuseConfig:
+    bucket: str
+    mount_path: str
+    read_only: bool
+
+
+@dataclass
+class SequenceConfig:
+    fasta: str
+    index: str
+
+
+@dataclass
 class ServiceBackendRPCConfig:
     tmp_dir: str
     remote_tmpdir: str
@@ -148,12 +161,12 @@ class ServiceBackendRPCConfig:
     worker_cores: str
     worker_memory: str
     storage: str
-    cloudfuse_configs: List[Tuple[str, str, bool]]
+    cloudfuse_configs: List[CloudfuseConfig]
     regions: List[str]
     flags: Dict[str, str]
     custom_references: List[str]
     liftovers: Dict[str, Dict[str, str]]
-    sequences: Dict[str, Tuple[str, str]]
+    sequences: Dict[str, SequenceConfig]
 
 
 class ServiceBackend(Backend):
@@ -393,7 +406,7 @@ class ServiceBackend(Backend):
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,
-                    cloudfuse=[],
+                    cloudfuse=[(c.bucket, c.mount_path, c.read_only) for c in service_backend_config.cloudfuse_configs],
                     profile=self.flags['profile'] is not None,
                 )
                 await self._batch.submit(disable_progress_bar=True)
@@ -475,7 +488,7 @@ class ServiceBackend(Backend):
             payload = ServiceBackendExecutePayload([f.to_dataclass() for f in self.functions], self._batch.token, payload)
 
         storage_requirement_bytes = 0
-        readonly_fuse_buckets = set()
+        readonly_fuse_buckets: Set[str] = set()
 
         added_sequences = {rg.name: rg._sequence_files for rg in self._references.values() if rg._sequence_files is not None}
         sequence_file_mounts = {}
@@ -485,7 +498,7 @@ class ServiceBackend(Backend):
             for bucket, blob in [(fasta_bucket, fasta_file), (index_bucket, index_file)]:
                 readonly_fuse_buckets.add(bucket)
                 storage_requirement_bytes += await (await self._async_fs.statfile(blob)).size()
-            sequence_file_mounts[rg_name] = (f'/cloudfuse/{fasta_bucket}/{fasta_path}', f'/cloudfuse/{index_bucket}/{index_path}')
+            sequence_file_mounts[rg_name] = SequenceConfig(f'/cloudfuse/{fasta_bucket}/{fasta_path}', f'/cloudfuse/{index_bucket}/{index_path}')
 
         storage_gib_str = f'{math.ceil(storage_requirement_bytes / 1024 / 1024 / 1024)}Gi'
         qob_config = ServiceBackendRPCConfig(
@@ -495,7 +508,7 @@ class ServiceBackend(Backend):
             worker_cores=str(self.worker_cores),
             worker_memory=str(self.worker_memory),
             storage=storage_gib_str,
-            cloudfuse_configs=[(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets],
+            cloudfuse_configs=[CloudfuseConfig(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets],
             regions=self.regions,
             flags=self.flags,
             custom_references=[orjson.dumps(rg._config).decode('utf-8') for rg in self._references.values() if rg.name not in BUILTIN_REFERENCES],
