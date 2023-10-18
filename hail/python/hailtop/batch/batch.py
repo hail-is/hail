@@ -1,4 +1,5 @@
 import os
+import asyncio
 import warnings
 import re
 from typing import Callable, Optional, Dict, Union, List, Any, Set, Literal, overload
@@ -684,7 +685,19 @@ class Batch:
         backend_kwargs:
             See :meth:`.Backend._run` for backend-specific arguments.
         """
+        return asyncio.run(self._async_run(dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))  # type: ignore
 
+    @overload
+    async def _async_run(self, dry_run: Literal[False] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> _bc.Batch: ...
+    @overload
+    async def _async_run(self, dry_run: Literal[True] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> None: ...
+    async def _async_run(
+        self,
+        dry_run: bool = False,
+        verbose: bool = False,
+        delete_scratch_on_exit: bool = True,
+        **backend_kwargs: Any
+    ) -> Optional[_bc.Batch]:
         seen = set()
         ordered_jobs = []
 
@@ -710,10 +723,10 @@ class Batch:
                     raise BatchException("cycle detected in dependency graph")
 
         self._jobs = ordered_jobs
-        run_result = self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
+        run_result = await self._backend._async_run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
         if self._DEPRECATED_fs is not None:
             # best effort only because this is deprecated
-            async_to_blocking(self._DEPRECATED_fs.close())
+            await self._DEPRECATED_fs.close()
             self._DEPRECATED_fs = None
         return run_result
 

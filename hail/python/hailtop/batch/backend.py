@@ -23,6 +23,7 @@ from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetic
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
+from hailtop.batch_client.aioclient import AioBatchClient
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
@@ -74,8 +75,18 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
         raise NotImplementedError
 
-    @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
+        """
+        See :meth:`._async_run`.
+
+        Warning
+        -------
+        This method should not be called directly. Instead, use :meth:`.batch.Batch.run`.
+        """
+        return asyncio.run(self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))
+
+    @abc.abstractmethod
+    async def _async_run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
         """
         Execute a batch.
 
@@ -169,12 +180,14 @@ class LocalBackend(Backend[None]):
     def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
         validate_file(uri, fs)
 
-    def _run(self,
-             batch: 'batch.Batch',
-             dry_run: bool,
-             verbose: bool,
-             delete_scratch_on_exit: bool,
-             **backend_kwargs) -> None:  # pylint: disable=R0915
+    async def _async_run(
+        self,
+        batch: 'batch.Batch',
+        dry_run: bool,
+        verbose: bool,
+        delete_scratch_on_exit: bool,
+        **backend_kwargs
+    ) -> None:  # pylint: disable=R0915
         """
         Execute a batch.
 
@@ -507,8 +520,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
-        self._sync_batch_client = BatchClient(billing_project, _token=token)
-        self._batch_client = self._sync_batch_client._async_client
+        self._batch_client = AioBatchClient(billing_project, _token=token)
 
         self.remote_tmpdir = get_remote_tmpdir('ServiceBackend', bucket=bucket, remote_tmpdir=remote_tmpdir)
 
@@ -551,17 +563,19 @@ class ServiceBackend(Backend[bc.Batch]):
             async_to_blocking(self._batch_client.close())
         async_to_blocking(self._fs.close())
 
-    def _run(self,
-             batch: 'batch.Batch',
-             dry_run: bool,
-             verbose: bool,
-             delete_scratch_on_exit: bool,
-             wait: bool = True,
-             open: bool = False,
-             disable_progress_bar: bool = False,
-             callback: Optional[str] = None,
-             token: Optional[str] = None,
-             **backend_kwargs) -> Optional[bc.Batch]:  # pylint: disable-msg=too-many-statements
+    async def _async_run(
+        self,
+        batch: 'batch.Batch',
+        dry_run: bool,
+        verbose: bool,
+        delete_scratch_on_exit: bool,
+        wait: bool = True,
+        open: bool = False,
+        disable_progress_bar: bool = False,
+        callback: Optional[str] = None,
+        token: Optional[str] = None,
+        **backend_kwargs
+    ) -> Optional[bc.Batch]:  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
@@ -591,20 +605,6 @@ class ServiceBackend(Backend[bc.Batch]):
         token:
             If not `None`, a string used for idempotency of batch submission.
         """
-        return async_to_blocking(
-            self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, wait, open, disable_progress_bar, callback, token, **backend_kwargs))
-
-    async def _async_run(self,
-                         batch: 'batch.Batch',
-                         dry_run: bool,
-                         verbose: bool,
-                         delete_scratch_on_exit: bool,
-                         wait: bool = True,
-                         open: bool = False,
-                         disable_progress_bar: bool = False,
-                         callback: Optional[str] = None,
-                         token: Optional[str] = None,
-                         **backend_kwargs):  # pylint: disable-msg=too-many-statements
         if backend_kwargs:
             raise ValueError(f'ServiceBackend does not support any of these keywords: {backend_kwargs}')
 
