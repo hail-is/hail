@@ -339,8 +339,9 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
     if is_chained and any(len(lst) == 0 for lst in y):
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
-    y = [raise_unless_column_indexed('linear_regression_rows/y', y) or y
-         for y in wrap_to_list(y)
+    y = [raise_unless_column_indexed('linear_regression_rows_nd/y', y) or ys
+         for ys in wrap_to_list(y)
+         for y in (ys if is_chained else [ys])
          ]
 
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
@@ -408,8 +409,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     if is_chained and any(len(lst) == 0 for lst in y):
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
-    y = [raise_unless_column_indexed('linear_regression_rows_nd/y', y) or y
-         for y in wrap_to_list(y)
+    y = [raise_unless_column_indexed('linear_regression_rows_nd/y', y) or ys
+         for ys in wrap_to_list(y)
+         for y in (ys if is_chained else [ys])
          ]
 
     if weights is not None:
