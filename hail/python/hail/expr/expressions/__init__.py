@@ -16,7 +16,7 @@ from .expression_typecheck import (expr_any, expr_int32, expr_int64,
                                    expr_struct, expr_oneof, expr_numeric, coercer_from_dtype)
 from .expression_utils import (analyze, eval_timed, eval, eval_typed,
                                extract_refs_by_indices, get_refs, matrix_table_source, table_source,
-                               check_entry_indexed, check_row_indexed)
+                               raise_unless_entry_indexed, raise_unless_row_indexed, raise_unless_column_indexed)
 
 __all__ = ['Indices',
            'Aggregation',
@@ -56,8 +56,9 @@ __all__ = ['Indices',
            'NDArrayExpression',
            'NDArrayNumericExpression',
            'analyze',
-           'check_entry_indexed',
-           'check_row_indexed',
+           'raise_unless_entry_indexed',
+           'raise_unless_row_indexed',
+           'raise_unless_column_indexed',
            'get_refs',
            'extract_refs_by_indices',
            'eval',
