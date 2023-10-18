@@ -286,6 +286,10 @@ class HailType(object):
     def _convert_to_encoding(self, byte_writer, value):
         raise ValueError("Not implemented yet")
 
+    @staticmethod
+    def _missing(value):
+        return value is None
+
     def _traverse(self, obj, f):
         """Traverse a nested type and object.
 
@@ -408,6 +412,10 @@ class _tint32(HailType):
 
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
         byte_writer.write_int32(value)
+
+    @staticmethod
+    def _is_missing(value):
+        return value is None or value is pd.NA
 
     def _byte_size(self):
         return 4
@@ -1400,7 +1408,7 @@ class tstruct(HailType, Mapping):
         kwargs = {}
 
         current_missing_byte = None
-        for i, (f, t) in enumerate(self.items()):
+        for i, (f, t) in enumerate(self._field_types.items()):
             which_missing_bit = i % 8
             if which_missing_bit == 0:
                 current_missing_byte = missing_bytes[i // 8]
