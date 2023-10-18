@@ -107,7 +107,8 @@ object HailContext {
 
   def apply(backend: Backend,
     branchingFactor: Int = 50,
-    optimizerIterations: Int = 3): HailContext = synchronized {
+    optimizerIterations: Int = 3,
+    addDefaultReferences: Boolean = true): HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
 
@@ -124,7 +125,9 @@ object HailContext {
     info(s"Running Hail version ${ theContext.version }")
 
     // needs to be after `theContext` is set, since this creates broadcasts
-    backend.addDefaultReferences()
+    if (addDefaultReferences) {
+      backend.addDefaultReferences()
+    }
 
     theContext
   }

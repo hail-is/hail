@@ -449,7 +449,7 @@ object ServiceBackendSocketAPI2 {
       HailContext.get.backend = backend
       log.info("Default references added to already initialized HailContexet.")
     } else {
-      HailContext(backend, 50, 3)
+      HailContext(backend, 50, 3, false)
       log.info("HailContexet initialized.")
     }
 
