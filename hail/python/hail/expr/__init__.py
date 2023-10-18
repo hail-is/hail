@@ -6,7 +6,7 @@ from .table_type import ttable
 from .matrix_type import tmatrix
 from .blockmatrix_type import tblockmatrix
 from .expressions import (analyze, eval, eval_typed, eval_timed, extract_refs_by_indices, get_refs,
-                          matrix_table_source, table_source, check_entry_indexed, check_row_indexed, Indices, Aggregation,
+                          matrix_table_source, table_source, raise_unless_entry_indexed, raise_unless_row_indexed, Indices, Aggregation,
                           apply_expr, construct_expr, construct_variable, construct_reference, impute_type, to_expr,
                           cast_expr, unify_all, unify_types_limited, unify_types, unify_exprs, Expression,
                           ExpressionException, ArrayExpression, ArrayNumericExpression, BooleanExpression, CallExpression,
@@ -15,7 +15,8 @@ from .expressions import (analyze, eval, eval_typed, eval_timed, extract_refs_by
                           StreamExpression, StringExpression, StructExpression, TupleExpression, NDArrayExpression,
                           NDArrayNumericExpression, expr_any, expr_int32, expr_int64, expr_float32, expr_float64,
                           expr_call, expr_bool, expr_str, expr_locus, expr_interval, expr_array, expr_ndarray, expr_set,
-                          expr_dict, expr_tuple, expr_struct, expr_oneof, expr_numeric, coercer_from_dtype)
+                          expr_dict, expr_tuple, expr_struct, expr_oneof, expr_numeric, coercer_from_dtype,
+                          raise_unless_column_indexed)
 from .functions import (literal, chi_squared_test, if_else, cond, switch, case, bind, rbind,
                         contingency_table_test, dbeta, dict, dpois, exp, entropy, fisher_exact_test, gp_dosage,
                         hardy_weinberg_test, parse_locus, parse_variant, variant_str, locus, locus_from_global_position,
@@ -78,8 +79,9 @@ __all__ = ['HailType',
            'get_refs',
            'matrix_table_source',
            'table_source',
-           'check_entry_indexed',
-           'check_row_indexed',
+           'raise_unless_entry_indexed',
+           'raise_unless_row_indexed',
+           'raise_unless_column_indexed',
            'literal',
            'chi_squared_test',
            'if_else',

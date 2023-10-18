@@ -8,8 +8,9 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail import ir
 from hail.expr import (Expression, ExpressionException, expr_float64, expr_call,
-                       expr_any, expr_numeric, expr_locus, analyze, check_entry_indexed,
-                       check_row_indexed, matrix_table_source, table_source)
+                       expr_any, expr_numeric, expr_locus, analyze, raise_unless_entry_indexed,
+                       raise_unless_row_indexed, matrix_table_source, table_source,
+                       raise_unless_column_indexed)
 from hail.expr.types import tbool, tarray, tfloat64, tint32
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
@@ -329,7 +330,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
         return _linear_regression_rows_nd(y, x, covariates, block_size, weights, pass_through)
 
     mt = matrix_table_source('linear_regression_rows/x', x)
-    check_entry_indexed('linear_regression_rows/x', x)
+    raise_unless_entry_indexed('linear_regression_rows/x', x)
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
@@ -338,7 +339,12 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
     if is_chained and any(len(lst) == 0 for lst in y):
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
-    y = wrap_to_list(y)
+    y = [raise_unless_column_indexed('linear_regression_rows/y', y) or y
+         for y in wrap_to_list(y)
+         ]
+
+    # for yi in y:
+    #     raise_unless_column_indexed('linear_regression_rows/y', yi)
 
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
         analyze('linear_regression_rows/y', e, mt._col_indices)
@@ -395,7 +401,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
            pass_through=sequenceof(oneof(str, Expression)))
 def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pass_through=()) -> hail.Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
-    check_entry_indexed('linear_regression_rows_nd/x', x)
+    raise_unless_entry_indexed('linear_regression_rows_nd/x', x)
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
@@ -405,7 +411,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     if is_chained and any(len(lst) == 0 for lst in y):
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
-    y = wrap_to_list(y)
+    y = [raise_unless_column_indexed('linear_regression_rows_nd/y', y) or y
+         for y in wrap_to_list(y)
+         ]
 
     if weights is not None:
         if y_is_list and is_chained and not isinstance(weights, list):
@@ -875,12 +883,14 @@ def logistic_regression_rows(test,
         raise ValueError('logistic regression requires at least one covariate expression')
 
     mt = matrix_table_source('logistic_regresion_rows/x', x)
-    check_entry_indexed('logistic_regresion_rows/x', x)
+    raise_unless_entry_indexed('logistic_regresion_rows/x', x)
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
         raise ValueError("'logistic_regression_rows': found no values for 'y'")
-    y = wrap_to_list(y)
+    y = [raise_unless_column_indexed('logistic_regression_rows/y', y) or y
+         for y in wrap_to_list(y)
+         ]
 
     for e in covariates:
         analyze('logistic_regression_rows/covariates', e, mt._col_indices)
@@ -1412,12 +1422,15 @@ def _logistic_regression_rows_nd(test,
         raise ValueError('logistic regression requires at least one covariate expression')
 
     mt = matrix_table_source('logistic_regresion_rows/x', x)
-    check_entry_indexed('logistic_regresion_rows/x', x)
+    raise_unless_entry_indexed('logistic_regresion_rows/x', x)
 
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
         raise ValueError("'logistic_regression_rows': found no values for 'y'")
-    y = wrap_to_list(y)
+
+    y = [raise_unless_column_indexed('logistic_regression_rows/y', y) or y
+         for y in wrap_to_list(y)
+         ]
 
     for e in covariates:
         analyze('logistic_regression_rows/covariates', e, mt._col_indices)
@@ -1557,7 +1570,7 @@ def poisson_regression_rows(test,
         raise ValueError('Poisson regression requires at least one covariate expression')
 
     mt = matrix_table_source('poisson_regression_rows/x', x)
-    check_entry_indexed('poisson_regression_rows/x', x)
+    raise_unless_entry_indexed('poisson_regression_rows/x', x)
 
     analyze('poisson_regression_rows/y', y, mt._col_indices)
 
@@ -1621,7 +1634,7 @@ def _lowered_poisson_regression_rows(test,
     _warn_if_no_intercept('_lowered_poisson_regression_rows', covariates)
 
     mt = matrix_table_source('_lowered_poisson_regression_rows/x', x)
-    check_entry_indexed('_lowered_poisson_regression_rows/x', x)
+    raise_unless_entry_indexed('_lowered_poisson_regression_rows/x', x)
 
     row_exprs = _get_regression_row_fields(mt, pass_through, '_lowered_poisson_regression_rows')
     mt = mt._select_all(
@@ -2931,7 +2944,7 @@ def skat(key_expr,
         ht = ht.select_globals()
         return ht
     mt = matrix_table_source('skat/x', x)
-    check_entry_indexed('skat/x', x)
+    raise_unless_entry_indexed('skat/x', x)
 
     analyze('skat/key_expr', key_expr, mt._row_indices)
     analyze('skat/weight_expr', weight_expr, mt._row_indices)
@@ -3014,7 +3027,7 @@ def lambda_gc(p_value, approximate=True):
     :obj:`float`
         Genomic inflation factor (lambda genomic control).
     """
-    check_row_indexed('lambda_gc', p_value)
+    raise_unless_row_indexed('lambda_gc', p_value)
     t = table_source('lambda_gc', p_value)
     med_chisq = _lambda_gc_agg(p_value, approximate)
     return t.aggregate(med_chisq)
@@ -3516,7 +3529,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
         correspond to matrix table column index.
     """
     mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
-    check_entry_indexed('genetic_relatedness_matrix/call_expr', call_expr)
+    raise_unless_entry_indexed('genetic_relatedness_matrix/call_expr', call_expr)
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.select_rows(__AC=agg.sum(mt.__gt),
@@ -3589,7 +3602,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
         correspond to matrix table column index.
     """
     mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
-    check_entry_indexed('realized_relationship_matrix/call_expr', call_expr)
+    raise_unless_entry_indexed('realized_relationship_matrix/call_expr', call_expr)
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.select_rows(__AC=agg.sum(mt.__gt),
@@ -4643,7 +4656,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     if bp_window_size < 0:
         raise ValueError(f'bp_window_size must be non-negative, found {bp_window_size}')
 
-    check_entry_indexed('ld_prune/call_expr', call_expr)
+    raise_unless_entry_indexed('ld_prune/call_expr', call_expr)
     mt = matrix_table_source('ld_prune/call_expr', call_expr)
 
     require_row_key_variant(mt, 'ld_prune')

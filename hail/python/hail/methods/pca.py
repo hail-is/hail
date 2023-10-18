@@ -3,7 +3,7 @@ from typing import List, Tuple
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import construct_expr
-from hail.expr import (expr_float64, expr_call, check_entry_indexed,
+from hail.expr import (expr_float64, expr_call, raise_unless_entry_indexed,
                        matrix_table_source)
 from hail import ir
 from hail.table import Table
@@ -191,7 +191,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     if isinstance(hl.current_backend(), ServiceBackend):
         return _blanczos_pca(entry_expr, k, compute_loadings)
 
-    check_entry_indexed('pca/entry_expr', entry_expr)
+    raise_unless_entry_indexed('pca/entry_expr', entry_expr)
 
     mt = matrix_table_source('pca/entry_expr', entry_expr)
 
@@ -414,7 +414,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
            block_size=int)
 def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128):
     if not isinstance(A, TallSkinnyMatrix):
-        check_entry_indexed('_spectral_moments/entry_expr', A)
+        raise_unless_entry_indexed('_spectral_moments/entry_expr', A)
         A = _make_tsm(A, block_size)
 
     n = A.ncols
@@ -444,7 +444,7 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
            moment_samples=int)
 def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128, moment_samples=100):
     if not isinstance(A, TallSkinnyMatrix):
-        check_entry_indexed('_spectral_moments/entry_expr', A)
+        raise_unless_entry_indexed('_spectral_moments/entry_expr', A)
         A = _make_tsm(A, block_size)
 
     if oversampling_param is None:
@@ -595,7 +595,7 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling
         List of eigenvalues, table with column scores, table with row loadings.
     """
     if not isinstance(A, TallSkinnyMatrix):
-        check_entry_indexed('_blanczos_pca/entry_expr', A)
+        raise_unless_entry_indexed('_blanczos_pca/entry_expr', A)
         A = _make_tsm(A, block_size)
 
     if oversampling_param is None:
@@ -676,7 +676,7 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-    check_entry_indexed('_blanczos_pca/entry_expr', call_expr)
+    raise_unless_entry_indexed('_blanczos_pca/entry_expr', call_expr)
     A = _make_tsm_from_call(call_expr, block_size, hwe_normalize=True)
 
     return _blanczos_pca(A, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
