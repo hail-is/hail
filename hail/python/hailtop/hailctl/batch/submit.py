@@ -56,11 +56,13 @@ async def submit(name, image_name, files, mounts, output, script, arguments):
         j.command(f'ln -s {in_file} {local_file}')
 
     mount_files_to_cloud_files = []
-    for input in mounts:
-        if input.startswith('file://'):
-            input = input[7:]
+    for _input in mounts:
+        if _input.startswith('file://'):
+            input = _input[7:]
+        else:
+            input = _input
         if ':' not in input:
-            raise ValueError(f'Must specify mount point separated by a colon (ex: foo.py:/foo/)')
+            raise ValueError('Must specify mount point separated by a colon (ex: foo.py:/foo/)')
 
         source, mount = input.split(':')
         source = os.path.expanduser(source)

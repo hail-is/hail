@@ -1042,6 +1042,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/inter_cloud \
+              --ignore=test/hailtop/hailctl/batch/ \
               --timeout=120 \
               test
     inputs:
@@ -3005,7 +3006,8 @@ steps:
               --instafail \
               --durations=50 \
               --timeout=360 \
-              /io/test/hailtop/batch/
+              /io/test/hailtop/batch/ \
+              /io/test/hailtop/hailctl/batch/
     inputs:
       - from: /repo/hail/python/test
         to: /io/test
