@@ -6,7 +6,7 @@
 #
 aioconsole==0.6.2
     # via aiomonitor
-aiohttp==3.8.5
+aiohttp==3.8.6
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -71,9 +71,9 @@ frozenlist==1.4.0
     #   aiosignal
 google-api-core==2.12.0
     # via google-api-python-client
-google-api-python-client==2.102.0
+google-api-python-client==2.104.0
     # via google-cloud-profiler
-google-auth==2.23.2
+google-auth==2.23.3
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -87,7 +87,7 @@ google-auth-httplib2==0.1.1
     #   google-cloud-profiler
 google-cloud-profiler==3.1.0
     # via -r hail/gear/requirements.txt
-googleapis-common-protos==1.60.0
+googleapis-common-protos==1.61.0
     # via google-api-core
 httplib2==0.22.0
     # via
@@ -123,7 +123,7 @@ multidict==6.0.4
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-orjson==3.9.7
+orjson==3.9.9
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -213,7 +213,7 @@ typing-extensions==4.8.0
     #   janus
 uritemplate==4.1.1
     # via google-api-python-client
-urllib3==1.26.17
+urllib3==1.26.18
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
