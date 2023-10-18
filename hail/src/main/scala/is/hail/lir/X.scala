@@ -354,13 +354,7 @@ class Block {
 
     last match {
       case ctrl: ControlX =>
-        var i = 0
-        while (i < ctrl.targetArity()) {
-          if (ctrl.target(i) == null)
-            return false
-          i += 1
-        }
-        true
+        (0 until ctrl.targetArity()).forall(ctrl.target(_) != null)
       case _ => false
     }
   }
@@ -409,9 +403,8 @@ class Block {
 
   def append(x: StmtX): Unit = {
     assert(x.parent == null)
-    if (last.isInstanceOf[ControlX])
-      // if last is a ControlX, x is dead code, so just drop it
-      return
+    assert(!last.isInstanceOf[ControlX], s"StmtX '$x' is redundant after ControlX '$last'.")
+
     if (last == null) {
       first = x
       last = x
@@ -709,29 +702,15 @@ class SwitchX(var lineNumber: Int = 0) extends ControlX {
   def Lcases: IndexedSeq[Block] = _Lcases
 
   def setLcases(newLcases: IndexedSeq[Block]): Unit = {
-    var i = 0
-    while (i < _Lcases.length) {
-      val L = _Lcases(i)
-      if (L != null)
-        L.removeUse(this, i + 1)
-      _Lcases(i) = null
-      i += 1
+    for ((block, i) <- _Lcases.zipWithIndex) {
+      if (block != null) block.removeUse(this, i + 1)
     }
 
     // don't allow sharing
-    _Lcases = new Array[Block](newLcases.length)
-    i = 0
-    while (i < _Lcases.length) {
-      _Lcases(i) = newLcases(i)
-      i += 1
-    }
+    _Lcases = Array(newLcases: _*)
 
-    i = 0
-    while (i < _Lcases.length) {
-      val L = _Lcases(i)
-      if (L != null)
-        L.addUse(this, i + 1)
-      i += 1
+    for ((block, i) <- _Lcases.zipWithIndex) {
+      if (block != null) block.addUse(this, i + 1)
     }
   }
 

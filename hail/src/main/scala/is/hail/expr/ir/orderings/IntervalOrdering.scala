@@ -21,15 +21,15 @@ object IntervalOrdering {
       val lstart = cb.memoize(lhs.loadStart(cb))
       val rstart = cb.memoize(rhs.loadStart(cb))
       cb.assign(cmp, pointCompare(cb, lstart, rstart))
-      cb.ifx(cmp.ceq(0), {
-        cb.ifx(lhs.includesStart.cne(rhs.includesStart), {
+      cb.if_(cmp.ceq(0), {
+        cb.if_(lhs.includesStart.cne(rhs.includesStart), {
           cb.assign(cmp, lhs.includesStart.mux(-1, 1))
         }, {
           val lend = cb.memoize(lhs.loadEnd(cb))
           val rend = cb.memoize(rhs.loadEnd(cb))
           cb.assign(cmp, pointCompare(cb, lend, rend))
-          cb.ifx(cmp.ceq(0), {
-            cb.ifx(lhs.includesEnd.cne(rhs.includesEnd), {
+          cb.if_(cmp.ceq(0), {
+            cb.if_(lhs.includesEnd.cne(rhs.includesEnd), {
               cb.assign(cmp, lhs.includesEnd.mux(1, -1))
             })
           })
@@ -52,18 +52,18 @@ object IntervalOrdering {
       val lhs = x.asInterval
       val rhs = y.asInterval
 
-      cb.ifx(lhs.includesStart.cne(rhs.includesStart) ||
+      cb.if_(lhs.includesStart.cne(rhs.includesStart) ||
         lhs.includesEnd.cne(rhs.includesEnd), {
         exitWith(false)
       })
 
       val lstart = cb.memoize(lhs.loadStart(cb))
       val rstart = cb.memoize(rhs.loadStart(cb))
-      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
+      cb.if_(!pointEq(cb, lstart, rstart), exitWith(false))
 
       val lend = cb.memoize(lhs.loadEnd(cb))
       val rend = cb.memoize(rhs.loadEnd(cb))
-      cb.ifx(!pointEq(cb, lend, rend), exitWith(false))
+      cb.if_(!pointEq(cb, lend, rend), exitWith(false))
 
       cb.define(Lout)
       ret
@@ -85,15 +85,15 @@ object IntervalOrdering {
       val lstart = cb.memoize(lhs.loadStart(cb))
       val rstart = cb.memoize(rhs.loadStart(cb))
 
-      cb.ifx(pointLt(cb, lstart, rstart), exitWith(true))
-      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
-      cb.ifx(lhs.includesStart && !rhs.includesStart, exitWith(true))
-      cb.ifx(lhs.includesStart.cne(rhs.includesStart), exitWith(false))
+      cb.if_(pointLt(cb, lstart, rstart), exitWith(true))
+      cb.if_(!pointEq(cb, lstart, rstart), exitWith(false))
+      cb.if_(lhs.includesStart && !rhs.includesStart, exitWith(true))
+      cb.if_(lhs.includesStart.cne(rhs.includesStart), exitWith(false))
 
       val lend = cb.memoize(lhs.loadEnd(cb))
       val rend = cb.memoize(rhs.loadEnd(cb))
 
-      cb.ifx(pointLt(cb, lend, rend), exitWith(true))
+      cb.if_(pointLt(cb, lend, rend), exitWith(true))
       cb.assign(ret, pointEq(cb, lend, rend) && !lhs.includesEnd && rhs.includesEnd)
 
       cb.define(Lout)
@@ -116,14 +116,14 @@ object IntervalOrdering {
       val lstart = cb.memoize(lhs.loadStart(cb))
       val rstart = cb.memoize(rhs.loadStart(cb))
 
-      cb.ifx(!pointLtEq(cb, lstart, rstart), exitWith(false))
-      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(true))
-      cb.ifx(lhs.includesStart && !rhs.includesStart, exitWith(true))
-      cb.ifx(lhs.includesStart.cne(rhs.includesStart), exitWith(false))
+      cb.if_(!pointLtEq(cb, lstart, rstart), exitWith(false))
+      cb.if_(!pointEq(cb, lstart, rstart), exitWith(true))
+      cb.if_(lhs.includesStart && !rhs.includesStart, exitWith(true))
+      cb.if_(lhs.includesStart.cne(rhs.includesStart), exitWith(false))
 
       val lend = cb.memoize(lhs.loadEnd(cb))
       val rend = cb.memoize(rhs.loadEnd(cb))
-      cb.ifx(!pointLtEq(cb, lend, rend), exitWith(false))
+      cb.if_(!pointLtEq(cb, lend, rend), exitWith(false))
       cb.assign(ret, !pointEq(cb, lend, rend) || !lhs.includesEnd || rhs.includesEnd)
 
       cb.define(Lout)
@@ -146,15 +146,15 @@ object IntervalOrdering {
       val lstart = cb.memoize(lhs.loadStart(cb))
       val rstart = cb.memoize(rhs.loadStart(cb))
 
-      cb.ifx(pointGt(cb, lstart, rstart), exitWith(true))
-      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
-      cb.ifx(!lhs.includesStart && rhs.includesStart, exitWith(true))
-      cb.ifx(lhs.includesStart.cne(rhs.includesStart), exitWith(false))
+      cb.if_(pointGt(cb, lstart, rstart), exitWith(true))
+      cb.if_(!pointEq(cb, lstart, rstart), exitWith(false))
+      cb.if_(!lhs.includesStart && rhs.includesStart, exitWith(true))
+      cb.if_(lhs.includesStart.cne(rhs.includesStart), exitWith(false))
 
       val lend = cb.memoize(lhs.loadEnd(cb))
       val rend = cb.memoize(rhs.loadEnd(cb))
 
-      cb.ifx(pointGt(cb, lend, rend), exitWith(true))
+      cb.if_(pointGt(cb, lend, rend), exitWith(true))
       cb.assign(ret, pointEq(cb, lend, rend) && lhs.includesEnd && !rhs.includesEnd)
 
       cb.define(Lout)
@@ -177,14 +177,14 @@ object IntervalOrdering {
       val lstart = cb.memoize(lhs.loadStart(cb))
       val rstart = cb.memoize(rhs.loadStart(cb))
 
-      cb.ifx(!pointGtEq(cb, lstart, rstart), exitWith(false))
-      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(true))
-      cb.ifx(!lhs.includesStart && rhs.includesStart, exitWith(true))
-      cb.ifx(lhs.includesStart.cne(rhs.includesStart), exitWith(false))
+      cb.if_(!pointGtEq(cb, lstart, rstart), exitWith(false))
+      cb.if_(!pointEq(cb, lstart, rstart), exitWith(true))
+      cb.if_(!lhs.includesStart && rhs.includesStart, exitWith(true))
+      cb.if_(lhs.includesStart.cne(rhs.includesStart), exitWith(false))
 
       val lend = cb.memoize(lhs.loadEnd(cb))
       val rend = cb.memoize(rhs.loadEnd(cb))
-      cb.ifx(!pointGtEq(cb, lend, rend), exitWith(false))
+      cb.if_(!pointGtEq(cb, lend, rend), exitWith(false))
       cb.assign(ret, !pointEq(cb, lend, rend) || lhs.includesEnd || !rhs.includesEnd)
 
       cb.define(Lout)

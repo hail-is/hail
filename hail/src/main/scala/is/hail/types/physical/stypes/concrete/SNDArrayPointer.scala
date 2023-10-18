@@ -83,7 +83,7 @@ class SNDArrayPointerValue(
   }
 
   override def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = {
-    cb.ifx(!hasShape(cb, otherShape), cb._fatal("incompatible shapes"))
+    cb.if_(!hasShape(cb, otherShape), cb._fatal("incompatible shapes"))
     new SNDArrayPointerValue(st, a, otherShape, strides, firstDataAddress)
   }
 

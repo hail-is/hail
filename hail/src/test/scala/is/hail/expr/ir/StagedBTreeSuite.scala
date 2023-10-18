@@ -29,7 +29,7 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   def storeKey(cb: EmitCodeBuilder, _off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit = {
     val off = cb.memoize[Long](_off)
     storageType.stagedInitialize(cb, off)
-    cb.ifx(m,
+    cb.if_(m,
       storageType.setFieldMissing(cb, off, 0),
       cb += Region.storeLong(storageType.fieldOffset(off, 0), v)
     )
@@ -119,7 +119,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       cb.assign(r, fb.getCodeParam[Region](1))
       cb.assign(root, fb.getCodeParam[Long](2))
       cb.assign(elt, btree.getOrElseInitialize(cb, ec))
-      cb.ifx(key.isEmpty(cb, elt), {
+      cb.if_(key.isEmpty(cb, elt), {
         key.storeKey(cb, elt, m, v)
       })
       root
@@ -147,17 +147,19 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       btree.foreach(cb) { (cb, _koff) =>
         val koff = cb.memoize(_koff)
         val ec = key.loadCompKey(cb, koff)
-        cb.ifx(ec.m,
+        cb.if_(ec.m,
           cb += sab.addMissing(),
           cb += sab.add(ec.pv.asInt64.value))
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
-      cb += (idx := 0)
-      cb += Code.whileLoop(idx < sab.size,
-        returnArray.update(idx, sab.isMissing(idx).mux(
+      cb.for_(
+        cb.assign(idx, 0),
+        idx < sab.size,
+        cb.assign(idx, idx + 1),
+        cb += returnArray.update(idx, sab.isMissing(idx).mux(
           Code._null[java.lang.Long],
-          Code.boxLong(coerce[Long](sab(idx))))),
-        idx := idx + 1
+          Code.boxLong(coerce[Long](sab(idx)))
+        ))
       )
       returnArray
     }
@@ -183,7 +185,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
         val off = cb.newLocal("off", offc)
         val ev = cb.memoize(key.loadCompKey(cb, off), "ev")
         cb += ob.writeBoolean(ev.m)
-        cb.ifx(!ev.m, {
+        cb.if_(!ev.m, {
           cb += ob.writeLong(ev.pv.asInt64.value)
         })
       }

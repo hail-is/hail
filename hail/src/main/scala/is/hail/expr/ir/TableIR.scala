@@ -611,7 +611,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(!iterator.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
+          cb.if_(!iterator.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(curIdx, curIdx + 1)
           cb.assign(next, upcastF.invoke[Region, Long, Long]("apply", region, Code.longValue(iterator.invoke[java.lang.Long]("next"))))
           cb.goto(LproduceElementDone)
@@ -707,7 +707,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(!xRowBuf.readByte().toZ, cb.goto(LendOfStream))
+          cb.if_(!xRowBuf.readByte().toZ, cb.goto(LendOfStream))
 
           val base = spec.encodedType.buildDecoder(concreteType, cb.emb.ecb).apply(cb, region, xRowBuf).asBaseStruct
           if (insertUID) {
@@ -818,7 +818,7 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
             SStackInterval.construct(EmitValue.present(startBound), EmitValue.present(endBound), includesStart, includesEnd),
             -1)
 
-          cb.ifx(endPart < startPart, cb._fatal("invalid start/end config - startPartIdx=",
+          cb.if_(endPart < startPart, cb._fatal("invalid start/end config - startPartIdx=",
             startPartitionIndex.toS, ", endPartIdx=", lastIncludedPartitionIdx.toS))
 
           cb.assign(startPartitionIndex, startPart)
@@ -838,13 +838,13 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           val Lstart = CodeLabel()
           cb.define(Lstart)
-          cb.ifx(currIdxInPartition >= stopIdxInPartition, {
-            cb.ifx(currPartitionIdx >= partitioner.numPartitions || currPartitionIdx > lastIncludedPartitionIdx,
+          cb.if_(currIdxInPartition >= stopIdxInPartition, {
+            cb.if_(currPartitionIdx >= partitioner.numPartitions || currPartitionIdx > lastIncludedPartitionIdx,
               cb.goto(LendOfStream))
 
             val requiresIndexInit = cb.newLocal[Boolean]("requiresIndexInit")
 
-            cb.ifx(streamFirst, {
+            cb.if_(streamFirst, {
               // if first, reuse open index from previous time the stream was run if possible
               // this is a common case if looking up nearby keys
               cb.assign(requiresIndexInit, !(indexInitialized && (indexCachedIndex ceq currPartitionIdx)))
@@ -854,8 +854,8 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
               cb.assign(requiresIndexInit, true)
             })
 
-            cb.ifx(requiresIndexInit, {
-              cb.ifx(indexInitialized, {
+            cb.if_(requiresIndexInit, {
+              cb.if_(indexInitialized, {
                 cb += finalizer.invoke[Unit]("clear")
                 index.close(cb)
                 cb += ib.close()
@@ -873,8 +873,8 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
               cb += finalizer.invoke[Closeable, Unit]("addCloseable", ib)
             })
 
-            cb.ifx(currPartitionIdx ceq lastIncludedPartitionIdx, {
-              cb.ifx(currPartitionIdx ceq startPartitionIndex, {
+            cb.if_(currPartitionIdx ceq lastIncludedPartitionIdx, {
+              cb.if_(currPartitionIdx ceq startPartitionIndex, {
                 // query the full interval
                 val indexResult = index.queryInterval(cb, ctx)
                 val startIdx = indexResult.loadField(cb, 0)
@@ -887,7 +887,7 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
                   .asInt64
                   .value
                 cb.assign(stopIdxInPartition, endIdx)
-                cb.ifx(endIdx > startIdx, {
+                cb.if_(endIdx > startIdx, {
                   val firstOffset = indexResult.loadField(cb, 2)
                     .get(cb)
                     .asBaseStruct
@@ -908,7 +908,7 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
                 // no need to seek, starting at beginning of partition
               })
             }, {
-              cb.ifx(currPartitionIdx ceq startPartitionIndex,
+              cb.if_(currPartitionIdx ceq startPartitionIndex,
                 {
                   // read from left endpoint until end of partition
                   val indexResult = index.queryBound(cb, ctx.loadStart(cb).get(cb).asBaseStruct, cb.memoize(!ctx.includesStart))
@@ -916,7 +916,7 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
 
                   cb.assign(currIdxInPartition, startIdx)
                   cb.assign(stopIdxInPartition, index.nKeys(cb))
-                  cb.ifx(currIdxInPartition < stopIdxInPartition, {
+                  cb.if_(currIdxInPartition < stopIdxInPartition, {
                     val firstOffset = indexResult.loadField(cb, 1).get(cb).asBaseStruct
                       .loadField(cb, "offset").get(cb).asInt64.value
 
@@ -933,7 +933,7 @@ case class PartitionNativeIntervalReader(sm: HailStateManager, tablePath: String
             cb.goto(Lstart)
           })
 
-          cb.ifx(ib.readByte() cne 1, cb._fatal(s"bad buffer state!"))
+          cb.if_(ib.readByte() cne 1, cb._fatal(s"bad buffer state!"))
           cb.assign(currIdxInPartition, currIdxInPartition + 1L)
           val decRow = spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)(cb, region, ib).asBaseStruct
           cb.assign(decodedRow, if (insertUID)
@@ -1043,7 +1043,7 @@ case class PartitionNativeReaderIndexed(
           cb.assign(ib, spec.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
               cb.emb.openUnbuffered(partitionPath, false))))
-          cb.ifx(endIndex > startIndex, {
+          cb.if_(endIndex > startIndex, {
             val firstOffset = indexResult.loadField(cb, 2)
               .get(cb)
               .asBaseStruct
@@ -1059,9 +1059,9 @@ case class PartitionNativeReaderIndexed(
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(curIdx >= endIdx, cb.goto(LendOfStream))
+          cb.if_(curIdx >= endIdx, cb.goto(LendOfStream))
           val next = ib.readByte()
-          cb.ifx(next cne 1, cb._fatal(s"bad buffer state!"))
+          cb.if_(next cne 1, cb._fatal(s"bad buffer state!"))
           val base = spec.encodedType.buildDecoder(concreteType, cb.emb.ecb)(cb, region, ib).asBaseStruct
           if (insertUID)
             cb.assign(decodedRow, new SInsertFieldsStructValue(
@@ -1315,7 +1315,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
                 .asString
                 .loadString(cb), true))))
 
-          cb.ifx(endIndex > startIndex, {
+          cb.if_(endIndex > startIndex, {
             val leafNode = indexResult.loadField(cb, 2)
               .get(cb)
               .asBaseStruct
@@ -1357,11 +1357,11 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(curIdx >= endIdx, cb.goto(LendOfStream))
+          cb.if_(curIdx >= endIdx, cb.goto(LendOfStream))
           val nextLeft = leftBuffer.readByte()
-          cb.ifx(nextLeft cne 1, cb._fatal(s"bad rows buffer state!"))
+          cb.if_(nextLeft cne 1, cb._fatal(s"bad rows buffer state!"))
           val nextRight = rightBuffer.readByte()
-          cb.ifx(nextRight cne 1, cb._fatal(s"bad entries buffer state!"))
+          cb.if_(nextRight cne 1, cb._fatal(s"bad entries buffer state!"))
           cb.assign(curIdx, curIdx + 1L)
           cb.assign(leftValue, leftDec(cb, region, leftBuffer))
           cb.assign(rightValue, rightDec(cb, region, rightBuffer))

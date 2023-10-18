@@ -28,7 +28,7 @@ class TakeByAggregatorSuite extends HailSuite {
           tba.newState(cb, 0L)
           tba.initialize(cb, size)
           cb += (i := 0L)
-          cb.whileLoop(i < n.toLong, {
+          cb.while_(i < n.toLong, {
             cb += argR.invoke[Unit]("clear")
             cb.assign(off, stringPT.allocateAndStoreString(cb, argR, const("str").concat(i.toS)))
             tba.seqOp(cb, false, off, false, cb.memoize(-i))
@@ -101,13 +101,13 @@ class TakeByAggregatorSuite extends HailSuite {
           tba.initialize(cb, nToTake)
           ab.initialize(cb)
           cb += (i := 0)
-          cb.whileLoop(i < n, {
+          cb.while_(i < n, {
             cb += (random := rng.invoke[Double, Double, Double]("runif", -10000d, 10000d).toI)
             tba.seqOp(cb, false, random, false, random)
             ab.append(cb, new SInt32Value(random))
             cb += (i := i + 1)
           })
-          cb += ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!"))
+          cb.if_(ab.size cne n, cb._fatal("bad size!"))
           cb += (resultOff := argR.allocate(8L, 16L))
           cb += Region.storeAddress(resultOff, tba.result(cb, argR, rt).a)
           cb += Region.storeAddress(resultOff + 8L, ab.data)

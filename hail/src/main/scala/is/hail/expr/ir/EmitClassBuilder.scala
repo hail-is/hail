@@ -162,10 +162,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
-  def result(
-    ctx: ExecuteContext,
-    print: Option[PrintWriter] = None
-  ): (HailClassLoader) => C = cb.result(ctx.shouldWriteIRFiles(), print)
+  def result(print: Option[PrintWriter] = None): HailClassLoader => C =
+    cb.result(ctx.shouldWriteIRFiles(), print)
 
   def getHailClassLoader: Code[HailClassLoader] = ecb.getHailClassLoader
 
@@ -217,7 +215,9 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getThreefryRNG(): Value[ThreefryRandomEngine] = ecb.getThreefryRNG()
 
-  def resultWithIndex(writeIRs: Boolean = ctx.shouldWriteIRFiles(), print: Option[PrintWriter] = None): (HailClassLoader, FS, HailTaskContext, Region) => C = ecb.resultWithIndex(writeIRs, print)
+  def resultWithIndex(print: Option[PrintWriter] = None)
+  : (HailClassLoader, FS, HailTaskContext, Region) => C =
+    ecb.resultWithIndex(print)
 
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
@@ -549,7 +549,7 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
         case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
         case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
       }
-      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti, implicitly[op.ReturnType =!= Unit])
     }
   }
 
@@ -569,7 +569,7 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
         case CodeOrdering.StructGteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
         case CodeOrdering.StructCompare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
       }
-      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti, implicitly[op.ReturnType =!= Unit])
     }
   }
 
@@ -681,7 +681,7 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
     mb.voidWithBuilder { cb =>
       val rgFields = emodb.referenceGenomeFields()
       val rgs = mb.getCodeParam[Array[ReferenceGenome]](1)
-      cb.ifx(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
+      cb.if_(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
       for ((fld, i) <- rgFields.zipWithIndex) {
         cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb += fld.put(rgs(i))
@@ -693,32 +693,30 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
     }
   }
 
-  def makeRNGs() {
+  def makeRNGs(): Unit = {
     cb.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
 
-    val initialized = genFieldThisRef[Boolean]()
+    val initialized = genFieldThisRef[Boolean]("initialized")
     val mb = newEmitMethod("setPartitionIndex", IndexedSeq[ParamType](typeInfo[Int]), typeInfo[Unit])
-
     val rngFields = rngs.result()
-    val initialize = Code(
-      Code(rngFields.map { case (field, initialization) =>
-        field := initialization
-      }),
-      threefryRNG match {
-        case Some((field, init)) => field := init
-        case None => Code._empty.get
+
+    mb.voidWithBuilder { cb =>
+      cb.if_(!initialized, {
+        rngFields.foreach { case (field, init) =>
+          cb.assign(field, init)
+        }
+
+        threefryRNG.foreach { case (field, init) =>
+          cb.assign(field, init)
+        }
+
+        cb.assign(initialized, true)
+      })
+
+      rngFields.foreach { case (field, _) =>
+        cb += field.invoke[Int, Unit]("reset", mb.getCodeParam[Int](1))
       }
-    )
-
-    val reseed = Code(rngFields.map { case (field, _) =>
-      field.invoke[Int, Unit]("reset", mb.getCodeParam[Int](1))
-    })
-
-    mb.emit(Code(
-      initialized.mux(
-        Code._empty,
-        Code(initialize, initialized := true)),
-      reseed))
+    }
   }
 
   def newRNG(seed: Long): Value[IRRandomness] = {
@@ -739,10 +737,8 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
     }
   }
 
-  def resultWithIndex(
-    writeIRs: Boolean,
-    print: Option[PrintWriter] = None
-  ): (HailClassLoader, FS, HailTaskContext, Region) => C = {
+  def resultWithIndex(print: Option[PrintWriter] = None)
+  : (HailClassLoader, FS, HailTaskContext, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
     makeAddHailClassLoader()
@@ -777,7 +773,7 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
       "FunctionBuilder emission should happen on master, but happened on worker")
 
     val n = cb.className.replace("/", ".")
-    val classesBytes = modb.classesBytes(writeIRs, print)
+    val classesBytes = modb.classesBytes(ctx.shouldWriteIRFiles(), print)
 
     new ((HailClassLoader, FS, HailTaskContext, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
@@ -1192,5 +1188,5 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
 
 final case class EmitFunctionBuilder[F] private(apply: EmitMethodBuilder[F])
   extends WrappedEmitMethodBuilder[F] {
-  def emb: EmitMethodBuilder[F] = apply
+  override val emb: EmitMethodBuilder[F] = apply
 }

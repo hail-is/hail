@@ -93,7 +93,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
 
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           val hasNext = iter.invoke[Boolean]("hasNext")
-          cb.ifx(hasNext, {
+          cb.if_(hasNext, {
             val gLine = iter.invoke[GenericLine]("next")
             cb.assign(line, gLine.invoke[String]("toString"))
             cb.assign(rowIdx, rowIdx + 1L)

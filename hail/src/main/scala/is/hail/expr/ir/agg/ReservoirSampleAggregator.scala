@@ -35,7 +35,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
 
   def createState(cb: EmitCodeBuilder): Unit = {
     cb.assign(rand, Code.newInstance[java.util.Random])
-    cb.ifx(region.isNull, {
+    cb.if_(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
     })
   }
@@ -49,7 +49,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
   }
 
   override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.ifx(region.isValid,
+    cb.if_(region.isValid,
       {
         regionStorer(cb, region)
         cb += region.invalidate()
@@ -88,7 +88,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
     cb.invokeVoid(
       cb.emb.ecb.getOrGenEmitMethod("reservoir_sample_gc", (this, "gc"), FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
-          cb.ifx(garbage > (maxSize.toL * 2L + 1024L), {
+          cb.if_(garbage > (maxSize.toL * 2L + 1024L), {
             val oldRegion = mb.newLocal[Region]("old_region")
             cb.assign(oldRegion, region)
             cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
@@ -104,7 +104,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
   def seqOp(cb: EmitCodeBuilder, elt: EmitCode): Unit = {
     val eltVal = cb.memoize(elt)
     cb.assign(seenSoFar, seenSoFar + 1)
-    cb.ifx(builder.size < maxSize,
+    cb.if_(builder.size < maxSize,
       eltVal.toI(cb)
         .consume(cb,
           builder.setMissing(cb),
@@ -112,7 +112,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
     {
       // swaps the next element into the reservoir with probability (k / n), where
       // k is the reservoir size and n is the number of elements seen so far (including current)
-      cb.ifx(rand.invoke[Double]("nextDouble") * seenSoFar.toD <= maxSize.toD, {
+      cb.if_(rand.invoke[Double]("nextDouble") * seenSoFar.toD <= maxSize.toD, {
         val idxToSwap = cb.memoize(rand.invoke[Int, Int]("nextInt", maxSize))
         builder.overwrite(cb, eltVal, idxToSwap)
         cb.assign(garbage, garbage + 1L)
@@ -124,7 +124,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
   def dump(cb: EmitCodeBuilder, prefix: String): Unit = {
     cb.println(s"> dumping reservoir: $prefix with size=", maxSize.toS,", seen=", seenSoFar.toS)
     val j = cb.newLocal[Int]("j", 0)
-    cb.whileLoop(j < builder.size, {
+    cb.while_(j < builder.size, {
       cb.println("    j=", j.toS, ", elt=", cb.strValue(builder.loadElement(cb, j)))
       cb.assign(j, j + 1)
     })
@@ -133,17 +133,17 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
 
   def combine(cb: EmitCodeBuilder, other: ReservoirSampleRVAS): Unit = {
     val j = cb.newLocal[Int]("j")
-    cb.ifx(other.builder.size < maxSize, {
+    cb.if_(other.builder.size < maxSize, {
 
       cb.assign(j, 0)
-      cb.whileLoop(j < other.builder.size, {
+      cb.while_(j < other.builder.size, {
         seqOp(cb, cb.memoize(other.builder.loadElement(cb, j)))
         cb.assign(j, j + 1)
       })
     }, {
-      cb.ifx(builder.size < maxSize, {
+      cb.if_(builder.size < maxSize, {
         cb.assign(j, 0)
-        cb.whileLoop(j < builder.size, {
+        cb.while_(j < builder.size, {
           other.seqOp(cb, cb.memoize(builder.loadElement(cb, j)))
           cb.assign(j, j + 1)
         })
@@ -167,9 +167,9 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
         val rightSize = cb.newLocal[Int]("rightSize", other.builder.size)
 
         cb.assign(j, 0)
-        cb.whileLoop(j < maxSize, {
+        cb.while_(j < maxSize, {
           val x = cb.memoize(rand.invoke[Double]("nextDouble"))
-          cb.ifx(x * (totalWeightLeft + totalWeightRight) <= totalWeightLeft, {
+          cb.if_(x * (totalWeightLeft + totalWeightRight) <= totalWeightLeft, {
 
             val idxToSample = cb.memoize(rand.invoke[Int, Int]("nextInt", leftSize))
             builder.loadElement(cb, idxToSample).toI(cb).consume(cb,
@@ -177,7 +177,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
               newBuilder.append(cb, _, false))
             cb.assign(leftSize, leftSize - 1)
             cb.assign(totalWeightLeft, totalWeightLeft - 1)
-            cb.ifx(idxToSample < leftSize, {
+            cb.if_(idxToSample < leftSize, {
               builder.overwrite(cb, cb.memoize(builder.loadElement(cb, leftSize)), idxToSample, false)
             })
           }, {
@@ -187,7 +187,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
               newBuilder.append(cb, _, true))
             cb.assign(rightSize, rightSize - 1)
             cb.assign(totalWeightRight, totalWeightRight - 1)
-            cb.ifx(idxToSample < rightSize, {
+            cb.if_(idxToSample < rightSize, {
               other.builder.overwrite(cb, cb.memoize(other.builder.loadElement(cb, rightSize)), idxToSample, false)
             })
           })

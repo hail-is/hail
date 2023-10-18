@@ -223,11 +223,11 @@ object EmitNDArray {
 
                 (0 until outputNDims).foreach { i =>
                   cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.value)
-                  cb.ifx(tempShapeElement < 0L,
+                  cb.if_(tempShapeElement < 0L,
                     {
-                      cb.ifx(tempShapeElement ceq -1L,
+                      cb.if_(tempShapeElement ceq -1L,
                         {
-                          cb.ifx(hasNegativeOne, {
+                          cb.if_(hasNegativeOne, {
                             cb._fatalWithError(errorID, "Can't infer shape, more than one -1")
                           }, {
                             cb.assign(hasNegativeOne, true)
@@ -247,7 +247,7 @@ object EmitNDArray {
                 val numElements = cb.newLocal[Long]("ndarray_reshape_child_num_elements")
                 cb.assign(numElements, SNDArray.numElements(childShapeValues))
 
-                cb.ifx(hasNegativeOne.mux(
+                cb.if_(hasNegativeOne.mux(
                   (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
                   numElements cne runningProduct
                 ), {
@@ -273,7 +273,7 @@ object EmitNDArray {
           case x@NDArrayConcat(nds, axis) =>
             emitI(nds, cb).flatMap(cb) { case ndsArraySValue: SIndexableValue =>
               val arrLength = ndsArraySValue.loadLength()
-              cb.ifx(arrLength ceq 0, {
+              cb.if_(arrLength ceq 0, {
                 cb._fatal("need at least one ndarray to concatenate")
               })
 
@@ -295,7 +295,7 @@ object EmitNDArray {
 
                 // compute index of first input which has non-zero concat axis size
                 val firstNonEmpty = cb.newLocal[Int]("ndarray_concat_first_nonempty", 0)
-                cb.whileLoop(stagedArrayOfSizes.loadElement(cb, firstNonEmpty).get(cb).asInt64.value.ceq(0L), {
+                cb.while_(stagedArrayOfSizes.loadElement(cb, firstNonEmpty).get(cb).asInt64.value.ceq(0L), {
                   cb.assign(firstNonEmpty, firstNonEmpty + 1)
                 })
 
@@ -305,13 +305,13 @@ object EmitNDArray {
                   val expected = cb.newLocal[Long]("ndarray_concat_expected_size")
                   val found = cb.newLocal[Long]("ndarray_concat_found_size")
                   for (i <- (0 until firstND.st.nDims).reverse if i != axis) {
-                    cb.ifx(firstND.shapes(i).cne(nd.shapes(i)), {
+                    cb.if_(firstND.shapes(i).cne(nd.shapes(i)), {
                       cb.assign(mismatchedDim, i)
                       cb.assign(expected, firstND.shapes(i))
                       cb.assign(found, nd.shapes(i))
                     })
                   }
-                  cb.ifx(mismatchedDim.cne(-1),
+                  cb.if_(mismatchedDim.cne(-1),
                     cb._fatal(const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis ")
                                 .concat(mismatchedDim.toS)
                                 .concat(": expected ").concat(expected.toS)
@@ -353,11 +353,11 @@ object EmitNDArray {
                       if (idx == axis) {
                         // If bigger than current ndarray, then we need to subtract out the size of this ndarray, increment to the next ndarray, and see if we are happy yet.
                         val shouldLoop = cb.newLocal[Boolean]("should_loop", curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.value)
-                        cb.whileLoop(shouldLoop,
+                        cb.while_(shouldLoop,
                           {
                             cb.assign(curIdxVar, curIdxVar - stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.value)
                             cb.assign(currentNDArrayIdx, currentNDArrayIdx + 1)
-                            cb.ifx(currentNDArrayIdx < stagedArrayOfSizes.loadLength(), {
+                            cb.if_(currentNDArrayIdx < stagedArrayOfSizes.loadLength(), {
                               cb.assign(shouldLoop, curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.value)
                             }, {
                               cb.assign(shouldLoop, false)
@@ -403,10 +403,10 @@ object EmitNDArray {
                               slicingValueTriplesBuilder.push((start, stop, step))
 
                               val newDimSize = cb.newLocal[Long]("new_dim_size")
-                              cb.ifx(step >= 0L && start <= stop, {
+                              cb.if_(step >= 0L && start <= stop, {
                                 cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
                               }, {
-                                cb.ifx(step < 0L && start >= stop, {
+                                cb.if_(step < 0L && start >= stop, {
                                   cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
                                 }, {
                                   cb.assign(newDimSize, 0L)
@@ -499,7 +499,7 @@ object EmitNDArray {
                   (cb: EmitCodeBuilder) => {
                     cb.assign(idxVars(idx), 0L)
                     childProducer.initAxis(idx)(cb)
-                    cb.ifx(filterWasMissing(idx), {
+                    cb.if_(filterWasMissing(idx), {
                       /* pass */
                     }, {
                       val startPoint = cb.newLocal[Long]("ndarray_producer_filter_init_axis", filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(
@@ -510,7 +510,7 @@ object EmitNDArray {
                 }
                 override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = shape.indices.map { idx =>
                   (cb: EmitCodeBuilder, step: Value[Long]) => {
-                    cb.ifx(filterWasMissing(idx), {
+                    cb.if_(filterWasMissing(idx), {
                       childProducer.stepAxis(idx)(cb, step)
                       cb.assign(idxVars(idx), idxVars(idx) + step)
                     }, {

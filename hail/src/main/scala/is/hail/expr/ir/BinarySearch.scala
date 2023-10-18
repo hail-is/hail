@@ -16,9 +16,9 @@ object BinarySearch {
     ): Comparator = new Comparator {
       def apply(cb: EmitCodeBuilder, elt: IEmitCode, ifLtNeedle: => Unit, ifGtNeedle: => Unit, ifNeither: => Unit): Unit = {
         val eltVal = cb.memoize(elt)
-        cb.ifx(ltNeedle(eltVal.loadI(cb)),
+        cb.if_(ltNeedle(eltVal.loadI(cb)),
           ifLtNeedle,
-          cb.ifx(gtNeedle(eltVal.loadI(cb)),
+          cb.if_(gtNeedle(eltVal.loadI(cb)),
             ifGtNeedle,
             ifNeither))
       }
@@ -27,9 +27,9 @@ object BinarySearch {
     def fromCompare(compare: IEmitCode => Value[Int]): Comparator = new Comparator {
       def apply(cb: EmitCodeBuilder, elt: IEmitCode, ifLtNeedle: => Unit, ifGtNeedle: => Unit, ifNeither: => Unit): Unit = {
         val c = cb.memoize(compare(elt))
-        cb.ifx(c < 0,
+        cb.if_(c < 0,
           ifLtNeedle,
-          cb.ifx(c > 0,
+          cb.if_(c > 0,
             ifGtNeedle,
             ifNeither))
       }
@@ -37,7 +37,7 @@ object BinarySearch {
 
     def fromPred(pred: IEmitCode => Code[Boolean]): Comparator = new Comparator {
       def apply(cb: EmitCodeBuilder, elt: IEmitCode, ifLtNeedle: => Unit, ifGtNeedle: => Unit, ifNeither: => Unit): Unit = {
-        cb.ifx(pred(elt), ifGtNeedle, ifLtNeedle)
+        cb.if_(pred(elt), ifGtNeedle, ifLtNeedle)
       }
     }
   }
@@ -228,7 +228,7 @@ object BinarySearch {
     // - left <= right
     // terminates b/c (right - left) strictly decreases each iteration
     cb.loop { recur =>
-      cb.ifx(left < right, {
+      cb.if_(left < right, {
         val mid = cb.memoize((left + right) >>> 1) // works even when sum overflows
         compare(cb, haystack.loadElement(cb, mid), {
           // range [start, mid] is < needle

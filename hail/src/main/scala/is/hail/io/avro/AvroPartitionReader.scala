@@ -86,7 +86,7 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
         val elementRegion: Settable[Region] = region
         val requiresMemoryManagementPerElement: Boolean = true
         val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
+          cb.if_(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(record, it.invoke[AnyRef, GenericRecord]("next", record))
           cb.assign(rowIdx, rowIdx + 1L)
           cb.goto(LproduceElementDone)

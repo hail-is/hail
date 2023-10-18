@@ -441,7 +441,6 @@ class ClassBuilder[C](
     assert(initBody.start != null)
     initBody.end.append(lir.returnx())
     lInit.setEntry(initBody.start)
-    initBody.end.append(lir.returnx())
 
     clinitBody match {
       case None => // do nothing
@@ -672,11 +671,11 @@ class MethodBuilder[C](
       coerce[T](Code._empty)
     } else {
       val result = invokeCode[T](args: _*)
-      cb.memoize[T](result)(returnTypeInfo.asInstanceOf[TypeInfo[T]])
+      cb.memoize[T](result)(returnTypeInfo.asInstanceOf[TypeInfo[T]], implicitly[T =!= Unit])
     }
 }
 
 final case class FunctionBuilder[F] private(apply: MethodBuilder[F])
   extends WrappedMethodBuilder[F] {
-  def mb: MethodBuilder[F] = apply
+  override val mb: MethodBuilder[F] = apply
 }

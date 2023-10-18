@@ -305,19 +305,20 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
         internalBuilder.encode(cb, ob)
         cb += ob.flush()
 
-        val next = m.newLocal[Int]("next")
-        cb.assign(next, level + 1)
-        cb.ifx(!isRoot, {
-          cb.ifx(utils.size.ceq(next),
-            parentBuilder.create(cb), {
-              cb.ifx(utils.getLength(next).ceq(branchingFactor),
-                cb.invokeVoid(m, cb._this, CodeParam(next), CodeParam(false)))
-              parentBuilder.loadFrom(cb, utils, next)
-            })
-          internalBuilder.loadChild(cb, 0)
-          parentBuilder.add(cb, idxOff, internalBuilder.getLoadedChild)
-          parentBuilder.store(cb, utils, next)
-        })
+      val next = m.newLocal[Int]("next")
+      cb.assign(next, level + 1)
+      cb.if_(!isRoot, {
+        cb.if_(utils.size.ceq(next),
+          parentBuilder.create(cb), {
+            cb.if_(utils.getLength(next).ceq(branchingFactor),
+              cb.invokeVoid(m, cb._this, CodeParam(next), CodeParam(false))
+            )
+            parentBuilder.loadFrom(cb, utils, next)
+          })
+        internalBuilder.loadChild(cb, 0)
+        parentBuilder.add(cb, idxOff, internalBuilder.getLoadedChild)
+        parentBuilder.store(cb, utils, next)
+      })
 
         internalBuilder.reset(cb)
         internalBuilder.store(cb, utils, level)
@@ -335,7 +336,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
         leafBuilder.encode(cb, ob)
         cb += ob.flush()
 
-        cb.ifx(utils.getLength(0).ceq(branchingFactor),
+        cb.if_(utils.getLength(0).ceq(branchingFactor),
           cb.invokeVoid(writeInternalNode, cb._this, CodeParam(0), CodeParam(false))
         )
         parentBuilder.loadFrom(cb, utils, 0)
@@ -352,10 +353,10 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       m.emitWithBuilder { cb =>
         val idxOff = cb.newLocal[Long]("indexOff")
         val level = m.newLocal[Int]("level")
-        cb.ifx(leafBuilder.ab.length > 0, cb.invokeVoid(writeLeafNode, cb._this))
+        cb.if_(leafBuilder.ab.length > 0, cb.invokeVoid(writeLeafNode, cb._this))
         cb.assign(level, 0)
-        cb.whileLoop(level < utils.size - 1, {
-          cb.ifx(utils.getLength(level) > 0,
+        cb.while_(level < utils.size - 1, {
+          cb.if_(utils.getLength(level) > 0,
             cb.invokeVoid(writeInternalNode, cb._this, CodeParam(level), CodeParam(false))
           )
           cb.assign(level, level + 1)
@@ -367,9 +368,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     }
 
   def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode) {
-    cb.ifx(leafBuilder.ab.length.ceq(branchingFactor),
-      cb.invokeVoid(writeLeafNode, cb._this)
-    )
+    cb.if_(leafBuilder.ab.length.ceq(branchingFactor), cb.invokeVoid(writeLeafNode, cb._this))
     leafBuilder.add(cb, key, offset, annotation)
     cb.assign(elementIdx, elementIdx + 1L)
   }

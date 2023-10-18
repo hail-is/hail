@@ -333,7 +333,7 @@ object PType {
         val srcAddr = fb.apply.getCodeParam[Long](2)
         cpt.store(cb, region, t.loadCheapSCode(cb, srcAddr), deepCopy = false)
       }
-      Some(fb.result(ctx))
+      Some(fb.result())
     }
   }
 }

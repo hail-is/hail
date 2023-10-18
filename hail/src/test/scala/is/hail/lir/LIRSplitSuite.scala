@@ -16,7 +16,7 @@ class LIRSplitSuite extends HailSuite {
 
         cb.assign(arg, 1000L)
         (0 until 1000).foreach { i =>
-          cb.ifx(arg.cne(1000L), cb._fatal(s"bad split at $i!"))
+          cb.if_(arg.cne(1000L), cb._fatal(s"bad split at $i!"))
         }
       }
       cb.invokeVoid(mb, cb._this, const(1L))

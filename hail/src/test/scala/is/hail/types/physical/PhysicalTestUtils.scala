@@ -76,7 +76,7 @@ abstract class PhysicalTestUtils extends HailSuite {
     }
 
     val copy = try {
-      val f = fb.result(ctx)(theHailClassLoader)
+      val f = fb.result()(theHailClassLoader)
       val copyOff = f(region, srcAddress)
       UnsafeRow.read(destType, region, copyOff)
     } catch {

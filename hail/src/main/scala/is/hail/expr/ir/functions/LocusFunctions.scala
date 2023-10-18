@@ -43,7 +43,7 @@ object LocusFunctions extends RegistryFunctions {
       val ss = SStringPointer(ps)
       val (push, finish) = pAlleles.constructFromFunctions(cb, r, len, deepCopy = false)
       val i = cb.newLocal[Int]("locus_alleles_i", 0)
-      cb.whileLoop(i < len, {
+      cb.while_(i < len, {
         push(cb, IEmitCode.present(cb, ss.constructFromString(cb, r, all.invoke[Int, String]("apply", i))))
         cb.assign(i, i + 1)
       })
@@ -113,7 +113,7 @@ object LocusFunctions extends RegistryFunctions {
         val basePos = inputLocus.position(cb)
         val bps = basePairsToAdd.value
         val newPos = cb.newLocal[Int]("newPos")
-        cb.ifx(bps <= 0,
+        cb.if_(bps <= 0,
           cb.assign(newPos, (basePos + bps).max(1)),
           cb.assign(newPos, (basePos + bps).min(cb.emb.getReferenceGenome(rt.rg).invoke[String, Int]("contigLength", contig)))
         )
@@ -146,7 +146,7 @@ object LocusFunctions extends RegistryFunctions {
 
         def forAllContigs(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SIndexableValue) => Unit): Unit = {
           val iContig = cb.newLocal[Int]("locuswindows_icontig", 0)
-          cb.whileLoop(iContig < ncontigs, {
+          cb.while_(iContig < ncontigs, {
             val coordPerContig = grouped.loadElement(cb, iContig).get(cb, "locus_windows group cannot be missing")
               .asIndexable
             f(cb, iContig, coordPerContig)
@@ -169,17 +169,17 @@ object LocusFunctions extends RegistryFunctions {
             val i = cb.newLocal[Int]("locuswindows_i", 0)
             val idx = cb.newLocal[Int]("locuswindows_idx", 0)
             val len = coords.loadLength()
-            cb.ifx(len.ceq(0),
+            cb.if_(len.ceq(0),
               cb.assign(lastCoord, 0.0),
               cb.assign(lastCoord, coords.loadElement(cb, 0).get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.value))
-            cb.whileLoop(i < len, {
+            cb.while_(i < len, {
 
               coords.loadElement(cb, i).consume(cb,
                 cb._fatalWithError(errorID, const("locus_windows: missing value for 'coord_expr' at row ")
                     .concat((offset + i).toS)),
                 { sc =>
                   val currentCoord = cb.newLocal[Double]("locuswindows_coord_i", sc.asDouble.value)
-                  cb.ifx(lastCoord > currentCoord,
+                  cb.if_(lastCoord > currentCoord,
                     cb._fatalWithError(errorID, "locus_windows: 'coord_expr' must be in ascending order within each contig."),
                     cb.assign(lastCoord, currentCoord)
                   )
@@ -189,10 +189,10 @@ object LocusFunctions extends RegistryFunctions {
               val Lbreak = CodeLabel()
 
               cb.define(Lstart)
-              cb.ifx(idx >= len,
+              cb.if_(idx >= len,
                 cb.goto(Lbreak)
               )
-              cb.ifx(cond(cb, i, idx, coords),
+              cb.if_(cond(cb, i, idx, coords),
                 {
                   cb.assign(idx, idx + 1)
                   cb.goto(Lstart)
@@ -286,7 +286,7 @@ object LocusFunctions extends RegistryFunctions {
               rgCode(cb.emb, plocus.rg),
               invalidMissing.asBoolean.value))
 
-          cb.ifx(interval.isNull, cb.goto(Lmissing))
+          cb.if_(interval.isNull, cb.goto(Lmissing))
 
           val intervalCode = emitLocusInterval(cb, r, interval, rt)
           cb.goto(Ldefined)
@@ -333,7 +333,7 @@ object LocusFunctions extends RegistryFunctions {
                         rgCode(cb.emb, plocus.rg),
                         invalidMissing.asBoolean.value))
 
-                    cb.ifx(interval.isNull, cb.goto(Lmissing))
+                    cb.if_(interval.isNull, cb.goto(Lmissing))
 
                     val intervalCode = emitLocusInterval(cb, r, interval, rt)
                     cb.goto(Ldefined)
@@ -385,7 +385,7 @@ object LocusFunctions extends RegistryFunctions {
               rgCode(cb.emb, srcRG).invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus",
                 destRG, locusObj, minMatch.asDouble.value))
 
-            cb.ifx(lifted.isNull, cb.goto(Lmissing))
+            cb.if_(lifted.isNull, cb.goto(Lmissing))
 
             val locType = rt.types(0).asInstanceOf[PCanonicalLocus]
             val locusCode = EmitCode.present(cb.emb, emitLocus(cb, r, Code.checkcast[Locus](lifted.getField[java.lang.Object]("_1")), locType))
@@ -426,7 +426,7 @@ object LocusFunctions extends RegistryFunctions {
                 destRG, intervalObj, minMatch.asDouble.value))
 
 
-            cb.ifx(lifted.isNull, cb.goto(Lmissing))
+            cb.if_(lifted.isNull, cb.goto(Lmissing))
 
             val iType = rt.types(0).asInstanceOf[PCanonicalInterval]
             val intervalCode = EmitCode.present(cb.emb, emitLocusInterval(cb, r, Code.checkcast[Interval](lifted.getField[java.lang.Object]("_1")), iType))

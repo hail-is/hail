@@ -31,15 +31,15 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       val i = cb.newLocal[Int]("i", 0)
       val size = cb.newLocal[Int]("size", array.size)
 
-      cb.whileLoop(i < size, {
-        cb.ifx(!array.isMissing(i), {
-          cb.ifx(newEnd.cne(i), cb += array.update(newEnd, array.apply(i)))
+      cb.while_(i < size, {
+        cb.if_(!array.isMissing(i), {
+          cb.if_(newEnd.cne(i), cb += array.update(newEnd, array.apply(i)))
           cb.assign(newEnd, newEnd + 1)
         })
         cb.assign(i, i + 1)
       })
       cb.assign(i, newEnd)
-      cb.whileLoop(i < size, {
+      cb.while_(i < size, {
         cb += array.setMissing(i, true)
         cb.assign(i, i + 1)
       })
@@ -62,15 +62,15 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         val j = cb.newLocal[Int]("mergemb_j", mid)
 
         val k = cb.newLocal[Int]("mergemb_k", i)
-        cb.whileLoop(k < end, {
+        cb.while_(k < end, {
 
           val LtakeFromLeft = CodeLabel()
           val LtakeFromRight = CodeLabel()
           val Ldone = CodeLabel()
 
-          cb.ifx(j < end, {
-            cb.ifx(i >= mid, cb.goto(LtakeFromRight))
-            cb.ifx(comparesLessThan(cb, r, arrayA.index(cb, j), arrayA.index(cb, i)), cb.goto(LtakeFromRight), cb.goto(LtakeFromLeft))
+          cb.if_(j < end, {
+            cb.if_(i >= mid, cb.goto(LtakeFromRight))
+            cb.if_(comparesLessThan(cb, r, arrayA.index(cb, j), arrayA.index(cb, i)), cb.goto(LtakeFromRight), cb.goto(LtakeFromLeft))
           }, cb.goto(LtakeFromLeft))
 
           cb.define(LtakeFromLeft)
@@ -97,7 +97,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         val arrayB = splitMergeMB.getCodeParam(4)(workingArrayInfo)
         val arrayA = splitMergeMB.getCodeParam(5)(workingArrayInfo)
 
-        cb.ifx(end - begin > 1, {
+        cb.if_(end - begin > 1, {
           val mid = cb.newLocal[Int]("splitMerge_mid", (begin + end) / 2)
 
           cb.invokeVoid(splitMergeMB, cb._this, r, begin, mid, arrayA, arrayB)
@@ -109,13 +109,13 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       }
 
       // these arrays should be allocated once and reused
-      cb.ifx(workingArray1.isNull || arrayRef(workingArray1).length() < newEnd, {
+      cb.if_(workingArray1.isNull || arrayRef(workingArray1).length() < newEnd, {
         cb.assignAny(workingArray1, Code.newArray(newEnd)(array.ti))
         cb.assignAny(workingArray2, Code.newArray(newEnd)(array.ti))
       })
 
       cb.assign(i, 0)
-      cb.whileLoop(i < newEnd, {
+      cb.while_(i < newEnd, {
         cb += arrayRef(workingArray1).update(i, array(i))
         cb += arrayRef(workingArray2).update(i, array(i))
         cb.assign(i, i + 1)
@@ -125,7 +125,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       cb.invokeVoid(splitMergeMB, cb._this, sortMB.getCodeParam[Region](1), const(0), newEnd, workingArray1, workingArray2)
 
       cb.assign(i, 0)
-      cb.whileLoop(i < newEnd, {
+      cb.while_(i < newEnd, {
         cb += array.update(i, arrayRef(workingArray2)(i))
         cb.assign(i, i + 1)
       })
@@ -157,9 +157,9 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
     val i = cb.newLocal[Int]("i", 0)
     val n = cb.newLocal[Int]("n", 0)
     val size = cb.newLocal[Int]("size", array.size)
-    cb.whileLoop(i < size, {
-      cb.ifx(!array.isMissing(i), {
-        cb.ifx(i.cne(n),
+    cb.while_(i < size, {
+      cb.if_(!array.isMissing(i), {
+        cb.if_(i.cne(n),
           cb += array.update(n, array(i)))
         cb.assign(n, n + 1)
       })
@@ -176,14 +176,14 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       val i = cb.newLocal[Int]("i", 0)
       val n = cb.newLocal[Int]("n", 0)
       val size = cb.newLocal[Int]("size", array.size)
-      cb.whileLoop(i < size, {
+      cb.while_(i < size, {
         cb.assign(i, i + 1)
 
         val LskipLoopBegin = CodeLabel()
         val LskipLoopEnd = CodeLabel()
         cb.define(LskipLoopBegin)
-        cb.ifx(i >= size, cb.goto(LskipLoopEnd))
-        cb.ifx(!discardNext(cb, region,
+        cb.if_(i >= size, cb.goto(LskipLoopEnd))
+        cb.if_(!discardNext(cb, region,
           EmitCode.fromI(distinctMB)(cb => array.loadFromIndex(cb, region, n)),
           EmitCode.fromI(distinctMB)(cb => array.loadFromIndex(cb, region, i))),
           cb.goto(LskipLoopEnd))
@@ -194,9 +194,9 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
         cb.assign(n, n + 1)
 
-        cb.ifx(i < size && i.cne(n), {
+        cb.if_(i < size && i.cne(n), {
           cb += array.setMissing(n, array.isMissing(i))
-          cb.ifx(!array.isMissing(n), cb += array.update(n, array(i)))
+          cb.if_(!array.isMissing(n), cb += array.update(n, array(i)))
         })
 
       })

@@ -151,7 +151,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           if (!rf.typ.required)
             structType.setFieldPresent(cb, addr, rf.index)
         } else {
-          cb.ifx(Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), {
+          cb.if_(Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), {
             structType.setFieldMissing(cb, addr, rf.index)
           }, {
             structType.setFieldPresent(cb, addr, rf.index)
@@ -163,7 +163,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         if (f.typ.required)
           skip(cb, region, in)
         else
-          cb.ifx(!Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), skip(cb, region, in))
+          cb.if_(!Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), skip(cb, region, in))
       }
     }
   }
@@ -176,7 +176,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       if (f.typ.required)
         skip(cb, r, in)
       else
-        cb.ifx(!Region.loadBit(mbytes, missingIdx(f.index).toLong), skip(cb, r, in))
+        cb.if_(!Region.loadBit(mbytes, missingIdx(f.index).toLong), skip(cb, r, in))
     }
   }
 

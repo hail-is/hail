@@ -98,7 +98,7 @@ class StagedMinHeapSuite extends HailSuite {
 
         val sortedLoci =
           pool.scopedRegion { r =>
-            using(Main.resultWithIndex(ctx.shouldWriteIRFiles())(theHailClassLoader, ctx.fs, ctx.taskContext, r)) {
+            using(Main.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)) {
               heap =>
                 heap.init()
                 IndexedSeq.fill(loci.size)(heap.pop())
@@ -178,7 +178,7 @@ class StagedMinHeapSuite extends HailSuite {
     }
 
     pool.scopedRegion { r =>
-      using(Main.resultWithIndex(ctx.shouldWriteIRFiles())(theHailClassLoader, ctx.fs, ctx.taskContext, r)) { f }
+      using(Main.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)) { f }
     }
   }
 

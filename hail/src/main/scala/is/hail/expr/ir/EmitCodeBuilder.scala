@@ -2,10 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.lir
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.utils._
+
 
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
@@ -35,16 +35,22 @@ object EmitCodeBuilder {
 }
 
 class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
-  def isOpenEnded: Boolean = {
-    val last = code.end.last
-    (last == null) || !last.isInstanceOf[lir.ControlX] || last.isInstanceOf[lir.ThrowX]
-  }
+  def isOpenEnded: Boolean =
+    code.isOpenEnded
 
   def mb: MethodBuilder[_] = emb.mb
 
-  def uncheckedAppend(c: Code[Unit]): Unit = {
+  override def append(c: Code[Unit]): Unit = {
     code = Code(code, c)
   }
+
+  override def define(L: CodeLabel): Unit =
+    if (isOpenEnded) append(L) else {
+      val tmp = code
+      code = new VCode(code.start, L.end, null)
+      tmp.clear()
+      L.clear()
+    }
 
   def result(): Code[Unit] = {
     val tmp = code
@@ -52,27 +58,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
-  def ifx[T: TypeInfo](c: Code[Boolean], emitThen: => Code[T], emitElse: => Code[T]): Value[T] = {
+  def if_(c: => Code[Boolean], emitThen: => SValue, emitElse: => SValue): SValue = {
     val Ltrue = CodeLabel()
     val Lfalse = CodeLabel()
     val Lafter = CodeLabel()
-    append(c.mux(Ltrue.goto, Lfalse.goto))
-    define(Ltrue)
-    val tval = emitThen
-    val value = newLocal[T]("ifx_value")
-    assign(value, tval)
-    goto(Lafter)
-    define(Lfalse)
-    assign(value, emitElse)
-    define(Lafter)
-    value
-  }
-
-  def ifx(c: Code[Boolean], emitThen: => SValue, emitElse: => SValue): SValue = {
-    val Ltrue = CodeLabel()
-    val Lfalse = CodeLabel()
-    val Lafter = CodeLabel()
-    append(c.mux(Ltrue.goto, Lfalse.goto))
+    append(c.branch(Ltrue, Lfalse))
     define(Ltrue)
     val tval = emitThen
     val value = newSLocal(tval.st, "ifx_value")
@@ -84,12 +74,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     value
   }
 
-  def ifx(c: Code[Boolean], emitThen: => IEmitCode, emitElse: => IEmitCode): IEmitCode = {
+  def if_(c: => Code[Boolean], emitThen: => IEmitCode, emitElse: => IEmitCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     val Ltrue = CodeLabel()
     val Lfalse = CodeLabel()
-    append(c.mux(Ltrue.goto, Lfalse.goto))
+    append(c.branch(Ltrue, Lfalse))
     define(Ltrue)
     val tval = emitThen
     val value = newSLocal(tval.st, "ifx_value")
@@ -141,12 +131,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
     memoizeField[T](v, "memoize")
-  }
-
-  def memoizeFieldAny(v: Code[_], name: String, ti: TypeInfo[_]): Value[_] = {
-    val l = newField(name)(ti)
-    append(l.storeAny(v))
-    l
   }
 
   def memoize(v: EmitCode): EmitValue =

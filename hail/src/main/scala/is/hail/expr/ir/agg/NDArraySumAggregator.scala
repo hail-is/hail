@@ -86,7 +86,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
 object NDArraySumAggregator {
 
   def addValues(cb: EmitCodeBuilder, region: Value[Region], leftNdValue: SNDArrayValue, rightNdValue: SNDArrayValue): Unit = {
-    cb.ifx(!leftNdValue.sameShape(cb, rightNdValue),
+    cb.if_(!leftNdValue.sameShape(cb, rightNdValue),
       cb += Code._fatal[Unit]("Can't sum ndarrays of different shapes."))
 
     leftNdValue.coiterateMutate(cb, region, (rightNdValue, "right")) {

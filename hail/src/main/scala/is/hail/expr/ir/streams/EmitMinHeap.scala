@@ -84,7 +84,7 @@ object EmitMinHeap {
     val realloc_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("realloc", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
-          cb.ifx(garbage > heap.size.toL * 2L + 1024L, {
+          cb.if_(garbage > heap.size.toL * 2L + 1024L, {
             val oldRegion = cb.newLocal[Region]("tmp", region)
             cb.assign(region, pool.invoke[Region]("getRegion"))
             heap.reallocateData(cb)
@@ -112,7 +112,7 @@ object EmitMinHeap {
     val peek_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("peek", FastSeq(), SCodeParamType(elemType)) { mb =>
         mb.emitSCode { cb =>
-          cb += Code._assert(cb.invokeCode[Boolean](nonEmpty_, cb._this), s"${classBuilder.className}: peek empty")
+          cb._assert(cb.invokeCode[Boolean](nonEmpty_, cb._this), s"${classBuilder.className}: peek empty")
           cb.invokeSCode(load, cb._this, cb.memoize(0))
         }
       }
@@ -130,7 +130,7 @@ object EmitMinHeap {
       classBuilder.defineEmitMethod("heapify", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
           val Ldone = CodeLabel()
-          cb.ifx(heap.size <= 1, cb.goto(Ldone))
+          cb.if_(heap.size <= 1, cb.goto(Ldone))
 
           val index = cb.newLocal[Int]("index", 0)
           val smallest = cb.newLocal[Int]("smallest", index)
@@ -139,8 +139,8 @@ object EmitMinHeap {
           cb.loop { Lrecur =>
             // left child
             cb.assign(child, index * 2 + 1)
-            cb.ifx(child < heap.size,
-              cb.ifx(
+            cb.if_(child < heap.size,
+              cb.if_(
                 cb.invokeCode[Int](compareAtIndex, cb._this, child, index) < 0,
                 cb.assign(smallest, child)
               )
@@ -148,14 +148,14 @@ object EmitMinHeap {
 
             // right child
             cb.assign(child, index * 2 + 2)
-            cb.ifx(child < heap.size,
-              cb.ifx(
+            cb.if_(child < heap.size,
+              cb.if_(
                 cb.invokeCode[Int](compareAtIndex, cb._this, child, smallest) < 0,
                 cb.assign(smallest, child)
               )
             )
 
-            cb.ifx(smallest ceq index, cb.goto(Ldone))
+            cb.if_(smallest ceq index, cb.goto(Ldone))
 
             cb.invokeVoid(swap, cb._this, index, smallest)
             cb.assign(index, smallest)
@@ -169,7 +169,7 @@ object EmitMinHeap {
     val pop_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("pop", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
-          cb += Code._assert(cb.invokeCode[Boolean](nonEmpty_, cb._this), s"${classBuilder.className}: poll empty")
+          cb._assert(cb.invokeCode[Boolean](nonEmpty_, cb._this), s"${classBuilder.className}: poll empty")
 
           val newSize = cb.memoize(heap.size - 1)
           cb.invokeVoid(swap, cb._this, const(0), newSize)
@@ -195,10 +195,10 @@ object EmitMinHeap {
           val current = cb.newLocal[Int]("index", heap.size - 1)
           val parent = cb.newLocal[Int]("parent")
 
-          cb.whileLoop(current > 0, {
+          cb.while_(current > 0, {
             cb.assign(parent, (current - 1) / 2)
             val cmp = cb.invokeCode[Int](compareAtIndex, cb._this, parent, current)
-            cb.ifx(cmp <= 0, cb.goto(Ldone))
+            cb.if_(cmp <= 0, cb.goto(Ldone))
 
             cb.invokeVoid(swap, cb._this, parent, current)
             cb.assign(current, parent)

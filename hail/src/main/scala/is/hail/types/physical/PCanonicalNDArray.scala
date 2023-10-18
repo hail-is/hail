@@ -205,7 +205,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
             cb += Region.copyFrom(dataValue.asInstanceOf[SIndexablePointerValue].elementsAddress, result.firstDataAddress, dataValue.loadLength().toL * elementType.byteSize)
           case _ =>
             val loopCtr = cb.newLocal[Long]("pcanonical_ndarray_construct_by_copying_loop_idx")
-            cb.forLoop(cb.assign(loopCtr, 0L), loopCtr < dataValue.loadLength().toL, cb.assign(loopCtr, loopCtr + 1L), {
+            cb.for_(cb.assign(loopCtr, 0L), loopCtr < dataValue.loadLength().toL, cb.assign(loopCtr, loopCtr + 1L), {
               elementType.storeAtAddress(cb, result.firstDataAddress + (loopCtr * elementType.byteSize), region, dataValue.loadElement(cb, loopCtr.toI).get(cb, "NDArray elements cannot be missing"), true)
             })
         }
@@ -268,7 +268,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   ): SNDArrayValue = {
     val oldDataAddr = toBeCopied.firstDataAddress
     val numDataBytes = cb.newLocal("constructByActuallyCopyingData_numDataBytes", Region.getSharedChunkByteSize(oldDataAddr))
-    cb.ifx(numDataBytes < 0L, cb._fatal("numDataBytes was ", numDataBytes.toS))
+    cb.if_(numDataBytes < 0L, cb._fatal("numDataBytes was ", numDataBytes.toS))
     val newDataAddr = cb.newLocal("constructByActuallyCopyingData_newDataAddr", region.allocateSharedChunk(numDataBytes))
     cb += Region.copyFrom(oldDataAddr, newDataAddr, numDataBytes)
     constructByCopyingDataPointer(

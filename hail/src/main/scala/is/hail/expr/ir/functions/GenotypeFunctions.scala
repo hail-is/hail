@@ -16,14 +16,14 @@ object GenotypeFunctions extends RegistryFunctions {
       val m2 = cb.newLocal[Int]("m2", 99)
       val i = cb.newLocal[Int]("i", 0)
 
-      cb.whileLoop(i < pl.loadLength(), {
+      cb.while_(i < pl.loadLength(), {
         val value = pl.loadElement(cb, i).get(cb, "PL cannot have missing elements.", errorID)
         val pli = cb.newLocal[Int]("pli", value.asInt.value)
-        cb.ifx(pli < m, {
+        cb.if_(pli < m, {
           cb.assign(m2, m)
           cb.assign(m, pli)
         }, {
-          cb.ifx(pli < m2,
+          cb.if_(pli < m2,
             cb.assign(m2, pli))
         })
         cb.assign(i, i + 1)
@@ -36,7 +36,7 @@ object GenotypeFunctions extends RegistryFunctions {
       (_: Type, arrayType: EmitType) => EmitType(SFloat64, arrayType.required && arrayType.st.asInstanceOf[SContainer].elementEmitType.required)
     ) { case (cb, r, rt, errorID, gp) =>
       gp.toI(cb).flatMap(cb) { case gpv: SIndexableValue =>
-        cb.ifx(gpv.loadLength().cne(3),
+        cb.if_(gpv.loadLength().cne(3),
           cb._fatalWithError(errorID, const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 
         gpv.loadElement(cb, 1).flatMap(cb) { _1 =>

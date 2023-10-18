@@ -77,7 +77,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, {
+    cb.if_(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
       cb += region.invalidate()
     })
@@ -88,7 +88,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.ifx(region.isValid,
+    cb.if_(region.isValid,
       {
         regionStorer(cb, region)
         cb += region.invalidate()
@@ -106,7 +106,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       { cb =>
         cb.assign(maxIndex, 0L)
         cb.assign(maxSize, _maxSize)
-        cb.ifx(maxSize < 0,
+        cb.if_(maxSize < 0,
           cb += Code._fatal[Unit](const("'take': 'n' cannot be negative, found '").concat(maxSize.toS)))
         initStaging(cb)
         ab.initialize(cb)
@@ -184,9 +184,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.assign(maxSize, ib.readInt())
           ab.deserialize(codec)(cb, ib)
           initStaging(cb)
-          cb += ib.readInt()
-            .cne(const(TakeByRVAS.END_SERIALIZATION))
-            .orEmpty(Code._fatal[Unit](s"StagedSizedKeyValuePriorityQueue serialization failed"))
+          cb.if_(ib.readInt() cne TakeByRVAS.END_SERIALIZATION,
+            cb._fatal(s"StagedSizedKeyValuePriorityQueue serialization failed")
+          )
         }
       )({ cb =>
         cb.assign(maxGarbage, ib.readInt())
@@ -237,11 +237,11 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       val idx = mb.getCodeParam[Int](1)
 
       mb.voidWithBuilder { cb =>
-        cb.ifx(idx > 0, {
+        cb.if_(idx > 0, {
           val parent = cb.memoize((idx + 1) / 2 - 1)
           val ii = elementOffset(cb, idx)
           val jj = elementOffset(cb, parent)
-          cb.ifx(cb.invokeCode[Int](compareElt, cb._this, ii, jj) > 0, {
+          cb.if_(cb.invokeCode[Int](compareElt, cb._this, ii, jj) > 0, {
             cb.invokeVoid(swap, cb._this, ii, jj)
             cb.invokeVoid(mb, cb._this, parent)
           })
@@ -263,15 +263,11 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
         cb.assign(child1, (idx + 1) * 2 - 1)
         cb.assign(child2, child1 + 1)
-        cb.ifx(child1 < ab.size, {
-          cb.ifx(
-            child2 >= ab.size,
-            cb.assign(minChild, child1),
-            {
+        cb.if_(child1 < ab.size, {
+          cb.if_(child2 >= ab.size, cb.assign(minChild, child1), {
               val o1 = elementOffset(cb, child1)
               val o2 = elementOffset(cb, child2)
-              cb.ifx(
-                cb.invokeCode[Int](compareElt, cb._this, o1, o2) > 0,
+              cb.if_(cb.invokeCode[Int](compareElt, cb._this, o1, o2) > 0,
                 cb.assign(minChild, child1),
                 cb.assign(minChild, child2)
               )
@@ -279,7 +275,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           )
           cb.assign(ii, elementOffset(cb, minChild))
           cb.assign(jj, elementOffset(cb, idx))
-          cb.ifx(cb.invokeCode[Int](compareElt, cb._this, ii, jj) > 0, {
+          cb.if_(cb.invokeCode[Int](compareElt, cb._this, ii, jj) > 0, {
             cb.invokeVoid(swap, cb._this, ii, jj)
             cb.invokeVoid(mb, cb._this, minChild)
           })
@@ -293,7 +289,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       val oldRegion = mb.newLocal[Region]("old_region")
       mb.voidWithBuilder { cb =>
         cb.assign(garbage, garbage + 1)
-        cb.ifx(garbage >= maxGarbage,
+        cb.if_(garbage >= maxGarbage,
           {
             cb.assign(oldRegion, region)
             cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
@@ -327,7 +323,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   private def copyElementToStaging(cb: EmitCodeBuilder, o: Code[Long]): Unit = cb += Region.copyFrom(o, staging, eltTuple.byteSize)
 
   private def copyToStaging(cb: EmitCodeBuilder, value: EmitCode, indexedKey: Code[Long]): Unit = {
-    cb.ifx(staging.ceq(0L), cb += Code._fatal[Unit]("staging is 0"))
+    cb.if_(staging.ceq(0L), cb += Code._fatal[Unit]("staging is 0"))
     indexedKeyType.storeAtAddress(cb,
       eltTuple.fieldOffset(staging, 0),
       region,
@@ -364,14 +360,14 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       val value = mb.getEmitParam(cb, 1)
       val key = mb.getEmitParam(cb, 2)
 
-      cb.ifx(maxSize > 0, {
-        cb.ifx(ab.size < maxSize, {
+      cb.if_(maxSize > 0, {
+        cb.if_(ab.size < maxSize, {
           stageAndIndexKey(cb, key)
           copyToStaging(cb, value, keyStage)
           enqueueStaging(cb)
         }, {
           cb.assign(tempPtr, eltTuple.loadField(elementOffset(cb, 0), 0))
-          cb.ifx(compareKey(cb, key, loadKey(cb, tempPtr)) < 0, {
+          cb.if_(compareKey(cb, key, loadKey(cb, tempPtr)) < 0, {
             stageAndIndexKey(cb, key)
             copyToStaging(cb, value, keyStage)
             swapStaging(cb)
@@ -396,24 +392,23 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
     mb.voidWithBuilder { cb =>
       val i = cb.newLocal[Int]("combine_i")
-      cb.forLoop(cb.assign(i, 0), i < other.ab.size, cb.assign(i, i + 1), {
+      cb.for_(cb.assign(i, 0), i < other.ab.size, cb.assign(i, i + 1), {
         val offset = other.elementOffset(cb, i)
         val indexOffset = cb.memoize(indexedKeyType.fieldOffset(eltTuple.loadField(offset, 0), 1))
         cb += Region.storeLong(indexOffset, Region.loadLong(indexOffset) + maxIndex)
-        cb.ifx(maxSize > 0,
-          cb.ifx(ab.size < maxSize,
+        cb.if_(maxSize > 0,
+          cb.if_(ab.size < maxSize,
             {
               copyElementToStaging(cb, offset)
               enqueueStaging(cb)
             },
             {
               cb.assign(tempPtr, elementOffset(cb, 0))
-              cb.ifx(cb.invokeCode[Int](compareElt, cb._this, offset, tempPtr) < 0,
-                {
-                  copyElementToStaging(cb, offset)
-                  swapStaging(cb)
-                  gc(cb)
-                })
+              cb.if_(cb.invokeCode[Int](compareElt, cb._this, offset, tempPtr) < 0, {
+                copyElementToStaging(cb, offset)
+                swapStaging(cb)
+                gc(cb)
+              })
             }
           ))
       })
@@ -457,7 +452,6 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           val pivotIndex = cb.newLocal[Int]("pivotIndex")
           val pivotOffset = cb.newLocal[Long]("pivot")
           val tmpOffset = cb.newLocal[Long]("tmpOffset")
-          val continue = cb.newLocal[Boolean]("continue")
 
           def indexOffset(idx: Value[Int]): Value[Long] =
             cb.memoize(indices + idx.toL * 4L)
@@ -465,31 +459,35 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           def indexAt(idx: Value[Int]): Value[Int] =
             cb.memoize(Region.loadInt(indexOffset(idx)))
 
-          cb.ifx(low.ceq(high), cb.append(Code._return(low)))
+          cb.if_(low.ceq(high), cb.append(Code._return(low)))
           cb.assign(pivotIndex, (low + high) / 2)
           cb.assign(pivotOffset, elementOffset(cb, indexAt(pivotIndex)))
-          cb.assign(continue, true)
-          cb.whileLoop(continue, {
-            cb.whileLoop({
+
+          cb.loop { Lrecur =>
+            cb.loop { Linner =>
               cb.assign(tmpOffset, elementOffset(cb, indexAt(low)))
-              cb.invokeCode[Int](compareElt, cb._this, tmpOffset, pivotOffset) < 0
-            }, {
-              cb.assign(low, low + 1)
-            })
-            cb.whileLoop({
+              cb.if_(cb.invokeCode[Int](compareElt, cb._this, tmpOffset, pivotOffset) < 0, {
+                cb.assign(low, low + 1)
+                cb.goto(Linner)
+              })
+            }
+
+            cb.loop { Linner =>
               cb.assign(tmpOffset, elementOffset(cb, indexAt(high)))
-              cb.invokeCode[Int](compareElt, cb._this, tmpOffset, pivotOffset) > 0
-            }, {
-              cb.assign(high, high - 1)
-            })
-            cb.ifx(low >= high, {
-              cb.assign(continue, false)
-            }, {
+              cb.if_(cb.invokeCode[Int](compareElt, cb._this, tmpOffset, pivotOffset) > 0, {
+                cb.assign(high, high - 1)
+                cb.goto(Linner)
+              })
+            }
+
+            cb.if_(high > low, {
               cb.invokeVoid(swap, cb._this, indexOffset(low), indexOffset(high))
               cb.assign(low, low + 1)
               cb.assign(high, high - 1)
+              cb.goto(Lrecur)
             })
-          })
+          }
+
           high
         }
       }
@@ -507,7 +505,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         mb.voidWithBuilder { cb =>
           val pivotIndex = cb.newLocal[Int]("pivotIdx")
 
-          cb.ifx(low < high, {
+          cb.if_(low < high, {
             cb.assign(pivotIndex, cb.invokeCode[Int](partition, cb._this, indices, low, high))
             cb.invokeVoid(mb, cb._this, indices, low, pivotIndex)
             cb.invokeVoid(mb, cb._this, indices, cb.memoize(pivotIndex + 1), high)
@@ -533,7 +531,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           def indexOffset(idx: Code[Int]): Code[Long] =
             indicesToSort + idx.toL * 4L
 
-          cb.whileLoop(i < ab.size, {
+          cb.while_(i < ab.size, {
             cb += Region.storeInt(indexOffset(i), i)
             cb.assign(i, i + 1)
           })
