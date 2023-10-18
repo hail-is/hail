@@ -61,7 +61,7 @@ object BTreeBackedSet {
     val km = fb.genFieldThisRef[Boolean]()
     val kv = fb.genFieldThisRef[Long]()
 
-    val key = new TestBTreeKey(fb.apply)
+    val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
     fb.emitWithBuilder { cb =>
       cb += (r := fb.getCodeParam[Region](1))
@@ -91,7 +91,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
 
-    val key = new TestBTreeKey(fb.apply)
+    val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
     fb.emitWithBuilder { cb =>
       cb.assign(r, fb.getCodeParam[Region](1))
@@ -111,7 +111,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val v = fb.getCodeParam[Long](4)
     val elt = fb.newLocal[Long]()
 
-    val key = new TestBTreeKey(fb.apply)
+    val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     fb.emitWithBuilder { cb =>
@@ -133,10 +133,10 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
 
-    val key = new TestBTreeKey(fb.apply)
+    val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
-    val sab = new StagedArrayBuilder(Int64SingleCodeType, true, fb.apply, 16)
+    val sab = new StagedArrayBuilder(Int64SingleCodeType, true, fb.apply_method, 16)
     val idx = fb.newLocal[Int]()
     val returnArray = fb.newLocal[Array[java.lang.Long]]()
 
@@ -174,7 +174,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val ob = fb.getCodeParam[OutputBuffer](2)
     val ob2 = fb.genFieldThisRef[OutputBuffer]()
 
-    val key = new TestBTreeKey(fb.apply)
+    val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     fb.emitWithBuilder { cb =>

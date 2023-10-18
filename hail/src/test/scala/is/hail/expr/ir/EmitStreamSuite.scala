@@ -24,7 +24,7 @@ class EmitStreamSuite extends HailSuite {
 
   private def compile1[T: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Value[T]) => Code[R]): T => R = {
     val fb = EmitFunctionBuilder[T, R](ctx, "stream_test")
-    val mb = fb.apply
+    val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1)))
     val asmFn = fb.result()(theHailClassLoader)
     asmFn.apply
@@ -32,7 +32,7 @@ class EmitStreamSuite extends HailSuite {
 
   private def compile2[T: TypeInfo, U: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Code[T], Code[U]) => Code[R]): (T, U) => R = {
     val fb = EmitFunctionBuilder[T, U, R](ctx, "F")
-    val mb = fb.apply
+    val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1), mb.getCodeParam[U](2)))
     val asmFn = fb.result()(theHailClassLoader)
     asmFn.apply
@@ -40,7 +40,7 @@ class EmitStreamSuite extends HailSuite {
 
   private def compile3[T: TypeInfo, U: TypeInfo, V: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Code[T], Code[U], Code[V]) => Code[R]): (T, U, V) => R = {
     val fb = EmitFunctionBuilder[T, U, V, R](ctx, "F")
-    val mb = fb.apply
+    val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1), mb.getCodeParam[U](2), mb.getCodeParam[V](3)))
     val asmFn = fb.result()(theHailClassLoader)
     asmFn.apply
@@ -54,7 +54,7 @@ class EmitStreamSuite extends HailSuite {
     inputTypes: IndexedSeq[EmitParamType]
   )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => pt: ParamType), LongInfo)
-    val mb = fb.apply
+    val mb = fb.apply_method
     val ir = streamIR.deepCopy()
 
     val emitContext = EmitContext.analyze(ctx, ir)
@@ -129,7 +129,7 @@ class EmitStreamSuite extends HailSuite {
 
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int](ctx, "eval_stream_len")
-    val mb = fb.apply
+    val mb = fb.apply_method
     val region = mb.getCodeParam[Region](1)
     val ir = streamIR.deepCopy()
     val emitContext = EmitContext.analyze(ctx, ir)

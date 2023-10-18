@@ -203,7 +203,7 @@ object EType {
       val fb = EmitFunctionBuilder[EncoderAsmFunction](ctx, "etypeEncode",
         Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
         NotGenericTypeInfo[Unit])
-      val mb = fb.apply
+      val mb = fb.apply_method
 
       mb.voidWithBuilder { cb =>
         val addr: Value[Long] = mb.getCodeParam[Long](1)
@@ -237,7 +237,7 @@ object EType {
       val fb = EmitFunctionBuilder[DecoderAsmFunction](ctx, "etypeDecode",
         Array(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
         NotGenericTypeInfo[Long])
-      val mb = fb.apply
+      val mb = fb.apply_method
       val pt = et.decodedPType(t)
       val f = et.buildDecoder(t, mb.ecb)
 

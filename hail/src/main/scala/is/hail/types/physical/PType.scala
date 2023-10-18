@@ -329,8 +329,8 @@ object PType {
         FastSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
 
       fb.emitWithBuilder { cb =>
-        val region = fb.apply.getCodeParam[Region](1)
-        val srcAddr = fb.apply.getCodeParam[Long](2)
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val srcAddr = fb.apply_method.getCodeParam[Long](2)
         cpt.store(cb, region, t.loadCheapSCode(cb, srcAddr), deepCopy = false)
       }
       Some(fb.result())

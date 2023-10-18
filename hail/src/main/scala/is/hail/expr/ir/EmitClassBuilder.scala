@@ -1186,7 +1186,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   def newEmitLocal(name: String, pt: SType, required: Boolean): EmitSettable = emb.newEmitLocal(name, pt, required)
 }
 
-final case class EmitFunctionBuilder[F] private(apply: EmitMethodBuilder[F])
+final case class EmitFunctionBuilder[F] private(apply_method: EmitMethodBuilder[F])
   extends WrappedEmitMethodBuilder[F] {
-  override val emb: EmitMethodBuilder[F] = apply
+  override val emb: EmitMethodBuilder[F] = apply_method
 }

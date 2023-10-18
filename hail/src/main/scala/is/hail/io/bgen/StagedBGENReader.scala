@@ -432,7 +432,7 @@ object StagedBGENReader {
     val fb = EmitFunctionBuilder[String, Array[Long], Array[AnyRef]](ctx, "bgen_query_index")
 
     fb.emitWithBuilder { cb =>
-      val mb = fb.apply
+      val mb = fb.apply_method
       val path = mb.getCodeParam[String](1)
       val indices = mb.getCodeParam[Array[Long]](2)
       val index = new StagedIndexReader(mb, leafSpec, internalSpec)

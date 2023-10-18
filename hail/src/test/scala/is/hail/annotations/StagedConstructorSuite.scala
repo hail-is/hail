@@ -443,8 +443,8 @@ class StagedConstructorSuite extends HailSuite {
 
           val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "deep_copy")
           fb.emitWithBuilder[Long](cb => t.store(cb,
-            fb.apply.getCodeParam[Region](1),
-            t.loadCheapSCode(cb, fb.apply.getCodeParam[Long](2)),
+            fb.apply_method.getCodeParam[Region](1),
+            t.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](2)),
               deepCopy = true))
           val copyF = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
           val newOff = copyF(region, src)

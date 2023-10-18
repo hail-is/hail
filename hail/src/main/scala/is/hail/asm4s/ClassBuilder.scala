@@ -675,7 +675,7 @@ class MethodBuilder[C](
     }
 }
 
-final case class FunctionBuilder[F] private(apply: MethodBuilder[F])
+final case class FunctionBuilder[F] private(apply_method: MethodBuilder[F])
   extends WrappedMethodBuilder[F] {
-  override val mb: MethodBuilder[F] = apply
+  override val mb: MethodBuilder[F] = apply_method
 }

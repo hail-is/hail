@@ -73,7 +73,7 @@ object Emit {
   def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
     TypeCheck(ctx.executeContext, ir)
 
-    val mb = fb.apply
+    val mb = fb.apply_method
     val container = aggs.map { a =>
       val c = fb.addAggStates(a)
       AggContainer(a, c, () => ())
@@ -81,7 +81,7 @@ object Emit {
     val emitter = new Emit[C](ctx, fb.ecb)
     val region = mb.getCodeParam[Region](1)
     val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
-      fb.apply.voidWithBuilder { cb =>
+      fb.apply_method.voidWithBuilder { cb =>
         val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2))) // this, region, ...
         emitter.emitVoid(cb, ir, region, env, container, None)
       }
