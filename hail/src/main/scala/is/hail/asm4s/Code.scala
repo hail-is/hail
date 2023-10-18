@@ -777,7 +777,7 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     assert(csq.v.ti.desc == alt.v.ti.desc, s"${csq.v.ti.desc} == ${alt.v.ti.desc}")
     CodeBuilder.scopedCode(null) { cb =>
       val t = Code.newLocal[T]("mux")(csq.v.ti.asInstanceOf[TypeInfo[T]])
-      cb.ifx(lhs, cb.assign(t, csq), cb.assign(t, alt))
+      cb.if_(lhs, cb.assign(t, csq), cb.assign(t, alt))
       t
     }
   }
@@ -1267,7 +1267,7 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
 
   override def get: Code[T] =
     CodeBuilder.scopedCode(null) { cb =>
-      cb.ifx(!present, cb += setm.invoke(cb) )
+      cb.if_(!present, cb += setm.invoke(cb) )
       value
     }
 }

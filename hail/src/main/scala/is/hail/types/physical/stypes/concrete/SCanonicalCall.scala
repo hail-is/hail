@@ -52,7 +52,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
 
   override def unphase(cb: EmitCodeBuilder): SCanonicalCallValue = {
     val repr = cb.newLocal[Int]("unphase_call", call)
-    cb.ifx(isPhased(cb),
+    cb.if_(isPhased(cb),
       cb.assign(repr, Code.invokeScalaObject1[Int, Int](Call.getClass, "unphase", call)),
       cb.assign(repr, call))
     new SCanonicalCallValue(repr)
@@ -81,8 +81,8 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     val j = cb.newLocal[Int]("fea_j")
     val k = cb.newLocal[Int]("fea_k")
 
-    cb.ifx(p.ceq(2), {
-      cb.ifx(call2 < Genotype.nCachedAllelePairs, {
+    cb.if_(p.ceq(2), {
+      cb.if_(call2 < Genotype.nCachedAllelePairs, {
         cb.assign(j, Code.invokeScalaObject1[Int, Int](Genotype.getClass, "cachedAlleleJ", call2))
         cb.assign(k, Code.invokeScalaObject1[Int, Int](Genotype.getClass, "cachedAlleleK", call2))
       }, {
@@ -90,12 +90,12 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
         cb.assign(j, call2 - (k * (k + 1) / 2))
       })
       alleleCode(j)
-      cb.ifx(isPhased(cb), cb.assign(k, k - j))
+      cb.if_(isPhased(cb), cb.assign(k, k - j))
       alleleCode(k)
     }, {
-      cb.ifx(p.ceq(1),
+      cb.if_(p.ceq(1),
         alleleCode(call2),
-        cb.ifx(p.cne(0),
+        cb.if_(p.cne(0),
           cb.append(Code._fatal[Unit](const("invalid ploidy: ").concat(p.toS)))))
     })
   }
@@ -104,7 +104,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
 
     def checkAndTranslate(cb: EmitCodeBuilder, allele: Code[Int]): Code[Int] = {
       val av = cb.newLocal[Int](s"allele", allele)
-      cb.ifx(av >= localAlleles.loadLength(),
+      cb.if_(av >= localAlleles.loadLength(),
         cb._fatalWithError(errorID,
           s"lgt_to_gt: found allele ", av.toS, ", but there are only ", localAlleles.loadLength().toS, " local alleles"))
       localAlleles.loadElement(cb, av).get(cb, const("lgt_to_gt: found missing value in local alleles at index ").concat(av.toS), errorID = errorID)
@@ -128,7 +128,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
           val j = cb.newLocal[Int]("allele_j", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "j", allelePair))
           val k = cb.newLocal[Int]("allele_k", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "k", allelePair))
 
-          cb.ifx(j >= localAlleles.loadLength(), cb._fatalWithError(errorID, "invalid lgt_to_gt: allele "))
+          cb.if_(j >= localAlleles.loadLength(), cb._fatalWithError(errorID, "invalid lgt_to_gt: allele "))
 
           cb.assign(repr, Code.invokeScalaObject4[Int, Int, Boolean, Int, Int](Call2.getClass, "withErrorID",
             checkAndTranslate(cb, j),

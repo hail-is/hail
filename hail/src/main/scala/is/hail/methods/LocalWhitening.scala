@@ -55,7 +55,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val n = Q2.shapes(1)
     val wpn = R.shapes(0)
 
-    cb.ifx(wpn.cne(w + n), cb._fatal("whitenBase: bad dimensions"))
+    cb.if_(wpn.cne(w + n), cb._fatal("whitenBase: bad dimensions"))
 
     Q2.assertHasShape(cb, FastSeq(m, n), "")
     Qout.assertHasShape(cb, FastSeq(m, w), "")
@@ -109,11 +109,11 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
   ): Unit = {
     val Seq(m, w) = Q.shapes
     val Seq(t) = T.shapes
-    cb.ifx(R.shapes(0).cne(w), cb._fatal("qr_pivot: R nrows != w"))
-    cb.ifx(R.shapes(1).cne(w), cb._fatal("qr_pivot: R ncols != w"))
-    cb.ifx(m <= w, cb._fatal("qr_pivot: m <= w, m=", m.toS, ", w=", w.toS))
-    cb.ifx(p0 < 0 || p0 >= p1 || p1 > w, cb._fatal("qr_pivot: bad p0, p1"))
-    cb.ifx(t < blocksize * p0.max((p1-p0).max(w-p1)), cb._fatal("qr_pivot: T too small"))
+    cb.if_(R.shapes(0).cne(w), cb._fatal("qr_pivot: R nrows != w"))
+    cb.if_(R.shapes(1).cne(w), cb._fatal("qr_pivot: R ncols != w"))
+    cb.if_(m <= w, cb._fatal("qr_pivot: m <= w, m=", m.toS, ", w=", w.toS))
+    cb.if_(p0 < 0 || p0 >= p1 || p1 > w, cb._fatal("qr_pivot: bad p0, p1"))
+    cb.if_(t < blocksize * p0.max((p1-p0).max(w-p1)), cb._fatal("qr_pivot: T too small"))
 
     val r0 = (null, p0)
     val r1 = (p0, p1)
@@ -132,12 +132,12 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
     R.slice(cb, r0, r1).setToZero(cb)
 
-    cb.ifx(p1 < w, {
+    cb.if_(p1 < w, {
       SNDArray.tpqrt(R.slice(cb, r2, r2), R.slice(cb, r1, r2), T, work3, b2, cb)
       SNDArray.tpmqrt("L", "T", R.slice(cb, r1, r2), T, R.slice(cb, r2, r01), R.slice(cb, r1, r01), work3, b2, cb)
       SNDArray.tpmqrt("R", "N", R.slice(cb, r1, r2), T, Q.slice(cb, Colon, r2), Q.slice(cb, Colon, r1), work3, b2, cb)
     })
-    cb.ifx(p0 > 0, {
+    cb.if_(p0 > 0, {
       SNDArray.tpqrt(R.slice(cb, r0, r0), R.slice(cb, r1, r0), T, work3, b0, cb)
       SNDArray.tpmqrt("L", "T", R.slice(cb, r1, r0), T, R.slice(cb, r0, r1), R.slice(cb, r1, r1), work3, b0, cb)
       SNDArray.tpmqrt("R", "N", R.slice(cb, r1, r0), T, Q.slice(cb, Colon, r0), Q.slice(cb, Colon, r1), work3, b0, cb)
@@ -162,7 +162,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val n = A.shapes(1)
     val wpn = work1.shapes(0)
 
-    cb.ifx(wpn.cne(w + n), cb._fatal("whitenNonrecur: bad dimensions"))
+    cb.if_(wpn.cne(w + n), cb._fatal("whitenNonrecur: bad dimensions"))
 
     assert(Q.hasShapeStatic(m, w))
     R.assertHasShape(cb, FastSeq(w, w), "")
@@ -219,7 +219,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val b = A.shapes(1)
     val bb = Rtemp.shapes(0)
 
-    cb.ifx((b*2).cne(bb), cb._fatal("whitenStep: invalid dimensions"))
+    cb.if_((b*2).cne(bb), cb._fatal("whitenStep: invalid dimensions"))
 
     assert(Q.hasShapeStatic(m, w))
     assert(R.hasShapeStatic(w, w))
@@ -264,9 +264,9 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val b = _A.shapes(1)
 
     val A = _A.coerceToShape(cb, m, b)
-    cb.ifx(b > chunksize, cb._fatal("whitenBlock: A too large, found ", b.toS, ", expected ", chunksize.toS))
+    cb.if_(b > chunksize, cb._fatal("whitenBlock: A too large, found ", b.toS, ", expected ", chunksize.toS))
 
-    cb.ifx(curSize < w, {
+    cb.if_(curSize < w, {
       // Orthogonalize against existing Q
       val Rslice = R.slice(cb, (null, curSize), (curSize, curSize + b))
       val Qslice = Q.slice(cb, Colon, (null, curSize))
@@ -290,7 +290,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
       cb.assign(curSize, curSize + b)
     }, {
-      cb.ifx(curSize.cne(w), cb._fatal("whitenBlock: initial blocks didn't evenly divide window size"))
+      cb.if_(curSize.cne(w), cb._fatal("whitenBlock: initial blocks didn't evenly divide window size"))
 
       val bb = SizeValueDyn(cb.memoize(b*2))
       whitenBlockLargeWindow(cb,
@@ -303,8 +303,8 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
         cb.memoize(blocksize.min(b)))
 
       cb.assign(pivot, pivot + b)
-      cb.ifx(pivot >= w, {
-        cb.ifx(pivot.cne(w), cb._fatal("whitenBlock, blocks didn't evenly divide window size"))
+      cb.if_(pivot >= w, {
+        cb.if_(pivot.cne(w), cb._fatal("whitenBlock, blocks didn't evenly divide window size"))
         cb.assign(pivot, 0L)
       })
     })
@@ -314,8 +314,8 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val b = _A.shapes(1)
 
     val A = _A.coerceToShape(cb, m, b)
-    cb.ifx(b > w, cb._fatal("initializeWindow: A too large"))
-    cb.ifx(curSize.cne(0), cb._fatal("initializeWindow: can only be called on empty state"))
+    cb.if_(b > w, cb._fatal("initializeWindow: A too large"))
+    cb.if_(curSize.cne(0), cb._fatal("initializeWindow: can only be called on empty state"))
 
     val Rslice = R.slice(cb, (null, b), (null, b))
     val Qslice = Q.slice(cb, Colon, (null, b))

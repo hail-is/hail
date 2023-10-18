@@ -675,7 +675,7 @@ class EmitClassBuilder[C](
     mb.voidWithBuilder { cb =>
       val rgFields = emodb.referenceGenomeFields()
       val rgs = mb.getCodeParam[Array[ReferenceGenome]](1)
-      cb.ifx(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
+      cb.if_(rgs.length().cne(const(rgFields.length)), cb._fatal("Invalid number of references, expected ", rgFields.length.toString, " got ", rgs.length().toS))
       for ((fld, i) <- rgFields.zipWithIndex) {
         cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
         cb += fld.put(rgs(i))
@@ -695,7 +695,7 @@ class EmitClassBuilder[C](
     val rngFields = rngs.result()
 
     mb.voidWithBuilder { cb =>
-      cb.ifx(!initialized, {
+      cb.if_(!initialized, {
         rngFields.foreach { case (field, init) =>
           cb.assign(field, init)
         }

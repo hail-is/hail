@@ -81,7 +81,7 @@ object SNDArray {
           indexSizes(idx) = cb.newLocal[Int](s"${indexVars(idx)}_max")
           cb.assign(indexSizes(idx), shape(i).toI)
         } else {
-          cb.ifx(indexSizes(idx).cne(shape(i).toI), cb._fatal(s"${indexVars(idx)} indexes incompatible dimensions"))
+          cb.if_(indexSizes(idx).cne(shape(i).toI), cb._fatal(s"${indexVars(idx)} indexes incompatible dimensions"))
         }
       }
       val strides = array.strides
@@ -240,7 +240,7 @@ object SNDArray {
 
   def assertColMajor(cb: EmitCodeBuilder, caller: String, nds: SNDArrayValue*): Unit = {
     for (nd <- nds) {
-      cb.ifx(nd.strides(0).cne(nd.st.pType.elementType.byteSize),
+      cb.if_(nd.strides(0).cne(nd.st.pType.elementType.byteSize),
         cb._fatal(s"$caller requires column major: found row stride ", nd.strides(0).toS, ", expected ", nd.st.pType.elementType.byteSize.toString))
     }
   }
@@ -345,9 +345,9 @@ object SNDArray {
 
     val Seq(m, n) = B.shapes
     val Seq(a0, a1) = A.shapes
-    cb.ifx(a1.cne(if (side == "left") m else n), cb._fatal("trmm: incompatible matrix dimensions"))
+    cb.if_(a1.cne(if (side == "left") m else n), cb._fatal("trmm: incompatible matrix dimensions"))
     // Elide check in the common case that we statically know A is square
-    if (a0 != a1) cb.ifx(a0 < a1, cb._fatal("trmm: A has fewer rows than cols: ", a0.toS, ", ", a1.toS))
+    if (a0 != a1) cb.if_(a0 < a1, cb._fatal("trmm: A has fewer rows than cols: ", a0.toS, ", ", a1.toS))
 
     val ldA = A.eltStride(1).max(1)
     val ldB = B.eltStride(1).max(1)
@@ -366,9 +366,9 @@ object SNDArray {
     val Seq(m, n) = if (A.st.nDims == 2) A.shapes else FastSeq(A.shapes(0), SizeValueStatic(1))
     val nb = blocksize
     val min = cb.memoize(m.min(n))
-    cb.ifx((nb > min && min > 0) || nb < 1, cb._fatal("geqrt: invalid block size: ", nb.toS))
-    cb.ifx(T.shapes(0) < nb*(m.min(n)), cb._fatal("geqrt: T too small"))
-    cb.ifx(work.shapes(0) < nb * n, cb._fatal("geqrt: work array too small"))
+    cb.if_((nb > min && min > 0) || nb < 1, cb._fatal("geqrt: invalid block size: ", nb.toS))
+    cb.if_(T.shapes(0) < nb*(m.min(n)), cb._fatal("geqrt: T too small"))
+    cb.if_(work.shapes(0) < nb * n, cb._fatal("geqrt: work array too small"))
 
     val error = cb.mb.newLocal[Int]()
     val ldA = if (A.st.nDims == 2) A.eltStride(1).max(1) else m.toI
@@ -377,7 +377,7 @@ object SNDArray {
       A.firstDataAddress, ldA,
       T.firstDataAddress, nb.toI.max(1),
       work.firstDataAddress))
-    cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
+    cb.if_(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
   }
 
   def gemqrt(side: String, trans: String, V: SNDArrayValue, T: SNDArrayValue, C: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
@@ -391,14 +391,14 @@ object SNDArray {
     val Seq(l, k) = V.shapes
     val Seq(m, n) = if (C.st.nDims == 2) C.shapes else FastSeq(C.shapes(0), SizeValueStatic(1))
     val nb = blocksize
-    cb.ifx((nb > k && k > 0) || nb < 1, cb._fatal("gemqrt: invalid block size: ", nb.toS))
-    cb.ifx(T.shapes(0) < nb*k, cb._fatal("gemqrt: invalid T size"))
+    cb.if_((nb > k && k > 0) || nb < 1, cb._fatal("gemqrt: invalid block size: ", nb.toS))
+    cb.if_(T.shapes(0) < nb*k, cb._fatal("gemqrt: invalid T size"))
     if (side == "L") {
-      cb.ifx(l.cne(m), cb._fatal("gemqrt: invalid dimensions"))
-      cb.ifx(work.shapes(0) < nb * n, cb._fatal("work array too small"))
+      cb.if_(l.cne(m), cb._fatal("gemqrt: invalid dimensions"))
+      cb.if_(work.shapes(0) < nb * n, cb._fatal("work array too small"))
     } else {
-      cb.ifx(l.cne(n), cb._fatal("gemqrt: invalid dimensions"))
-      cb.ifx(work.shapes(0) < nb * m, cb._fatal("work array too small"))
+      cb.if_(l.cne(n), cb._fatal("gemqrt: invalid dimensions"))
+      cb.if_(work.shapes(0) < nb * m, cb._fatal("work array too small"))
     }
 
     val error = cb.mb.newLocal[Int]()
@@ -410,7 +410,7 @@ object SNDArray {
       T.firstDataAddress, nb.toI.max(1),
       C.firstDataAddress, ldC,
       work.firstDataAddress))
-    cb.ifx(error.cne(0), cb._fatal("LAPACK error dgemqrt. Error code = ", error.toS))
+    cb.if_(error.cne(0), cb._fatal("LAPACK error dgemqrt. Error code = ", error.toS))
   }
 
   // Computes the QR factorization of A. Stores resulting factors in Q and R, overwriting A.
@@ -437,7 +437,7 @@ object SNDArray {
       0, m.toI,
       T, -1,
       work, -1))
-    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DGEQR. Failed size query. Error code = ", info.toS))
+    cb.if_(info.cne(0), cb._fatal(s"LAPACK error DGEQR. Failed size query. Error code = ", info.toS))
     val Tsize = cb.memoize(Region.loadDouble(T).toL)
     val LWork = cb.memoize(Region.loadDouble(work).toL)
     (cb.memoize(Tsize.max(5)), cb.memoize(LWork.max(1)))
@@ -461,9 +461,9 @@ object SNDArray {
       work.firstDataAddress, lwork.toI))
     val optTsize = T.loadElement(FastSeq(0), cb).asFloat64.value.toI
     val optLwork = work.loadElement(FastSeq(0), cb).asFloat64.value.toI
-    cb.ifx(optTsize > Tsize.toI, cb._fatal(s"dgeqr: T too small"))
-    cb.ifx(optLwork > lwork.toI, cb._fatal(s"dgeqr: work too small"))
-    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error dgeqr. Error code = ", info.toS))
+    cb.if_(optTsize > Tsize.toI, cb._fatal(s"dgeqr: T too small"))
+    cb.if_(optLwork > lwork.toI, cb._fatal(s"dgeqr: work too small"))
+    cb.if_(info.cne(0), cb._fatal(s"LAPACK error dgeqr. Error code = ", info.toS))
   }
 
   def gemqr(cb: EmitCodeBuilder, side: String, trans: String, A: SNDArrayValue, T: SNDArrayValue, C: SNDArrayValue, work: SNDArrayValue): Unit = {
@@ -477,9 +477,9 @@ object SNDArray {
     val Seq(l, k) = A.shapes
     val Seq(m, n) = if (C.st.nDims == 2) C.shapes else FastSeq(C.shapes(0), SizeValueStatic(1))
     if (side == "L") {
-      cb.ifx(l.cne(m), cb._fatal("gemqr: invalid dimensions"))
+      cb.if_(l.cne(m), cb._fatal("gemqr: invalid dimensions"))
     } else {
-      cb.ifx(l.cne(n), cb._fatal("gemqr: invalid dimensions"))
+      cb.if_(l.cne(n), cb._fatal("gemqr: invalid dimensions"))
     }
     val Tsize = T.shapes(0)
     val Lwork = work.shapes(0)
@@ -493,7 +493,7 @@ object SNDArray {
       T.firstDataAddress, Tsize.toI,
       C.firstDataAddress, ldC,
       work.firstDataAddress, Lwork.toI))
-    cb.ifx(error.cne(0), cb._fatal("LAPACK error dgemqr. Error code = ", error.toS))
+    cb.if_(error.cne(0), cb._fatal("LAPACK error dgemqr. Error code = ", error.toS))
   }
 
   // Computes the QR factorization of A. Stores resulting factors in Q and R, overwriting A.
@@ -519,10 +519,10 @@ object SNDArray {
 
     val Seq(m, n) = B.shapes
     val nb = blocksize
-    cb.ifx(nb > n || nb < 1, cb._fatal("tpqrt: invalid block size"))
-    cb.ifx(T.shapes(0) < nb*n, cb._fatal("tpqrt: T too small"))
+    cb.if_(nb > n || nb < 1, cb._fatal("tpqrt: invalid block size"))
+    cb.if_(T.shapes(0) < nb*n, cb._fatal("tpqrt: T too small"))
     A.assertHasShape(cb, FastSeq(n, n), "tpqrt: invalid shapes")
-    cb.ifx(work.shapes(0) < nb * n, cb._fatal("tpqrt: work array too small"))
+    cb.if_(work.shapes(0) < nb * n, cb._fatal("tpqrt: work array too small"))
 
     val error = cb.mb.newLocal[Int]()
     val ldA = A.eltStride(1).max(1)
@@ -533,7 +533,7 @@ object SNDArray {
       B.firstDataAddress, ldB,
       T.firstDataAddress, nb.toI.max(1),
       work.firstDataAddress))
-    cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
+    cb.if_(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
   }
 
   def tpmqrt(side: String, trans: String, V: SNDArrayValue, T: SNDArrayValue, A: SNDArrayValue, B: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
@@ -546,15 +546,15 @@ object SNDArray {
     val Seq(l, k) = V.shapes
     val Seq(m, n) = B.shapes
     val nb = blocksize
-    cb.ifx(nb > k || nb < 1, cb._fatal("tpmqrt: invalid block size"))
-    cb.ifx(T.shapes(0) < nb*k, cb._fatal("tpmqrt: T too small"))
+    cb.if_(nb > k || nb < 1, cb._fatal("tpmqrt: invalid block size"))
+    cb.if_(T.shapes(0) < nb*k, cb._fatal("tpmqrt: T too small"))
     if (side == "L") {
-      cb.ifx(l.cne(m), cb._fatal("tpmqrt: invalid dimensions"))
-      cb.ifx(work.shapes(0) < nb * n, cb._fatal("tpmqrt: work array too small"))
+      cb.if_(l.cne(m), cb._fatal("tpmqrt: invalid dimensions"))
+      cb.if_(work.shapes(0) < nb * n, cb._fatal("tpmqrt: work array too small"))
       A.assertHasShape(cb, FastSeq(k, n), "tpmqrt: invalid shapes")
     } else {
-      cb.ifx(l.cne(n), cb._fatal("invalid dimensions"))
-      cb.ifx(work.shapes(0) < nb * m, cb._fatal("work array too small"))
+      cb.if_(l.cne(n), cb._fatal("invalid dimensions"))
+      cb.if_(work.shapes(0) < nb * m, cb._fatal("work array too small"))
       A.assertHasShape(cb, FastSeq(m, k), "tpmqrt: invalid shapes")
     }
 
@@ -569,7 +569,7 @@ object SNDArray {
       A.firstDataAddress, ldA,
       B.firstDataAddress, ldB,
       work.firstDataAddress))
-    cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
+    cb.if_(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
   }
 
   def geqrf_query(cb: EmitCodeBuilder, m: Value[Int], n: Value[Int], region: Value[Region]): Value[Int] = {
@@ -582,7 +582,7 @@ object SNDArray {
       0, m.toI,
       0,
       LWorkAddress, -1))
-    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Failed size query. Error code = ", info.toS))
+    cb.if_(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Failed size query. Error code = ", info.toS))
     cb.assign(LWork, Region.loadDouble(LWorkAddress).toI)
     cb.memoize((LWork > 0).mux(LWork, 1))
   }
@@ -593,9 +593,9 @@ object SNDArray {
     assertVector(T, work)
 
     val Seq(m, n) = A.shapes
-    cb.ifx(T.shapes(0).cne(m.min(n)), cb._fatal("geqrf: T has wrong size"))
+    cb.if_(T.shapes(0).cne(m.min(n)), cb._fatal("geqrf: T has wrong size"))
     val lwork = work.shapes(0)
-    cb.ifx(lwork < n.max(1L), cb._fatal("geqrf: work has wrong size"))
+    cb.if_(lwork < n.max(1L), cb._fatal("geqrf: work has wrong size"))
 
     val ldA = A.eltStride(1).max(1)
     val info = cb.newLocal[Int]("dgeqrf_info")
@@ -604,7 +604,7 @@ object SNDArray {
       A.firstDataAddress, ldA,
       T.firstDataAddress,
       work.firstDataAddress, lwork.toI))
-    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Error code = ", info.toS))
+    cb.if_(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Error code = ", info.toS))
   }
 
   def orgqr(cb: EmitCodeBuilder, k: Value[Int], A: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue): Unit = {
@@ -613,10 +613,10 @@ object SNDArray {
     assertVector(T, work)
 
     val Seq(m, n) = A.shapes
-    cb.ifx(k < 0 || k > n.toI, cb._fatal("orgqr: invalid k"))
-    cb.ifx(T.shapes(0).cne(m.min(n)), cb._fatal("orgqr: T has wrong size"))
+    cb.if_(k < 0 || k > n.toI, cb._fatal("orgqr: invalid k"))
+    cb.if_(T.shapes(0).cne(m.min(n)), cb._fatal("orgqr: T has wrong size"))
     val lwork = work.shapes(0)
-    cb.ifx(lwork < n.max(1L), cb._fatal("orgqr: work has wrong size"))
+    cb.if_(lwork < n.max(1L), cb._fatal("orgqr: work has wrong size"))
 
     val ldA = A.eltStride(1).max(1)
     val info = cb.newLocal[Int]("dgeqrf_info")
@@ -625,7 +625,7 @@ object SNDArray {
       A.firstDataAddress, ldA,
       T.firstDataAddress,
       work.firstDataAddress, lwork.toI))
-    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Error code = ", info.toS))
+    cb.if_(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Error code = ", info.toS))
   }
 
   def syevr_query(cb: EmitCodeBuilder, jobz: String, uplo: String, n: Value[Int], region: Value[Region]): (SizeValue, SizeValue) = {
@@ -640,7 +640,7 @@ object SNDArray {
       0,
       WorkAddress, -1,
       IWorkAddress, -1))
-    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DSYEVR. Failed size query. Error code = ", info.toS))
+    cb.if_(info.cne(0), cb._fatal(s"LAPACK error DSYEVR. Failed size query. Error code = ", info.toS))
     val LWork = cb.memoize(Region.loadDouble(WorkAddress).toL)
     val LIWork = cb.memoize(Region.loadInt(IWorkAddress).toL)
     (SizeValueDyn(cb.memoize((LWork > 0).mux(LWork, 1))), SizeValueDyn(cb.memoize((LIWork > 0).mux(LIWork, 1))))
@@ -682,7 +682,7 @@ object SNDArray {
       iSuppZAddr,
       Work.firstDataAddress, lWork.toI,
       IWork.firstDataAddress, lIWork.toI))
-    cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DSYEVR. Error code = ", info.toS))
+    cb.if_(info.cne(0), cb._fatal(s"LAPACK error DSYEVR. Error code = ", info.toS))
   }
 }
 
@@ -784,7 +784,7 @@ trait SNDArrayValue extends SValue {
   def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int): Unit = {
     val shape = this.shapes
     for (dimIndex <- 0 until st.nDims) {
-      cb.ifx(indices(dimIndex) >= shape(dimIndex) || indices(dimIndex) < 0, {
+      cb.if_(indices(dimIndex) >= shape(dimIndex) || indices(dimIndex) < 0, {
         cb._fatalWithError(errorId,
           "Index ", indices(dimIndex).toS,
           s" is out of bounds for axis $dimIndex with size ",
@@ -809,7 +809,7 @@ trait SNDArrayValue extends SValue {
 
   def assertHasShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue], msg: Code[String]*) =
     if (!hasShapeStatic(otherShape))
-      cb.ifx(!hasShape(cb, otherShape),
+      cb.if_(!hasShape(cb, otherShape),
         cb._fatal(
           msg ++
           (const("\nExpected shape ").get +:
@@ -843,7 +843,7 @@ trait SNDArrayValue extends SValue {
     // Find largest prefix of dimensions which are stored contiguously.
     def contigDimsRecur(i: Int): Unit =
       if (i < st.nDims) {
-        cb.ifx(tmp.ceq(eltStride(i)), {
+        cb.if_(tmp.ceq(eltStride(i)), {
           cb.assign(tmp, tmp * shapes(i).toI)
           contigDimsRecur(i+1)
         }, {
@@ -928,25 +928,25 @@ trait SNDArrayValue extends SValue {
 
     for (i <- indices.indices) indices(i) match {
       case ScalarIndex(j) =>
-        cb.ifx(j < 0 || j >= shapeX(i), cb._fatal("Scalar index out of bounds (axis ", i.toString, "): ", j.toS, " is not in [0,", shapeX(i).toS, ")"))
+        cb.if_(j < 0 || j >= shapeX(i), cb._fatal("Scalar index out of bounds (axis ", i.toString, "): ", j.toS, " is not in [0,", shapeX(i).toS, ")"))
       case SliceIndex(Some(begin), Some(end)) =>
-        cb.ifx(begin > end, cb._fatal("Invalid slice index, " , begin.toS, " > ", end.toS))
-        cb.ifx(begin < 0 || end > shapeX(i), cb._fatal("Slice index out of bounds: (axis ", i.toString, ") range ", begin.toS, ":", end.toS, " is not contained by [0,", shapeX(i).toS, ")"))
+        cb.if_(begin > end, cb._fatal("Invalid slice index, " , begin.toS, " > ", end.toS))
+        cb.if_(begin < 0 || end > shapeX(i), cb._fatal("Slice index out of bounds: (axis ", i.toString, ") range ", begin.toS, ":", end.toS, " is not contained by [0,", shapeX(i).toS, ")"))
         val s = cb.newLocal[Long]("slice_size", end - begin)
         shapeBuilder += SizeValueDyn(s)
         stridesBuilder += stridesX(i)
       case SliceIndex(None, Some(end: SizeValue)) =>
-        cb.ifx(end > shapeX(i) || end < 0, cb._fatal("Index out of bounds"))
+        cb.if_(end > shapeX(i) || end < 0, cb._fatal("Index out of bounds"))
         shapeBuilder += end
         stridesBuilder += stridesX(i)
       case SliceIndex(None, Some(end)) =>
-        cb.ifx(end < 0, cb._fatal("Slice end index out of bounds (axis ", i.toString, "): endpoint " , end.toS, " < 0"))
-        cb.ifx(end > shapeX(i), cb._fatal("Slice end index out of bounds: endpoint ", end.toS, " > ", shapeX(i).toS))
+        cb.if_(end < 0, cb._fatal("Slice end index out of bounds (axis ", i.toString, "): endpoint " , end.toS, " < 0"))
+        cb.if_(end > shapeX(i), cb._fatal("Slice end index out of bounds: endpoint ", end.toS, " > ", shapeX(i).toS))
         shapeBuilder += SizeValueDyn(end)
         stridesBuilder += stridesX(i)
       case SliceIndex(Some(begin), None) =>
-        cb.ifx(begin < 0, cb._fatal("Slice start index out of bounds (axis ", i.toString, "): startpoint " , begin.toS, " < 0"))
-        cb.ifx(begin > shapeX(i), cb._fatal("Slice start index out of bounds (axis ", i.toString, "): startpoint ", begin.toS, " > ", shapeX(i).toS))
+        cb.if_(begin < 0, cb._fatal("Slice start index out of bounds (axis ", i.toString, "): startpoint " , begin.toS, " < 0"))
+        cb.if_(begin > shapeX(i), cb._fatal("Slice start index out of bounds (axis ", i.toString, "): startpoint ", begin.toS, " > ", shapeX(i).toS))
         val s = cb.newLocal[Long]("slice_size", shapeX(i) - begin)
         shapeBuilder += SizeValueDyn(s)
         stridesBuilder += stridesX(i)
@@ -954,12 +954,12 @@ trait SNDArrayValue extends SValue {
         shapeBuilder += shapeX(i)
         stridesBuilder += stridesX(i)
       case SliceSize(None, size) =>
-        cb.ifx(size > shapeX(i), cb._fatal("Slice size out of bounds (axis ", i.toString, "): size ", size.toS, " > ", shapeX(i).toS))
+        cb.if_(size > shapeX(i), cb._fatal("Slice size out of bounds (axis ", i.toString, "): size ", size.toS, " > ", shapeX(i).toS))
         shapeBuilder += size
         stridesBuilder += stridesX(i)
       case SliceSize(Some(begin), size) =>
-        cb.ifx(begin < 0, cb._fatal("Slice start out of bounds (axis ", i.toString, "): start ", begin.toS, " < 0"))
-        cb.ifx(begin + size > shapeX(i), cb._fatal("Slice index out of bounds (axis ", i.toString, "): range ", begin.toS, ":", begin.toS, "+", size.toS, " is not contained by [0,", shapeX(i).toS, ")"))
+        cb.if_(begin < 0, cb._fatal("Slice start out of bounds (axis ", i.toString, "): start ", begin.toS, " < 0"))
+        cb.if_(begin + size > shapeX(i), cb._fatal("Slice index out of bounds (axis ", i.toString, "): range ", begin.toS, ":", begin.toS, "+", size.toS, " is not contained by [0,", shapeX(i).toS, ")"))
         shapeBuilder += size
         stridesBuilder += stridesX(i)
       case ColonIndex =>

@@ -98,7 +98,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     fields.foreach { f =>
       val dstFieldType = f.typ
       if (dstFieldType.containsPointers) {
-        cb.ifx(isFieldDefined(cb, dstAddr, f.index),
+        cb.if_(isFieldDefined(cb, dstAddr, f.index),
           {
             val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
             dstFieldType.storeAtAddress(cb, fieldAddr, region, dstFieldType.loadCheapSCode(cb, dstFieldType.loadFromNested(fieldAddr)), deepCopy = true)

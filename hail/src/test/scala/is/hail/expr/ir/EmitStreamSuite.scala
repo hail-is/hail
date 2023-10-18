@@ -148,7 +148,7 @@ class EmitStreamSuite extends HailSuite {
               cb.assign(len, len + 1)
             }
           })
-      cb.ifx(len2.cne(-1) && (len2.cne(len)),
+      cb.if_(len2.cne(-1) && (len2.cne(len)),
         cb._fatal(s"length mismatch between computed and iteration length: computed=", len2.toS, ", iter=", len.toS))
 
       len2

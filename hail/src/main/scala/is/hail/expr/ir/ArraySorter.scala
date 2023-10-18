@@ -32,8 +32,8 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       val size = cb.newLocal[Int]("size", array.size)
 
       cb.while_(i < size, {
-        cb.ifx(!array.isMissing(i), {
-          cb.ifx(newEnd.cne(i), cb += array.update(newEnd, array.apply(i)))
+        cb.if_(!array.isMissing(i), {
+          cb.if_(newEnd.cne(i), cb += array.update(newEnd, array.apply(i)))
           cb.assign(newEnd, newEnd + 1)
         })
         cb.assign(i, i + 1)
@@ -68,9 +68,9 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
           val LtakeFromRight = CodeLabel()
           val Ldone = CodeLabel()
 
-          cb.ifx(j < end, {
-            cb.ifx(i >= mid, cb.goto(LtakeFromRight))
-            cb.ifx(comparesLessThan(cb, r, arrayA.index(cb, j), arrayA.index(cb, i)), cb.goto(LtakeFromRight), cb.goto(LtakeFromLeft))
+          cb.if_(j < end, {
+            cb.if_(i >= mid, cb.goto(LtakeFromRight))
+            cb.if_(comparesLessThan(cb, r, arrayA.index(cb, j), arrayA.index(cb, i)), cb.goto(LtakeFromRight), cb.goto(LtakeFromLeft))
           }, cb.goto(LtakeFromLeft))
 
           cb.define(LtakeFromLeft)
@@ -97,7 +97,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         val arrayB = splitMergeMB.getCodeParam(4)(workingArrayInfo)
         val arrayA = splitMergeMB.getCodeParam(5)(workingArrayInfo)
 
-        cb.ifx(end - begin > 1, {
+        cb.if_(end - begin > 1, {
           val mid = cb.newLocal[Int]("splitMerge_mid", (begin + end) / 2)
 
           cb.invokeVoid(splitMergeMB, r, begin, mid, arrayA, arrayB)
@@ -109,7 +109,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       }
 
       // these arrays should be allocated once and reused
-      cb.ifx(workingArray1.isNull || arrayRef(workingArray1).length() < newEnd, {
+      cb.if_(workingArray1.isNull || arrayRef(workingArray1).length() < newEnd, {
         cb.assignAny(workingArray1, Code.newArray(newEnd)(array.ti))
         cb.assignAny(workingArray2, Code.newArray(newEnd)(array.ti))
       })
@@ -160,8 +160,8 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
     val n = cb.newLocal[Int]("n", 0)
     val size = cb.newLocal[Int]("size", array.size)
     cb.while_(i < size, {
-      cb.ifx(!array.isMissing(i), {
-        cb.ifx(i.cne(n),
+      cb.if_(!array.isMissing(i), {
+        cb.if_(i.cne(n),
           cb += array.update(n, array(i)))
         cb.assign(n, n + 1)
       })
@@ -184,8 +184,8 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         val LskipLoopBegin = CodeLabel()
         val LskipLoopEnd = CodeLabel()
         cb.define(LskipLoopBegin)
-        cb.ifx(i >= size, cb.goto(LskipLoopEnd))
-        cb.ifx(!discardNext(cb, region,
+        cb.if_(i >= size, cb.goto(LskipLoopEnd))
+        cb.if_(!discardNext(cb, region,
           EmitCode.fromI(distinctMB)(cb => array.loadFromIndex(cb, region, n)),
           EmitCode.fromI(distinctMB)(cb => array.loadFromIndex(cb, region, i))),
           cb.goto(LskipLoopEnd))
@@ -196,9 +196,9 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
         cb.assign(n, n + 1)
 
-        cb.ifx(i < size && i.cne(n), {
+        cb.if_(i < size && i.cne(n), {
           cb += array.setMissing(n, array.isMissing(i))
-          cb.ifx(!array.isMissing(n), cb += array.update(n, array(i)))
+          cb.if_(!array.isMissing(n), cb += array.update(n, array(i)))
         })
 
       })

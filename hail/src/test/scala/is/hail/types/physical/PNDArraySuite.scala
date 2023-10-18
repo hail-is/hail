@@ -204,7 +204,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         }
 
         var relError: Value[Double] = cb.memoize(Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA))
-        cb.ifx(relError > 1e-14, {
+        cb.if_(relError > 1e-14, {
           cb._fatal("backwards error too large: ", relError.toS)
         })
 
@@ -224,7 +224,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         relError = cb.memoize(Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normW2))
         cb.println(relError.toS)
-        cb.ifx(!(relError < 1e-14), {
+        cb.if_(!(relError < 1e-14), {
           cb._fatal("relative error vs naive too large: ", relError.toS)
         })
 
@@ -280,7 +280,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         }
 
         val relError = cb.memoize(Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normW2))
-        cb.ifx(!(relError < 1e-14), {
+        cb.if_(!(relError < 1e-14), {
           cb._fatal("relative error vs naive too large: ", relError.toS)
         })
 

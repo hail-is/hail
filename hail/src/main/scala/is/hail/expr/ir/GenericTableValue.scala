@@ -87,7 +87,7 @@ class PartitionIteratorLongReader(
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(!it.get.hasNext,
+          cb.if_(!it.get.hasNext,
             cb.goto(LendOfStream))
           cb.assign(rv, Code.longValue(it.get.next()))
           cb.assign(rowIdx, rowIdx + 1L)

@@ -45,7 +45,7 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   private[this] val idxType = pType.fieldType("first_idx").asInstanceOf[PInt64]
   private[this] val node = new SBaseStructPointerSettable(SBaseStructPointer(pType), sb.newSettable[Long]("lef_node_addr"))
 
-  def close(cb: EmitCodeBuilder): Unit = cb.ifx(!region.isNull, cb += region.invalidate())
+  def close(cb: EmitCodeBuilder): Unit = cb.if_(!region.isNull, cb += region.invalidate())
 
   def reset(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
     cb += region.invoke[Unit]("clear")

@@ -58,7 +58,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
-  def ifx(c: Code[Boolean], emitThen: => SValue, emitElse: => SValue): SValue = {
+  def if_(c: => Code[Boolean], emitThen: => SValue, emitElse: => SValue): SValue = {
     val Ltrue = CodeLabel()
     val Lfalse = CodeLabel()
     val Lafter = CodeLabel()
@@ -74,7 +74,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     value
   }
 
-  def ifx(c: Code[Boolean], emitThen: => IEmitCode, emitElse: => IEmitCode): IEmitCode = {
+  def if_(c: => Code[Boolean], emitThen: => IEmitCode, emitElse: => IEmitCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     val Ltrue = CodeLabel()

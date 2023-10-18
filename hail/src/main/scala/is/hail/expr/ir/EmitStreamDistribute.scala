@@ -61,12 +61,12 @@ object EmitStreamDistribute {
 
       cb.for_(cb.assign(requestedSplittersIdx, 0), requestedSplittersIdx < requestedSplittersVal.loadLength(), cb.assign(requestedSplittersIdx, requestedSplittersIdx + 1), {
         val currentSplitter = requestedSplittersVal.loadElement(cb, requestedSplittersIdx).memoize(cb, "stream_distribute_current_splitter")
-        cb.ifx(requestedSplittersIdx ceq 0, {
+        cb.if_(requestedSplittersIdx ceq 0, {
           paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, 0), region, currentSplitter.get(cb), false)
           splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanValue(false), false)
           cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1)
         }, {
-          cb.ifx(!equal(cb, lastKeySeen, currentSplitter), {
+          cb.if_(!equal(cb, lastKeySeen, currentSplitter), {
             // write to pos in splitters
             paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, currentSplitter.get(cb), false)
             splittersWasDuplicatedPType.elementType.storeAtAddress(cb, splittersWasDuplicatedPType.loadElement(splittersWasDuplicatedAddr, splittersWasDuplicatedLength, uniqueSplittersIdx), region, new SBooleanValue(false), false)
@@ -82,7 +82,7 @@ object EmitStreamDistribute {
 
       // Pad out the rest of the splitters array so tree later is balanced.
       cb.for_({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
-        cb.ifx(lastKeySeen.get(cb).asInstanceOf[SBaseStructPointerSettable].a ceq const(0L), cb._fatal("paddedSplitterSize was ", paddedSplittersSize.toS))
+        cb.if_(lastKeySeen.get(cb).asInstanceOf[SBaseStructPointerSettable].a ceq const(0L), cb._fatal("paddedSplitterSize was ", paddedSplittersSize.toS))
         val loaded = paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx)
         paddedSplittersPType.elementType.storeAtAddress(cb, loaded, region, lastKeySeen.get(cb), false)
       })
@@ -127,11 +127,11 @@ object EmitStreamDistribute {
       def destFileSCode(cb: EmitCodeBuilder) = new SInt32Value(cb.memoize((currentFileToMapTo >= numFilesToWrite).mux(numFilesToWrite - 1, currentFileToMapTo)))
 
       val indexIncrement = cb.newLocal[Int]("stream_dist_create_file_mapping_increment")
-      cb.ifx(shouldUseIdentityBuckets, cb.assign(indexIncrement, 2), cb.assign(indexIncrement, 1))
+      cb.if_(shouldUseIdentityBuckets, cb.assign(indexIncrement, 2), cb.assign(indexIncrement, 1))
 
       cb.for_(cb.assign(bucketIdx, 0), bucketIdx < numberOfBuckets, cb.assign(bucketIdx, bucketIdx + indexIncrement), {
         fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx), region, destFileSCode(cb), false)
-        cb.ifx(shouldUseIdentityBuckets, {
+        cb.if_(shouldUseIdentityBuckets, {
           cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.value.toI)
           fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx + 1), region, destFileSCode(cb), false)
         })
@@ -146,7 +146,7 @@ object EmitStreamDistribute {
 
     val shouldUseIdentityBuckets = cb.memoize[Boolean](numUniqueSplitters < requestedSplittersVal.loadLength())
     val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets")
-    cb.ifx(shouldUseIdentityBuckets,
+    cb.if_(shouldUseIdentityBuckets,
       cb.assign(numberOfBuckets, const(1) << (treeHeight + 1)),
       cb.assign(numberOfBuckets, const(1) << treeHeight))
 
@@ -191,7 +191,7 @@ object EmitStreamDistribute {
         val treeAtB = tree.loadElement(cb, b).memoize(cb, "stream_dist_tree_b")
         cb.assign(b, const(2) * b + lessThan(cb, treeAtB, current).toI)
       })
-      cb.ifx(shouldUseIdentityBuckets, {
+      cb.if_(shouldUseIdentityBuckets, {
         cb.assign(b, const(2) * b + 1 - lessThan(cb, current, paddedSplitters.loadElement(cb, b - numberOfBuckets / 2).memoize(cb, "stream_dist_splitter_compare")).toI)
       })
 
@@ -232,7 +232,7 @@ object EmitStreamDistribute {
     ))
 
     // Add first, but only if min != first key.
-    cb.ifx(!skipMinInterval, {
+    cb.if_(!skipMinInterval, {
       val firstInterval = intervalType.constructFromCodes(cb, region,
         min,
         firstSplitter,
@@ -249,7 +249,7 @@ object EmitStreamDistribute {
     })
 
     cb.for_({cb.assign(uniqueSplittersIdx, 0); cb.assign(fileArrayIdx, 1) }, uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
-      cb.ifx(uniqueSplittersIdx cne 0, {
+      cb.if_(uniqueSplittersIdx cne 0, {
         val intervalFromLastToThis = intervalType.constructFromCodes(cb, region,
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
@@ -268,7 +268,7 @@ object EmitStreamDistribute {
       })
 
       // Now, maybe have to make an identity bucket.
-      cb.ifx(splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.value, {
+      cb.if_(splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.value, {
         val identityInterval = intervalType.constructFromCodes(cb, region,
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
@@ -288,7 +288,7 @@ object EmitStreamDistribute {
     })
 
     // Add last, but only if max != last key
-    cb.ifx(!skipMaxInterval, {
+    cb.if_(!skipMaxInterval, {
       val lastInterval = intervalType.constructFromCodes(cb, region,
         EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
         EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),

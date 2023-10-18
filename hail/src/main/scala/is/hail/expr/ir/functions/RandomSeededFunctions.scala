@@ -235,7 +235,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       val elt = cb.newLocal[Double]("elt")
       cb.loop { start =>
         cb.assign(elt, weights.loadElement(cb, i).get(cb, "rand_cat requires all elements of input array to be present").asFloat64.value)
-        cb.ifx(r > elt && i < len, {
+        cb.if_(r > elt && i < len, {
           cb.assign(r, r - elt)
           cb.assign(i, i + 1)
           cb.goto(start)
@@ -257,7 +257,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         cb.assign(totalNumberOfRecords, totalNumberOfRecords + partitionCounts.loadElement(cb, i).get(cb).asInt32.value)
       })
 
-      cb.ifx(initalNumSamplesToSelect.value > totalNumberOfRecords, cb._fatal("Requested selection of ", initalNumSamplesToSelect.value.toS,
+      cb.if_(initalNumSamplesToSelect.value > totalNumberOfRecords, cb._fatal("Requested selection of ", initalNumSamplesToSelect.value.toS,
         " samples from ", totalNumberOfRecords.toS, " records"))
 
       val successStatesRemaining = cb.newLocal[Int]("scnspp_success", initalNumSamplesToSelect.value)

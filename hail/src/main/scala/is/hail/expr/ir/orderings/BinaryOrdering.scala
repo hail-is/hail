@@ -28,11 +28,11 @@ object BinaryOrdering {
             Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", xv.loadByte(cb, i)),
             Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", yv.loadByte(cb, i)))
           cb.assign(cmp, compval)
-          cb.ifx(cmp.cne(0), cb.goto(Lbreak))
+          cb.if_(cmp.cne(0), cb.goto(Lbreak))
         })
 
         cb.define(Lbreak)
-        cb.ifx(cmp.ceq(0), {
+        cb.if_(cmp.ceq(0), {
           cb.assign(cmp, Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", xlen, ylen))
         })
 

@@ -268,7 +268,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   ): SNDArrayValue = {
     val oldDataAddr = toBeCopied.firstDataAddress
     val numDataBytes = cb.newLocal("constructByActuallyCopyingData_numDataBytes", Region.getSharedChunkByteSize(oldDataAddr))
-    cb.ifx(numDataBytes < 0L, cb._fatal("numDataBytes was ", numDataBytes.toS))
+    cb.if_(numDataBytes < 0L, cb._fatal("numDataBytes was ", numDataBytes.toS))
     val newDataAddr = cb.newLocal("constructByActuallyCopyingData_newDataAddr", region.allocateSharedChunk(numDataBytes))
     cb += Region.copyFrom(oldDataAddr, newDataAddr, numDataBytes)
     constructByCopyingDataPointer(

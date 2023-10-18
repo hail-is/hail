@@ -353,14 +353,14 @@ case class SplitPartitionNativeWriter(spec1: AbstractTypedCodecSpec,
         }: _*)
 
         if (!keyFieldNames.isEmpty) {
-          cb.ifx(distinctlyKeyed, {
+          cb.if_(distinctlyKeyed, {
             lastSeenSettable.loadI(cb).consume(cb, {
               // If there's no last seen, we are in the first row.
               cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
             }, { lastSeen =>
               val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
               val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
-              cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
+              cb.if_(equalToLast.asInstanceOf[Value[Boolean]], {
                 cb.assign(distinctlyKeyed, false)
               })
             })
@@ -632,16 +632,16 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
     def writeValue(cb: EmitCodeBuilder, value: SValue) = value match {
       case v: SInt32Value => _writeS(cb, v.value.toS)
       case v: SInt64Value =>
-        cb.ifx(v.value > Int.MaxValue || v.value <  Int.MinValue, cb._fatal(
+        cb.if_(v.value > Int.MaxValue || v.value <  Int.MinValue, cb._fatal(
           "Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) ",
           "or less than Int.MinValue (-2^31). Found ", v.value.toS))
         _writeS(cb, v.value.toS)
       case v: SFloat32Value =>
-        cb.ifx(Code.invokeStatic1[java.lang.Float, Float, Boolean]("isNaN", v.value),
+        cb.if_(Code.invokeStatic1[java.lang.Float, Float, Boolean]("isNaN", v.value),
           _writeC(cb, '.'),
           _writeS(cb, Code.invokeScalaObject2[String, Float, String](ExportVCF.getClass, "fmtFloat", "%.6g", v.value)))
       case v: SFloat64Value =>
-        cb.ifx(Code.invokeStatic1[java.lang.Double, Double, Boolean]("isNaN", v.value),
+        cb.if_(Code.invokeStatic1[java.lang.Double, Double, Boolean]("isNaN", v.value),
           _writeC(cb, '.'),
           _writeS(cb, Code.invokeScalaObject2[String, Double, String](ExportVCF.getClass, "fmtDouble", "%.6g", v.value)))
       case v: SStringValue =>
@@ -649,18 +649,18 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
       case v: SCallValue =>
         val ploidy = v.ploidy(cb)
         val phased = v.isPhased(cb)
-        cb.ifx(ploidy.ceq(0), cb._fatal("VCF spec does not support 0-ploid calls."))
-        cb.ifx(ploidy.ceq(1) , cb._fatal("VCF spec does not support phased haploid calls."))
+        cb.if_(ploidy.ceq(0), cb._fatal("VCF spec does not support 0-ploid calls."))
+        cb.if_(ploidy.ceq(1) , cb._fatal("VCF spec does not support phased haploid calls."))
         val c = v.canonicalCall(cb)
         _writeB(cb, Code.invokeScalaObject1[Int, Array[Byte]](Call.getClass, "toUTF8", c))
     }
 
     def writeIterable(cb: EmitCodeBuilder, it: SIndexableValue, delim: Int) =
       it.forEachDefinedOrMissing(cb)({ (cb, i) =>
-        cb.ifx(i.cne(0), _writeC(cb, delim))
+        cb.if_(i.cne(0), _writeC(cb, delim))
         _writeC(cb, '.')
       }, { (cb, i, value) =>
-        cb.ifx(i.cne(0), _writeC(cb, delim))
+        cb.if_(i.cne(0), _writeC(cb, delim))
         writeValue(cb, value)
       })
 
@@ -668,7 +668,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
       val end = cb.newLocal[Int]("lastDefined", -1)
       val Lend = CodeLabel()
       formatFieldOrder.zipWithIndex.reverse.foreach { case (idx, pos) =>
-        cb.ifx(!gt.isFieldMissing(cb, idx), {
+        cb.if_(!gt.isFieldMissing(cb, idx), {
           cb.assign(end, pos)
           cb.goto(Lend)
         })
@@ -678,7 +678,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
 
       val Lout = CodeLabel()
 
-      cb.ifx(end < 0, {
+      cb.if_(end < 0, {
         _writeB(cb, missingFormatUTF8Value)
         cb.goto(Lout)
       })
@@ -699,7 +699,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
             writeValue(cb, value)
         })
 
-        cb.ifx(end.ceq(pos), cb.goto(Lout))
+        cb.if_(end.ceq(pos), cb.goto(Lout))
       }
 
       cb.define(Lout)
@@ -733,11 +733,11 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
 
     // ALT
     writeC('\t')
-    cb.ifx(alleles.loadLength() > 1,
+    cb.if_(alleles.loadLength() > 1,
       {
         val i = cb.newLocal[Int]("i")
         cb.for_(cb.assign(i, 1), i < alleles.loadLength(), cb.assign(i, i + 1), {
-          cb.ifx(i.cne(1), writeC(','))
+          cb.if_(i.cne(1), writeC(','))
           writeB(alleles.loadElement(cb, i).get(cb).asString.toBytes(cb).loadBytes(cb))
         })
       },
@@ -756,7 +756,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
     writeC('\t')
     if (filtersExists)
       elt.loadField(cb, filtersIdx).consume(cb, writeC('.'), { case filters: SIndexableValue =>
-        cb.ifx(filters.loadLength().ceq(0), writeB(passUTF8Value), {
+        cb.if_(filters.loadLength().ceq(0), writeB(passUTF8Value), {
           writeIterable(cb, filters, ';')
         })
       })
@@ -774,21 +774,21 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
           val field = info.st.virtualType.fields(idx)
           info.loadField(cb, idx).consume(cb, { /* do nothing */ }, {
             case infoArray: SIndexableValue if infoArray.st.elementType.virtualType != TBoolean =>
-              cb.ifx(infoArray.loadLength() > 0, {
-                cb.ifx(wroteInfo, writeC(';'))
+              cb.if_(infoArray.loadLength() > 0, {
+                cb.if_(wroteInfo, writeC(';'))
                 writeS(field.name)
                 writeC('=')
                 writeIterable(cb, infoArray, ',')
                 cb.assign(wroteInfo, true)
               })
             case infoFlag: SBooleanValue =>
-              cb.ifx(infoFlag.value, {
-                cb.ifx(wroteInfo, writeC(';'))
+              cb.if_(infoFlag.value, {
+                cb.if_(wroteInfo, writeC(';'))
                 writeS(field.name)
                 cb.assign(wroteInfo, true)
               })
             case info =>
-              cb.ifx(wroteInfo, writeC(';'))
+              cb.if_(wroteInfo, writeC(';'))
               writeS(field.name)
               writeC('=')
               writeValue(cb, info)
@@ -798,14 +798,14 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         }
       })
 
-      cb.ifx(!wroteInfo, writeC('.'))
+      cb.if_(!wroteInfo, writeC('.'))
     } else {
       writeC('.')
     }
 
     // FORMAT
     val genotypes = elt.loadField(cb, entriesFieldName).get(cb).asIndexable
-    cb.ifx(genotypes.loadLength() > 0, {
+    cb.if_(genotypes.loadLength() > 0, {
       writeC('\t')
       writeB(formatFieldUTF8)
       genotypes.forEachDefinedOrMissing(cb)({ (cb, _) =>
@@ -847,7 +847,7 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
 
     val partPaths = annotations.loadField(cb, "partFiles").get(cb).asIndexable
     val partFiles = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
-    cb.ifx(partPaths.hasMissingValues(cb), cb._fatal("matrixwriter part paths contains missing values"))
+    cb.if_(partPaths.hasMissingValues(cb), cb._fatal("matrixwriter part paths contains missing values"))
 
     val allFiles = if (tabix && exportType != ExportType.CONCATENATED) {
       val len = partPaths.loadLength()
@@ -987,7 +987,7 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
         _writeS(cb, " 0 0 0")
         }, { (cb, i, va) =>
           va.asBaseStruct.loadField(cb, "GP").consume(cb, _writeS(cb, " 0 0 0"), { case gp: SIndexableValue =>
-            cb.ifx(gp.loadLength().cne(3),
+            cb.if_(gp.loadLength().cne(3),
               cb._fatal("Invalid 'gp' at variant '", locus.contig(cb).loadString(cb), ":", locus.position(cb).toS, ":", a0, ":", a1, "' and sample index ", i.toS, ". The array must have length equal to 3."))
             gp.forEachDefinedOrMissing(cb)((cb, _) => cb._fatal("GP cannot be missing"), { (cb, _, gp) =>
               _writeC(cb, ' ')
@@ -1146,7 +1146,7 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
     val rsid = elt.loadField(cb, "rsid").get(cb).asString.loadString(cb)
     val alleles = elt.loadField(cb, "alleles").get(cb).asIndexable
 
-    cb.ifx(alleles.loadLength() >= 0xffff, cb._fatal("Maximum number of alleles per variant is 65536. Found ", alleles.loadLength().toS))
+    cb.if_(alleles.loadLength() >= 0xffff, cb._fatal("Maximum number of alleles per variant is 65536. Found ", alleles.loadLength().toS))
 
     cb += buf.invoke[Unit]("clear")
     cb += uncompBuf.invoke[Unit]("clear")
@@ -1194,12 +1194,12 @@ case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeH
         val gpSum = cb.newLocal[Double]("gpSum", 0d)
         gp.asIndexable.forEachDefined(cb) { (cb, idx, x) =>
           val gpv = x.asDouble.value
-          cb.ifx(gpv < 0d,
+          cb.if_(gpv < 0d,
             cb._fatal("found GP value less than 0: ", gpv.toS, ", at sample ", j.toS, " of variant", chr, ":", pos.toS))
           cb.assign(gpSum, gpSum + gpv)
           cb += (gpResized(idx) = gpv * BgenWriter.totalProb.toDouble)
         }
-        cb.ifx(gpSum >= 0.999 && gpSum <= 1.001, {
+        cb.if_(gpSum >= 0.999 && gpSum <= 1.001, {
           cb += uncompBuf.invoke[Int, Byte, Unit]("update", samplePloidyStart + j, BgenWriter.ploidy)
           cb += Code.invokeScalaObject6[Array[Double], Array[Double], Array[Int], Array[Int], ByteArrayBuilder, Long, Unit](BgenWriter.getClass, "roundWithConstantSum",
             gpResized, fractional, index, indexInverse, uncompBuf, BgenWriter.totalProb.toLong)
@@ -1245,7 +1245,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
         cb.assign(dropped, dropped + d.asInt64.value)
       })
     }
-    cb.ifx(dropped.cne(0L), cb.warning("Set ", dropped.toS, " genotypes to missing: total GP probability did not lie in [0.999, 1.001]."))
+    cb.if_(dropped.cne(0L), cb.warning("Set ", dropped.toS, " genotypes to missing: total GP probability did not lie in [0.999, 1.001]."))
 
     val numVariants = cb.newLocal[Long]("num_variants", 0L)
     if (exportType != ExportType.PARALLEL_HEADER_IN_SHARD) {

@@ -34,7 +34,7 @@ object IterableOrdering {
       val rhs = y.asIndexable
       loop(cb, lhs, rhs) { (lhs, rhs) =>
         cb.assign(cmp, elemCmp(cb, lhs, rhs))
-        cb.ifx(cmp.cne(0), cb.goto(Lout))
+        cb.if_(cmp.cne(0), cb.goto(Lout))
       }
 
       // if we get here, cmp is 0
@@ -59,7 +59,7 @@ object IterableOrdering {
         val lt = elemLt(cb, lhs, rhs)
         val eq = !lt && elemEq(cb, lhs, rhs)
 
-        cb.ifx(!eq, {
+        cb.if_(!eq, {
           cb.assign(ret, lt)
           cb.goto(Lout)
         })
@@ -84,7 +84,7 @@ object IterableOrdering {
         val lteq = elemLtEq(cb, lhs, rhs)
         val eq = elemEq(cb, lhs, rhs)
 
-        cb.ifx(!eq, {
+        cb.if_(!eq, {
           cb.assign(ret, lteq)
           cb.goto(Lout)
         })
@@ -111,7 +111,7 @@ object IterableOrdering {
         val gt = elemGt(cb, lhs, rhs)
         val eq = !gt && elemEq(cb, lhs, rhs)
 
-        cb.ifx(!eq, {
+        cb.if_(!eq, {
           cb.assign(ret, gt)
           cb.goto(Lout)
         })
@@ -136,7 +136,7 @@ object IterableOrdering {
         val gteq = elemGtEq(cb, lhs, rhs)
         val eq = elemEq(cb, lhs, rhs)
 
-        cb.ifx(!eq, {
+        cb.if_(!eq, {
           cb.assign(ret, gteq)
           cb.goto(Lout)
         })
@@ -158,10 +158,10 @@ object IterableOrdering {
 
       val lhs = x.asIndexable
       val rhs = y.asIndexable
-      cb.ifx(lhs.loadLength().cne(rhs.loadLength()), exitWith(false))
+      cb.if_(lhs.loadLength().cne(rhs.loadLength()), exitWith(false))
       loop(cb, lhs, rhs) { (lhs, rhs) =>
         cb.assign(ret, elemEq(cb, lhs, rhs))
-        cb.ifx(!ret, cb.goto(Lout))
+        cb.if_(!ret, cb.goto(Lout))
       }
 
       cb.define(Lout)

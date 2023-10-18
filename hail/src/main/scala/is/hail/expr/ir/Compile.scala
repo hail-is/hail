@@ -210,7 +210,7 @@ object CompileIterator {
       val ret = cb.newLocal[Boolean]("stepf_ret")
       val Lreturn = CodeLabel()
 
-      cb.ifx(!didSetup, {
+      cb.if_(!didSetup, {
         optStream.toI(cb).get(cb) // handle missing, but bound stream producer above
 
         cb.assign(producer.elementRegion, eltRegionField)
@@ -219,7 +219,7 @@ object CompileIterator {
         cb.assign(eosField, false)
       })
 
-      cb.ifx(eosField, {
+      cb.if_(eosField, {
         cb.assign(ret, false)
         cb.goto(Lreturn)
       })

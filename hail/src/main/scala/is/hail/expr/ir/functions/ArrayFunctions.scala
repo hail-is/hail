@@ -282,7 +282,7 @@ object ArrayFunctions extends RegistryFunctions {
         ec2.toI(cb).flatMap(cb) { case pv2: SIndexableValue =>
           val l1 = cb.newLocal("len1", pv1.loadLength())
           val l2 = cb.newLocal("len2", pv2.loadLength())
-          cb.ifx(l1.cne(l2), {
+          cb.if_(l1.cne(l2), {
             cb._fatalWithError(errorID,
               "'corr': cannot compute correlation between arrays of different lengths: ",
                 l1.toS,
@@ -331,17 +331,17 @@ object ArrayFunctions extends RegistryFunctions {
             val nTotalAlleles =_nTotalAlleles.value
             val nGenotypes = cb.memoize(triangle(nTotalAlleles))
             val pt = rt.pType.asInstanceOf[PCanonicalArray]
-            cb.ifx(nTotalAlleles < 0, cb._fatalWithError(err, "local_to_global: n_total_alleles less than 0: ", nGenotypes.toS))
+            cb.if_(nTotalAlleles < 0, cb._fatalWithError(err, "local_to_global: n_total_alleles less than 0: ", nGenotypes.toS))
             val localLen = array.loadLength()
             val laLen = localAlleles.loadLength()
-            cb.ifx(localLen cne triangle(laLen), cb._fatalWithError(err, "local_to_global: array should be the triangle number of local alleles: found: ", localLen.toS, " elements, and", laLen.toS, " alleles"))
+            cb.if_(localLen cne triangle(laLen), cb._fatalWithError(err, "local_to_global: array should be the triangle number of local alleles: found: ", localLen.toS, " elements, and", laLen.toS, " alleles"))
 
             val fillIn = cb.memoize(fillInValue)
 
             val (push, finish) = pt.constructFromIndicesUnsafe(cb, region, nGenotypes, false)
 
             // fill in if necessary
-            cb.ifx(localLen cne nGenotypes, {
+            cb.if_(localLen cne nGenotypes, {
               val i = cb.newLocal[Int]("i", 0)
               cb.while_(i < nGenotypes, {
                 push(cb, i, fillIn.toI(cb))
@@ -354,14 +354,14 @@ object ArrayFunctions extends RegistryFunctions {
             val laGIndexer = cb.newLocal[Int]("g_indexer", 0)
             cb.while_(i < laLen, {
               val lai = localAlleles.loadElement(cb, i).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
-              cb.ifx(lai >= nTotalAlleles, cb._fatalWithError(err, "local_to_global: local allele of ", lai.toS, " out of bounds given n_total_alleles of ", nTotalAlleles.toS))
+              cb.if_(lai >= nTotalAlleles, cb._fatalWithError(err, "local_to_global: local allele of ", lai.toS, " out of bounds given n_total_alleles of ", nTotalAlleles.toS))
 
               val j = cb.newLocal[Int]("la_j", 0)
               cb.while_(j <= i, {
                 val laj = localAlleles.loadElement(cb, j).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
 
                 val dest = cb.newLocal[Int]("dest")
-                cb.ifx(lai >= laj, {
+                cb.if_(lai >= laj, {
                   cb.assign(dest, triangle(lai) + laj)
                 }, {
                   cb.assign(dest, triangle(laj) + lai)
@@ -387,14 +387,14 @@ object ArrayFunctions extends RegistryFunctions {
           case IndexedSeq(array: SIndexableValue, localAlleles: SIndexableValue, _nTotalAlleles: SInt32Value, omitFirst: SBooleanValue) =>
             val nTotalAlleles = _nTotalAlleles.value
             val pt = rt.pType.asInstanceOf[PCanonicalArray]
-            cb.ifx(nTotalAlleles < 0, cb._fatalWithError(err, "local_to_global: n_total_alleles less than 0: ", nTotalAlleles.toS))
+            cb.if_(nTotalAlleles < 0, cb._fatalWithError(err, "local_to_global: n_total_alleles less than 0: ", nTotalAlleles.toS))
             val localLen = array.loadLength()
-            cb.ifx(localLen cne localAlleles.loadLength(), cb._fatalWithError(err,"local_to_global: array and local alleles lengths differ: ", localLen.toS, ", ", localAlleles.loadLength().toS))
+            cb.if_(localLen cne localAlleles.loadLength(), cb._fatalWithError(err,"local_to_global: array and local alleles lengths differ: ", localLen.toS, ", ", localAlleles.loadLength().toS))
 
             val fillIn = cb.memoize(fillInValue)
 
             val idxAdjustmentForOmitFirst = cb.newLocal[Int]("idxAdj")
-            cb.ifx(omitFirst.value,
+            cb.if_(omitFirst.value,
               cb.assign(idxAdjustmentForOmitFirst, 1),
               cb.assign(idxAdjustmentForOmitFirst, 0))
 
@@ -403,7 +403,7 @@ object ArrayFunctions extends RegistryFunctions {
             val (push, finish) = pt.constructFromIndicesUnsafe(cb, region, globalLen, false)
 
             // fill in if necessary
-            cb.ifx(localLen cne globalLen, {
+            cb.if_(localLen cne globalLen, {
               val i = cb.newLocal[Int]("i", 0)
               cb.while_(i < globalLen, {
                 push(cb, i, fillIn.toI(cb))
@@ -414,7 +414,7 @@ object ArrayFunctions extends RegistryFunctions {
             val i = cb.newLocal[Int]("la_i", 0)
             cb.while_(i < localLen, {
               val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).get(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
-              cb.ifx(lai >= nTotalAlleles, cb._fatalWithError(err, "local_to_global: local allele of ", lai.toS, " out of bounds given n_total_alleles of ", nTotalAlleles.toS))
+              cb.if_(lai >= nTotalAlleles, cb._fatalWithError(err, "local_to_global: local allele of ", lai.toS, " out of bounds given n_total_alleles of ", nTotalAlleles.toS))
               push(cb, cb.memoize(lai - idxAdjustmentForOmitFirst), array.loadElement(cb, i))
 
               cb.assign(i, i + 1)

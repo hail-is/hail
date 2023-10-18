@@ -39,7 +39,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
   }
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, {
+    cb.if_(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
     })
 
@@ -76,7 +76,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
 
       cb.assign(arrayAddr, arrayStorageType.store(cb, region, decValue, deepCopy = false))
       cb.assign(length, arrayStorageType.loadLength(arrayAddr))
-      cb.ifx(ib.readInt().cne(const(DensifyAggregator.END_SERIALIZATION)),
+      cb.if_(ib.readInt().cne(const(DensifyAggregator.END_SERIALIZATION)),
         cb += Code._fatal[Unit](s"densify serialization failed"))
     }
   }
@@ -88,7 +88,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
   }
 
   private def gc(cb: EmitCodeBuilder): Unit = {
-    cb.ifx(region.totalManagedBytes() > maxRegionSize, {
+    cb.if_(region.totalManagedBytes() > maxRegionSize, {
       val newRegion = cb.newLocal[Region]("densify_gc", Region.stagedCreate(regionSize, kb.pool()))
       cb.assign(arrayAddr, arrayStorageType.store(cb, newRegion, arrayStorageType.loadCheapSCode(cb, arrayAddr), deepCopy = true))
       cb += region.invalidate()

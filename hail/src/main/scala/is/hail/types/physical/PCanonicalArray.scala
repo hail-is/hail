@@ -329,7 +329,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val currentIdx = cb.newLocal[Int]("pcarray_deep_pointer_copy_current_idx")
     val currentElementAddress = cb.newLocal[Long]("pcarray_deep_pointer_copy_current_element_addr")
     cb.for_(cb.assign(currentIdx, 0), currentIdx < len, cb.assign(currentIdx, currentIdx + 1),
-      cb.ifx(isElementDefined(dstAddress, currentIdx),
+      cb.if_(isElementDefined(dstAddress, currentIdx),
         {
           cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
           elementType.storeAtAddress(cb, currentElementAddress, region,
@@ -408,7 +408,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       case SIndexablePointer(otherType@PCanonicalArray(otherElementType, _)) if otherElementType.equalModuloRequired(elementType) =>
         // other is optional, constructing required
         if (elementType.required) {
-          cb.ifx(indexable.hasMissingValues(cb),
+          cb.if_(indexable.hasMissingValues(cb),
             cb._fatal("tried to copy array with missing values to array of required elements"))
         }
         stagedInitialize(cb, addr, indexable.loadLength(), setMissing = false)
@@ -509,7 +509,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
 
     def finish(cb: EmitCodeBuilder): SIndexablePointerValue = {
-      cb.ifx(currentElementIndex cne length,
+      cb.if_(currentElementIndex cne length,
         cb._fatal("PCanonicalArray.constructFromFunctions push was called the wrong number of times",
           ": len=", length.toS,
           ", calls=", currentElementIndex.toS
@@ -592,7 +592,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val elementPtr = cb.newLocal[Long]("foreach_pca_elt_ptr", elementsAddress)
     val et = elementType
     cb.while_(idx < length, {
-      cb.ifx(isElementMissing(aoff, idx),
+      cb.if_(isElementMissing(aoff, idx),
         {}, // do nothing,
         {
           val elt = et.loadCheapSCode(cb, et.loadFromNested(elementPtr))

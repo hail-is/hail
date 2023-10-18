@@ -112,7 +112,7 @@ class SCanonicalRNGStateValue(
     new SInt64Value(4*8 + 4*8 + 4 + 4 + 4)
 
   def splitStatic(cb: EmitCodeBuilder, idx: Long): SCanonicalRNGStateValue = {
-    cb.ifx(hasStaticSplit, cb._fatal("RNGState received two static splits"))
+    cb.if_(hasStaticSplit, cb._fatal("RNGState received two static splits"))
     val x = Array.ofDim[Long](4)
     x(0) = cb.emb.ctx.rngNonce
     x(1) = idx
@@ -129,7 +129,7 @@ class SCanonicalRNGStateValue(
     val newNumWordsInLastBlock = cb.newLocal[Int](s"splitDyn_numWords", numWordsInLastBlock)
     val newNumDynBlocks = cb.newLocal[Int](s"splitDyn_numBlocks", numDynBlocks)
 
-    cb.ifx(numWordsInLastBlock < 4, {
+    cb.if_(numWordsInLastBlock < 4, {
       cb.switch(numWordsInLastBlock,
         cb._fatal("invalid numWordsInLastBlock: ", numWordsInLastBlock.toS),
         for {i <- 0 until 4} yield () => cb.assign(newLastDynBlock(i), idx)
@@ -149,7 +149,7 @@ class SCanonicalRNGStateValue(
   }
 
   def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
-    cb.ifx(!hasStaticSplit, cb._fatal("RNGState never received static split"))
+    cb.if_(!hasStaticSplit, cb._fatal("RNGState never received static split"))
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"rand_x$i", runningSum(i)))
     val key = Threefry.defaultKey
     val finalTweak = cb.memoize((numWordsInLastBlock ceq 4).mux(Threefry.finalBlockNoPadTweak, Threefry.finalBlockPaddedTweak))
@@ -169,7 +169,7 @@ class SCanonicalRNGStateValue(
   }
 
   def copyIntoEngine(cb: EmitCodeBuilder, tf: Value[ThreefryRandomEngine]): Unit = {
-    cb.ifx(!hasStaticSplit, cb._fatal("RNGState never received static split"))
+    cb.if_(!hasStaticSplit, cb._fatal("RNGState never received static split"))
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"cie_x$i", runningSum(i)))
     val finalTweak = (numWordsInLastBlock ceq 4).mux(Threefry.finalBlockNoPadTweak, Threefry.finalBlockPaddedTweak)
     for (i <- 0 until 4) cb.assign(x(i), x(i) ^ lastDynBlock(i))

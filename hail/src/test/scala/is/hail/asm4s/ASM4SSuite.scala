@@ -191,7 +191,7 @@ class ASM4SSuite extends HailSuite {
     val i = fb.getArg[Int](1)
     fb.emitWithBuilder[Int] { cb =>
       val n = cb.newLocal[Int]("n")
-      cb.ifx(i < 3, cb.assign(n, 1), {
+      cb.if_(i < 3, cb.assign(n, 1), {
         val vn_1 = cb.newLocal[Int]("vn_1")
         val vn_2 = cb.newLocal[Int]("vn_2")
         cb.assign(vn_1, 1)
@@ -314,10 +314,10 @@ class ASM4SSuite extends HailSuite {
       val b = fb.getArg[Int](2)
       val c = fb.getArg[Int](3)
       val res = cb.newLocal[Int]("res")
-      cb.ifx(a.ceq(0), {
+      cb.if_(a.ceq(0), {
         cb.assign(res, add.invoke(cb, b, c))
       }, {
-        cb.ifx(a.ceq(1),
+        cb.if_(a.ceq(1),
           cb.assign(res, sub.invoke(cb, b, c)),
           cb.assign(res, mul.invoke(cb, b, c)))
       })
@@ -418,7 +418,7 @@ class ASM4SSuite extends HailSuite {
     val fb = FunctionBuilder[Boolean, Int]("F")
     fb.emitWithBuilder { cb =>
       val a = cb.newLocal[Int]("a")
-      cb.ifx(!fb.getArg[Boolean](1), cb.assign(a, 5))
+      cb.if_(!fb.getArg[Boolean](1), cb.assign(a, 5))
       a
     }
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -451,7 +451,7 @@ class ASM4SSuite extends HailSuite {
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.mb.getArg[Int](1)
       val t = cb.newLocal[Int]("t")
-      cb.ifx(a > 0, cb.assign(t, a), cb.assign(t, -a))
+      cb.if_(a > 0, cb.assign(t, a), cb.assign(t, -a))
       t
     }
 
@@ -466,7 +466,7 @@ class ASM4SSuite extends HailSuite {
       val b = cb.mb.getArg[Int](2)
 
       val acc = cb.newLocal[Int]("signum")
-      cb.ifx(a > 0, cb.assign(acc, 1), cb.assign(acc, -1))
+      cb.if_(a > 0, cb.assign(acc, 1), cb.assign(acc, -1))
 
       cb.while_(a cne 0, {
         cb.assign(a, a - acc)
@@ -491,7 +491,7 @@ class ASM4SSuite extends HailSuite {
       val acc = cb.newLocal[Int]("signum")
 
       cb.for_(
-        setup = cb.ifx(a > 0, cb.assign(acc, 1), cb.assign(acc, -1)),
+        setup = cb.if_(a > 0, cb.assign(acc, 1), cb.assign(acc, -1)),
         cond = a cne 0,
         incr = cb.assign(a, a - acc),
         body = cb.assign(b, b + acc)

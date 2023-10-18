@@ -51,13 +51,13 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
+    cb.if_(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     regionLoader(cb, r)
     cb.assign(id, Region.loadInt(idOffset(src)))
     cb.assign(initialized, Region.loadBoolean(initializedOffset(src)))
-    cb.ifx(initialized,
+    cb.if_(initialized,
       {
         cb.assign(aggr, Code.checkcast[ApproxCDFStateManager](region.lookupJavaObject(id)))
         cb.assign(k, Region.loadInt(kOffset(src)))
@@ -65,7 +65,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   }
 
   override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.ifx(region.isValid,
+    cb.if_(region.isValid,
       {
         regionStorer(cb, region)
         cb += region.invalidate()
@@ -79,14 +79,14 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
     (cb, ob: Value[OutputBuffer]) =>
       cb += ob.writeBoolean(initialized)
       cb += ob.writeInt(k)
-      cb.ifx(initialized, cb += aggr.invoke[OutputBuffer, Unit]("serializeTo", ob))
+      cb.if_(initialized, cb += aggr.invoke[OutputBuffer, Unit]("serializeTo", ob))
   }
 
   override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb, ib: Value[InputBuffer]) =>
       cb.assign(initialized, ib.readBoolean())
       cb.assign(k, ib.readInt())
-      cb.ifx(initialized, {
+      cb.if_(initialized, {
         cb.assign(aggr, Code.invokeScalaObject2[Int, InputBuffer, ApproxCDFStateManager](
           ApproxCDFStateManager.getClass, "deserializeFrom", k, ib)
         )

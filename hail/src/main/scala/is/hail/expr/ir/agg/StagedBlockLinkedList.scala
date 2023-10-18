@@ -141,7 +141,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   }
 
   private def pushImpl(cb: EmitCodeBuilder, r: Value[Region], v: EmitCode): Unit = {
-    cb.ifx(count(lastNode) >= capacity(lastNode),
+    cb.if_(count(lastNode) >= capacity(lastNode),
       pushNewBlockNode(cb, r, defaultBlockCap))
     v.toI(cb)
       .consume(cb,

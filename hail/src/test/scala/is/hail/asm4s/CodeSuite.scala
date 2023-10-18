@@ -56,7 +56,7 @@ class CodeSuite extends HailSuite {
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val region = fb.emb.getCodeParam[Region](1)
       val sarray = ptype.constructFromElements(cb, region, 5, true) { (cb, idx) =>
-        cb.ifx(idx ceq 2, { IEmitCode.missing(cb, stype.elementType.defaultValue)}, { IEmitCode.present(cb, new SInt32Value(idx))})
+        cb.if_(idx ceq 2, { IEmitCode.missing(cb, stype.elementType.defaultValue)}, { IEmitCode.present(cb, new SInt32Value(idx))})
       }
       sarray.sizeToStoreInBytes(cb).value
     })

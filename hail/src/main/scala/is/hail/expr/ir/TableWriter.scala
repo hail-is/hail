@@ -231,14 +231,14 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec,
       }:_*)
 
       if (!keyFields.isEmpty) {
-        cb.ifx(distinctlyKeyed, {
+        cb.if_(distinctlyKeyed, {
           lastSeenSettable.loadI(cb).consume(cb, {
             // If there's no last seen, we are in the first row.
             cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
           }, { lastSeen =>
             val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
             val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
-            cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
+            cb.if_(equalToLast.asInstanceOf[Value[Boolean]], {
               cb.assign(distinctlyKeyed, false)
             })
           })
@@ -380,7 +380,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
 
       if (hasKey) {
         // Only nonempty partitions affect first, last, and distinctlyKeyed.
-        cb.ifx(count cne 0L, {
+        cb.if_(count cne 0L, {
           val curFirst = curElement.loadField(cb, "firstKey").get(cb, const("firstKey of curElement can't be missing, part size was ") concat count.toS)
 
           val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, curFirst.st)
@@ -417,7 +417,7 @@ case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableT
     if (overwrite)
       cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
     else
-      cb.ifx(cb.emb.getFS.invoke[String, Boolean]("exists", path), cb._fatal(s"file already exists: $path"))
+      cb.if_(cb.emb.getFS.invoke[String, Boolean]("exists", path), cb._fatal(s"file already exists: $path"))
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
 
     maybeRefs.foreach { case (refRelPath, refs) =>
@@ -452,7 +452,7 @@ case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[
     if (overwrite)
       cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
     else
-      cb.ifx(cb.emb.getFS.invoke[String, Boolean]("exists", path), cb._fatal(s"file already exists: $path"))
+      cb.if_(cb.emb.getFS.invoke[String, Boolean]("exists", path), cb._fatal(s"file already exists: $path"))
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
 
     maybeRefs.foreach { case (refRelPath, refs) =>

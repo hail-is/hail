@@ -102,7 +102,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
   def initOpF(state: State)(cb: EmitCodeBuilder, kc: Code[Int], k0c: Code[Int]): Unit = {
     val k = cb.newLocal[Int]("lra_init_k", kc)
     val k0 = cb.newLocal[Int]("lra_init_k0", k0c)
-    cb.ifx((k0 < 0) || (k0 > k),
+    cb.if_((k0 < 0) || (k0 > k),
       cb += Code._fatal[Unit](const("linreg: `nested_dim` must be between 0 and the number (")
         .concat(k.toS)
         .concat(") of covariates, inclusive"))
@@ -139,7 +139,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     val xty = cb.newLocal[Long]("linreg_agg_seqop_xty")
     val xtx = cb.newLocal[Long]("linreg_agg_seqop_xtx")
 
-    cb.ifx(!x.hasMissingValues(cb),
+    cb.if_(!x.hasMissingValues(cb),
       {
         cb.assign(xty, stateType.loadField(state.off, 0))
         cb.assign(xtx, stateType.loadField(state.off, 1))

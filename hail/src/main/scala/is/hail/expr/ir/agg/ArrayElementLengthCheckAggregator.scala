@@ -45,7 +45,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     super.load(cb, regionLoader, src)
-    cb.ifx(off.cne(0L),
+    cb.if_(off.cne(0L),
       {
         cb.assign(lenRef, typ.isFieldMissing(cb, off, 1).mux(-1,
           arrayType.loadLength(typ.loadField(off, 1))))
@@ -83,7 +83,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
   }
 
   def checkLength(cb: EmitCodeBuilder, len: Code[Int]): Unit = {
-    cb.ifx(lenRef.cne(len), cb += Code._fatal[Unit]("mismatched lengths in ArrayElementsAggregator"))
+    cb.if_(lenRef.cne(len), cb += Code._fatal[Unit]("mismatched lengths in ArrayElementsAggregator"))
   }
 
   def init(cb: EmitCodeBuilder, initOp: (EmitCodeBuilder) => Unit, initLen: Boolean): Unit = {
@@ -133,7 +133,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
         }),
         initLen = false)
       cb.assign(lenRef, ib.readInt())
-      cb.ifx(lenRef < 0, {
+      cb.if_(lenRef < 0, {
         typ.setFieldMissing(cb, off, 1)
       }, {
         seq(cb, {
@@ -148,7 +148,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
   def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     init(cb, cb => initContainer.copyFrom(cb, cb.memoize(typ.loadField(src, 0))), initLen = false)
-    cb.ifx(typ.isFieldMissing(cb, src, 1), {
+    cb.if_(typ.isFieldMissing(cb, src, 1), {
       typ.setFieldMissing(cb, off, 1)
       cb.assign(lenRef, -1)
     }, {
@@ -191,7 +191,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     }, { len =>
       if (!knownLength) {
         val v = cb.newLocal("aelca_seqop_len", len.asInt.value)
-        cb.ifx(state.lenRef < 0, state.initLength(cb, v), state.checkLength(cb, v))
+        cb.if_(state.lenRef < 0, state.initLength(cb, v), state.checkLength(cb, v))
       } else {
         state.checkLength(cb, len.asInt.value)
       }
@@ -200,13 +200,13 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
 
   protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: ArrayElementState, other: ArrayElementState): Unit = {
     state.seq(cb, {
-      cb.ifx(other.lenRef < 0, {
-        cb.ifx(state.lenRef >= 0, {
+      cb.if_(other.lenRef < 0, {
+        cb.if_(state.lenRef >= 0, {
           other.initLength(cb, state.lenRef)
         })
       }, {
         if (!knownLength) {
-          cb.ifx(state.lenRef < 0, {
+          cb.if_(state.lenRef < 0, {
             state.initLength(cb, other.lenRef)
           }, {
             state.checkLength(cb, other.lenRef)
@@ -276,7 +276,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
     val Array(eltIdx, seqOps) = seq
     eltIdx.toI(cb).consume(cb, {}, { idx =>
       cb.assign(state.idx, idx.asInt32.value)
-      cb.ifx(state.idx > state.lenRef || state.idx < 0, {
+      cb.if_(state.idx > state.lenRef || state.idx < 0, {
         cb._fatal("element idx out of bounds")
       }, {
         state.load(cb)

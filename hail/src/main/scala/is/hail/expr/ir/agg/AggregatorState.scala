@@ -64,13 +64,13 @@ trait RegionBackedAggState extends AggregatorState {
   def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(const(regionSize))
 
   def createState(cb: EmitCodeBuilder): Unit = {
-    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
+    cb.if_(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
   }
 
   def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = regionLoader(cb, r)
 
   def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit =
-    cb.ifx(region.isValid,
+    cb.if_(region.isValid,
       {
         regionStorer(cb, region)
         cb += region.invalidate()
@@ -89,7 +89,7 @@ trait PointerBasedRVAState extends RegionBackedAggState {
   }
 
   override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.ifx(region.isValid,
+    cb.if_(region.isValid,
       {
         cb += Region.storeAddress(dest, off)
         super.store(cb, regionStorer, dest)
@@ -126,8 +126,8 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 
   override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.ifx(region.isValid,
-      cb.ifx(dest.cne(off),
+    cb.if_(region.isValid,
+      cb.if_(dest.cne(off),
         cb += Region.copyFrom(off, dest, const(storageType.byteSize))))
     super.store(cb, regionStorer, dest)
   }
@@ -228,7 +228,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
         if (es.emitType.required) {
           cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(cb, es.st.virtualType)))
         } else {
-          cb.ifx(ib.readBoolean(),
+          cb.if_(ib.readBoolean(),
             cb.assign(es, EmitCode.missing(cb.emb, es.st)),
             cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(cb, es.st.virtualType))))
         }

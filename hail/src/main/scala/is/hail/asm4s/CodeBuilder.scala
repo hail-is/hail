@@ -100,11 +100,11 @@ trait CodeBuilderLike {
   [1]: https://github.com/scala/scala/blob/2.13.x/spec/06-expressions.md#value-discarding
   */
 
-  def ifx[A](c: Code[Boolean], emitThen: => A)
-            (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit = 
-    ifx(c, emitThen, ().asInstanceOf[A])
+  def if_[A](c: => Code[Boolean], emitThen: => A)
+            (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit =
+    if_(c, emitThen, ().asInstanceOf[A])
 
-  def ifx[A](cond: Code[Boolean], emitThen: => A, emitElse: => A)
+  def if_[A](cond: => Code[Boolean], emitThen: => A, emitElse: => A)
             (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit = {
     val Ltrue = CodeLabel()
     val Lfalse = CodeLabel()
@@ -119,7 +119,7 @@ trait CodeBuilderLike {
     define(Lexit)
   }
 
-  def switch[A](discriminant: Code[Int], emitDefault: => A, cases: IndexedSeq[() => A])
+  def switch[A](discriminant: => Code[Int], emitDefault: => A, cases: IndexedSeq[() => A])
                (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit = {
     val Lexit = CodeLabel()
     val Lcases = IndexedSeq.fill(cases.length)(CodeLabel())
@@ -143,20 +143,20 @@ trait CodeBuilderLike {
     emitBody(Lstart)
   }
 
-  def while_[A](cond: Code[Boolean], emitBody: CodeLabel => A)
+  def while_[A](cond: => Code[Boolean], emitBody: CodeLabel => A)
                (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit =
     loop { Lstart =>
-      ifx(cond, {
+      if_(cond, {
         emitBody(Lstart)
         goto(Lstart)
       })
     }
 
-  def while_[A](c: Code[Boolean], emitBody: => A)
+  def while_[A](c: => Code[Boolean], emitBody: => A)
                (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit =
     while_(c, (_: CodeLabel) => emitBody)
 
-  def for_[A](setup: => A, cond: Code[Boolean], incr: => A, emitBody: CodeLabel => A)
+  def for_[A](setup: => A, cond: => Code[Boolean], incr: => A, emitBody: CodeLabel => A)
              (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit = {
     setup
     while_(cond, {
@@ -167,7 +167,7 @@ trait CodeBuilderLike {
     })
   }
 
-  def for_[A](setup: => A, cond: Code[Boolean], incr: => A, body: => A)
+  def for_[A](setup: => A, cond: => Code[Boolean], incr: => A, body: => A)
              (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit =
     for_(setup, cond, incr, (_: CodeLabel) => body)
 

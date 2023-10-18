@@ -150,16 +150,16 @@ class CallStatsAggregator extends StagedAggregator {
       val lastAllele = cb.newLocal[Int]("lastAllele", -1)
       val i = cb.newLocal[Int]("i", 0)
       call.forEachAllele(cb) { allele: Value[Int] =>
-        cb.ifx(allele > state.nAlleles,
+        cb.if_(allele > state.nAlleles,
           cb._fatal(const("hl.agg.call_stats: found allele outside of expected range [0, ")
             .concat(state.nAlleles.toS).concat("]: ").concat(allele.toS)))
         state.updateAlleleCountAtIndex(cb, allele, state.nAlleles, _ + 1)
-        cb.ifx(i > 0, cb.assign(hom, hom && allele.ceq(lastAllele)))
+        cb.if_(i > 0, cb.assign(hom, hom && allele.ceq(lastAllele)))
         cb.assign(lastAllele, allele)
         cb.assign(i, i + 1)
       }
 
-      cb.ifx((i > 1) && hom, {
+      cb.if_((i > 1) && hom, {
         state.updateHomCountAtIndex(cb, lastAllele, state.nAlleles, _ + 1)
       })
     })
@@ -167,7 +167,7 @@ class CallStatsAggregator extends StagedAggregator {
 
   protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: CallStatsState, other: CallStatsState): Unit = {
     val i = state.kb.genFieldThisRef[Int]()
-    cb.ifx(other.nAlleles.cne(state.nAlleles),
+    cb.if_(other.nAlleles.cne(state.nAlleles),
       cb += Code._fatal[Unit]("hl.agg.call_stats: length mismatch"),
       {
         cb.assign(i, 0)
@@ -198,7 +198,7 @@ class CallStatsAggregator extends StagedAggregator {
 
     acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
 
-    cb.ifx(alleleNumber.ceq(0),
+    cb.if_(alleleNumber.ceq(0),
       rt.setFieldMissing(cb, addr, "AF"),
       {
         val afType = resultStorageType.fieldType("AF").asInstanceOf[PCanonicalArray]

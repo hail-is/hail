@@ -125,9 +125,9 @@ object StagedBGENReader {
       cb.assign(position, cbfis.invoke[Int]("readInt"))
 
 
-      cb.ifx(skipInvalidLoci, {
+      cb.if_(skipInvalidLoci, {
         rgBc.foreach { rg =>
-          cb.ifx(!rg.invoke[String, Int, Boolean]("isValidLocus", contigRecoded, position),
+          cb.if_(!rg.invoke[String, Int, Boolean]("isValidLocus", contigRecoded, position),
             {
               cb.assign(nAlleles, cbfis.invoke[Int]("readShort"))
               cb.assign(i, 0)
@@ -166,7 +166,7 @@ object StagedBGENReader {
 
       cb.assign(nAlleles, cbfis.invoke[Int]("readShort"))
 
-      cb.ifx(nAlleles.cne(2),
+      cb.if_(nAlleles.cne(2),
         cb._fatal("Only biallelic variants supported, found variant with ", nAlleles.toS, " alleles: ",
           contigRecoded, ":", position.toS))
 
@@ -216,7 +216,7 @@ object StagedBGENReader {
             val partRegion = emb.partitionRegion
 
             val LnoOp = CodeLabel()
-            cb.ifx(alreadyMemoized, cb.goto(LnoOp))
+            cb.if_(alreadyMemoized, cb.goto(LnoOp))
 
             val (push, finish) = memoTyp.constructFromFunctions(cb, partRegion, 1 << 16, false)
 
@@ -234,13 +234,13 @@ object StagedBGENReader {
                     val Lpresent = CodeLabel()
                     val value = cb.newLocal[Int]("bgen_gt_value")
 
-                    cb.ifx(d0 > d1,
-                      cb.ifx(d0 > d2,
+                    cb.if_(d0 > d1,
+                      cb.if_(d0 > d2,
                         {
                           cb.assign(value, c0)
                           cb.goto(Lpresent)
                         },
-                        cb.ifx(d2 > d0,
+                        cb.if_(d2 > d0,
                           {
                             cb.assign(value, c2)
                             cb.goto(Lpresent)
@@ -248,13 +248,13 @@ object StagedBGENReader {
                           // d0 == d2
                           cb.goto(Lmissing))),
                       // d0 <= d1
-                      cb.ifx(d2 > d1,
+                      cb.if_(d2 > d1,
                         {
                           cb.assign(value, c2)
                           cb.goto(Lpresent)
                         },
                         // d2 <= d1
-                        cb.ifx(d1.ceq(d0) || d1.ceq(d2),
+                        cb.if_(d1.ceq(d0) || d1.ceq(d2),
                           cb.goto(Lmissing),
                           {
                             cb.assign(value, c1)
@@ -300,12 +300,12 @@ object StagedBGENReader {
             cb.define(LnoOp)
           }
 
-          cb.ifx(compression ceq BgenSettings.UNCOMPRESSED, {
+          cb.if_(compression ceq BgenSettings.UNCOMPRESSED, {
             cb.assign(data, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize))
           }, {
             cb.assign(uncompressedSize, cbfis.invoke[Int]("readInt"))
             cb.assign(input, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4))
-            cb.ifx(compression ceq BgenSettings.ZLIB_COMPRESSION, {
+            cb.if_(compression ceq BgenSettings.ZLIB_COMPRESSION, {
               cb.assign(data,
                 Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
                   CompressionUtils.getClass, "decompressZlib", input, uncompressedSize))
@@ -318,7 +318,7 @@ object StagedBGENReader {
 
           cb.assign(reader, Code.newInstance[ByteArrayReader, Array[Byte]](data))
           cb.assign(nRow, reader.invoke[Int]("readInt"))
-          cb.ifx(nRow.cne(nSamples), cb._fatal(
+          cb.if_(nRow.cne(nSamples), cb._fatal(
             const("Row nSamples is not equal to header nSamples: ")
               .concat(nRow.toS)
               .concat(", ")
@@ -326,7 +326,7 @@ object StagedBGENReader {
           ))
 
           cb.assign(nAlleles2, reader.invoke[Int]("readShort"))
-          cb.ifx(nAlleles.cne(nAlleles2),
+          cb.if_(nAlleles.cne(nAlleles2),
             cb._fatal(const(
               """Value for 'nAlleles' in genotype probability data storage is
                 |not equal to value in variant identifying data. Expected""".stripMargin)
@@ -342,7 +342,7 @@ object StagedBGENReader {
           cb.assign(minPloidy, reader.invoke[Int]("read"))
           cb.assign(maxPloidy, reader.invoke[Int]("read"))
 
-          cb.ifx(minPloidy.cne(2) || maxPloidy.cne(2),
+          cb.if_(minPloidy.cne(2) || maxPloidy.cne(2),
             cb._fatal(const("Hail only supports diploid genotypes. Found min ploidy '")
               .concat(minPloidy.toS)
               .concat("' and max ploidy '")
@@ -352,7 +352,7 @@ object StagedBGENReader {
           cb.assign(i, 0)
           cb.while_(i < nSamples, {
             cb.assign(ploidy, reader.invoke[Int]("read"))
-            cb.ifx((ploidy & 0x3f).cne(2),
+            cb.if_((ploidy & 0x3f).cne(2),
               cb._fatal(const("Ploidy value must equal to 2. Found ")
                 .concat(ploidy.toS)
                 .concat(".")))
@@ -360,25 +360,25 @@ object StagedBGENReader {
           })
 
           cb.assign(phase, reader.invoke[Int]("read"))
-          cb.ifx(phase.cne(0) && (phase.cne(1)),
+          cb.if_(phase.cne(0) && (phase.cne(1)),
             cb._fatal(const("Phase value must be 0 or 1. Found ")
               .concat(phase.toS)
               .concat(".")))
 
-          cb.ifx(phase.ceq(1), cb._fatal("Hail does not support phased genotypes in 'import_bgen'."))
+          cb.if_(phase.ceq(1), cb._fatal("Hail does not support phased genotypes in 'import_bgen'."))
 
           cb.assign(nBitsPerProb, reader.invoke[Int]("read"))
-          cb.ifx(nBitsPerProb < 1 || nBitsPerProb > 32,
+          cb.if_(nBitsPerProb < 1 || nBitsPerProb > 32,
             cb._fatal(const("nBits value must be between 1 and 32 inclusive. Found ")
               .concat(nBitsPerProb.toS)
               .concat(".")))
-          cb.ifx(nBitsPerProb.cne(8),
+          cb.if_(nBitsPerProb.cne(8),
             cb._fatal(const("Hail only supports 8-bit probabilities, found ")
               .concat(nBitsPerProb.toS)
               .concat(".")))
 
           cb.assign(nExpectedBytesProbs, nSamples * 2)
-          cb.ifx(reader.invoke[Int]("length").cne(nExpectedBytesProbs + nSamples.get + 10),
+          cb.if_(reader.invoke[Int]("length").cne(nExpectedBytesProbs + nSamples.get + 10),
             cb._fatal(const("Number of uncompressed bytes '")
               .concat(reader.invoke[Int]("length").toS)
               .concat("' does not match the expected size '")
@@ -395,7 +395,7 @@ object StagedBGENReader {
             val Lmissing = CodeLabel()
             val Lpresent = CodeLabel()
 
-            cb.ifx((data(i + 8) & 0x80).cne(0), cb.goto(Lmissing))
+            cb.if_((data(i + 8) & 0x80).cne(0), cb.goto(Lmissing))
             val dataOffset = cb.newLocal[Int]("bgen_add_entries_offset", (nSamples.get + const(10).get) + i * 2)
             val d0 = data(dataOffset) & 0xff
             val d1 = data(dataOffset + 1) & 0xff
@@ -486,7 +486,7 @@ object BGENFunctions extends RegistryFunctions {
         val header = cb.memoize(Code.invokeScalaObject3[HadoopFSDataBinaryReader, String, Long, BgenHeader](
           LoadBgen.getClass, "readState", cbfis, path, mb.getFS.invoke[String, Long]("getFileSize", path)))
 
-        cb.ifx(header.invoke[Int]("version") cne 2, {
+        cb.if_(header.invoke[Int]("version") cne 2, {
           cb._fatalWithError(err, "BGEN not version 2: ", path, ", version=", header.invoke[Int]("version").toS)
         })
         val nSamples = cb.memoize(header.invoke[Int]("nSamples"))
@@ -566,7 +566,7 @@ object BGENFunctions extends RegistryFunctions {
             TStruct("locus" -> locType, "alleles" -> TArray(TString), "offset" -> TInt64), rg).toI(cb).consume(cb, {
             // do nothing if missing (invalid locus)
           }, { case row: SBaseStructValue =>
-            cb.ifx(currSize ceq bufferSize, {
+            cb.if_(currSize ceq bufferSize, {
               dumpBuffer(cb)
             })
             cb += buffer.add(bufferSct.coerceSCode(cb, row, er.region, false).code)
@@ -575,7 +575,7 @@ object BGENFunctions extends RegistryFunctions {
           })
           cb.assign(nRead, nRead + 1)
         })
-        cb.ifx(currSize > 0, dumpBuffer(cb))
+        cb.if_(currSize > 0, dumpBuffer(cb))
 
 
         val ecb = cb.emb.genEmitClass[Unit]("buffer_stream")
@@ -618,7 +618,7 @@ object BGENFunctions extends RegistryFunctions {
 
         next.emitWithBuilder { cb =>
           val ret = cb.newLocal[Long]("ret")
-          cb.ifx(iterCurrIdx < iterSize, {
+          cb.if_(iterCurrIdx < iterSize, {
             cb.assign(ret, rowPType.store(cb, iterEltRegion,
               spec.encodedType.buildDecoder(rowPType.virtualType, ecb).apply(cb, iterEltRegion, ib), false))
             cb.assign(iterCurrIdx, iterCurrIdx + 1)
@@ -657,7 +657,7 @@ object BGENFunctions extends RegistryFunctions {
           cb.assign(nAdded, nAdded + 1)
           iw.add(cb, IEmitCode.present(cb, key), offset, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, er.region, TStruct())))
         }
-        cb.ifx(nWritten cne nAdded, cb._fatal(s"nWritten != nAdded - ", nWritten.toS, ", ", nAdded.toS))
+        cb.if_(nWritten cne nAdded, cb._fatal(s"nWritten != nAdded - ", nWritten.toS, ", ", nAdded.toS))
 
         iw.close(cb)
         cb += cbfis.invoke[Unit]("close")
