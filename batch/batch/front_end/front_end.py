@@ -1456,11 +1456,11 @@ WHERE batch_id = %s AND token = %s;
             '''
 SELECT job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM batches
-LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
-WHERE batches.id = %s AND user = %s AND NOT deleted
+LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id AND job_groups_cancelled.job_group_id = %s
+WHERE batches.id = %s AND batches.user = %s AND NOT deleted
 FOR UPDATE;
 ''',
-            (batch_id, user),
+            (ROOT_JOB_GROUP_ID, batch_id, user),
         )
         if not record:
             raise web.HTTPNotFound()
@@ -1512,25 +1512,26 @@ SELECT batches.*,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled,
   cost_t.*
-FROM batches
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN job_groups_n_jobs_in_complete_states
-       ON batches.id = job_groups_n_jobs_in_complete_states.id
+       ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
 LEFT JOIN job_groups_cancelled
-       ON batches.id = job_groups_cancelled.id
+       ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
-    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    SELECT batch_id, job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_job_group_resources_v3
-    WHERE batches.id = aggregated_job_group_resources_v3.batch_id
-    GROUP BY batch_id, resource_id
+    WHERE job_groups.batch_id = aggregated_job_group_resources_v3.batch_id AND job_groups.job_group_id = aggregated_job_group_resources_v3.job_group_id
+    GROUP BY batch_id, job_group_id, resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id
+  GROUP BY batch_id, job_group_id
 ) AS cost_t ON TRUE
-WHERE batches.id = %s AND NOT deleted;
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted;
 ''',
-        (batch_id,),
+        (batch_id, ROOT_JOB_GROUP_ID),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -1593,11 +1594,11 @@ async def close_batch(request, userdata):
     record = await db.select_and_fetchone(
         '''
 SELECT job_groups_cancelled.id IS NOT NULL AS cancelled
-FROM batches
-LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
-WHERE user = %s AND batches.id = %s AND NOT deleted;
+FROM job_groups
+LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
+WHERE user = %s AND job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted;
 ''',
-        (user, batch_id),
+        (user, batch_id, ROOT_JOB_GROUP_ID),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -1630,12 +1631,13 @@ async def commit_update(request: web.Request, userdata):
     record = await db.select_and_fetchone(
         '''
 SELECT start_job_id, job_groups_cancelled.id IS NOT NULL AS cancelled
-FROM batches
-LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
-LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
-WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT deleted;
+FROM job_groups
+LEFT JOIN batches ON job_groups.batch_id = batches.id
+LEFT JOIN batch_updates ON job_groups.batch_id = batch_updates.batch_id
+LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
+WHERE job_groups.user = %s AND job_groups.batch_id = %s AND job_groups.job_group_id = %s AND batch_updates.update_id = %s AND NOT deleted;
 ''',
-        (user, batch_id, update_id),
+        (user, batch_id, ROOT_JOB_GROUP_ID, update_id),
     )
     if not record:
         raise web.HTTPNotFound()
