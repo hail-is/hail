@@ -54,7 +54,7 @@ object EmitMinHeap {
         mb.voidWithBuilder { cb =>
           cb += classBuilder.cb.super_.invoke(coerce[Object](cb._this), Array())
           cb.assign(pool, poolRef)
-          cb.assign(region, poolRef.invoke[Region]("getRegion"))
+          cb.assign(region, Region.stagedCreate(Region.REGULAR, poolRef))
           cb.assign(garbage, cb.memoize(0L))
           comparator.init(cb, outerRef)
           heap.initialize(cb)
@@ -83,7 +83,7 @@ object EmitMinHeap {
         mb.voidWithBuilder { cb =>
           cb.if_(garbage > heap.size.toL * 2L + 1024L, {
             val oldRegion = cb.newLocal[Region]("tmp", region)
-            cb.assign(region, pool.invoke[Region]("getRegion"))
+            cb.assign(region, Region.stagedCreate(Region.REGULAR, pool))
             heap.reallocateData(cb)
             cb.assign(garbage, 0L)
             cb += oldRegion.invoke[Unit]("invalidate")
@@ -99,17 +99,13 @@ object EmitMinHeap {
         }
       }
 
-    val nonEmpty_ : EmitMethodBuilder[_] =
-      classBuilder.defineEmitMethod("nonEmpty", FastSeq(), BooleanInfo) { mb =>
-        mb.emitWithBuilder { cb =>
-          cb.memoize(heap.size > 0)
-        }
-      }
+    def thisNonEmpty: Code[Boolean] =
+      heap.size > 0
 
     val peek_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("peek", FastSeq(), SCodeParamType(elemType)) { mb =>
         mb.emitSCode { cb =>
-          cb._assert(cb.invokeCode[Boolean](nonEmpty_, cb._this), s"${classBuilder.className}: peek empty")
+          cb._assert(thisNonEmpty, s"${classBuilder.className}: peek empty")
           cb.invokeSCode(load, cb._this, cb.memoize(0))
         }
       }
@@ -166,7 +162,7 @@ object EmitMinHeap {
     val pop_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("pop", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
-          cb._assert(cb.invokeCode[Boolean](nonEmpty_, cb._this), s"${classBuilder.className}: poll empty")
+          cb._assert(thisNonEmpty, s"${classBuilder.className}: poll empty")
 
           val newSize = cb.memoize(heap.size - 1)
           cb.invokeVoid(swap, cb._this, const(0), newSize)
@@ -245,7 +241,7 @@ object EmitMinHeap {
         cb.invokeVoid(pop_, _this)
 
       override def nonEmpty(cb: EmitCodeBuilder): Value[Boolean] =
-        cb.invokeCode(nonEmpty_, _this)
+        cb.memoize(classBuilder.getField[Int](heap.size.name).get(_this) > 0)
 
       override def toArray(cb: EmitCodeBuilder, region: Value[Region]): SIndexableValue =
         cb.invokeSCode(toArray_, _this, region).asIndexable

@@ -3,15 +3,17 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.annotations.{Region, SafeIndexedSeq}
 import is.hail.asm4s._
-import is.hail.check.{Arbitrary, Gen}
+import is.hail.check.Gen
 import is.hail.check.Prop.forAll
-import is.hail.expr.ir.streams.EmitMinHeap
+import is.hail.expr.ir.functions.LocusFunctions
+import is.hail.expr.ir.streams.{EmitMinHeap, StagedMinHeap}
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
+import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32}
 import is.hail.utils.{FastSeq, using}
 import is.hail.variant.{Locus, ReferenceGenome}
+import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test
 
 class StagedMinHeapSuite extends HailSuite {
@@ -28,14 +30,20 @@ class StagedMinHeapSuite extends HailSuite {
       }
     }.check()
 
+  @Test def testNonEmpty(): Unit =
+    intHeap("NonEmpty") { heap =>
+      heap.nonEmpty should be (false)
+      for (i <- 0 to 10) heap.push(i)
+      heap.nonEmpty should be (true)
+      for (_ <- 0 to 10) heap.pop()
+      heap.nonEmpty should be (false)
+    }
+
   @Test def testClosure(): Unit =
     forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
       withGenome(rg) {
-        trait LocusHeap extends Heap { def pop(): Locus }
-
-        val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
-        val Main = modb.genEmitClass[LocusHeap with AutoCloseable]("Closure")
-        Main.cb.addInterface(implicitly[TypeInfo[AutoCloseable]].iname)
+        val emodb = new EmitModuleBuilder(ctx, new ModuleBuilder())
+        val Main = emodb.newEmitClass[LocusHeap]("Closure")
 
         val eltPTy: PCanonicalLocus =
           PCanonicalLocus(rg.name, required = true)
@@ -50,33 +58,27 @@ class StagedMinHeapSuite extends HailSuite {
           }
 
         // The reference genome is added to the "Main" class by `resultWithIndex` and is not
-        // accessible from the MinHeap. Thus, we need to dispatch to a comparator defined in
-        // the outer class (Main).
-        val MinHeap = EmitMinHeap(modb, eltPTy.sType) { classBuilder =>
+        // accessible from the MinHeap. Thus, we need to define a comparator in the outer class
+        // (Main) and hold a reference to it in the generated MinHeap.
+        val MinHeap = EmitMinHeap(Main.emodb, eltPTy.sType) { classBuilder =>
           new EmitMinHeap.StagedComparator {
-            val parent: ThisFieldRef[_] =
+            val mainRef: ThisFieldRef[_] =
               classBuilder.genFieldThisRef("parent")(Main.cb.ti)
 
             override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
-              cb.assignAny(parent, Code.checkcast(enclosingRef)(Main.cb.ti))
+              cb.assignAny(mainRef, Code.checkcast(enclosingRef)(Main.cb.ti))
 
             override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] =
-              cb.invokeCode[Int](compare, parent, a, b)
+              cb.invokeCode[Int](compare, mainRef, a, b)
           }
         }(Main)
 
-        Main.defineEmitMethod("init", FastSeq(), UnitInfo) { mb =>
+        Main.defineEmitMethod("push", FastSeq(typeInfo[Locus]), UnitInfo) { mb =>
           mb.voidWithBuilder { cb =>
-            MinHeap.init(cb, Main.pool())
-            for (x <- loci) {
-              val slocus = eltPTy.constructFromContigAndPosition(cb, Main.partitionRegion, x.contig, x.position)
-              MinHeap.push(cb, slocus)
-            }
+            val locus = mb.getCodeParam[Locus](1)
+            val sLocus = LocusFunctions.emitLocus(cb, Main.partitionRegion, locus, eltPTy)
+            MinHeap.push(cb, sLocus)
           }
-        }
-
-        Main.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
-          mb.voidWithBuilder { MinHeap.close }
         }
 
         Main.defineEmitMethod("pop", FastSeq(), typeInfo[Locus]) { mb =>
@@ -88,21 +90,10 @@ class StagedMinHeapSuite extends HailSuite {
           }
         }
 
-        Main.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), LongInfo) { mb =>
-          mb.emitWithBuilder { cb =>
-            val region = mb.getCodeParam[Region](1)
-            val arr = MinHeap.toArray(cb, region)
-            arr.asInstanceOf[SIndexablePointerValue].a
-          }
-        }
-
         val sortedLoci =
-          pool.scopedRegion { r =>
-            using(Main.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)) {
-              heap =>
-                heap.init()
-                IndexedSeq.fill(loci.size)(heap.pop())
-            }
+          Heap.implementAndUse(Main, MinHeap) { heap =>
+            loci.foreach(heap.push)
+            IndexedSeq.fill(loci.size)(heap.pop())
           }
 
         sortedLoci == loci.sorted(rg.locusOrdering)
@@ -121,71 +112,105 @@ class StagedMinHeapSuite extends HailSuite {
   }
 
   def sort(xs: IndexedSeq[Int]): IndexedSeq[Int] =
-    intHeap("Sort", xs) { heap =>
-      heap.init()
+    intHeap("Sort") { heap =>
+      xs.foreach(heap.push)
       IndexedSeq.fill(xs.size)(heap.pop())
     }
 
   def heapify(xs: IndexedSeq[Int]): IndexedSeq[Int] =
-    intHeap("Heapify", xs) { heap =>
+    intHeap("Heapify") { heap =>
       pool.scopedRegion { r =>
-        heap.init()
+        xs.foreach(heap.push)
         val ptr = heap.toArray(r)
         SafeIndexedSeq(PCanonicalArray(PInt32()), ptr).asInstanceOf[IndexedSeq[Int]]
       }
     }
 
-  def intHeap[B](name: String, xs: IndexedSeq[Int])(f: IntHeap => B): B = {
-    val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
-    val Main = modb.genEmitClass[IntHeap with AutoCloseable](name)
-    Main.cb.addInterface(implicitly[TypeInfo[AutoCloseable]].iname)
-
-    val MinHeap = EmitMinHeap(modb, SInt32) { _ =>
+  def intHeap[B](name: String)(f: IntHeap => B): B = {
+    val emodb = new EmitModuleBuilder(ctx, new ModuleBuilder())
+    val Main = emodb.newEmitClass[IntHeap](name)
+    val MinHeap = EmitMinHeap(Main.emodb, SInt32) { classBuilder =>
       (cb: EmitCodeBuilder, a: SValue, b: SValue) =>
-        cb.memoize({
-          val x = a.asPrimitive.primitiveValue[Int]
-          val y = b.asPrimitive.primitiveValue[Int]
-          Code.invokeStatic[Int](classOf[Integer], "compare", Array.fill(2)(classOf[Int]), Array(x, y))
-        })
+        classBuilder.getOrdering(SInt32, SInt32).compareNonnull(cb, a, b)
     }(Main)
 
-    Main.defineEmitMethod("init", FastSeq(), UnitInfo) { mb =>
+    Main.defineEmitMethod("push", FastSeq(SInt32.paramType), UnitInfo) { mb =>
       mb.voidWithBuilder { cb =>
-        MinHeap.init(cb, Main.pool())
-        for (x <- xs) MinHeap.push(cb, new SInt32Value(x))
+        MinHeap.push(cb, mb.getSCodeParam(1))
       }
     }
 
-    Main.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
-      mb.voidWithBuilder { MinHeap.close }
-    }
-
-    Main.defineEmitMethod("pop", FastSeq(), IntInfo) { mb =>
-      mb.emitWithBuilder[Int] { cb =>
+    Main.defineEmitMethod("pop", FastSeq(), SInt32.paramType) { mb =>
+      mb.emitSCode { cb =>
         val res = MinHeap.peek(cb)
         MinHeap.pop(cb)
         MinHeap.realloc(cb)
-        res.asPrimitive.primitiveValue[Int]
+        res
       }
     }
 
-    Main.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), LongInfo) { mb =>
-      mb.emitWithBuilder { cb =>
-        val region = mb.getCodeParam[Region](1)
-        val arr = MinHeap.toArray(cb, region)
-        arr.asInstanceOf[SIndexablePointerValue].a
-      }
-    }
-
-    pool.scopedRegion { r =>
-      using(Main.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)) { f }
-    }
+    Heap.implementAndUse(Main, MinHeap) { f }
   }
 
-  trait IntHeap extends Heap { def pop(): Int }
+  trait LocusHeap extends Heap {
+    def push(locus: Locus): Unit
+    def pop(): Locus
+  }
+
+  trait IntHeap extends Heap {
+    def push(x: Int): Unit
+    def pop(): Int
+  }
 
   trait Heap {
-    def init(): Unit
+    def nonEmpty: Boolean
     def toArray(r: Region): Long
+  }
+
+  object Heap {
+    def implementAndUse[A <: Heap, B](Main: EmitClassBuilder[A], MinHeap: StagedMinHeap)
+                                     (test: A => B)
+    : B = {
+
+      Main.defineEmitMethod("nonEmpty", FastSeq(), BooleanInfo) { mb =>
+        mb.emitWithBuilder[Boolean] {
+          MinHeap.nonEmpty
+        }
+      }
+
+      Main.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), LongInfo) { mb =>
+        mb.emitWithBuilder { cb =>
+          val region = mb.getCodeParam[Region](1)
+          val arr = MinHeap.toArray(cb, region)
+          arr.asInstanceOf[SIndexablePointerValue].a
+        }
+      }
+
+      trait Resource extends AutoCloseable { def init(): Unit }
+
+      Main.cb.addInterface(implicitly[TypeInfo[Resource]].iname)
+      Main.defineEmitMethod("init", FastSeq(), UnitInfo) { mb =>
+        mb.voidWithBuilder { cb =>
+          // Properties like pool and reference genomes are set after `Main`'s
+          // default constructor is called, thus we need a separate method to
+          // initialise the heap with them.
+          MinHeap.init(cb, Main.pool())
+        }
+      }
+      Main.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
+        mb.voidWithBuilder {
+          MinHeap.close
+        }
+      }
+
+      pool.scopedRegion { r =>
+        val heap = Main
+          .resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
+          .asInstanceOf[A with Resource]
+
+        heap.init()
+        using(heap)(test)
+      }
+    }
   }
 }

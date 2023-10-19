@@ -140,6 +140,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def genField[T: TypeInfo](baseName: String): Field[T] = ecb.genField(baseName)
 
+  def getField[T: TypeInfo](name: String): Field[T] = ecb.getField(name)
+
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = ecb.genFieldThisRef[T](name)
 
   def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null): Value[T] = ecb.genLazyFieldThisRef(setup, name)
@@ -268,6 +270,8 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
   def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = cb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
+
+  def getField[T: TypeInfo](name: String): Field[T] = cb.getField(name)
 
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = cb.genFieldThisRef[T](name)
 

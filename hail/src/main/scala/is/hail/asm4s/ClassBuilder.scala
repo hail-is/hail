@@ -12,6 +12,7 @@ import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 import java.io._
 import java.nio.charset.StandardCharsets
 import scala.collection.mutable
+import scala.language.existentials
 
 object Field {
   def apply[T](cb: ClassBuilder[_], name: String)(implicit ti: TypeInfo[T]): Field[T] =
@@ -229,6 +230,8 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
 
+  def getField[T: TypeInfo](name: String): Field[T] = cb.getField(name)
+
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = cb.genFieldThisRef[T](name)
 
   def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null): Value[T] = cb.genLazyFieldThisRef(setup, name)
@@ -287,8 +290,8 @@ class ClassBuilder[C](
   private[this] val methods: mutable.ArrayBuffer[MethodBuilder[C]] =
     new mutable.ArrayBuffer[MethodBuilder[C]](16)
 
-  private[this] val fields: mutable.ArrayBuffer[Either[StaticField[_], Field[_]]] =
-    new mutable.ArrayBuffer(16)
+  private[this] val fields: mutable.Map[String, Either[StaticField[_], Field[_]]] =
+    new mutable.HashMap()
 
   private[this] val lazyFieldMemo: mutable.Map[Any, Value[_]] =
     mutable.Map.empty
@@ -385,21 +388,23 @@ class ClassBuilder[C](
     m
   }
 
-  def newField[T](name: String)(implicit ty: TypeInfo[T]): Field[T] = {
-    if (fields.exists(_.fold(_.name == name, _.name == name)))
-      throw new DuplicateMemberException(s"Field '$name: $ty' already defined in '$className'.")
+  private def raiseIfFieldExists(name: String): Unit =
+    fields.get(name).foreach { f =>
+      val (static_, name, ti) = f.fold(f => ("Static ", f.name, f.ti), f => ("", f.name, f.ti))
+      throw new DuplicateMemberException(s"${static_}Field '$name: $ti' already defined in '$className'.")
+    }
 
+  def newField[T](name: String)(implicit ty: TypeInfo[T]): Field[T] = {
+    raiseIfFieldExists(name)
     val field = Field[T](this, name)
-    fields += Right(field)
+    fields += name -> Right(field)
     field
   }
 
   def newStaticField[T](name: String)(implicit ty: TypeInfo[T]): StaticField[T] = {
-    if (fields.exists(_.fold(_.name == name, _.name == name)))
-      throw new DuplicateMemberException(s"Static field '$name: $ty' already defined in '$className'.")
-
+    raiseIfFieldExists(name)
     val field = StaticField[T](this, name)
-    fields += Left(field)
+    fields += name -> Left(field)
     field
   }
 
@@ -412,6 +417,11 @@ class ClassBuilder[C](
   def genField[T: TypeInfo](baseName: String): Field[T] =
     newField(genName("f", baseName))
 
+  def getField[T](name: String)(implicit ti: TypeInfo[T]): Field[T] =
+    fields.get(name).fold(Option.empty[Field[T]]) {
+      case Right(field) if field.ti == ti => Some(field.asInstanceOf[Field[T]])
+      case _ => None
+    }.getOrElse { throw new NoSuchFieldError(s"No field matching '$name: $ti' in '$className'.") }
 
   private[this] val methodMemo: mutable.Map[Any, MethodBuilder[C]] =
     mutable.HashMap.empty

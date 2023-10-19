@@ -16,7 +16,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   val eltArray = PCanonicalArray(eltType.setRequired(false), required = true) // element type must be optional for serialization to work
   val stateType = PCanonicalTuple(true, PInt32Required, PInt32Required, eltArray)
 
-  val size: Settable[Int] = kb.genFieldThisRef[Int]("size")
+  val size: ThisFieldRef[Int] = kb.genFieldThisRef[Int]("size")
   private val capacity = kb.genFieldThisRef[Int]("capacity")
   val data = kb.genFieldThisRef[Long]("data")
 
