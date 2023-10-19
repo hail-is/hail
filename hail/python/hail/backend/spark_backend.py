@@ -1,11 +1,6 @@
-from typing import Set, Tuple
 import sys
 import os
 import json
-import socket
-import socketserver
-from threading import Thread
-import py4j
 import pyspark
 import pyspark.sql
 
@@ -13,7 +8,6 @@ import orjson
 from typing import List, Optional
 
 import hail as hl
-from hail.utils.java import scala_package_object
 from hail.expr.table_type import ttable
 from hail.fs.hadoop_fs import HadoopFS
 from hail.ir.renderer import CSERenderer
@@ -22,99 +16,8 @@ from hail.matrixtable import MatrixTable
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 
-from .py4j_backend import Py4JBackend, handle_java_exception, action_routes
-from ..hail_logging import Logger
-from .backend import local_jar_information, fatal_error_from_java_error_triplet
-
-
-_installed = False
-_original = None
-
-
-def install_exception_handler():
-    global _installed
-    global _original
-    if not _installed:
-        _original = py4j.protocol.get_return_value
-        _installed = True
-        # The original `get_return_value` is not patched, it's idempotent.
-        patched = handle_java_exception(_original)
-        # only patch the one used in py4j.java_gateway (call Java API)
-        py4j.java_gateway.get_return_value = patched
-
-
-def uninstall_exception_handler():
-    global _installed
-    global _original
-    if _installed:
-        _installed = False
-        py4j.protocol.get_return_value = _original
-
-
-class LoggingTCPHandler(socketserver.StreamRequestHandler):
-    def handle(self):
-        for line in self.rfile:
-            sys.stderr.write(line.decode("ISO-8859-1"))
-
-
-class SimpleServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    daemon_threads = True
-    allow_reuse_address = True
-
-    def __init__(self, server_address, handler_class):
-        socketserver.TCPServer.__init__(self, server_address, handler_class)
-
-
-def connect_logger(utils_package_object, host, port):
-    """
-    This method starts a simple server which listens on a port for a
-    client to connect and start writing messages. Whenever a message
-    is received, it is written to sys.stderr. The server is run in
-    a daemon thread from the caller, which is killed when the caller
-    thread dies.
-
-    If the socket is in use, then the server tries to listen on the
-    next port (port + 1). After 25 tries, it gives up.
-
-    :param str host: Hostname for server.
-    :param int port: Port to listen on.
-    """
-    server = None
-    tries = 0
-    max_tries = 25
-    while not server:
-        try:
-            server = SimpleServer((host, port), LoggingTCPHandler)
-        except socket.error:
-            port += 1
-            tries += 1
-
-            if tries >= max_tries:
-                sys.stderr.write(
-                    'WARNING: Could not find a free port for logger, maximum retries {} exceeded.'.format(max_tries))
-                return
-
-    t = Thread(target=server.serve_forever, args=())
-
-    # The thread should be a daemon so that it shuts down when the parent thread is killed
-    t.daemon = True
-
-    t.start()
-    utils_package_object.addSocketAppender(host, port)
-
-
-class Log4jLogger(Logger):
-    def __init__(self, log_pkg):
-        self._log_pkg = log_pkg
-
-    def error(self, msg):
-        self._log_pkg.error(msg)
-
-    def warning(self, msg):
-        self._log_pkg.warn(msg)
-
-    def info(self, msg):
-        self._log_pkg.info(msg)
+from .py4j_backend import Py4JBackend, uninstall_exception_handler
+from .backend import local_jar_information
 
 
 def append_to_comma_separated_list(conf: pyspark.SparkConf, k: str, *new_values: str):
@@ -133,7 +36,6 @@ class SparkBackend(Py4JBackend):
                  gcs_requester_pays_project: Optional[str] = None,
                  gcs_requester_pays_buckets: Optional[str] = None
                  ):
-        super(SparkBackend, self).__init__()
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         try:
@@ -198,52 +100,34 @@ class SparkBackend(Py4JBackend):
             pyspark.SparkContext._ensure_initialized()
 
         self._gateway = pyspark.SparkContext._gateway
-        self._jvm = pyspark.SparkContext._jvm
+        jvm = pyspark.SparkContext._jvm
+        assert jvm
 
-        hail_package = getattr(self._jvm, 'is').hail
-
-        self._hail_package = hail_package
-        self._utils_package_object = scala_package_object(hail_package.utils)
-
+        hail_package = getattr(jvm, 'is').hail
         jsc = sc._jsc.sc() if sc else None
 
         if idempotent:
-            self._jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
+            jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
                 jsc, app_name, master, local, log, True, append, skip_logging_configuration, min_block_size, tmpdir, local_tmpdir,
                 gcs_requester_pays_project, gcs_requester_pays_buckets)
-            self._jhc = hail_package.HailContext.getOrCreate(
-                self._jbackend, branching_factor, optimizer_iterations)
+            jhc = hail_package.HailContext.getOrCreate(
+                jbackend, branching_factor, optimizer_iterations)
         else:
-            self._jbackend = hail_package.backend.spark.SparkBackend.apply(
+            jbackend = hail_package.backend.spark.SparkBackend.apply(
                 jsc, app_name, master, local, log, True, append, skip_logging_configuration, min_block_size, tmpdir, local_tmpdir,
                 gcs_requester_pays_project, gcs_requester_pays_buckets)
-            self._jhc = hail_package.HailContext.apply(
-                self._jbackend, branching_factor, optimizer_iterations, True)
+            jhc = hail_package.HailContext.apply(
+                jbackend, branching_factor, optimizer_iterations, True)
 
-        self._backend_server = hail_package.backend.BackendServer.apply(self._jbackend)
-        self._backend_server_port: int = self._backend_server.port()
-        self._backend_server.start()
-        self._jsc = self._jbackend.sc()
+        self._jsc = jbackend.sc()
         if sc:
             self.sc = sc
         else:
-            self.sc = pyspark.SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jspark_session = self._jbackend.sparkSession()
+            self.sc = pyspark.SparkContext(gateway=self._gateway, jsc=jvm.JavaSparkContext(self._jsc))
+        self._jspark_session = jbackend.sparkSession()
         self._spark_session = pyspark.sql.SparkSession(self.sc, self._jspark_session)
-        self._registered_ir_function_names: Set[str] = set()
 
-        # This has to go after creating the SparkSession. Unclear why.
-        # Maybe it does its own patch?
-        install_exception_handler()
-
-        from hail.context import version
-
-        py_version = version()
-        jar_version = self._jhc.version()
-        if jar_version != py_version:
-            raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
-                               f"  JAR:    {jar_version}\n"
-                               f"  Python: {py_version}")
+        super(SparkBackend, self).__init__(jvm, jbackend, jhc)
 
         self._fs = None
         self._logger = None
@@ -253,7 +137,7 @@ class SparkBackend(Py4JBackend):
             if self._jsc.uiWebUrl().isDefined():
                 sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
 
-            self._jbackend.startProgressBar()
+            jbackend.startProgressBar()
 
         self._initialize_flags({})
 
@@ -264,27 +148,7 @@ class SparkBackend(Py4JBackend):
     def validate_file(self, uri: str) -> None:
         validate_file(uri, self._router_async_fs)
 
-    def jvm(self):
-        return self._jvm
-
-    def hail_package(self):
-        return self._hail_package
-
-    def utils_package_object(self):
-        return self._utils_package_object
-
-    def _rpc(self, action, payload) -> Tuple[bytes, str]:
-        data = orjson.dumps(payload)
-        path = action_routes[action]
-        port = self._backend_server_port
-        resp = self._requests_session.post(f'http://localhost:{port}{path}', data=data)
-        if resp.status_code >= 400:
-            error_json = orjson.loads(resp.content)
-            raise fatal_error_from_java_error_triplet(error_json['short'], error_json['expanded'], error_json['error_id'])
-        return resp.content, resp.headers.get('X-Hail-Timings', '')
-
     def stop(self):
-        self._backend_server.stop()
         self._jbackend.close()
         self._jhc.stop()
         self._jhc = None
@@ -292,12 +156,6 @@ class SparkBackend(Py4JBackend):
         self.sc = None
         self._registered_ir_function_names = set()
         uninstall_exception_handler()
-
-    @property
-    def logger(self):
-        if self._logger is None:
-            self._logger = Log4jLogger(self._utils_package_object)
-        return self._logger
 
     @property
     def fs(self):
@@ -330,9 +188,6 @@ class SparkBackend(Py4JBackend):
             return_type._parsable_string(),
             jbody)
 
-    def _is_registered_ir_function_name(self, name: str) -> bool:
-        return name in self._registered_ir_function_names
-
     def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
         json_repr = {
             'paths': paths,
@@ -340,7 +195,7 @@ class SparkBackend(Py4JBackend):
             'intervalPointType': intervals_type.element_type.point_type._parsable_string(),
         }
 
-        results = self._jhc.backend().pyReadMultipleMatrixTables(json.dumps(json_repr))
+        results = self._jbackend.pyReadMultipleMatrixTables(json.dumps(json_repr))
         return [MatrixTable._from_java(jm) for jm in results]
 
     @property

@@ -427,7 +427,8 @@ def init_spark(sc=None,
                _optimizer_iterations=None,
                gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None
                ):
-    from hail.backend.spark_backend import SparkBackend, connect_logger
+    from hail.backend.py4j_backend import connect_logger
+    from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
@@ -554,7 +555,8 @@ def init_local(
         _optimizer_iterations=None,
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None
 ):
-    from hail.backend.local_backend import LocalBackend, connect_logger
+    from hail.backend.py4j_backend import connect_logger
+    from hail.backend.local_backend import LocalBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
