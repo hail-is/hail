@@ -3097,27 +3097,18 @@ class IRSuite extends HailSuite {
 
   @Test def testCachedIR() {
     val cached = Literal(TSet(TInt32), Set(1))
-    val s = s"(JavaIR __uid1)"
+    val s = s"(JavaIR 1)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
     }
     assert(x2 eq cached)
   }
 
   @Test def testCachedTableIR() {
     val cached = TableRange(1, 1)
-    val s = s"(JavaTable __uid1)"
+    val s = s"(JavaTable 1)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
-    }
-    assert(x2 eq cached)
-  }
-
-  @Test def testCachedMatrixIR() {
-    val cached = MatrixIR.range(3, 7, None)
-    val s = s"(JavaMatrix __uid1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
     }
     assert(x2 eq cached)
   }
