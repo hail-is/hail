@@ -288,7 +288,7 @@ class HailType(object):
 
     @staticmethod
     def _missing(value):
-        return value is None
+        return value is None or value is pd.NA
 
     def _traverse(self, obj, f):
         """Traverse a nested type and object.
@@ -412,10 +412,6 @@ class _tint32(HailType):
 
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
         byte_writer.write_int32(value)
-
-    @staticmethod
-    def _is_missing(value):
-        return value is None or value is pd.NA
 
     def _byte_size(self):
         return 4
@@ -956,13 +952,13 @@ class tarray(HailType):
         while i < length:
             missing_byte = 0
             for j in range(min(8, length - i)):
-                if value[i + j] is None:
+                if HailType._missing(value[i + j]):
                     missing_byte |= 1 << j
             byte_writer.write_byte(missing_byte)
             i += 8
 
         for element in value:
-            if element is not None:
+            if not HailType._missing(element):
                 self.element_type._convert_to_encoding(byte_writer, element)
 
 
@@ -1428,13 +1424,13 @@ class tstruct(HailType, Mapping):
         while i < length:
             missing_byte = 0
             for j in range(min(8, length - i)):
-                if value[keys[i + j]] is None:
+                if HailType._missing(value[keys[i + j]]):
                     missing_byte |= 1 << j
             byte_writer.write_byte(missing_byte)
             i += 8
 
         for f, t in self.items():
-            if value[f] is not None:
+            if not HailType._missing(value[f]):
                 t._convert_to_encoding(byte_writer, value[f])
 
     def _is_prefix_of(self, other):
@@ -1717,12 +1713,12 @@ class ttuple(HailType, Sequence):
         while i < length:
             missing_byte = 0
             for j in range(min(8, length - i)):
-                if value[i + j] is None:
+                if HailType._missing(value[i + j]):
                     missing_byte |= 1 << j
             byte_writer.write_byte(missing_byte)
             i += 8
         for i, t in enumerate(self.types):
-            if value[i] is not None:
+            if not HailType._missing(value[i]):
                 t._convert_to_encoding(byte_writer, value[i])
 
     def unify(self, t):
