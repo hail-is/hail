@@ -226,7 +226,7 @@ class LocalBackend(
       result
     }
 
-  def executeLiteral(irStr: String): String = {
+  def executeLiteral(irStr: String): Int = {
     ExecutionTimer.logTime("SparkBackend.executeLiteral") { timer =>
       withExecuteContext(timer) { ctx =>
         val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
@@ -240,9 +240,7 @@ class LocalBackend(
           case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
         }
         log.info(s"finished execution of query $queryID")
-        val id = UUID4().id
-        this.persistedIR += (id -> literalIR)
-        id
+        addJavaIR(literalIR)
       }
     }
   }

@@ -537,10 +537,6 @@ class MatrixTable(ExprContainer):
     """
 
     @staticmethod
-    def _from_java(jmir):
-        return MatrixTable(ir.JavaMatrix(jmir))
-
-    @staticmethod
     @typecheck(
         globals=nullable(dictof(str, anytype)),
         rows=nullable(dictof(str, sequenceof(anytype))),

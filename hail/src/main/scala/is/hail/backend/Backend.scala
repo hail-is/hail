@@ -35,6 +35,12 @@ object Backend {
     id += 1
     s"hail_query_$id"
   }
+
+  private var irID: Int = 0
+  def nextIRID(): Int = {
+    irID += 1
+    irID
+  }
 }
 
 abstract class BroadcastValue[T] { def value: T }
@@ -44,9 +50,15 @@ trait BackendContext {
 }
 
 abstract class Backend {
-  val persistedIR: mutable.Map[String, BaseIR] = mutable.Map()
+  val persistedIR: mutable.Map[Int, BaseIR] = mutable.Map()
 
-  def removeJavaIR(id: String): Unit = persistedIR.remove(id)
+  protected[this] def addJavaIR(ir: BaseIR): Int = {
+    val id = Backend.nextIRID()
+    persistedIR += (id -> ir)
+    id
+  }
+
+  def removeJavaIR(id: Int): Unit = persistedIR.remove(id)
 
   def defaultParallelism: Int
 

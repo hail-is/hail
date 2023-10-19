@@ -1,18 +1,15 @@
 import sys
 import os
-import json
 import pyspark
 import pyspark.sql
 
 import orjson
-from typing import List, Optional
+from typing import Optional
 
-import hail as hl
 from hail.expr.table_type import ttable
 from hail.fs.hadoop_fs import HadoopFS
 from hail.ir.renderer import CSERenderer
 from hail.table import Table
-from hail.matrixtable import MatrixTable
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 
@@ -187,16 +184,6 @@ class SparkBackend(Py4JBackend):
             argument_names, [pt._parsable_string() for pt in argument_types],
             return_type._parsable_string(),
             jbody)
-
-    def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
-        json_repr = {
-            'paths': paths,
-            'intervals': intervals_type._convert_to_json(intervals),
-            'intervalPointType': intervals_type.element_type.point_type._parsable_string(),
-        }
-
-        results = self._jbackend.pyReadMultipleMatrixTables(json.dumps(json_repr))
-        return [MatrixTable._from_java(jm) for jm in results]
 
     @property
     def requires_lowering(self):

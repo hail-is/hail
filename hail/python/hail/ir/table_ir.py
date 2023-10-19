@@ -1210,7 +1210,7 @@ class TableGen(TableIR):
 
 
 class JavaTable(TableIR):
-    def __init__(self, table_type, tir_id: str):
+    def __init__(self, table_type, tir_id: int):
         super().__init__()
         self._type = table_type
         self._id = tir_id

@@ -517,7 +517,7 @@ class SparkBackend(
     }
   }
 
-  def executeLiteral(irStr: String): String = {
+  def executeLiteral(irStr: String): Int = {
     ExecutionTimer.logTime("SparkBackend.executeLiteral") { timer =>
       withExecuteContext(timer) { ctx =>
         val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
@@ -531,9 +531,7 @@ class SparkBackend(
           case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
         }
         log.info(s"finished execution of query $queryID")
-        val id = UUID4().id
-        persistedIR += (id -> literalIR)
-        id
+        addJavaIR(literalIR)
       }
     }
   }
@@ -593,14 +591,13 @@ class SparkBackend(
     }
   }
 
-  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (String, String) = {
+  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) = {
     ExecutionTimer.logTime("SparkBackend.pyFromDF") { timer =>
       val key = jKey.asScala.toArray.toFastSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tir = TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx.theHailClassLoader)
-        val id = UUID4().id
-        persistedIR += (id -> tir)
+        val id = addJavaIR(tir)
         (id, JsonMethods.compact(tir.typ.toJSON))
       }
     }
