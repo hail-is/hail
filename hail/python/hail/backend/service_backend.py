@@ -483,8 +483,7 @@ class ServiceBackend(Backend):
         return self._cancel_on_ctrl_c(self._async_rpc(action, payload))
 
     async def _async_rpc(self, action: ActionTag, payload: ActionPayload):
-        if action == ActionTag.EXECUTE:
-            assert isinstance(payload, ExecutePayload)
+        if isinstance(payload, ExecutePayload):
             payload = ServiceBackendExecutePayload([f.to_dataclass() for f in self.functions], self._batch.token, payload)
 
         storage_requirement_bytes = 0

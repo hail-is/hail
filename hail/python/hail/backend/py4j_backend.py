@@ -20,6 +20,8 @@ from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
 from ..hail_logging import Logger
 
 import http.client
+# This defaults to 65536 and fails if a header is longer than _MAXLINE
+# The timing json that we output can exceed 65536 bytes so we raise the limit
 http.client._MAXLINE = 2 ** 20
 
 
