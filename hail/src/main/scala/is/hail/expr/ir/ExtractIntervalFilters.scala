@@ -735,10 +735,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       case Seq(ConstantValue(l: Boolean), ConstantValue(r: Boolean)) => ConstantValue(l && r, TBoolean)
       case _ => AbstractLattice.top
     }
-    // case Apply("contig", _, Seq(k), _, _) => children match {
-    //   case Seq(KeyField(0)) => Contig(k.typ.asInstanceOf[TLocus].rg)
-    //   case _ => AbstractLattice.top
-    // }
+    case Apply("contig", _, Seq(k), _, _) => children match {
+      case Seq(KeyField(0)) => Contig(k.typ.asInstanceOf[TLocus].rg)
+      case _ => AbstractLattice.top
+    }
     case Apply("position", _, Seq(k), _, _) => children match {
       case Seq(KeyField(0)) => Position(k.typ.asInstanceOf[TLocus].rg)
       case _ => AbstractLattice.top

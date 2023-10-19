@@ -69,10 +69,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       loadBytes(bAddress, this.loadLength(bAddress))
     }
 
-  def loadBytes(bAddress: Long, length: Int): Array[Byte] = {
-    assert(length >= 0, s"Length was: $length")
+  def loadBytes(bAddress: Long, length: Int): Array[Byte] =
     Region.loadBytes(this.bytesAddress(bAddress), length)
-  }
 
   def loadBytes(bAddress: Long): Array[Byte] =
     this.loadBytes(bAddress, this.loadLength(bAddress))
