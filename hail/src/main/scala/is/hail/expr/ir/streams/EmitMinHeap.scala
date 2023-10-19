@@ -44,7 +44,7 @@ object EmitMinHeap {
       classBuilder.genFieldThisRef[Long]("n_garbage_points")
 
     val heap = new StagedArrayBuilder(elemType.storageType(), classBuilder, region)
-    val comparator = mkComparator(classBuilder)
+    val compare = mkComparator(classBuilder)
 
     val init_ : EmitMethodBuilder[MinHeap] =
       classBuilder.defineEmitMethod("<init>", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo) { mb =>
@@ -56,7 +56,7 @@ object EmitMinHeap {
           cb.assign(pool, poolRef)
           cb.assign(region, Region.stagedCreate(Region.REGULAR, poolRef))
           cb.assign(garbage, cb.memoize(0L))
-          comparator.init(cb, outerRef)
+          compare.init(cb, outerRef)
           heap.initialize(cb)
         }
       }
@@ -74,7 +74,7 @@ object EmitMinHeap {
         mb.emitWithBuilder[Int] { cb =>
           val l = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](1))
           val r = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](2))
-          comparator(cb, l, r)
+          compare(cb, l, r)
         }
       }
 
@@ -94,7 +94,7 @@ object EmitMinHeap {
     val close_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
-          comparator.close(cb)
+          compare.close(cb)
           cb += region.invoke[Unit]("invalidate")
         }
       }

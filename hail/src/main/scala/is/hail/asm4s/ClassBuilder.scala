@@ -643,11 +643,12 @@ class MethodBuilder[C](
 
     val start = startup.start
     startup.end.append(lir.goto(body.start))
-    body.end.append(
-      if (body.v != null)
-        lir.returnx(body.v)
-      else
-        lir.returnx())
+    if (body.isOpenEnded) {
+      val ret =
+        if (body.v != null) lir.returnx(body.v)
+        else lir.returnx()
+      body.end.append(ret)
+    }
     assert(start != null)
     lmethod.setEntry(start)
 
