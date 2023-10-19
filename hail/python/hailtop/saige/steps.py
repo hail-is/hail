@@ -1,82 +1,99 @@
-import collections
-from dataclasses import dataclass, field
-import jinja2
-import os.path
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 import hail as hl
+from hailtop.aiotools.fs import AsyncFS
 import hailtop.batch as hb
+from hailtop.utils import AsyncWorkerPool
 
 from .config import CheckpointConfigMixin, JobConfigMixin
 from .constants import SaigeAnalysisType, SaigeInputDataType, SaigeTestType, saige_phenotype_to_test_type
 from .io import (
     PlinkResourceGroup,
+    SaigeGeneGlmmResourceGroup,
     SaigeGlmmResourceGroup,
     SaigeSparseGRMResourceGroup,
+    SaigeGeneResultResourceGroup,
     SaigeResultResourceGroup,
     TextFile,
 )
 from .phenotype import Phenotype, Phenotypes
 from .variant_chunk import VariantChunk
-from .utils import cast_dataclass_attributes
 
 
 @dataclass
 class PrepareInputsStep(CheckpointConfigMixin):
-    def __post_init__(self):
-        cast_dataclass_attributes(self)
-
-    def _write_phenotype_data(
-        self, b: hb.Batch, mt: hl.MatrixTable, output_file: str, pheno_cols: List[str]
+    async def _write_phenotype_data(
+        self,
+        fs: AsyncFS,
+        pool: AsyncWorkerPool,
+        b: hb.Batch,
+        mt: hl.MatrixTable,
+        output_file: str,
+        pheno_cols: List[str],
     ) -> TextFile:
-        checkpointed_output = TextFile.use_checkpoint_if_exists(b, self, output_file)
+        checkpointed_output = await TextFile.use_checkpoint_if_exists_and_requested(fs, pool, b, self, output_file)
         if checkpointed_output and not self.overwrite:
             return checkpointed_output
         mt.cols().select(pheno_cols).export(output_file, delimiter="\t")
         return TextFile.from_input_file(b, output_file)
 
-    def _convert_mt_to_plink(self, b: hb.Batch, mt: hl.MatrixTable, output_file: str) -> PlinkResourceGroup:
-        checkpointed_output = PlinkResourceGroup.use_checkpoint_if_exists(b, self, output_file)
+    async def _convert_mt_to_plink(
+        self, fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, mt: hl.MatrixTable, output_file: str
+    ) -> PlinkResourceGroup:
+        checkpointed_output = await PlinkResourceGroup.use_checkpoint_if_exists_and_requested(
+            fs, pool, b, self, output_file
+        )
         if checkpointed_output and not self.overwrite:
             return checkpointed_output
         hl.export_plink(mt, output_file)
         return PlinkResourceGroup.from_input_files(b, output_file)
 
-    def __call__(
-        self, b: hb.Batch, mt: hl.MatrixTable, phenotypes: Phenotypes, checkpoint_dir: str
+    async def call(
+        self,
+        fs: AsyncFS,
+        pool: AsyncWorkerPool,
+        b: hb.Batch,
+        mt: hl.MatrixTable,
+        phenotypes: Phenotypes,
+        working_dir: str,
     ) -> Tuple[TextFile, PlinkResourceGroup]:
-        phenotypes_output = self._write_phenotype_data(
-            b, mt, f'{checkpoint_dir}/inputs/phenotypes.tsv', phenotypes.phenotype_names
+        phenotypes_output = await self._write_phenotype_data(
+            fs, pool, b, mt, f'{working_dir}/inputs/phenotypes.tsv', phenotypes.phenotype_names
         )
-        input_data = self._convert_mt_to_plink(b, mt, f'{checkpoint_dir}/inputs/input_data')
+        input_data = await self._convert_mt_to_plink(fs, pool, b, mt, f'{working_dir}/inputs/input_data')
         return (phenotypes_output, input_data)
 
 
 @dataclass
 class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
-    base_name = 'sparse-grm'
     relatedness_cutoff: float = ...
     num_markers: int = ...
     cpu: Union[str, float, int] = 1
     memory: str = 'highmem'
     storage: str = '10Gi'
     spot: bool = True
-    base_output_root: str = '{{ output_dir }}/sparse-grm'
 
-    def __post_init__(self):
-        cast_dataclass_attributes(self)
+    def name(self) -> str:
+        return 'sparse-grm'
 
     def output_root(self, output_dir: str) -> str:
-        template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(self.base_output_root)
-        return template.render(output_dir=output_dir)
+        return f'{output_dir}/sparse-grm'
+
+    def attributes(self) -> Optional[Dict]:
+        return None
 
     def command(self, input_bfile: PlinkResourceGroup, output_prefix: str):
         return
 
-    def __call__(self, b: hb.Batch, input_bfile: PlinkResourceGroup, output_dir: str):
+    async def call(
+        self, fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, input_bfile: PlinkResourceGroup, output_dir: str
+    ):
         output_prefix = self.output_root(output_dir)
 
-        checkpointed_output = SaigeSparseGRMResourceGroup.use_checkpoint_if_exists(b, self, output_prefix)
+        checkpointed_output = await SaigeSparseGRMResourceGroup.use_checkpoint_if_exists_and_requested(
+            fs, pool, b, self, output_prefix
+        )
         if checkpointed_output and not self.overwrite:
             return checkpointed_output
 
@@ -106,23 +123,24 @@ createSparseGRM.R \
 
 @dataclass
 class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
-    base_name: str = '{{ phenotype["name"] }}-null-model'
-    base_attrs: Dict[str, str] = field(default_factory=collections.defaultdict)
     inv_normalize: bool = True
     skip_model_fitting: bool = True
     min_covariate_count: int = 5
     save_stdout: bool = True
-    base_output_root: str = '{{ output_dir }}/null-model-{{ phenotype["name"] }}'
-
-    def __post_init__(self):
-        cast_dataclass_attributes(self)
 
     def output_root(self, output_dir: str, phenotype: Phenotype) -> str:
-        template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(self.base_output_root)
-        return template.render(output_dir=output_dir, phenotype=phenotype)
+        return f'{output_dir}/null-model-{phenotype.name}'
 
-    def __call__(
+    def name(self, phenotype: Phenotype) -> str:
+        return f'{phenotype.name}-null-model'
+
+    def attributes(self, analysis_type: SaigeAnalysisType, phenotype: Phenotype) -> Optional[Dict]:
+        return {'analysis_type': analysis_type.value, 'trait_type': phenotype.phenotype_type.value}
+
+    async def call(
         self,
+        fs: AsyncFS,
+        pool: AsyncWorkerPool,
         b: hb.Batch,
         *,
         input_bfile: PlinkResourceGroup,
@@ -132,22 +150,26 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         covariates: List[str],
         user_id_col: str,
         output_dir: str,
-        sparse_grm: Optional[SaigeSparseGRMResourceGroup] = None,
     ) -> SaigeGlmmResourceGroup:
         output_root = self.output_root(output_dir, phenotype)
 
-        glmm_resource_output = SaigeGlmmResourceGroup.use_checkpoint_if_exists(
-            b, self, output_root, analysis_type, sparse_grm
-        )
+        if analysis_type == SaigeAnalysisType.VARIANT:
+            glmm_resource_output = await SaigeGlmmResourceGroup.use_checkpoint_if_exists_and_requested(
+                fs, pool, b, self, output_root
+            )
+        else:
+            assert analysis_type == SaigeAnalysisType.GENE
+            glmm_resource_output = await SaigeGeneGlmmResourceGroup.use_checkpoint_if_exists_and_requested(
+                fs, pool, b, self, output_root
+            )
+
         if glmm_resource_output and not self.overwrite:
             return glmm_resource_output
 
         j = (
             b.new_job(
                 name=self.name(phenotype=phenotype),
-                attributes=self.attributes(
-                    analysis_type=analysis_type.value, trait_type=phenotype.phenotype_type.value
-                ),
+                attributes=self.attributes(analysis_type, phenotype),
             )
             .storage(self.storage)
             .image(self.image)
@@ -156,7 +178,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
             .spot(self.spot)
         )
 
-        null_glmm = SaigeGlmmResourceGroup.from_job_intermediate(j, analysis_type, sparse_grm)
+        null_glmm = SaigeGlmmResourceGroup.from_job_intermediate(j)
 
         command = self.command(
             input_bfile,
@@ -223,10 +245,7 @@ step1_fitNULLGLMM.R \
 
 @dataclass
 class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
-    base_name: str = '{{ phenotype["name"] }}-{{ chunk["idx"] }}'
     save_stdout: bool = True
-    base_output_root: str = '{{ output_dir }}/results/{{ phenotype["name"] }}/{{ chunk["idx"] }}'
-
     mkl_off: bool = False
     drop_missing_dosages: bool = ...
     min_mac: float = 0.5  # FIXME
@@ -262,17 +281,24 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
     mac_cutoff_to_collapse_ultra_rare: float = 10
     dosage_cutoff_for_ultra_rare_presence: float = 0.5
 
-    def __post_init__(self):
-        cast_dataclass_attributes(self)
+    def name(self, phenotype: Phenotype, chunk: VariantChunk) -> str:
+        return f'{phenotype.name}-{chunk.idx}'
 
-    def output_dir(self, output_dir: str, phenotype: Phenotype) -> str:
-        output_root_dir = os.path.dirname(self.base_output_root)
-        template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(output_root_dir)
-        return template.render(output_dir=output_dir, phenotype=phenotype)
+    def attributes(
+        self, *, analysis_type: SaigeAnalysisType, phenotype: Phenotype, chunk: VariantChunk
+    ) -> Optional[Dict]:
+        return {
+            'analysis_type': analysis_type.value,
+            'trait_type': phenotype.phenotype_type.value,
+            'phenotype': phenotype.name,
+            'chunk': chunk.to_interval_str(),
+        }
 
     def output_file_prefix(self, output_dir: str, phenotype: Phenotype, chunk: VariantChunk) -> str:
-        template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(self.base_output_root)
-        return template.render(output_dir=output_dir, phenotype=phenotype, chunk=chunk)
+        return f'{output_dir}/results/{phenotype.name}/{chunk.idx}'
+
+    def output_dir(self, output_dir: str, phenotype: Phenotype) -> str:
+        return f'{output_dir}/results/{phenotype.name}/*'
 
     def command(
         self,
@@ -433,8 +459,10 @@ step2_SPAtests.R \
 
         return command
 
-    def __call__(
+    async def call(
         self,
+        fs: AsyncFS,
+        pool: AsyncWorkerPool,
         b: hb.Batch,
         *,
         mt_path: str,
@@ -449,18 +477,25 @@ step2_SPAtests.R \
     ) -> SaigeResultResourceGroup:
         output_root = self.output_file_prefix(output_dir, phenotype, chunk)
 
-        results = SaigeResultResourceGroup.use_checkpoint_if_exists(b, self, output_root, analysis_type)
+        if analysis_type == SaigeAnalysisType.VARIANT:
+            results = await SaigeResultResourceGroup.use_checkpoint_if_exists_and_requested(
+                fs, pool, b, self, output_root
+            )
+        else:
+            assert analysis_type == SaigeAnalysisType.GENE
+            results = await SaigeGeneResultResourceGroup.use_checkpoint_if_exists_and_requested(
+                fs, pool, b, self, output_root
+            )
         if results and not self.overwrite:
             return results
 
         j = (
             b.new_job(
-                name=self.name(phenotype=phenotype.name, chunk=chunk.name),
+                name=self.name(phenotype=phenotype, chunk=chunk),
                 attributes=self.attributes(
-                    phenotype=phenotype.name,
-                    chunk=chunk.name,
+                    phenotype=phenotype,
+                    chunk=chunk,
                     analysis_type=analysis_type.value,
-                    trait_type=phenotype.phenotype_type.value,
                 ),
             )
             .storage(self.storage)
@@ -470,7 +505,7 @@ step2_SPAtests.R \
             .spot(self.spot)
         )
 
-        result = SaigeResultResourceGroup.from_job_intermediate(j, analysis_type)
+        result = SaigeResultResourceGroup.from_job_intermediate(j)
 
         command = self.command(
             mt_path=mt_path,

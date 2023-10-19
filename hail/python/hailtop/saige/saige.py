@@ -1,27 +1,21 @@
 import collections
-import datetime
-import typer
-from typer import Option as Opt, Argument as Arg
-import yaml
 
-from dataclasses import asdict, dataclass, field, replace
-from typing import Annotated as Ann, Any, Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple, Union
 
 import hail as hl
 from hail.methods.qc import require_col_key_str, require_row_key_variant
+from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch as hb
-import hailtop.fs as hfs
+from hailtop.utils import AsyncWorkerPool
 
 from .constants import SaigeAnalysisType, SaigeInputDataType
 from .phenotype import Phenotypes
 from .steps import PrepareInputsStep, SparseGRMStep, Step1NullGlmmStep, Step2SPAStep
 from .variant_chunk import VariantChunks
-from .utils import cast_dataclass_attributes
-
-app = typer.Typer()
 
 
-class DummyTemporaryDirectory:
+class CheckpointDirectory:
     def __init__(self, name: str):
         self.name = name
 
@@ -42,56 +36,28 @@ class SaigeConfig:
     step1_null_glmm: Step1NullGlmmStep = field(default_factory=Step1NullGlmmStep, kw_only=True)
     step2_spa: Step2SPAStep = field(default_factory=Step2SPAStep, kw_only=True)
 
-    def __post_init__(self):
-        cast_dataclass_attributes(self)
-
-    @staticmethod
-    def from_yaml_file(file: str) -> 'SaigeConfig':
-        with hfs.open(file, 'r') as f:
-            config = yaml.safe_load(f)
-        return SaigeConfig(**config)
-
-    def to_yaml(self):
-        return yaml.safe_dump(asdict(self))
-
-    def update(self, updates: List[Tuple[str, str]]):
-        changes: Dict[str, Any] = collections.defaultdict(dict)
-        for name, value in updates:
-            if '.' not in name:
-                changes[name] = value
-            else:
-                step, var_name = name.split('.')
-                changes[step][var_name] = value
-
-        changes['prepare_inputs'] = replace(self.prepare_inputs, **changes.get('prepare_inputs', {}))
-        changes['sparse_grm'] = replace(self.sparse_grm, **changes.get('sparse_grm', {}))
-        changes['step1_null_glmm'] = replace(self.step1_null_glmm, **changes.get('step1_null_glmm', {}))
-        changes['step2_spa'] = replace(self.step2_spa, **changes.get('step2_spa', {}))
-
-        return replace(self, **changes)
-
 
 class SAIGE:
-    @staticmethod
-    def from_config_file(file: str) -> 'SAIGE':
-        config = SaigeConfig.from_yaml_file(file)
-        return SAIGE(config)
-
-    def __init__(self, config: Optional[SaigeConfig] = None):
+    def __init__(
+        self, router_fs_args: Optional[dict] = None, parallelism: int = 10, config: Optional[SaigeConfig] = None
+    ):
         if config is None:
             config = SaigeConfig()
         self.config = config
+
+        self.fs = RouterAsyncFS(**router_fs_args)
+        self.pool = AsyncWorkerPool(parallelism)
 
     def _munge_inputs(
         self,
         *,
         mt: Union[str, hl.MatrixTable],
-        checkpoint_dir: str,
+        working_dir: str,
         phenotypes: Union[List[str], Phenotypes],
         variant_chunks: Optional[Union[str, VariantChunks]],
     ) -> Tuple[hl.MatrixTable, str, Phenotypes, VariantChunks]:
         if isinstance(mt, hl.MatrixTable):
-            mt_path = f'{checkpoint_dir}/input.mt'
+            mt_path = f'{working_dir}/input.mt'
             mt.checkpoint(mt_path)
         else:
             mt_path = mt
@@ -118,26 +84,7 @@ class SAIGE:
 
         return (mt, mt_path, phenotypes, variant_chunks)
 
-    def _dump_data_config_to_yaml(
-        self,
-        mt_path: str,
-        output_dir: str,
-        checkpoint_dir: str,
-        phenotypes: Phenotypes,
-        chunks: VariantChunks,
-        input_data_type: SaigeInputDataType,
-    ):
-        data_config = {
-            'mt_path': mt_path,
-            'output_dir': output_dir,
-            'checkpoint_dir': checkpoint_dir,
-            'input_data_type': input_data_type,
-            'phenotypes': [asdict(p) for p in phenotypes],
-            'chunks': [c.to_dict() for c in chunks],
-        }
-        return yaml.safe_dump(data_config)
-
-    def run_saige(
+    async def run_saige(
         self,
         *,
         mt: Union[str, hl.MatrixTable],
@@ -152,20 +99,19 @@ class SAIGE:
         if checkpoint_dir is None:
             checkpoint_dir = hl.TemporaryDirectory()
         else:
-            checkpoint_dir = DummyTemporaryDirectory(checkpoint_dir)
+            checkpoint_dir = CheckpointDirectory(checkpoint_dir)
 
         with checkpoint_dir:
             mt, mt_path, phenotypes, variant_chunks = self._munge_inputs(
-                mt=mt, checkpoint_dir=checkpoint_dir.name, phenotypes=phenotypes, variant_chunks=variant_chunks
+                mt=mt, working_dir=checkpoint_dir.name, phenotypes=phenotypes, variant_chunks=variant_chunks
             )
-
-            with hfs.open(f'{output_dir}/config.yaml', 'w') as f:
-                f.write(self.config.to_yaml() + '\n')
 
             if b is None:
                 b = hb.Batch(name=self.config.name, attributes=self.config.attributes)
 
-            input_phenotypes, input_plink_data = self.config.prepare_inputs(b, mt, phenotypes, checkpoint_dir.name)
+            input_phenotypes, input_plink_data = await self.config.prepare_inputs.call(
+                self.fs, self.pool, b, mt, phenotypes, checkpoint_dir.name
+            )
 
             user_id_col = list(mt.col_key)[0]
 
@@ -175,15 +121,11 @@ class SAIGE:
                 assert 'GT' in list(mt.entry)
                 input_data_type = SaigeInputDataType.VCF
 
-            with hfs.open(f'{output_dir}/data_config.yaml', 'w') as f:
-                config_str = self._dump_data_config_to_yaml(
-                    mt_path, output_dir, checkpoint_dir.name, phenotypes, variant_chunks, input_data_type
-                )
-                f.write(config_str + '\n')
-
             for phenotype_group in phenotypes:
                 for phenotype in phenotype_group:
-                    null_glmm = self.config.step1_null_glmm(
+                    null_glmm = await self.config.step1_null_glmm.call(
+                        self.fs,
+                        self.pool,
                         b,
                         input_bfile=input_plink_data,
                         input_phenotypes=input_phenotypes,
@@ -194,7 +136,9 @@ class SAIGE:
                         output_dir=checkpoint_dir.name,
                     )
                     for variant_chunk in variant_chunks:
-                        self.config.step2_spa(
+                        await self.config.step2_spa.call(
+                            self.fs,
+                            self.pool,
                             b,
                             mt_path=mt_path,
                             output_dir=output_dir,
@@ -207,13 +151,7 @@ class SAIGE:
 
             run_kwargs = run_kwargs or {}
             run_kwargs.pop('wait')
-            b_handle = b.run(**run_kwargs, wait=False)
-
-            with hfs.open(f'{output_dir}/batch_info.yaml', 'w') as f:
-                info = yaml.safe_dump({'batch_id': b_handle.id, 'name': b.name, 'attributes': b.attributes})
-                f.write(info + '\n')
-
-            b_handle.wait()
+            b.run(**run_kwargs, wait=True)
 
             results_tables = []
             for phenotype_group in phenotypes:
@@ -246,13 +184,13 @@ class SAIGE:
         run_kwargs: Optional[dict] = None,
     ):
         if checkpoint_dir is None:
-            checkpoint_dir = hl.TemporaryDirectory()
+            working_dir = hl.TemporaryDirectory()
         else:
-            checkpoint_dir = DummyTemporaryDirectory(checkpoint_dir)
+            working_dir = CheckpointDirectory(checkpoint_dir)
 
         with checkpoint_dir:
             mt, mt_path, phenotypes, variant_chunks = self._munge_inputs(
-                mt=mt, checkpoint_dir=checkpoint_dir.name, phenotypes=phenotypes, variant_chunks=variant_chunks
+                mt=mt, working_dir=working_dir.name, phenotypes=phenotypes, variant_chunks=variant_chunks
             )
 
             if group_col not in mt.row:
@@ -264,14 +202,12 @@ class SAIGE:
                     f'group row annotation must have type {hl.tarray(hl.tstruct(group=hl.tstr, ann=hl.tstr))}. Found {group.dtype}'
                 )
 
-            with hfs.open(f'{output_dir}/config.yaml', 'w') as f:
-                config_str = yaml.safe_dump(asdict(self.config))
-                f.write(config_str + '\n')
-
             if b is None:
                 b = hb.Batch(name=self.config.name, attributes=self.config.attributes)
 
-            input_phenotypes, input_plink_data = self.config.prepare_inputs(b, mt, phenotypes, checkpoint_dir.name)
+            input_phenotypes, input_plink_data = await self.config.prepare_inputs.call(
+                self.fs, self.pool, b, mt, phenotypes, working_dir.name
+            )
 
             user_id_col = list(mt.col_key)[0]
 
@@ -281,17 +217,13 @@ class SAIGE:
                 assert 'GT' in list(mt.entry)
                 input_data_type = SaigeInputDataType.VCF
 
-            with hfs.open(f'{output_dir}/data_config.yaml', 'w') as f:
-                config_str = self._dump_data_config_to_yaml(
-                    mt_path, output_dir, checkpoint_dir.name, phenotypes, variant_chunks, input_data_type
-                )
-                f.write(config_str + '\n')
-
-            sparse_grm = self.config.sparse_grm(b, input_plink_data, checkpoint_dir.name)
+            sparse_grm = await self.config.sparse_grm.call(self.fs, self.pool, b, input_plink_data, working_dir.name)
 
             for phenotype_group in phenotypes:
                 for phenotype in phenotype_group:
-                    null_glmm = self.config.step1_null_glmm(
+                    null_glmm = await self.config.step1_null_glmm.call(
+                        self.fs,
+                        self.pool,
                         b,
                         input_bfile=input_plink_data,
                         input_phenotypes=input_phenotypes,
@@ -299,11 +231,13 @@ class SAIGE:
                         analysis_type=SaigeAnalysisType.VARIANT,
                         covariates=covariates,
                         user_id_col=user_id_col,
-                        output_dir=checkpoint_dir.name,
-                        sparse_grm=sparse_grm,
+                        output_dir=working_dir.name,
+                        # sparse_grm=sparse_grm,  # FIXME: why isn't this needed anymore. must be a bug somewhere
                     )
                     for variant_chunk in variant_chunks:
-                        self.config.step2_spa(
+                        await self.config.step2_spa.call(
+                            self.fs,
+                            self.pool,
                             b,
                             mt_path=mt_path,
                             output_dir=output_dir,
@@ -318,71 +252,4 @@ class SAIGE:
 
             run_kwargs = run_kwargs or {}
             run_kwargs.pop('wait')
-            b_handle = b.run(**run_kwargs, wait=False)
-
-            with hfs.open(f'{output_dir}/batch_info.yaml', 'w') as f:
-                info = yaml.safe_dump(
-                    {
-                        'batch_id': b_handle.id,
-                        'name': b.name,
-                        'attributes': b.attributes,
-                        'timestamp': str(datetime.datetime.now()),
-                    }
-                )
-                f.write(info + '\n')
-
-            b_handle.wait()
-
-            # FIXME: What do saige gene results tables look like?
-
-
-@app.command(help='run single variant version of SAIGE')
-def run_saige(
-    mt: Ann[str, Arg(help='Path to matrix table.')],
-    output_dir: Ann[str, Arg(help='Path to output directory for results.')],
-    phenotypes: Ann[
-        List[str], Arg(help='Phenotype names to run SAIGE on. Must be valid column fields in the matrix table.')
-    ],
-    covariates: Ann[
-        List[str], Arg(help='Covariates to use when running SAIGE. Must be valid column fields in the matrix table.')
-    ],
-    config: Ann[Optional[str], Opt(help='Path to SAIGE config file.')] = None,
-    checkpoint_dir: Ann[Optional[str], Opt(help='Path to output directory for checkpointing files.')] = None,
-    variant_chunks: Ann[
-        Optional[str], Opt(help='Path to variant interval file in either bed or interval list format.')
-    ] = None,
-    overrides: Ann[
-        Optional[List[str]],
-        Opt(help='Override configuration parameters in the default configuration. Example: sparse_grm.checkpoint=true'),
-    ] = None,
-):
-    if config is not None:
-        config = SaigeConfig.from_yaml_file(config)
-
-    if overrides:
-        new_overrides = []
-        for o in overrides:
-            k, v = o.split('=')
-            new_overrides.append((k, v))
-        config = config.update(new_overrides)
-
-    saige = SAIGE(config)
-
-    saige.run_saige(
-        mt=mt,
-        phenotypes=phenotypes,
-        covariates=covariates,
-        output_dir=output_dir,
-        checkpoint_dir=checkpoint_dir,
-        variant_chunks=variant_chunks,
-    )
-
-
-@app.command('init', help='generate example SAIGE yaml config file')
-def generate_default_config():
-    config = SaigeConfig()
-    print(yaml.safe_dump(asdict(config)))
-
-
-if __name__ == '__main__':
-    typer.run(run_saige)
+            b.run(**run_kwargs, wait=True)

@@ -18,18 +18,3 @@ class JobConfigMixin(abc.ABC):
     memory: Optional[str] = None
     storage: Optional[str] = None
     spot: Optional[bool] = None
-    base_name: Optional[str] = None
-    base_attrs: Optional[Dict[str, str]] = None
-
-    def name(self, *, name=None, **kwargs):
-        if name is not None:
-            return name
-        if self.base_name is not None:
-            template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(self.base_name)
-            return template.render(**kwargs)
-        return None
-
-    def attributes(self, **kwargs):
-        attrs = self.base_attrs or {}
-        attrs.update(kwargs)
-        return attrs

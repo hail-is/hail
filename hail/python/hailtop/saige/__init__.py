@@ -1,6 +1,5 @@
-from .saige import SAIGE, run_saige
+from .saige import SAIGE
 
 __all__ = [
     'SAIGE',
-    'run_saige',
 ]

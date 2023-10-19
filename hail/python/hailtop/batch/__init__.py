@@ -2,7 +2,7 @@ import warnings
 
 from .batch import Batch
 from .batch_pool_executor import BatchPoolExecutor
-from .backend import LocalBackend, ServiceBackend, Backend
+from .backend import Backend, LocalBackend, ServiceBackend
 from .docker import build_python_image
 from .exceptions import BatchException
 from .job import BashJob, Job, PythonJob
