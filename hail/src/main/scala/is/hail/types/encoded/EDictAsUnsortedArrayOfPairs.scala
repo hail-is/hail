@@ -35,7 +35,8 @@ final case class EDictAsUnsortedArrayOfPairs(val elementType: EType, override va
   def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
     val tmpRegion = cb.memoize(Region.stagedCreate(Region.REGULAR, region.getPool()), "tmp_region")
 
-    val decodedUnsortedArray = arrayRepr._buildDecoder(cb, t, tmpRegion, in).asInstanceOf[SIndexablePointerValue]
+    val arrayDecoder = arrayRepr.buildDecoder(t, cb.emb.ecb)
+    val decodedUnsortedArray = arrayDecoder(cb, tmpRegion, in).asInstanceOf[SIndexablePointerValue]
     val sct = SingleCodeType.fromSType(decodedUnsortedArray.st.elementType)
 
     val ab = new StagedArrayBuilder(sct, true, cb.emb, 0)
@@ -53,7 +54,7 @@ final case class EDictAsUnsortedArrayOfPairs(val elementType: EType, override va
         .lt(cb, lk, rk, missingEqual = true)
     }
 
-    sorter.sort(cb, region, lessThan)
+    sorter.sort(cb, tmpRegion, lessThan)
     val ret = sorter.toRegion(cb, t)
     cb.append(tmpRegion.invalidate())
     ret
