@@ -408,7 +408,7 @@ class ServiceBackend(
 class EndOfInputException extends RuntimeException
 class HailBatchFailure(message: String) extends RuntimeException(message)
 
-object ServiceBackendSocketAPI2 {
+object ServiceBackendAPI {
   private[this] val log = Logger.getLogger(getClass.getName())
 
   def main(argv: Array[String]): Unit = {
@@ -455,7 +455,7 @@ object ServiceBackendSocketAPI2 {
 
     val action = (input \ "action").extract[Int]
     val payload = (input \ "payload")
-    new ServiceBackendSocketAPI2(backend, fs, outputURL).executeOneCommand(action, payload)
+    new ServiceBackendAPI(backend, fs, outputURL).executeOneCommand(action, payload)
   }
 }
 
@@ -528,7 +528,7 @@ case class SerializedIRFunction(
   rendered_body: String,
 )
 
-class ServiceBackendSocketAPI2(
+class ServiceBackendAPI(
   private[this] val backend: ServiceBackend,
   private[this] val fs: FS,
   private[this] val outputURL: String,
