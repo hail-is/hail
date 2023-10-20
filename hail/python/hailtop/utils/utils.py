@@ -695,14 +695,6 @@ def is_transient_error(e: BaseException) -> bool:
     if (isinstance(e, aiohttp.ClientConnectorError)
             and is_transient_error(e.os_error)):
         return True
-    if (isinstance(e, aiohttp.ClientOSError)
-            and len(e.args) >= 2
-            and e.args[0] == 1
-            and 'sslv3 alert bad record mac' in e.args[1]):
-        # aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)
-        #
-        # This appears to be a symptom of Google rate-limiting as of 2023-10-15
-        return True
     # appears to happen when the connection is lost prematurely, see:
     # https://github.com/aio-libs/aiohttp/issues/4581
     # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85
