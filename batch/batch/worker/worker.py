@@ -2372,7 +2372,7 @@ class JVMJob(Job):
                     except asyncio.CancelledError:
                         raise
                     except Exception as e:
-                        self.worker.return_jvm(await self.worker.recreate_jvm(self.jvm))
+                        await self.worker.return_broken_jvm(self.jvm)
                         raise IncompleteJVMCleanupError(
                             f'while unmounting fuse blob storage {bucket} from {mount_path} for {self.jvm_name} for job {self.id}'
                         ) from e
@@ -2910,15 +2910,45 @@ class JVM:
         return await self.container.get_job_resource_usage()
 
 
-class JVMQueue:
-    def __init__(self, n_cores):
+class JVMPool:
+    global_jvm_index = 0
+
+    def __init__(self, n_cores: int, worker: Worker):
         self.queue: asyncio.Queue[JVM] = asyncio.Queue()
-        self.total = 0
-        self.target = CORES // n_cores
+        self.total_jvms_including_borrowed = 0
+        self.max_jvms = CORES // n_cores
         self.n_cores = n_cores
+        self.worker = worker
+
+    def borrow_jvm_nowait(self) -> JVM:
+        return self.jvms.get_nowait()
+
+    async def borrow_jvm(self) -> JVM:
+        return await self.jvms.get()
+
+    def return_jvm(self, jvm: JVM):
+        assert self.n_cores == jvm.n_cores
+        assert self.queue.qsize() < self.max_jvms
+        self.queue.put_nowait(jvm)
+
+    async def return_broken_jvm(self, jvm: JVM):
+        jvm.kill()
+        self.total_jvms_including_borrowed -= 1
+        await self.create_jvm()
+        log.info(f'killed {jvm} and recreated a new jvm')
+
+    async def create_jvm(self):
+        assert self.queue.qsize() < self.max_jvms
+        assert self.total_jvms_including_borrowed < self.max_jvms
+        self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
+        self.total_jvms_including_borrowed += 1
+        JVMPool.global_jvm_index += 1
+
+    def full(self) -> bool:
+        return self.total_jvms_including_borrowed == self.max_jvms
 
     def __repr__(self):
-        return f'JVMQueue({self.queue!r}, {self.total!r}, {self.target!r}, {self.n_cores!r})'
+        return f'JVMPool({self.jvms!r}, {self.total_jvms_including_borrowed!r}, {self.max_jvms!r}, {self.n_cores!r})'
 
 
 class Worker:
@@ -2953,54 +2983,54 @@ class Worker:
 
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
-        self._jvms_by_cores: Dict[int, JVMQueue] = {
-            n_cores: JVMQueue(n_cores) for n_cores in (1, 2, 4, 8)
+        self._jvmpools_by_cores: Dict[int, JVMQueue] = {
+            n_cores: JVMPool(n_cores) for n_cores in (1, 2, 4, 8)
         }
-        self._jvm_waiters: asyncio.Queue[int] = asyncio.Queue()
+        self._waiting_for_jvm_with_n_cores: asyncio.Queue[int] = asyncio.Queue()
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
 
     async def _initialize_jvms(self):
         assert instance_config
-        if instance_config.worker_type() in ('standard', 'D', 'highmem', 'E'):
-            global_jvm_index = 0
-            while True:
-                try:
-                    n_cores = self._jvm_waiters.get_nowait()
-                    jvmqueue = self._jvms_by_cores[n_cores]
-                    jvmqueue.queue.put_nowait(await JVM.create(global_jvm_index, n_cores, self))
-                    jvmqueue.total += 1
-                    global_jvm_index += 1
-                except asyncio.QueueEmpty:
-                    for n_cores, jvmqueue in self._jvms_by_cores.items():
-                        while jvmqueue.target != jvmqueue.total:
-                            jvmqueue.queue.put_nowait(await JVM.create(global_jvm_index, n_cores, self))
-                            jvmqueue.total += 1
-                            global_jvm_index += 1
+        if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
+            log.info(f'no JVMs initialized')
+
+        while True:
+            try:
+                n_cores = self._waiting_for_jvm_with_n_cores.get_nowait()
+                await self._jvmpools_by_cores[n_cores].create_jvm()
+            except asyncio.QueueEmpty:
+                next_unfull_jvmpool = None
+                for jvmpool in self._jvmpools_by_cores.values():
+                    if not jvmpool.full():
+                        next_unfull_jvmpool = jvmpool
+                        break
+
+                if next_unfull_jvmpool is None:
                     break
-            assert self._jvm_waiters.empty()
-        log.info(f'JVMs initialized {self._jvms_by_cores}')
+                await next_unfull_jvmpool.create_jvm()
+
+        assert self._waiting_for_jvm_with_n_cores.empty()
+        assert all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
+        log.info(f'JVMs initialized {self._jvmpools_by_cores}')
 
     async def borrow_jvm(self, n_cores: int) -> JVM:
         assert instance_config
         if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
             raise ValueError(f'no JVMs available on {instance_config.worker_type()}')
 
-        jvmqueue = self._jvms_by_cores[n_cores]
+        jvmpool = self._jvmpools_by_cores[n_cores]
         try:
-            return jvmqueue.queue.get_nowait()
+            return jvmpool.borrow_jvm_nowait()
         except asyncio.QueueEmpty:
-            assert not self._jvm_initializer_task.done(), (CORES, n_cores, self._jvms_by_cores)
-            self._jvm_waiters.put_nowait(n_cores)
-            return await jvmqueue.queue.get()
+            self._waiting_for_jvm_with_n_cores.put_nowait(n_cores)
+            return await jvmpool.borrow_jvm()
 
     def return_jvm(self, jvm: JVM):
         jvm.reset()
-        self._jvms_by_cores[jvm.n_cores].queue.put_nowait(jvm)
+        self._jvmpools_by_cores[jvm.n_cores].return_jvm(jvm)
 
-    async def recreate_jvm(self, jvm: JVM):
-        await jvm.kill()  # is this OK to do? Seems like we ought to, no?
-        log.info(f'killed {jvm} and recreated a new jvm')
-        return await JVM.create(jvm.index, jvm.n_cores, self)
+    async def return_broken_jvm(self, jvm: JVM):
+        return await self._jvmpools_by_cores[jvm.n_cores].return_broken_jvm(jvm)
 
     @property
     def headers(self) -> Dict[str, str]:
