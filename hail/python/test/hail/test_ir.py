@@ -597,6 +597,8 @@ def _assert_encoding_roundtrip(value):
         {"foo", "bar", "baz"},
         {"a": {"b": 1}},
         {"a": 1, "b": 2},
+        {1: "a", 2: "b"},  # Check values that are pointers to other memory
+        {1: [], 2: [1, 2, 3, 4]},
         hl.Call([0, 1]),
         hl.Call([1, 0], phased=True),
         hl.Call([2], phased=True),
