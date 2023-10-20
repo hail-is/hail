@@ -17,6 +17,7 @@ from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, Writ
                                  AsyncFSURL, AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
                                  UnexpectedEOFError)
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
+from hailtop.aiotools.tasks import cancel_and_retrieve_all_exceptions
 
 from .base_client import GoogleBaseClient
 from ..session import GoogleSession
@@ -78,7 +79,7 @@ class InsertObjectStream(WritableStream):
                 return len(b)
             raise ValueError('request task finished early')
         finally:
-            fut.cancel()
+            await cancel_and_retrieve_all_exceptions([fut])
 
     async def _wait_closed(self):
         fut = asyncio.ensure_future(self._it.stop())
@@ -87,11 +88,7 @@ class InsertObjectStream(WritableStream):
             async with await self._request_task as resp:
                 self._value = await resp.json()
         finally:
-            if fut.done() and not fut.cancelled():
-                if exc := fut.exception():
-                    raise exc
-            else:
-                fut.cancel()
+            await cancel_and_retrieve_all_exceptions([fut, self._request_task])
 
 
 class _TaskManager:
@@ -110,25 +107,10 @@ class _TaskManager:
                         exc_tb: Optional[TracebackType]) -> None:
         assert self._task is not None
 
-        if not self._task.done():
-            if exc_val:
-                self._task.cancel()
-                try:
-                    value = await self._task
-                    if self._closable:
-                        value.close()
-                except:
-                    _, exc, _ = sys.exc_info()
-                    if exc is not exc_val:
-                        log.warning('dropping preempted task exception', exc_info=True)
-            else:
-                value = await self._task
-                if self._closable:
-                    value.close()
-        else:
-            value = await self._task
-            if self._closable:
-                value.close()
+        if self._closable and self._task.done() and not self._task.cancelled():
+            (await self._task).close()
+
+        await cancel_and_retrieve_all_exceptions([self._task])
 
 
 class ResumableInsertObjectStream(WritableStream):

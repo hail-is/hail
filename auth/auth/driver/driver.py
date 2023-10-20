@@ -43,8 +43,8 @@ class EventHandler:
         self.min_delay_secs = min_delay_secs
         self.task_manager = aiotools.BackgroundTaskManager()
 
-    def shutdown(self):
-        self.task_manager.shutdown()
+    async def shutdown(self):
+        await self.task_manager.shutdown()
 
     async def main_loop(self):
         delay_secs = self.min_delay_secs
@@ -598,7 +598,7 @@ async def async_main():
             finally:
                 try:
                     if user_creation_loop is not None:
-                        user_creation_loop.shutdown()
+                        await user_creation_loop.shutdown()
                 finally:
                     try:
                         await app['identity_client'].close()

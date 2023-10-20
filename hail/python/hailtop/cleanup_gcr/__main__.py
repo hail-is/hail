@@ -18,8 +18,8 @@ class AsyncIOExecutor:
         self._semaphore = asyncio.Semaphore(parallelism)
         self.task_manager = aiotools.BackgroundTaskManager()
 
-    def shutdown(self):
-        self.task_manager.shutdown()
+    async def shutdown(self):
+        await self.task_manager.shutdown()
 
     async def _run(self, fut, aw):
         async with self._semaphore:
@@ -45,8 +45,8 @@ class CleanupImages:
         self._executor = AsyncIOExecutor(8)
         self._client = client
 
-    def shutdown(self):
-        self._executor.shutdown()
+    async def shutdown(self):
+        await self._executor.shutdown()
 
     async def cleanup_digest(self, image, digest, tags):
         log.info(f'cleaning up digest {image}@{digest}')
@@ -115,7 +115,7 @@ async def main():
         try:
             await cleanup_images.run()
         finally:
-            cleanup_images.shutdown()
+            await cleanup_images.shutdown()
 
 
 asyncio.get_event_loop().run_until_complete(main())

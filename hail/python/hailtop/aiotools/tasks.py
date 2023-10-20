@@ -1,9 +1,23 @@
-from typing import Callable, Set
+from typing import Iterable, Set
 import asyncio
 import logging
+from contextlib import ExitStack
 
 
 log = logging.getLogger('aiotools.tasks')
+
+
+async def cancel_and_retrieve_all_exceptions(tasks: Iterable[asyncio.Task]):
+    for task in tasks:
+        if not task.cancelled():
+            task.cancel()
+    await asyncio.wait(tasks)
+    with ExitStack() as retrieve_all_exceptions:
+        # NB: only the first exception is raised
+        for task in tasks:
+            assert task.done()
+            if not task.cancelled():
+                retrieve_all_exceptions.callback(task.result)
 
 
 class TaskManagerClosedError(Exception):
@@ -21,28 +35,16 @@ class BackgroundTaskManager:
         if self._closed:
             raise TaskManagerClosedError
         t = asyncio.create_task(coroutine)
-        t.add_done_callback(self.on_task_done(t))
+
+        def retieve_exception_and_remove_from_task_list(task: asyncio.Task):
+            assert task.done()
+            if not task.cancelled():
+                if exc := task.exception():
+                    log.exception(f'child task {task} of manager {self} raised', exc)
+            self.tasks.remove(task)
+
+        t.add_done_callback(retieve_exception_and_remove_from_task_list)
         self.tasks.add(t)
 
-    def on_task_done(self, t: asyncio.Task) -> Callable[[asyncio.Future], None]:
-        def callback(fut: asyncio.Future):
-            self.tasks.remove(t)
-            try:
-                if e := fut.exception():
-                    log.exception(e)
-            except asyncio.CancelledError:
-                if not self._closed:
-                    log.exception('Background task was cancelled before task manager shutdown')
-        return callback
-
-    def shutdown(self):
-        self._closed = True
-        for task in self.tasks:
-            try:
-                task.cancel()
-            except Exception:
-                log.warning(f'encountered an exception while cancelling background task: {task}', exc_info=True)
-
-    async def shutdown_and_wait(self):
-        self.shutdown()
-        await asyncio.wait(self.tasks, return_when=asyncio.ALL_COMPLETED)
+    async def shutdown(self):
+        await cancel_and_retrieve_all_exceptions(self.tasks)

@@ -362,7 +362,7 @@ class Database:
     async def async_close(self):
         assert self.pool
         assert self.connection_release_task_manager
-        self.connection_release_task_manager.shutdown()
+        await self.connection_release_task_manager.shutdown()
         self.pool.close()
         await self.pool.wait_closed()
         await self.async_exit_stack.aclose()

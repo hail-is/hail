@@ -2946,7 +2946,7 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
 async def on_cleanup(app):
     async with AsyncExitStack() as stack:
-        stack.callback(app['task_manager'].shutdown)
+        stack.push_async_callback(app['task_manager'].shutdown)
         stack.push_async_callback(app['hail_credentials'].close)
         stack.push_async_callback(app['client_session'].close)
         stack.push_async_callback(app['file_store'].close)

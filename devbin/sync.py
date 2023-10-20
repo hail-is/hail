@@ -32,10 +32,10 @@ class Sync:
         self.pods: Set[Tuple[str, str]] = set()
         self.paths = paths
         self.should_sync_event = asyncio.Event()
-        self.update_loop_coro = asyncio.ensure_future(self.update_loop())
+        self.update_loop_task = asyncio.create_task(self.update_loop())
 
-    def close(self):
-        self.update_loop_coro.cancel()
+    async def close(self):
+        await cancel_and_retrieve_all_exceptions([self.update_loop_task])
 
     async def sync_and_restart_pod(self, pod, namespace):
         log.info(f'reloading {pod}@{namespace}')
@@ -153,7 +153,7 @@ if __name__ == '__main__':
             loop.run_until_complete(sync.monitor_pods(args.app, args.namespace))
         finally:
             try:
-                sync.close()
+                loop.run_until_complete(sync.close())
             finally:
                 try:
                     for f in sync_futs:

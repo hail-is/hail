@@ -12,6 +12,7 @@ from ..utils.utils import sleep_before_try
 from ..utils.rich_progress_bar import RichProgressBar, make_listener
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
+from .tasks import cancel_and_retrieve_all_exceptions
 
 try:
     import uvloop
@@ -58,12 +59,7 @@ class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
         try:
             await self.sema.__aexit__(exc_type, exc, tb)
         finally:
-            if self.task is not None:
-                if self.task.done() and not self.task.cancelled():
-                    if exc := self.task.exception():
-                        raise exc
-                else:
-                    self.task.cancel()
+            await cancel_and_retrieve_all_exceptions([self.task])
 
 
 async def copy(*,

@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from ..utils.rich_progress_bar import SimpleRichProgressBar, SimpleRichProgressBarTask
 from .router_fs import RouterAsyncFS
 from .fs import AsyncFS, FileStatus
+from ..tasks import cancel_and_retrieve_all_exceptions
 
 try:
     import uvloop
@@ -134,8 +135,10 @@ async def diff_one(source_url: str, target_url: str, fs: AsyncFS) -> Optional[di
     try:
         _, ssize = await source_task
     except FileNotFoundError as err:
-        target_task.cancel()
-        raise DiffException(f'Source file removed during diff: {source_url}') from err
+        try:
+            await cancel_and_retrieve_all_exceptions([target_task])
+        finally:
+            raise DiffException(f'Source file removed during diff: {source_url}') from err
 
     try:
         _, tsize = await target_task

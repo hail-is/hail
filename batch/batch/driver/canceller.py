@@ -67,9 +67,9 @@ class Canceller:
 
         self.task_manager = aiotools.BackgroundTaskManager()
 
-    def shutdown(self):
+    async def shutdown(self):
         try:
-            self.task_manager.shutdown()
+            await self.task_manager.shutdown()
         finally:
             self.async_worker_pool.shutdown()
 

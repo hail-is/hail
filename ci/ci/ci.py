@@ -779,7 +779,7 @@ async def on_cleanup(app):
         cleanup.push_async_callback(app['db'].async_close)
         cleanup.push_async_callback(app['client_session'].close)
         cleanup.push_async_callback(app['batch_client'].close)
-        cleanup.callback(app['task_manager'].shutdown)
+        cleanup.push_async_callback(app['task_manager'].shutdown)
 
 
 def run():

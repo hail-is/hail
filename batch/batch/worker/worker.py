@@ -68,6 +68,7 @@ from hailtop.utils import (
     retry_transient_errors_with_delayed_warnings,
     time_msecs,
     time_msecs_str,
+    cancel_and_retrieve_all_exceptions,
 )
 
 from ..batch_format_version import BatchFormatVersion
@@ -682,13 +683,11 @@ async def run_until_done_or_deleted(
         assert step.done()
         return step.result()
     finally:
-        for t in (step, deleted):
-            if t.done():
-                e = t.exception()
-                if e and not user_error(e):
-                    log.exception(e)
-            else:
-                t.cancel()
+        try:
+            await cancel_and_retrieve_all_exceptions((step, deleted))
+        except Exception as exc:
+            if not user_error(exc):
+                log.exception(exc)
 
 
 async def send_signal_and_wait(proc, signal, timeout=None):
@@ -963,8 +962,7 @@ class Container:
                         finally:
                             self.process = None
             finally:
-                if self._run_fut is not None and not self._run_fut.done():
-                    self._run_fut.cancel()
+                await cancel_and_retrieve_all_exceptions([self._run_fut])
                 self._run_fut = None
                 self._killed = True
 
@@ -2000,9 +1998,9 @@ class DockerJob(Job):
                             try:
                                 await self.mark_complete(mjs_fut)
                             except asyncio.CancelledError:
-                                mjs_fut.cancel()
+                                await cancel_and_retrieve_all_exceptions([mjs_fut])
                         else:
-                            mjs_fut.cancel()
+                            await cancel_and_retrieve_all_exceptions([mjs_fut])
 
     async def cleanup(self):
         if self.disk:
@@ -2319,9 +2317,9 @@ class JVMJob(Job):
                     try:
                         await self.mark_complete(mjs_fut)
                     except asyncio.CancelledError:
-                        mjs_fut.cancel()
+                        await cancel_and_retrieve_all_exceptions([mjs_fut])
                 else:
-                    mjs_fut.cancel()
+                    await cancel_and_retrieve_all_exceptions([mjs_fut])
 
     async def cleanup(self):
         assert self.worker
@@ -2982,11 +2980,13 @@ class Worker:
 
     async def shutdown(self):
         log.info('Worker.shutdown')
-        self._jvm_initializer_task.cancel()
         async with AsyncExitStack() as cleanup:
+            cleanup.push_async_callback(cancel_and_retrieve_all_exceptions, [self._jvm_initializer_task])
+
             for jvm in self._jvms:
                 cleanup.push_async_callback(jvm.kill)
-            cleanup.push_async_callback(self.task_manager.shutdown_and_wait)
+
+            cleanup.push_async_callback(self.task_manager.shutdown)
             if self.file_store:
                 cleanup.push_async_callback(self.file_store.close)
             if self.fs:
@@ -3426,7 +3426,7 @@ async def async_main():
             async with AsyncExitStack() as cleanup:
                 cleanup.push_async_callback(worker.shutdown)
                 cleanup.push_async_callback(CLOUD_WORKER_API.close)
-                cleanup.push_async_callback(network_allocator_task_manager.shutdown_and_wait)
+                cleanup.push_async_callback(network_allocator_task_manager.shutdown)
                 cleanup.push_async_callback(docker.close)
 
                 await worker.run()

@@ -27,6 +27,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
+from ..aiotools.tasks import cancel_and_retrieve_all_exceptions
+
 
 try:
     import aiodocker  # pylint: disable=import-error
@@ -158,12 +160,7 @@ def async_to_blocking(coro: Awaitable[T]) -> T:
     try:
         return loop.run_until_complete(task)
     finally:
-        if task.done() and not task.cancelled():
-            exc = task.exception()
-            if exc:
-                raise exc
-        else:
-            task.cancel()
+        loop.run_until_complete(cancel_and_retrieve_all_exceptions([task]))
 
 
 def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
@@ -215,16 +212,10 @@ class AsyncThrottledGather(Generic[T]):
             self._queue.put_nowait((i, pf))
 
     def _cancel_workers(self):
-        for worker in self._workers:
-            try:
-                if worker.done() and not worker.cancelled():
-                    exc = worker.exception()
-                    if exc:
-                        raise exc
-                else:
-                    worker.cancel()
-            except Exception:
-                pass
+        try:
+            asyncio.run(cancel_and_retrieve_all_exceptions(self._workers))
+        except Exception:
+            log.exception('at least one worker raised an exception')
 
     async def _worker(self):
         while True:
@@ -282,11 +273,10 @@ class AsyncWorkerPool:
         self._queue.put_nowait((f, args, kwargs))
 
     def shutdown(self):
-        for worker in self.workers:
-            try:
-                worker.cancel()
-            except Exception:
-                pass
+        try:
+            asyncio.run(cancel_and_retrieve_all_exceptions(self.workers))
+        except Exception:
+            log.exception('at least one worker raised an exception')
 
 
 class WaitableSharedPool:
@@ -391,15 +381,10 @@ class OnlineBoundedGather2:
         if self._pending is None:
             return
 
-        # shut down the pending tasks
-        for _, t in self._pending.items():
-            if t.done() and not t.cancelled():
-                exc = t.exception()
-                if exc:
-                    raise exc
-            else:
-                t.cancel()
-        self._pending = None
+        try:
+            await cancel_and_retrieve_all_exceptions(self._pending.values())
+        except:
+            log.exception('at least one task raised an exception')
 
         self._done_event.set()
 
@@ -544,19 +529,15 @@ async def bounded_gather2_raise_exceptions(
     try:
         async with WithoutSemaphore(sema):
             return await asyncio.gather(*tasks)
-    finally:
-        _, exc, _ = sys.exc_info()
-        if exc is not None:
-            for task in tasks:
-                if task.done() and not task.cancelled():
-                    exc = task.exception()
-                    if exc:
-                        raise exc
-                else:
-                    task.cancel()
-            if tasks:
-                async with WithoutSemaphore(sema):
-                    await asyncio.wait(tasks)
+    except:
+        try:
+            async with WithoutSemaphore(sema):
+                try:
+                    await cancel_and_retrieve_all_exceptions(tasks)
+                except:
+                    log.exception('at least one task raised an exception')
+        finally:
+            raise
 
 
 async def bounded_gather2(

@@ -275,7 +275,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.task is not None:
-            self.task.cancel()
+            cancel_and_retrieve_all_exceptions(self.task)
             self.task = None
 
         if self.out is not None:

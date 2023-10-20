@@ -1615,8 +1615,8 @@ SELECT instance_id, frozen FROM globals;
 async def on_cleanup(app):
     try:
         async with AsyncExitStack() as cleanup:
-            cleanup.callback(app['canceller'].shutdown)
-            cleanup.callback(app['task_manager'].shutdown)
+            cleanup.push_async_callback(app['canceller'].shutdown)
+            cleanup.push_async_callback(app['task_manager'].shutdown)
             cleanup.push_async_callback(app['driver'].shutdown)
             cleanup.push_async_callback(app['file_store'].shutdown)
             cleanup.push_async_callback(app['client_session'].close)

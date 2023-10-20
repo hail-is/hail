@@ -11,6 +11,7 @@ from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.tasks import cancel_and_retrieve_all_exceptions
 
 from .batch import Batch
 from .backend import ServiceBackend, HAIL_GENETICS_HAIL_IMAGE
@@ -250,12 +251,15 @@ class BatchPoolExecutor:
         try:
             bp_futures = [await t for t in submit_tasks]
         except:
-            for t in submit_tasks:
-                if t.done() and not t.exception():
-                    await t.result().async_cancel()
-                elif not t.done():
-                    t.cancel()
-            raise
+            try:
+                for t in submit_tasks:
+                    if t.done() and not t.exception():
+                        await t.result().async_cancel()
+            finally:
+                try:
+                    await cancel_and_retrieve_all_exceptions(submit_tasks)
+                finally:
+                    raise
 
         async def async_result_or_cancel_all(future):
             try:
@@ -487,8 +491,7 @@ class BatchPoolFuture:
             self.fetch_coro.result()
             return False
 
-        self.fetch_coro.cancel()
-        await asyncio.wait([self.fetch_coro])
+        await cancel_and_retrieve_all_exceptions([self.fetch_coro])
         return True
 
     def cancelled(self):
