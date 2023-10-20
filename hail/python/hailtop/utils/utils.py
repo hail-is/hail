@@ -27,7 +27,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
-from ..aiotools.tasks import cancel_and_retrieve_all_exceptions
 
 
 try:
