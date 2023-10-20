@@ -2987,7 +2987,7 @@ class Worker:
         try:
             return jvmqueue.queue.get_nowait()
         except asyncio.QueueEmpty:
-            assert not self._jvm_initializer_task.done()
+            assert not self._jvm_initializer_task.done(), (CORES, n_cores, self._jvms_by_cores)
             self._jvm_waiters.put_nowait(n_cores)
             return await jvmqueue.queue.get()
 
