@@ -495,7 +495,7 @@ class ServiceBackend(Backend):
             raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
                 'service_backend_debug_info': self.debug_info(),
                 'batch_debug_info': await self._batch.debug_info(
-                    _jobs_query_string='bad',
+                    _jobs_query_string='failed',
                     _max_jobs=10
                 ),
                 'input_uri': await self._async_fs.read(input_uri),
