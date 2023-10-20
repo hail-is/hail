@@ -1475,7 +1475,9 @@ steps:
             -r gear-requirements.txt \
             -r web_common-requirements.txt \
             -r batch-requirements.txt \
-            -r ci-requirements.txt
+            -r ci-requirements.txt \
+            && \
+            python3 -m pyright --version # Force the installation of node and npm pyright in the image
     publishAs: linting
     inputs:
       - from: /repo/hail/python/pinned-requirements.txt
