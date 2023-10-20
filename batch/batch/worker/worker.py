@@ -2918,7 +2918,7 @@ class JVMQueue:
         self.n_cores = n_cores
 
     def __repr__(self):
-        return f'JVMQueue({repr(self.queue)}, {self.total}, {self.target}, {self.n_cores})'
+        return f'JVMQueue({self.queue!r}, {self.total!r}, {self.target!r}, {self.n_cores!r})'
 
 
 class Worker:
