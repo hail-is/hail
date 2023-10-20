@@ -36,7 +36,7 @@ final case class EDictAsUnsortedArrayOfPairs(val elementType: EType, override va
     val tmpRegion = cb.memoize(Region.stagedCreate(Region.REGULAR, region.getPool()), "tmp_region")
 
     val arrayDecoder = arrayRepr.buildDecoder(t, cb.emb.ecb)
-    val decodedUnsortedArray = arrayDecoder(cb, tmpRegion, in).asInstanceOf[SIndexablePointerValue]
+    val decodedUnsortedArray = arrayDecoder(cb, region, in).asInstanceOf[SIndexablePointerValue]
     val sct = SingleCodeType.fromSType(decodedUnsortedArray.st.elementType)
 
     val ab = new StagedArrayBuilder(sct, true, cb.emb, 0)
@@ -55,6 +55,7 @@ final case class EDictAsUnsortedArrayOfPairs(val elementType: EType, override va
     }
 
     sorter.sort(cb, tmpRegion, lessThan)
+    // TODO Should be able to overwrite the unsorted array with sorted contents instead of allocating
     val ret = sorter.toRegion(cb, t)
     cb.append(tmpRegion.invalidate())
     ret

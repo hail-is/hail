@@ -577,11 +577,13 @@ class CSETests(unittest.TestCase):
 
 def _assert_encoding_roundtrip(value):
     lit = hl.literal(value)
-    round_trip = lit.dtype._from_encoding(lit.dtype._to_encoding(value))
-    if isinstance(value, np.ndarray):
-        assert_array_equal(round_trip, value)
-    else:
-        assert round_trip == value
+    round_trip_just_python_encoding = lit.dtype._from_encoding(lit.dtype._to_encoding(value))
+    round_trip_through_scala = hl.eval(lit)
+    for round_trip in (round_trip_just_python_encoding, round_trip_through_scala):
+        if isinstance(value, np.ndarray):
+            assert_array_equal(round_trip, value)
+        else:
+            assert round_trip == value
 
 
 @pytest.mark.parametrize(
@@ -593,6 +595,7 @@ def _assert_encoding_roundtrip(value):
         [1, 2, 3, 4],
         (5, 6, 7, 8),
         {"foo", "bar", "baz"},
+        {"a": {"b": 1}},
         {"a": 1, "b": 2},
         hl.Call([0, 1]),
         hl.Call([1, 0], phased=True),
