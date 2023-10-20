@@ -32,7 +32,8 @@ import org.json4s
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats}
 
-import java.io.{Closeable, PrintWriter}
+import com.sun.net.httpserver.{HttpExchange}
+import java.io.{Closeable, PrintWriter, OutputStream}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -246,6 +247,7 @@ object SparkBackend {
     sc1.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     theSparkBackend = new SparkBackend(tmpdir, localTmpdir, sc1, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
+    theSparkBackend.addDefaultReferences()
     theSparkBackend
   }
 
@@ -357,6 +359,16 @@ class SparkBackend(
           ExecutionCache.fromFlags(flags, fs, tmpdir)
       }
     )
+
+  def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T = { f =>
+    ExecutionTimer.logTime(methodName) { timer =>
+      ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags, new BackendContext {
+        override val executionCache: ExecutionCache =
+          ExecutionCache.fromFlags(flags, fs, tmpdir)
+      })(f)
+    }
+  }
+
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
@@ -506,11 +518,12 @@ class SparkBackend(
     }
   }
 
-  def executeLiteral(ir: IR): IR = {
-    val t = ir.typ
-    assert(t.isRealizable)
+  def executeLiteral(irStr: String): Int = {
     ExecutionTimer.logTime("SparkBackend.executeLiteral") { timer =>
       withExecuteContext(timer) { ctx =>
+        val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
+        val t = ir.typ
+        assert(t.isRealizable)
         val queryID = Backend.nextID()
         log.info(s"starting execution of query $queryID} of initial size ${ IRSize(ir) }")
         val retVal = _execute(ctx, ir, true)
@@ -519,18 +532,23 @@ class SparkBackend(
           case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
         }
         log.info(s"finished execution of query $queryID")
-        literalIR
+        addJavaIR(literalIR)
       }
     }
   }
 
-  def executeJSON(ir: IR): String = {
-    val (jsonValue, timer) = ExecutionTimer.time("SparkBackend.executeJSON") { timer =>
-      val t = ir.typ
-      val value = execute(timer, ir, optimize = true)
-      JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+  override def execute(ir: String, timed: Boolean)(consume: (ExecuteContext, Either[Unit, (PTuple, Long)], String) => Unit): Unit = {
+    withExecuteContext("SparkBackend.execute") { ctx =>
+      val res = ctx.timer.time("execute") {
+        val irData = IRParser.parse_value_ir(ir, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
+        val queryID = Backend.nextID()
+        log.info(s"starting execution of query $queryID of initial size ${ IRSize(irData) }")
+        _execute(ctx, irData, true)
+      }
+      ctx.timer.finish()
+      val timings = if (timed) Serialization.write(Map("timings" -> ctx.timer.toMap))(new DefaultFormats {}) else ""
+      consume(ctx, res, timings)
     }
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
   }
 
   def executeEncode(ir: IR, bufferSpecString: String, timed: Boolean): (Array[Byte], String) = {
@@ -574,19 +592,22 @@ class SparkBackend(
     }
   }
 
-  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
+  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) = {
     ExecutionTimer.logTime("SparkBackend.pyFromDF") { timer =>
       val key = jKey.asScala.toArray.toFastSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx.theHailClassLoader)
+        val tir = TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx.theHailClassLoader)
+        val id = addJavaIR(tir)
+        (id, JsonMethods.compact(tir.typ.toJSON))
       }
     }
   }
 
-  def pyToDF(tir: TableIR): DataFrame = {
+  def pyToDF(s: String): DataFrame = {
     ExecutionTimer.logTime("SparkBackend.pyToDF") { timer =>
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
+        val tir = IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
         Interpret(tir, ctx).toDF()
       }
     }
@@ -612,14 +633,6 @@ class SparkBackend(
     }
     log.info("pyReadMultipleMatrixTables: returning N matrix tables")
     matrixReaders.asJava
-  }
-
-  def pyLoadReferencesFromDataset(path: String): String = {
-    val rgs = ReferenceGenome.fromHailDataset(fs, path)
-    rgs.foreach(addReference)
-
-    implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(rgs.map(_.toJSON).toFastSeq)
   }
 
   def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
@@ -685,36 +698,34 @@ class SparkBackend(
     }
   }
 
-  def parse_value_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): IR = {
+  def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR = {
     ExecutionTimer.logTime("SparkBackend.parse_value_ir") { timer =>
       withExecuteContext(timer) { ctx =>
-        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*), irMap.asScala.toMap))
+        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*), irMap = persistedIR.toMap))
       }
     }
   }
 
-  def parse_table_ir(s: String, irMap: java.util.Map[String, BaseIR]): TableIR = {
+  def parse_table_ir(s: String): TableIR = {
     ExecutionTimer.logTime("SparkBackend.parse_table_ir") { timer =>
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = irMap.asScala.toMap))
+        IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
       }
     }
   }
 
-  def parse_matrix_ir(s: String, irMap: java.util.Map[String, BaseIR]): MatrixIR = {
+  def parse_matrix_ir(s: String): MatrixIR = {
     ExecutionTimer.logTime("SparkBackend.parse_matrix_ir") { timer =>
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = irMap.asScala.toMap))
+        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
       }
     }
   }
 
-  def parse_blockmatrix_ir(
-    s: String, irMap: java.util.Map[String, BaseIR]
-  ): BlockMatrixIR = {
+  def parse_blockmatrix_ir(s: String): BlockMatrixIR = {
     ExecutionTimer.logTime("SparkBackend.parse_blockmatrix_ir") { timer =>
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = irMap.asScala.toMap))
+        IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
       }
     }
   }
@@ -753,9 +764,6 @@ class SparkBackend(
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
     RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
   }
-
-  def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
-    LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
 
   def close(): Unit = {
     longLifeTempFileManager.cleanup()

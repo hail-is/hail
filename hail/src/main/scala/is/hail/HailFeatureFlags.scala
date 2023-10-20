@@ -47,7 +47,7 @@ object HailFeatureFlags {
       )
     )
 
-  def fromMap(m: mutable.Map[String, String]): HailFeatureFlags =
+  def fromMap(m: Map[String, String]): HailFeatureFlags =
     new HailFeatureFlags(
       mutable.Map(
         HailFeatureFlags.defaults.map {
