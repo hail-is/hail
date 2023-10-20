@@ -2917,6 +2917,9 @@ class JVMQueue:
         self.target = CORES // n_cores
         self.n_cores = n_cores
 
+    def __repr__(self):
+        return f'JVMQueue({repr(self.queue)}, {self.total}, {self.target}, {self.n_cores})'
+
 
 class Worker:
     def __init__(self, client_session: httpx.ClientSession):
@@ -2969,11 +2972,10 @@ class Worker:
                     global_jvm_index += 1
                 except asyncio.QueueEmpty:
                     for n_cores, jvmqueue in self._jvms_by_cores.items():
-                        if jvmqueue.target != jvmqueue.total:
+                        while jvmqueue.target != jvmqueue.total:
                             jvmqueue.queue.put_nowait(await JVM.create(global_jvm_index, n_cores, self))
                             jvmqueue.total += 1
                             global_jvm_index += 1
-                            continue
                     break
             assert self._jvm_waiters.empty()
         log.info(f'JVMs initialized {self._jvms_by_cores}')
