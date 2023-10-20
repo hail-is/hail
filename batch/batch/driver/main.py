@@ -1622,7 +1622,14 @@ async def on_cleanup(app):
             cleanup.push_async_callback(app['client_session'].close)
             cleanup.callback(app['async_worker_pool'].shutdown)
             cleanup.push_async_callback(app['db'].async_close)
-            cleanup.push_async_callback(app['k8s_client'].api_client.rest_client.pool_manager.close)
+
+            k8s: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
+            async def close_and_wait():
+                # - Following warning mitigation described here: https://github.com/aio-libs/aiohttp/pull/2045
+                # - Fixed in aiohttp 4.0.0: https://github.com/aio-libs/aiohttp/issues/1925
+                await k8s.api_client.close()
+                await asyncio.sleep(0.250)
+            cleanup.push_async_callback(close_and_wait)
     finally:
         await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
