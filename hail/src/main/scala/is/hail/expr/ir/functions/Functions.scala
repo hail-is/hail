@@ -309,11 +309,11 @@ abstract class RegistryFunctions {
       case t =>
         val pt = PType.canonical(t.storageType())
         val addr = pt.store(cb, r, sc, deepCopy = false)
-        cb.memoize(Code.invokeScalaObject3[PType, Region, Long, AnyRef](
+        cb.memoize(Code.invokeScalaObject2[PType, Long, AnyRef](
           if (safe) SafeRow.getClass else UnsafeRow.getClass, "readAnyRef",
           cb.emb.getPType(pt),
-          r, addr))
-
+          addr
+        ))
     }
   }
 
