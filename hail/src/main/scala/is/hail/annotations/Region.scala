@@ -332,6 +332,9 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.allocate(a, n)
   }
 
+  def contains(address: Long): Boolean =
+    memory != null && memory.contains(address)
+
   def invalidate(): Unit = {
     if (memory != null) {
       memory.release()

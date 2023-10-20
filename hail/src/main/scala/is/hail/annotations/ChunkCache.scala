@@ -148,7 +148,7 @@ private class ChunkCache (allocator: Long => Long, freer: Long => Unit){
     }
   }
 
-  def freeChunksToCache( ab: LongArrayBuilder): Unit = {
+  def freeChunksToCache(ab: LongArrayBuilder): Unit = {
     while (ab.size > 0) freeChunkToCache(ab.pop())
   }
 }

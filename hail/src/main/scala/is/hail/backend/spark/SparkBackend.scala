@@ -569,7 +569,7 @@ class SparkBackend(
         val (pt, off) = codec.decode(ctx, t.virtualType, b, ctx.r)
         assert(pt.virtualType == t.virtualType)
         JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
-          UnsafeRow.read(pt, ctx.r, off), pt.virtualType))
+          UnsafeRow.read(pt, off), pt.virtualType))
       }
     }
   }

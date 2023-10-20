@@ -222,8 +222,7 @@ class StagedConstructorSuite extends HailSuite {
     }
 
     assert(rv.pretty(arrayType) == rv2.pretty(arrayType))
-    assert(new UnsafeIndexedSeq(arrayType, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(arrayType, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(arrayType, rv.offset) == new UnsafeIndexedSeq(arrayType, rv2.offset))
   }
 
   @Test
@@ -263,8 +262,7 @@ class StagedConstructorSuite extends HailSuite {
     rvb2.endArray()
     rv2.setOffset(rvb2.end())
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt, rv.offset) == new UnsafeIndexedSeq(rt, rv2.offset))
   }
 
   @Test
@@ -357,8 +355,7 @@ class StagedConstructorSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeRow(rt, rv.region, rv.offset) ==
-      new UnsafeRow(rt, rv2.region, rv2.offset))
+    assert(new UnsafeRow(rt, rv.offset) == new UnsafeRow(rt, rv2.offset))
   }
 
   @Test
@@ -393,8 +390,7 @@ class StagedConstructorSuite extends HailSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt, rv.offset) == new UnsafeIndexedSeq(rt, rv2.offset))
   }
 
   def printRegion(region: Region, string: String) {

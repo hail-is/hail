@@ -95,7 +95,7 @@ case class BroadcastRow(ctx: ExecuteContext,
   t: PStruct
 ) extends BroadcastRegionValue {
 
-  def javaValue: UnsafeRow = UnsafeRow.readBaseStruct(t, value.region, value.offset)
+  def javaValue: UnsafeRow = UnsafeRow.readBaseStruct(t, value.offset)
 
   def safeJavaValue: Row = SafeRow.read(t, value).asInstanceOf[Row]
 
@@ -122,7 +122,7 @@ case class BroadcastIndexedSeq(
 
   def safeJavaValue: IndexedSeq[Row] = SafeRow.read(t, value).asInstanceOf[IndexedSeq[Row]]
 
-  def javaValue: UnsafeIndexedSeq = new UnsafeIndexedSeq(t, value.region, value.offset)
+  def javaValue: UnsafeIndexedSeq = new UnsafeIndexedSeq(t, value.offset)
 
   def cast(newT: PArray): BroadcastIndexedSeq = {
     assert(t.virtualType == newT.virtualType)

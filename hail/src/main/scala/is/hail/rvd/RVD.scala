@@ -76,7 +76,7 @@ class RVD(
 
   def toUnsafeRows: RDD[UnsafeRow] = {
     val localRowPType = rowPType
-    map((ctx, ptr) => new UnsafeRow(localRowPType, ctx.region, ptr))
+    map((ctx, ptr) => new UnsafeRow(localRowPType, ptr))
   }
 
   def stabilize(ctx: ExecuteContext, enc: AbstractTypedCodecSpec): RDD[Array[Byte]] = {
@@ -98,7 +98,7 @@ class RVD(
         encoder.close()
       }
       it.map { ptr =>
-        val keys: Any = SafeRow.selectFields(localRowPType, ctx.r, ptr)(kFieldIdx)
+        val keys: Any = SafeRow.selectFields(localRowPType, ptr)(kFieldIdx)
         val bytes = encoder.regionValueToBytes(ptr)
         (keys, bytes)
       }
@@ -251,11 +251,11 @@ class RVD(
       val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
 
       val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, SelectFieldsRow)]({ case (_, _) =>
-        val ur = new UnsafeRow(localRowPType, null, 0)
+        val ur = new UnsafeRow(localRowPType, 0)
         val key = new SelectFieldsRow(ur, newType.kFieldIdx)
         (ur, key)
       }, { case ((ur, key), ctx, ptr) =>
-        ur.set(ctx.r, ptr)
+        ur.set(ptr)
         partBc.value.contains(key)
       }) else this
 
@@ -606,7 +606,7 @@ class RVD(
       { case (kUR, ctx, ptr) =>
         ctx.rvb.start(kType)
         ctx.rvb.selectRegionValue(rowPType, kRowFieldIdx, ctx.r, ptr)
-        kUR.set(ctx.region, ctx.rvb.end())
+        kUR.set(ctx.rvb.end())
         !intervalsBc.value.contains(kUR)
       }
     )
@@ -618,9 +618,8 @@ class RVD(
     val kRowFieldIdx = typ.kFieldIdx
 
     val pred: (RVDContext, Long) => Boolean = (ctx: RVDContext, ptr: Long) => {
-      val ur = new UnsafeRow(localRowPType, ctx.r, ptr)
-      val key = Row.fromSeq(
-        kRowFieldIdx.map(i => ur.get(i)))
+      val ur = new UnsafeRow(localRowPType, ptr)
+      val key = Row.fromSeq(kRowFieldIdx.map(ur.get))
       intervalsBc.value.contains(key)
     }
 

@@ -100,9 +100,9 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
         it.foreach { ptr =>
 
-          val entriesArray = new UnsafeIndexedSeq(entryArrayType, ctx.region, rvType.loadField(ptr, entriesIdx))
+          val entriesArray = new UnsafeIndexedSeq(entryArrayType, rvType.loadField(ptr, entriesIdx))
 
-          val fullRow = new UnsafeRow(rvType, ctx.region, ptr)
+          val fullRow = new UnsafeRow(rvType, ptr)
 
           val rowFieldStrs = (0 until rvType.size)
             .filter(_ != entriesIdx)

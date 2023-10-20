@@ -101,6 +101,26 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     r
   }
 
+  def contains(address: Long): Boolean = {
+    if (currentBlock == 0) return false
+
+    if (address >= currentBlock && address < currentBlock + blockSize.toLong) return true
+
+    val used = usedBlocks.b
+    for (i <- 0 until usedBlocks.size) {
+      val start = used(i)
+      if (address >= start && address < start + blockSize.toLong) return true
+    }
+
+    val chunks = bigChunks.b
+    for (i <- 0 until bigChunks.size) {
+      val start = chunks(i)
+      if (address >= start && address < start + pool.chunkSize(start)) return true
+    }
+
+    false
+  }
+
   private def isFreed: Boolean = blockSize == -1
 
   private def freeChunks(): Unit = {

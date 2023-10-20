@@ -37,7 +37,7 @@ object RichContextRDDRegionValue {
     it.foreach { ptr =>
       if (iw != null) {
         val off = en.indexOffset()
-        val key = SafeRow.selectFields(rowType, ctx.r, ptr)(indexKeyFieldIndices)
+        val key = SafeRow.selectFields(rowType, ptr)(indexKeyFieldIndices)
         iw.appendRow(key, off, Row())
       }
       en.writeByte(1)
@@ -117,7 +117,7 @@ object RichContextRDDRegionValue {
               it.foreach { ptr =>
                 val rows_off = rowsEN.indexOffset()
                 val ents_off = entriesEN.indexOffset()
-                val key = SafeRow.selectFields(fullRowType, ctx.r, ptr)(t.kFieldIdx)
+                val key = SafeRow.selectFields(fullRowType, ptr)(t.kFieldIdx)
                 iw.appendRow(key, rows_off, Row(ents_off))
 
                 rowsEN.writeByte(1)

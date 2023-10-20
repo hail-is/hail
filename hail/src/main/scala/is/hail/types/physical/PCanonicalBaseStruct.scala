@@ -220,7 +220,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     val row = annotation.asInstanceOf[Row]
     row match {
       case ur: UnsafeRow => {
-        this.unstagedStoreAtAddress(sm, addr, region, ur.t, ur.offset, region.ne(ur.region))
+        this.unstagedStoreAtAddress(sm, addr, region, ur.t, ur.offset, !region.contains(ur.offset))
       }
       case sr: Row => {
         this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>

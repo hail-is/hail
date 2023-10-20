@@ -129,7 +129,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       val sb = new StringBuilder()
 
       it.map { ptr =>
-        val ur = new UnsafeRow(localSignature, ctx.r, ptr)
+        val ur = new UnsafeRow(localSignature, ptr)
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))

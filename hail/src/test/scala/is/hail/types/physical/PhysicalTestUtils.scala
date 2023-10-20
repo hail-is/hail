@@ -21,7 +21,7 @@ abstract class PhysicalTestUtils extends HailSuite {
     if (interpret) {
       try {
         val copyOff = destType.copyFromAddress(ctx.stateManager, region, sourceType, srcAddress, deepCopy = deepCopy)
-        val copy = UnsafeRow.read(destType, region, copyOff)
+        val copy = UnsafeRow.read(destType, copyOff)
 
         log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
 
@@ -78,7 +78,7 @@ abstract class PhysicalTestUtils extends HailSuite {
     val copy = try {
       val f = fb.result()(theHailClassLoader)
       val copyOff = f(region, srcAddress)
-      UnsafeRow.read(destType, region, copyOff)
+      UnsafeRow.read(destType, copyOff)
     } catch {
       case e: HailException =>
         if (expectRuntimeError) {

@@ -89,7 +89,7 @@ class RepartitionedOrderedRDD2 private (sm: HailStateManager, @transient val pre
 
         private[this] def pull(): Unit = {
           current = parentIterator.next()
-          ur.set(innerRegion, current)
+          ur.set(current)
           pulled = true
         }
 

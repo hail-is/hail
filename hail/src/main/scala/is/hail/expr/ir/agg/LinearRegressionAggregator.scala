@@ -25,10 +25,10 @@ object LinearRegressionAggregator {
   val resultPType: PCanonicalStruct = PCanonicalStruct(required = false, "xty" -> optVector, "beta" -> optVector, "diag_inv" -> optVector, "beta0" -> optVector)
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
-    val xty = DenseVector(UnsafeRow.readArray(vector, null, xtyPtr)
+    val xty = DenseVector(UnsafeRow.readArray(vector, xtyPtr)
       .asInstanceOf[IndexedSeq[Double]].toArray[Double])
     val k = xty.length
-    val xtx = DenseMatrix.create(k, k, UnsafeRow.readArray(vector, null, xtxPtr)
+    val xtx = DenseMatrix.create(k, k, UnsafeRow.readArray(vector, xtxPtr)
       .asInstanceOf[IndexedSeq[Double]].toArray[Double])
 
     val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)

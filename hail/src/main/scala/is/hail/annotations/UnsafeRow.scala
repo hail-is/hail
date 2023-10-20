@@ -21,9 +21,8 @@ trait UnKryoSerializable extends KryoSerializable {
   }
 }
 
-class UnsafeIndexedSeq(
-  val t: PContainer,
-  val region: Region, val aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
+class UnsafeIndexedSeq(val t: PContainer, val aoff: Long)
+  extends IndexedSeq[Annotation] with UnKryoSerializable {
 
   val length: Int = t.loadLength(aoff)
 
@@ -31,7 +30,7 @@ class UnsafeIndexedSeq(
     if (i < 0 || i >= length)
       throw new IndexOutOfBoundsException(i.toString)
     if (t.isElementDefined(aoff, i)) {
-      UnsafeRow.read(t.elementType, region, t.loadElement(aoff, length, i))
+      UnsafeRow.read(t.elementType, t.loadElement(aoff, length, i))
     } else
       null
   }
@@ -43,11 +42,11 @@ object UnsafeRow {
   def readBinary(boff: Long, t: PBinary): Array[Byte] =
     t.loadBytes(boff)
 
-  def readArray(t: PContainer, region: Region, aoff: Long): IndexedSeq[Any] =
-    new UnsafeIndexedSeq(t, region, aoff)
+  def readArray(t: PContainer, aoff: Long): IndexedSeq[Any] =
+    new UnsafeIndexedSeq(t, aoff)
 
-  def readBaseStruct(t: PBaseStruct, region: Region, offset: Long): UnsafeRow =
-    new UnsafeRow(t, region, offset)
+  def readBaseStruct(t: PBaseStruct, offset: Long): UnsafeRow =
+    new UnsafeRow(t, offset)
 
   def readString(boff: Long, t: PString): String =
     new String(readBinary(boff, t.binaryRepresentation))
@@ -58,13 +57,13 @@ object UnsafeRow {
       t.position(offset))
   }
 
-  def readNDArray(offset: Long, region: Region, nd: PNDArray): UnsafeNDArray = {
-    new UnsafeNDArray(nd, region, offset)
+  def readNDArray(offset: Long, nd: PNDArray): UnsafeNDArray = {
+    new UnsafeNDArray(nd, offset)
   }
 
-  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
+  def readAnyRef(t: PType, offset: Long): AnyRef = read(t, offset).asInstanceOf[AnyRef]
 
-  def read(t: PType, region: Region, offset: Long): Any = {
+  def read(t: PType, offset: Long): Any = {
     t match {
       case _: PBoolean =>
         Region.loadBoolean(offset)
@@ -73,39 +72,38 @@ object UnsafeRow {
       case _: PFloat32 => Region.loadFloat(offset)
       case _: PFloat64 => Region.loadDouble(offset)
       case t: PArray =>
-        readArray(t, region, offset)
+        readArray(t, offset)
       case t: PSet =>
-        readArray(t, region, offset).toSet
+        readArray(t, offset).toSet
       case t: PString => readString(offset, t)
       case t: PBinary => readBinary(offset, t)
       case td: PDict =>
-        val a = readArray(td, region, offset)
+        val a = readArray(td, offset)
         a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
-      case t: PBaseStruct => readBaseStruct(t, region, offset)
+      case t: PBaseStruct => readBaseStruct(t, offset)
       case x: PLocus => readLocus(offset, x)
       case x: PInterval =>
         val start: Annotation =
           if (x.startDefined(offset))
-            read(x.pointType, region, x.loadStart(offset))
+            read(x.pointType, x.loadStart(offset))
           else
             null
         val end =
           if (x.endDefined(offset))
-            read(x.pointType, region, x.loadEnd(offset))
+            read(x.pointType, x.loadEnd(offset))
           else
             null
         val includesStart = x.includesStart(offset)
         val includesEnd = x.includesEnd(offset)
         Interval(start, end, includesStart, includesEnd)
       case nd: PNDArray => {
-        readNDArray(offset, region, nd)
+        readNDArray(offset, nd)
       }
     }
   }
 }
 
-class UnsafeRow(val t: PBaseStruct,
-  var region: Region, var offset: Long) extends Row with UnKryoSerializable {
+class UnsafeRow(val t: PBaseStruct, var offset: Long) extends Row with UnKryoSerializable {
 
   override def toString: String = {
     if (t.isInstanceOf[PStruct]) {
@@ -143,18 +141,17 @@ class UnsafeRow(val t: PBaseStruct,
     }
   }
 
-  def this(t: PBaseStruct, rv: RegionValue) = this(t, rv.region, rv.offset)
+  def this(t: PBaseStruct, rv: RegionValue) = this(t, rv.offset)
 
-  def this(t: PBaseStruct) = this(t, null, 0)
+  def this(t: PBaseStruct) = this(t, 0)
 
-  def this() = this(null, null, 0)
+  def this() = this(null, 0)
 
-  def set(newRegion: Region, newOffset: Long) {
-    region = newRegion
+  def set(newOffset: Long) {
     offset = newOffset
   }
 
-  def set(rv: RegionValue): Unit = set(rv.region, rv.offset)
+  def set(rv: RegionValue): Unit = set(rv.offset)
 
   def length: Int = t.size
 
@@ -167,10 +164,10 @@ class UnsafeRow(val t: PBaseStruct,
     if (isNullAt(i))
       null
     else
-      UnsafeRow.read(t.types(i), region, t.loadField(offset, i))
+      UnsafeRow.read(t.types(i), t.loadField(offset, i))
   }
 
-  def copy(): Row = new UnsafeRow(t, region, offset)
+  def copy(): Row = new UnsafeRow(t, offset)
 
   def pretty(): String = Region.pretty(t, offset)
 
@@ -221,23 +218,23 @@ class UnsafeRow(val t: PBaseStruct,
 
 object SafeRow {
   def apply(t: PBaseStruct, off: Long): Row = {
-    Annotation.copy(t.virtualType, new UnsafeRow(t, null, off)).asInstanceOf[Row]
+    Annotation.copy(t.virtualType, new UnsafeRow(t, off)).asInstanceOf[Row]
   }
 
   def apply(t: PBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.offset)
 
-  def selectFields(t: PBaseStruct, region: Region, off: Long)(selectIdx: Array[Int]): Row = {
-    val fullRow = new UnsafeRow(t, region, off)
+  def selectFields(t: PBaseStruct, off: Long)(selectIdx: Array[Int]): Row = {
+    val fullRow = new UnsafeRow(t, off)
     Row.fromSeq(selectIdx.map(i => Annotation.copy(t.types(i).virtualType, fullRow.get(i))))
   }
 
   def selectFields(t: PBaseStruct, rv: RegionValue)(selectIdx: Array[Int]): Row =
-    SafeRow.selectFields(t, rv.region, rv.offset)(selectIdx)
+    SafeRow.selectFields(t, rv.offset)(selectIdx)
 
   def read(t: PType, off: Long): Annotation =
-    Annotation.copy(t.virtualType, UnsafeRow.read(t, null, off))
+    Annotation.copy(t.virtualType, UnsafeRow.read(t, off))
 
-  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, offset).asInstanceOf[AnyRef]
+  def readAnyRef(t: PType, offset: Long): AnyRef = read(t, offset).asInstanceOf[AnyRef]
 
   def read(t: PType, rv: RegionValue): Annotation =
     read(t, rv.offset)
@@ -264,7 +261,7 @@ object SafeRow {
 
 object SafeIndexedSeq {
   def apply(t: PArray, off: Long): IndexedSeq[Annotation] =
-    Annotation.copy(t.virtualType, new UnsafeIndexedSeq(t, null, off))
+    Annotation.copy(t.virtualType, new UnsafeIndexedSeq(t, off))
       .asInstanceOf[IndexedSeq[Annotation]]
 
   def apply(t: PArray, rv: RegionValue): IndexedSeq[Annotation] =
@@ -326,14 +323,14 @@ trait NDArray {
   }
 }
 
-class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) extends NDArray {
+class UnsafeNDArray(val pnd: PNDArray, val ndAddr: Long) extends NDArray {
   val shape: IndexedSeq[Long] = (0 until pnd.nDims).map(i => pnd.loadShape(ndAddr, i))
   val elementType = pnd.elementType.virtualType
   val coordStorageArray = new Array[Long](shape.size)
 
   def lookupElement(indices: IndexedSeq[Long]): Annotation = {
     val elementAddress = pnd.getElementAddress(indices, ndAddr)
-    UnsafeRow.read(pnd.elementType, region, pnd.elementType.unstagedLoadFromNested(elementAddress))
+    UnsafeRow.read(pnd.elementType, pnd.elementType.unstagedLoadFromNested(elementAddress))
   }
 
   def getRowMajorElements(): IndexedSeq[Annotation] = {

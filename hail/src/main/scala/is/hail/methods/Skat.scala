@@ -345,7 +345,7 @@ case class Skat(
         val weight = Region.loadDouble(fullRowType.loadField(ptr, weightIndex))
         if (weight < 0)
           fatal(s"Row weights must be non-negative, got $weight")
-        val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, ctx.r, fullRowType.loadField(ptr, keyIndex)))
+        val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, fullRowType.loadField(ptr, keyIndex)))
         val data = new Array[Double](n)
 
         RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new IntArrayBuilder(),

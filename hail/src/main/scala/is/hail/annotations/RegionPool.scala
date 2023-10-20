@@ -103,6 +103,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     chunkCache.freeChunkToCache(chunkPointer)
   }
 
+  protected [annotations] def chunkSize(address: Long): Long =
+    chunkCache.getChunkSize(address)
+
   protected[annotations] def getMemory(size: Int): RegionMemory = {
     if (freeRegions.size > 0) {
       val rm = freeRegions.pop()

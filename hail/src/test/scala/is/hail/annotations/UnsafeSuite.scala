@@ -97,7 +97,7 @@ class UnsafeSuite extends HailSuite {
         val ais2 = new ByteArrayInputStream(aos.toByteArray)
         val (retPType2: PStruct, dec2) = codec.buildDecoder(ctx, t)
         val offset2 = dec2(ais2, theHailClassLoader).readRegionValue(region2)
-        val ur2 = new UnsafeRow(retPType2, region2, offset2)
+        val ur2 = new UnsafeRow(retPType2, offset2)
         assert(t.typeCheck(ur2))
         assert(t.valuesSimilar(a, ur2))
 
@@ -105,7 +105,7 @@ class UnsafeSuite extends HailSuite {
         val ais3 = new ByteArrayInputStream(aos.toByteArray)
         val (retPType3: PStruct, dec3) = codec.buildDecoder(ctx, requestedType)
         val offset3 = dec3(ais3, theHailClassLoader).readRegionValue(region3)
-        val ur3 = new UnsafeRow(retPType3, region3, offset3)
+        val ur3 = new UnsafeRow(retPType3, offset3)
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
 
@@ -119,7 +119,7 @@ class UnsafeSuite extends HailSuite {
         val ais4 = new ByteArrayInputStream(aos2.toByteArray)
         val (retPType4: PStruct, dec4) = codec2.buildDecoder(ctx, requestedType)
         val offset4 = dec4(ais4, theHailClassLoader).readRegionValue(region4)
-        val ur4 = new UnsafeRow(retPType4, region4, offset4)
+        val ur4 = new UnsafeRow(retPType4, offset4)
         assert(requestedType.typeCheck(ur4))
         if (!requestedType.valuesSimilar(a2, ur4)) {
           println(t)
@@ -203,7 +203,7 @@ class UnsafeSuite extends HailSuite {
 
       val offset = pt.unstagedStoreJavaObject(sm, a, region)
 
-      val ur = UnsafeRow.read(pt, region, offset)
+      val ur = UnsafeRow.read(pt, offset)
       assert(t.valuesSimilar(a, ur), s"$a vs $ur")
 
       // test visitor
@@ -215,7 +215,7 @@ class UnsafeSuite extends HailSuite {
       region2.allocate(1, n2) // preallocate
       val offset2 = pt.unstagedStoreJavaObject(sm, ur, region2)
 
-      val ur2 = UnsafeRow.read(pt, region2, offset2)
+      val ur2 = UnsafeRow.read(pt, offset2)
       assert(t.valuesSimilar(a, ur2), s"$a vs $ur2")
 
       // test addRegionValue
@@ -224,7 +224,7 @@ class UnsafeSuite extends HailSuite {
       rvb2.start(pt)
       rvb2.addRegionValue(pt, region, offset)
       val offset3 = rvb2.end()
-      val ur3 = UnsafeRow.read(pt, region2, offset3)
+      val ur3 = UnsafeRow.read(pt, offset3)
       assert(t.valuesSimilar(a, ur3), s"$a vs $ur3")
 
       // test addRegionValue nested
@@ -234,7 +234,7 @@ class UnsafeSuite extends HailSuite {
           region2.clear()
           region2.allocate(1, n) // preallocate
           val offset4 = ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
-          val ur4 = new UnsafeRow(ps, region2, offset4)
+          val ur4 = new UnsafeRow(ps, offset4)
           assert(t.valuesSimilar(a, ur4))
         case _ =>
       }
@@ -243,7 +243,7 @@ class UnsafeSuite extends HailSuite {
       rvb.start(pt)
       rvb.addRegionValue(pt, region, offset)
       val offset5 = rvb.end()
-      val ur5 = UnsafeRow.read(pt, region, offset5)
+      val ur5 = UnsafeRow.read(pt, offset5)
       assert(t.valuesSimilar(a, ur5))
 
       // test addRegionValue to same region nested
@@ -251,7 +251,7 @@ class UnsafeSuite extends HailSuite {
         case t: TStruct =>
           val ps = pt.asInstanceOf[PStruct]
           val offset6 = ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region)
-          val ur6 = new UnsafeRow(ps, region, offset6)
+          val ur6 = new UnsafeRow(ps, offset6)
           assert(t.valuesSimilar(a, ur6))
         case _ =>
       }
@@ -336,13 +336,13 @@ class UnsafeSuite extends HailSuite {
       region.clear()
       val offset = t.unstagedStoreJavaObject(sm, a1, region)
 
-      val ur1 = new UnsafeRow(t, region, offset)
+      val ur1 = new UnsafeRow(t, offset)
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
       val offset2 = t.unstagedStoreJavaObject(sm, a2, region2)
 
-      val ur2 = new UnsafeRow(t, region2, offset2)
+      val ur2 = new UnsafeRow(t, offset2)
       assert(tv.valuesSimilar(a2, ur2))
 
       val ord = tv.ordering(sm)

@@ -572,7 +572,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
      annotation match {
-       case uis: UnsafeIndexedSeq => this.unstagedStoreAtAddress(sm, addr, region, uis.t, uis.aoff, region.ne(uis.region))
+       case uis: UnsafeIndexedSeq => this.unstagedStoreAtAddress(sm, addr, region, uis.t, uis.aoff, !region.contains(uis.aoff))
        case is: IndexedSeq[Annotation] => Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
      }
   }
