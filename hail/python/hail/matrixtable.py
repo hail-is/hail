@@ -3716,8 +3716,8 @@ class MatrixTable(ExprContainer):
                       absolute=bool,
                       reorder_fields=bool)
     def _same(self, other, tolerance=1e-6, absolute=False, reorder_fields=False) -> bool:
-        entries_name = Env.get_uid()
-        cols_name = Env.get_uid()
+        entries_name = Env.get_uid('entries_')
+        cols_name = Env.get_uid('columns_')
 
         fd_f = set if reorder_fields else list
 

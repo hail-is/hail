@@ -4,6 +4,7 @@ import pandas
 import numpy as np
 import pyspark
 import pprint
+import shutil
 from typing import Optional, Dict, Callable, Sequence, Union, List, overload
 
 from hail.expr.expressions import Expression, StructExpression, \
@@ -1515,7 +1516,6 @@ class Table(ExprContainer):
     class _Show:
         def __init__(self, table, n, width, truncate, types):
             if n is None or width is None:
-                import shutil
                 (columns, lines) = shutil.get_terminal_size((80, 10))
                 width = width or columns
                 n = n or min(max(10, (lines - 20)), 100)
@@ -3641,49 +3641,56 @@ class Table(ExprContainer):
             print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
             return False
 
-        left_global_value = Env.get_uid()
-        left_value = Env.get_uid()
         left = self
-        left = left.select_globals(**{left_global_value: left.globals})
-        left = left.group_by(_key=left.key).aggregate(**{left_value: hl.agg.collect(left.row_value)})
+        left = left.select_globals(left_globals = left.globals)
+        left = left.group_by(key=left.key).aggregate(left_row = hl.agg.collect(left.row_value))
 
-        right_global_value = Env.get_uid()
-        right_value = Env.get_uid()
         right = other
-        right = right.select_globals(**{right_global_value: right.globals})
-        right = right.group_by(_key=right.key).aggregate(**{right_value: hl.agg.collect(right.row_value)})
+        right = right.select_globals(right_globals = right.globals)
+        right = right.group_by(key=right.key).aggregate(right_row = hl.agg.collect(right.row_value))
 
         t = left.join(right, how='outer')
 
         mismatched_globals, mismatched_rows = t.aggregate(hl.tuple((
             hl.or_missing(
-                ~_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute),
-                hl.struct(left=t[left_global_value], right=t[right_global_value])
+                ~_values_similar(t.left_globals, t.right_globals, tolerance, absolute),
+                t.globals
             ),
             hl.agg.filter(
                 ~hl.all(
-                    hl.is_defined(t[left_value]),
-                    hl.is_defined(t[right_value]),
-                    _values_similar(t[left_value], t[right_value], tolerance, absolute),
+                    hl.is_defined(t.left_row),
+                    hl.is_defined(t.right_row),
+                    _values_similar(t.left_row, t.right_row, tolerance, absolute),
                 ),
-                hl.agg.take(
-                    hl.struct(_key=t._key, left=t[left_value], right=t[right_value]),
-                    10
-                )
+                hl.agg.take(t.row, 10)
             )
         )))
 
+        columns, _ = shutil.get_terminal_size((80, 10))
+        def pretty(obj):
+            pretty_str = pprint.pformat(obj, width=columns)
+            return ''.join('        ' + line for line in pretty_str.splitlines(keepends=True))
+
+        is_same = True
         if mismatched_globals is not None:
-            print(f'Table._same: globals differ:\n{pprint.pformat(mismatched_globals.left)}\n{pprint.pformat(mismatched_globals.right)}')
-            return False
+            print(f'''Table._same: globals differ:
+    Left:
+{pretty(mismatched_globals.left_globals)}
+    Right:
+{pretty(mismatched_globals.right_globals)}''')
+            is_same = False
 
         if len(mismatched_rows) > 0:
             print('Table._same: rows differ:')
             for r in mismatched_rows:
-                print(f'  Row mismatch at key={r._key}:\n    Left:\n{pprint.pformat(r.left)}\n    Right:\n{pprint.pformat(r.right)}')
-            return False
+                print(f'''  Row mismatch at key={r.key}:
+    Left:
+{pretty(r.left_row)}
+    Right:
+{pretty(r.right_row)}''')
+            is_same = False
 
-        return True
+        return is_same
 
     def collect_by_key(self, name: str = 'values') -> 'Table':
         """Collect values for each unique key into an array.
