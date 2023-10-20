@@ -1148,3 +1148,16 @@ def am_i_interactive() -> bool:
     """
     # https://stackoverflow.com/questions/2356399/tell-if-python-is-in-interactive-mode
     return bool(getattr(sys, 'ps1', sys.flags.interactive))
+
+
+async def cancel_and_retrieve_all_exceptions(tasks: Iterable[asyncio.Task]):
+    for task in tasks:
+        if not task.cancelled():
+            task.cancel()
+    await asyncio.wait(tasks)
+    with contextlib.ExitStack() as retrieve_all_exceptions:
+        # NB: only the first exception is raised
+        for task in tasks:
+            assert task.done()
+            if not task.cancelled():
+                retrieve_all_exceptions.callback(task.result)

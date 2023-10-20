@@ -1,23 +1,10 @@
 from typing import Iterable, Set
 import asyncio
 import logging
-from contextlib import ExitStack
+from ..utils import cancel_and_retrieve_all_exceptions
 
 
 log = logging.getLogger('aiotools.tasks')
-
-
-async def cancel_and_retrieve_all_exceptions(tasks: Iterable[asyncio.Task]):
-    for task in tasks:
-        if not task.cancelled():
-            task.cancel()
-    await asyncio.wait(tasks)
-    with ExitStack() as retrieve_all_exceptions:
-        # NB: only the first exception is raised
-        for task in tasks:
-            assert task.done()
-            if not task.cancelled():
-                retrieve_all_exceptions.callback(task.result)
 
 
 class TaskManagerClosedError(Exception):
