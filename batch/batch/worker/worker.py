@@ -42,7 +42,6 @@ import async_timeout
 import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
-from sortedcontainers import SortedSet
 
 from gear import json_request, json_response
 from hailtop import aiotools, httpx
