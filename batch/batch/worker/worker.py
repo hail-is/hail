@@ -2913,7 +2913,7 @@ class JVM:
 class JVMPool:
     global_jvm_index = 0
 
-    def __init__(self, n_cores: int, worker: Worker):
+    def __init__(self, n_cores: int, worker: 'Worker'):
         self.queue: asyncio.Queue[JVM] = asyncio.Queue()
         self.total_jvms_including_borrowed = 0
         self.max_jvms = CORES // n_cores
@@ -2921,10 +2921,10 @@ class JVMPool:
         self.worker = worker
 
     def borrow_jvm_nowait(self) -> JVM:
-        return self.jvms.get_nowait()
+        return self.queue.get_nowait()
 
     async def borrow_jvm(self) -> JVM:
-        return await self.jvms.get()
+        return await self.queue.get()
 
     def return_jvm(self, jvm: JVM):
         assert self.n_cores == jvm.n_cores
@@ -2932,7 +2932,7 @@ class JVMPool:
         self.queue.put_nowait(jvm)
 
     async def return_broken_jvm(self, jvm: JVM):
-        jvm.kill()
+        await jvm.kill()
         self.total_jvms_including_borrowed -= 1
         await self.create_jvm()
         log.info(f'killed {jvm} and recreated a new jvm')
@@ -2948,7 +2948,7 @@ class JVMPool:
         return self.total_jvms_including_borrowed == self.max_jvms
 
     def __repr__(self):
-        return f'JVMPool({self.jvms!r}, {self.total_jvms_including_borrowed!r}, {self.max_jvms!r}, {self.n_cores!r})'
+        return f'JVMPool({self.queue!r}, {self.total_jvms_including_borrowed!r}, {self.max_jvms!r}, {self.n_cores!r})'
 
 
 class Worker:
@@ -2984,7 +2984,7 @@ class Worker:
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
         self._jvmpools_by_cores: Dict[int, JVMPool] = {
-            n_cores: JVMPool(n_cores) for n_cores in (1, 2, 4, 8)
+            n_cores: JVMPool(n_cores, self) for n_cores in (1, 2, 4, 8)
         }
         self._waiting_for_jvm_with_n_cores: asyncio.Queue[int] = asyncio.Queue()
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
@@ -3040,7 +3040,7 @@ class Worker:
         log.info('Worker.shutdown')
         self._jvm_initializer_task.cancel()
         async with AsyncExitStack() as cleanup:
-            for jvmqueue in self._jvms_by_cores.values():
+            for jvmqueue in self._jvmpools_by_cores.values():
                 while not jvmqueue.queue.empty():
                     cleanup.push_async_callback(jvmqueue.queue.get_nowait().kill)
             cleanup.push_async_callback(self.task_manager.shutdown_and_wait)
