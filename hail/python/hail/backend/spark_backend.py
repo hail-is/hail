@@ -13,7 +13,7 @@ from hail.table import Table
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 
-from .py4j_backend import Py4JBackend, uninstall_exception_handler
+from .py4j_backend import Py4JBackend
 from .backend import local_jar_information
 
 
@@ -114,7 +114,7 @@ class SparkBackend(Py4JBackend):
                 jsc, app_name, master, local, log, True, append, skip_logging_configuration, min_block_size, tmpdir, local_tmpdir,
                 gcs_requester_pays_project, gcs_requester_pays_buckets)
             jhc = hail_package.HailContext.apply(
-                jbackend, branching_factor, optimizer_iterations, True)
+                jbackend, branching_factor, optimizer_iterations)
 
         self._jsc = jbackend.sc()
         if sc:
@@ -146,13 +146,10 @@ class SparkBackend(Py4JBackend):
         validate_file(uri, self._router_async_fs)
 
     def stop(self):
+        super().stop()
         self._jbackend.close()
-        self._jhc.stop()
-        self._jhc = None
         self.sc.stop()
         self.sc = None
-        self._registered_ir_function_names = set()
-        uninstall_exception_handler()
 
     @property
     def fs(self):

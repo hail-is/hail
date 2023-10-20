@@ -287,3 +287,10 @@ class Py4JBackend(Backend):
 
     def _to_java_blockmatrix_ir(self, ir):
         return self._to_java_ir(ir, self._parse_blockmatrix_ir)
+
+    def stop(self):
+        self._backend_server.stop()
+        self._jhc.stop()
+        self._jhc = None
+        self._registered_ir_function_names = set()
+        uninstall_exception_handler()

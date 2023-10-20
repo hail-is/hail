@@ -336,6 +336,7 @@ class ServiceBackend(
         elementType.virtualType,
         BufferSpec.parseOrDefault(bufferSpecString)
       )
+      assert(pt.isFieldDefined(off, 0))
       codec.encode(ctx, elementType, pt.loadField(off, 0))
     }
   }
@@ -449,7 +450,7 @@ object ServiceBackendAPI {
       HailContext.get.backend = backend
       log.info("Default references added to already initialized HailContexet.")
     } else {
-      HailContext(backend, 50, 3, false)
+      HailContext(backend, 50, 3)
       log.info("HailContexet initialized.")
     }
 

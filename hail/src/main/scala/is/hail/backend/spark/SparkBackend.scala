@@ -247,6 +247,7 @@ object SparkBackend {
     sc1.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     theSparkBackend = new SparkBackend(tmpdir, localTmpdir, sc1, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
+    theSparkBackend.addDefaultReferences()
     theSparkBackend
   }
 

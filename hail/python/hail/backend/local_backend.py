@@ -67,8 +67,7 @@ class LocalBackend(Py4JBackend):
         jhc = hail_package.HailContext.apply(
             jbackend,
             branching_factor,
-            optimizer_iterations,
-            True
+            optimizer_iterations
         )
 
         super(LocalBackend, self).__init__(self._gateway.jvm, jbackend, jhc)
@@ -102,11 +101,8 @@ class LocalBackend(Py4JBackend):
             jbody)
 
     def stop(self):
-        self._backend_server.stop()
-        self._jhc.stop()
-        self._jhc = None
+        super().stop()
         self._gateway.shutdown()
-        self._registered_ir_function_names = set()
         uninstall_exception_handler()
 
     @property

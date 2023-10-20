@@ -56,6 +56,7 @@ object LocalBackend {
       gcsRequesterPaysProject,
       gcsRequesterPaysBuckets
     )
+    theLocalBackend.addDefaultReferences()
     theLocalBackend
   }
 

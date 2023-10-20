@@ -3718,10 +3718,10 @@ class JavaIRSharedReference:
 
 
 class JavaIR(IR):
-    def __init__(self, hail_type, ir_id, ref: Optional[JavaIRSharedReference] = None):
+    def __init__(self, hail_type: HailType, ir_id: int, ref: Optional[JavaIRSharedReference] = None):
         super(JavaIR, self).__init__()
-        self._type: HailType = hail_type
-        self._id: int = ir_id
+        self._type = hail_type
+        self._id = ir_id
         self._ref = ref or JavaIRSharedReference(ir_id)
 
     def copy(self):
