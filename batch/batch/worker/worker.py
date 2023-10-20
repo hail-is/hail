@@ -2992,7 +2992,7 @@ class Worker:
     async def _initialize_jvms(self):
         assert instance_config
         if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
-            log.info(f'no JVMs initialized')
+            log.info('no JVMs initialized')
 
         while True:
             try:
