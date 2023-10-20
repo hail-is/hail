@@ -147,7 +147,6 @@ class SparkBackend(Py4JBackend):
 
     def stop(self):
         super().stop()
-        self._jbackend.close()
         self.sc.stop()
         self.sc = None
 
