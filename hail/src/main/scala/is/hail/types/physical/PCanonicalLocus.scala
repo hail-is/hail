@@ -90,11 +90,12 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
     }
   }
 
-  def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
+  def sType: SCompactLocus = SCompactLocus(rg)
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue = {
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCompactLocusValue = {
     val a = cb.memoize(addr)
-    new SCanonicalLocusPointerValue(sType, a, cb.memoize(contigAddr(a)), cb.memoize(position(a)))
+    val ptr = new SCanonicalLocusPointerValue(SCanonicalLocusPointer(setRequired(false)), a, cb.memoize(contigAddr(a)), cb.memoize(position(a)))
+    new SCompactLocusValue(sType, ptr.contigIdx(cb), ptr.position(cb))
   }
 
 
