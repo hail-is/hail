@@ -3,7 +3,6 @@ package is.hail.expr.ir.orderings
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCompactLocus}
 import is.hail.types.physical.stypes.interfaces.{SLocus, SLocusValue}
 
 object LocusOrdering {
