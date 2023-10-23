@@ -58,7 +58,8 @@ class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
         try:
             await self.sema.__aexit__(exc_type, exc, tb)
         finally:
-            await cancel_and_retrieve_all_exceptions([self.task])
+            if self.task is not None:
+                await cancel_and_retrieve_all_exceptions([self.task])
 
 
 async def copy(*,
