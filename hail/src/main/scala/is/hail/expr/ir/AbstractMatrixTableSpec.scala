@@ -9,7 +9,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 
-import java.io.OutputStreamWriter
+import java.io.{OutputStreamWriter, FileNotFoundException}
 import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 
