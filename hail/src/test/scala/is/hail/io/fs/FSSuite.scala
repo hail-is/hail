@@ -4,7 +4,6 @@ import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.{HailSuite, TestUtils}
-import is.hail.io.fs.{FS, FileListEntry, GoogleStorageFS, Seekable, FileAndDirectoryException}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
@@ -468,7 +467,7 @@ trait FSSuite extends TestNGSuite {
     fs.touch(s"$d/x/file")
 
     TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
-      fs.getFileListEntry(s"$d/x")
+      fs.fileListEntry(s"$d/x")
     )
   }
 
@@ -510,7 +509,7 @@ trait FSSuite extends TestNGSuite {
     fs.touch(s"$d/x/file")
 
     TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
-      fs.getFileListEntry(s"$d/x")
+      fs.fileListEntry(s"$d/x")
     )
   }
 
@@ -545,7 +544,7 @@ trait FSSuite extends TestNGSuite {
     // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
     fs.touch(s"$d/x/file")
 
-    val fle = fs.getFileListEntry(s"$d/x")
+    val fle = fs.fileListEntry(s"$d/x")
     assert(fle.isDirectory)
     assert(!fle.isFile)
   }
@@ -581,7 +580,7 @@ trait FSSuite extends TestNGSuite {
     fs.touch(s"$d/x-")
     // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
 
-    val fle = fs.getFileListEntry(s"$d/x")
+    val fle = fs.fileListEntry(s"$d/x")
     assert(!fle.isDirectory)
     assert(fle.isFile)
   }

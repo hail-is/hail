@@ -1,6 +1,5 @@
 package is.hail.io.fs
 
-import is.hail.io.fs.AzureStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
