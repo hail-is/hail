@@ -26,6 +26,7 @@ Top-Level Functions
     remove
     rmtree
     stat
+    fast_stat
 
 .. autofunction:: copy
 .. autofunction:: exists
@@ -37,3 +38,4 @@ Top-Level Functions
 .. autofunction:: remove
 .. autofunction:: rmtree
 .. autofunction:: stat
+.. autofunction:: fast_stat
