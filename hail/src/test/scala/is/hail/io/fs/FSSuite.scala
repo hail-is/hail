@@ -472,6 +472,11 @@ trait FSSuite extends TestNGSuite {
     )
   }
 
+  @Test def testETag(): Unit = {
+    val etag = fs.eTag(s"$fsResourcesRoot/a")
+    assert(etag.isEmpty)
+  }
+
   @Test def fileAndDirectoryIsErrorEvenIfNotFirstEntryInList(): Unit = {
     val d = t()
     fs.mkDir(d)
@@ -588,9 +593,4 @@ class HadoopFSSuite extends HailSuite with FSSuite {
   override lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
 
   override lazy val tmpdir: String = ctx.tmpdir
-
-  @Test def testETag(): Unit = {
-    val etag = fs.eTag(s"$fsResourcesRoot/a")
-    assert(etag.isEmpty)
-  }
 }
