@@ -43,13 +43,13 @@ object  NDArrayFunctions extends RegistryFunctions {
       val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDep, cb, region)
 
       val IndexedSeq(ndCoefRow, ndCoefCol) = ndCoefColMajor.shapes
-      cb.ifx(ndCoefRow cne ndCoefCol, cb._fatalWithError(errorID, "hail.nd.solve_triangular: matrix a must be square."))
+      cb.if_(ndCoefRow cne ndCoefCol, cb._fatalWithError(errorID, "hail.nd.solve_triangular: matrix a must be square."))
 
       val IndexedSeq(ndDepRow, ndDepCol) = ndDepColMajor.shapes
-      cb.ifx(ndCoefRow  cne ndDepRow, cb._fatalWithError(errorID,"hail.nd.solve_triangular: Solve dimensions incompatible"))
+      cb.if_(ndCoefRow  cne ndDepRow, cb._fatalWithError(errorID,"hail.nd.solve_triangular: Solve dimensions incompatible"))
 
       val uplo = cb.newLocal[String]("dtrtrs_uplo")
-      cb.ifx(lower.value, cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
+      cb.if_(lower.value, cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
 
       val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
 
@@ -77,11 +77,11 @@ object  NDArrayFunctions extends RegistryFunctions {
 
       val IndexedSeq(n0, n1) = aColMajor.shapes
 
-      cb.ifx(n0 cne n1, cb._fatalWithError(errorID, "hail.nd.solve: matrix a must be square."))
+      cb.if_(n0 cne n1, cb._fatalWithError(errorID, "hail.nd.solve: matrix a must be square."))
 
       val IndexedSeq(n, nrhs) = bColMajor.shapes
 
-      cb.ifx(n0 cne n, cb._fatalWithError(errorID, "hail.nd.solve: Solve dimensions incompatible"))
+      cb.if_(n0 cne n, cb._fatalWithError(errorID, "hail.nd.solve: Solve dimensions incompatible"))
 
       val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
       val ipiv = cb.newLocal[Long]("dgesv_ipiv")
@@ -135,7 +135,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       { (t, p1, p2) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
         val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region, errorID)
-        cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
+        cb.if_(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
         resPCode
     }
 
@@ -158,7 +158,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       { (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
         val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray, lower.asBoolean, pt, cb, er.region, errorID)
-        cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
+        cb.if_(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
         resPCode
     }
 
@@ -174,11 +174,11 @@ object  NDArrayFunctions extends RegistryFunctions {
         val i = cb.newLocal[Long]("i")
         val j = cb.newLocal[Long]("j")
 
-        cb.ifx(lower.value > lowestDiagIndex, {
+        cb.if_(lower.value > lowestDiagIndex, {
           cb.assign(iLeft, (-lower.value).max(0L))
           cb.assign(iRight, (nCols.get - lower.value).min(nRows.get))
 
-          cb.forLoop({
+          cb.for_({
             cb.assign(i, iLeft)
             cb.assign(j, lower.value.max(0L))
           }, i < iRight, {
@@ -197,7 +197,7 @@ object  NDArrayFunctions extends RegistryFunctions {
           }
         })
 
-        cb.ifx(upper.value < highestDiagIndex, {
+        cb.if_(upper.value < highestDiagIndex, {
           cb.assign(iLeft, (-upper.value).max(0L))
           cb.assign(iRight, (nCols.get - upper.value).min(nRows.get))
 
@@ -206,7 +206,7 @@ object  NDArrayFunctions extends RegistryFunctions {
             primitive(0.0d)
           }
 
-          cb.forLoop({
+          cb.for_({
             cb.assign(i, iLeft)
             cb.assign(j, upper.value.max(0L) + 1)
           }, i < iRight, {
@@ -229,7 +229,7 @@ object  NDArrayFunctions extends RegistryFunctions {
         val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[SNDArrayPointerValue]
         val row = cb.newLocal[Long]("rowIdx")
         val IndexedSeq(nRows, nCols) = newBlock.shapes
-        cb.forLoop(cb.assign(row, 0L), row < nRows.get, cb.assign(row, row + 1L), {
+        cb.for_(cb.assign(row, 0L), row < nRows.get, cb.assign(row, row + 1L), {
           val start = starts.loadElement(cb, row.toI).get(cb).asInt64.value
           val stop = stops.loadElement(cb, row.toI).get(cb).asInt64.value
           newBlock.slice(cb, row, (null, start)).coiterateMutate(cb, er.region) { _ =>

@@ -76,7 +76,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     super.load(cb, regionLoader, src)
-    cb.ifx(off.cne(0L),
+    cb.if_(off.cne(0L),
       {
         cb.assign(size, Region.loadInt(typ.loadField(off, 0)))
         cb.assign(root, Region.loadAddress(typ.loadField(off, 1)))
@@ -100,7 +100,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
   def insert(cb: EmitCodeBuilder, v: EmitCode): Unit = {
     val _v = cb.memoize(v, "collect_as_set_insert_value")
     cb.assign(_elt, tree.getOrElseInitialize(cb, _v))
-    cb.ifx(key.isEmpty(cb, _elt), {
+    cb.if_(key.isEmpty(cb, _elt), {
       cb.assign(size, size + 1)
       key.store(cb, _elt, _v)
     })
@@ -125,7 +125,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
       tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
         val src = cb.newLocal("aoss_ser_src", srcCode)
         cb += ob.writeBoolean(key.isKeyMissing(cb, src))
-        cb.ifx(!key.isKeyMissing(cb, src), {
+        cb.if_(!key.isKeyMissing(cb, src), {
           val k = key.loadKey(cb, src)
           et.buildEncoder(k.st, kb)
               .apply(cb, k, ob)

@@ -1,10 +1,10 @@
 import hail as hl
-from hail.expr import (check_entry_indexed, matrix_table_source)
+from hail.expr import (raise_unless_entry_indexed, matrix_table_source)
 from hail.utils.java import Env
 
 
 def mt_to_table_of_ndarray(entry_expr, block_size=16, *, partition_size=None, window_size=None, return_checkpointed_table_also=False):
-    check_entry_indexed('mt_to_table_of_ndarray/entry_expr', entry_expr)
+    raise_unless_entry_indexed('mt_to_table_of_ndarray/entry_expr', entry_expr)
     mt = matrix_table_source('mt_to_table_of_ndarray/entry_expr', entry_expr)
 
     if partition_size is None:

@@ -26,7 +26,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[T, R](ctx, "stream_test")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1)))
-    val asmFn = fb.result(ctx)(theHailClassLoader)
+    val asmFn = fb.result()(theHailClassLoader)
     asmFn.apply
   }
 
@@ -34,7 +34,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[T, U, R](ctx, "F")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1), mb.getCodeParam[U](2)))
-    val asmFn = fb.result(ctx)(theHailClassLoader)
+    val asmFn = fb.result()(theHailClassLoader)
     asmFn.apply
   }
 
@@ -42,7 +42,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[T, U, V, R](ctx, "F")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1), mb.getCodeParam[U](2), mb.getCodeParam[V](3)))
-    val asmFn = fb.result(ctx)(theHailClassLoader)
+    val asmFn = fb.result()(theHailClassLoader)
     asmFn.apply
   }
 
@@ -148,7 +148,7 @@ class EmitStreamSuite extends HailSuite {
               cb.assign(len, len + 1)
             }
           })
-      cb.ifx(len2.cne(-1) && (len2.cne(len)),
+      cb.if_(len2.cne(-1) && (len2.cne(len)),
         cb._fatal(s"length mismatch between computed and iteration length: computed=", len2.toS, ", iter=", len.toS))
 
       len2

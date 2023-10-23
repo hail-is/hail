@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, cast
+from typing import Callable, Optional, TypeVar, cast
 from typing_extensions import ParamSpec
 import base64
 import copy
@@ -8,7 +8,7 @@ from collections import defaultdict
 from hailtop.hail_decorator import decorator
 
 import hail
-from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
+from hail.expr.types import HailType, hail_type, tint32, tint64, \
     tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
     tstruct, ttuple, tinterval, tvoid, trngstate, tlocus, tcall
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
@@ -3734,23 +3734,36 @@ class Join(IR):
         return self.virtual_ir.typ
 
 
+class JavaIRSharedReference:
+    def __init__(self, ir_id):
+        self._id = ir_id
+
+    def __del__(self):
+        from hail.backend.py4j_backend import Py4JBackend
+        if Env._hc:
+            backend = Env.backend()
+            assert isinstance(backend, Py4JBackend)
+            backend._jbackend.removeJavaIR(self._id)
+
+
 class JavaIR(IR):
-    def __init__(self, jir):
+    def __init__(self, hail_type: HailType, ir_id: int, ref: Optional[JavaIRSharedReference] = None):
         super(JavaIR, self).__init__()
-        self._jir = jir
-        super().__init__()
+        self._type = hail_type
+        self._id = ir_id
+        self._ref = ref or JavaIRSharedReference(ir_id)
 
     def copy(self):
-        return JavaIR(self._jir)
+        return JavaIR(self._type, self._id, self._ref)
 
     def render_head(self, r):
-        return f'(JavaIR{r.add_jir(self._jir)}'
+        return f'(JavaIR {self._id}'
 
     def _eq(self, other):
-        return self._jir == other._jir
+        return self._id == other._id
 
     def _compute_type(self, env, agg_env, deep_typecheck):
-        return dtype(self._jir.typ().toString())
+        return self._type
 
 
 def subst(ir, env, agg_env):

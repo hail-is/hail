@@ -92,8 +92,7 @@ object Emit {
 
         val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)))  // this, region, ...
         val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
-          cb._throw[RuntimeException](
-            Code.newInstance[RuntimeException, String]("cannot return empty"))
+          cb._throw(Code.newInstance[RuntimeException, String]("cannot return empty"))
         })
 
         val scp = SingleCodeSCode.fromSCode(cb, sc, region)
@@ -210,7 +209,7 @@ class EmitValue protected(missing: Option[Value[Boolean]], val v: SValue) {
 
   def get(cb: EmitCodeBuilder): SValue = {
     missing.foreach { m =>
-      cb.ifx(m, cb._fatal(s"Can't convert missing ${ v.st } to SValue"))
+      cb.if_(m, cb._fatal(s"Can't convert missing ${ v.st } to SValue"))
     }
     v
   }
@@ -219,7 +218,7 @@ class EmitValue protected(missing: Option[Value[Boolean]], val v: SValue) {
     case None => new EmitValue(None, f(v))
     case Some(m) =>
       var newV: SValue = null
-      cb.ifx(!m, { newV = f(v) })
+      cb.if_(!m, { newV = f(v) })
       new EmitValue(missing, newV)
   }
 }
@@ -239,7 +238,7 @@ object IEmitCode {
       case _ =>
         val Lmissing = CodeLabel()
         val Lpresent = CodeLabel()
-        cb.ifx(m, cb.goto(Lmissing))
+        cb.if_(m, cb.goto(Lmissing))
         val res: A = value
         cb.goto(Lpresent)
         IEmitCodeGen(Lmissing, Lpresent, res, false)
@@ -493,7 +492,7 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
     EmitCode.fromI(mb) { cb =>
       val Ltrue = CodeLabel()
       val Lfalse = CodeLabel()
-      cb.ifx(cond, cb.goto(Ltrue), cb.goto(Lfalse))
+      cb.if_(cond, cb.goto(Ltrue), cb.goto(Lfalse))
       cb.define(Lfalse)
       val eci = toI(cb)
       cb.define(Ltrue)
@@ -667,7 +666,7 @@ class Emit[C](
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
 
-        emitI(cond).consume(cb, {}, m => cb.ifx(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
+        emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case Let(name, value, body) =>
         val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
@@ -933,7 +932,7 @@ class Emit[C](
           val Lmissing = CodeLabel()
           val Ldefined = CodeLabel()
           val out = mb.newPLocal(outType)
-          cb.ifx(condValue.value, {
+          cb.if_(condValue.value, {
             codeCnsq.toI(cb).consume(cb,
               {
                 cb.goto(Lmissing)
@@ -1030,7 +1029,7 @@ class Emit[C](
                 val index = mb.getCodeParam[Int](1)
                 val len = mb.getCodeParam[Int](2)
                 val errorID = mb.getCodeParam[Int](3)
-                cb.ifx(index < 0 || index >= len, {
+                cb.if_(index < 0 || index >= len, {
                   cb._fatalWithError(errorID, const("array index out of bounds: index=")
                     .concat(index.toS)
                     .concat(", length=")
@@ -1056,40 +1055,40 @@ class Emit[C](
               val arrayLength = arrayValue.loadLength()
               val realStep = cb.newLocal[Int]("array_slice_requestedStep", stepCode.asInt.value)
 
-              cb.ifx(realStep ceq const(0), cb._fatalWithError(const(errorID), const("step cannot be 0 for array slice")))
+              cb.if_(realStep ceq const(0), cb._fatalWithError(const(errorID), const("step cannot be 0 for array slice")))
 
               val noneStop = cb.newLocal[Int]("array_slice_noneStop")
-              cb.ifx(realStep < 0, cb.assign(noneStop, const(-1) * arrayLength - const(1)), cb.assign(noneStop, arrayLength))
+              cb.if_(realStep < 0, cb.assign(noneStop, const(-1) * arrayLength - const(1)), cb.assign(noneStop, arrayLength))
 
               val maxBound = cb.newLocal[Int]("array_slice_maxBound")
               val minBound = cb.newLocal[Int]("array_slice_minBound")
-              cb.ifx(realStep > 0, cb.assign(maxBound, arrayLength), cb.assign(maxBound, arrayLength - 1))
-              cb.ifx(realStep > 0, cb.assign(minBound, 0), cb.assign(minBound, -1))
+              cb.if_(realStep > 0, cb.assign(maxBound, arrayLength), cb.assign(maxBound, arrayLength - 1))
+              cb.if_(realStep > 0, cb.assign(minBound, 0), cb.assign(minBound, -1))
 
               val stopI = stop.map(emitI(_)).getOrElse(IEmitCode.present(cb, new SInt32Value(noneStop)))
               stopI.map(cb) { stopCode =>
                 val requestedStart = cb.newLocal[Int]("array_slice_requestedStart", startCode.asInt.value)
                 val realStart = cb.newLocal[Int]("array_slice_realStart")
-                cb.ifx(requestedStart >= arrayLength,
+                cb.if_(requestedStart >= arrayLength,
                   cb.assign(realStart, maxBound),
-                  cb.ifx(requestedStart >= 0, cb.assign(realStart, requestedStart),
-                    cb.ifx(arrayLength + requestedStart >= 0,
+                  cb.if_(requestedStart >= 0, cb.assign(realStart, requestedStart),
+                    cb.if_(arrayLength + requestedStart >= 0,
                       cb.assign(realStart, arrayLength + requestedStart),
                       cb.assign(realStart, minBound))))
 
                 val requestedStop = cb.newLocal[Int]("array_slice_requestedStop", stopCode.asInt.value)
                 val realStop = cb.newLocal[Int]("array_slice_realStop")
-                cb.ifx(requestedStop > arrayLength,
+                cb.if_(requestedStop > arrayLength,
                   cb.assign(realStop, maxBound),
-                  cb.ifx(requestedStop >= 0,
+                  cb.if_(requestedStop >= 0,
                     cb.assign(realStop, requestedStop),
-                    cb.ifx(arrayLength + requestedStop > 0,
+                    cb.if_(arrayLength + requestedStop > 0,
                       cb.assign(realStop, arrayLength + requestedStop),
                       cb.assign(realStop, minBound))))
 
                 val resultLen = cb.newLocal[Int]("array_slice_resultLength", (realStop - realStart) / realStep)
-                cb.ifx(((realStop - realStart) % realStep cne 0), cb.assign(resultLen, resultLen + 1))
-                cb.ifx(resultLen < 0, cb.assign(resultLen, 0))
+                cb.if_(((realStop - realStart) % realStep cne 0), cb.assign(resultLen, resultLen + 1))
+                cb.if_(resultLen < 0, cb.assign(resultLen, 0))
 
                 val resultArray = typeWithReq.canonicalPType.asInstanceOf[PCanonicalArray]
                 resultArray.constructFromElements(cb, region, resultLen, false) { (cb, idx) =>
@@ -1172,7 +1171,7 @@ class Emit[C](
               val rawSet = cb.memoize(ms)
               val maxSet = cb.memoize(Code.newArray[String](rawSet.invoke[Int]("length")))
               val i = cb.newLocal[Int]("mis_str_iseq_to_arr_i")
-              cb.forLoop(cb.assign(i, 0), i < maxSet.length(), cb.assign(i, i + 1), {
+              cb.for_(cb.assign(i, 0), i < maxSet.length(), cb.assign(i, i + 1), {
                 cb += maxSet.update(i, Code.checkcast[String](rawSet.invoke[Int, java.lang.Object]("apply", i)))
               })
 
@@ -1299,15 +1298,15 @@ class Emit[C](
               .equiv(cb, lk, rk, missingEqual = true)
           }
 
-          cb.whileLoop(eltIdx < sortedElts.size, {
+          cb.while_(eltIdx < sortedElts.size, {
             val bottomOfLoop = CodeLabel()
             val newGroup = CodeLabel()
 
             cb.assign(groupSize, groupSize + 1)
-            cb.ifx(eltIdx.ceq(sortedElts.size - 1), {
+            cb.if_(eltIdx.ceq(sortedElts.size - 1), {
               cb.goto(newGroup)
             }, {
-              cb.ifx(sameKeyAtIndices(cb, region, eltIdx, eltIdx + 1), {
+              cb.if_(sameKeyAtIndices(cb, region, eltIdx, eltIdx + 1), {
                 cb.goto(bottomOfLoop)
               }, {
                 cb.goto(newGroup)
@@ -1332,7 +1331,7 @@ class Emit[C](
           cb.assign(eltIdx, 0)
           cb.assign(grpIdx, 0)
 
-          cb.whileLoop(grpIdx < outerSize, {
+          cb.while_(grpIdx < outerSize, {
             cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
             cb.assign(withinGrpIdx, 0)
             val firstStruct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct
@@ -1340,7 +1339,7 @@ class Emit[C](
             val group = EmitCode.fromI(mb) { cb =>
               val (addElt, finishInner) = innerType
                 .constructFromFunctions(cb, region, groupSize, deepCopy = false)
-              cb.whileLoop(withinGrpIdx < groupSize, {
+              cb.while_(withinGrpIdx < groupSize, {
                 val struct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct
                 addElt(cb, struct.loadField(cb, 1))
                 cb.assign(eltIdx, eltIdx + 1)
@@ -1419,14 +1418,14 @@ class Emit[C](
                 emitI(dataIR).map(cb) { case dataValue: SIndexableValue =>
                   val xP = PCanonicalNDArray(PType.canonical(dataValue.st.elementType.storageType().setRequired(true)), nDims)
 
-                  cb.ifx(dataValue.hasMissingValues(cb), {
+                  cb.if_(dataValue.hasMissingValues(cb), {
                     cb._throw(Code.newInstance[HailException, String, Int](
                       "Cannot construct an ndarray with missing values.", errorId
                     ))
                   })
 
                   (0 until nDims).foreach { index =>
-                    cb.ifx(shapeTupleValue.isFieldMissing(cb, index),
+                    cb.if_(shapeTupleValue.isFieldMissing(cb, index),
                       cb._fatalWithError(errorId, s"shape missing at index $index"))
                   }
 
@@ -1434,10 +1433,10 @@ class Emit[C](
 
                   val shapeValues = (0 until nDims).map { i =>
                     val shape = SingleCodeSCode.fromSCode(cb, shapeTupleValue.loadField(cb, i).get(cb), region)
-                    cb.newLocalAny[Long](s"make_ndarray_shape_${ i }", shape.code)
+                    cb.newLocal[Long](s"make_ndarray_shape_${ i }", coerce[Long](shape.code))
                   }
 
-                  cb.ifx(isRowMajorCode.asBoolean.value, {
+                  cb.if_(isRowMajorCode.asBoolean.value, {
                     val strides = xP.makeRowMajorStrides(shapeValues, cb)
 
                     stridesSettables.zip(strides).foreach { case (settable, stride) =>
@@ -1458,7 +1457,7 @@ class Emit[C](
                     case stream: SStreamValue =>
                       val xP = PCanonicalNDArray(PType.canonical(stream.st.elementType.storageType().setRequired(true)), nDims)
                       (0 until nDims).foreach { index =>
-                        cb.ifx(shapeTupleValue.isFieldMissing(cb, index),
+                        cb.if_(shapeTupleValue.isFieldMissing(cb, index),
                           cb.append(Code._fatal[Unit](s"shape missing at index $index")))
                       }
 
@@ -1468,7 +1467,7 @@ class Emit[C](
                         cb.newLocal[Long](s"make_ndarray_shape_${i}", shapeTupleValue.loadField(cb, i).get(cb).asLong.value)
                       }
 
-                      cb.ifx(isRowMajorCode.asBoolean.value, {
+                      cb.if_(isRowMajorCode.asBoolean.value, {
                         val strides = xP.makeRowMajorStrides(shapeValues, cb)
 
 
@@ -1572,7 +1571,7 @@ class Emit[C](
                 cb,
                 region)
 
-              cb.ifx((M.get cne 0L) && (N.get cne 0L) && (K.get cne 0L), {
+              cb.if_((M.get cne 0L) && (N.get cne 0L) && (K.get cne 0L), {
                 cb.append(lSType.elementType.virtualType match {
                   case TFloat32 =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method = "sgemm",
@@ -1658,7 +1657,7 @@ class Emit[C](
 
               val emitter = new NDArrayEmitter(unifiedShape, leftPVal.st.elementType) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SValue = {
-                  val element = coerce[Any](cb.newField("matmul_element")(eVti))
+                  val element = cb.newFieldAny("matmul_element", eVti)
                   val k = cb.newField[Long]("ndarray_matmul_k")
 
                   val (lIndices: IndexedSeq[Value[Long]], rIndices: IndexedSeq[Value[Long]]) = (lSType.nDims, rSType.nDims, idxVars) match {
@@ -1690,11 +1689,11 @@ class Emit[C](
 
 
                   val kLen = lShape(lSType.nDims - 1)
-                  cb.assign(element, numericElementType.zero)
-                  cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
+                  cb.assignAny(element, numericElementType.zero)
+                  cb.for_(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
                     val lElem = leftPVal.loadElement(lIndices, cb)
                     val rElem = rightPVal.loadElement(rIndices, cb)
-                    cb.assign(element, numericElementType.add(multiply(lElem, rElem), element))
+                    cb.assignAny(element, numericElementType.add(multiply(lElem, rElem), element))
                   })
 
                   primitive(outputPType.elementType.virtualType, element)
@@ -1729,11 +1728,13 @@ class Emit[C](
 
           val INFOdgetrf = mb.newLocal[Int]()
           val INFOdgetri = mb.newLocal[Int]()
-          val INFOerror = (fun: String, info: LocalRef[Int]) => (info cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error ${ fun }. Error code = ").concat(info.toS), const(errorID)))
 
-          cb.append((N cne M).orEmpty(Code._fatalWithID[Unit](const("Can only invert square matrix"), const(errorID))))
+          def INFOerror(cb: EmitCodeBuilder, fun: String, info: LocalRef[Int]): Unit =
+            cb.if_(info cne 0,
+              cb._fatalWithError(errorID, const(s"LAPACK error $fun. Error code = ").concat(info.toS))
+            )
 
+          cb.if_(N cne M, cb._fatalWithError(errorID, "Can only invert square matrix"))
           cb.assign(An, (M * N).toI)
 
           cb.assign(IPIVaddr, IPIVptype.allocate(region, N.toI))
@@ -1750,7 +1751,8 @@ class Emit[C](
             LDA.toI,
             IPIVptype.firstElementOffset(IPIVaddr, N.toI)
           ))
-          cb.append(INFOerror("dgetrf", INFOdgetrf))
+
+          INFOerror(cb, "dgetrf", INFOdgetrf)
 
           cb.assign(WORKaddr, Code.invokeStatic1[Memory, Long, Long]("malloc", An.toL * 8L))
 
@@ -1762,8 +1764,8 @@ class Emit[C](
             WORKaddr,
             N.toI
           ))
-          cb.append(INFOerror("dgetri", INFOdgetri))
 
+          INFOerror(cb, "dgetri", INFOdgetri)
           finish(cb)
         }
 
@@ -1771,8 +1773,11 @@ class Emit[C](
         emitNDArrayColumnMajorStrides(nd).flatMap(cb) { case ndPVal: SNDArrayValue =>
 
           val infoDGESDDResult = cb.newLocal[Int]("infoDGESDD")
-          val infoDGESDDErrorTest = (extraErrorMsg: String) => (infoDGESDDResult cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS), errorID))
+
+          def infoDGESDDErrorTest(cb: EmitCodeBuilder, extraErrorMsg: String): Unit =
+            cb.if_(infoDGESDDResult cne 0,
+              cb._fatalWithError(errorID, const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS))
+            )
 
           val LWORKAddress = mb.newLocal[Long]("svd_lwork_address")
           val shapes = ndPVal.shapes
@@ -1833,7 +1838,7 @@ class Emit[C](
             IWORK
           ))
 
-          cb.append(infoDGESDDErrorTest("Failed size query."))
+          infoDGESDDErrorTest(cb, "Failed size query.")
 
           cb.assign(IWORK, Code.invokeStatic1[Memory, Long, Long]("malloc", K.toL * 8L * 4L)) // 8K 4 byte integers.
           cb.assign(A, Code.invokeStatic1[Memory, Long, Long]("malloc", M * N * 8L))
@@ -1867,7 +1872,7 @@ class Emit[C](
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", WORK.load()))
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", LWORKAddress.load()))
 
-          cb.append(infoDGESDDErrorTest("Failed result computation."))
+          infoDGESDDErrorTest(cb, "Failed result computation.")
 
           val s = sFinisher(cb)
 
@@ -1953,8 +1958,11 @@ class Emit[C](
           val aNumElements = cb.newLocal[Long]("ndarray_qr_aNumElements")
 
           val infoDGEQRFResult = cb.newLocal[Int]("ndaray_qr_infoDGEQRFResult")
-          val infoDGEQRFErrorTest = (extraErrorMsg: String) => (infoDGEQRFResult cne 0)
-            .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS), errorID))
+
+          def infoDGEQRFErrorTest(cb: EmitCodeBuilder, extraErrorMsg: String): Unit =
+            cb.if_(infoDGEQRFResult cne 0,
+              cb._fatalWithError(errorID, const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS))
+            )
 
           // Computing H and Tau
           cb.assign(aNumElements, ndPT.numElements(shapeArray))
@@ -1971,7 +1979,8 @@ class Emit[C](
             LWORKAddress,
             -1
           ))
-          cb.append(infoDGEQRFErrorTest("Failed size query."))
+
+          infoDGEQRFErrorTest(cb, "Failed size query.")
 
           cb.assign(workAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
           cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
@@ -1984,7 +1993,7 @@ class Emit[C](
             LWORK
           ))
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
-          cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
+          infoDGEQRFErrorTest(cb, "Failed to compute H and Tau.")
 
           val h = hFinisher(cb)
 
@@ -2022,16 +2031,8 @@ class Emit[C](
             val curWriteAddress = cb.newLocal[Long]("ndarray_qr_curr_write_addr", rDataAddress)
 
             // I think this just copies out the upper triangle into new ndarray in column major order
-            cb.forLoop({
-              cb.assign(currCol, 0L)
-            }, currCol < rCols, {
-              cb.assign(currCol, currCol + 1L)
-            }, {
-              cb.forLoop({
-                cb.assign(currRow, 0L)
-              }, currRow < rRows, {
-                cb.assign(currRow, currRow + 1L)
-              }, {
+            cb.for_(cb.assign(currCol, 0L), currCol < rCols, cb.assign(currCol, currCol + 1L), {
+              cb.for_(cb.assign(currRow, 0L), currRow < rRows, cb.assign(currRow, currRow + 1L), {
                 cb.append(Region.storeDouble(
                   curWriteAddress,
                   (currCol >= currRow).mux(
@@ -2056,8 +2057,11 @@ class Emit[C](
               val qStridesArray = qPType.makeColumnMajorStrides(qShapeArray, cb)
 
               val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
-              val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
-                .orEmpty(Code._fatalWithID[Unit](const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS), errorID))
+
+              def infoDORQRErrorTest(cb: EmitCodeBuilder, extraErrorMsg: String): Unit =
+                cb.if_(infoDORGQRResult cne 0,
+                  cb._fatalWithError(errorID, const(s"LAPACK error DORGQR. $extraErrorMsg Error code = ").concat(infoDORGQRResult.toS))
+                )
 
               val qCondition = cb.newLocal[Boolean]("ndarray_qr_qCondition")
               val numColsToUse = cb.newLocal[Long]("ndarray_qr_numColsToUse")
@@ -2071,7 +2075,7 @@ class Emit[C](
               cb.assign(numColsToUse, qCondition.mux(M, K))
               cb.assign(qNumElements, M * numColsToUse)
 
-              cb.ifx(qCondition, {
+              cb.if_(qCondition, {
                 cb.assign(aAddressDORGQRFirstElement, region.allocate(8L, qNumElements * ndPT.elementType.byteSize))
                 cb.append(Region.copyFrom(hFirstElement,
                   aAddressDORGQRFirstElement, aNumElements * 8L))
@@ -2090,7 +2094,8 @@ class Emit[C](
                 LWORKAddress,
                 -1
               ))
-              cb.append(infoDORQRErrorTest("Failed size query."))
+
+              infoDORQRErrorTest(cb, "Failed size query.")
               cb.append(workAddress := Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
               cb.assign(infoDORGQRResult, Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
                 M.toI,
@@ -2103,7 +2108,7 @@ class Emit[C](
                 LWORK
               ))
               cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
-              cb.append(infoDORQRErrorTest("Failed to compute Q."))
+              infoDORQRErrorTest(cb, "Failed to compute Q.")
               val (qFirstElementAddress, qFinisher) = qPType.constructDataFunction(qShapeArray, qStridesArray, cb, region)
               cb.append(Region.copyFrom(aAddressDORGQRFirstElement,
                 qFirstElementAddress, (M * numColsToUse) * 8L))
@@ -2286,7 +2291,7 @@ class Emit[C](
         val tv = cb.emb.newEmitField("trap_errTuple", EmitType(errTuple, false))
 
         val maybeMissingEV = cb.emb.newEmitField("trap_value", ev.emitType.copy(required = false))
-        cb.ifx(maybeException.isNull, {
+        cb.if_(maybeException.isNull, {
           cb.assign(tv, EmitCode.missing(cb.emb, errTuple))
           cb.assign(maybeMissingEV, ev)
         }, {
@@ -2305,10 +2310,10 @@ class Emit[C](
         val msg = cb.newLocal[String]("die_msg")
         cm.consume(cb,
           cb.assign(msg, "<exception message missing>"),
-          { sc => cb.assign(msg, sc.asString.loadString(cb)) })
+          { sc => cb.assign(msg, sc.asString.loadString(cb)) }
+        )
         cb._throw[HailException](Code.newInstance[HailException, String, Int](msg, errorId))
-
-        IEmitCode.present(cb, SUnreachable.fromVirtualType(typ).defaultValue)
+        IEmitCode(CodeLabel(), CodeLabel(), SUnreachable.fromVirtualType(typ).defaultValue, true)
 
       case ConsoleLog(message, result) =>
         val cm = emitI(message)
@@ -2881,7 +2886,7 @@ object NDArrayEmitter {
     val rightShapeString = const("(").concat(rightShape.map(_.toS).reduce((a, b) => a.concat(", ").concat(b))).concat(")")
 
 
-    cb.ifx(lK.cne(rK), {
+    cb.if_(lK.cne(rK), {
       cb._fatalWithError(errorID,"Matrix dimensions incompatible: ", leftShapeString,
         " can't be multiplied by matrix with dimensions ", rightShapeString)
     })

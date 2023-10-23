@@ -34,7 +34,7 @@ class BaseIR(Renderable):
         self._stack_trace = None
 
     def __str__(self):
-        r = PlainRenderer(stop_at_jir=False)
+        r = PlainRenderer()
         return r(self)
 
     def render_head(self, r: Renderer):

@@ -1,6 +1,5 @@
 import math
-from typing import Collection, Optional, Set
-from typing import List, Tuple, Dict
+from typing import Collection, Optional, Set, Union, List, Tuple, Dict
 
 import hail as hl
 from hail import MatrixTable, Table
@@ -76,11 +75,10 @@ def make_variants_matrix_table(mt: MatrixTable,
 
             handled_fields['gvcf_info'] = (hl.case()
                                            .when(hl.is_missing(row.info.END),
-                                                 hl.struct(**(
-                                                     parse_as_fields(
-                                                         row.info.select(*info_to_keep),
-                                                         has_non_ref)
-                                                 )))
+                                                 parse_allele_specific_fields(
+                                                     row.info.select(*info_to_keep),
+                                                     has_non_ref
+                                                 ))
                                            .or_missing())
 
             pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
@@ -206,11 +204,10 @@ def make_variant_stream(stream, info_to_keep):
 
             handled_fields['gvcf_info'] = (hl.case()
                                            .when(hl.is_missing(row.info.END),
-                                                 hl.struct(**(
-                                                     parse_as_fields(
-                                                         row.info.select(*info_to_keep),
-                                                         has_non_ref)
-                                                 )))
+                                                 parse_allele_specific_fields(
+                                                     row.info.select(*info_to_keep),
+                                                     has_non_ref
+                                                 ))
                                            .or_missing())
 
             pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
@@ -384,28 +381,28 @@ _merge_function_map: Dict[Tuple[hl.HailType, hl.HailType], Function] = {}
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
-def parse_as_ints(string, has_non_ref):
+def parse_allele_specific_ints(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.if_else(has_non_ref, ints[:-1], ints)
     return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.missing(hl.tint32), hl.int32(i)))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
-def parse_as_doubles(string, has_non_ref):
+def parse_allele_specific_doubles(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.if_else(has_non_ref, ints[:-1], ints)
     return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.missing(hl.tfloat64), hl.float64(i)))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
-def parse_as_sb_table(string, has_non_ref):
+def parse_allele_specific_sb_table(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.if_else(has_non_ref, ints[:-1], ints)
     return ints.map(lambda xs: xs.split(",").map(hl.int32))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
-def parse_as_ranksum(string, has_non_ref):
+def parse_allele_specific_ranksum(string, has_non_ref):
     typ = hl.ttuple(hl.tfloat64, hl.tint32)
     items = string.split(r'\|')
     items = hl.if_else(has_non_ref, items[:-1], items)
@@ -418,19 +415,25 @@ def parse_as_ranksum(string, has_non_ref):
             hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
 
 
-_as_function_map = {
-    'AS_QUALapprox': parse_as_ints,
-    'AS_RAW_MQ': parse_as_doubles,
-    'AS_RAW_MQRankSum': parse_as_ranksum,
-    'AS_RAW_ReadPosRankSum': parse_as_ranksum,
-    'AS_SB_TABLE': parse_as_sb_table,
-    'AS_VarDP': parse_as_ints,
+_allele_specific_field_parsers = {
+    'AS_QUALapprox': parse_allele_specific_ints,
+    'AS_RAW_MQ': parse_allele_specific_doubles,
+    'AS_RAW_MQRankSum': parse_allele_specific_ranksum,
+    'AS_RAW_ReadPosRankSum': parse_allele_specific_ranksum,
+    'AS_SB_TABLE': parse_allele_specific_sb_table,
+    'AS_VarDP': parse_allele_specific_ints,
 }
 
 
-def parse_as_fields(info, has_non_ref):
-    return hl.struct(**{f: info[f] if f not in _as_function_map
-    else _as_function_map[f](info[f], has_non_ref) for f in info})
+def parse_allele_specific_fields(info: hl.StructExpression,
+                                 has_non_ref: Union[bool, hl.BooleanExpression]
+                                 ) -> hl.StructExpression:
+    def parse_field(field: str) -> hl.Expression:
+        if parse := _allele_specific_field_parsers.get(field):
+            return parse(info[field], has_non_ref)
+        return info[field]
+
+    return hl.struct(**{f: parse_field(f) for f in info})
 
 
 def localize(mt):

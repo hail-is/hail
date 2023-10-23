@@ -36,7 +36,7 @@ object StructOrdering {
         val l = cb.memoize(lhs.loadField(cb, i))
         val r = cb.memoize(rhs.loadField(cb, i))
         cb.assign(cmp, fldCmp(cb, l, r))
-        cb.ifx(cmp.cne(0), cb.goto(Lout))
+        cb.if_(cmp.cne(0), cb.goto(Lout))
         i += 1
       }
 
@@ -59,7 +59,7 @@ object StructOrdering {
         val r = cb.memoize(rhs.loadField(cb, i))
         cb.assign(lt, fldLt(cb, l, r))
         val eq = !lt && fldEq(cb, l, r)
-        cb.ifx(!eq, cb.goto(Lout))
+        cb.if_(!eq, cb.goto(Lout))
         i += 1
       }
 
@@ -82,7 +82,7 @@ object StructOrdering {
         val r = cb.memoize(rhs.loadField(cb, i))
         cb.assign(lteq, fldLtEq(cb, l, r))
         val eq = fldEq(cb, l, r)
-        cb.ifx(!eq, cb.goto(Lout))
+        cb.if_(!eq, cb.goto(Lout))
         i += 1
       }
 
@@ -105,7 +105,7 @@ object StructOrdering {
         val r = cb.memoize(rhs.loadField(cb, i))
         cb.assign(gt, fldGt(cb, l, r))
         val eq = !gt && fldEq(cb, l, r)
-        cb.ifx(!eq, cb.goto(Lout))
+        cb.if_(!eq, cb.goto(Lout))
         i += 1
       }
 
@@ -128,7 +128,7 @@ object StructOrdering {
         val r = cb.memoize(rhs.loadField(cb, i))
         cb.assign(gteq, fldGtEq(cb, l, r))
         val eq = fldEq(cb, l, r)
-        cb.ifx(!eq, cb.goto(Lout))
+        cb.if_(!eq, cb.goto(Lout))
         i += 1
       }
 
@@ -148,7 +148,7 @@ object StructOrdering {
         val l = cb.memoize(lhs.loadField(cb, i))
         val r = cb.memoize(rhs.loadField(cb, i))
         cb.assign(eq, fldEq(cb, l, r))
-        cb.ifx(!eq, cb.goto(Lout))
+        cb.if_(!eq, cb.goto(Lout))
         i += 1
       }
 
