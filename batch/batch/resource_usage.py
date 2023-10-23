@@ -94,7 +94,7 @@ class ResourceUsageMonitor:
 
         self.out: Optional[io.BufferedWriter] = None
 
-        self.task: Optional[asyncio.Future] = None
+        self.task: Optional[asyncio.Task] = None
 
     def write_header(self):
         assert self.out
@@ -270,12 +270,12 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
         self.out = open(self.output_file_path, 'wb')  # pylint: disable=consider-using-with
         self.write_header()
 
-        self.task = asyncio.ensure_future(periodically_measure())
+        self.task = asyncio.create_task(periodically_measure())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.task is not None:
-            cancel_and_retrieve_all_exceptions([self.task])
+            await cancel_and_retrieve_all_exceptions([self.task])
             self.task = None
 
         if self.out is not None:

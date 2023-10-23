@@ -825,7 +825,7 @@ class Container:
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
 
-        self._run_fut: Optional[asyncio.Future] = None
+        self._run_fut: Optional[asyncio.Task] = None
         self._cleanup_lock = asyncio.Lock()
 
         self._killed = False
@@ -962,8 +962,9 @@ class Container:
                         finally:
                             self.process = None
             finally:
-                await cancel_and_retrieve_all_exceptions([self._run_fut])
-                self._run_fut = None
+                if self._run_fut is not None:
+                    await cancel_and_retrieve_all_exceptions([self._run_fut])
+                    self._run_fut = None
                 self._killed = True
 
     async def _cleanup(self):
