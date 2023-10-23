@@ -1,7 +1,7 @@
 import abc
 from typing import IO, List
 
-from .stat_result import FileListEntry
+from .stat_result import FileListEntry, FileStatus
 
 
 class FS(abc.ABC):
@@ -27,6 +27,10 @@ class FS(abc.ABC):
 
     @abc.abstractmethod
     def stat(self, path: str) -> FileListEntry:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def fast_stat(self, path: str) -> FileStatus:
         raise NotImplementedError
 
     @abc.abstractmethod

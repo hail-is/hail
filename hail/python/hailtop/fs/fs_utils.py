@@ -2,7 +2,7 @@ import io
 from typing import List
 
 from .router_fs import RouterFS
-from .stat_result import FileListEntry
+from .stat_result import FileListEntry, FileStatus
 
 _router_fs = None
 
@@ -153,6 +153,12 @@ def is_dir(path: str) -> bool:
 def stat(path: str) -> FileListEntry:
     """Returns information about the file or directory at a given path.
 
+    Warning
+    -------
+
+    This function requires the use of more expensive cloud object storage operations than
+    :func:`.fast_stat`. See :func:`.fast_stat` for details.
+
     Notes
     -----
     Raises an error if `path` does not exist.
@@ -175,6 +181,41 @@ def stat(path: str) -> FileListEntry:
     :obj:`dict`
     """
     return _fs().stat(path)
+
+
+def fast_stat(path: str) -> FileStatus:
+    """Returns information about the file or directory at a given path.
+
+    Notes
+    -----
+    In cloud object stores, `path` could be a file (aka object), a directory (aka prefix), or
+    both. Determining if a path is or is not a directory is typically more expensive than retrieving
+    file metadata such as the size or creation time. For example, Google Cloud Storage charges a
+    list-by-prefix operation as a "Class A Operation" and an object-metadata operation as a "Class B
+    Operation".
+
+    This function does not determine if `path` is a directory, it only returns metadata about the
+    file at `path`, if a file exists.
+
+    If no file exists at `path`, this function raises an error.
+
+    The resulting dictionary contains the following data:
+
+    - size_bytes (:obj:`int`) -- Size in bytes.
+    - size (:class:`str`) -- Size as a readable string.
+    - modification_time (:class:`str`) -- Time of last file modification.
+    - owner (:class:`str`) -- Owner.
+    - path (:class:`str`) -- Path.
+
+    Parameters
+    ----------
+    path : :class:`str`
+
+    Returns
+    -------
+    :obj:`dict`
+    """
+    return _fs().fast_stat(path)
 
 
 def ls(path: str) -> List[FileListEntry]:

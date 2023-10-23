@@ -179,6 +179,12 @@ def hadoop_is_dir(path: str) -> bool:
 def hadoop_stat(path: str) -> Dict[str, Any]:
     """Returns information about the file or directory at a given path.
 
+    Warning
+    -------
+
+    This function requires the use of more expensive cloud object storage operations than
+    :func:`.hadoop_fast_stat`. See :func:`.hadoop_fast_stat` for details.
+
     Notes
     -----
     Raises an error if `path` does not exist.
@@ -199,8 +205,44 @@ def hadoop_stat(path: str) -> Dict[str, Any]:
     Returns
     -------
     :obj:`dict`
+
     """
     return Env.fs().stat(path).to_legacy_dict()
+
+
+def hadoop_fast_stat(path: str) -> Dict[str, Any]:
+    """Returns information about the file or directory at a given path.
+
+    Notes
+    -----
+
+    In cloud object stores, `path` could be a file (aka object), a directory (aka prefix), or
+    both. Determining if a path is or is not a directory is typically more expensive than retrieving
+    file metadata such as the size or creation time. For example, Google Cloud Storage charges a
+    list-by-prefix operation as a "Class A Operation" and an object-metadata operation as a "Class B
+    Operation".
+
+    This function does not determine if `path` is a directory, it only returns metadata about the
+    file at `path`, if a file exists.
+
+    The resulting dictionary contains the following data:
+
+    - size_bytes (:obj:`int`) -- Size in bytes.
+    - size (:class:`str`) -- Size as a readable string.
+    - modification_time (:class:`str`) -- Time of last file modification.
+    - owner (:class:`str`) -- Owner.
+    - path (:class:`str`) -- Path.
+
+    Parameters
+    ----------
+    path : :class:`str`
+
+    Returns
+    -------
+    :obj:`dict`
+
+    """
+    return Env.fs().fast_stat(path).to_legacy_dict()
 
 
 def hadoop_ls(path: str) -> List[Dict[str, Any]]:
