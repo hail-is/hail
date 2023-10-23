@@ -19,20 +19,20 @@ object BinaryOrdering {
         val xlen = xv.loadLength(cb)
         val ylen = yv.loadLength(cb)
         val lim = cb.memoize[Int]((xlen < ylen).mux(xlen, ylen))
-        val i = cb.newLocal[Int]("i", 0)
+        val i = cb.newLocal[Int]("i")
         val cmp = cb.newLocal[Int]("cmp", 0)
         val Lbreak = CodeLabel()
 
-        cb.forLoop({}, i < lim, cb.assign(i, i + 1), {
+        cb.for_(cb.assign(i, 0), i < lim, cb.assign(i, i + 1), {
           val compval = Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
             Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", xv.loadByte(cb, i)),
             Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", yv.loadByte(cb, i)))
           cb.assign(cmp, compval)
-          cb.ifx(cmp.cne(0), cb.goto(Lbreak))
+          cb.if_(cmp.cne(0), cb.goto(Lbreak))
         })
 
         cb.define(Lbreak)
-        cb.ifx(cmp.ceq(0), {
+        cb.if_(cmp.ceq(0), {
           cb.assign(cmp, Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", xlen, ylen))
         })
 

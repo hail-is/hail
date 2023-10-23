@@ -21,7 +21,7 @@ from hail.expr import aggregators
 from hail.expr.expressions import (
     Expression, NumericExpression, StringExpression, LocusExpression,
     Int32Expression, Int64Expression, Float32Expression, Float64Expression,
-    expr_numeric, expr_float64, expr_any, expr_locus, expr_str, check_row_indexed
+    expr_numeric, expr_float64, expr_any, expr_locus, expr_str, raise_unless_row_indexed
 )
 from hail.expr.functions import _error_from_cdf_python
 from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, \
@@ -684,8 +684,8 @@ def _generate_hist2d_data(x, y, bins, range):
         raise ValueError("histogram_2d requires source to be Table, not MatrixTable")
     if source != y_source:
         raise ValueError(f"histogram_2d expects two expressions from the same 'Table', found {source} and {y_source}")
-    check_row_indexed('histogram_2d', x)
-    check_row_indexed('histogram_2d', y)
+    raise_unless_row_indexed('histogram_2d', x)
+    raise_unless_row_indexed('histogram_2d', y)
     if isinstance(bins, int):
         x_bins = y_bins = bins
     else:
@@ -1659,7 +1659,7 @@ def visualize_missingness(entry_field, row_field=None, column_field=None,
     if not (mt == row_source == column_source):
         raise ValueError(f"visualize_missingness expects expressions from the same 'MatrixTable', "
                          f"found {mt} and {row_source} and {column_source}")
-    # check_row_indexed('visualize_missingness', row_source)
+    # raise_unless_row_indexed('visualize_missingness', row_source)
     if window:
         row_field_is_locus = isinstance(row_field.dtype, hail.tlocus)
         row_field_is_numeric = row_field.dtype in (hail.tint32, hail.tint64, hail.tfloat32, hail.tfloat64)

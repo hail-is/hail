@@ -128,6 +128,7 @@ def test_reference_genome_liftover():
     grch38.remove_liftover("GRCh37")
 
 
+@qobtest
 def test_liftover_strand():
     grch37 = hl.get_reference('GRCh37')
     grch37.add_liftover(resource('grch37_to_grch38_chr20.over.chain.gz'), 'GRCh38')
@@ -184,6 +185,7 @@ def test_read_custom_reference_genome():
     assert_rg_loaded_correctly('test_rg_2')
 
 
+@qobtest
 def test_custom_reference_read_write():
     hl.ReferenceGenome("dk", ['hello'], {"hello": 123})
     ht = hl.utils.range_table(5)

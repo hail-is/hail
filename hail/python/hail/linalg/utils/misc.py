@@ -2,7 +2,7 @@ import numpy as np
 
 import hail as hl
 from hail.typecheck import typecheck, oneof, nullable
-from hail.expr.expressions import expr_locus, expr_float64, check_row_indexed
+from hail.expr.expressions import expr_locus, expr_float64, raise_unless_row_indexed
 from hail.utils.java import Env
 
 
@@ -166,9 +166,9 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     """
     if radius < 0:
         raise ValueError(f"locus_windows: 'radius' must be non-negative, found {radius}")
-    check_row_indexed('locus_windows', locus_expr)
+    raise_unless_row_indexed('locus_windows', locus_expr)
     if coord_expr is not None:
-        check_row_indexed('locus_windows', coord_expr)
+        raise_unless_row_indexed('locus_windows', coord_expr)
 
     src = locus_expr._indices.source
     if locus_expr not in src._fields_inverse:

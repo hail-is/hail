@@ -188,24 +188,24 @@ abstract class CodeOrdering {
 
   def _compare(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean = true): Value[Int] = {
     val cmp = cb.newLocal[Int]("cmp")
-    cb.ifx(x.m,
-      cb.ifx(y.m, cb.assign(cmp, if (missingEqual) 0 else -1), cb.assign(cmp, 1)),
-      cb.ifx(y.m, cb.assign(cmp, -1), cb.assign(cmp, compareNonnull(cb, x.v, y.v))))
+    cb.if_(x.m,
+      cb.if_(y.m, cb.assign(cmp, if (missingEqual) 0 else -1), cb.assign(cmp, 1)),
+      cb.if_(y.m, cb.assign(cmp, -1), cb.assign(cmp, compareNonnull(cb, x.v, y.v))))
     cmp
   }
 
   def _lt(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("lt")
     if (missingEqual) {
-      cb.ifx(x.m,
+      cb.if_(x.m,
         cb.assign(ret, false),
-        cb.ifx(y.m,
+        cb.if_(y.m,
           cb.assign(ret, true),
           cb.assign(ret, ltNonnull(cb, x.v, y.v))))
     } else {
-      cb.ifx(y.m,
+      cb.if_(y.m,
         cb.assign(ret, true),
-        cb.ifx(x.m,
+        cb.if_(x.m,
           cb.assign(ret, false),
           cb.assign(ret, ltNonnull(cb, x.v, y.v))))
     }
@@ -214,9 +214,9 @@ abstract class CodeOrdering {
 
   def _lteq(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("lteq")
-    cb.ifx(y.m,
+    cb.if_(y.m,
       cb.assign(ret, true),
-      cb.ifx(x.m,
+      cb.if_(x.m,
         cb.assign(ret, false),
         cb.assign(ret, lteqNonnull(cb, x.v, y.v))))
     ret
@@ -224,9 +224,9 @@ abstract class CodeOrdering {
 
   def _gt(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("gt")
-    cb.ifx(y.m,
+    cb.if_(y.m,
       cb.assign(ret, false),
-      cb.ifx(x.m,
+      cb.if_(x.m,
         cb.assign(ret, true),
         cb.assign(ret, gtNonnull(cb, x.v, y.v))))
     ret
@@ -235,15 +235,15 @@ abstract class CodeOrdering {
   def _gteq(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("gteq")
     if (missingEqual) {
-      cb.ifx(x.m,
+      cb.if_(x.m,
         cb.assign(ret, true),
-        cb.ifx(y.m,
+        cb.if_(y.m,
           cb.assign(ret, false),
           cb.assign(ret, gteqNonnull(cb, x.v, y.v))))
     } else {
-      cb.ifx(y.m,
+      cb.if_(y.m,
         cb.assign(ret, false),
-        cb.ifx(x.m,
+        cb.if_(x.m,
           cb.assign(ret, true),
           cb.assign(ret, gteqNonnull(cb, x.v, y.v))))
     }
@@ -253,13 +253,13 @@ abstract class CodeOrdering {
   def _equiv(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("eq")
     if (missingEqual) {
-      cb.ifx(x.m && y.m,
+      cb.if_(x.m && y.m,
         cb.assign(ret, true),
-        cb.ifx(!x.m && !y.m,
+        cb.if_(!x.m && !y.m,
           cb.assign(ret, equivNonnull(cb, x.v, y.v)),
           cb.assign(ret, false)))
     } else {
-      cb.ifx(!x.m && !y.m, cb.assign(ret, equivNonnull(cb, x.v, y.v)), cb.assign(ret, false))
+      cb.if_(!x.m && !y.m, cb.assign(ret, equivNonnull(cb, x.v, y.v)), cb.assign(ret, false))
     }
     ret
   }
