@@ -463,8 +463,8 @@ trait FSSuite extends TestNGSuite {
   @Test def fileAndDirectoryIsError(): Unit = {
     val d = t()
     fs.mkDir(d)
-    fs.touch(s"$d/x")
     fs.touch(s"$d/x/file")
+    fs.touch(s"$d/x")
 
     TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
       fs.fileListEntry(s"$d/x")

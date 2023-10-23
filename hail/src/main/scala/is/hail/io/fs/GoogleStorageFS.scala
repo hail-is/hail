@@ -16,7 +16,7 @@ import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.Paths
-import scala.jdk.CollectionConverters.{asJavaIterableConverter, asScalaIteratorConverter, iterableAsScalaIterableConverter}
+import scala.jdk.CollectionConverters._
 
 
 case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
@@ -451,18 +451,20 @@ class GoogleStorageFS(
       .toArray
   }
 
+  private[this] def getBlob(url: URL) = retryTransientErrors {
+    handleRequesterPays(
+      (options: Seq[BlobGetOption]) =>
+      storage.get(url.bucket, url.path, options:_*),
+      BlobGetOption.userProject _,
+      url.bucket
+    )
+  }
+
   override def fileStatus(url: URL): FileStatus = retryTransientErrors {
     if (url.path == "")
       return GoogleStorageFileListEntry.dir(url)
 
-    val blob = retryTransientErrors {
-      handleRequesterPays(
-        (options: Seq[BlobGetOption]) =>
-        storage.get(url.bucket, url.path, options:_*),
-        BlobGetOption.userProject _,
-        url.bucket
-      )
-    }
+    val blob = getBlob(urL)
 
     if (blob == null) {
       throw new FileNotFoundException(url.toString)
@@ -489,7 +491,15 @@ class GoogleStorageFS(
       )
     }.iterateAll().iterator.asScala.map(GoogleStorageFileListEntry.apply _)
 
-    FS.fileListEntryFromIterator(url, it)
+    // NB: In GCS, listing with the prefix "gs://bucket/foo" does not match an object with the name
+    // "gs://bucket/foo". This differs from Azure in which such an object is included.
+    val exactFileMatch = getBlob(url)
+    if (exactFileMatch != null) {
+      val exactFileMatchFLE = GoogleStorageFileListEntry(exactFileMatch)
+      FS.fileListEntryFromIterator(url, it ++ FastSeq(exactFileMatch).iterator)
+    } else {
+      FS.fileListEntryFromIterator(url, it)
+    }
   }
 
   override def eTag(url: URL): Some[String] = {
