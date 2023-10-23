@@ -24,7 +24,6 @@ fswatch>=0.1.1,<1
 
 # benchmark requirements
 wheel>=0.41,<0.42
-matplotlib>=3.5,<4
 
 # library type stubs
 types-Deprecated

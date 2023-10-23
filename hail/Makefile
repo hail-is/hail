@@ -441,7 +441,7 @@ deploy: test-dataproc $(WHEEL)
 
 .PHONY: benchmark
 benchmark: $(WHEEL)
-	HAIL_WHEEL=../hail/$(WHEEL) HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
+	HAIL_WHEEL=hail/$(WHEEL) HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
 
 .PHONY: install-benchmark
 install-benchmark:
