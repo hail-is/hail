@@ -7,11 +7,10 @@ import concurrent.futures
 import dill
 import functools
 
-from hailtop.utils import secret_alnum_string, partition
+from hailtop.utils import secret_alnum_string, partition, cancel_and_retrieve_all_exceptions
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiotools.tasks import cancel_and_retrieve_all_exceptions
 
 from .batch import Batch
 from .backend import ServiceBackend, HAIL_GENETICS_HAIL_IMAGE

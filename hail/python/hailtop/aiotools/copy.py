@@ -8,11 +8,10 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from rich.progress import Progress, TaskID
 
-from ..utils.utils import sleep_before_try
+from ..utils.utils import sleep_before_try, cancel_and_retrieve_all_exceptions
 from ..utils.rich_progress_bar import RichProgressBar, make_listener
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
-from .tasks import cancel_and_retrieve_all_exceptions
 
 try:
     import uvloop

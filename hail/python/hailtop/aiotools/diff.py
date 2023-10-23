@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from ..utils.rich_progress_bar import SimpleRichProgressBar, SimpleRichProgressBarTask
 from .router_fs import RouterAsyncFS
 from .fs import AsyncFS, FileStatus
-from ..tasks import cancel_and_retrieve_all_exceptions
+from ..utils import cancel_and_retrieve_all_exceptions
 
 try:
     import uvloop
