@@ -24,7 +24,7 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
   override def regionSize: Region.Size = Region.REGULAR
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, {
+    cb.if_(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
       cb += region.invalidate()
     })
@@ -37,7 +37,7 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
   }
 
   override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.ifx(region.isValid,
+    cb.if_(region.isValid,
       {
         regionStorer(cb, region)
         bll.store(cb, dest)

@@ -43,7 +43,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val currElementAddress = cb.newLocal[Long]("eblockmatrix_ndarray_currElementAddress", pndFirstElementAddress)
 
     val dataIdx = cb.newLocal[Int]("ndarray_decoder_data_idx")
-    cb.forLoop(cb.assign(dataIdx, 0), dataIdx < totalNumElements.toI, cb.assign(dataIdx, dataIdx + 1), {
+    cb.for_(cb.assign(dataIdx, 0), dataIdx < totalNumElements.toI, cb.assign(dataIdx, dataIdx + 1), {
       readElemF(cb, region, currElementAddress, in)
       cb.assign(currElementAddress, currElementAddress + pnd.elementType.byteSize)
     })
@@ -57,7 +57,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val numElements = cb.newLocal[Long]("ndarray_skipper_total_num_elements",
       (0 until nDims).foldLeft(const(1L).get) { (p, i) => p * in.readLong() })
     val i = cb.newLocal[Long]("ndarray_skipper_data_idx")
-    cb.forLoop(cb.assign(i, 0L), i < numElements, cb.assign(i, i + 1L), skip(cb, r, in))
+    cb.for_(cb.assign(i, 0L), i < numElements, cb.assign(i, i + 1L), skip(cb, r, in))
   }
 
   def _decodedSType(requestedType: Type): SType = {

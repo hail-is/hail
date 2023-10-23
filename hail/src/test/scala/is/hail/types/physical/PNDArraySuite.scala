@@ -146,7 +146,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val T = vecType.constructUninitialized(FastSeq(btn), cb, region)
 
     val j = cb.newLocal[Long]("j")
-    cb.forLoop(cb.assign(j, 0L), j < n, cb.assign(j, j+1), {
+    cb.for_(cb.assign(j, 0L), j < n, cb.assign(j, j+1), {
       val windowStart = cb.memoize((j-w).max(0))
       val windowSize = cb.memoize(j - windowStart)
       val window = curWindow.slice(cb, Colon, (null, windowSize))
@@ -204,7 +204,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         }
 
         var relError: Value[Double] = cb.memoize(Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA))
-        cb.ifx(relError > 1e-14, {
+        cb.if_(relError > 1e-14, {
           cb._fatal("backwards error too large: ", relError.toS)
         })
 
@@ -224,7 +224,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         relError = cb.memoize(Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normW2))
         cb.println(relError.toS)
-        cb.ifx(!(relError < 1e-14), {
+        cb.if_(!(relError < 1e-14), {
           cb._fatal("relative error vs naive too large: ", relError.toS)
         })
 
@@ -259,7 +259,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         val state = new LocalWhitening(cb, m, w, b, blocksize, region, false)
         val i = cb.newLocal[Long]("i", 0)
-        cb.whileLoop(i < n, {
+        cb.while_(i < n, {
           state.whitenBlock(cb, A.slice(cb, Colon, (i, (i+b).min(n))))
           cb.assign(i, i+b)
         })
@@ -280,7 +280,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         }
 
         val relError = cb.memoize(Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normW2))
-        cb.ifx(!(relError < 1e-14), {
+        cb.if_(!(relError < 1e-14), {
           cb._fatal("relative error vs naive too large: ", relError.toS)
         })
 
@@ -331,7 +331,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val f = fb.result(ctx)(theHailClassLoader)
+    val f = fb.result()(theHailClassLoader)
     val result1 = f(region1, region2, region3)
     val result1Data = nd.unstagedDataFirstElementPointer(result1)
 

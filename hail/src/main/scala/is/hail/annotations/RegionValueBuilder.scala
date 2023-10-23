@@ -42,7 +42,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
         case t: PCanonicalBaseStruct =>
           offsetstk.top + t.byteOffsets(i)
         case t: PArray =>
-          elementsOffsetstk.top + i * t.elementByteSize
+          t.incrementElementOffset(elementsOffsetstk.top, i)
       }
     }
   }

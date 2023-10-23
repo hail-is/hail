@@ -44,36 +44,36 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
         val array = value.asInstanceOf[SIndexablePointerValue].a
         if (!elementType.required) {
-          val nMissingLocal = cb.newLocal[Int]("nMissingBytes", pArray.nMissingBytes(prefixLen))
-          cb.ifx(nMissingLocal > 0, {
-            cb += out.writeBytes(array + const(pArray.lengthHeaderBytes), nMissingLocal - 1)
-            cb += out.writeByte((Region.loadByte(array + const(pArray.lengthHeaderBytes)
-              + (nMissingLocal - 1).toL) & EType.lowBitMask(prefixLen)).toB)
+          val nMissingBytes = cb.memoize(pArray.nMissingBytes(prefixLen), "nMissingBytes")
+          cb.if_(nMissingBytes > 0, {
+            cb += out.writeBytes(array + pArray.missingBytesOffset, nMissingBytes - 1)
+            cb += out.writeByte((Region.loadByte(array + pArray.missingBytesOffset
+              + (nMissingBytes - 1).toL) & EType.lowBitMask(prefixLen)).toB)
           })
         }
       case _ =>
         if (elementType.required) {
-          cb.ifx(value.hasMissingValues(cb), cb._fatal("cannot encode indexable with missing element(s) to required EArray!"))
+          cb.if_(value.hasMissingValues(cb), cb._fatal("cannot encode indexable with missing element(s) to required EArray!"))
         } else {
           val b = Code.newLocal[Int]("b")
           val shift = Code.newLocal[Int]("shift")
           cb.assign(b, 0)
           cb.assign(shift, 0)
-          cb.whileLoop(i < prefixLen, {
-            cb.ifx(value.isElementMissing(cb, i), cb.assign(b, b | (const(1) << shift)))
+          cb.while_(i < prefixLen, {
+            cb.if_(value.isElementMissing(cb, i), cb.assign(b, b | (const(1) << shift)))
             cb.assign(shift, shift + 1)
             cb.assign(i, i + 1)
-            cb.ifx(shift.ceq(8), {
+            cb.if_(shift.ceq(8), {
               cb.assign(shift, 0)
               cb += out.writeByte(b.toB)
               cb.assign(b, 0)
             })
           })
-          cb.ifx(shift > 0, cb += out.writeByte(b.toB))
+          cb.if_(shift > 0, cb += out.writeByte(b.toB))
         }
     }
 
-    cb.forLoop(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
+    cb.for_(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
       value.loadElement(cb, i).consume(cb, {
         if (elementType.required)
           cb._fatal(s"required array element saw missing value at index ", i.toS, " in encode")
@@ -98,24 +98,65 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       case t: PCanonicalDict => t.arrayRep
     }
 
-    val len = cb.newLocal[Int]("len", in.readInt())
-    val array = cb.newLocal[Long]("array", arrayType.allocate(region, len))
+    val len = cb.memoize(in.readInt(), "len")
+    val array = cb.memoize(arrayType.allocate(region, len), "array")
     arrayType.storeLength(cb, array, len)
 
-    val i = cb.newLocal[Int]("i")
     val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
 
-    if (!elementType.required)
-      cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
+    val pastLastOff = cb.memoize(arrayType.pastLastElementOffset(array, len))
+    if (elementType.required) {
+      val elemOff = cb.newLocal[Long]("elemOff", arrayType.firstElementOffset(array, len))
+      if (arrayType.zeroSizeElements) {
+        // elements have 0 size, so all elements have the same address
+        // still need to read `len` elements from the input stream, as they may have non-zero size
+        val i = cb.newLocal[Int]("i")
+        cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
+          readElemF(cb, region, elemOff, in)
+        })
+      } else {
+        cb.for_({}, elemOff < pastLastOff, cb.assign(elemOff, arrayType.nextElementAddress(elemOff)), {
+          readElemF(cb, region, elemOff, in)
+        })
+      }
+    } else {
+      cb += in.readBytes(region, array + const(arrayType.missingBytesOffset), arrayType.nMissingBytes(len))
 
-    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
-      val elemAddr = cb.memoize(arrayType.elementOffset(array, len, i))
-      if (elementType.required)
-        readElemF(cb, region, elemAddr, in)
-      else
-        cb.ifx(arrayType.isElementDefined(array, i),
-          readElemF(cb, region, elemAddr, in))
-    })
+      cb.if_((len % 64).cne(0), {
+        // ensure that the last missing block has all missing bits set past the last element
+        val lastMissingBlockOff = cb.memoize(UnsafeUtils.roundDownAlignment(arrayType.pastLastMissingByteOff(array, len) - 1, 8))
+        val lastMissingBlock = cb.memoize(Region.loadLong(lastMissingBlockOff))
+        cb += Region.storeLong(lastMissingBlockOff, lastMissingBlock | (const(-1L) << len))
+      })
+
+      def unsetRightMostBit(x: Value[Long]): Code[Long] =
+        x & (x - 1)
+
+      val presentBits = cb.newLocal[Long]("presentBits", 0L)
+      val mbyteOffset = cb.newLocal[Long]("mbyteOffset", array + arrayType.missingBytesOffset)
+      val blockOff = cb.newLocal[Long]("blockOff", arrayType.firstElementOffset(array, len))
+      val pastLastMissingByteOff = cb.memoize(arrayType.pastLastMissingByteOff(array, len), "pastLastMissingByteAddr")
+      val inBlockIndexToPresentValue = cb.newLocal[Int]("inBlockIndexToPresentValue", 0)
+
+      cb.for_(
+        {},
+        mbyteOffset < pastLastMissingByteOff,
+        {
+          cb.assign(blockOff, arrayType.incrementElementOffset(blockOff, 64))
+          cb.assign(mbyteOffset, mbyteOffset + 8)
+        },
+        {
+          cb.assign(presentBits, ~Region.loadLong(mbyteOffset))
+          cb.while_(
+            presentBits.cne(0L), {
+              cb.assign(inBlockIndexToPresentValue, presentBits.numberOfTrailingZeros)
+              val elemOff = cb.memoize(
+                arrayType.incrementElementOffset(blockOff, inBlockIndexToPresentValue))
+              readElemF(cb, region, elemOff, in)
+              cb.assign(presentBits, unsetRightMostBit(presentBits))
+            })
+        })
+    }
 
     new SIndexablePointerValue(st, array, len, cb.memoize(arrayType.firstElementOffset(array, len)))
   }
@@ -125,13 +166,13 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val len = cb.newLocal[Int]("len", in.readInt())
     val i = cb.newLocal[Int]("i")
     if (elementType.required) {
-      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
+      cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
     } else {
       val nMissing = cb.newLocal[Int]("nMissing", UnsafeUtils.packBitsToBytes(len))
       val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), nMissing.toL))
       cb += in.readBytes(r, mbytes, nMissing)
-      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
-        cb.ifx(!Region.loadBit(mbytes, i.toL), skip(cb, r, in)))
+      cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
+        cb.if_(!Region.loadBit(mbytes, i.toL), skip(cb, r, in)))
     }
   }
 

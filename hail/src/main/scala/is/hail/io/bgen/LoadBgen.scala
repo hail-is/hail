@@ -646,7 +646,7 @@ case class BgenPartitionReaderWithVariantFilter(fileMetadata: Array[BgenFileMeta
             override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               val Lstart = CodeLabel()
               cb.define(Lstart)
-              cb.ifx(currVariantIndex < stopVariantIndex, {
+              cb.if_(currVariantIndex < stopVariantIndex, {
                 val addr = index.queryIndex(cb, vs.elementRegion, currVariantIndex)
                   .loadField(cb, "offset")
                   .get(cb).asLong.value
@@ -777,7 +777,7 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           val Lstart = CodeLabel()
           cb.define(Lstart)
-          cb.ifx(currVariantIndex ceq endVariantIndex, cb.goto(LendOfStream))
+          cb.if_(currVariantIndex ceq endVariantIndex, cb.goto(LendOfStream))
 
           val addr = index.queryIndex(cb, eltRegion, currVariantIndex)
             .loadField(cb, "offset")

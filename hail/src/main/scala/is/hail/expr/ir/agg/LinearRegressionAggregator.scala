@@ -102,7 +102,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
   def initOpF(state: State)(cb: EmitCodeBuilder, kc: Code[Int], k0c: Code[Int]): Unit = {
     val k = cb.newLocal[Int]("lra_init_k", kc)
     val k0 = cb.newLocal[Int]("lra_init_k0", k0c)
-    cb.ifx((k0 < 0) || (k0 > k),
+    cb.if_((k0 < 0) || (k0 > k),
       cb += Code._fatal[Unit](const("linreg: `nested_dim` must be between 0 and the number (")
         .concat(k.toS)
         .concat(") of covariates, inclusive"))
@@ -139,7 +139,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     val xty = cb.newLocal[Long]("linreg_agg_seqop_xty")
     val xtx = cb.newLocal[Long]("linreg_agg_seqop_xtx")
 
-    cb.ifx(!x.hasMissingValues(cb),
+    cb.if_(!x.hasMissingValues(cb),
       {
         cb.assign(xty, stateType.loadField(state.off, 0))
         cb.assign(xtx, stateType.loadField(state.off, 1))
@@ -154,7 +154,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
             val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr")
             val xptr2 = cb.newLocal[Long]("linreg_agg_seqop_xptr2")
             cb.assign(xptr, pt.firstElementOffset(xAddr, k))
-            cb.whileLoop(i < k,
+            cb.while_(i < k,
               {
                 cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * y))
                 cb.assign(i, i + 1)
@@ -166,11 +166,11 @@ class LinearRegressionAggregator() extends StagedAggregator {
             cb.assign(sptr, vector.firstElementOffset(xtx, k))
             cb.assign(xptr, pt.firstElementOffset(xAddr, k))
 
-            cb.whileLoop(i < k,
+            cb.while_(i < k,
               {
                 cb.assign(j, 0)
                 cb.assign(xptr2, pt.firstElementOffset(xAddr, k))
-                cb.whileLoop(j < k,
+                cb.while_(j < k,
                   {
                     // add x[i] * x[j] to the value at sptr
                     cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * Region.loadDouble(xptr2)))
@@ -183,7 +183,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
               })
 
           case _ =>
-            cb.whileLoop(i < k,
+            cb.while_(i < k,
               {
                 cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.value * y)
                 cb.assign(i, i + 1)
@@ -193,10 +193,10 @@ class LinearRegressionAggregator() extends StagedAggregator {
             cb.assign(i, 0)
             cb.assign(sptr, vector.firstElementOffset(xtx, k))
 
-            cb.whileLoop(i < k,
+            cb.while_(i < k,
               {
                 cb.assign(j, 0)
-                cb.whileLoop(j < k,
+                cb.while_(j < k,
                   {
                     // add x[i] * x[j] to the value at sptr
                     cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
@@ -234,7 +234,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     val oxty = cb.newLocal[Long]("oxty")
     val oxtx = cb.newLocal[Long]("oxtx")
 
-    cb += Code(FastSeq(
+    cb += Code(
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
       oxty := stateType.loadField(other.off, 0),
@@ -242,22 +242,32 @@ class LinearRegressionAggregator() extends StagedAggregator {
       n := vector.loadLength(xty),
       i := 0,
       sptr := vector.firstElementOffset(xty, n),
-      optr := vector.firstElementOffset(oxty, n),
-      Code.whileLoop(i < n, Code(
+      optr := vector.firstElementOffset(oxty, n)
+    )
+
+    cb.while_(i < n, {
+      cb += Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
         sptr := sptr + scalar.byteSize,
-        optr := optr + scalar.byteSize)),
+        optr := optr + scalar.byteSize
+      )
+    })
 
+    cb += Code(
       n := vector.loadLength(xtx),
       i := 0,
       sptr := vector.firstElementOffset(xtx, n),
-      optr := vector.firstElementOffset(oxtx, n),
-      Code.whileLoop(i < n, Code(
+      optr := vector.firstElementOffset(oxtx, n)
+    )
+
+    cb.while_(i < n, {
+      cb += Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
         sptr := sptr + scalar.byteSize,
-        optr := optr + scalar.byteSize))))
+        optr := optr + scalar.byteSize)
+    })
   }
 
   protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: AbstractTypedRegionBackedAggState, other: AbstractTypedRegionBackedAggState): Unit = {

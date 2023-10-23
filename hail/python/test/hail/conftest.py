@@ -65,21 +65,18 @@ def pytest_runtest_makereport(item, call):
 
 
 @pytest.fixture(autouse=True)
-def set_query_name(init_hail, request):
-    backend = current_backend()
-    if isinstance(backend, ServiceBackend):
-        backend.batch_attributes = dict(name=request.node.name)
+def reinitialize_hail_for_each_qob_test(init_hail, request):
+    if isinstance(current_backend(), ServiceBackend):
+        hl_stop_for_test()
+        hl_init_for_test(app_name=request.node.name)
+        new_backend = current_backend()
+        assert isinstance(new_backend, ServiceBackend)
         yield
-        backend.batch_attributes = dict()
-        references = list(backend._references.keys())
-        for rg in references:
-            backend.remove_reference(rg)
-        backend.initialize_references()
-        if backend._batch_was_submitted:
+        if new_backend._batch_was_submitted:
+            batch = new_backend._batch
             report: Dict[str, CollectReport] = request.node.stash[test_results_key]
             if any(r.failed for r in report.values()):
-                log.info(f'cancelling failed test batch {backend._batch.id}')
-                asyncio.get_event_loop().run_until_complete(backend._batch.cancel())
-            backend._batch = backend._create_batch()
+                log.info(f'cancelling failed test batch {batch.id}')
+                asyncio.get_event_loop().run_until_complete(batch.cancel())
     else:
         yield

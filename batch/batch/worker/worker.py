@@ -1888,6 +1888,8 @@ class DockerJob(Job):
             await container.run(on_completion)
         except asyncio.CancelledError:
             raise
+        except ContainerDeletedError as exc:
+            log.info(f'Container {container} was deleted while running.', exc)
         except Exception:
             log.exception(f'While running container: {container}')
 

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import functools
 import logging
 import os
@@ -7,6 +8,7 @@ import traceback
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, Optional, TypeVar
 
 import aiomysql
+import aiomysql.utils
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import pymysql
@@ -128,7 +130,7 @@ def get_database_ssl_context(sql_config: SQLConfig) -> ssl.SSLContext:
 @retry_transient_mysql_errors
 async def create_database_pool(
     config_file: Optional[str] = None, autocommit: bool = True, maxsize: int = 10
-) -> aiomysql.Pool:
+) -> aiomysql.utils._PoolContextManager:
     sql_config = get_sql_config(config_file)
     if get_deploy_config().location() != 'k8s' and sql_config.host.endswith('svc.cluster.local'):
         sql_config = await resolve_test_db_endpoint(sql_config)
@@ -137,7 +139,7 @@ async def create_database_pool(
     else:
         ssl_context = get_database_ssl_context(sql_config)
         assert ssl_context is not None
-    return await aiomysql.create_pool(
+    return aiomysql.create_pool(
         maxsize=maxsize,
         # connection args
         host=sql_config.host,
@@ -296,11 +298,14 @@ class CallError(Exception):
 
 class Database:
     def __init__(self):
-        self.pool = None
-        self.connection_release_task_manager = None
+        self.pool: Optional[aiomysql.Pool] = None
+        self.connection_release_task_manager: Optional[BackgroundTaskManager] = None
+        self.async_exit_stack = contextlib.AsyncExitStack()
 
     async def async_init(self, config_file=None, maxsize=10):
-        self.pool = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
+        x = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
+        self.pool = await self.async_exit_stack.enter_async_context(x)
+        assert isinstance(self.pool, aiomysql.Pool)
         self.connection_release_task_manager = BackgroundTaskManager()
 
     def start(self, read_only=False):
@@ -360,3 +365,4 @@ class Database:
         self.connection_release_task_manager.shutdown()
         self.pool.close()
         await self.pool.wait_closed()
+        await self.async_exit_stack.aclose()
