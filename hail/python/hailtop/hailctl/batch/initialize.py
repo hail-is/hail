@@ -237,7 +237,7 @@ async def async_basic_initialize(verbose: bool = False):
 
     set_config(ConfigVariable.BATCH_BACKEND, 'service')
 
-    query_backend = Prompt.ask('Which backend do you want to use for Hail Query?', choices=['spark', 'batch', 'local'])
+    query_backend = Prompt.ask('Which backend do you want to use for Hail Query?', choices=['spark', 'batch'])
     set_config(ConfigVariable.QUERY_BACKEND, query_backend)
 
     typer.secho('--------------------', fg=typer.colors.BLUE)
