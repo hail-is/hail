@@ -1410,14 +1410,14 @@ class BGENTests(unittest.TestCase):
 
         with hl.TemporaryFilename() as f:
             hl.current_backend().fs.copy(bgen_file, f)
-            with pytest.raises(FatalError, match='have no .idx2 index file'):
+            with pytest.raises(FatalError, match=f'The following BGEN .idx2 index files do not exist.*{f}.idx2.*'):
                 hl.import_bgen(f, ['GT', 'GP'], sample_file, n_partitions=3)
 
             try:
                 with hl.current_backend().fs.open(f + '.idx', 'wb') as fobj:
                     fobj.write(b'')
 
-                with pytest.raises(FatalError, match='have no .idx2 index file'):
+                with pytest.raises(FatalError, match=f'The following BGEN .idx2 index files do not exist.*{f}.idx2.*'):
                     hl.import_bgen(f, ['GT', 'GP'], sample_file)
             finally:
                 hl.current_backend().fs.remove(f + '.idx')
