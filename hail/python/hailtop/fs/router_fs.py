@@ -13,7 +13,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import bounded_gather2, async_to_blocking
 
 from .fs import FS
-from .stat_result import FileType, FileListEntry
+from .stat_result import FileType, FileListEntry, FileStatus
 
 
 class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://github.com/python/typeshed/blob/a40d79a4e63c4e750a8d3a8012305da942251eb4/stdlib/http/client.pyi#L81
@@ -152,7 +152,7 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
         return async_to_blocking(self.aws.write(b))
 
 
-def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int, float]], path: str) -> FileListEntry:
+def _file_list_entry_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int, float]], path: str) -> FileListEntry:
     if size_bytes_and_time_modified:
         size_bytes, time_modified = size_bytes_and_time_modified
     else:
@@ -161,9 +161,17 @@ def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int,
 
     return FileListEntry(
         path=path.rstrip('/'),
+        owner=None,
         size=size_bytes,
         typ=FileType.DIRECTORY if is_dir else FileType.FILE,
+        modification_time=time_modified)
+
+
+def _file_status_result(size_bytes: int, time_modified: float, path: str) -> FileStatus:
+    return FileStatus(
+        path=path.rstrip('/'),
         owner=None,
+        size=size_bytes,
         modification_time=time_modified)
 
 
@@ -244,8 +252,8 @@ class RouterFS(FS):
         if maybe_sb_and_t is None:
             if not is_dir:
                 raise FileNotFoundError(path)
-            return _stat_result(True, None, path)
-        return _stat_result(is_dir, maybe_sb_and_t, path)
+            return _file_list_entry_result(True, None, path)
+        return _file_list_entry_result(is_dir, maybe_sb_and_t, path)
 
     async def _size_bytes_and_time_modified_or_none(self, path: str) -> Optional[Tuple[int, float]]:
         try:
@@ -255,6 +263,14 @@ class RouterFS(FS):
         except FileNotFoundError:
             return None
 
+    def fast_stat(self, path: str) -> FileStatus:
+        file_status = async_to_blocking(self.afs.statfile(path))
+        return _file_status_result(
+            async_to_blocking(file_status.size()),
+            file_status.time_modified().timestamp(),
+            path
+        )
+
     async def _aiofle_to_fle(self, fle: AIOFileListEntry) -> FileListEntry:
         async def maybe_status() -> Optional[Tuple[int, float]]:
             try:
@@ -262,7 +278,7 @@ class RouterFS(FS):
                 return (await file_status.size(), file_status.time_modified().timestamp())
             except IsADirectoryError:
                 return None
-        return _stat_result(
+        return _file_list_entry_result(
             *await asyncio.gather(fle.is_dir(), maybe_status(), fle.url()))
 
     def ls(self,
@@ -385,7 +401,7 @@ class RouterFS(FS):
             self._size_bytes_and_time_modified_or_none(path), ls_as_dir())
 
         if maybe_sb_and_t is not None:
-            file_stat = _stat_result(False, maybe_sb_and_t, path)
+            file_stat = _file_list_entry_result(False, maybe_sb_and_t, path)
             if maybe_contents is not None:
                 if error_when_file_and_directory:
                     raise ValueError(f'{path} is both a file and a directory')
