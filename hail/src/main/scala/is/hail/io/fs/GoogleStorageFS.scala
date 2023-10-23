@@ -464,7 +464,7 @@ class GoogleStorageFS(
     if (url.path == "")
       return GoogleStorageFileListEntry.dir(url)
 
-    val blob = getBlob(urL)
+    val blob = getBlob(url)
 
     if (blob == null) {
       throw new FileNotFoundException(url.toString)
@@ -496,7 +496,7 @@ class GoogleStorageFS(
     val exactFileMatch = getBlob(url)
     if (exactFileMatch != null) {
       val exactFileMatchFLE = GoogleStorageFileListEntry(exactFileMatch)
-      FS.fileListEntryFromIterator(url, it ++ FastSeq(exactFileMatch).iterator)
+      FS.fileListEntryFromIterator(url, it ++ FastSeq(exactFileMatchFLE).iterator)
     } else {
       FS.fileListEntryFromIterator(url, it)
     }
