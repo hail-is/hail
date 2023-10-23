@@ -1,4 +1,3 @@
-from typing import Awaitable
 import asyncio
 import logging
 from typing import Dict, List, Optional
