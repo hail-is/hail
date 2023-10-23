@@ -16,7 +16,7 @@ attrs==23.1.0
     # via aiohttp
 azure-common==1.1.28
     # via azure-mgmt-storage
-azure-core==1.29.4
+azure-core==1.29.5
     # via
     #   azure-identity
     #   azure-mgmt-core
@@ -30,9 +30,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/hail/python/hailtop/requirements.txt
 azure-storage-blob==12.18.3
     # via -r hail/hail/python/hailtop/requirements.txt
-boto3==1.28.66
+boto3==1.28.68
     # via -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.66
+botocore==1.31.68
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   boto3
@@ -47,7 +47,7 @@ cffi==1.16.0
     # via
     #   cryptography
     #   pycares
-charset-normalizer==3.3.0
+charset-normalizer==3.3.1
     # via
     #   aiohttp
     #   requests
@@ -172,7 +172,7 @@ urllib3==1.26.18
     # via
     #   botocore
     #   requests
-uvloop==0.18.0 ; sys_platform != "win32"
+uvloop==0.19.0 ; sys_platform != "win32"
     # via -r hail/hail/python/hailtop/requirements.txt
 yarl==1.9.2
     # via aiohttp

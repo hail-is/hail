@@ -32,7 +32,7 @@ azure-common==1.1.28
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   azure-mgmt-storage
-azure-core==1.29.4
+azure-core==1.29.5
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -57,11 +57,11 @@ azure-storage-blob==12.18.3
     #   -r hail/hail/python/hailtop/requirements.txt
 bokeh==3.3.0
     # via -r hail/hail/python/requirements.txt
-boto3==1.28.66
+boto3==1.28.68
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.66
+botocore==1.31.68
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -81,7 +81,7 @@ cffi==1.16.0
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   cryptography
     #   pycares
-charset-normalizer==3.3.0
+charset-normalizer==3.3.1
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
@@ -329,7 +329,7 @@ urllib3==1.26.18
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   botocore
     #   requests
-uvloop==0.18.0 ; sys_platform != "win32"
+uvloop==0.19.0 ; sys_platform != "win32"
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt

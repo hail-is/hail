@@ -48,7 +48,7 @@ cffi==1.16.0
     #   argon2-cffi-bindings
 cfgv==3.4.0
     # via pre-commit
-charset-normalizer==3.3.0
+charset-normalizer==3.3.1
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   requests
@@ -423,7 +423,7 @@ rpds-py==0.10.6
     # via
     #   jsonschema
     #   referencing
-ruff==0.1.0
+ruff==0.1.1
     # via -r hail/hail/python/dev/requirements.txt
 send2trash==1.8.2
     # via jupyter-server

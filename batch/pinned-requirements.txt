@@ -34,7 +34,7 @@ attrs==23.1.0
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -c hail/batch/../web_common/pinned-requirements.txt
     #   aiohttp
-charset-normalizer==3.3.0
+charset-normalizer==3.3.1
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
