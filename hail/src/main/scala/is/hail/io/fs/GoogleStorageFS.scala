@@ -483,22 +483,35 @@ class GoogleStorageFS(
     }
 
     val prefix = dropTrailingSlash(url.toString)
-    val it = retryTransientErrors {
+    val directoryContents = retryTransientErrors {
       handleRequesterPays(
         (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(prefix) +: BlobListOption.currentDirectory() +: options):_*),
         BlobListOption.userProject _,
         url.bucket
       )
-    }.iterateAll().iterator.asScala.map(GoogleStorageFileListEntry.apply _)
-
+    }.iterateAll().iterator
+    val isDirectory = directoryContents.hasNext
     // NB: In GCS, listing with the prefix "gs://bucket/foo" does not match an object with the name
     // "gs://bucket/foo". This differs from Azure in which such an object is included.
-    val exactFileMatch = getBlob(url)
-    if (exactFileMatch != null) {
-      val exactFileMatchFLE = GoogleStorageFileListEntry(exactFileMatch)
-      FS.fileListEntryFromIterator(url, it ++ FastSeq(exactFileMatchFLE).iterator)
+    val noTrailingSlashMatch = getBlob(parseUrl(prefix))
+    val trailingSlashMatch = getBlob(parseUrl(prefix + "/"))
+
+    if (isDirectory) {
+      if (noTrailingSlashMatch != null) {
+        throw new FileAndDirectoryException(s"${url.toString} appears as both a file ${noTrailingSlashMatch.getName} and directory.")
+      } else if (trailingSlashMatch != null) {
+        throw new FileAndDirectoryException(s"${url.toString} appears as both a file ${trailingSlashMatch.getName} and directory.")
+      } else {
+        GoogleStorageFileListEntry.dir(url)
+      }
     } else {
-      FS.fileListEntryFromIterator(url, it)
+      if (noTrailingSlashMatch != null) {
+        GoogleStorageFileListEntry(noTrailingSlashMatch)
+      } else if (trailingSlashMatch != null) {
+        GoogleStorageFileListEntry(trailingSlashMatch)
+      } else {
+        throw new FileNotFoundException(url.toString)
+      }
     }
   }
 

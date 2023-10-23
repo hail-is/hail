@@ -277,50 +277,6 @@ object FS {
 
     new RouterFS(Array(cloudSpecificFS, new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration()))))
   }
-
-  def fileListEntryFromIterator(
-    url: FSURL,
-    it: Iterator[FileListEntry],
-  ): FileListEntry = {
-    val urlStr = url.toString
-    val prefix = dropTrailingSlash(urlStr)
-    val prefixWithSlash = prefix + "/"
-
-    var continue = it.hasNext
-    var fileFle: FileListEntry = null
-    var dirFle: FileListEntry = null
-    while (continue) {
-      val fle = it.next()
-
-      if (fle.isFile && fle.getActualUrl == urlStr) {
-        // In Google, there could be a blob with the name "foo/". We return it iff the user
-        // requested "foo/" with the trailing slash.
-        fileFle = fle
-      }
-      if (fle.isDirectory && dropTrailingSlash(fle.getActualUrl) == prefix) {
-        // In Google, "directory" entries always have a trailing slash.
-        //
-        // In Azure, "directory" entries never have a trailing slash.
-        dirFle = fle
-      }
-
-      continue = it.hasNext && (fle.getActualUrl <= prefixWithSlash)
-    }
-
-    if (fileFle != null) {
-      if (dirFle != null) {
-        throw new FileAndDirectoryException(s"${url.toString} appears as both file ${fileFle.getActualUrl} and directory ${dirFle.getActualUrl}")
-      } else {
-        fileFle
-      }
-    } else {
-      if (dirFle != null) {
-        dirFle
-      } else {
-        throw new FileNotFoundException(url.toString)
-      }
-    }
-  }
 }
 
 trait FS extends Serializable {
