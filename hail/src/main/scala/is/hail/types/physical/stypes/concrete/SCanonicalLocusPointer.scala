@@ -70,7 +70,7 @@ class SCanonicalLocusPointerValue(
   }
 
   override def contigIdx(cb: EmitCodeBuilder): Value[Int] = {
-    cb.memoize(cb.emb.getReferenceGenome(st.rg).invoke[String, Int]("getContigIdx", contig(cb).loadString(cb)))
+    cb.memoize(cb.emb.getReferenceGenome(st.rg).invoke[String, Int]("getContigIndex", contig(cb).loadString(cb)))
   }
 
   override def position(cb: EmitCodeBuilder): Value[Int] = _position
@@ -183,10 +183,5 @@ final class SCompactLocusSettable(
       cb.assign(_position, v._position)
   }
 
-  override def structRepr(cb: EmitCodeBuilder): SStackStructSettable = new SStackStructSettable(
-    SStackStruct(
-      st.virtualType.representation,
-      FastSeq(EmitType(SInt32, true), EmitType(SInt32, true))),
-    FastSeq(EmitSettable.present(new SInt32Settable(_contig)),
-            EmitSettable.present(new SInt32Settable(_position))))
+  override def structRepr(cb: EmitCodeBuilder): SStackStructSettable = ???
 }

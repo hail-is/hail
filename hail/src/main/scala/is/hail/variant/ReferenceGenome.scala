@@ -49,11 +49,14 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   xContigs: Set[String] = Set.empty[String], yContigs: Set[String] = Set.empty[String],
   mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends Serializable {
 
+  // FIXME: add 'needsHealing' flag, set to true when adding reference genomes to generated class,
+  // make 'getLiftover' 'getSequence' call heal if needed
+
+  private var needsHealing: Boolean = true
+
   @transient lazy val broadcastRG: BroadcastRG = new BroadcastRG(this)
 
   def getContig(i: Int): String = contigs(i)
-
-  def getContigIdx(contig: String): Int = contigsIndex.get(contig)
 
   val nContigs = contigs.length
 
@@ -375,6 +378,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     realFastaReader.get()
   }
 
+  // heal
   def getSequence(contig: String, position: Int, before: Int = 0, after: Int = 0): String = {
     fastaReader().lookup(contig, position, before, after)
   }
@@ -420,6 +424,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     heal(tmpdir, fs)
   }
 
+  // heal
   def getLiftover(destRGName: String): LiftOver = {
     if (!hasLiftover(destRGName))
       fatal(s"Chain file has not been loaded for source reference '$name' and destination reference '$destRGName'.")

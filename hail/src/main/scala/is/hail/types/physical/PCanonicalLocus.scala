@@ -145,7 +145,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
 
   def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SLocusValue = {
     val position = cb.memoize(pos)
-    val contigIdx = cb.memoize(cb.emb.getReferenceGenome(rg).invoke[String, Int]("getContigIdx", contig))
+    val contigIdx = cb.memoize(cb.emb.getReferenceGenome(rg).invoke[String, Int]("getContigIndex", contig))
     new SCompactLocusValue(SCompactLocus(rg), contigIdx, position)
   }
 }
