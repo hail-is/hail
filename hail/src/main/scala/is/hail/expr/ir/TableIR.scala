@@ -38,7 +38,7 @@ import scala.reflect.ClassTag
 object TableIR {
   def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableRead = {
     val successFile = path + "/_SUCCESS"
-    if (!fs.exists(path + "/_SUCCESS"))
+    if (!fs.isFile(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
 
     val tr = TableNativeReader.read(fs, path, None)

@@ -243,7 +243,7 @@ object LoadBgen {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)
 
     val bgenFilesWhichAreMisssingIdx2Files = files.zip(indexFiles).filterNot {
-      case (f, index) => fs.exists(index) && index.endsWith("idx2")
+      case (f, index) => fs.isFile(index) && index.endsWith("idx2")
     }.map(_._1.getPath)
 
     if (bgenFilesWhichAreMisssingIdx2Files.nonEmpty)

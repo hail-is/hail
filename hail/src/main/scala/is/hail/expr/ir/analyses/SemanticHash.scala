@@ -370,7 +370,7 @@ case object SemanticHash extends Logging {
       case Some(etag) =>
         etag.getBytes
       case None =>
-        path.getBytes ++ Bytes.fromLong(fs.fileListEntry(path).getModificationTime)
+        path.getBytes ++ Bytes.fromLong(fs.fileStatus(path).getModificationTime)
     }
 
 

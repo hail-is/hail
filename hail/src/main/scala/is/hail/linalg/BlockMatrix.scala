@@ -152,7 +152,7 @@ object BlockMatrix {
   val metadataRelativePath = "/metadata.json"
 
   def checkWriteSuccess(fs: FS, uri: String) {
-    if (!fs.exists(uri + "/_SUCCESS"))
+    if (!fs.isFile(uri + "/_SUCCESS"))
       fatal(s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri")
   }
 

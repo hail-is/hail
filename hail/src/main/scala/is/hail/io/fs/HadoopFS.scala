@@ -75,14 +75,14 @@ object HadoopFS {
 }
 
 
-case class HadoopFSURL(val path: String, conf: SerializableHadoopConfiguration) extends FSURL {
+case class HadoopFSURL(path: String, conf: SerializableHadoopConfiguration) extends FSURL {
   val hadoopPath = new hadoop.fs.Path(path)
   val hadoopFs = hadoopPath.getFileSystem(conf.value)
 
-  def addPathComponent(c: String): HadoopFSURL = HadoopFSURL(s"$path/$c", conf)
-  def getPath: String = path
+  def addPathComponent(c: String): HadoopFSURL = HadoopFSURL(s"${hadoopPath.toString}/$c", conf)
+  def getPath: String = hadoopPath.toString
   def fromString(s: String): HadoopFSURL = HadoopFSURL(s, conf)
-  override def toString(): String = path
+  override def toString(): String = hadoopPath.toString
 }
 
 

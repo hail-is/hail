@@ -498,13 +498,13 @@ trait FS extends Serializable {
 
   final def getFileSize(filename: String): Long = getFileSize(parseUrl(filename))
 
-  def getFileSize(url: URL): Long = fileListEntry(url).getLen
+  def getFileSize(url: URL): Long = fileStatus(url).getLen
 
   final def isFile(filename: String): Boolean = isFile(parseUrl(filename))
 
   final def isFile(url: URL): Boolean = {
     try {
-      fileListEntry(url).isFile
+      fileStatus(url).isFileOrFileAndDirectory
     } catch {
       case _: FileNotFoundException => false
     }
@@ -671,12 +671,12 @@ trait FS extends Serializable {
   }
 
   def concatenateFiles(sourceNames: Array[String], destFilename: String): Unit = {
-    val fileListEntries = sourceNames.map(fileListEntry(_))
+    val fileStatuses = sourceNames.map(fileStatus(_))
 
-    info(s"merging ${ fileListEntries.length } files totalling " +
-      s"${ readableBytes(fileListEntries.map(_.getLen).sum) }...")
+    info(s"merging ${ fileStatuses.length } files totalling " +
+      s"${ readableBytes(fileStatuses.map(_.getLen).sum) }...")
 
-    val (_, timing) = time(copyMergeList(fileListEntries, destFilename, deleteSource = false))
+    val (_, timing) = time(copyMergeList(fileStatuses, destFilename, deleteSource = false))
 
     info(s"while writing:\n    $destFilename\n  merge time: ${ formatTime(timing) }")
   }
