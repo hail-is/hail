@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from hailtop.aiotools.fs import AsyncFS
-from hailtop.utils import check_shell_output, sleep_before_try, time_msecs, time_ns
+from hailtop.utils import cancel_and_retrieve_all_exceptions, check_shell_output, sleep_before_try, time_msecs, time_ns
 
 log = logging.getLogger('resource_usage')
 
@@ -275,7 +275,7 @@ iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == 
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.task is not None:
-            cancel_and_retrieve_all_exceptions(self.task)
+            cancel_and_retrieve_all_exceptions([self.task])
             self.task = None
 
         if self.out is not None:

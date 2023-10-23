@@ -55,6 +55,7 @@ from hailtop.utils import (
     CalledProcessError,
     Timings,
     blocking_to_async,
+    cancel_and_retrieve_all_exceptions,
     check_exec_output,
     check_shell,
     check_shell_output,
@@ -68,7 +69,6 @@ from hailtop.utils import (
     retry_transient_errors_with_delayed_warnings,
     time_msecs,
     time_msecs_str,
-    cancel_and_retrieve_all_exceptions,
 )
 
 from ..batch_format_version import BatchFormatVersion
