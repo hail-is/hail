@@ -1150,6 +1150,9 @@ def am_i_interactive() -> bool:
 
 
 async def cancel_and_retrieve_all_exceptions(tasks: Iterable[asyncio.Task]):
+    if not tasks:
+        return
+
     for task in tasks:
         if not task.cancelled():
             task.cancel()
