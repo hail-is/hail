@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import java.io.InputStream
+import java.io.{InputStream, FileNotFoundException}
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
