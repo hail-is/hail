@@ -60,7 +60,7 @@ def unpack_key_value_inputs(inputs: List[str]) -> Dict[str, str]:
     return {kv[0]: kv[1] for kv in key_values}
 
 
-def flatten(xxs: Iterable[List[T]]) -> List[T]:
+def flatten(xxs: Iterable[Iterable[T]]) -> List[T]:
     return [x for xs in xxs for x in xs]
 
 

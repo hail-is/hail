@@ -1210,15 +1210,23 @@ class TableGen(TableIR):
 
 
 class JavaTable(TableIR):
-    def __init__(self, jir):
+    def __init__(self, table_type, tir_id: int):
         super().__init__()
-        self._jir = jir
+        self._type = table_type
+        self._id = tir_id
 
     def _handle_randomness(self, uid_field_name):
         raise FatalError('JavaTable does not support randomness in consumers')
 
     def render_head(self, r):
-        return f'(JavaTable {r.add_jir(self._jir)}'
+        return f'(JavaTable {self._id}'
 
     def _compute_type(self, deep_typecheck):
-        return hl.ttable._from_java(self._jir.typ())
+        return self._type
+
+    def __del__(self):
+        from hail.backend.py4j_backend import Py4JBackend
+        if Env._hc:
+            backend = Env.backend()
+            assert isinstance(backend, Py4JBackend)
+            backend._jbackend.removeJavaIR(self._id)

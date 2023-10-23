@@ -489,6 +489,7 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: hail-docs-no-test
+hail-docs-no-test: install-editable
 hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
