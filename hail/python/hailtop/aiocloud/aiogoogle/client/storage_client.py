@@ -3,7 +3,6 @@ from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterat
                     List, Coroutine, ClassVar)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
-import sys
 import logging
 import asyncio
 import urllib.parse

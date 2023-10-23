@@ -1,4 +1,4 @@
-from typing import Iterable, Set
+from typing import Set
 import asyncio
 import logging
 from ..utils import cancel_and_retrieve_all_exceptions
