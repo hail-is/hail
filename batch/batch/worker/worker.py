@@ -2983,9 +2983,7 @@ class Worker:
 
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
-        self._jvmpools_by_cores: Dict[int, JVMPool] = {
-            n_cores: JVMPool(n_cores, self) for n_cores in (1, 2, 4, 8)
-        }
+        self._jvmpools_by_cores: Dict[int, JVMPool] = {n_cores: JVMPool(n_cores, self) for n_cores in (1, 2, 4, 8)}
         self._waiting_for_jvm_with_n_cores: asyncio.Queue[int] = asyncio.Queue()
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
 
