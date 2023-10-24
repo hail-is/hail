@@ -1,6 +1,6 @@
 include ../config.mk
 
-.PHONY: build run run-docker deploy clean
+.PHONY: build push run run-docker deploy clean
 
 build:
 	$(MAKE) -C .. website-image
@@ -12,7 +12,10 @@ run:
 run-docker: build
 	docker run -e HAIL_DOMAIN=localhost:5555 -e PORT=5555 -p 5555:5555 $(shell cat ../website-image) python3 -m website local
 
-deploy: build
+push:
+	$(MAKE) -C .. push-private-website-image
+
+deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"scope":"$(SCOPE)","website_image":{"image":"'$$(cat ../website-image)'"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
