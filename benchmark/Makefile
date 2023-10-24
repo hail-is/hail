@@ -61,6 +61,4 @@ submit: pushed_image install
 clean: cleanup_image
 	rm -rf python/dist/*
 	rm -rf python/build/*
-	rm -f $(notdir $(HAIL_WHEEL))
 	rm -f $(notdir $(BENCHMARK_WHEEL))
-	rm -f requirements.txt
