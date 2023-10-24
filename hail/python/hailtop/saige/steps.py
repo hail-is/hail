@@ -4,65 +4,65 @@ from typing import Dict, List, Optional, Tuple, Union
 import hail as hl
 from hailtop.aiotools.fs import AsyncFS
 import hailtop.batch as hb
-from hailtop.utils import AsyncWorkerPool
 
 from .config import CheckpointConfigMixin, JobConfigMixin
 from .constants import SaigeAnalysisType, SaigeInputDataType, SaigeTestType, saige_phenotype_to_test_type
 from .io import (
     PlinkResourceGroup,
-    SaigeGeneGlmmResourceGroup,
-    SaigeGlmmResourceGroup,
+    TextResourceFile,
+    SaigeGeneGLMMResourceGroup,
+    SaigeGLMMResourceGroup,
     SaigeSparseGRMResourceGroup,
     SaigeGeneResultResourceGroup,
     SaigeResultResourceGroup,
-    TextFile,
+    checkpoint_if_requested,
+    load_plink_file_or_create,
+    load_saige_glmm_file,
+    load_saige_result_file,
+    load_saige_sparse_grm_file,
+    load_text_file_or_create,
+    new_saige_glmm_file,
+    new_saige_result_file,
+    new_saige_sparse_grm_file,
 )
-from .phenotype import Phenotype, Phenotypes
+from .phenotype import Phenotype
 from .variant_chunk import VariantChunk
+
+
+def get_output_dir(config: CheckpointConfigMixin, temp_dir: str, checkpoint_dir: Optional[str]) -> str:
+    if config.use_checkpoints or config.checkpoint_output:
+        if checkpoint_dir is None:
+            raise ValueError('must specify a checkpoint directory to use checkpoints and/or checkpoint output')
+        return checkpoint_dir
+    return temp_dir
 
 
 @dataclass
 class PrepareInputsStep(CheckpointConfigMixin):
-    async def _write_phenotype_data(
-        self,
-        fs: AsyncFS,
-        pool: AsyncWorkerPool,
-        b: hb.Batch,
-        mt: hl.MatrixTable,
-        output_file: str,
-        pheno_cols: List[str],
-    ) -> TextFile:
-        checkpointed_output = await TextFile.use_checkpoint_if_exists_and_requested(fs, pool, b, self, output_file)
-        if checkpointed_output and not self.overwrite:
-            return checkpointed_output
-        mt.cols().select(pheno_cols).export(output_file, delimiter="\t")
-        return TextFile.from_input_file(b, output_file)
-
-    async def _convert_mt_to_plink(
-        self, fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, mt: hl.MatrixTable, output_file: str
-    ) -> PlinkResourceGroup:
-        checkpointed_output = await PlinkResourceGroup.use_checkpoint_if_exists_and_requested(
-            fs, pool, b, self, output_file
-        )
-        if checkpointed_output and not self.overwrite:
-            return checkpointed_output
-        hl.export_plink(mt, output_file)
-        return PlinkResourceGroup.from_input_files(b, output_file)
-
     async def call(
         self,
         fs: AsyncFS,
-        pool: AsyncWorkerPool,
         b: hb.Batch,
         mt: hl.MatrixTable,
-        phenotypes: Phenotypes,
-        working_dir: str,
-    ) -> Tuple[TextFile, PlinkResourceGroup]:
-        phenotypes_output = await self._write_phenotype_data(
-            fs, pool, b, mt, f'{working_dir}/inputs/phenotypes.tsv', phenotypes.phenotype_names
-        )
-        input_data = await self._convert_mt_to_plink(fs, pool, b, mt, f'{working_dir}/inputs/input_data')
-        return (phenotypes_output, input_data)
+        phenotypes: List[Phenotype],
+        temp_dir: str,
+        checkpoint_dir: Optional[str],
+    ) -> Tuple[TextResourceFile, PlinkResourceGroup]:
+        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        phenotype_file = f'{working_dir}/inputs/phenotypes.tsv'
+        plink_file = f'{working_dir}/inputs/input_data'
+
+        def create_phenotype_file():
+            phenotype_names = [p.name for p in phenotypes]
+            mt.cols().select(*phenotype_names).export(phenotype_file, delimiter="\t")
+
+        def create_plink_file():
+            hl.export_plink(mt, plink_file)
+
+        phenotype_input = await load_text_file_or_create(fs, b, self, phenotype_file, create_phenotype_file)
+        plink_input = await load_plink_file_or_create(fs, b, self, plink_file, create_plink_file)
+
+        return (phenotype_input, plink_input)
 
 
 @dataclass
@@ -77,48 +77,39 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
     def name(self) -> str:
         return 'sparse-grm'
 
-    def output_root(self, output_dir: str) -> str:
-        return f'{output_dir}/sparse-grm'
+    def output_root(self, temp_dir: str, checkpoint_dir: Optional[str]) -> str:
+        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        return f'{working_dir}/sparse-grm'
 
     def attributes(self) -> Optional[Dict]:
         return None
 
-    def command(self, input_bfile: PlinkResourceGroup, output_prefix: str):
-        return
+    async def call(self, fs: AsyncFS, b: hb.Batch, input_bfile: PlinkResourceGroup, temp_dir: str, checkpoint_dir: str):
+        output_prefix = self.output_root(temp_dir, checkpoint_dir)
+        sparse_grm = await load_saige_sparse_grm_file(fs, b, self, output_prefix)
+        if sparse_grm is not None:
+            return sparse_grm
 
-    async def call(
-        self, fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, input_bfile: PlinkResourceGroup, output_dir: str
-    ):
-        output_prefix = self.output_root(output_dir)
+        create_sparse_grm_j = b.new_job(name=self.name(), attributes=self.attributes())
 
-        checkpointed_output = await SaigeSparseGRMResourceGroup.use_checkpoint_if_exists_and_requested(
-            fs, pool, b, self, output_prefix
-        )
-        if checkpointed_output and not self.overwrite:
-            return checkpointed_output
+        (create_sparse_grm_j.cpu(self.cpu).storage(self.storage).image(self.image).spot(self.spot))
 
-        create_sparse_grm_task = b.new_job(name=self.name(), attributes=self.attributes())
-
-        (create_sparse_grm_task.cpu(self.cpu).storage(self.storage).image(self.image).spot(self.spot))
-
-        sparse_grm_output = SaigeSparseGRMResourceGroup.from_job_intermediate(
-            create_sparse_grm_task, self.relatedness_cutoff, self.num_markers
-        )
+        sparse_grm = new_saige_sparse_grm_file(create_sparse_grm_j, self.relatedness_cutoff, self.num_markers)
 
         command = f'''
 createSparseGRM.R \
     --plinkFile={input_bfile} \
     --nThreads={self.cpu} \
-    --outputPrefix={output_prefix} \
+    --outputPrefix={sparse_grm} \
     --numRandomMarkerforSparseKin={self.num_markers} \
     --relatednessCutoff={self.relatedness_cutoff}
 '''
 
-        create_sparse_grm_task.command(command)
+        create_sparse_grm_j.command(command)
 
-        sparse_grm_output.checkpoint_if_requested(b, self, output_prefix)
+        checkpoint_if_requested(sparse_grm, b, self, output_prefix)
 
-        return sparse_grm_output
+        return sparse_grm
 
 
 @dataclass
@@ -140,30 +131,22 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
     async def call(
         self,
         fs: AsyncFS,
-        pool: AsyncWorkerPool,
         b: hb.Batch,
         *,
         input_bfile: PlinkResourceGroup,
-        input_phenotypes: TextFile,
+        input_phenotypes: TextResourceFile,
         phenotype: Phenotype,
         analysis_type: SaigeAnalysisType,
         covariates: List[str],
         user_id_col: str,
-        output_dir: str,
-    ) -> SaigeGlmmResourceGroup:
-        output_root = self.output_root(output_dir, phenotype)
+        temp_dir: str,
+        checkpoint_dir: Optional[str],
+    ) -> SaigeGLMMResourceGroup:
+        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        output_root = self.output_root(working_dir, phenotype)
 
-        if analysis_type == SaigeAnalysisType.VARIANT:
-            glmm_resource_output = await SaigeGlmmResourceGroup.use_checkpoint_if_exists_and_requested(
-                fs, pool, b, self, output_root
-            )
-        else:
-            assert analysis_type == SaigeAnalysisType.GENE
-            glmm_resource_output = await SaigeGeneGlmmResourceGroup.use_checkpoint_if_exists_and_requested(
-                fs, pool, b, self, output_root
-            )
-
-        if glmm_resource_output and not self.overwrite:
+        glmm_resource_output = await load_saige_glmm_file(fs, b, self, output_root, analysis_type)
+        if glmm_resource_output:
             return glmm_resource_output
 
         j = (
@@ -178,7 +161,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
             .spot(self.spot)
         )
 
-        null_glmm = SaigeGlmmResourceGroup.from_job_intermediate(j)
+        null_glmm = new_saige_glmm_file(j, analysis_type)
 
         command = self.command(
             input_bfile,
@@ -193,7 +176,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
 
         j.command(command)
 
-        null_glmm.checkpoint_if_requested(b, self, output_root)
+        checkpoint_if_requested(null_glmm, b, self, output_root)
 
         if self.save_stdout:
             b.write_output(j.stdout, f'{output_root}.log')
@@ -203,13 +186,13 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
     def command(
         self,
         input_bfile: PlinkResourceGroup,
-        phenotypes: TextFile,
+        phenotypes: TextResourceFile,
         covariates: List[str],
         user_id_col: str,
         phenotype: Phenotype,
         analysis_type: SaigeAnalysisType,
-        null_glmm: SaigeGlmmResourceGroup,
-        stdout: TextFile,
+        null_glmm: SaigeGLMMResourceGroup,
+        stdout: TextResourceFile,
     ) -> str:
         test_type = saige_phenotype_to_test_type[phenotype.phenotype_type]
 
@@ -294,23 +277,27 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             'chunk': chunk.to_interval_str(),
         }
 
-    def output_file_prefix(self, output_dir: str, phenotype: Phenotype, chunk: VariantChunk) -> str:
-        return f'{output_dir}/results/{phenotype.name}/{chunk.idx}'
+    def output_file_prefix(
+        self, temp_dir: str, checkpoint_dir: Optional[str], phenotype: Phenotype, chunk: VariantChunk
+    ) -> str:
+        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        return f'{working_dir}/results/{phenotype.name}/{chunk.idx}'
 
-    def output_dir(self, output_dir: str, phenotype: Phenotype) -> str:
-        return f'{output_dir}/results/{phenotype.name}/*'
+    def output_dir(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype: Phenotype) -> str:
+        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        return f'{working_dir}/results/{phenotype.name}/*'
 
     def command(
         self,
         *,
         mt_path: str,
         analysis_type: SaigeAnalysisType,
-        null_model: SaigeGlmmResourceGroup,
+        null_model: Union[SaigeGeneGLMMResourceGroup, SaigeGLMMResourceGroup],
         input_data_type: SaigeInputDataType,
         chunk: VariantChunk,
         phenotype: Phenotype,
         result: SaigeResultResourceGroup,
-        stdout: TextFile,
+        stdout: TextResourceFile,
         sparse_grm: Optional[SaigeSparseGRMResourceGroup],
         group_col: Optional[str],
     ):
@@ -462,31 +449,23 @@ step2_SPAtests.R \
     async def call(
         self,
         fs: AsyncFS,
-        pool: AsyncWorkerPool,
         b: hb.Batch,
         *,
         mt_path: str,
-        output_dir: str,
+        temp_dir: str,
+        checkpoint_dir: Optional[str],
         analysis_type: SaigeAnalysisType,
-        null_model: SaigeGlmmResourceGroup,
+        null_model: Union[SaigeGeneGLMMResourceGroup, SaigeGLMMResourceGroup],
         input_data_type: SaigeInputDataType,
         chunk: VariantChunk,
         phenotype: Phenotype,
         sparse_grm: Optional[SaigeSparseGRMResourceGroup] = None,
         group_col: Optional[str] = None,
-    ) -> SaigeResultResourceGroup:
-        output_root = self.output_file_prefix(output_dir, phenotype, chunk)
+    ) -> Union[SaigeGeneResultResourceGroup, SaigeResultResourceGroup]:
+        output_root = self.output_file_prefix(temp_dir, checkpoint_dir, phenotype, chunk)
 
-        if analysis_type == SaigeAnalysisType.VARIANT:
-            results = await SaigeResultResourceGroup.use_checkpoint_if_exists_and_requested(
-                fs, pool, b, self, output_root
-            )
-        else:
-            assert analysis_type == SaigeAnalysisType.GENE
-            results = await SaigeGeneResultResourceGroup.use_checkpoint_if_exists_and_requested(
-                fs, pool, b, self, output_root
-            )
-        if results and not self.overwrite:
+        results = await load_saige_result_file(fs, b, self, output_root, analysis_type)
+        if results is not None:
             return results
 
         j = (
@@ -505,7 +484,7 @@ step2_SPAtests.R \
             .spot(self.spot)
         )
 
-        result = SaigeResultResourceGroup.from_job_intermediate(j)
+        results = new_saige_result_file(j, analysis_type)
 
         command = self.command(
             mt_path=mt_path,
@@ -514,7 +493,7 @@ step2_SPAtests.R \
             input_data_type=input_data_type,
             chunk=chunk,
             phenotype=phenotype,
-            result=result,
+            result=results,
             stdout=j.stdout,
             sparse_grm=sparse_grm,
             group_col=group_col,
@@ -522,7 +501,7 @@ step2_SPAtests.R \
 
         j.command(command)
 
-        result.checkpoint_if_requested(b, self, output_root)
+        checkpoint_if_requested(results, b, self, output_root)
 
         if self.save_stdout:
             b.write_output(j.stdout, f'{output_root}.log')

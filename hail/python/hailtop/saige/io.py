@@ -1,307 +1,259 @@
-import abc
-
-from typing import Optional, Union
+import asyncio
+from typing import Callable, Optional, NewType, Type, TypeVar, Union, cast
 
 from hailtop.aiotools.fs import AsyncFS
 import hailtop.batch as hb
-from hailtop.utils import AsyncWorkerPool, WaitableSharedPool
+
 
 from .config import CheckpointConfigMixin
+from .constants import SaigeAnalysisType
 
 
-class ResourceGroupInputs:
-    def __init__(self, name: str, **inputs: str):
-        self.name = name
-        self.inputs = inputs
+RG = TypeVar('RG', bound=hb.ResourceGroup)
+RF = TypeVar('RF', bound=hb.ResourceFile)
 
 
-class ResourceFileInput:
-    def __init__(self, name: str, input: Optional[str]):
-        self.name = name
-        self.input = input
+def checkpoint_if_requested(resource: hb.Resource, b: hb.Batch, config: CheckpointConfigMixin, output_file: str):
+    if config.checkpoint_output:
+        b.write_output(resource, output_file)
 
 
-class BaseSaigeResource(abc.ABC):
-    @classmethod
-    async def _use_checkpoint_if_exists_and_requested(
-        cls,
-        fs: AsyncFS,
-        pool: AsyncWorkerPool,
-        b: hb.Batch,
-        config: CheckpointConfigMixin,
-        inputs: Union[ResourceFileInput, ResourceGroupInputs],
-    ):
-        if config.use_checkpoints:
-            if isinstance(inputs, ResourceGroupInputs):
-                input_files = inputs.inputs.values()
-            else:
-                assert isinstance(inputs, ResourceFileInput)
-                input_files = [inputs.input]
-
-            waitable_pool = WaitableSharedPool(pool)
-            for input in input_files:
-                await waitable_pool.call(fs.exists, input)
-            await waitable_pool.wait()
-            files_exist = waitable_pool.results()
-
-            all_files_exist = all(files_exist)
-
-            if all_files_exist:
-                return cls._from_input_files(b, inputs)
-        return None
-
-    @classmethod
-    def _from_input_files(cls, b: hb.Batch, inputs: Union[ResourceFileInput, ResourceGroupInputs]):
-        if isinstance(inputs, ResourceFileInput):
-            resource = b.read_input(inputs.input)
-        else:
-            assert isinstance(inputs, ResourceGroupInputs)
-            resource = b.read_input_group(**inputs.inputs)
-        return cls(resource)
-
-    @classmethod
-    def _from_job_intermediate(cls, j: hb.Job, inputs: Union[ResourceFileInput, ResourceGroupInputs]):
-        if isinstance(inputs, ResourceFileInput):
-            return cls(j[inputs.name])
-
-        assert isinstance(inputs, ResourceGroupInputs)
-        j.declare_resource_group({inputs.name: inputs.inputs})
-        return cls(j[inputs.name])
-
-    def __init__(self, resource: hb.Resource):
-        self._resource = resource
-
-    def checkpoint_if_requested(self, b: hb.Batch, config: CheckpointConfigMixin, output_file: str):
-        if config.checkpoint_output:
-            b.write_output(self._resource, output_file)
-
-    def __getattr__(self, item):
-        if isinstance(self._resource, hb.ResourceGroup):
-            return self._resource[item]
-        raise ValueError('cannot get attribute of a ResourceFile')
-
-    def __getitem__(self, item):
-        if isinstance(self._resource, hb.ResourceGroup):
-            return self._resource[item]
-        raise ValueError('cannot get attribute of a ResourceFile')
+async def use_checkpoints_if_exist_and_requested(
+    typ: Type[RG], fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, **inputs: str
+) -> Optional[RG]:
+    if config.use_checkpoints and not config.overwrite:
+        all_files_exist = all(await asyncio.gather(fs.exists(input) for input in inputs.values()))
+        if all_files_exist:
+            return cast(typ, b.read_input_group(**inputs))
+    return None
 
 
-class PlinkResourceGroup(BaseSaigeResource):
-    @staticmethod
-    def inputs(root: str) -> ResourceGroupInputs:
-        return ResourceGroupInputs('bfile', bed=f'{root}.bed', bim=f'{root}.bim', fam=f'{root}.fam')
-
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, bfile_root: str
-    ) -> Optional['PlinkResourceGroup']:
-        inputs = PlinkResourceGroup.inputs(bfile_root)
-        return await PlinkResourceGroup._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
-
-    @staticmethod
-    def from_input_files(b: hb.Batch, bfile_root: str) -> 'PlinkResourceGroup':
-        inputs = PlinkResourceGroup.inputs(bfile_root)
-        return PlinkResourceGroup._from_input_files(b, inputs)
-
-    @staticmethod
-    def from_job_intermediate(j: hb.Job) -> 'PlinkResourceGroup':
-        inputs = PlinkResourceGroup.inputs('{root}')
-        return PlinkResourceGroup._from_job_intermediate(j, inputs)
+async def use_checkpoint_if_exists_and_requested(
+    typ: Type[RF], fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, input: str
+) -> Optional[RF]:
+    if config.use_checkpoints and not config.overwrite:
+        if await fs.exists(input):
+            return cast(typ, b.read_input(input))
+    return None
 
 
-class VCFResourceGroup(BaseSaigeResource):
-    @staticmethod
-    def inputs(root: str) -> ResourceGroupInputs:
-        return ResourceGroupInputs('vcf', vcf=f'{root}.vcf.gz', tbi=f'{root}.vcf.gz.tbi')
-
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, vcf_root: str
-    ) -> Optional['VCFResourceGroup']:
-        inputs = VCFResourceGroup.inputs(vcf_root)
-        return await VCFResourceGroup._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
-
-    @staticmethod
-    def from_input_files(b: hb.Batch, root: str) -> 'VCFResourceGroup':
-        inputs = VCFResourceGroup.inputs(root)
-        return VCFResourceGroup._from_input_files(b, inputs)
-
-    @staticmethod
-    def from_job_intermediate(j: hb.Job) -> 'VCFResourceGroup':
-        inputs = VCFResourceGroup.inputs('{root}')
-        return VCFResourceGroup._from_job_intermediate(j, inputs)
+PlinkResourceGroup = NewType('PlinkResourceGroup', hb.ResourceGroup)
+BgenResourceGroup = NewType('BgenResourceGroup', hb.ResourceGroup)
+VcfResourceGroup = NewType('VcfResourceGroup', hb.ResourceGroup)
+TextResourceFile = NewType('TextResourceFile', hb.ResourceFile)
+SaigeSparseGRMResourceGroup = NewType('SaigeSparseGRMResourceGroup', hb.ResourceGroup)
+SaigeGeneGLMMResourceGroup = NewType('SaigeGeneGLMMResourceGroup', hb.ResourceGroup)
+SaigeGLMMResourceGroup = NewType('SaigeGLMMResourceGroup', hb.ResourceGroup)
+SaigeResultResourceGroup = NewType('SaigeResultResourceGroup', hb.ResourceGroup)
+SaigeGeneResultResourceGroup = NewType('SaigeGeneResultResourceGroup', hb.ResourceGroup)
 
 
-class BgenResourceGroup(BaseSaigeResource):
-    @staticmethod
-    def inputs(root: str) -> ResourceGroupInputs:
-        return ResourceGroupInputs('bgen', bgen=f'{root}.bgen', bgi=f'{root}.bgen.bgi', sample=f'{root}.sample')
-
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, bgen_root: str
-    ) -> Optional['BgenResourceGroup']:
-        inputs = BgenResourceGroup.inputs(bgen_root)
-        return await BgenResourceGroup._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
-
-    @staticmethod
-    def from_input_files(b: hb.Batch, root: str) -> 'BgenResourceGroup':
-        inputs = BgenResourceGroup.inputs(root)
-        return BgenResourceGroup._from_input_files(b, inputs)
-
-    @staticmethod
-    def from_job_intermediate(j: hb.Job) -> 'BgenResourceGroup':
-        inputs = BgenResourceGroup.inputs('{root}')
-        return BgenResourceGroup._from_job_intermediate(j, inputs)
+def new_plink_file(j: hb.Job) -> PlinkResourceGroup:
+    j.declare_resource_group({'bfile': dict(bed='{root}.bed', bim='{root}.bim', fam='{root}.fam')})
+    return cast(PlinkResourceGroup, j.bfile)
 
 
-class SaigeSparseGRMResourceGroup(BaseSaigeResource):
-    @staticmethod
-    def inputs(root: str) -> ResourceGroupInputs:
-        return ResourceGroupInputs('grm', grm=f'{root}.sparseGRM.mtx', sample_ids=f'{root}.sparseGRM.mtx.sampleIDs.txt')
-
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, grm_root: str
-    ) -> Optional['SaigeSparseGRMResourceGroup']:
-        inputs = SaigeSparseGRMResourceGroup.inputs(grm_root)
-        return await SaigeSparseGRMResourceGroup._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
-
-    @staticmethod
-    def from_input_files(b: hb.Batch, grm_root: str) -> 'SaigeSparseGRMResourceGroup':
-        inputs = SaigeSparseGRMResourceGroup.inputs(grm_root)
-        return SaigeSparseGRMResourceGroup._from_input_files(b, inputs)
-
-    @staticmethod
-    def from_job_intermediate(j: hb.Job, relatedness_cutoff: float, num_markers: int) -> 'SaigeSparseGRMResourceGroup':
-        suffix = f'_relatednessCutoff_{relatedness_cutoff}_{num_markers}_randomMarkersUsed'
-        inputs = SaigeSparseGRMResourceGroup.inputs(f'{{root}}{suffix}')
-        return SaigeSparseGRMResourceGroup._from_job_intermediate(j, inputs)
+async def load_plink_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+) -> Optional[PlinkResourceGroup]:
+    return await use_checkpoints_if_exist_and_requested(
+        PlinkResourceGroup, fs, b, config, bed=f'{root}.bed', bim=f'{root}.bim', fam=f'{root}.fam'
+    )
 
 
-class SaigeGeneGlmmResourceGroup(BaseSaigeResource):
-    @staticmethod
-    def inputs(glmm_root: str) -> ResourceGroupInputs:
-        return ResourceGroupInputs(
-            'glmm',
-            mtx=f'{glmm_root}.sparseGRM.mtx',
-            sample_ids=f'{glmm_root}.sparseGRM.mtx.sampleIDs.txt',
-            rda=f'{glmm_root}.rda',
-            results=f'{glmm_root}_30markers.SAIGE.results.txt',
-            variance_ratio=f'{glmm_root}.gene.varianceRatio.txt',
-        )
-
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, glmm_root: str
-    ) -> Optional['SaigeGeneGlmmResourceGroup']:
-        inputs = SaigeGeneGlmmResourceGroup.inputs(glmm_root)
-        return await SaigeGeneGlmmResourceGroup._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
-
-    @staticmethod
-    def from_input_files(b: hb.Batch, glmm_root: str) -> 'SaigeGeneGlmmResourceGroup':
-        inputs = SaigeGeneGlmmResourceGroup.inputs(glmm_root)
-        return SaigeGeneGlmmResourceGroup._from_input_files(b, inputs)
-
-    @staticmethod
-    def from_job_intermediate(j: hb.Job) -> 'SaigeGeneGlmmResourceGroup':
-        inputs = SaigeGeneGlmmResourceGroup.inputs('{root}')
-        return SaigeGeneGlmmResourceGroup._from_job_intermediate(j, inputs)
+async def load_plink_file_or_create(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, file: str, creator_f: Callable[[], None]
+) -> PlinkResourceGroup:
+    input = await load_plink_file(fs, b, config, file)
+    if input is not None:
+        return input
+    creator_f()
+    input = await load_plink_file(fs, b, config, file)
+    assert input is not None
+    return input
 
 
-class SaigeGlmmResourceGroup(BaseSaigeResource):
-    @staticmethod
-    def inputs(glmm_root: str) -> ResourceGroupInputs:
-        return ResourceGroupInputs(
-            'glmm',
-            rda=f'{glmm_root}.rda',
-            results=f'{glmm_root}_30markers.SAIGE.results.txt',
-            variance_ratio=f'{glmm_root}.gene.varianceRatio.txt',
-        )
-
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, glmm_root: str
-    ) -> Optional['SaigeGlmmResourceGroup']:
-        inputs = SaigeGlmmResourceGroup.inputs(glmm_root)
-        return await SaigeGlmmResourceGroup._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
-
-    @staticmethod
-    def from_input_files(b: hb.Batch, glmm_root: str) -> 'SaigeGlmmResourceGroup':
-        inputs = SaigeGlmmResourceGroup.inputs(glmm_root)
-        return SaigeGlmmResourceGroup._from_input_files(b, inputs)
-
-    @staticmethod
-    def from_job_intermediate(j: hb.Job) -> 'SaigeGlmmResourceGroup':
-        inputs = SaigeGlmmResourceGroup.inputs('{root}')
-        return SaigeGlmmResourceGroup._from_job_intermediate(j, inputs)
+def new_bgen_file(j: hb.Job) -> BgenResourceGroup:
+    j.declare_resource_group({'bgen': dict(bgen='{root}.bgen', bgi='{root}.bgen.bgi', sample='{root}.sample')})
+    return cast(BgenResourceGroup, j.bgen)
 
 
-class SaigeResultResourceGroup(BaseSaigeResource):
-    @staticmethod
-    def inputs(root: str) -> ResourceGroupInputs:
-        return ResourceGroupInputs('result', result=root)
-
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, root: str
-    ) -> Optional['SaigeResultResourceGroup']:
-        inputs = SaigeResultResourceGroup.inputs(root)
-        return await SaigeResultResourceGroup._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
-
-    @staticmethod
-    def from_input_files(b: hb.Batch, root: str) -> 'SaigeResultResourceGroup':
-        inputs = SaigeResultResourceGroup.inputs(root)
-        return SaigeResultResourceGroup._from_input_files(b, inputs)
-
-    @staticmethod
-    def from_job_intermediate(j: hb.Job) -> 'SaigeResultResourceGroup':
-        inputs = SaigeResultResourceGroup.inputs('{root}')
-        return SaigeResultResourceGroup._from_job_intermediate(j, inputs)
+async def load_bgen_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+) -> Optional[BgenResourceGroup]:
+    return await use_checkpoints_if_exist_and_requested(
+        BgenResourceGroup, fs, b, config, bgen=f'{root}.bgen', bgi=f'{root}.bgen.bgi', sample=f'{root}.sample'
+    )
 
 
-class SaigeGeneResultResourceGroup(BaseSaigeResource):
-    @staticmethod
-    def inputs(root: str) -> ResourceGroupInputs:
-        return ResourceGroupInputs('result', result=root, single=f'{root}_single')
-
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, output_root: str
-    ) -> Optional['SaigeGeneResultResourceGroup']:
-        inputs = SaigeGeneResultResourceGroup.inputs(output_root)
-        return await SaigeGeneResultResourceGroup._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
-
-    @staticmethod
-    def from_input_files(b: hb.Batch, root: str) -> 'SaigeGeneResultResourceGroup':
-        inputs = SaigeGeneResultResourceGroup.inputs(root)
-        return SaigeGeneResultResourceGroup._from_input_files(b, inputs)
-
-    @staticmethod
-    def from_job_intermediate(j: hb.Job) -> 'SaigeGeneResultResourceGroup':
-        inputs = SaigeGeneResultResourceGroup.inputs('{root}')
-        return SaigeGeneResultResourceGroup._from_job_intermediate(j, inputs)
+def new_vcf_file(j: hb.Job) -> VcfResourceGroup:
+    j.declare_resource_group({'vcf': dict(vcf='{root}.vcf.gz', tbi='{root}.vcf.gz.tbi')})
+    return cast(VcfResourceGroup, j.vcf)
 
 
-class TextFile(BaseSaigeResource):
-    @staticmethod
-    def inputs(file: Optional[str], name: Optional[str]) -> ResourceFileInput:
-        assert file or name
-        return ResourceFileInput(name, file)
+async def load_vcf_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+) -> Optional[VcfResourceGroup]:
+    return await use_checkpoints_if_exist_and_requested(
+        VcfResourceGroup, fs, b, config, vcf=f'{root}.vcf.gz', tbi=f'{root}.vcf.gz.tbi'
+    )
 
-    @staticmethod
-    async def use_checkpoint_if_exists_and_requested(
-        fs: AsyncFS, pool: AsyncWorkerPool, b: hb.Batch, config: CheckpointConfigMixin, file: str
-    ) -> Optional['TextFile']:
-        inputs = TextFile.inputs(file, None)
-        return await TextFile._use_checkpoint_if_exists_and_requested(fs, pool, b, config, inputs)
 
-    @staticmethod
-    def from_input_file(b: hb.Batch, file: str) -> 'TextFile':
-        inputs = TextFile.inputs(file, None)
-        return TextFile._from_input_files(b, inputs)
+def new_text_file(j: hb.Job) -> TextResourceFile:
+    j.declare_resource_group({'file': dict(file='{root}')})
+    return cast(TextResourceFile, cast(hb.ResourceGroup, j.file)['file'])
 
-    @staticmethod
-    def from_job_intermediate(j: hb.Job, name: str) -> 'TextFile':
-        inputs = TextFile.inputs(None, name)
-        return TextFile._from_job_intermediate(j, inputs)
+
+async def load_text_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, file: str
+) -> Optional[TextResourceFile]:
+    return await use_checkpoint_if_exists_and_requested(TextResourceFile, fs, b, config, file)
+
+
+async def load_text_file_or_create(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, file: str, creator_f: Callable[[], None]
+) -> TextResourceFile:
+    input = await load_text_file(fs, b, config, file)
+    if input is not None:
+        return input
+    creator_f()
+    input = await load_text_file(fs, b, config, file)
+    assert input is not None
+    return input
+
+
+def new_saige_sparse_grm_file(j: hb.Job, relatedness_cutoff: float, num_markers: int) -> SaigeSparseGRMResourceGroup:
+    suffix = f'_relatednessCutoff_{relatedness_cutoff}_{num_markers}_randomMarkersUsed'
+    j.declare_resource_group(
+        {'grm': dict(grm=f'{{root}}{suffix}.sparseGRM.mtx', sample_ids=f'{{root}}{suffix}.sparseGRM.mtx.sampleIDs.txt')}
+    )
+    return cast(SaigeSparseGRMResourceGroup, j.grm)
+
+
+async def load_saige_sparse_grm_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+) -> SaigeSparseGRMResourceGroup:
+    return await use_checkpoints_if_exist_and_requested(
+        SaigeSparseGRMResourceGroup,
+        fs,
+        b,
+        config,
+        grm=f'{root}.sparseGRM.mtx',
+        sample_ids=f'{root}.sparseGRM.mtx.sampleIDs.txt',
+    )
+
+
+def new_saige_gene_glmm_file(j: hb.Job) -> SaigeGeneGLMMResourceGroup:
+    j.declare_resource_group(
+        {
+            'glmm': dict(
+                mtx='{root}.sparseGRM.mtx',
+                sample_ids='{root}.sparseGRM.mtx.sampleIDs.txt',
+                rda='{root}.rda',
+                results='{root}_30markers.SAIGE.results.txt',
+                variance_ratio='{root}.gene.varianceRatio.txt',
+            )
+        }
+    )
+    return cast(SaigeGeneGLMMResourceGroup, j.glmm)
+
+
+async def load_saige_gene_glmm_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+) -> SaigeGeneGLMMResourceGroup:
+    return await use_checkpoints_if_exist_and_requested(
+        SaigeGeneGLMMResourceGroup,
+        fs,
+        b,
+        config,
+        mtx=f'{root}.sparseGRM.mtx',
+        sample_ids=f'{root}.sparseGRM.mtx.sampleIDs.txt',
+        rda=f'{root}.rda',
+        results=f'{root}_30markers.SAIGE.results.txt',
+        variance_ratio=f'{root}.gene.varianceRatio.txt',
+    )
+
+
+def new_saige_variant_glmm_file(j: hb.Job) -> SaigeGLMMResourceGroup:
+    j.declare_resource_group(
+        {
+            'glmm': dict(
+                rda='{root}.rda',
+                results='{root}_30markers.SAIGE.results.txt',
+                variance_ratio='{root}.gene.varianceRatio.txt',
+            )
+        }
+    )
+    return cast(SaigeGLMMResourceGroup, j.glmm)
+
+
+async def load_saige_variant_glmm_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+) -> SaigeGLMMResourceGroup:
+    return await use_checkpoints_if_exist_and_requested(
+        SaigeGLMMResourceGroup,
+        fs,
+        b,
+        config,
+        rda=f'{root}.rda',
+        results=f'{root}_30markers.SAIGE.results.txt',
+        variance_ratio=f'{root}.gene.varianceRatio.txt',
+    )
+
+
+def new_saige_glmm_file(
+    j: hb.Job, analysis_type: SaigeAnalysisType
+) -> Union[SaigeGLMMResourceGroup, SaigeGeneGLMMResourceGroup]:
+    if analysis_type == SaigeAnalysisType.VARIANT:
+        return new_saige_variant_glmm_file(j)
+    assert analysis_type == SaigeAnalysisType.GENE
+    return new_saige_gene_glmm_file(j)
+
+
+async def load_saige_glmm_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str, analysis_type: SaigeAnalysisType
+) -> Union[SaigeGLMMResourceGroup, SaigeGeneGLMMResourceGroup]:
+    if analysis_type == SaigeAnalysisType.VARIANT:
+        return await load_saige_variant_glmm_file(fs, b, config, root)
+    assert analysis_type == SaigeAnalysisType.GENE
+    return await load_saige_gene_glmm_file(fs, b, config, root)
+
+
+def new_saige_variant_result_file(j: hb.Job) -> SaigeResultResourceGroup:
+    j.declare_resource_group({'result': dict(result='{root}')})
+    return cast(SaigeResultResourceGroup, j.result)
+
+
+async def load_saige_variant_result_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+) -> SaigeResultResourceGroup:
+    return await use_checkpoints_if_exist_and_requested(SaigeResultResourceGroup, fs, b, config, result=root)
+
+
+def new_saige_gene_result_file(j: hb.Job) -> SaigeGeneResultResourceGroup:
+    j.declare_resource_group({'bgen': dict(result='{root}', single='{root}_single')})
+    return cast(SaigeGeneResultResourceGroup, j.bgen)
+
+
+async def load_saige_gene_result_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+) -> SaigeGeneResultResourceGroup:
+    return await use_checkpoints_if_exist_and_requested(
+        SaigeGeneResultResourceGroup, fs, b, config, result=root, single=f'{root}_single'
+    )
+
+
+def new_saige_result_file(j: hb.Job, analysis_type: SaigeAnalysisType) -> Union[SaigeGeneResultResourceGroup, SaigeResultResourceGroup]:
+    if analysis_type == SaigeAnalysisType.VARIANT:
+        return new_saige_variant_result_file(j)
+    assert analysis_type == SaigeAnalysisType.GENE
+    return new_saige_gene_result_file(j)
+
+
+async def load_saige_result_file(
+    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str, analysis_type: SaigeAnalysisType
+) -> Union[SaigeResultResourceGroup, SaigeGeneResultResourceGroup]:
+    if analysis_type == SaigeAnalysisType.VARIANT:
+        return await load_saige_variant_result_file(fs, b, config, root)
+    assert analysis_type == SaigeAnalysisType.GENE
+    return await load_saige_gene_result_file(fs, b, config, root)

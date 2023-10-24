@@ -1,29 +1,19 @@
 import collections
+import functools
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 
 import hail as hl
 from hail.methods.qc import require_col_key_str, require_row_key_variant
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch as hb
-from hailtop.utils import AsyncWorkerPool
+from hailtop.utils import async_to_blocking, bounded_gather
 
 from .constants import SaigeAnalysisType, SaigeInputDataType
-from .phenotype import Phenotypes
+from .phenotype import Phenotype
 from .steps import PrepareInputsStep, SparseGRMStep, Step1NullGlmmStep, Step2SPAStep
-from .variant_chunk import VariantChunks
-
-
-class CheckpointDirectory:
-    def __init__(self, name: str):
-        self.name = name
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+from .variant_chunk import VariantChunk
 
 
 @dataclass
@@ -45,72 +35,40 @@ class SAIGE:
             config = SaigeConfig()
         self.config = config
 
+        self.parallelism = parallelism
         self.fs = RouterAsyncFS(**router_fs_args)
-        self.pool = AsyncWorkerPool(parallelism)
 
-    def _munge_inputs(
+    async def close(self):
+        await self.fs.close()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    async def run(
         self,
         *,
-        mt: Union[str, hl.MatrixTable],
-        working_dir: str,
-        phenotypes: Union[List[str], Phenotypes],
-        variant_chunks: Optional[Union[str, VariantChunks]],
-    ) -> Tuple[hl.MatrixTable, str, Phenotypes, VariantChunks]:
-        if isinstance(mt, hl.MatrixTable):
-            mt_path = f'{working_dir}/input.mt'
-            mt.checkpoint(mt_path)
-        else:
-            mt_path = mt
-            mt = hl.read_matrix_table(mt_path)
-
-        require_row_key_variant(mt, 'saige')
-        require_col_key_str(mt, 'saige')
-
-        if isinstance(phenotypes, list):
-            mt_phenotypes = Phenotypes.from_matrix_table(mt, phenotypes)
-            if len(phenotypes) != mt_phenotypes:
-                raise ValueError('missing phenotypes from MatrixTable')
-            phenotypes = mt_phenotypes
-
-        if variant_chunks is None:
-            variant_chunks = VariantChunks.from_matrix_table(mt)
-        elif isinstance(variant_chunks, str):
-            if variant_chunks.endswith('.bed'):
-                variant_chunks = VariantChunks.from_bed(variant_chunks)
-            else:
-                variant_chunks = VariantChunks.from_locus_intervals(variant_chunks)
-        else:
-            assert isinstance(variant_chunks, VariantChunks)
-
-        return (mt, mt_path, phenotypes, variant_chunks)
-
-    async def run_saige(
-        self,
-        *,
-        mt: Union[str, hl.MatrixTable],
-        phenotypes: Union[List[str], Phenotypes],
-        covariates: List[str],
+        mt_path: str,
         output_dir: str,
+        phenotypes: List[Phenotype],
+        covariates: List[str],
+        variant_chunks: List[VariantChunk],
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
-        variant_chunks: Optional[Union[str, VariantChunks]] = None,
         run_kwargs: Optional[dict] = None,
-    ):
-        if checkpoint_dir is None:
-            checkpoint_dir = hl.TemporaryDirectory()
-        else:
-            checkpoint_dir = CheckpointDirectory(checkpoint_dir)
-
-        with checkpoint_dir:
-            mt, mt_path, phenotypes, variant_chunks = self._munge_inputs(
-                mt=mt, working_dir=checkpoint_dir.name, phenotypes=phenotypes, variant_chunks=variant_chunks
-            )
-
+    ) -> hl.Table:
+        with hl.TemporaryDirectory() as temp_dir:
             if b is None:
                 b = hb.Batch(name=self.config.name, attributes=self.config.attributes)
 
+            mt = hl.read_matrix_table(mt_path)
+            require_col_key_str(mt, 'saige')
+            require_row_key_variant(mt, 'saige')
+
             input_phenotypes, input_plink_data = await self.config.prepare_inputs.call(
-                self.fs, self.pool, b, mt, phenotypes, checkpoint_dir.name
+                self.fs, b, mt, phenotypes, temp_dir.name, checkpoint_dir
             )
 
             user_id_col = list(mt.col_key)[0]
@@ -121,11 +79,11 @@ class SAIGE:
                 assert 'GT' in list(mt.entry)
                 input_data_type = SaigeInputDataType.VCF
 
-            for phenotype_group in phenotypes:
-                for phenotype in phenotype_group:
-                    null_glmm = await self.config.step1_null_glmm.call(
+            null_glmms = await bounded_gather(
+                *[
+                    functools.partial(
+                        self.config.step1_null_glmm.call,
                         self.fs,
-                        self.pool,
                         b,
                         input_bfile=input_plink_data,
                         input_phenotypes=input_phenotypes,
@@ -133,123 +91,108 @@ class SAIGE:
                         analysis_type=SaigeAnalysisType.VARIANT,
                         covariates=covariates,
                         user_id_col=user_id_col,
-                        output_dir=checkpoint_dir.name,
+                        temp_dir=temp_dir.name,
+                        checkpoint_dir=checkpoint_dir,
                     )
-                    for variant_chunk in variant_chunks:
-                        await self.config.step2_spa.call(
-                            self.fs,
-                            self.pool,
-                            b,
-                            mt_path=mt_path,
-                            output_dir=output_dir,
-                            analysis_type=SaigeAnalysisType.VARIANT,
-                            null_model=null_glmm,
-                            input_data_type=input_data_type,
-                            chunk=variant_chunk,
-                            phenotype=phenotype,
-                        )
+                    for phenotype in phenotypes
+                ],
+                parallelism=self.parallelism,
+            )
+
+            await bounded_gather(
+                *[
+                    functools.partial(
+                        self.config.step2_spa.call,
+                        self.fs,
+                        b,
+                        mt_path=mt_path,
+                        temp_dir=temp_dir,
+                        checkpoint_dir=checkpoint_dir,
+                        analysis_type=SaigeAnalysisType.VARIANT,
+                        null_model=null_glmm,
+                        input_data_type=input_data_type,
+                        chunk=variant_chunk,
+                        phenotype=phenotype,
+                    )
+                    for phenotype, null_glmm in zip(phenotypes, null_glmms)
+                    for variant_chunk in variant_chunks
+                ],
+                parallelism=self.parallelism,
+            )
 
             run_kwargs = run_kwargs or {}
             run_kwargs.pop('wait')
             b.run(**run_kwargs, wait=True)
 
             results_tables = []
-            for phenotype_group in phenotypes:
-                for phenotype in phenotype_group:
-                    results_path = self.config.step2_spa.output_dir(output_dir, phenotype)
-                    ht = hl.import_table(results_path, impute=True)
-                    ht = ht.annotate(phenotype=phenotype.name)
-                    results_tables.append(ht)
+            for phenotype in phenotypes:
+                results_path = self.config.step2_spa.output_dir(temp_dir, checkpoint_dir, phenotype)
+                ht = hl.import_table(results_path, impute=True)
+                ht = ht.annotate(phenotype=phenotype.name)
+                results_tables.append(ht)
 
             if len(results_tables) == 1:
                 results = results_tables[0]
             else:
                 results = results_tables[0].union(*results_tables[1:])
 
-            results.checkpoint(f'{output_dir}/saige_results.ht')
+            results.write(f'{output_dir}/saige_results.ht', overwrite=True)
 
         return results
 
-    def run_saige_gene(
-        self,
-        *,
-        mt: Union[str, hl.MatrixTable],
-        phenotypes: Union[List[str], Phenotypes],
-        covariates: List[str],
-        group_col: str,
-        output_dir: str,
-        b: Optional[hb.Batch] = None,
-        checkpoint_dir: Optional[str] = None,
-        variant_chunks: Optional[VariantChunks] = None,
-        run_kwargs: Optional[dict] = None,
-    ):
-        if checkpoint_dir is None:
-            working_dir = hl.TemporaryDirectory()
-        else:
-            working_dir = CheckpointDirectory(checkpoint_dir)
 
-        with checkpoint_dir:
-            mt, mt_path, phenotypes, variant_chunks = self._munge_inputs(
-                mt=mt, working_dir=working_dir.name, phenotypes=phenotypes, variant_chunks=variant_chunks
-            )
+async def async_run_saige(
+    config: Optional[SaigeConfig],
+    mt_path: str,
+    phenotypes: List[Phenotype],
+    covariates: List[str],
+    variant_chunks: List[VariantChunk],
+    output_dir: str,
+    batch: Optional[hb.Batch] = None,
+    checkpoint_dir: Optional[str] = None,
+    run_kwargs: Optional[dict] = None,
+    router_fs_args: Optional[dict] = None,
+    parallelism: int = 10,
+) -> hl.Table:
+    saige = SAIGE(router_fs_args, parallelism, config)
+    async with saige:
+        return await saige.run(
+            mt_path=mt_path,
+            phenotypes=phenotypes,
+            covariates=covariates,
+            variant_chunks=variant_chunks,
+            output_dir=output_dir,
+            b=batch,
+            checkpoint_dir=checkpoint_dir,
+            run_kwargs=run_kwargs,
+        )
 
-            if group_col not in mt.row:
-                raise ValueError(f'could not find row annotation {group_col}')
 
-            group = mt[group_col]
-            if group.dtype != hl.tarray(hl.tstruct(group=hl.tstr, ann=hl.tstr)):
-                raise ValueError(
-                    f'group row annotation must have type {hl.tarray(hl.tstruct(group=hl.tstr, ann=hl.tstr))}. Found {group.dtype}'
-                )
-
-            if b is None:
-                b = hb.Batch(name=self.config.name, attributes=self.config.attributes)
-
-            input_phenotypes, input_plink_data = await self.config.prepare_inputs.call(
-                self.fs, self.pool, b, mt, phenotypes, working_dir.name
-            )
-
-            user_id_col = list(mt.col_key)[0]
-
-            if 'GP' in list(mt.entry):
-                input_data_type = SaigeInputDataType.BGEN
-            else:
-                assert 'GT' in list(mt.entry)
-                input_data_type = SaigeInputDataType.VCF
-
-            sparse_grm = await self.config.sparse_grm.call(self.fs, self.pool, b, input_plink_data, working_dir.name)
-
-            for phenotype_group in phenotypes:
-                for phenotype in phenotype_group:
-                    null_glmm = await self.config.step1_null_glmm.call(
-                        self.fs,
-                        self.pool,
-                        b,
-                        input_bfile=input_plink_data,
-                        input_phenotypes=input_phenotypes,
-                        phenotype=phenotype,
-                        analysis_type=SaigeAnalysisType.VARIANT,
-                        covariates=covariates,
-                        user_id_col=user_id_col,
-                        output_dir=working_dir.name,
-                        # sparse_grm=sparse_grm,  # FIXME: why isn't this needed anymore. must be a bug somewhere
-                    )
-                    for variant_chunk in variant_chunks:
-                        await self.config.step2_spa.call(
-                            self.fs,
-                            self.pool,
-                            b,
-                            mt_path=mt_path,
-                            output_dir=output_dir,
-                            analysis_type=SaigeAnalysisType.VARIANT,
-                            null_model=null_glmm,
-                            input_data_type=input_data_type,
-                            chunk=variant_chunk,
-                            phenotype=phenotype,
-                            sparse_grm=sparse_grm,
-                            group_col=group_col,
-                        )
-
-            run_kwargs = run_kwargs or {}
-            run_kwargs.pop('wait')
-            b.run(**run_kwargs, wait=True)
+def run_saige(
+    config: Optional[SaigeConfig],
+    mt_path: str,
+    phenotypes: List[Phenotype],
+    covariates: List[str],
+    variant_chunks: List[VariantChunk],
+    output_dir: str,
+    batch: Optional[hb.Batch] = None,
+    checkpoint_dir: Optional[str] = None,
+    run_kwargs: Optional[dict] = None,
+    router_fs_args: Optional[dict] = None,
+    parallelism: int = 10,
+) -> hl.Table:
+    return async_to_blocking(
+        async_run_saige(
+            config=config,
+            mt_path=mt_path,
+            phenotypes=phenotypes,
+            covariates=covariates,
+            variant_chunks=variant_chunks,
+            output_dir=output_dir,
+            batch=batch,
+            checkpoint_dir=checkpoint_dir,
+            run_kwargs=run_kwargs,
+            router_fs_args=router_fs_args,
+            parallelism=parallelism,
+        )
+    )
