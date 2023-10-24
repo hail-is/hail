@@ -88,6 +88,7 @@ object Interpret {
             val typ = codec.encodedType
             log.info(s"The type of the bad stuff: ${codec.encodedType}")
             log.info(s"The bad encoded stuff: $b64EncodedStuff")
+            throw t
         }
       case Void() => ()
       case Cast(v, t) =>
