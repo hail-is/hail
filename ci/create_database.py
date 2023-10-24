@@ -10,7 +10,7 @@ import orjson
 
 from gear import Database, resolve_test_db_endpoint
 from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
-from hailtop.utils import check_shell, check_shell_output
+from hailtop.utils import check_shell_no_buffering, check_exec_no_buffering, check_shell_output
 
 create_database_config = None
 
@@ -39,13 +39,9 @@ async def migrate(database_name, db, mysql_cnf_file, i, migration):
 
         # migrate
         if script.endswith('.py'):
-            await check_shell(f'python3 {script}')
+            await check_exec_no_buffering('python3', script)
         else:
-            await check_shell(
-                f'''
-mysql --defaults-extra-file={mysql_cnf_file} <{script}
-'''
-            )
+            await check_shell_no_buffering(f'mysql --defaults-extra-file={mysql_cnf_file} <{script}')
 
         await db.just_execute(
             f'''

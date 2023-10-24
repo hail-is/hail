@@ -1,6 +1,6 @@
 from typing import Tuple, List
 import asyncio
-import subprocess
+ekimport subprocess
 
 from .utils import async_to_blocking
 
@@ -17,6 +17,16 @@ class CalledProcessError(Exception):
     def __str__(self) -> str:
         return (f'Command {self.argv} returned non-zero exit status {self.returncode}.'
                 f' Output:\n{self._outerr}')
+
+
+class CalledProcessErrorWithoutOutput(Exception):
+    def __init__(self, argv: List[str], returncode: int):
+        super().__init__()
+        self.argv = argv
+        self.returncode = returncode
+
+    def __str__(self) -> str:
+        return (f'Command {self.argv} returned non-zero exit status {self.returncode}.')
 
 
 async def check_exec_output(command: str,
@@ -36,7 +46,7 @@ async def check_exec_output(command: str,
     return outerr
 
 
-async def check_shell_output(script: str, echo: bool = False) -> Tuple[bytes, bytes]:
+async def check_shell_output(script: str, echo: bool = False,) -> Tuple[bytes, bytes]:
     return await check_exec_output('/bin/bash', '-c', script, echo=echo)
 
 
@@ -59,3 +69,14 @@ def sync_check_exec(*command_args: str, echo: bool = False, capture_output: bool
         subprocess.run(command_args, check=True, capture_output=capture_output)
     except subprocess.CalledProcessError as e:
         raise CalledProcessError(list(command_args), e.returncode, (e.stdout, e.stderr)) from e
+
+
+async def check_exec_no_buffering(command: str, *args: str):
+    proc = await asyncio.create_subprocess_exec(command, *args)
+    exitcode = await proc.wait()
+    if exitcode != 0:
+        raise CalledProcessErrorWithoutOutput([command, *args], exitcode)
+
+
+async def check_shell_no_buffering(script: str):
+    await check_exec_no_buffering('/bin/bash', '-c', script)
