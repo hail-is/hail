@@ -5,8 +5,16 @@ import java.lang.reflect.Modifier
 import java.net.URI
 
 import breeze.linalg.{DenseMatrix, DenseVector}
-import is.hail.utils.BoxedArrayBuilder
+import is.hail.annotations._
+import is.hail.backend.ExecuteContext
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.types.encoded.EType
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.utils._
 import org.testng.annotations.{DataProvider, Test}
+
+import java.util.Base64
 
 class TestUtilsSuite extends HailSuite {
 
@@ -41,5 +49,33 @@ class TestUtilsSuite extends HailSuite {
                          (1, 0, 1))
 
     assert(TestUtils.removeConstantCols(M) == M1)
+  }
+
+  @Test def decoderBugTest(): Unit = {
+    val encodedB64 = scala.io.Source.fromFile("/Users/dgoldste/hail/foo2").mkString.trim
+    val encodedValue = Base64.getDecoder.decode(encodedB64)
+
+    val typ = TDict(TString, TInt32)
+    val codec = TypedCodecSpec(
+      EType.fromPythonTypeEncoding(typ),
+      typ,
+      BufferSpec.unblockedUncompressed
+    )
+
+    try {
+      for (i <- 1 to 10) {
+        ExecuteContext.scoped() { ctx =>
+          ctx.r.getPool().scopedRegion { r =>
+            val (pt, addr) = codec.decodeArrays(ctx, typ, Array(encodedValue), ctx.r)
+            SafeRow.read(pt, addr)
+          }
+        }
+      }
+    } catch {
+      case t: Throwable =>
+        val typ = codec.encodedType
+        log.info(s"The type of the bad stuff: ${codec.encodedType}")
+        log.info(s"The bad encoded stuff: $encodedB64")
+    }
   }
 }

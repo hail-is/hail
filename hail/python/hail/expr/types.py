@@ -614,7 +614,6 @@ class _tstr(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> str:
         length = byte_reader.read_int32()
-        print(f"String length is {length}")
         str_literal = byte_reader.read_bytes(length).decode('utf-8')
 
         return str_literal
