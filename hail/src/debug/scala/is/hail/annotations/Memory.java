@@ -268,10 +268,6 @@ public class Memory {
     }
 
     public static void copyToArray(byte[] dst, long dstOff, long src, long n) {
-        System.err.println("Destination: " + dst);
-        System.err.println("Destination Offset: " + dstOff);
-        System.err.println("Src: " + src);
-        System.err.println("N: " + n);
         if (n > 0) {
             checkBytes(dst, dstOff, n);
             checkAddress(src, n);

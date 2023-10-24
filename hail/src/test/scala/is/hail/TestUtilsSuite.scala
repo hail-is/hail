@@ -50,32 +50,31 @@ class TestUtilsSuite extends HailSuite {
 
     assert(TestUtils.removeConstantCols(M) == M1)
   }
+  // @Test def decoderBugTest(): Unit = {
+  //   val encodedB64 = scala.io.Source.fromFile("/Users/dgoldste/hail/foo2").mkString.trim
+  //   val encodedValue = Base64.getDecoder.decode(encodedB64)
 
-  @Test def decoderBugTest(): Unit = {
-    val encodedB64 = scala.io.Source.fromFile("/Users/dgoldste/hail/foo2").mkString.trim
-    val encodedValue = Base64.getDecoder.decode(encodedB64)
+  //   val typ = TDict(TString, TInt32)
+  //   val codec = TypedCodecSpec(
+  //     EType.fromPythonTypeEncoding(typ),
+  //     typ,
+  //     BufferSpec.unblockedUncompressed
+  //   )
 
-    val typ = TDict(TString, TInt32)
-    val codec = TypedCodecSpec(
-      EType.fromPythonTypeEncoding(typ),
-      typ,
-      BufferSpec.unblockedUncompressed
-    )
-
-    try {
-      for (i <- 1 to 10) {
-        ExecuteContext.scoped() { ctx =>
-          ctx.r.getPool().scopedRegion { r =>
-            val (pt, addr) = codec.decodeArrays(ctx, typ, Array(encodedValue), ctx.r)
-            SafeRow.read(pt, addr)
-          }
-        }
-      }
-    } catch {
-      case t: Throwable =>
-        val typ = codec.encodedType
-        log.info(s"The type of the bad stuff: ${codec.encodedType}")
-        log.info(s"The bad encoded stuff: $encodedB64")
-    }
-  }
+  //   try {
+  //     for (i <- 1 to 10) {
+  //       ExecuteContext.scoped() { ctx =>
+  //         ctx.r.getPool().scopedRegion { r =>
+  //           val (pt, addr) = codec.decodeArrays(ctx, typ, Array(encodedValue), ctx.r)
+  //           SafeRow.read(pt, addr)
+  //         }
+  //       }
+  //     }
+  //   } catch {
+  //     case t: Throwable =>
+  //       val typ = codec.encodedType
+  //       log.info(s"The type of the bad stuff: ${codec.encodedType}")
+  //       log.info(s"The bad encoded stuff: $encodedB64")
+  //   }
+  // }
 }
