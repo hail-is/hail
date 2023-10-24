@@ -1126,8 +1126,8 @@ LOCK IN SHARE MODE;
         agg_job_resources = tx.execute_and_fetchall(
             '''
 SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_job_resources_v2
-LEFT JOIN resources ON aggregated_job_resources_v2.resource_id = resources.resource_id
+FROM aggregated_job_resources_v3
+LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 '''
@@ -1138,7 +1138,7 @@ LOCK IN SHARE MODE;
 SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_batch_resources_v2
+  FROM aggregated_batch_resources_v3
   GROUP BY batch_id, resource_id) AS t
 LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
