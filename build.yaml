@@ -2803,6 +2803,7 @@ steps:
       cp -R /io/repo/hail/python ./hail/
       cp /io/repo/hail/Makefile ./hail/
       cp /io/repo/hail/env_var.mk ./hail/
+      cp /io/repo/hail/version.mk ./hail/
       cp -R /io/repo/web_common ./
       cp /io/repo/hail/python/setup-hailtop.py ./hail/python/
 
