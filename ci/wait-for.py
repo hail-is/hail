@@ -70,5 +70,4 @@ async def main():
         await v1.api_client.rest_client.pool_manager.close()
 
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
+asyncio.run(main())

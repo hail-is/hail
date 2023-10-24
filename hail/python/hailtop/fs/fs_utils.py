@@ -1,17 +1,26 @@
+from typing import List, Dict
 import io
-from typing import List
+import asyncio
 
+from .. import hail_event_loop
 from .router_fs import RouterFS
 from .stat_result import FileListEntry
 
-_router_fs = None
+
+_router_fs_for_loop: Dict[asyncio.AbstractEventLoop, RouterFS] = {}
 
 
 def _fs() -> RouterFS:
+    '''Return an FS for this particular thread.'''
     global _router_fs
-    if _router_fs is None:
-        _router_fs = RouterFS()
-    return _router_fs
+
+    loop = hail_event_loop()
+    if fs := _router_fs_for_loop.get(loop):
+        return fs
+
+    fs = RouterFS()
+    _router_fs_for_loop[loop] = fs
+    return fs
 
 
 def open(path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:

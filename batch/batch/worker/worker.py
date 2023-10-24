@@ -3405,6 +3405,7 @@ class Worker:
 
 async def async_main():
     global port_allocator, network_allocator, worker, docker, image_lock, CLOUD_WORKER_API, instance_config
+    asyncio.get_running_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     image_lock = aiorwlock.RWLock()
     docker = aiodocker.Docker()
@@ -3421,7 +3422,7 @@ async def async_main():
     await network_allocator.reserve()
 
     worker = Worker(httpx.client_session())
-    with aiomonitor.start_monitor(asyncio.get_event_loop(), locals=locals()):
+    with aiomonitor.start_monitor(asyncio.get_running_loop(), locals=locals()):
         try:
             async with AsyncExitStack() as cleanup:
                 cleanup.push_async_callback(worker.shutdown)
@@ -3431,7 +3432,7 @@ async def async_main():
 
                 await worker.run()
         finally:
-            asyncio.get_event_loop().set_debug(True)
+            asyncio.get_running_loop().set_debug(True)
             other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
             if other_tasks:
                 log.warning('Tasks immediately after docker close')
@@ -3443,10 +3444,5 @@ async def async_main():
                     t.cancel()
 
 
-loop = asyncio.get_event_loop()
-loop.add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
-loop.run_until_complete(async_main())
-log.info('closing loop')
-loop.close()
-log.info('closed')
+asyncio.run(async_main())
 sys.exit(0)

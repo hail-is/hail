@@ -437,4 +437,4 @@ async def main():
             await k8s_client.api_client.rest_client.pool_manager.close()
 
 
-asyncio.get_event_loop().run_until_complete(main())
+asyncio.run(main())

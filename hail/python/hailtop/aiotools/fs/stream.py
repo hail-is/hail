@@ -116,7 +116,12 @@ class WritableStream(abc.ABC):
             self, exc_type: Optional[Type[BaseException]] = None,
             exc_value: Optional[BaseException] = None,
             exc_traceback: Optional[TracebackType] = None) -> None:
-        await self.wait_closed()
+        print('WritableStream.aexit!')
+        try:
+            await self.wait_closed()
+        except Exception as exc:
+            print(f'I got an exception! {exc}')
+            raise exc
 
 
 class _ReadableStreamFromBlocking(ReadableStream):

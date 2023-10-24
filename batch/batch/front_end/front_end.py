@@ -2890,6 +2890,8 @@ class BatchFrontEndAccessLogger(AccessLogger):
 
 
 async def on_startup(app):
+    asyncio.get_running_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
+
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['client_session'] = httpx.client_session()
 
@@ -2969,8 +2971,6 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-
-    asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     web.run_app(
         deploy_config.prefix_application(app, 'batch', client_max_size=HTTP_CLIENT_MAX_SIZE),

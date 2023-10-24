@@ -2741,7 +2741,7 @@ steps:
       python3 -c '
       import billing_projects
       import asyncio
-      asyncio.get_event_loop().run_until_complete(billing_projects.delete_all_test_billing_projects())
+      asyncio.run(billing_projects.delete_all_test_billing_projects())
       '
     inputs:
       - from: /repo/batch/test
@@ -3605,7 +3605,7 @@ steps:
               except:
                   traceback.print_exc()
 
-      asyncio.get_event_loop().run_until_complete(cancel_all('user:test running'))
+      asyncio.run(cancel_all('user:test running'))
       EOF
 
       python3 cancel_all_running_test_batches.py

@@ -101,7 +101,7 @@ def describe(
     '''
     Describe the MatrixTable or Table at path FILE.
     '''
-    asyncio.get_event_loop().run_until_complete(async_describe(file, requester_pays_project_id))
+    asyncio.run(async_describe(file, requester_pays_project_id))
 
 
 async def async_describe(

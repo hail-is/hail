@@ -278,7 +278,7 @@ steps:
         await db.async_init()
         row = await db.execute_and_fetchone('SELECT version FROM hello_migration_version;')
         assert row['version'] == 3
-      asyncio.get_event_loop().run_until_complete(async_main())
+      asyncio.run(async_main())
       EOF
       python3 test.py
     secrets:

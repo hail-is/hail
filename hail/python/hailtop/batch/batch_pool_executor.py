@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Type, Union, List, Any, Iterable
+from typing import Optional, Callable, Type, Union, List, Any, Iterable, AsyncGenerator
 from types import TracebackType
 from io import BytesIO
 import warnings
@@ -7,7 +7,7 @@ import concurrent.futures
 import dill
 import functools
 
-from hailtop.utils import secret_alnum_string, partition
+from hailtop.utils import secret_alnum_string, partition, async_to_blocking
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -28,10 +28,6 @@ def chunk(fn):
     def chunkedfn(*args):
         return [fn(*arglist) for arglist in zip(*args)]
     return chunkedfn
-
-
-def async_to_blocking(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
 
 
 class BatchPoolExecutor:
@@ -229,10 +225,11 @@ class BatchPoolExecutor:
                         fn: Callable,
                         iterables: Iterable[Iterable[Any]],
                         timeout: Optional[Union[int, float]] = None,
-                        chunksize: int = 1):
+                        chunksize: int = 1
+                        ) -> AsyncGenerator[Any, None]:
         """Aysncio compatible version of :meth:`.map`."""
         if not iterables:
-            return iter([])
+            return (x for x in range(0))
 
         if chunksize > 1:
             list_per_argument = [list(x) for x in iterables]

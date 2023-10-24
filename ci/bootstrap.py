@@ -378,4 +378,4 @@ async def main():
     await batch.run()
 
 
-asyncio.get_event_loop().run_until_complete(main())
+asyncio.run(main())

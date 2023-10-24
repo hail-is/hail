@@ -91,6 +91,18 @@ class ClientSession:
                  raise_for_status: bool = True,
                  timeout: Union[aiohttp.ClientTimeout, float, None] = None,
                  **kwargs):
+        try:
+            self.loop_at_creation_time = asyncio.get_running_loop()
+        except RuntimeError as err:
+            raise ValueError(
+                'aiohttp.ClientSession stashes a copy of the event loop into a field. Very confusing '
+                'errors arise if that stashed event loop differs from the currently running one. '
+                'We refuse to create an httpx.ClientSession outside of an event loop for this reason. '
+                'Take care to ensure the event loop you use when you create the ClientSession is the '
+                f'same as the running event loop when you make a request. {self.loop_at_creation_time} '
+                f'{asyncio.get_running_loop()}'
+            )
+
         location = get_deploy_config().location()
         if location == 'external':
             tls = external_client_ssl_context()
@@ -121,6 +133,13 @@ class ClientSession:
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
 
         async def request_and_raise_for_status():
+            if self.loop_at_creation_time != asyncio.get_running_loop():
+                raise ValueError(
+                    f'aiohttp.ClientSession will raise confusing errors if the running event loop at '
+                    f'creation time differs from the running event loop at request time. {self.loop_at_creation_time} '
+                    f'{asyncio.get_running_loop()}'
+                )
+
             json_data = kwargs.pop('json', None)
             if json_data is not None:
                 if kwargs.get('data') is not None:
@@ -155,6 +174,12 @@ class ClientSession:
     def ws_connect(
         self, *args, **kwargs
     ) -> aiohttp.client._WSRequestContextManager:
+        if self.loop_at_creation_time != asyncio.get_running_loop():
+            raise ValueError(
+                f'aiohttp.ClientSession will raise confusing errors if the running event loop at '
+                f'creation time differs from the running event loop at request time. {self.loop_at_creation_time} '
+                f'{asyncio.get_running_loop()}'
+            )
         return self.client_session.ws_connect(*args, **kwargs)
 
     def get(
@@ -235,6 +260,11 @@ class ClientSession:
         return self.client_session.version
 
     async def __aenter__(self) -> "ClientSession":
+        if self.loop_at_creation_time != asyncio.get_running_loop():
+            raise ValueError(
+                'aiohttp.ClientSession will raise confusing errors if the running event loop at '
+                'creation time differs from the running event loop at request time.'
+            )
         return self
 
     async def __aexit__(

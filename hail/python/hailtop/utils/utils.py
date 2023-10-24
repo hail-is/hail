@@ -26,6 +26,7 @@ import time
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
+from .. import hail_event_loop
 from .time import time_msecs
 
 try:
@@ -153,8 +154,11 @@ def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
 
 
 def async_to_blocking(coro: Awaitable[T]) -> T:
-    loop = asyncio.get_event_loop()
+    loop = hail_event_loop()
+    print('async_to_blocking before ensure_future')
     task = asyncio.ensure_future(coro)
+    print((loop, coro, task))
+    print('async_to_blocking after ensure_future')
     try:
         return loop.run_until_complete(task)
     finally:
@@ -178,7 +182,7 @@ async def blocking_to_async(thread_pool: concurrent.futures.Executor,
                             fun: Callable[..., T],
                             *args,
                             **kwargs) -> T:
-    return await asyncio.get_event_loop().run_in_executor(
+    return await asyncio.get_running_loop().run_in_executor(
         thread_pool, lambda: fun(*args, **kwargs))
 
 
