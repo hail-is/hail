@@ -7,8 +7,9 @@ HAIL_PYTHON3 ?= python3
 PIP := $(HAIL_PYTHON3) -m pip
 
 BENCHMARK_WHEEL := python/dist/benchmark_hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-$(BENCHMARK_WHEEL):	$(wildcard python/benchmark_hail/**/*.py)
+$(BENCHMARK_WHEEL):	python/setup.py $(wildcard python/benchmark_hail/**.py)
 $(BENCHMARK_WHEEL):	python/requirements.txt python/pinned-requirements.txt
+	echo $^
 	cd python/ && HAIL_BENCHMARK_VERSION=$(HAIL_PIP_VERSION) $(HAIL_PYTHON3) setup.py -q bdist_wheel
 
 .PHONY: wheel
