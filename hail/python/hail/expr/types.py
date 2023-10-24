@@ -614,6 +614,7 @@ class _tstr(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> str:
         length = byte_reader.read_int32()
+        print(f"String length is {length}")
         str_literal = byte_reader.read_bytes(length).decode('utf-8')
 
         return str_literal
@@ -1236,6 +1237,7 @@ class tdict(HailType):
 
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
         array_of_pairs = [{'key': k, 'value': v} for k, v in value.items()]
+        array_of_pairs.sort(key=lambda d: d['key'])
         self._array_repr._convert_to_encoding(byte_writer, array_of_pairs)
 
     def _propagate_jtypes(self, jtype):
