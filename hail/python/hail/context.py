@@ -139,6 +139,12 @@ class HailContext(object):
         assert self._default_ref is not None, '_default_ref should have been initialized in HailContext.create'
         return self._default_ref
 
+    @default_reference.setter
+    def set_default_reference(self, value):
+        if not isinstance(value, ReferenceGenome):
+            raise TypeError(f'{value} is {type(value)} not a ReferenceGenome')
+        self._default_ref = value
+
     def stop(self):
         assert self._backend
         self._backend.stop()
@@ -789,13 +795,17 @@ async def _async_current_backend() -> Backend:
     return (await Env._async_hc())._backend
 
 
-def default_reference():
-    """Returns the default reference genome ``'GRCh37'``.
+def default_reference(new_default_reference: Optional[ReferenceGenome] = None) -> Optional[ReferenceGenome]:
+    """With no argument, returns the default reference genome (``'GRCh37'`` by default).
+    With an argument, sets the default reference genome to the argument.
 
     Returns
     -------
     :class:`.ReferenceGenome`
     """
+    if new_default_reference is not None:
+        Env.hc().default_reference = new_default_reference
+        return None
     return Env.hc().default_reference
 
 
