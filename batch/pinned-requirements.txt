@@ -66,7 +66,6 @@ multidict==6.0.4
     #   yarl
 numpy==1.26.1
     # via
-    #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas
 packaging==23.2
