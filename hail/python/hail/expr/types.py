@@ -1228,16 +1228,21 @@ class tdict(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Union[dict, frozendict]:
         # NB: We ensure the key is always frozen with a wrapper on the key_type in the _array_repr.
-        array_of_pairs = self._array_repr._convert_from_encoding(byte_reader, _should_freeze)
-        d = {pair.key: pair.value for pair in array_of_pairs}
+        d = {}
+        length = byte_reader.read_int32()
+        for _ in range(length):
+            element = self._array_repr.element_type._convert_from_encoding(byte_reader, _should_freeze)
+            d[element.key] = element.value
+
         if _should_freeze:
             return frozendict(d)
         return d
 
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
-        array_of_pairs = [{'key': k, 'value': v} for k, v in value.items()]
-        array_of_pairs.sort(key=lambda d: d['key'])
-        self._array_repr._convert_to_encoding(byte_writer, array_of_pairs)
+        length = len(value)
+        byte_writer.write_int32(length)
+        for k, v in value.items():
+            self._array_repr.element_type._convert_to_encoding(byte_writer, {'key': k, 'value': v})
 
     def _propagate_jtypes(self, jtype):
         self._key_type._add_jtype(jtype.keyType())
