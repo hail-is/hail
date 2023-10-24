@@ -2307,6 +2307,9 @@ steps:
       - name: setup-job-groups
         script: /io/sql/setup-job-groups.sql
         online: true
+      - name: dedup-job-resources
+        script: /io/sql/dedup_job_resources.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
