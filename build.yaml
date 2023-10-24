@@ -2364,6 +2364,9 @@ steps:
       - name: update-ip-fee-resource
         script: /io/sql/update-ip-fee-resource.py
         online: true
+      - name: remove-v2-billing-tables
+        script: /io/sql/remove-v2-billing-tables.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
