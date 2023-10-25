@@ -30,12 +30,21 @@ def write_hello(filename: str):
         f.write('hello\n')
 
 
+def test_file_with_no_dest(runner: CliRunner):
+    with tempfile.TemporaryDirectory() as dir:
+        os.chdir(dir)
+        write_hello(f'{dir}/hello.txt')
+        write_script(dir, f'{dir}/hello.txt')
+        res = runner.invoke(cli.app, ['submit', '--files', 'hello.txt', 'test_job.py'])
+        assert res.exit_code == 0
+
+
 def test_file_in_current_dir(runner: CliRunner):
     with tempfile.TemporaryDirectory() as dir:
         os.chdir(dir)
         write_hello(f'{dir}/hello.txt')
-        write_script(dir, '/hello.txt')
-        res = runner.invoke(cli.app, ['submit', '--mounts', 'hello.txt:/', 'test_job.py'])
+        write_script(dir, f'/hello.txt')
+        res = runner.invoke(cli.app, ['submit', '--files', 'hello.txt:/', 'test_job.py'])
         assert res.exit_code == 0
 
 
@@ -44,7 +53,7 @@ def test_file_mount_in_child_dir(runner: CliRunner):
         os.chdir(dir)
         write_hello(f'{dir}/hello.txt')
         write_script(dir, '/child/hello.txt')
-        res = runner.invoke(cli.app, ['submit', '--mounts', 'hello.txt:/child/', 'test_job.py'])
+        res = runner.invoke(cli.app, ['submit', '--files', 'hello.txt:/child/', 'test_job.py'])
         assert res.exit_code == 0
 
 
@@ -53,7 +62,7 @@ def test_file_mount_in_child_dir_to_root_dir(runner: CliRunner):
         os.chdir(dir)
         write_hello(f'{dir}/child/hello.txt')
         write_script(dir, '/hello.txt')
-        res = runner.invoke(cli.app, ['submit', '--mounts', 'child/hello.txt:/', 'test_job.py'])
+        res = runner.invoke(cli.app, ['submit', '--files', 'child/hello.txt:/', 'test_job.py'])
         assert res.exit_code == 0
 
 
@@ -63,7 +72,7 @@ def test_mount_multiple_files(runner: CliRunner):
         write_hello(f'{dir}/child/hello1.txt')
         write_hello(f'{dir}/child/hello2.txt')
         write_script(dir, '/hello1.txt')
-        res = runner.invoke(cli.app, ['submit', '--mounts', 'child/hello1.txt:/', '--mounts', 'child/hello2.txt:/', 'test_job.py'])
+        res = runner.invoke(cli.app, ['submit', '--files', 'child/hello1.txt:/', '--mounts', 'child/hello2.txt:/', 'test_job.py'])
         assert res.exit_code == 0
 
 
@@ -73,7 +82,7 @@ def test_dir_mount_in_child_dir_to_child_dir(runner: CliRunner):
         write_hello(f'{dir}/child/hello1.txt')
         write_hello(f'{dir}/child/hello2.txt')
         write_script(dir, '/child/hello1.txt')
-        res = runner.invoke(cli.app, ['submit', '--mounts', 'child/:/child/', 'test_job.py'])
+        res = runner.invoke(cli.app, ['submit', '--files', 'child/:/child/', 'test_job.py'])
         assert res.exit_code == 0
 
 
@@ -83,7 +92,7 @@ def test_file_outside_curdir(runner: CliRunner):
         os.chdir(f'{dir}/working_dir')
         write_hello(f'{dir}/hello.txt')
         write_script(dir, '/hello.txt')
-        res = runner.invoke(cli.app, ['submit', '--mounts', f'{dir}/hello.txt:/', '../test_job.py'])
+        res = runner.invoke(cli.app, ['submit', '--files', f'{dir}/hello.txt:/', '../test_job.py'])
         assert res.exit_code == 0
 
 
@@ -94,7 +103,7 @@ def test_dir_outside_curdir(runner: CliRunner):
         write_hello(f'{dir}/hello1.txt')
         write_hello(f'{dir}/hello2.txt')
         write_script(dir, '/hello1.txt')
-        res = runner.invoke(cli.app, ['submit', '--mounts', f'{dir}/:/', '../test_job.py'])
+        res = runner.invoke(cli.app, ['submit', '--files', f'{dir}/:/', '../test_job.py'])
         assert res.exit_code == 0
 
 
@@ -107,3 +116,12 @@ def test_dir_outside_curdir_fails_with_files(runner: CliRunner):
         write_script(dir, '/hello1.txt')
         res = runner.invoke(cli.app, ['submit', '--files', dir, '../test_job.py'])
         assert res.exit_code == 1
+
+
+def test_file_prefixed_with_file(runner: CliRunner):
+    with tempfile.TemporaryDirectory() as dir:
+        os.chdir(dir)
+        write_hello(f'{dir}/hello.txt')
+        write_script(dir, '/hello.txt')
+        res = runner.invoke(cli.app, ['submit', '--files', f'file://{dir}/hello.txt:/', 'test_job.py'])
+        assert res.exit_code == 0
