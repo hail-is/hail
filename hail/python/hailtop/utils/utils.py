@@ -185,80 +185,15 @@ async def blocking_to_async(thread_pool: concurrent.futures.Executor,
 
 async def bounded_gather(*pfs: Callable[[], Awaitable[T]],
                          parallelism: int = 10,
-                         return_exceptions: bool = False
+                         return_exceptions: bool = False,
+                         cancel_on_error = False,
                          ) -> List[T]:
-    gatherer = AsyncThrottledGather[T](*pfs,
-                                       parallelism=parallelism,
-                                       return_exceptions=return_exceptions)
-    return await gatherer.wait()
-
-
-class AsyncThrottledGather(Generic[T]):
-    def __init__(self,
-                 *pfs: Callable[[], Awaitable[T]],
-                 parallelism: int = 10,
-                 return_exceptions: bool = False):
-        self.count = len(pfs)
-        self.n_finished = 0
-
-        self._queue: asyncio.Queue[Tuple[int, Callable[[], Awaitable[T]]]] = asyncio.Queue()
-        self._done = asyncio.Event()
-        self._return_exceptions = return_exceptions
-
-        self._results: List[Union[T, Exception, None]] = [None] * len(pfs)
-        self._errors: List[BaseException] = []
-
-        self._workers: List[asyncio.Task] = []
-        for _ in range(parallelism):
-            self._workers.append(asyncio.create_task(self._worker()))
-
-        for i, pf in enumerate(pfs):
-            self._queue.put_nowait((i, pf))
-
-    def _cancel_workers(self):
-        for worker in self._workers:
-            try:
-                if worker.done() and not worker.cancelled():
-                    exc = worker.exception()
-                    if exc:
-                        raise exc
-                else:
-                    worker.cancel()
-            except Exception:
-                pass
-
-    async def _worker(self):
-        while True:
-            i, pf = await self._queue.get()
-
-            try:
-                res = await pf()
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception as err:  # pylint: disable=broad-except
-                res = err  # type: ignore
-                if not self._return_exceptions:
-                    self._errors.append(err)
-                    self._done.set()
-                    return
-
-            self._results[i] = res
-            self.n_finished += 1
-
-            if self.n_finished == self.count:
-                self._done.set()
-
-    async def wait(self) -> List[T]:
-        try:
-            if self.count > 0:
-                await self._done.wait()
-        finally:
-            self._cancel_workers()
-
-        if self._errors:
-            raise self._errors[0]
-
-        return cast(List[T], self._results)
+    return await bounded_gather2(
+        asyncio.Semaphore(parallelism),
+        *pfs,
+        return_exceptions=return_exceptions,
+        cancel_on_error=cancel_on_error
+    )
 
 
 class AsyncWorkerPool:

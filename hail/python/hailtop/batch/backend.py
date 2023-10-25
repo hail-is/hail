@@ -693,7 +693,11 @@ class ServiceBackend(Backend[bc.Batch]):
                 used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir, dry_run=dry_run)
                 pbar.update(1)
                 return used_remote_tmpdir
-            used_remote_tmpdir_results = await bounded_gather(*[functools.partial(compile_job, j) for j in unsubmitted_jobs], parallelism=150)
+            used_remote_tmpdir_results = await bounded_gather(
+                *[functools.partial(compile_job, j) for j in unsubmitted_jobs],
+                parallelism=150,
+                cancel_on_error=True,
+            )
             used_remote_tmpdir |= any(used_remote_tmpdir_results)
 
         for job in track(unsubmitted_jobs, description='create job objects', disable=disable_setup_steps_progress_bar):

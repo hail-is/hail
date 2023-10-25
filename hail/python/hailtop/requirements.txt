@@ -11,7 +11,7 @@ google-auth>=2.14.1,<3
 google-auth-oauthlib>=0.5.2,<1
 humanize>=1.0.0,<2
 janus>=0.6,<1.1
-nest_asyncio>=1.5.4,<2
+nest_asyncio>=1.5.8,<2
 orjson>=3.6.4,<4
 protobuf==3.20.2
 rich>=12.6.0,<13
