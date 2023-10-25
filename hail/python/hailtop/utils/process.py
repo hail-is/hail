@@ -46,7 +46,7 @@ async def check_exec_output(command: str,
     return outerr
 
 
-async def check_shell_output(script: str, echo: bool = False,) -> Tuple[bytes, bytes]:
+async def check_shell_output(script: str, echo: bool = False) -> Tuple[bytes, bytes]:
     return await check_exec_output('/bin/bash', '-c', script, echo=echo)
 
 
