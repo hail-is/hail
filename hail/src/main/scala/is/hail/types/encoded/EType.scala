@@ -322,6 +322,7 @@ object EType {
           EField("includesEnd", EBoolean(false), 3)),
         required = false)
     case t: TDict => EDictAsUnsortedArrayOfPairs(fromPythonTypeEncoding(t.elementType).setRequired(true), false)
+    case t: TSet => EUnsortedSet(fromPythonTypeEncoding(t.elementType), false)
     case t: TIterable => EArray(fromPythonTypeEncoding(t.elementType), false)
     case t: TBaseStruct =>
       EBaseStruct(Array.tabulate(t.size) { i =>
