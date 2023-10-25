@@ -52,6 +52,55 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.125
+
+Released 2023-10-25
+
+### New Features
+
+- (hail#13682) `hl.export_vcf` now clearly reports all Table or Matrix Table fields which cannot be represented in a VCF.
+
+- (hail#13355) Improve the Hail compiler to more reliably rewrite `Table.filter` and `MatrixTable.filter_rows` to use `hl.filter_intervals`. Before this change some queries required reading all partitions even though only a small number of partitions match the filter.
+
+- (hail#13787) Improve speed of reading hail format datasets from disk. Simple pipelines may see as much as a halving in latency.
+
+- (hail#13849) Fix (hail#13788), improving the error message when `hl.logistic_regression_rows` is provided row or entry annotations for the dependent variable.
+
+- (hail#13888) `hl.default_reference` can now be passed an argument to change the default reference genome.
+
+### Bug Fixes
+
+- (hail#13702) Fix (hail#13699) and (hail#13693). Since 0.2.96, pipelines that combined random functions (e.g. `hl.rand_unif`) with `index(..., all_matches=True)` could fail with a `ClassCastException`.
+
+- (hail#13707) Fix (hail#13633). `hl.maximum_independent_set` now accepts strings as the names of individuals. It has always accepted structures containing a single string field.
+
+- (hail#13713) Fix (hail#13704), in which Hail could encounter an IllegalArgumentException if there are too many transient errors.
+
+- (hail#13730) Fix (hail#133560 and (hail#13409). In QoB pipelines with 10K or more partitions, transient "Corrupted block detected" errors were common.  This was caused by incorrect retry logic. That logic has been fixed.
+
+- (hail#13732) Fix (hail#13721) which manifested with the message "Missing Range header in response". The root cause was a bug in the Google Cloud Storage SDK on which we rely. The fix is to update to a version without this bug. The buggy version of GCS SDK was introduced in 0.2.123.
+
+- (hail#13759) Since Hail 0.2.123, Hail would hang in Dataproc Notebooks due to (hail#13690).
+
+- (hail#13755) Ndarray concatenation now works with arrays with size zero dimensions.
+
+- (hail#13817) Mitigate new transient error from Google Cloud Storage which manifests as `aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)`.
+
+- (hail#13715) Fix (hail#13697), a long standing issue with QoB. When a QoB driver or worker fails, the corresponding Batch Job will also appear as failed.
+
+- (hail#13829) Fix (hail#13828). The Hail combiner now properly imports `PGT` fields from GVCFs.
+
+- (hail#13805) Fix (hail#13767). `hailctl dataproc submit` now expands `~` in the `--files` and `--pyfiles` arguments.
+
+- (hail#13797) Fix #13756. Operations that collect large results such as `to_pandas` may require up to 3x less memory.
+
+- (hail#13826) Fix (hail#13793). Ensure `hailctl describe -u` overrides the `gcs_requester_pays/project` config variable.
+
+- (hail#13814) Fix (hail#13757). Pipelines that are memory-bound by copious use of `hl.literal`, such as `hl.vds.filter_intervals`, require substantially less memory.
+
+- (hail#13894) Fix #13837 in which Hail could break a Spark installation if the Hail JAR appears on the classpath before the Scala JARs.
+
+
 ## Version 0.2.124
 
 Released 2023-09-21
