@@ -5,6 +5,7 @@ import java.lang.reflect.Modifier
 import java.net.URI
 
 import breeze.linalg.{DenseMatrix, DenseVector}
+import is.hail.utils.BoxedArrayBuilder
 import org.testng.annotations.{DataProvider, Test}
 
 class TestUtilsSuite extends HailSuite {
