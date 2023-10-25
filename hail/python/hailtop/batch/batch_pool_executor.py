@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Type, Union, List, Any, Iterable
+from typing import Optional, Callable, Type, Union, List, Any, Iterable, AsyncGenerator
 from types import TracebackType
 from io import BytesIO
 import warnings
@@ -225,10 +225,11 @@ class BatchPoolExecutor:
                         fn: Callable,
                         iterables: Iterable[Iterable[Any]],
                         timeout: Optional[Union[int, float]] = None,
-                        chunksize: int = 1):
+                        chunksize: int = 1
+                        ) -> AsyncGenerator[int, None]:
         """Aysncio compatible version of :meth:`.map`."""
         if not iterables:
-            return iter([])
+            return (x for x in range(0))
 
         if chunksize > 1:
             list_per_argument = [list(x) for x in iterables]
