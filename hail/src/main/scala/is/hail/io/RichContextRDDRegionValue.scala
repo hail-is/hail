@@ -20,10 +20,10 @@ import scala.reflect.ClassTag
 
 object RichContextRDDRegionValue {
   def writeRowsPartition(
-    makeEnc: (OutputStream, HailClassLoader) => Encoder,
+    makeEnc: (OutputStream, ExecuteContext) => Encoder,
     indexKeyFieldIndices: Array[Int] = null,
     rowType: PStruct = null
-  )(ctx: RVDContext, it: Iterator[Long], os: OutputStream, iw: IndexWriter): (Long, Long) = {
+  )(ctx: ExecuteContext, it: Iterator[Long], os: OutputStream, iw: IndexWriter): (Long, Long) = {
     val context = TaskContext.get
     val outputMetrics =
       if (context != null)
@@ -31,7 +31,7 @@ object RichContextRDDRegionValue {
       else
         null
     val trackedOS = new ByteTrackingOutputStream(os)
-    val en = makeEnc(trackedOS, theHailClassLoaderForSparkWorkers)
+    val en = makeEnc(trackedOS, ctx)
     var rowCount = 0L
 
     it.foreach { ptr =>
@@ -42,7 +42,7 @@ object RichContextRDDRegionValue {
       }
       en.writeByte(1)
       en.writeRegionValue(ptr)
-      ctx.region.clear()
+      ctx.r.clear()
       rowCount += 1
 
       if (outputMetrics != null) {

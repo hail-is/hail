@@ -1,9 +1,9 @@
 package is.hail.io
 
 import java.io._
-
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.types.encoded.EncoderAsmFunction
 
 trait Encoder extends Closeable {
@@ -18,7 +18,7 @@ trait Encoder extends Closeable {
   def indexOffset(): Long
 }
 
-final class CompiledEncoder(out: OutputBuffer, theHailClassLoader: HailClassLoader, f: (HailClassLoader) => EncoderAsmFunction) extends Encoder {
+final class CompiledEncoder(out: OutputBuffer, ctx: ExecuteContext, f: (ExecuteContext) => EncoderAsmFunction) extends Encoder {
   def flush() {
     out.flush()
   }
@@ -27,7 +27,7 @@ final class CompiledEncoder(out: OutputBuffer, theHailClassLoader: HailClassLoad
     out.close()
   }
 
-  private[this] val compiled = f(theHailClassLoader)
+  private[this] val compiled = f(ctx)
   def writeRegionValue(offset: Long) {
     compiled(offset, out)
   }
@@ -40,11 +40,11 @@ final class CompiledEncoder(out: OutputBuffer, theHailClassLoader: HailClassLoad
 }
 
 final class ByteArrayEncoder(
-  theHailClassLoader: HailClassLoader,
-  makeEnc: (OutputStream, HailClassLoader) => Encoder
+  ctx: ExecuteContext,
+  makeEnc: (OutputStream, ExecuteContext) => Encoder
 ) extends Closeable {
   private[this] val baos = new ByteArrayOutputStream()
-  private[this] val enc = makeEnc(baos, theHailClassLoader)
+  private[this] val enc = makeEnc(baos, ctx)
 
   def close(): Unit = {
     enc.close()

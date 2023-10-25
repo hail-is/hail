@@ -18,9 +18,9 @@ import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
 
 object RichContextRDD {
-  def writeParts[T](ctx: RVDContext, rootPath: String, f:String, idxRelPath: String, mkIdxWriter: (String, RegionPool) => IndexWriter,
+  def writeParts[T](ctx: ExecuteContext, rootPath: String, f:String, idxRelPath: String, mkIdxWriter: (String, RegionPool) => IndexWriter,
                     stageLocally: Boolean, fs: FS, localTmpdir: String, it: Iterator[T],
-                    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long)): Iterator[FileWriteMetadata] = {
+                    write: (ExecuteContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long)): Iterator[FileWriteMetadata] = {
     val finalFilename = rootPath + "/parts/" + f
     val finalIdxFilename = if (idxRelPath != null) rootPath + "/" + idxRelPath + "/" + f + ".idx" else null
     val (filename, idxFilename) =
@@ -48,7 +48,7 @@ object RichContextRDD {
         fs.copy(idxFilename + "/metadata.json.gz", finalIdxFilename + "/metadata.json.gz")
       }
     }
-    ctx.region.clear()
+    ctx.r.clear()
     Iterator.single(FileWriteMetadata(f, rowCount, bytesWritten))
   }
 }
@@ -89,7 +89,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
     idxRelPath: String,
     stageLocally: Boolean,
     mkIdxWriter: (String, RegionPool) => IndexWriter,
-    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long)
+    write: (ExecuteContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long)
   ): Array[FileWriteMetadata] = {
     val localTmpdir = ctx.localTmpdir
     val fs = ctx.fs

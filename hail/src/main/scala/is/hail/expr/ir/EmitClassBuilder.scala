@@ -367,7 +367,7 @@ class EmitClassBuilder[C](
     }
 
     val baos = new ByteArrayOutputStream()
-    val enc = spec.buildEncoder(ctx, litType)(baos, ctx.theHailClassLoader)
+    val enc = spec.buildEncoder(ctx, litType)(baos, ctx)
     this.emodb.ctx.r.pool.scopedRegion { region =>
       val rvb = new RegionValueBuilder(ctx.stateManager, region)
       rvb.start(litType)

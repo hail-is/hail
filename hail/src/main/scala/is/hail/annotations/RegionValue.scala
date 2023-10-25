@@ -1,10 +1,10 @@
 package is.hail.annotations
 
 import java.io._
-
 import is.hail.asm4s.HailClassLoader
+import is.hail.backend.ExecuteContext
 import is.hail.types.physical.PType
-import is.hail.utils.{using, RestartableByteArrayInputStream}
+import is.hail.utils.{RestartableByteArrayInputStream, using}
 import is.hail.io._
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
@@ -38,11 +38,11 @@ object RegionValue {
   }
 
   def toBytes(
-    theHailClassLoader: HailClassLoader,
-    makeEnc: (OutputStream, HailClassLoader) => Encoder,
+    ctx: ExecuteContext,
+    makeEnc: (OutputStream, ExecuteContext) => Encoder,
     rvs: Iterator[Long]
   ): Iterator[Array[Byte]] = {
-    val bae = new ByteArrayEncoder(theHailClassLoader, makeEnc)
+    val bae = new ByteArrayEncoder(ctx, makeEnc)
     rvs.map(bae.regionValueToBytes)
   }
 }

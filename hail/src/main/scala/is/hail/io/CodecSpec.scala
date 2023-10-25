@@ -16,12 +16,12 @@ trait AbstractTypedCodecSpec extends Spec {
   def encodedType: EType
   def encodedVirtualType: Type
 
-  def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream, HailClassLoader) => Encoder
+  def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream, ExecuteContext) => Encoder
 
   def encodeValue(ctx: ExecuteContext, t: PType, valueAddr: Long): Array[Byte] = {
     val makeEnc = buildEncoder(ctx, t)
     val baos = new ByteArrayOutputStream()
-    val enc = makeEnc(baos, ctx.theHailClassLoader)
+    val enc = makeEnc(baos, ctx)
     enc.writeRegionValue(valueAddr)
     enc.flush()
     baos.toByteArray
@@ -35,13 +35,13 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def encode(ctx: ExecuteContext, t: PType, offset: Long): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
-    using(buildEncoder(ctx, t)(baos, ctx.theHailClassLoader))(_.writeRegionValue(offset))
+    using(buildEncoder(ctx, t)(baos, ctx))(_.writeRegionValue(offset))
     baos.toByteArray
   }
 
   def encodeArrays(ctx: ExecuteContext, t: PType, offset: Long): Array[Array[Byte]] = {
     val baos = new ArrayOfByteArrayOutputStream()
-    using(buildEncoder(ctx, t)(baos, ctx.theHailClassLoader))(_.writeRegionValue(offset))
+    using(buildEncoder(ctx, t)(baos, ctx))(_.writeRegionValue(offset))
     baos.toByteArrays()
   }
 

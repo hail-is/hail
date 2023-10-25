@@ -880,7 +880,7 @@ object Interpret {
         val value = child.analyzeAndExecute(ctx).asTableValue(ctx)
         val fsBc = ctx.fsBc
 
-        val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
+        val globalsBc = value.globals.broadcast(ctx)
         val globalsOffset = value.globals.value.offset
 
         val res = genUID()

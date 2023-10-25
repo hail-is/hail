@@ -133,7 +133,7 @@ object TableStageToRVD {
     val encodedContexts = Array.tabulate(nContexts) { i =>
       assert(contextsPType.isElementDefined(contextsAddr, i))
       val baos = new ByteArrayOutputStream()
-      val enc = makeContextEnc(baos, ctx.theHailClassLoader)
+      val enc = makeContextEnc(baos, ctx)
       enc.writeRegionValue(contextsPType.loadElement(contextsAddr, i))
       enc.flush()
       baos.toByteArray

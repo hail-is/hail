@@ -20,9 +20,9 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
   def encodedType: EType = _eType
   def encodedVirtualType: Type = _vType
 
-  def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream, HailClassLoader) => Encoder = {
+  def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream, ExecuteContext) => Encoder = {
     val bufferToEncoder = encodedType.buildEncoder(ctx, t)
-    (out: OutputStream, theHailClassLoader: HailClassLoader) => bufferToEncoder(_bufferSpec.buildOutputBuffer(out), theHailClassLoader)
+    (out: OutputStream, ctx: ExecuteContext) => bufferToEncoder(_bufferSpec.buildOutputBuffer(out), ctx)
   }
 
   def decodedPType(requestedType: Type): PType = {

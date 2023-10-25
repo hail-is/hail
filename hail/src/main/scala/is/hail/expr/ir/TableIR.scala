@@ -75,8 +75,8 @@ abstract sealed class TableIR extends BaseIR {
 }
 
 object TableLiteral {
-  def apply(value: TableValue, theHailClassLoader: HailClassLoader): TableLiteral = {
-    TableLiteral(value.typ, value.rvd, value.globals.encoding, value.globals.encodeToByteArrays(theHailClassLoader))
+  def apply(value: TableValue, ctx: ExecuteContext): TableLiteral = {
+    TableLiteral(value.typ, value.rvd, value.globals.encoding, value.globals.encodeToByteArrays(ctx))
   }
 }
 
@@ -1726,7 +1726,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val nSplits = math.min(nPartitions.getOrElse(16), math.max(nRows, 1))
     val parts = partition(nRows, nSplits)
 
-    val bae = new ByteArrayEncoder(ctx.theHailClassLoader, makeEnc)
+    val bae = new ByteArrayEncoder(ctx, makeEnc)
     var idx = 0
     val encRows = Array.tabulate(nSplits) { splitIdx =>
       val n = parts(splitIdx)
@@ -1893,7 +1893,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
           }),
         ContextRDD.parallelize(Range(0, nPartitionsAdj), nPartitionsAdj)
           .cmapPartitionsWithIndex { case (i, ctx, _) =>
-            val region = ctx.region
+            val region = ctx.r
 
             val start = partStarts(i)
             Iterator.range(start, start + localPartCounts(i))
@@ -1935,7 +1935,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       Coalesce(FastSeq(pred, False())))
 
     new TableValueIntermediate(
-      tv.filterWithPartitionOp(ctx.theHailClassLoader, ctx.fsBc, f)((rowF, ctx, ptr, globalPtr) => rowF(ctx.region, ptr, globalPtr)))
+      tv.filterWithPartitionOp(ctx, ctx.fsBc, f)((rowF, ctx, ptr, globalPtr) => rowF(ctx.region, ptr, globalPtr)))
   }
 }
 
@@ -2366,7 +2366,7 @@ case class TableMapPartitions(child: TableIR,
         globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
         partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType, true)))))))
 
-    val globalsBc = tv.globals.broadcast(ctx.theHailClassLoader)
+    val globalsBc = tv.globals.broadcast(ctx)
 
     val fsBc = tv.ctx.fsBc
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
@@ -2438,7 +2438,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
       val globalsBc =
         if (rowIterationNeedsGlobals)
-          tv.globals.broadcast(ctx.theHailClassLoader)
+          tv.globals.broadcast(ctx)
         else
           null
 
@@ -2468,7 +2468,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val globalsBc =
       if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
-        tv.globals.broadcast(ctx.theHailClassLoader)
+        tv.globals.broadcast(ctx)
       else
         null
 
@@ -2967,7 +2967,7 @@ case class TableKeyByAndAggregate(
         newKey,
         Die("Internal error: TableKeyByAndAggregate: newKey missing", newKey.typ))))
 
-    val globalsBc = prev.globals.broadcast(ctx.theHailClassLoader)
+    val globalsBc = prev.globals.broadcast(ctx)
 
     val spec = BufferSpec.blockedUncompressed
     val res = genUID()
@@ -3057,7 +3057,7 @@ case class TableKeyByAndAggregate(
 
     val crdd = ContextRDD.weaken(rdd).cmapPartitionsWithIndex(
       { (i, ctx, it) =>
-        val region = ctx.region
+        val region = ctx.r
 
         val rvb = new RegionValueBuilder(sm)
         val partRegion = ctx.partitionRegion
@@ -3148,7 +3148,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val localChildRowType = prevRVD.rowPType
     val keyIndices = prevRVD.typ.kFieldIdx
     val keyOrd = prevRVD.typ.kRowOrd(ctx.stateManager)
-    val globalsBc = prev.globals.broadcast(ctx.theHailClassLoader)
+    val globalsBc = prev.globals.broadcast(ctx)
 
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
 

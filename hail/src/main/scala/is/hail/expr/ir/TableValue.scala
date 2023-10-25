@@ -36,7 +36,7 @@ sealed trait TableExecuteIntermediate {
 
 case class TableValueIntermediate(tv: TableValue) extends TableExecuteIntermediate {
   def asTableStage(ctx: ExecuteContext): TableStage = {
-    RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
+    RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx))
   }
 
   def asTableValue(ctx: ExecuteContext): TableValue = tv
@@ -95,8 +95,8 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def persist(ctx: ExecuteContext, level: StorageLevel) =
     TableValue(ctx, typ, globals, rvd.persist(ctx, level))
 
-  def filterWithPartitionOp[P](theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], partitionOp: (HailClassLoader, FS, HailTaskContext, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
-    val localGlobals = globals.broadcast(theHailClassLoader)
+  def filterWithPartitionOp[P](ctx: ExecuteContext, fs: BroadcastValue[FS], partitionOp: (HailClassLoader, FS, HailTaskContext, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
+    val localGlobals = globals.broadcast(ctx)
     copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
@@ -107,8 +107,8 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 
-  def filter(theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
-    filterWithPartitionOp(theHailClassLoader, fs, (_, _, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
+  def filter(ctx: ExecuteContext, fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
+    filterWithPartitionOp(ctx, fs, (_, _, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
   }
 
   def export(ctx: ExecuteContext, path: String, typesFile: String = null, header: Boolean = true, exportType: String = ExportType.CONCATENATED, delimiter: String = "\t") {

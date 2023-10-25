@@ -28,9 +28,9 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   type StagedDecoder = (EmitCodeBuilder, Value[Region], Value[InputBuffer]) => SValue
   type StagedInplaceDecoder = (EmitCodeBuilder, Value[Region], Value[Long], Value[InputBuffer]) => Unit
 
-  final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer, HailClassLoader) => Encoder = {
+  final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer, ExecuteContext) => Encoder = {
     val f = EType.buildEncoder(ctx, this, t)
-    (out: OutputBuffer, theHailClassLoader: HailClassLoader) => new CompiledEncoder(out, theHailClassLoader, f)
+    (out: OutputBuffer, ctx: ExecuteContext) => new CompiledEncoder(out, ctx, f)
   }
 
   final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer, HailClassLoader) => Decoder) = {
@@ -183,14 +183,14 @@ object EType {
   protected[encoded] def lowBitMask(n: Code[Int]): Code[Byte] = (const(0xFF) >>> ((-n) & 0x7)).toB
 
   val cacheCapacity = 256
-  protected val encoderCache = new util.LinkedHashMap[(EType, PType), (HailClassLoader) => EncoderAsmFunction](cacheCapacity, 0.75f, true) {
-    override def removeEldestEntry(eldest: Entry[(EType, PType), (HailClassLoader) => EncoderAsmFunction]): Boolean = size() > cacheCapacity
+  protected val encoderCache = new util.LinkedHashMap[(EType, PType), (ExecuteContext) => EncoderAsmFunction](cacheCapacity, 0.75f, true) {
+    override def removeEldestEntry(eldest: Entry[(EType, PType), (ExecuteContext) => EncoderAsmFunction]): Boolean = size() > cacheCapacity
   }
   protected var encoderCacheHits: Long = 0L
   protected var encoderCacheMisses: Long = 0L
 
   // The 'entry point' for building an encoder from an EType and a PType
-  def buildEncoder(ctx: ExecuteContext, et: EType, pt: PType): (HailClassLoader) => EncoderAsmFunction = {
+  def buildEncoder(ctx: ExecuteContext, et: EType, pt: PType): (ExecuteContext) => EncoderAsmFunction = {
     val k = (et, pt)
     if (encoderCache.containsKey(k)) {
       encoderCacheHits += 1
@@ -214,8 +214,9 @@ object EType {
       }
       val compiledFunc = {
         val result = fb.resultWithIndex()
-        (hcl: HailClassLoader) => result(hcl, ctx.fs, ctx.taskContext, ctx.r)
+        (ctx: ExecuteContext) => result(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
       }
+      val func = fb.resultWithIndex()
       encoderCache.put(k, compiledFunc)
       compiledFunc
     }

@@ -579,7 +579,7 @@ class SparkBackend(
       val key = jKey.asScala.toArray.toFastSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx.theHailClassLoader)
+        TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx)
       }
     }
   }
@@ -730,7 +730,7 @@ class SparkBackend(
       return LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
 
     val (globals, rvd) = TableStageToRVD(ctx, stage)
-    val globalsLit = globals.toEncodedLiteral(ctx.theHailClassLoader)
+    val globalsLit = globals.toEncodedLiteral(ctx)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {
       return RVDTableReader(rvd.changeKey(ctx, sortFields.map(_.field)), globalsLit, rt)
