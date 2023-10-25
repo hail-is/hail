@@ -54,7 +54,7 @@ async def submit(name, image_name, files, output, script, arguments):
         else:
             dest = os.getcwd()
 
-        cloud_file = cloud_prefix(dest)
+        cloud_file = cloud_prefix(src)
 
         return (src, dest, cloud_file)
 
@@ -71,8 +71,8 @@ async def submit(name, image_name, files, output, script, arguments):
         in_file = b.read_input(cloud_file)
         j.command(f'mkdir -p {os.path.dirname(dest)}; ln -s {in_file} {dest}')
 
-    script_src, script_dest, script_cloud_file = file_input_to_src_dest(script)
-    user_config_src, user_config_dest, user_config_cloud_file = file_input_to_src_dest(user_config)
+    script_src, _, script_cloud_file = file_input_to_src_dest(script)
+    user_config_src, _, user_config_cloud_file = file_input_to_src_dest(user_config)
 
     await copy_from_dict(files=[
         {'from': script_src, 'to': script_cloud_file},
