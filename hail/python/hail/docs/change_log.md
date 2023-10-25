@@ -60,7 +60,7 @@ Released 2023-10-25
 
 - (hail#13682) `hl.export_vcf` now clearly reports all Table or Matrix Table fields which cannot be represented in a VCF.
 
-- (hail#13355) Improve the Hail compiler to more reliably rewrite `Table.filter` and `MatrixTable.filter_rows` to use `hl.filter_intervals`. Before this change some queries required reading all partitions even  though only a small number of partitions match the filter.
+- (hail#13355) Improve the Hail compiler to more reliably rewrite `Table.filter` and `MatrixTable.filter_rows` to use `hl.filter_intervals`. Before this change some queries required reading all partitions even though only a small number of partitions match the filter.
 
 - (hail#13787) Improve speed of reading hail format datasets from disk. Simple pipelines may see as much as a halving in latency.
 
