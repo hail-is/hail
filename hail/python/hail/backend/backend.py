@@ -15,7 +15,7 @@ from ..expr import Expression
 from ..expr.table_type import ttable
 from ..expr.matrix_type import tmatrix
 from ..expr.blockmatrix_type import tblockmatrix
-from ..expr.types import HailType, dtype
+from ..expr.types import HailType, dtype, tvoid
 from ..ir import BaseIR, finalize_randomness
 from ..ir.renderer import CSERenderer
 from ..linalg.blockmatrix import BlockMatrix
@@ -178,7 +178,10 @@ class Backend(abc.ABC):
             result, timings = self._rpc(ActionTag.EXECUTE, payload)
         except FatalError as e:
             raise e.maybe_user_error(ir) from None
-        value = ir.typ._from_encoding(result)
+        if ir.typ == tvoid:
+            value = None
+        else:
+            value = ir.typ._from_encoding(result)
         return (value, timings) if timed else value
 
     @abc.abstractmethod

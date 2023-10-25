@@ -18,7 +18,7 @@ from .type_parsing import type_grammar, type_node_visitor
 from .. import genetics
 from ..typecheck import typecheck, typecheck_method, oneof, transformed, nullable
 from ..utils.struct import Struct
-from ..utils.byte_reader import ByteReader
+from ..utils.byte_reader import ByteReader, ByteWriter
 from ..utils.misc import lookup_bit
 from ..utils.java import escape_parsable
 from ..genetics.reference_genome import reference_genome_type
@@ -275,8 +275,20 @@ class HailType(object):
     def _from_encoding(self, encoding):
         return self._convert_from_encoding(ByteReader(memoryview(encoding)))
 
+    def _to_encoding(self, value) -> bytes:
+        buf = bytearray()
+        self._convert_to_encoding(ByteWriter(buf), value)
+        return bytes(buf)
+
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
         raise ValueError("Not implemented yet")
+
+    def _convert_to_encoding(self, byte_writer, value):
+        raise ValueError("Not implemented yet")
+
+    @staticmethod
+    def _missing(value):
+        return value is None or value is pd.NA
 
     def _traverse(self, obj, f):
         """Traverse a nested type and object.
@@ -339,8 +351,11 @@ class _tvoid(HailType):
     def clear(self):
         pass
 
-    def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
-        return None
+    def _convert_from_encoding(self, *_):
+        raise ValueError("Cannot decode void type")
+
+    def _convert_to_encoding(self, *_):
+        raise ValueError("Cannot encode void type")
 
 
 class _tint32(HailType):
@@ -394,6 +409,9 @@ class _tint32(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> int:
         return byte_reader.read_int32()
+
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        byte_writer.write_int32(value)
 
     def _byte_size(self):
         return 4
@@ -450,6 +468,9 @@ class _tint64(HailType):
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> int:
         return byte_reader.read_int64()
 
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        byte_writer.write_int64(value)
+
     def _byte_size(self):
         return 8
 
@@ -487,6 +508,9 @@ class _tfloat32(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> float:
         return byte_reader.read_float32()
+
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        byte_writer.write_float32(value)
 
     def unify(self, t):
         return t == tfloat32
@@ -550,6 +574,9 @@ class _tfloat64(HailType):
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> float:
         return byte_reader.read_float64()
 
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        byte_writer.write_float64(value)
+
     def _byte_size(self):
         return 8
 
@@ -587,9 +614,14 @@ class _tstr(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> str:
         length = byte_reader.read_int32()
-        str_literal = byte_reader.read_bytes(length).decode()
+        str_literal = byte_reader.read_bytes(length).decode('utf-8')
 
         return str_literal
+
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        value_bytes = value.encode('utf-8')
+        byte_writer.write_int32(len(value_bytes))
+        byte_writer.write_bytes(value_bytes)
 
 
 class _tbool(HailType):
@@ -632,6 +664,8 @@ class _tbool(HailType):
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> bool:
         return byte_reader.read_bool()
 
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        byte_writer.write_bool(value)
 
 class _trngstate(HailType):
 
@@ -789,6 +823,17 @@ class tndarray(HailType):
             np_type = self.element_type.to_numpy()
             return np.ndarray(shape=shape, buffer=np.array(elements, dtype=np_type), dtype=np_type, order="F")
 
+    def _convert_to_encoding(self, byte_writer, value: np.ndarray):
+        for dim in value.shape:
+            byte_writer.write_int64(dim)
+
+        if value.size > 0:
+            if self.element_type in _numeric_types:
+                byte_writer.write_bytes(value.data)
+            else:
+                for elem in np.nditer(value, order='F'):
+                    self.element_type._convert_to_encoding(byte_writer, elem)
+
 
 class tarray(HailType):
     """Hail type for variable-length arrays of elements.
@@ -898,6 +943,23 @@ class tarray(HailType):
         if _should_freeze:
             return frozenlist(decoded)
         return decoded
+
+
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        length = len(value)
+        byte_writer.write_int32(length)
+        i = 0
+        while i < length:
+            missing_byte = 0
+            for j in range(min(8, length - i)):
+                if HailType._missing(value[i + j]):
+                    missing_byte |= 1 << j
+            byte_writer.write_byte(missing_byte)
+            i += 8
+
+        for element in value:
+            if not HailType._missing(element):
+                self.element_type._convert_to_encoding(byte_writer, element)
 
 
 class tstream(HailType):
@@ -1038,6 +1100,9 @@ class tset(HailType):
             return frozenset(s)
         return set(s)
 
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        self._array_repr._convert_to_encoding(byte_writer, list(value))
+
     def _propagate_jtypes(self, jtype):
         self._element_type._add_jtype(jtype.elementType())
 
@@ -1063,6 +1128,9 @@ class _freeze_this_type(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
         return self.t._convert_from_encoding(byte_reader, _should_freeze=True)
+
+    def _convert_to_encoding(self, byte_writer, x):
+        return self.t._convert_to_encoding(byte_writer, x)
 
 
 class tdict(HailType):
@@ -1160,11 +1228,21 @@ class tdict(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Union[dict, frozendict]:
         # NB: We ensure the key is always frozen with a wrapper on the key_type in the _array_repr.
-        array_of_pairs = self._array_repr._convert_from_encoding(byte_reader, _should_freeze)
-        d = {pair.key: pair.value for pair in array_of_pairs}
+        d = {}
+        length = byte_reader.read_int32()
+        for _ in range(length):
+            element = self._array_repr.element_type._convert_from_encoding(byte_reader, _should_freeze)
+            d[element.key] = element.value
+
         if _should_freeze:
             return frozendict(d)
         return d
+
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        length = len(value)
+        byte_writer.write_int32(length)
+        for k, v in value.items():
+            self._array_repr.element_type._convert_to_encoding(byte_writer, {'key': k, 'value': v})
 
     def _propagate_jtypes(self, jtype):
         self._key_type._add_jtype(jtype.keyType())
@@ -1344,6 +1422,22 @@ class tstruct(HailType, Mapping):
                 kwargs[f] = field_decoded
 
         return Struct(**kwargs)
+
+    def _convert_to_encoding(self, byte_writer: ByteWriter, value):
+        keys = list(self.keys())
+        length = len(keys)
+        i = 0
+        while i < length:
+            missing_byte = 0
+            for j in range(min(8, length - i)):
+                if HailType._missing(value[keys[i + j]]):
+                    missing_byte |= 1 << j
+            byte_writer.write_byte(missing_byte)
+            i += 8
+
+        for f, t in self.items():
+            if not HailType._missing(value[f]):
+                t._convert_to_encoding(byte_writer, value[f])
 
     def _is_prefix_of(self, other):
         return (isinstance(other, tstruct)
@@ -1619,6 +1713,20 @@ class ttuple(HailType, Sequence):
 
         return tuple(answer)
 
+    def _convert_to_encoding(self, byte_writer, value):
+        length = len(self)
+        i = 0
+        while i < length:
+            missing_byte = 0
+            for j in range(min(8, length - i)):
+                if HailType._missing(value[i + j]):
+                    missing_byte |= 1 << j
+            byte_writer.write_byte(missing_byte)
+            i += 8
+        for i, t in enumerate(self.types):
+            if not HailType._missing(value[i]):
+                t._convert_to_encoding(byte_writer, value[i])
+
     def unify(self, t):
         if not (isinstance(t, ttuple) and len(self.types) == len(t.types)):
             return False
@@ -1638,7 +1746,7 @@ class ttuple(HailType, Sequence):
         return HailTypeContext.union(*self.types)
 
 
-def allele_pair(j, k):
+def allele_pair(j: int, k: int):
     assert j >= 0 and j <= 0xffff
     assert k >= 0 and k <= 0xffff
     return j | (k << 16)
@@ -1754,6 +1862,31 @@ class _tcall(HailType):
 
         return genetics.Call(alleles, phased)
 
+    def _convert_to_encoding(self, byte_writer, value: genetics.Call):
+        int_rep = 0
+
+        int_rep |= value.ploidy << 1
+        if value.phased:
+            int_rep |= 1
+
+        def diploid_gt_index(j: int, k: int):
+            assert j <= k
+            return k * (k + 1) // 2 + j
+
+        def allele_pair_rep(c: genetics.Call):
+            [j, k] = c.alleles
+            if c.phased:
+                return diploid_gt_index(j, j + k)
+            return diploid_gt_index(j, k)
+
+        assert value.ploidy <= 2
+        if value.ploidy == 1:
+            int_rep |= value.alleles[0] << 3
+        elif value.ploidy == 2:
+            int_rep |= allele_pair_rep(value) << 3
+
+        byte_writer.write_int32(int_rep)
+
     def unify(self, t):
         return t == tcall
 
@@ -1838,6 +1971,9 @@ class tlocus(HailType):
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> genetics.Locus:
         as_struct = tlocus.struct_repr._convert_from_encoding(byte_reader)
         return genetics.Locus(as_struct.contig, as_struct.pos, self.reference_genome)
+
+    def _convert_to_encoding(self, byte_writer, value: genetics.Locus):
+        tlocus.struct_repr._convert_to_encoding(byte_writer, {'contig': value.contig, 'pos': value.position})
 
     def unify(self, t):
         return isinstance(t, tlocus) and self.reference_genome == t.reference_genome
@@ -1935,6 +2071,15 @@ class tinterval(HailType):
                            interval_as_struct.includes_start,
                            interval_as_struct.includes_end,
                            point_type=self.point_type)
+
+    def _convert_to_encoding(self, byte_writer, value):
+        interval_dict = {
+            'start': value.start,
+            'end': value.end,
+            'includes_start': value.includes_start,
+            'includes_end': value.includes_end,
+        }
+        self._struct_repr._convert_to_encoding(byte_writer, interval_dict)
 
     def unify(self, t):
         return isinstance(t, tinterval) and self.point_type.unify(t.point_type)
