@@ -3,33 +3,11 @@
 HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
+include version.mk
 
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
 .SUFFIXES:
-
-REVISION := $(shell git rev-parse HEAD)
-SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
-BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-SCALA_VERSION ?= 2.12.15
-SPARK_VERSION ?= 3.3.0
-HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 124
-HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
-HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
-ELASTIC_MAJOR_VERSION ?= 7
-
-ifndef REVISION
-$(error "git rev-parse HEAD" failed to produce output)
-endif
-
-ifndef SHORT_REVISION
-$(error "git rev-parse --short=12 HEAD" failed to produce output)
-endif
-
-ifndef BRANCH
-$(error "git rev-parse --abbrev-ref HEAD" failed to produce output)
-endif
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -438,14 +416,6 @@ test-dataproc-38: install-hailctl
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
 	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR) $(GCP_PROJECT) $(HAIL_HAIL_DIR)/../infra/gcp-broad/gcp-ar-cleanup-policy.txt
-
-.PHONY: benchmark
-benchmark: $(WHEEL)
-	HAIL_WHEEL=../hail/$(WHEEL) HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
-
-.PHONY: install-benchmark
-install-benchmark:
-	HAIL_WHEEL=DUMMY HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark install
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \

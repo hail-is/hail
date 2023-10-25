@@ -102,6 +102,7 @@ install-dev-requirements:
 	python3 -m pip install \
 		-r hail/python/pinned-requirements.txt \
 		-r hail/python/dev/pinned-requirements.txt \
+		-r benchmark/python/pinned-requirements.txt \
 		-r gear/pinned-requirements.txt \
 		-r web_common/pinned-requirements.txt \
 		-r batch/pinned-requirements.txt \
@@ -115,6 +116,9 @@ hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt
 
 hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/dev
+
+benchmark/python/pinned-requirements.txt: benchmark/python/requirements.txt
+	./generate-linux-pip-lockfile.sh benchmark/python
 
 gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
 	./generate-linux-pip-lockfile.sh gear
@@ -132,6 +136,7 @@ ci/pinned-requirements.txt: web_common/pinned-requirements.txt ci/requirements.t
 generate-pip-lockfiles: hail/python/hailtop/pinned-requirements.txt
 generate-pip-lockfiles: hail/python/pinned-requirements.txt
 generate-pip-lockfiles: hail/python/dev/pinned-requirements.txt
+generate-pip-lockfiles: benchmark/python/pinned-requirements.txt
 generate-pip-lockfiles: gear/pinned-requirements.txt
 generate-pip-lockfiles: web_common/pinned-requirements.txt
 generate-pip-lockfiles: batch/pinned-requirements.txt
