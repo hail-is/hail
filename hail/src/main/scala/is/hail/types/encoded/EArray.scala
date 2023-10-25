@@ -11,21 +11,6 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-object EArray {
-  def debugPrint(presentBits: Long, arrayBeginning: Long, arrayEnd: Long, arrayLength: Int, blockOffset: Long, elemOff: Long, inBlockIndexToPresentValue: Int, mByteOffset: Long): Unit = {
-    System.err.println(f"""
-      presentBits: $presentBits%x
-      arrayBeginning: $arrayBeginning%x
-      arrayEnd: $arrayEnd%x
-      arrayLength: $arrayLength
-      blockOffset: $blockOffset%x
-      elemOff: $elemOff%x
-      inBlockIndexToPresentValue: $inBlockIndexToPresentValue
-      mByteOffset: $mByteOffset%x
-      """)
-  }
-}
-
 final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer {
   def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
@@ -154,7 +139,6 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       val blockOff = cb.newLocal[Long]("blockOff", arrayType.firstElementOffset(array, len))
       val pastLastMissingByteOff = cb.memoize(arrayType.pastLastMissingByteOff(array, len), "pastLastMissingByteAddr")
       val inBlockIndexToPresentValue = cb.newLocal[Int]("inBlockIndexToPresentValue", 0)
-      val lastElementOffset = cb.memoize(arrayType.pastLastElementOffset(array, len))
 
       cb.for_(
         {},
@@ -170,17 +154,6 @@ final case class EArray(val elementType: EType, override val required: Boolean =
               cb.assign(inBlockIndexToPresentValue, presentBits.numberOfTrailingZeros)
               val elemOff = cb.memoize(
                 arrayType.incrementElementOffset(blockOff, inBlockIndexToPresentValue))
-              // cb.append(
-              //   Code.invokeScalaObject8[Long, Long, Long, Int, Long, Long, Int, Long, Unit](
-              //     EArray.getClass, "debugPrint",
-              //     presentBits, array, lastElementOffset, len, blockOff, elemOff, inBlockIndexToPresentValue, mbyteOffset
-              //   )
-              // )
-              // if (!arrayType.zeroSizeElements) {
-              //   cb.if_(elemOff >= lastElementOffset, {
-              //     cb._fatal("Bad elem off: ", array.toS, " ", elemOff.toS, " ", presentBits.toS, " ", blockOff.toS, " ", lastElementOffset.toS)
-              //   })
-              // }
               readElemF(cb, region, elemOff, in)
               cb.assign(presentBits, unsetRightMostBit(presentBits))
             })

@@ -16,7 +16,6 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
-import java.util.Base64
 
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
@@ -77,18 +76,9 @@ object Interpret {
       case False() => false
       case Literal(_, value) => value
       case x@EncodedLiteral(codec, value) =>
-        try {
-          ctx.r.getPool().scopedRegion { r =>
-            val (pt, addr) = codec.decodeArrays(ctx, x.typ, value.ba, ctx.r)
-            SafeRow.read(pt, addr)
-          }
-        } catch {
-          case t: Throwable =>
-            val b64EncodedStuff = new String(Base64.getEncoder.encode(value.ba(0)))
-            val typ = codec.encodedType
-            log.info(s"The type of the bad stuff: ${codec.encodedType}")
-            log.info(s"The bad encoded stuff: $b64EncodedStuff")
-            throw t
+        ctx.r.getPool().scopedRegion { r =>
+          val (pt, addr) = codec.decodeArrays(ctx, x.typ, value.ba, ctx.r)
+          SafeRow.read(pt, addr)
         }
       case Void() => ()
       case Cast(v, t) =>
