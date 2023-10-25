@@ -280,6 +280,8 @@ object FS {
 }
 
 trait FS extends Serializable {
+  private[this] val log = Logger.getLogger(getClass.getName())
+
   type URL <: FSURL
 
   def parseUrl(filename: String): URL
@@ -439,6 +441,72 @@ trait FS extends Serializable {
   final def fileStatus(filename: String): FileStatus = fileStatus(parseUrl(filename))
 
   def fileStatus(url: URL): FileStatus
+
+  protected def fileListEntryFromIterator(
+    url: URL,
+    it: Iterator[FileListEntry],
+  ): FileListEntry = {
+    val urlStr = url.toString
+    val noSlash = dropTrailingSlash(urlStr)
+    val withSlash = noSlash + "/"
+
+    var continue = it.hasNext
+    var fileFle: FileListEntry = null
+    var trailingSlashFle: FileListEntry = null
+    var dirFle: FileListEntry = null
+    while (continue) {
+      val fle = it.next()
+
+      if (fle.isFile) {
+        if (fle.getActualUrl == noSlash) {
+          fileFle = fle
+        } else if (fle.getActualUrl == withSlash) {
+          // This is a *blob* whose name has a trailing slash e.g. "gs://bucket/object/". Users
+          // really ought to avoid creating these.
+          trailingSlashFle = fle
+        }
+      } else if (fle.isDirectory && dropTrailingSlash(fle.getActualUrl) == noSlash) {
+        // In Google, "directory" entries always have a trailing slash.
+        //
+        // In Azure, "directory" entries never have a trailing slash.
+        dirFle = fle
+      }
+
+      continue = it.hasNext && (fle.getActualUrl <= withSlash)
+    }
+
+    if (fileFle != null) {
+      if (dirFle != null) {
+        if (trailingSlashFle != null) {
+          throw new FileAndDirectoryException(s"${url.toString} appears twice as a file (once with and once without a trailing slash) and once as a directory.")
+        } else {
+          throw new FileAndDirectoryException(s"${url.toString} appears as both file ${fileFle.getActualUrl} and directory ${dirFle.getActualUrl}.")
+        }
+      } else {
+        if (trailingSlashFle != null) {
+          log.warning(s"Two blobs exist matching ${url.toString}: once with and once without a trailing slash. We will return the one without a trailing slash.")
+        }
+        fileFle
+      }
+    } else {
+      if (dirFle != null) {
+        if (trailingSlashFle != null) {
+          log.warning(s"A blob with a literal trailing slash exists as well as blobs with that prefix. We will treat this as a directory. ${url.toString}")
+        } else {
+          dirFle
+        }
+      } else {
+        if (trailingSlashFle != null) {
+          throw new FileNotFoundException(
+            s"A blob with a literal trailing slash exists. These are sometimes uses to indicate empty directories. " +
+              s"Hail does not support this behavior. This folder is treated as if it does not exist. ${url.toString}"
+          )
+        } else {
+          throw new FileNotFoundException(url.toString)
+        }
+      }
+    }
+  }
 
   final def fileListEntry(filename: String): FileListEntry = fileListEntry(parseUrl(filename))
 

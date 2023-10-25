@@ -482,33 +482,16 @@ class GoogleStorageFS(
       return GoogleStorageFileListEntry.dir(url)
     }
 
-    val prefix = dropTrailingSlash(url.toString)
-    val directoryContents = retryTransientErrors {
+    val prefix = dropTrailingSlash(url.path)
+    val it = retryTransientErrors {
       handleRequesterPays(
         (options: Seq[BlobListOption]) => storage.list(url.bucket, (BlobListOption.prefix(prefix) +: BlobListOption.currentDirectory() +: options):_*),
         BlobListOption.userProject _,
         url.bucket
       )
-    }.iterateAll().iterator
-    val isDirectory = directoryContents.hasNext
-    // NB: In GCS, listing with the prefix "gs://bucket/foo" does not match an object with the name
-    // "gs://bucket/foo". This differs from Azure in which such an object is included.
-    val fileMatch = getBlob(parseUrl(prefix))
+    }.iterateAll().asScala.map(GoogleStorageFileListEntry.apply(_)).iterator
 
-    System.err.println((isDirectory, fileMatch, prefix, url).toString)
-    if (isDirectory) {
-      if (fileMatch != null) {
-        throw new FileAndDirectoryException(s"${url.toString} appears as both a file ${fileMatch.getName} and directory.")
-      } else {
-        GoogleStorageFileListEntry.dir(url)
-      }
-    } else {
-      if (fileMatch != null) {
-        GoogleStorageFileListEntry(fileMatch)
-      } else {
-        throw new FileNotFoundException(url.toString)
-      }
-    }
+    fileListEntryFromIterator(url, it)
   }
 
   override def eTag(url: URL): Some[String] = {
