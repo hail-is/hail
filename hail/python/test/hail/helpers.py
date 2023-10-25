@@ -139,6 +139,18 @@ def skip_unless_spark_backend(reason='requires Spark'):
     return wrapper
 
 
+def skip_when_local_backend(reason='skipping for Local Backend'):
+    from hail.backend.service_backend import LocalBackend
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), LocalBackend):
+            raise unittest.SkipTest(reason)
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 def skip_when_service_backend(reason='skipping for Service Backend'):
     from hail.backend.service_backend import ServiceBackend
     @decorator
