@@ -435,7 +435,7 @@ object Code {
   }
 
   def checkcast[T](v: Code[_])(implicit tti: TypeInfo[T]): Code[T] =
-    Code(v, lir.checkcast(tti.iname))
+    Code(v, lir.checkcast(tti))
 
   def boxBoolean(cb: Code[Boolean]): Code[java.lang.Boolean] = Code.newInstance[java.lang.Boolean, Boolean](cb)
 
@@ -1221,7 +1221,7 @@ class Invokeable[T, S](tcls: Class[T],
       val t = new lir.Local(null, s"invoke_$name", sti)
       var r = lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)
       if (concreteReturnType != sct.runtimeClass)
-        r = lir.checkcast(Type.getInternalName(sct.runtimeClass), r)
+        r = lir.checkcast(sti, r)
       end.append(lir.store(t, r))
       new VCode(start, end, lir.load(t))
     }
