@@ -68,7 +68,6 @@ Released 2023-10-25
 
 - (hail#13888) `hl.default_reference` can now be passed an argument to change the default reference genome.
 
-
 ### Bug Fixes
 
 - (hail#13702) Fix (hail#13699) and (hail#13693). Since 0.2.96, pipelines that combined random functions (e.g. `hl.rand_unif`) with `index(..., all_matches=True)` could fail with a `ClassCastException`.
@@ -98,6 +97,8 @@ Released 2023-10-25
 - (hail#13826) Fix (hail#13793). Ensure `hailctl describe -u` overrides the `gcs_requester_pays/project` config variable.
 
 - (hail#13814) Fix (hail#13757). Pipelines that are memory-bound by copious use of `hl.literal`, such as `hl.vds.filter_intervals`, require substantially less memory.
+
+- (hail#13894) Fix #13837 in which Hail could break a Spark installation if the Hail JAR appears on the classpath before the Scala JARs.
 
 
 ## Version 0.2.124
