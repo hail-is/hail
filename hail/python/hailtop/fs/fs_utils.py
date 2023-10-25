@@ -12,7 +12,7 @@ _router_fs_for_loop: Dict[asyncio.AbstractEventLoop, RouterFS] = {}
 
 def _fs() -> RouterFS:
     '''Return an FS for this particular thread.'''
-    global _router_fs
+    global _router_fs_for_loop
 
     loop = hail_event_loop()
     if fs := _router_fs_for_loop.get(loop):

@@ -93,7 +93,7 @@ class ClientSession:
                  **kwargs):
         try:
             self.loop_at_creation_time = asyncio.get_running_loop()
-        except RuntimeError as err:
+        except RuntimeError:
             raise ValueError(
                 'aiohttp.ClientSession stashes a copy of the event loop into a field. Very confusing '
                 'errors arise if that stashed event loop differs from the currently running one. '
