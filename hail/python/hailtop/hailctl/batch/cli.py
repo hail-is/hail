@@ -183,4 +183,4 @@ def submit(
 def initialize(
         verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
 ):
-    asyncio.get_event_loop().run_until_complete(async_basic_initialize(verbose=verbose))
+    asyncio.run(async_basic_initialize(verbose=verbose))

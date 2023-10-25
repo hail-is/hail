@@ -16,6 +16,7 @@ from hail.typecheck import (nullable, typecheck, typecheck_method, enumeration, 
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
+from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import secret_alnum_string
 from hailtop.fs.fs import FS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
@@ -342,10 +343,7 @@ def init(sc=None,
         backend = 'batch'
 
     if backend == 'batch':
-        import nest_asyncio
-        nest_asyncio.apply()
-        import asyncio
-        return asyncio.get_event_loop().run_until_complete(init_batch(
+        return hail_event_loop().run_until_complete(init_batch(
             log=log,
             quiet=quiet,
             append=append,
