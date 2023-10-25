@@ -1,7 +1,6 @@
 from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple, Dict, Any
 import asyncio
 import io
-import nest_asyncio
 import os
 import functools
 import glob
@@ -175,7 +174,6 @@ class RouterFS(FS):
                  gcs_kwargs: Optional[Dict[str, Any]] = None,
                  azure_kwargs: Optional[Dict[str, Any]] = None,
                  s3_kwargs: Optional[Dict[str, Any]] = None):
-        nest_asyncio.apply()
         if afs and (local_kwargs or gcs_kwargs or azure_kwargs or s3_kwargs):
             raise ValueError(
                 f'If afs is specified, no other arguments may be specified: {afs=}, {local_kwargs=}, {gcs_kwargs=}, {azure_kwargs=}, {s3_kwargs=}'
