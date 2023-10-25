@@ -99,8 +99,7 @@ class ClientSession:
                 'errors arise if that stashed event loop differs from the currently running one. '
                 'We refuse to create an httpx.ClientSession outside of an event loop for this reason. '
                 'Take care to ensure the event loop you use when you create the ClientSession is the '
-                f'same as the running event loop when you make a request. {self.loop_at_creation_time} '
-                f'{asyncio.get_running_loop()}'
+                f'same as the running event loop when you make a request.'
             )
 
         location = get_deploy_config().location()
