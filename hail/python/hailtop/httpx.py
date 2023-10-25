@@ -6,6 +6,7 @@ import aiohttp
 import aiohttp.abc
 import aiohttp.typedefs
 
+from . import hail_event_loop
 from .utils import async_to_blocking
 from .tls import internal_client_ssl_context, external_client_ssl_context
 from .config.deploy_config import get_deploy_config
@@ -91,16 +92,7 @@ class ClientSession:
                  raise_for_status: bool = True,
                  timeout: Union[aiohttp.ClientTimeout, float, None] = None,
                  **kwargs):
-        try:
-            self.loop_at_creation_time = asyncio.get_running_loop()
-        except RuntimeError:
-            raise ValueError(
-                'aiohttp.ClientSession stashes a copy of the event loop into a field. Very confusing '
-                'errors arise if that stashed event loop differs from the currently running one. '
-                'We refuse to create an httpx.ClientSession outside of an event loop for this reason. '
-                'Take care to ensure the event loop you use when you create the ClientSession is the '
-                f'same as the running event loop when you make a request.'
-            )
+        self.loop_at_creation_time = hail_event_loop()
 
         location = get_deploy_config().location()
         if location == 'external':

@@ -39,7 +39,6 @@ def hail_event_loop():
 
     try:
         asyncio.get_running_loop()
-
         nest_asyncio.apply()
         return asyncio.get_running_loop()
     except RuntimeError:
