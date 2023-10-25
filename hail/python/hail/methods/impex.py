@@ -1973,7 +1973,7 @@ def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_
 
     paths = wrap_to_list(paths)
 
-    for p in path:
+    for p in paths:
         hl.current_backend().validate_file(p)
 
     if file_per_partition and min_partitions is not None:
