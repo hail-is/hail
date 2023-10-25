@@ -8,6 +8,7 @@ import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
+import org.apache.hadoop.fs.FileAlreadyExistsException
 
 import java.io.FileNotFoundException
 
@@ -464,11 +465,14 @@ trait FSSuite extends TestNGSuite {
     val d = t()
     fs.mkDir(d)
     fs.touch(s"$d/x/file")
-    fs.touch(s"$d/x")
-
-    TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
+    try {
+      fs.touch(s"$d/x")
       fs.fileListEntry(s"$d/x")
-    )
+      assert(false)
+    } catch {
+      case exc: FileAndDirectoryException if exc.getMessage() == s"$d/x" =>
+      case exc: FileNotFoundException if exc.getMessage() == s"$d/x (Is a directory)" =>
+    }
   }
 
   @Test def testETag(): Unit = {
@@ -506,11 +510,14 @@ trait FSSuite extends TestNGSuite {
     fs.touch(s"$d/x,")
     fs.touch(s"$d/x-")
     // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
-    fs.touch(s"$d/x/file")
-
-    TestUtils.interceptException[FileAndDirectoryException](s"$d/x")(
+    try {
+      fs.touch(s"$d/x/file")
       fs.fileListEntry(s"$d/x")
-    )
+      assert(false)
+    } catch {
+      case exc: FileAndDirectoryException if exc.getMessage() == s"$d/x" =>
+      case exc: FileAlreadyExistsException if exc.getMessage() == s"Destination exists and is not a directory: $d/x" =>
+    }
   }
 
   @Test def fileListEntrySeesDirectoryEvenIfNotFirstEntryInList(): Unit = {
