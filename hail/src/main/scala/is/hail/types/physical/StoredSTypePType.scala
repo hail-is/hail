@@ -80,7 +80,7 @@ class StoredCodeTuple(tis: Array[TypeInfo[_]]) {
         case DoubleInfo => Region.loadDouble(offset)
         case BooleanInfo => Region.loadBoolean(offset)
       }
-      cb.memoize(code)(ti.asInstanceOf[TypeInfo[AnyVal]])
+      cb.memoizeAny(code, ti)
     }
   }
 }

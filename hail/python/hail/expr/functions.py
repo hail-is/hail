@@ -353,7 +353,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
             assert isinstance(x, builtins.str)
             return construct_expr(ir.Str(x), tstr)
     else:
-        return construct_expr(ir.Literal(dtype, x), dtype)
+        return construct_expr(ir.EncodedLiteral(dtype, x), dtype)
 
 
 @deprecated(version="0.2.59", reason="Replaced by hl.if_else")

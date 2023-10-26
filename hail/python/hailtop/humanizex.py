@@ -13,36 +13,39 @@ _MONTH = 30 * _DAY
 
 def _fmt(s: Union[int, float], word: str) -> str:
     s = int(s)
+    if word in SHORTHAND_UNITS:
+        return f'{s}{word}'
     if s == 1:
         return f'{s} {word}'
     return f'{s} {word}s'
 
 
+SHORTHAND_UNITS = {'s', 'ms', 'μs'}
 _units = [
     (_MONTH, 'month'),
     (_WEEK, 'week'),
     (_DAY, 'day'),
     (_HOUR, 'hour'),
     (_MINUTE, 'minute'),
-    (_SECOND, 'second'),
-    (_MILLISECOND, 'millisecond'),
-    (_MICROSECOND, 'microsecond'),
+    (_SECOND, 's'),
+    (_MILLISECOND, 'ms'),
+    (_MICROSECOND, 'μs'),
 ]
 
 
 def naturaldelta(seconds: Union[int, float]) -> str:
-    return _naturaldelta(seconds, value_unit = _SECOND, value_name = 'second')
+    return _naturaldelta(seconds, value_unit = _SECOND)
 
 
 def naturaldelta_msec(milliseconds: Union[int, float]) -> str:
-    return _naturaldelta(milliseconds, value_unit = _MILLISECOND, value_name = 'millisecond')
+    return _naturaldelta(milliseconds, value_unit = _MILLISECOND)
 
 
 def naturaldelta_usec(microseconds: Union[int, float]) -> str:
-    return _naturaldelta(microseconds, value_unit = _MICROSECOND, value_name = 'microsecond')
+    return _naturaldelta(microseconds, value_unit = _MICROSECOND)
 
 
-def _naturaldelta(value: Union[int, float], value_unit: int = _SECOND, value_name: str = 'second') -> str:
+def _naturaldelta(value: Union[int, float], value_unit: int) -> str:
     value *= value_unit
     for index in range(len(_units) - 1):
         major_unit, major_name = _units[index]
@@ -53,4 +56,5 @@ def _naturaldelta(value: Union[int, float], value_unit: int = _SECOND, value_nam
             if minor != 0:
                 return _fmt(major, major_name) + ' ' + _fmt(minor, minor_name)
             return _fmt(major, major_name)
-    return _fmt(value // value_unit, value_name)
+    smallest_unit, smallest_name = _units[-1]
+    return _fmt(value // smallest_unit, smallest_name)

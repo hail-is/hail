@@ -3,33 +3,11 @@
 HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
+include version.mk
 
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
 .SUFFIXES:
-
-REVISION := $(shell git rev-parse HEAD)
-SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
-BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-SCALA_VERSION ?= 2.12.15
-SPARK_VERSION ?= 3.3.0
-HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 124
-HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
-HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
-ELASTIC_MAJOR_VERSION ?= 7
-
-ifndef REVISION
-$(error "git rev-parse HEAD" failed to produce output)
-endif
-
-ifndef SHORT_REVISION
-$(error "git rev-parse --short=12 HEAD" failed to produce output)
-endif
-
-ifndef BRANCH
-$(error "git rev-parse --abbrev-ref HEAD" failed to produce output)
-endif
 
 $(eval $(call ENV_VAR,REVISION))
 $(eval $(call ENV_VAR,SHORT_REVISION))
@@ -357,7 +335,9 @@ upload-qob-jar: $(SHADOW_JAR)
 
 # if the installation of Hail has changed, i.e. you pip-installed a non-development version of Hail,
 # this file will be newer than "install-editable"
-install-editable: $(shell pip3 show hail | grep Location: | sed 's/Location: //')/hail/__init__.py
+CURRENT_INSTALL = $(shell pip3 show -qq hail | grep Location: | sed 's/Location: //')
+
+install-editable: $(if ($(CURRENT_INSTALL),),,$(CURRENT_INSTALL)/hail/__init__.py)
 install-editable: python/setup.py
 install-editable: python/requirements.txt
 install-editable: python/README.md
@@ -371,6 +351,7 @@ install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 .PHONY: install-for-qob
 install-for-qob: upload-qob-jar install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
+	javac -version 2>&1 | grep -e '1\.8\.0'  # install-for-qob requires javac version 1.8, see https://discuss.hail.is/t/on-mac-os-x-how-do-i-install-and-use-java-8-if-i-already-have-a-different-version-of-java-installed/831/2
 	hailctl config set query/backend batch
 	hailctl config set query/jar_url $$(cat upload-qob-jar)
 	hailctl dev config set default_namespace $(NAMESPACE)
@@ -436,14 +417,6 @@ test-dataproc-38: install-hailctl
 deploy: test-dataproc $(WHEEL)
 	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR) $(GCP_PROJECT) $(HAIL_HAIL_DIR)/../infra/gcp-broad/gcp-ar-cleanup-policy.txt
 
-.PHONY: benchmark
-benchmark: $(WHEEL)
-	HAIL_WHEEL=../hail/$(WHEEL) HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
-
-.PHONY: install-benchmark
-install-benchmark:
-	HAIL_WHEEL=DUMMY HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark install
-
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
 	  < $< \
@@ -486,6 +459,7 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: hail-docs-no-test
+hail-docs-no-test: install-editable
 hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \

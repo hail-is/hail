@@ -163,9 +163,9 @@ object DeprecatedIRBuilder {
 
     def toD: IRProxy = (env: E) => Cast(ir(env), TFloat64)
 
-    def unary_-(): IRProxy = (env: E) => ApplyUnaryPrimOp(Negate(), ir(env))
+    def unary_-(): IRProxy = (env: E) => ApplyUnaryPrimOp(Negate, ir(env))
 
-    def unary_!(): IRProxy = (env: E) => ApplyUnaryPrimOp(Bang(), ir(env))
+    def unary_!(): IRProxy = (env: E) => ApplyUnaryPrimOp(Bang, ir(env))
 
     def ceq(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)

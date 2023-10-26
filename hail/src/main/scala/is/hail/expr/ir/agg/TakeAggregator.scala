@@ -27,7 +27,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
   def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, {
+    cb.if_(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
     })
 
@@ -38,7 +38,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
   }
 
   override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.ifx(region.isValid,
+    cb.if_(region.isValid,
       {
         regionStorer(cb, region)
         cb += region.invalidate()
@@ -67,7 +67,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
   }
 
   def seqOp(cb: EmitCodeBuilder, elt: EmitCode): Unit = {
-    cb.ifx(builder.size < maxSize,
+    cb.if_(builder.size < maxSize,
       elt.toI(cb)
         .consume(cb,
           builder.setMissing(cb),
@@ -77,7 +77,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
   def combine(cb: EmitCodeBuilder, other: TakeRVAS): Unit = {
     val j = kb.genFieldThisRef[Int]()
     cb.assign(j, 0)
-    cb.whileLoop((builder.size < maxSize) && (j < other.builder.size),
+    cb.while_((builder.size < maxSize) && (j < other.builder.size),
       {
         other.builder.loadElement(cb, j).toI(cb)
           .consume(cb,

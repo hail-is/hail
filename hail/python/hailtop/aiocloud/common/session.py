@@ -58,7 +58,7 @@ class RateLimitedSession(BaseSession):
             return await self._session.request(method, url, **kwargs)
 
     async def close(self) -> None:
-        if hasattr(self._session, '_session'):
+        if hasattr(self, '_session'):
             await self._session.close()
             del self._session
 

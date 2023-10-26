@@ -87,7 +87,7 @@ class Call(object):
         return self._alleles[item]
 
     @property
-    def alleles(self):
+    def alleles(self) -> Sequence[int]:
         """Get the alleles of this call.
 
         Returns

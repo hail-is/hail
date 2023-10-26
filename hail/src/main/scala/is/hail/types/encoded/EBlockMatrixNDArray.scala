@@ -34,14 +34,14 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     cb += out.writeInt(c.toI)
     cb += out.writeBoolean(encodeRowMajor)
     if (encodeRowMajor) {
-      cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
-        cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
+      cb.for_(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
+        cb.for_(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
           writeElemF(cb, ndarray.loadElement(FastSeq(i, j), cb), out)
         })
       })
     } else {
-      cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
-        cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
+      cb.for_(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
+        cb.for_(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
           writeElemF(cb, ndarray.loadElement(FastSeq(i, j), cb), out)
         })
       })
@@ -66,7 +66,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     val currElementAddress = cb.newLocal[Long]("eblockmatrix_ndarray_currElementAddress", tFirstElementAddress)
 
     val i = cb.newLocal[Int]("i")
-    cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1), {
+    cb.for_(cb.assign(i, 0), i < n, cb.assign(i, i + 1), {
       readElemF(cb, region, currElementAddress, in)
       cb.assign(currElementAddress, currElementAddress + pt.elementType.byteSize)
     })
@@ -80,7 +80,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     val len = cb.newLocal[Int]("len", in.readInt() * in.readInt())
     val i = cb.newLocal[Int]("i")
     cb += in.skipBoolean()
-    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
+    cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
   }
 
   def _asIdent = s"ndarray_of_${ elementType.asIdent }"

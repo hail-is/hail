@@ -1,0 +1,5 @@
+-c ../../hail/python/pinned-requirements.txt
+# dev is installed in the batch tests
+-c ../../hail/python/dev/pinned-requirements.txt
+
+matplotlib>=3.5,<4

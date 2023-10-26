@@ -85,6 +85,8 @@ compileScala {
 }
 
 configurations {
+    justSpark
+
     all {
         resolutionStrategy {
             eachDependency { DependencyResolveDetails details ->
@@ -92,14 +94,21 @@ configurations {
                     details.useVersion(sparkVersion)
                 }
             }
-	}
+        }
     }
 
-    testCompileOnly.extendsFrom shadow
+    hailJar.extendsFrom implementation
+    hailJar {
+        exclude group: 'org.scala-lang', module: 'scala-library'
+        exclude group: 'org.scala-lang', module: 'scala-reflect'
+        exclude group: 'org.apache.spark'
+    }
+
+    testImplementation.extendsFrom shadow
 }
 
 dependencies {
-    shadow ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
+    justSpark('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude group: 'org.scalanlp'
     }
 
@@ -330,12 +339,13 @@ tasks.withType(ShadowJar) {
 
 shadowJar {
     archiveClassifier = 'spark'
+    from project.sourceSets.main.output
+    configurations = [project.configurations.hailJar]
 }
 
 task shadowTestJar(type: ShadowJar) {
     archiveClassifier = 'spark-test'
-    from sourceSets.test.output
-    from sourceSets.main.output
+    from project.sourceSets.main.output, project.sourceSets.test.output
     configurations = [project.configurations.testRuntimeClasspath]
 }
 

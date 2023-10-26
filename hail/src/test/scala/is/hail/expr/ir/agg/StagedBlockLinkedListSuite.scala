@@ -31,7 +31,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         ptr
       }
 
-      fb.result(ctx)(theHailClassLoader)(_)
+      fb.result()(theHailClassLoader)(_)
     }
 
     private val pushF: (Region, Long, E) => Unit = {
@@ -52,7 +52,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         Code._empty
       }
 
-      val f = fb.result(ctx)(theHailClassLoader)
+      val f = fb.result()(theHailClassLoader)
       ({ (r, ptr, elt) =>
         f(r, ptr, if(elt == null) 0L else ScalaToRegionValue(ctx.stateManager, r, elemPType, elt))
       })
@@ -75,7 +75,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         Code._empty
       }
 
-      val f = fb.result(ctx)(theHailClassLoader)
+      val f = fb.result()(theHailClassLoader)
       ({ (r, ptr, other) =>
         assert(other.elemPType.required == elemPType.required)
         f(r, ptr, other.ptr)
@@ -96,7 +96,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         sbll.resultArray(cb, rArg, arrayPType).a
       }
 
-      val f = fb.result(ctx)(theHailClassLoader)
+      val f = fb.result()(theHailClassLoader)
       ({ (r, ptr) =>
         SafeRow.read(arrayPType, f(r, ptr))
           .asInstanceOf[IndexedSeq[E]]
@@ -119,7 +119,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         dstPtr
       }
 
-      val f = fb.result(ctx)(theHailClassLoader)
+      val f = fb.result()(theHailClassLoader)
       ({ (r, other) => f(r, other.ptr) })
      }
 

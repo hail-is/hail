@@ -1,6 +1,5 @@
 import math
-from typing import Collection, Optional, Set
-from typing import List, Tuple, Dict
+from typing import Collection, Optional, Set, Union, List, Tuple, Dict
 
 import hail as hl
 from hail import MatrixTable, Table
@@ -30,16 +29,16 @@ def make_variants_matrix_table(mt: MatrixTable,
 
     transform_row = _transform_variant_function_map.get((mt.row.dtype, info_key))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
-        def get_lgt(e, n_alleles, has_non_ref, row):
-            index = e.GT.unphased_diploid_gt_index()
+        def get_lgt(gt, n_alleles, has_non_ref, row):
+            index = gt.unphase().unphased_diploid_gt_index()
             n_no_nonref = n_alleles - hl.int(has_non_ref)
             triangle_without_nonref = hl.triangle(n_no_nonref)
             return (hl.case()
-                    .when(e.GT.is_haploid(),
-                          hl.or_missing(e.GT[0] < n_no_nonref, e.GT))
-                    .when(index < triangle_without_nonref, e.GT)
+                    .when(gt.is_haploid(),
+                          hl.or_missing(gt[0] < n_no_nonref, gt))
+                    .when(index < triangle_without_nonref, gt)
                     .when(index < hl.triangle(n_alleles), hl.missing('call'))
-                    .or_error('invalid GT ' + hl.str(e.GT) + ' at site ' + hl.str(row.locus)))
+                    .or_error('invalid call ' + hl.str(gt) + ' at site ' + hl.str(row.locus)))
 
         def make_entry_struct(e, alleles_len, has_non_ref, row):
             handled_fields = dict()
@@ -53,11 +52,12 @@ def make_variants_matrix_table(mt: MatrixTable,
                 raise hl.utils.FatalError("the Hail VDS combiner expects input GVCFs to have a 'GT' field in FORMAT.")
 
             handled_fields['LA'] = hl.range(0, alleles_len - hl.if_else(has_non_ref, 1, 0))
-            handled_fields['LGT'] = get_lgt(e, alleles_len, has_non_ref, row)
+            handled_fields['LGT'] = get_lgt(e.GT, alleles_len, has_non_ref, row)
             if 'AD' in e:
                 handled_fields['LAD'] = hl.if_else(has_non_ref, e.AD[:-1], e.AD)
             if 'PGT' in e:
-                handled_fields['LPGT'] = e.PGT
+                handled_fields['LPGT'] = e.PGT if e.PGT.dtype != hl.tcall \
+                                               else get_lgt(e.PGT, alleles_len, has_non_ref, row)
             if 'PL' in e:
                 handled_fields['LPL'] = hl.if_else(has_non_ref,
                                                    hl.if_else(alleles_len > 2,
@@ -75,11 +75,10 @@ def make_variants_matrix_table(mt: MatrixTable,
 
             handled_fields['gvcf_info'] = (hl.case()
                                            .when(hl.is_missing(row.info.END),
-                                                 hl.struct(**(
-                                                     parse_as_fields(
-                                                         row.info.select(*info_to_keep),
-                                                         has_non_ref)
-                                                 )))
+                                                 parse_allele_specific_fields(
+                                                     row.info.select(*info_to_keep),
+                                                     has_non_ref
+                                                 ))
                                            .or_missing())
 
             pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
@@ -205,11 +204,10 @@ def make_variant_stream(stream, info_to_keep):
 
             handled_fields['gvcf_info'] = (hl.case()
                                            .when(hl.is_missing(row.info.END),
-                                                 hl.struct(**(
-                                                     parse_as_fields(
-                                                         row.info.select(*info_to_keep),
-                                                         has_non_ref)
-                                                 )))
+                                                 parse_allele_specific_fields(
+                                                     row.info.select(*info_to_keep),
+                                                     has_non_ref
+                                                 ))
                                            .or_missing())
 
             pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
@@ -383,28 +381,28 @@ _merge_function_map: Dict[Tuple[hl.HailType, hl.HailType], Function] = {}
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
-def parse_as_ints(string, has_non_ref):
+def parse_allele_specific_ints(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.if_else(has_non_ref, ints[:-1], ints)
     return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.missing(hl.tint32), hl.int32(i)))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
-def parse_as_doubles(string, has_non_ref):
+def parse_allele_specific_doubles(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.if_else(has_non_ref, ints[:-1], ints)
     return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.missing(hl.tfloat64), hl.float64(i)))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
-def parse_as_sb_table(string, has_non_ref):
+def parse_allele_specific_sb_table(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.if_else(has_non_ref, ints[:-1], ints)
     return ints.map(lambda xs: xs.split(",").map(hl.int32))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
-def parse_as_ranksum(string, has_non_ref):
+def parse_allele_specific_ranksum(string, has_non_ref):
     typ = hl.ttuple(hl.tfloat64, hl.tint32)
     items = string.split(r'\|')
     items = hl.if_else(has_non_ref, items[:-1], items)
@@ -417,19 +415,25 @@ def parse_as_ranksum(string, has_non_ref):
             hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
 
 
-_as_function_map = {
-    'AS_QUALapprox': parse_as_ints,
-    'AS_RAW_MQ': parse_as_doubles,
-    'AS_RAW_MQRankSum': parse_as_ranksum,
-    'AS_RAW_ReadPosRankSum': parse_as_ranksum,
-    'AS_SB_TABLE': parse_as_sb_table,
-    'AS_VarDP': parse_as_ints,
+_allele_specific_field_parsers = {
+    'AS_QUALapprox': parse_allele_specific_ints,
+    'AS_RAW_MQ': parse_allele_specific_doubles,
+    'AS_RAW_MQRankSum': parse_allele_specific_ranksum,
+    'AS_RAW_ReadPosRankSum': parse_allele_specific_ranksum,
+    'AS_SB_TABLE': parse_allele_specific_sb_table,
+    'AS_VarDP': parse_allele_specific_ints,
 }
 
 
-def parse_as_fields(info, has_non_ref):
-    return hl.struct(**{f: info[f] if f not in _as_function_map
-    else _as_function_map[f](info[f], has_non_ref) for f in info})
+def parse_allele_specific_fields(info: hl.StructExpression,
+                                 has_non_ref: Union[bool, hl.BooleanExpression]
+                                 ) -> hl.StructExpression:
+    def parse_field(field: str) -> hl.Expression:
+        if parse := _allele_specific_field_parsers.get(field):
+            return parse(info[field], has_non_ref)
+        return info[field]
+
+    return hl.struct(**{f: parse_field(f) for f in info})
 
 
 def localize(mt):

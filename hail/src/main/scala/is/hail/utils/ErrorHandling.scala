@@ -8,10 +8,11 @@ class HailException(val msg: String, val logMsg: Option[String], cause: Throwabl
 }
 
 class HailWorkerException(
+  val partitionId: Int,
   val shortMessage: String,
   val expandedMessage: String,
   val errorId: Int
-) extends RuntimeException(shortMessage)
+) extends RuntimeException(s"[partitionId=$partitionId] " + shortMessage)
 
 trait ErrorHandling {
   def fatal(msg: String): Nothing = throw new HailException(msg)
@@ -58,8 +59,6 @@ trait ErrorHandling {
     val short = deepestMessage(e)
     val expanded = expandException(e, false)
     val logExpanded = expandException(e, true)
-
-    log.error(s"$short\nFrom $logExpanded")
 
     def searchForErrorCode(exception: Throwable): Int = {
       if (exception.isInstanceOf[HailException]) {

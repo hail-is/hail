@@ -978,7 +978,7 @@ object LowerTableIR {
         val ord = PartitionBoundOrdering(ctx.stateManager, kt)
         val iord = ord.intervalEndpointOrdering
 
-        val filterPartitioner = new RVDPartitioner(ctx.stateManager, kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering))
+        val filterPartitioner = new RVDPartitioner(ctx.stateManager, kt, Interval.union(intervals, ord.intervalEndpointOrdering))
         val boundsType = TArray(RVDPartitioner.intervalIRRepresentation(kt))
         val filterIntervalsRef = Ref(genUID(), boundsType)
         val filterIntervals: IndexedSeq[Interval] = filterPartitioner.rangeBounds.map { i =>

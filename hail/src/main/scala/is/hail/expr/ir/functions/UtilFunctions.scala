@@ -330,7 +330,7 @@ object UtilFunctions extends RegistryFunctions {
       case (cb, _, rt,_ , l, r) =>
         if (l.required && r.required) {
           val result = cb.newLocal[Boolean]("land_result")
-          cb.ifx(l.toI(cb).get(cb).asBoolean.value, {
+          cb.if_(l.toI(cb).get(cb).asBoolean.value, {
             cb.assign(result, r.toI(cb).get(cb).asBoolean.value)
           }, {
             cb.assign(result, const(false))
@@ -350,7 +350,7 @@ object UtilFunctions extends RegistryFunctions {
               b1 => cb.assign(w, b1.asBoolean.value.mux(const(2), const(0)))
             )
 
-          cb.ifx(w.cne(0),
+          cb.if_(w.cne(0),
             {
               r.toI(cb).consume(cb,
                 cb.assign(w, w | const(4)),
@@ -368,7 +368,7 @@ object UtilFunctions extends RegistryFunctions {
       case (cb, _, rt,_, l, r) =>
         if (l.required && r.required) {
           val result = cb.newLocal[Boolean]("land_result")
-          cb.ifx(l.toI(cb).get(cb).asBoolean.value, {
+          cb.if_(l.toI(cb).get(cb).asBoolean.value, {
             cb.assign(result, const(true))
           }, {
             cb.assign(result, r.toI(cb).get(cb).asBoolean.value)
@@ -388,7 +388,7 @@ object UtilFunctions extends RegistryFunctions {
               b1 => cb.assign(w, b1.asBoolean.value.mux(const(2), const(0)))
             )
 
-          cb.ifx(w.cne(2),
+          cb.if_(w.cne(2),
             {
               r.toI(cb).consume(cb,
                 cb.assign(w, w | const(4)),
