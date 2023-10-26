@@ -1,5 +1,4 @@
 import os
-import asyncio
 import warnings
 import re
 from typing import Callable, Optional, Dict, Union, List, Any, Set
@@ -686,7 +685,7 @@ class Batch:
         backend_kwargs:
             See :meth:`.Backend._run` for backend-specific arguments.
         """
-        return asyncio.run(self._async_run(dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))  # type: ignore
+        return async_to_blocking(self._async_run(dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))  # type: ignore
 
     # Do not try to overload this based on dry_run. LocalBackend.run also returns None.
     async def _async_run(

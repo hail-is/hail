@@ -83,7 +83,7 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         -------
         This method should not be called directly. Instead, use :meth:`.batch.Batch.run`.
         """
-        return asyncio.run(self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))
+        return async_to_blocking(self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))
 
     @abc.abstractmethod
     async def _async_run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
@@ -114,7 +114,7 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         This method should be called after executing your batches at the
         end of your script.
         """
-        asyncio.run(self.async_close())
+        async_to_blocking(self.async_close())
 
     async def async_close(self):
         if not self._closed:
