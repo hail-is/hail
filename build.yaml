@@ -1358,7 +1358,7 @@ steps:
         value:
           valueFrom: hail_ubuntu_image.image
       - name: HAIL_WHEEL_DIR
-        value: /io/repo/wheel
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
@@ -1380,7 +1380,7 @@ steps:
         value:
           valueFrom: hail_ubuntu_image_python_3_10.image
       - name: HAIL_WHEEL_DIR
-        value: /io/repo/wheel
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
@@ -1402,7 +1402,7 @@ steps:
         value:
           valueFrom: hail_ubuntu_image_python_3_11.image
       - name: HAIL_WHEEL_DIR
-        value: /io/repo/wheel
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
