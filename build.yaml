@@ -2615,7 +2615,7 @@ steps:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
         FROM $BASE_IMAGE
-        RUN pip install torch torchvision -f https://download.pytorch.org/whl/cu113/torch_stable.html
+        RUN hail-pip-install torch torchvision -f https://download.pytorch.org/whl/cu113/torch_stable.html
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2
