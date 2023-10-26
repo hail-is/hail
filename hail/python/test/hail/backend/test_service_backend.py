@@ -67,14 +67,6 @@ def test_big_worker_has_big_memory():
 def test_regions():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
-    old_regions = backend.regions
-    CLOUD = os.environ['HAIL_CLOUD']
-    try:
-        if CLOUD == 'gcp':
-            backend.regions = ['us-east1']
-        else:
-            assert CLOUD == 'azure'
-            backend.regions = ['eastus']
-        hl.utils.range_table(1, 1).to_pandas()
-    finally:
-        backend.regions = old_regions
+    # We run a fresh ServiceBackend for each test so this does not need to be reset
+    backend.regions = [os.environ['HAIL_BATCH_REGION']]
+    hl.utils.range_table(1, 1).to_pandas()

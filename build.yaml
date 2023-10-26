@@ -2442,6 +2442,14 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
+      export HAIL_BATCH_REGION={{ global.gcp_region }}
+      {% for region in global.batch_gcp_regions if region != global.gcp_region %}
+      # Pick the first non-default region
+      {% if loop.first %}
+      export HAIL_BATCH_REGION={{ region }}
+      {% endif %}
+      {% endfor %}
+
       export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
 
       export HAIL_SHUFFLE_MAX_BRANCH=4
@@ -2513,6 +2521,7 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
+      export HAIL_BATCH_REGION={{ global.azure_location }}
       export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
       export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
 
