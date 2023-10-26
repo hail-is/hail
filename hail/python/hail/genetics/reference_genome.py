@@ -48,6 +48,15 @@ class ReferenceGenome:
     Reference genome names must be unique. It is not possible to overwrite the
     built-in reference genomes.
 
+    Default References
+    ------------------
+    Hail allows setting a default reference so that the ``reference_genome``
+    argument of :func:`~hail.import_vcf` does not need to be used constantly.
+    It is a current limitation of hail that a custom reference genome cannot be
+    used as the ``default_reference`` argument of :func:`~hail.init`. In order
+    to set a custom reference genome as default, pass the reference as an argument
+    to :func:`~hail.default_reference` after initializing hail.
+
     Parameters
     ----------
     name : :class:`str`
