@@ -54,8 +54,8 @@ deploy_unmanaged() {
 
     export NAMESPACE=default
     kubectl -n default apply -f $HAIL/ci/bootstrap.yaml
-    make -C $HAIL push-private-ci-utils-image push-private-hail-buildkit-image
-    make -C $HAIL push-private-batch-worker-image
+    make -C $HAIL pushed-private-ci-utils-image pushed-private-hail-buildkit-image
+    make -C $HAIL pushed-private-batch-worker-image
     make -C $HAIL/internal-gateway envoy-xds-config deploy
     make -C $HAIL/bootstrap-gateway deploy
     make -C $HAIL/letsencrypt run
