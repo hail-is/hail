@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, RegionPool, SafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.virtual._
@@ -722,6 +722,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     case Str(v) => ConstantValue(v, x.typ)
     case NA(_) => ConstantValue(null, x.typ)
     case Literal(_, value) => ConstantValue(value, x.typ)
+    case EncodedLiteral(codec, arrays) =>
+      ConstantValue(ctx.r.getPool().scopedRegion { r =>
+        val (pt, addr) = codec.decodeArrays(ctx, codec.encodedVirtualType, arrays.ba, ctx.r)
+        SafeRow.read(pt, addr)
+      }, x.typ)
     case ApplySpecial("lor", _, _, _, _) => children match {
       case Seq(ConstantValue(l: Boolean), ConstantValue(r: Boolean)) => ConstantValue(l || r, TBoolean)
       case _ => AbstractLattice.top

@@ -1020,8 +1020,8 @@ steps:
       export VECLIB_MAXIMUM_THREADS=2
       export NUMEXPR_NUM_THREADS=2
 
-      export HAIL_TEST_RESOURCES_DIR=./resources
-      export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_TEST_RESOURCES_DIR=$(realpath ./resources)
+      export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
@@ -1142,8 +1142,8 @@ steps:
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
 
-      export HAIL_TEST_RESOURCES_DIR=./resources
-      export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_TEST_RESOURCES_DIR=$(realpath ./resources)
+      export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
@@ -1212,8 +1212,8 @@ steps:
 
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_TEST_STORAGE_URI=/io/tmp/
-      export HAIL_TEST_RESOURCES_DIR=./resources
-      export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_TEST_RESOURCES_DIR=$(realpath ./resources)
+      export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_LOCAL_BACKEND_HEAP_SIZE=3G
 
       hailctl config set query/backend local
@@ -2307,6 +2307,9 @@ steps:
       - name: setup-job-groups
         script: /io/sql/setup-job-groups.sql
         online: true
+      - name: dedup-job-resources
+        script: /io/sql/dedup_job_resources.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2803,6 +2806,7 @@ steps:
       cp -R /io/repo/hail/python ./hail/
       cp /io/repo/hail/Makefile ./hail/
       cp /io/repo/hail/env_var.mk ./hail/
+      cp /io/repo/hail/version.mk ./hail/
       cp -R /io/repo/web_common ./
       cp /io/repo/hail/python/setup-hailtop.py ./hail/python/
 

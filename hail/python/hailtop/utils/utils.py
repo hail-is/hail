@@ -1,5 +1,5 @@
-from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict, Iterable, Tuple,
-                    Generic, cast, AsyncIterator, Iterator, Union)
+from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict,
+                    Iterable, Tuple, AsyncIterator, Iterator, Union)
 from typing import Literal, Sequence
 from typing_extensions import ParamSpec
 from types import TracebackType
@@ -27,6 +27,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
+from ..hail_event_loop import hail_event_loop
 
 try:
     import aiodocker  # pylint: disable=import-error
@@ -60,7 +61,7 @@ def unpack_key_value_inputs(inputs: List[str]) -> Dict[str, str]:
     return {kv[0]: kv[1] for kv in key_values}
 
 
-def flatten(xxs: Iterable[List[T]]) -> List[T]:
+def flatten(xxs: Iterable[Iterable[T]]) -> List[T]:
     return [x for xs in xxs for x in xs]
 
 
@@ -153,7 +154,7 @@ def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
 
 
 def async_to_blocking(coro: Awaitable[T]) -> T:
-    loop = asyncio.get_event_loop()
+    loop = hail_event_loop()
     task = asyncio.ensure_future(coro)
     try:
         return loop.run_until_complete(task)
@@ -178,86 +179,21 @@ async def blocking_to_async(thread_pool: concurrent.futures.Executor,
                             fun: Callable[..., T],
                             *args,
                             **kwargs) -> T:
-    return await asyncio.get_event_loop().run_in_executor(
+    return await asyncio.get_running_loop().run_in_executor(
         thread_pool, lambda: fun(*args, **kwargs))
 
 
 async def bounded_gather(*pfs: Callable[[], Awaitable[T]],
                          parallelism: int = 10,
-                         return_exceptions: bool = False
+                         return_exceptions: bool = False,
+                         cancel_on_error = False,
                          ) -> List[T]:
-    gatherer = AsyncThrottledGather[T](*pfs,
-                                       parallelism=parallelism,
-                                       return_exceptions=return_exceptions)
-    return await gatherer.wait()
-
-
-class AsyncThrottledGather(Generic[T]):
-    def __init__(self,
-                 *pfs: Callable[[], Awaitable[T]],
-                 parallelism: int = 10,
-                 return_exceptions: bool = False):
-        self.count = len(pfs)
-        self.n_finished = 0
-
-        self._queue: asyncio.Queue[Tuple[int, Callable[[], Awaitable[T]]]] = asyncio.Queue()
-        self._done = asyncio.Event()
-        self._return_exceptions = return_exceptions
-
-        self._results: List[Union[T, Exception, None]] = [None] * len(pfs)
-        self._errors: List[BaseException] = []
-
-        self._workers: List[asyncio.Task] = []
-        for _ in range(parallelism):
-            self._workers.append(asyncio.create_task(self._worker()))
-
-        for i, pf in enumerate(pfs):
-            self._queue.put_nowait((i, pf))
-
-    def _cancel_workers(self):
-        for worker in self._workers:
-            try:
-                if worker.done() and not worker.cancelled():
-                    exc = worker.exception()
-                    if exc:
-                        raise exc
-                else:
-                    worker.cancel()
-            except Exception:
-                pass
-
-    async def _worker(self):
-        while True:
-            i, pf = await self._queue.get()
-
-            try:
-                res = await pf()
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception as err:  # pylint: disable=broad-except
-                res = err  # type: ignore
-                if not self._return_exceptions:
-                    self._errors.append(err)
-                    self._done.set()
-                    return
-
-            self._results[i] = res
-            self.n_finished += 1
-
-            if self.n_finished == self.count:
-                self._done.set()
-
-    async def wait(self) -> List[T]:
-        try:
-            if self.count > 0:
-                await self._done.wait()
-        finally:
-            self._cancel_workers()
-
-        if self._errors:
-            raise self._errors[0]
-
-        return cast(List[T], self._results)
+    return await bounded_gather2(
+        asyncio.Semaphore(parallelism),
+        *pfs,
+        return_exceptions=return_exceptions,
+        cancel_on_error=cancel_on_error
+    )
 
 
 class AsyncWorkerPool:

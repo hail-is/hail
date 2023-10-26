@@ -17,6 +17,7 @@ from hail.typecheck import (nullable, typecheck, typecheck_method, enumeration, 
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
+from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import secret_alnum_string
 from hailtop.fs.fs import FS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
@@ -139,6 +140,12 @@ class HailContext(object):
     def default_reference(self) -> ReferenceGenome:
         assert self._default_ref is not None, '_default_ref should have been initialized in HailContext.create'
         return self._default_ref
+
+    @default_reference.setter
+    def set_default_reference(self, value):
+        if not isinstance(value, ReferenceGenome):
+            raise TypeError(f'{value} is {type(value)} not a ReferenceGenome')
+        self._default_ref = value
 
     def stop(self):
         assert self._backend
@@ -337,8 +344,7 @@ def init(sc=None,
         backend = 'batch'
 
     if backend == 'batch':
-        import asyncio
-        return asyncio.get_event_loop().run_until_complete(init_batch(
+        return hail_event_loop().run_until_complete(init_batch(
             log=log,
             quiet=quiet,
             append=append,
@@ -820,13 +826,17 @@ async def _async_current_backend() -> Backend:
     return (await Env._async_hc())._backend
 
 
-def default_reference():
-    """Returns the default reference genome ``'GRCh37'``.
+def default_reference(new_default_reference: Optional[ReferenceGenome] = None) -> Optional[ReferenceGenome]:
+    """With no argument, returns the default reference genome (``'GRCh37'`` by default).
+    With an argument, sets the default reference genome to the argument.
 
     Returns
     -------
     :class:`.ReferenceGenome`
     """
+    if new_default_reference is not None:
+        Env.hc().default_reference = new_default_reference
+        return None
     return Env.hc().default_reference
 
 

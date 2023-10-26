@@ -5,8 +5,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
-import is.hail.io.BufferSpec
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVDPartitioner, RVDType}
+import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq, tcoerce}
@@ -21,6 +22,8 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional
+
+import java.util.Base64
 
 abstract class Token extends Positional {
   def value: Any
@@ -841,7 +844,14 @@ object IRParser {
         val (t, v) = ir_value(it)
         done(Literal.coerce(t, v))
       case "EncodedLiteral" =>
-        throw new UnsupportedOperationException("Not currently parsable")
+        val typ = type_expr(it)
+        val encodedValue = Base64.getDecoder.decode(string_literal(it))
+        val codec = TypedCodecSpec(
+          EType.fromPythonTypeEncoding(typ),
+          typ,
+          BufferSpec.unblockedUncompressed
+        )
+        done(EncodedLiteral(codec, Array(encodedValue)))
       case "Void" => done(Void())
       case "Cast" =>
         val typ = type_expr(it)

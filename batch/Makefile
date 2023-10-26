@@ -2,7 +2,7 @@ include ../config.mk
 
 .PHONY: build
 build:
-	$(MAKE) -C .. batch-image batch-worker-image
+	$(MAKE) -C .. push-private-batch-image push-private-batch-worker-image
 
 JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"batch_image":{"image":"$(shell cat ../batch-image)"},"batch_worker_image":{"image":"$(shell cat ../batch-worker-image)"},"default_ns":{"name":"$(NAMESPACE)"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"scope":"$(SCOPE)","global":{"docker_prefix":"$(DOCKER_PREFIX)","cloud":"$(CLOUD)"}}'
 

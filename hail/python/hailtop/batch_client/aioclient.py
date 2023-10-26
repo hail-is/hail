@@ -777,6 +777,7 @@ class Batch:
               for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
               ],
             parallelism=6,
+            cancel_on_error=True,
         )
 
     async def _submit(self,

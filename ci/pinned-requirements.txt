@@ -15,7 +15,7 @@ cffi==1.16.0
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   cryptography
-charset-normalizer==3.3.0
+charset-normalizer==3.3.1
     # via
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
@@ -28,7 +28,7 @@ click==8.1.7
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   zulip
-cryptography==41.0.4
+cryptography==41.0.5
     # via
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   pyjwt
@@ -71,7 +71,7 @@ uritemplate==4.1.1
     # via
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   gidgethub
-urllib3==1.26.17
+urllib3==1.26.18
     # via
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt

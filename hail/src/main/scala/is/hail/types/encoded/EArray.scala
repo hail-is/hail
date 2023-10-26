@@ -98,6 +98,8 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       case t: PCanonicalDict => t.arrayRep
     }
 
+    assert(arrayType.elementType.required == elementType.required, s"${arrayType.elementType.required} | ${elementType.required}")
+
     val len = cb.memoize(in.readInt(), "len")
     val array = cb.memoize(arrayType.allocate(region, len), "array")
     arrayType.storeLength(cb, array, len)
