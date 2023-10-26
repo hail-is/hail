@@ -10,9 +10,11 @@ import is.hail.types.virtual._
 import is.hail.utils.{Logging, TreeTraversal, toRichBoolean}
 import org.apache.commons.codec.digest.MurmurHash3
 
+import java.io.FileNotFoundException
 import java.nio.ByteBuffer
 import scala.collection.mutable
 import scala.language.implicitConversions
+import scala.util.control.NonFatal
 
 case object SemanticHash extends Logging {
   type Type = Int
@@ -39,11 +41,23 @@ case object SemanticHash extends Logging {
           // Include an encoding of a node's position in the parent's child array
           // to differentiate between IR trees that look identical when flattened
           for ((ir, index) <- levelOrder(nameNormalizedIR)) {
-            encode(ctx.fs, ir, index) match {
-              case Right(bytes) =>
-                hash = extend(hash, bytes)
-              case Left(failure) =>
-                log.warn(s"Failed to compute SemanticHash: $failure")
+            try {
+              val bytes = encode(ctx.fs, ir, index)
+              hash = extend(hash, bytes)
+            } catch {
+              case error@(_: UnsupportedOperationException | _: FileNotFoundException) =>
+                log.info(error)
+                return None
+
+              case NonFatal(error) =>
+                log.warn(
+                  """AN INTERNAL COMPILER ERROR OCCURRED.
+                    |PLEASE REPORT THIS TO THE HAIL TEAM USING THE LINK BELOW,
+                    |INCLUDING THE STACK TRACE AT THE END OF THIS MESSAGE.
+                    |https://github.com/hail-is/hail/issues/new/choose
+                    |""".stripMargin,
+                  error
+                )
                 return None
             }
           }
@@ -58,8 +72,8 @@ case object SemanticHash extends Logging {
       semhash
     }
 
-  private def encode(fs: FS, ir: BaseIR, index: Int)
-  : Either[String, Array[Byte]] = {
+
+  private def encode(fs: FS, ir: BaseIR, index: Int): Array[Byte] = {
     val buffer: mutable.ArrayBuilder[Byte] =
       Array.newBuilder[Byte] ++=
         Bytes.fromClass(ir.getClass) ++=
@@ -142,7 +156,7 @@ case object SemanticHash extends Logging {
             buffer ++= getFileHash(fs)(path)
 
           case _ =>
-            return Left(s"SemanticHash unknown: ${reader.getClass.getName}")
+            throw new UnsupportedOperationException(s"SemanticHash unknown: ${reader.getClass.getName}")
         }
 
       case Cast(_, typ) =>
@@ -164,18 +178,12 @@ case object SemanticHash extends Logging {
         fields.foreach { case (index, _) => buffer ++= Bytes.fromInt(index) }
 
       case MatrixLiteral(ty, tLiteral) =>
-        encode(fs, tLiteral, 0) match {
-          case Right(bytes) =>
-            buffer ++=
-              EncodeTypename(ty.globalType) ++=
-              EncodeTypename(ty.rowType) ++=
-              EncodeTypename(ty.colType) ++=
-              EncodeTypename(ty.entryType) ++=
-              bytes
-
-          case failure =>
-            return failure
-        }
+        buffer ++=
+          EncodeTypename(ty.globalType) ++=
+          EncodeTypename(ty.rowType) ++=
+          EncodeTypename(ty.colType) ++=
+          EncodeTypename(ty.entryType) ++=
+          encode(fs, tLiteral, 0)
 
       case MatrixRead(_, _, _, reader) =>
         buffer ++= Bytes.fromClass(reader.getClass)
@@ -195,10 +203,11 @@ case object SemanticHash extends Logging {
               .foreach(g => buffer ++= getFileHash(fs)(g.getPath))
 
           case _: MatrixVCFReader =>
-            reader.pathsUsed.foreach(buffer ++= getFileHash(fs)(_))
-
+            reader.pathsUsed.foreach { path =>
+              buffer ++= getFileHash(fs)(path)
+            }
           case _ =>
-            return Left(s"SemanticHash unknown: ${reader.getClass.getName}")
+            throw new UnsupportedOperationException(s"SemanticHash unknown: ${reader.getClass.getName}")
         }
 
       case MatrixWrite(_, writer) =>
@@ -247,7 +256,7 @@ case object SemanticHash extends Logging {
               .foreach(g => buffer ++= getFileHash(fs)(g.getPath))
 
           case _ =>
-            return Left(s"SemanticHash unknown: ${reader.getClass.getName}")
+            throw new UnsupportedOperationException(s"SemanticHash unknown: ${reader.getClass.getName}")
         }
 
       case TableToValueApply(_, op) =>
@@ -262,7 +271,7 @@ case object SemanticHash extends Logging {
                 buffer ++= Bytes.fromClass(op.getClass)
 
               case _: MatrixExportEntriesByCol =>
-                return Left("SemanticHash unknown: MatrixExportEntriesByCol")
+                throw new UnsupportedOperationException("SemanticHash unknown: MatrixExportEntriesByCol")
             }
 
           case _: ForceCountTable | _: NPartitionsTable =>
@@ -356,13 +365,14 @@ case object SemanticHash extends Logging {
       case NA(typ) => buffer ++= EncodeTypename(typ)
       case Str(x) => buffer ++= x.getBytes
 
-      // In these cases, just return None meaning that two
-      // invocations will never return the same thing.
+      // We don't know how to compute the semantic hash of this IR yet.
+      // In these cases, just return None in the main loop above meaning that
+      // two invocations will never return the same thing.
       case _ =>
-        return Left(s"SemanticHash unknown: ${ir.getClass.getName}")
+        throw new UnsupportedOperationException(s"SemanticHash unknown: ${ir.getClass.getName}")
     }
 
-    Right(buffer.result())
+    buffer.result()
   }
 
   def getFileHash(fs: FS)(path: String): Array[Byte] =
