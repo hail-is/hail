@@ -51,9 +51,9 @@ case object SemanticHash extends Logging {
 
               case NonFatal(error) =>
                 log.warn(
-                  """An internal compiler error occurred.
-                    |Please report this to the Hail Team using the link below,
-                    |including the stack trace at the end of this message.
+                  """AN INTERNAL COMPILER ERROR OCCURRED.
+                    |PLEASE REPORT THIS TO THE HAIL TEAM USING THE LINK BELOW,
+                    |INCLUDING THE STACK TRACE AT THE END OF THIS MESSAGE.
                     |https://github.com/hail-is/hail/issues/new/choose
                     |""".stripMargin,
                   error
