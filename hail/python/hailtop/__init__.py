@@ -1,13 +1,3 @@
-import asyncio
-
-try:
-    asyncio.get_running_loop()
-    import nest_asyncio
-    nest_asyncio.apply()
-except RuntimeError as err:
-    assert err.args[0] == "no running event loop"
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
 _VERSION = None
 
 
