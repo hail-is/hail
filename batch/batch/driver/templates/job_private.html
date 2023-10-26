@@ -52,24 +52,44 @@
 </div>
 <table class="data-table" id="status">
   <thead>
-  <tr>
-    <th>Pending</th>
-    <th>Active</th>
-    <th>Inactive</th>
-    <th>Deleted</th>
-    <th>Live Total Cores</th>
-    <th>Live Free Cores</th>
-  </tr>
+    <tr>
+      <th colspan="2">Total</th>
+      <th colspan="2">Pending</th>
+      <th colspan="2">Active</th>
+      <th colspan="2">Inactive</th>
+      <th colspan="2">Deleted</th>
+      <th colspan="2">Live</th>
+    </tr>
+    <tr>
+      <th>Instances</th>
+      <th>Cores</th>
+      <th>Instances</th>
+      <th>Cores</th>
+      <th>Instances</th>
+      <th>Cores</th>
+      <th>Instances</th>
+      <th>Cores</th>
+      <th>Instances</th>
+      <th>Cores</th>
+      <th>Instances</th>
+      <th>Cores</th>
+    </tr>
   </thead>
   <tbody>
-  <tr>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['pending'] }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['active'] }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['inactive'] }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['deleted'] }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_total_cores_mcpu / 1000 }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_free_cores_mcpu / 1000 }}</td>
-  </tr>
+    <tr>
+      <td class="numeric-cell">{{ jpim.all_versions_total_n_instances }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_total_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['pending'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['pending'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['active'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['active'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['inactive'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['inactive'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['deleted'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['deleted'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_live_n_instances }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_live_cores_mcpu / 1000 }}</td>
+    </tr>
   </tbody>
 </table>
 

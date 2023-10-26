@@ -12,7 +12,7 @@ from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
 from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
 
-from ...globals import INSTANCE_VERSION
+from ...globals import INSTANCE_VERSION, live_instance_states
 from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
@@ -70,7 +70,7 @@ class InstanceCollectionManager:
         regions: List[str],
         machine_type: str,
     ) -> str:
-        if self._default_region in regions and self.global_total_provisioned_cores_mcpu // 1000 < 1_000:
+        if self._default_region in regions and self.global_live_cores_mcpu // 1000 < 1_000:
             regions = [self._default_region]
         return self.location_monitor.choose_location(
             cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions, machine_type
@@ -88,19 +88,25 @@ class InstanceCollectionManager:
         return result
 
     @property
-    def global_total_provisioned_cores_mcpu(self):
-        return sum(inst_coll.all_versions_provisioned_cores_mcpu for inst_coll in self.name_inst_coll.values())
+    def global_total_n_instances(self):
+        return sum(inst_coll.all_versions_total_n_instances for inst_coll in self.name_inst_coll.values())
 
     @property
-    def global_current_version_live_free_cores_mcpu(self):
-        return sum(
-            inst_coll.current_worker_version_stats.live_free_cores_mcpu for inst_coll in self.name_inst_coll.values()
-        )
+    def global_total_cores_mcpu(self):
+        return sum(inst_coll.all_versions_total_cores_mcpu for inst_coll in self.name_inst_coll.values())
 
     @property
-    def global_current_version_live_schedulable_free_cores_mcpu(self):
+    def global_live_n_instances(self):
+        return sum(inst_coll.all_versions_live_n_instances for inst_coll in self.name_inst_coll.values())
+
+    @property
+    def global_live_cores_mcpu(self):
+        return sum(inst_coll.all_versions_live_cores_mcpu for inst_coll in self.name_inst_coll.values())
+
+    @property
+    def global_current_version_active_schedulable_free_cores_mcpu(self):
         return sum(
-            inst_coll.current_worker_version_stats.live_schedulable_free_cores_mcpu
+            inst_coll.current_worker_version_stats.active_schedulable_free_cores_mcpu
             for inst_coll in self.name_inst_coll.values()
         )
 
@@ -110,6 +116,25 @@ class InstanceCollectionManager:
             (inst_coll.all_versions_instances_by_state for inst_coll in self.name_inst_coll.values()),
             collections.Counter(),
         )
+
+    @property
+    def global_cores_mcpu_by_state(self) -> Counter[str]:
+        return sum(
+            (inst_coll.all_versions_cores_mcpu_by_state for inst_coll in self.name_inst_coll.values()),
+            collections.Counter(),
+        )
+
+    @property
+    def global_schedulable_n_instances(self) -> int:
+        return sum(pool.current_worker_version_stats.n_instances_by_state['active'] for pool in self.pools.values())
+
+    @property
+    def global_schedulable_cores_mcpu(self) -> int:
+        return sum(pool.current_worker_version_stats.cores_mcpu_by_state['active'] for pool in self.pools.values())
+
+    @property
+    def global_schedulable_free_cores_mcpu(self) -> int:
+        return sum(pool.current_worker_version_stats.active_schedulable_free_cores_mcpu for pool in self.pools.values())
 
     def get_inst_coll(self, inst_coll_name):
         return self.name_inst_coll.get(inst_coll_name)
@@ -140,34 +165,31 @@ class InstanceCollectionManager:
 class InstanceCollectionStats:
     def __init__(self):
         self.n_instances_by_state = {'pending': 0, 'active': 0, 'inactive': 0, 'deleted': 0}
+        self.cores_mcpu_by_state = {'pending': 0, 'active': 0, 'inactive': 0, 'deleted': 0}
 
         self.live_free_cores_mcpu_by_region: Dict[str, int] = collections.defaultdict(int)
         # pending and active
-        self.live_free_cores_mcpu = 0
-        self.live_total_cores_mcpu = 0
-        self.live_schedulable_free_cores_mcpu = 0
+        self.active_schedulable_free_cores_mcpu = 0
 
     def remove_instance(self, instance: Instance):
         self.n_instances_by_state[instance.state] -= 1
+        self.cores_mcpu_by_state[instance.state] -= instance.cores_mcpu
 
-        if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu -= instance.free_cores_mcpu_nonnegative
-            self.live_total_cores_mcpu -= instance.cores_mcpu
+        if instance.state in live_instance_states:
             self.live_free_cores_mcpu_by_region[instance.region] -= instance.free_cores_mcpu_nonnegative
 
         if instance.state == 'active':
-            self.live_schedulable_free_cores_mcpu -= instance.free_cores_mcpu_nonnegative
+            self.active_schedulable_free_cores_mcpu -= instance.free_cores_mcpu_nonnegative
 
     def add_instance(self, instance: Instance):
         self.n_instances_by_state[instance.state] += 1
+        self.cores_mcpu_by_state[instance.state] += instance.cores_mcpu
 
-        if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu += instance.free_cores_mcpu_nonnegative
-            self.live_total_cores_mcpu += instance.cores_mcpu
+        if instance.state in live_instance_states:
             self.live_free_cores_mcpu_by_region[instance.region] += instance.free_cores_mcpu_nonnegative
 
         if instance.state == 'active':
-            self.live_schedulable_free_cores_mcpu += instance.free_cores_mcpu_nonnegative
+            self.active_schedulable_free_cores_mcpu += instance.free_cores_mcpu_nonnegative
 
 
 class InstanceCollection:
@@ -220,8 +242,43 @@ class InstanceCollection:
         )
 
     @property
-    def all_versions_provisioned_cores_mcpu(self):
-        return sum(version_stats.live_total_cores_mcpu for version_stats in self.stats_by_instance_version.values())
+    def all_versions_cores_mcpu_by_state(self):
+        return sum(
+            (
+                collections.Counter(version_stats.cores_mcpu_by_state)
+                for version_stats in self.stats_by_instance_version.values()
+            ),
+            collections.Counter(),
+        )
+
+    @property
+    def all_versions_total_n_instances(self):
+        return sum(
+            sum(version_stats.n_instances_by_state.values())
+            for version_stats in self.stats_by_instance_version.values()
+        )
+
+    @property
+    def all_versions_live_n_instances(self):
+        return sum(
+            version_stats.n_instances_by_state[state]
+            for version_stats in self.stats_by_instance_version.values()
+            for state in live_instance_states
+        )
+
+    @property
+    def all_versions_total_cores_mcpu(self):
+        return sum(
+            sum(version_stats.cores_mcpu_by_state.values()) for version_stats in self.stats_by_instance_version.values()
+        )
+
+    @property
+    def all_versions_live_cores_mcpu(self):
+        return sum(
+            version_stats.cores_mcpu_by_state[state]
+            for version_stats in self.stats_by_instance_version.values()
+            for state in live_instance_states
+        )
 
     @property
     def n_instances(self) -> int:

@@ -460,7 +460,7 @@ GROUP BY user;
 
         log.info(
             f'{self} n_instances {self.n_instances} {pool_stats.n_instances_by_state}'
-            f' free_cores {free_cores} live_free_cores {pool_stats.live_free_cores_mcpu / 1000}'
+            f' active_schedulable_free_cores {pool_stats.active_schedulable_free_cores_mcpu / 1000}'
             f' full_job_queue_ready_cores {sum(ready_cores_mcpu_per_user.values()) / 1000}'
             f' head_job_queue_ready_cores {sum(head_job_queue_ready_cores_mcpu.values()) / 1000}'
         )
