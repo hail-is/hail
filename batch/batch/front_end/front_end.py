@@ -41,6 +41,7 @@ from gear import (
     setup_aiohttp_session,
     transaction,
 )
+from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
@@ -81,6 +82,7 @@ from ..exceptions import (
     ClosedBillingProjectError,
     InvalidBillingLimitError,
     NonExistentBillingProjectError,
+    NonExistentUserError,
     QueryError,
 )
 from ..file_store import FileStore
@@ -2556,7 +2558,16 @@ async def api_get_billing_projects_remove_user(request: web.Request) -> web.Resp
     return json_response({'billing_project': billing_project, 'user': user})
 
 
-async def _add_user_to_billing_project(db, billing_project, user):
+async def _add_user_to_billing_project(request: web.Request, db: Database, billing_project: str, user: str):
+    try:
+        session_id = await get_session_id(request)
+        url = deploy_config.url('auth', f'/api/v1alpha/users/{user}')
+        await impersonate_user(session_id, request.app['client_session'], url)
+    except aiohttp.ClientResponseError as e:
+        if e.status == 404:
+            raise NonExistentUserError(user) from e
+        raise
+
     @transaction(db)
     async def insert(tx):
         # we want to be case-insensitive here to avoid duplicates with existing records
@@ -2588,6 +2599,7 @@ WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted' L
             raise BatchOperationAlreadyCompletedError(
                 f'User {user} is already member of billing project {billing_project}.', 'info'
             )
+
         await tx.execute_insertone(
             '''
 INSERT INTO billing_project_users(billing_project, user, user_cs)
@@ -2605,13 +2617,13 @@ VALUES (%s, %s, %s);
 async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
-    user = post['user']
+    user = str(post['user'])
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
 
     try:
-        await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
+        await _handle_ui_error(session, _add_user_to_billing_project, request, db, billing_project, user)
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -2624,7 +2636,7 @@ async def api_billing_projects_add_user(request: web.Request) -> web.Response:
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
 
-    await _handle_api_error(_add_user_to_billing_project, db, billing_project, user)
+    await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user)
     return json_response({'billing_project': billing_project, 'user': user})
 
 
