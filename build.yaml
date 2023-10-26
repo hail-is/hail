@@ -3225,9 +3225,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-dataproc-service-account-key
-    scopes:
-      - deploy
-      - dev
     clouds:
       - gcp
   - kind: runImage
@@ -3267,9 +3264,6 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-dataproc-service-account-key
-    scopes:
-      - deploy
-      - dev
     clouds:
       - gcp
   - kind: runImage
