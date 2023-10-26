@@ -2,6 +2,7 @@ package is.hail.backend
 
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
+import java.util.concurrent._
 import com.sun.net.httpserver.{HttpContext, HttpExchange, HttpHandler, HttpServer}
 
 import org.json4s._
@@ -26,12 +27,22 @@ class BackendServer(backend: Backend) {
   // 0 => let the OS pick an available port
   private[this] val httpServer = HttpServer.create(new InetSocketAddress(0), 10)
   private[this] val handler = new BackendHttpHandler(backend)
+  private[this] val executor = Executors.newFixedThreadPool(1,
+    new ThreadFactory() {
+      private[this] val childFactory = Executors.defaultThreadFactory()
+
+      def newThread(r: Runnable): Thread = {
+        val t = childFactory.newThread(r)
+        t.setDaemon(true)
+        t
+      }
+    })
 
   def port = httpServer.getAddress.getPort
 
   def start(): Unit = {
     httpServer.createContext("/", handler)
-    httpServer.setExecutor(null)
+    httpServer.setExecutor(executor)
     httpServer.start()
   }
 
