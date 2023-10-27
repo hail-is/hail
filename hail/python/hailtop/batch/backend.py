@@ -804,6 +804,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 image=HAIL_GENETICS_HAILTOP_IMAGE,
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
+                resources={'cpu': '0.25'},
                 attributes={'name': 'remove_tmpdir'},
                 always_run=True)
             n_jobs_submitted += 1
