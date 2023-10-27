@@ -84,7 +84,9 @@ async def render_template(
 ) -> web.Response:
 
     if request.headers.get('x-hail-return-jinja-context'):
-        return web.json_response({'file': file, 'page_context': page_context, 'userdata': userdata})
+        if userdata and userdata['is_developer']:
+            return web.json_response({'file': file, 'page_context': page_context, 'userdata': userdata})
+        raise ValueError('Only developers can request the jinja context')
 
     if '_csrf' in request.cookies:
         csrf_token = request.cookies['_csrf']
