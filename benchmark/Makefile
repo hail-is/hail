@@ -10,26 +10,15 @@ HAIL_BENCHMARK_VERSION := python/version
 $(HAIL_BENCHMARK_VERSION):
 	echo $(HAIL_PIP_VERSION) > $@
 
-BENCHMARK_WHEEL := python/dist/benchmark_hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-$(BENCHMARK_WHEEL):	$(shell git ls-files python)
-	HAIL_BENCHMARK_VERSION=$(cat $(HAIL_BENCHMARK_VERSION)) && \
-		cd python/ && $(HAIL_PYTHON3) setup.py -q bdist_wheel
-
-.PHONY: wheel
-wheel: $(BENCHMARK_WHEEL)
-
 .PHONY: install
-install:
-	HAIL_BENCHMARK_VERSION=$(HAIL_PIP_VERSION) $(PIP) install python/
+install: $(HAIL_BENCHMARK_VERSION)
+	export HAIL_BENCHMARK_VERSION=$(shell cat $<) && $(PIP) install python/
 
 .PHONY: cleanup_image
 cleanup_image:
+	if [ -f pushed_image ]; then docker image rm `cat pushed_image`; fi
 	if [ -f image ]; then docker image rm `cat image`; fi
 	rm -f image pushed_image
-
-BENCHMARK_DOCKER_TAG ?= $(shell whoami)
-BECNHMARK_IMAGE_REPOSITORY ?= us-docker.pkg.dev/broad-ctsa/hail-benchmarks
-BENCHMARK_REPO_BASE = $(BECNHMARK_IMAGE_REPOSITORY)/$(BENCHMARK_DOCKER_TAG)
 
 init = $(shell echo $(1) | sed -r 's|^/?[^/]*/?||')
 
@@ -41,18 +30,24 @@ HAIL_WHEEL := ../hail/build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.wh
 $(HAIL_WHEEL): FORCE
 	$(MAKE) -C ../hail wheel
 
+BENCHMARK_PROJECT ?= broad-ctsa
+BENCHMARK_CONTEXT ?= $(USER)
+BENCHMARK_IMAGE_REPOSITORY ?= us-docker.pkg.dev/$(BENCHMARK_PROJECT)/hail-benchmarks/$(BENCHMARK_CONTEXT)
+BENCHMARK_DOCKER_TAG ?= $(HAIL_VERSION)
+
 image: hail-ubuntu-image $(HAIL_WHEEL) $(HAIL_BENCHMARK_VERSION) cleanup_image
-	docker build --platform linux/amd64 -f Dockerfile -t $(BENCHMARK_DOCKER_TAG) ../ \
+	docker build -f Dockerfile -t hail-benchmarks:$(BENCHMARK_DOCKER_TAG) ../ \
+		--platform linux/amd64 \
 		--build-arg HAIL_UBUNTU=$(shell cat ../hail-ubuntu-image) \
 		--build-arg HAIL_WHEEL_DIR=$(dir $(call init,$(HAIL_WHEEL)))
-	@printf $$(docker images -q --no-trunc $(BENCHMARK_DOCKER_TAG) | sed -e 's,[^:]*:,,') > image
+	@printf $$(docker images -q --no-trunc hail-benchmarks:$(BENCHMARK_DOCKER_TAG) | sed -e 's,[^:]*:,,') > image
 	@echo Image sha is `cat image`
 
 pushed_image: image
-	@printf $(BENCHMARK_REPO_BASE):`cat image` > pushed_image
+	@printf $(BENCHMARK_IMAGE_REPOSITORY):$(BENCHMARK_DOCKER_TAG) > pushed_image
 	@echo Pushed image is `cat pushed_image`
-	docker tag $(BENCHMARK_DOCKER_TAG) `cat pushed_image`
-	docker push `cat pushed_image`
+	@docker tag `cat image` `cat pushed_image`
+	@docker push `cat pushed_image`
 
 BENCHMARK_ITERS ?= 3
 BENCHMARK_REPLICATES ?= 5

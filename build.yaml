@@ -1380,7 +1380,7 @@ steps:
         value:
           valueFrom: hail_ubuntu_image.image
       - name: HAIL_WHEEL_DIR
-        value: /wheel
+        value: /io/wheel
     inputs:
       - from: /repo/benchmark
         to: /io/repo/benchmark
