@@ -1,3 +1,6 @@
+# syntax=docker/dockerfile:1.3.0-labs
+# ^ necessary to use an ARG in a --mount value with our current version of buildkit
+
 ARG HAIL_UBUNTU
 FROM --platform=linux/amd64 ${HAIL_UBUNTU}
 
