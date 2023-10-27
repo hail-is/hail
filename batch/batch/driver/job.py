@@ -46,8 +46,8 @@ LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
     SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-    FROM aggregated_batch_resources_v2
-    WHERE batches.id = aggregated_batch_resources_v2.batch_id
+    FROM aggregated_batch_resources_v3
+    WHERE batches.id = aggregated_batch_resources_v3.batch_id
     GROUP BY batch_id, resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
