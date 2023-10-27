@@ -27,7 +27,8 @@ from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
-from . import resource, batch, job as _job  # pylint: disable=unused-import
+from . import resource, batch  # pylint: disable=unused-import
+from .job import PythonJob
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 from hailtop.aiotools.validators import validate_file
@@ -632,12 +633,12 @@ class ServiceBackend(Backend[bc.Batch]):
         if batch.name is not None:
             attributes['name'] = batch.name
 
-        if batch._batch_handle is None:
-            batch._batch_handle = (await self._batch_client()).create_batch(
+        if batch._async_batch is None:
+            batch._async_batch = (await self._batch_client()).create_batch(
                 attributes=attributes, callback=callback, token=token, cancel_after_n_failures=batch._cancel_after_n_failures
             )
 
-        batch_handle = batch._batch_handle
+        async_batch = batch._async_batch
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
@@ -682,7 +683,7 @@ class ServiceBackend(Backend[bc.Batch]):
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
-                j = batch._batch_handle.create_job(
+                j = async_batch.create_job(
                     image=HAIL_GENETICS_HAILTOP_IMAGE,
                     command=write_cmd,
                     attributes={'name': 'write_external_inputs'}
@@ -692,7 +693,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
         unsubmitted_jobs = batch._unsubmitted_jobs
 
-        pyjobs = [j for j in unsubmitted_jobs if isinstance(j, _job.PythonJob)]
+        pyjobs = [j for j in unsubmitted_jobs if isinstance(j, PythonJob)]
         for pyjob in pyjobs:
             if pyjob._image is None:
                 pyjob._image = HAIL_GENETICS_HAIL_IMAGE
@@ -787,7 +788,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 
-            j = batch_handle.create_job(
+            j = async_batch.create_job(
                 image=image,
                 command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
                 parents=parents,
@@ -817,7 +818,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
-            j = batch_handle.create_job(
+            j = async_batch.create_job(
                 image=HAIL_GENETICS_HAILTOP_IMAGE,
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
@@ -830,9 +831,9 @@ class ServiceBackend(Backend[bc.Batch]):
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
         submit_batch_start = time.time()
-        await batch_handle.submit(disable_progress_bar=disable_progress_bar)
+        await async_batch.submit(disable_progress_bar=disable_progress_bar)
 
-        batch_id = batch_handle.id
+        batch_id = async_batch.id
 
         for job in batch._unsubmitted_jobs:
             job._submitted = True
@@ -855,9 +856,9 @@ class ServiceBackend(Backend[bc.Batch]):
                 print(f'Waiting for batch {batch_id}...')
             starting_job_id: int = min(j._client_job.job_id for j in unsubmitted_jobs)  # type: ignore
             await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
-            status = await batch_handle.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
+            status = await async_batch.wait(disable_progress_bar=disable_progress_bar, starting_job=starting_job_id)
             print(f'batch {batch_id} complete: {status["state"]}')
 
         batch._python_function_defs.clear()
         batch._python_function_files.clear()
-        return bc.Batch(batch_handle)
+        return bc.Batch(async_batch)

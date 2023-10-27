@@ -210,7 +210,7 @@ class Batch:
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
 
-        self._batch_handle: Optional[_aiobc.Batch] = None
+        self._async_batch: Optional[_aiobc.Batch] = None
 
     @property
     def _unsubmitted_jobs(self):
