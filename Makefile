@@ -168,12 +168,8 @@ hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requireme
 
 hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) -C hail wheel
-	tar -cvf wheel-container.tar \
-		-C hail/build/deploy/dist \
-		hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl
 	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
 		./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME)
-	rm wheel-container.tar
 	echo $(IMAGE_NAME) > $@
 
 hail-0.1-docs-5a6778710097.tar.gz:

@@ -754,15 +754,16 @@ steps:
       du -h $WHEEL_PATH
       $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
 
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+      mkdir /io/wheel
+      mv build/deploy/dist/hail-*-py3-none-any.whl /io/wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /hail.jar
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /wheel-container.tar
+      - from: /io/wheel
+        to: /wheel
     dependsOn:
       - base_image
       - merge_code
@@ -779,15 +780,16 @@ steps:
       chmod 755 ./gradlew
       time retry ./gradlew --version
       time retry make jars wheel HAIL_DEBUG_MODE=1
-      (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+      mkdir /io/debug-wheel
+      mv build/deploy/dist/hail-*-py3-none-any.whl /io/debug-wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
         to: /hail-debug-test.jar
-      - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
-        to: /debug-wheel-container.tar
+      - from: /io/debug-wheel
+        to: /debug-wheel
     dependsOn:
       - base_image
       - merge_code
@@ -841,13 +843,15 @@ steps:
       time retry ./gradlew --version
       export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
       time retry make wheel
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+
+      mkdir /io/azure-wheel
+      mv build/deploy/dist/hail-*-py3-none-any.whl /io/azure-wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /wheel-for-azure-container.tar
+      - from: /io/azure-wheel
+        to: /azure-wheel
     dependsOn:
       - base_image
       - merge_code
@@ -1007,8 +1011,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/debug-wheel/hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1037,8 +1040,8 @@ steps:
               --timeout=120 \
               test
     inputs:
-      - from: /debug-wheel-container.tar
-        to: /io/debug-wheel-container.tar
+      - from: /debug-wheel
+        to: /io/debug-wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1136,8 +1139,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1160,8 +1162,8 @@ steps:
               --timeout=120 \
               test
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1194,8 +1196,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/debug-wheel/hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       # The test should use the test credentials, not CI's credentials
@@ -1231,8 +1232,8 @@ steps:
               test
     timeout: 1800
     inputs:
-      - from: /debug-wheel-container.tar
-        to: /io/debug-wheel-container.tar
+      - from: /debug-wheel
+        to: /io/debug-wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1259,8 +1260,7 @@ steps:
       cpu: '2'
     script: |
       set -ex
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       export HAIL_QUERY_N_CORES=2
       export OMP_NUM_THREADS=2
@@ -1292,8 +1292,8 @@ steps:
     inputs:
       - from: /repo/hail/python/hail/docs
         to: /io/docs
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
     dependsOn:
       - build_hail_jar_and_wheel
       - hail_run_image
@@ -1312,8 +1312,7 @@ steps:
       export HAIL_SHORT_VERSION='0.2'
       export SPHINXOPTS='-tgenerate_notebook_outputs'
 
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       cd /io/hail
       export HAIL_WEBSITE_DIR=/io/website/website/
@@ -1340,8 +1339,8 @@ steps:
         to: /io/repo/hail/python/hail/hail_version
       - from: /repo/website/website
         to: /io/website/website
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
     outputs:
       - from: /io/www.tar.gz
         to: /www.tar.gz
@@ -1358,13 +1357,15 @@ steps:
       - name: BASE_IMAGE
         value:
           valueFrom: hail_ubuntu_image.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
+      - from: /wheel
+        to: /io/repo/wheel
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel
@@ -1378,13 +1379,15 @@ steps:
       - name: BASE_IMAGE
         value:
           valueFrom: hail_ubuntu_image_python_3_10.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
+      - from: /wheel
+        to: /io/repo/wheel
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel
@@ -1398,13 +1401,15 @@ steps:
       - name: BASE_IMAGE
         value:
           valueFrom: hail_ubuntu_image_python_3_11.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
+      - from: /wheel
+        to: /io/repo/wheel
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel
@@ -2427,8 +2432,7 @@ steps:
       preemptible: False
     script: |
       set -ex
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -2465,8 +2469,8 @@ steps:
               test
     timeout: 5400
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
     secrets:
@@ -2498,8 +2502,7 @@ steps:
       preemptible: False
     script: |
       set -ex
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -2537,8 +2540,8 @@ steps:
               test
     timeout: 5400
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
     secrets:
@@ -2572,8 +2575,7 @@ steps:
       preemptible: False
     script: |
       set -ex
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       export YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS=1
 
@@ -2587,8 +2589,8 @@ steps:
               --durations=50 \
               /io/test_requester_pays_parsing.py
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
       - from: /repo/hail/scripts/test_requester_pays_parsing.py
         to: /io/test_requester_pays_parsing.py
     dependsOn:
@@ -3308,8 +3310,6 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
-      (mkdir /io/wheel-for-azure && cd /io/wheel-for-azure && tar xvf /io/wheel-for-azure-container.tar)
-
       bash scripts/deploy.sh $(cat /io/hail_pip_version) \
                              $(cat /io/hail_version) \
                              $(cat /io/git_version) \
@@ -3335,8 +3335,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
-      - from: /wheel-for-azure-container.tar
-        to: /io/wheel-for-azure-container.tar
+      - from: /azure-wheel
+        to: /io/wheel-for-azure
       - from: /www.tar.gz
         to: /io/www.tar.gz
     secrets:
