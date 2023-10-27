@@ -625,6 +625,13 @@ def test_literal_ndarray_encodings(value):
     _assert_encoding_roundtrip(value.T)
 
 
+def test_decoding_multiple_dicts():
+    dict = {0: 'a', 1: 'b', 2: 'c'}
+    dict2 = {0: 'x', 1: 'y', 2: 'z'}
+    ht = hl.utils.range_table(1).annotate(indices = hl.array([0, 1, 2]))
+    ht.select(a=ht.indices.map(lambda i: hl.struct(x=hl.dict(dict).get(i), y=hl.dict(dict2).get(i)))).collect()
+
+
 def test_locus_interval_encoding():
     start = hl.Locus(contig='chr1', position=10001, reference_genome='GRCh38')
     end = hl.Locus(contig='chr1', position=11001, reference_genome='GRCh38')

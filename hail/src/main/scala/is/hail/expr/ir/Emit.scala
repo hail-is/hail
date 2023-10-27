@@ -1137,7 +1137,7 @@ class Emit[C](
 
           val sct = SingleCodeType.fromSType(producer.element.st)
 
-          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
+          val vab = new StagedArrayBuilder(cb, sct, producer.element.required, 0)
           StreamUtils.writeToArrayBuilder(cb, producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
           sorter.sort(cb, region, makeDependentSortingFunction(cb, sct, lessThan, env, emitSelf, Array(left, right)))
@@ -1188,7 +1188,7 @@ class Emit[C](
 
           val sct = SingleCodeType.fromSType(producer.element.st)
 
-          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
+          val vab = new StagedArrayBuilder(cb, sct, producer.element.required, 0)
           StreamUtils.writeToArrayBuilder(cb, producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
@@ -1214,7 +1214,7 @@ class Emit[C](
 
           val sct = SingleCodeType.fromSType(producer.element.st)
 
-          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
+          val vab = new StagedArrayBuilder(cb, sct, producer.element.required, 0)
           StreamUtils.writeToArrayBuilder(cb, producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
@@ -1255,7 +1255,7 @@ class Emit[C](
 
           val producer = stream.getProducer(mb)
           val sct = SingleCodeType.fromSType(producer.element.st)
-          val sortedElts = new StagedArrayBuilder(sct, producer.element.required, mb, 16)
+          val sortedElts = new StagedArrayBuilder(cb, sct, producer.element.required, 16)
           StreamUtils.writeToArrayBuilder(cb, producer, sortedElts, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), sortedElts)
 
@@ -1270,7 +1270,7 @@ class Emit[C](
           sorter.sort(cb, region, lt)
           sorter.pruneMissing(cb)
 
-          val groupSizes = new StagedArrayBuilder(Int32SingleCodeType, true, mb, 0)
+          val groupSizes = new StagedArrayBuilder(cb, Int32SingleCodeType, true, 0)
 
           val eltIdx = mb.newLocal[Int]("groupByKey_eltIdx")
           val grpIdx = mb.newLocal[Int]("groupByKey_grpIdx")
@@ -1278,12 +1278,10 @@ class Emit[C](
           val outerSize = mb.newLocal[Int]("groupByKey_outerSize")
           val groupSize = mb.newLocal[Int]("groupByKey_groupSize")
 
-
-          cb += groupSizes.clear
           cb.assign(eltIdx, 0)
           cb.assign(groupSize, 0)
 
-          def sameKeyAtIndices(cb: EmitCodeBuilder, region: Value[Region], idx1: Code[Int], idx2: Code[Int]): Code[Boolean] = {
+          def sameKeyAtIndices(cb: EmitCodeBuilder, region: Value[Region], idx1: Value[Int], idx2: Value[Int]): Code[Boolean] = {
             val lk = cb.memoize(
               sortedElts.loadFromIndex(cb, region, idx1).flatMap(cb) { x =>
                 x.asBaseStruct.loadField(cb, 0)
@@ -1306,14 +1304,14 @@ class Emit[C](
             cb.if_(eltIdx.ceq(sortedElts.size - 1), {
               cb.goto(newGroup)
             }, {
-              cb.if_(sameKeyAtIndices(cb, region, eltIdx, eltIdx + 1), {
+              cb.if_(sameKeyAtIndices(cb, region, eltIdx, cb.memoize(eltIdx + 1)), {
                 cb.goto(bottomOfLoop)
               }, {
                 cb.goto(newGroup)
               })
             })
             cb.define(newGroup)
-            cb += groupSizes.add(groupSize)
+            groupSizes.add(cb, groupSize)
             cb.assign(groupSize, 0)
 
             cb.define(bottomOfLoop)

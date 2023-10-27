@@ -39,10 +39,10 @@ final case class EDictAsUnsortedArrayOfPairs(val elementType: EType, override va
     val decodedUnsortedArray = arrayDecoder(cb, region, in).asInstanceOf[SIndexablePointerValue]
     val sct = SingleCodeType.fromSType(decodedUnsortedArray.st.elementType)
 
-    val ab = new StagedArrayBuilder(sct, true, cb.emb, 0)
-    cb.append(ab.ensureCapacity(decodedUnsortedArray.length))
+    val ab = new StagedArrayBuilder(cb, sct, true, 0)
+    ab.ensureCapacity(cb, decodedUnsortedArray.length)
     decodedUnsortedArray.forEachDefined(cb) { (cb, i, res) =>
-      cb.append(ab.add(ab.elt.coerceSCode(cb, res, region, false).code))
+      ab.add(cb, ab.elt.coerceSCode(cb, res, region, false).code)
     }
 
     val sorter = new ArraySorter(EmitRegion(cb.emb, region), ab)
