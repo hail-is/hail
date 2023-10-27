@@ -3278,7 +3278,7 @@ steps:
     clouds:
       - gcp
   - kind: runImage
-    name: deploy
+    name: release
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -3310,22 +3310,22 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
-      bash scripts/deploy.sh $(cat /io/hail_pip_version) \
-                             $(cat /io/hail_version) \
-                             $(cat /io/git_version) \
-                             origin \
-                             /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
-                             /io/github-oauth \
-                             docker://{{ hailgenetics_hail_image.image }} \
-                             docker://{{ hailgenetics_hailtop_image.image }} \
-                             docker://{{ hailgenetics_hail_image_python_3_10.image }} \
-                             docker://{{ hailgenetics_hail_image_python_3_11.image }} \
-                             docker://{{ hailgenetics_vep_grch37_85_image.image }} \
-                             docker://{{ hailgenetics_vep_grch38_95_image.image }} \
-                             /io/wheel-for-azure/hail-*-py3-none-any.whl \
-                             /io/www.tar.gz \
-                             {{ global.gcp_project }} \
-                             /io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt
+      bash scripts/release.sh $(cat /io/hail_pip_version) \
+                              $(cat /io/hail_version) \
+                              $(cat /io/git_version) \
+                              origin \
+                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
+                              /io/github-oauth \
+                              docker://{{ hailgenetics_hail_image.image }} \
+                              docker://{{ hailgenetics_hailtop_image.image }} \
+                              docker://{{ hailgenetics_hail_image_python_3_10.image }} \
+                              docker://{{ hailgenetics_hail_image_python_3_11.image }} \
+                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+                              docker://{{ hailgenetics_vep_grch38_95_image.image }} \
+                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
+                              /io/www.tar.gz \
+                              {{ global.gcp_project }} \
+                              /io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt
     inputs:
       - from: /hail_version
         to: /io/hail_version
