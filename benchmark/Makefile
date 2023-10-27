@@ -6,9 +6,14 @@ SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 HAIL_PYTHON3 ?= python3
 PIP := $(HAIL_PYTHON3) -m pip
 
+HAIL_BENCHMARK_VERSION := python/version
+$(HAIL_BENCHMARK_VERSION):
+	echo $(HAIL_PIP_VERSION) > $@
+
 BENCHMARK_WHEEL := python/dist/benchmark_hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 $(BENCHMARK_WHEEL):	$(shell git ls-files python)
-	cd python/ && HAIL_BENCHMARK_VERSION=$(HAIL_PIP_VERSION) $(HAIL_PYTHON3) setup.py -q bdist_wheel
+	HAIL_BENCHMARK_VERSION=$(cat $(HAIL_BENCHMARK_VERSION)) && \
+		cd python/ && $(HAIL_PYTHON3) setup.py -q bdist_wheel
 
 .PHONY: wheel
 wheel: $(BENCHMARK_WHEEL)
@@ -36,11 +41,10 @@ HAIL_WHEEL := ../hail/build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.wh
 $(HAIL_WHEEL): FORCE
 	$(MAKE) -C ../hail wheel
 
-image: hail-ubuntu-image $(HAIL_WHEEL) cleanup_image
+image: hail-ubuntu-image $(HAIL_WHEEL) $(HAIL_BENCHMARK_VERSION) cleanup_image
 	docker build --platform linux/amd64 -f Dockerfile -t $(BENCHMARK_DOCKER_TAG) ../ \
 		--build-arg HAIL_UBUNTU=$(shell cat ../hail-ubuntu-image) \
-		--build-arg HAIL_BENCHMARK_VERSION=$(HAIL_PIP_VERSION) \
-		--build-arg HAIL_WHEEL=$(call init,$(HAIL_WHEEL))
+		--build-arg HAIL_WHEEL_DIR=$(dir $(call init,$(HAIL_WHEEL)))
 	@printf $$(docker images -q --no-trunc $(BENCHMARK_DOCKER_TAG) | sed -e 's,[^:]*:,,') > image
 	@echo Image sha is `cat image`
 
@@ -67,5 +71,6 @@ submit: pushed_image install
 clean: cleanup_image
 	rm -rf python/dist/*
 	rm -rf python/build/*
+	rm -r $(HAIL_BENCHMARK_VERSION)
 
 FORCE:

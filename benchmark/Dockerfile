@@ -10,9 +10,8 @@ RUN --mount=src=benchmark/python/pinned-requirements.txt,target=benchmark-requir
     --mount=src=hail/python/pinned-requirements.txt,target=hail-requirements.txt \
     hail-pip-install -r benchmark-requirements.txt -r hail-requirements.txt
 
-ARG HAIL_BENCHMARK_VERSION
-ARG HAIL_WHEEL
-ENV HAIL_BENCHMARK_VERSION=${HAIL_BENCHMARK_VERSION}
-RUN --mount=src=${HAIL_WHEEL},target=${HAIL_WHEEL} \
+ARG HAIL_WHEEL_DIR
+RUN --mount=src=${HAIL_WHEEL_DIR},target=${HAIL_WHEEL_DIR} \
     --mount=src=benchmark/python,target=/benchmark,rw \
-    hail-pip-install --no-deps ${HAIL_WHEEL} /benchmark
+    export HAIL_BENCHMARK_VERSION=$(cat benchmark/version) && \
+    hail-pip-install --no-deps ${HAIL_WHEEL_DIR}/hail-*-py3-none-any.whl /benchmark

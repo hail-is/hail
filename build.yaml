@@ -1371,6 +1371,29 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
+    name: hail-benchmark-image
+    dockerFile: /io/repo/benchmark/Dockerfile
+    contextPath: /io/repo
+    publishAs: hail-benchmark
+    buildArgs:
+      - name: HAIL_UBUNTU
+        value:
+          valueFrom: hail_ubuntu_image.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
+    inputs:
+      - from: /repo/benchmark
+        to: /io/repo/benchmark
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /wheel
+        to: /io/wheel
+      - from: /hail_pip_version
+        to: /io/repo/benchmark/python/version
+    dependsOn:
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image
+  - kind: buildImage2
     name: hailgenetics_hail_image_python_3_10
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
