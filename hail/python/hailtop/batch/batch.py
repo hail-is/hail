@@ -144,7 +144,7 @@ class Batch:
     async def _async_from_batch_id(batch_id: int, *args, **kwargs) -> 'Batch':
         b = Batch(*args, **kwargs)
         assert isinstance(b._backend, _backend.ServiceBackend)
-        b._batch_handle = await (await b._backend._batch_client()).get_batch(batch_id)
+        b._async_batch = await (await b._backend._batch_client()).get_batch(batch_id)
         return b
 
     def __init__(self,
