@@ -6,7 +6,6 @@ from hailtop import pip_version
 
 async def submit(name, image_name, files, output, script, arguments):
     import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
-    import hailtop.batch_client.aioclient as aiobc  # pylint: disable=import-outside-toplevel
     from hailtop.aiotools.copy import copy_from_dict  # pylint: disable=import-outside-toplevel
     from hailtop.config import get_remote_tmpdir, get_user_config_path, get_deploy_config  # pylint: disable=import-outside-toplevel
     from hailtop.utils import secret_alnum_string, unpack_comma_delimited_inputs  # pylint: disable=import-outside-toplevel
@@ -50,7 +49,8 @@ async def submit(name, image_name, files, output, script, arguments):
     command = 'python3' if script.endswith('.py') else 'bash'
     script_arguments = " ".join(shq(x) for x in arguments)
     j.command(f'{command} {script_file} {script_arguments}')
-    batch_handle: aiobc.Batch = await b._async_run(wait=False, disable_progress_bar=quiet)._async_batch  # type: ignore
+    batch_handle = await b._async_run(wait=False, disable_progress_bar=quiet)
+    assert batch_handle
 
     if output == 'text':
         deploy_config = get_deploy_config()
