@@ -1,3 +1,4 @@
+from contextlib import AsyncExitStack
 from types import TracebackType
 from typing import Optional, Type, TypeVar, Mapping, Union
 import aiohttp
@@ -105,10 +106,16 @@ class Session(BaseSession):
         return await self._http_session.request(method, url, **kwargs)
 
     async def close(self) -> None:
+        async with AsyncExitStack() as stack:
+            stack.push_async_callback(self._close_http_session)
+            stack.push_async_callback(self._close_credentials)
+
+    async def _close_http_session(self):
         if hasattr(self, '_http_session') and self._owns_http_session:
             await self._http_session.close()
             del self._http_session
 
+    async def _close_credentials(self):
         if hasattr(self, '_credentials'):
             await self._credentials.close()
             del self._credentials

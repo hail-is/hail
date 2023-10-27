@@ -8,10 +8,11 @@ SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
+SPECIAL_IMAGES := hail-ubuntu batch-worker
 
 HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
 CI_IMAGES = ci-utils ci-buildkit base hail-run
-PRIVATE_REGISTRY_IMAGES = $(patsubst %, push-private-%-image, hail-ubuntu $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
+PRIVATE_REGISTRY_IMAGES = $(patsubst %, pushed-private-%-image, $(SPECIAL_IMAGES) $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
 
 HAILTOP_VERSION := hail/python/hailtop/hail_version
 SERVICES_IMAGE_DEPS = hail-ubuntu-image $(HAILTOP_VERSION) $(shell git ls-files hail/python/hailtop gear web_common)
@@ -164,12 +165,8 @@ hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requireme
 
 hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) -C hail wheel
-	tar -cvf wheel-container.tar \
-		-C hail/build/deploy/dist \
-		hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl
 	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
-	rm wheel-container.tar
 	echo $(IMAGE_NAME) > $@
 
 hail-0.1-docs-5a6778710097.tar.gz:
@@ -220,11 +217,13 @@ hailgenetics-vep-grch38-95-image: hail-ubuntu-image
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
-$(PRIVATE_REGISTRY_IMAGES): push-private-%-image: %-image
+$(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image
 	! [ -z $(NAMESPACE) ]  # call this like: make ... NAMESPACE=default
 	[ $(DOCKER_PREFIX) != docker.io ]  # DOCKER_PREFIX should be an internal private registry
+	! [ -z $(DOCKER_PREFIX) ]  # DOCKER_PREFIX must not be empty
 	docker tag $(shell cat $*-image) $(DOCKER_PREFIX)/$(shell cat $*-image)
 	docker push $(DOCKER_PREFIX)/$(shell cat $*-image)
+	echo $(DOCKER_PREFIX)/$(shell cat $*-image) > $@
 
 .PHONY: local-mysql
 local-mysql:
@@ -239,3 +238,15 @@ else
 $(SERVICES_DATABASES): %-db:
 	python3 ci/create_local_database.py $* local-$*
 endif
+
+.PHONY: sass-compile-watch
+sass-compile-watch:
+	cd web_common/web_common && sass --watch -I styles --style=compressed styles:static/css
+
+.PHONY: run-dev-proxy
+run-dev-proxy:
+	SERVICE=$(SERVICE) adev runserver --root . devbin/dev_proxy.py
+
+.PHONY: devserver
+devserver:
+	$(MAKE) -j 2 sass-compile-watch run-dev-proxy

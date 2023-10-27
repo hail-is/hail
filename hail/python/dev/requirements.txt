@@ -1,5 +1,6 @@
 -c ../pinned-requirements.txt
 
+aiohttp-devtools>=1.1,<2
 pylint>=2.13.5,<3
 pre-commit>=3.3.3,<4
 black>=22.8.0,<23

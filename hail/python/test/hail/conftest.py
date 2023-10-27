@@ -9,6 +9,8 @@ from pytest import StashKey, CollectReport
 
 from hail import current_backend, init, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
+from hailtop.hail_event_loop import hail_event_loop
+from hailtop.utils import secret_alnum_string
 from .helpers import hl_init_for_test, hl_stop_for_test
 
 
@@ -77,6 +79,6 @@ def reinitialize_hail_for_each_qob_test(init_hail, request):
             report: Dict[str, CollectReport] = request.node.stash[test_results_key]
             if any(r.failed for r in report.values()):
                 log.info(f'cancelling failed test batch {batch.id}')
-                asyncio.get_event_loop().run_until_complete(batch.cancel())
+                hail_event_loop().run_until_complete(batch.cancel())
     else:
         yield
