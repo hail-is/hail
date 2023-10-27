@@ -1380,14 +1380,14 @@ steps:
         value:
           valueFrom: hail_ubuntu_image.image
       - name: HAIL_WHEEL_DIR
-        value: /io/wheel
+        value: /wheel
     inputs:
       - from: /repo/benchmark
         to: /io/repo/benchmark
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
       - from: /wheel
-        to: /io/wheel
+        to: /io/repo/wheel
       - from: /hail_pip_version
         to: /io/repo/benchmark/python/version
     dependsOn:
