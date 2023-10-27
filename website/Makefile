@@ -13,11 +13,11 @@ run-docker: build
 	docker run -e HAIL_DOMAIN=localhost:5555 -e PORT=5555 -p 5555:5555 $(shell cat ../website-image) python3 -m website local
 
 push:
-	$(MAKE) -C .. push-private-website-image
+	$(MAKE) -C .. pushed-private-website-image
 
 deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"scope":"$(SCOPE)","website_image":{"image":"'$$(cat ../website-image)'"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"scope":"$(SCOPE)","website_image":{"image":"'$$(cat ../pushed-private-website-image)'"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 clean:

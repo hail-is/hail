@@ -9,6 +9,7 @@ from pytest import StashKey, CollectReport
 
 from hail import current_backend, init, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
+from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import secret_alnum_string
 from .helpers import hl_init_for_test, hl_stop_for_test
 
