@@ -425,6 +425,7 @@ def test_ndarray_map2():
                        [11, 12]],
                       [[13, 14],
                        [15, 16]]])
+    empty = np.array([], np.int32).reshape((0, 2, 2))
 
     na = hl.nd.array(a)
     nx = hl.nd.array(x)
@@ -432,6 +433,7 @@ def test_ndarray_map2():
     nrow_vec = hl.nd.array(row_vec)
     ncube1 = hl.nd.array(cube1)
     ncube2 = hl.nd.array(cube2)
+    nempty = hl.nd.array(empty)
 
     assert_ndarrays_eq(
         # with lists/numerics
@@ -447,10 +449,13 @@ def test_ndarray_map2():
         # Broadcasting
         (ncube1 + na, cube1 + a),
         (na + ncube1, a + cube1),
+        (na + nempty, a + empty),
         (ncube1 + ny, cube1 + y),
         (ny + ncube1, y + cube1),
+        (ny + nempty, y + empty),
         (nrow_vec + ncube1, row_vec + cube1),
         (ncube1 + nrow_vec, cube1 + row_vec),
+        (nrow_vec + nempty, row_vec + empty),
         (ncube1.map2(na, lambda c, d: c+d), cube1 + a),
         (nrow_vec.map2(ncube1, lambda c, d: c+d), row_vec + cube1),
 
