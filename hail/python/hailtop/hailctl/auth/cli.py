@@ -41,6 +41,18 @@ def copy_paste_login(copy_paste_token: str, namespace: NamespaceOption = None):
 
 
 @app.command()
+def print_access_token():
+    '''Obtain temporary Hail credentials.'''
+    asyncio.run(async_print_access_token())
+
+
+async def async_print_access_token():
+    from hailtop.auth import hail_credentials
+    async with hail_credentials() as credentials:
+        print(await credentials.access_token())
+
+
+@app.command()
 def logout():
     '''Revoke Hail credentials.'''
     from hailtop.auth import async_logout  # pylint: disable=import-outside-toplevel
