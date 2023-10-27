@@ -791,7 +791,7 @@ class ServiceBackend(Backend[bc.Batch]):
             j = async_batch.create_job(
                 image=image,
                 command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
-                parents=parents,
+                parents=[parent._async_job for parent in parents],  # type: ignore
                 attributes=attributes,
                 resources=resources,
                 input_files=inputs if len(inputs) > 0 else None,

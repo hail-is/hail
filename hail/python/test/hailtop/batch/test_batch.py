@@ -29,7 +29,6 @@ from hailtop.httpx import ClientResponseError
 from configparser import ConfigParser
 from hailtop.config import get_user_config, user_config
 from hailtop.config.variables import ConfigVariable
-from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from _pytest.monkeypatch import MonkeyPatch
 
 
