@@ -1,8 +1,10 @@
-from typing import Optional, Callable, Tuple
-from rich.progress import MofNCompleteColumn, BarColumn, TextColumn, TimeRemainingColumn, TimeElapsedColumn, Progress, ProgressColumn, TaskProgressColumn
+from typing import Optional, Callable, Tuple, List
+from rich import filesize
+from rich.progress import MofNCompleteColumn, BarColumn, TextColumn, TimeRemainingColumn, TimeElapsedColumn, Progress, ProgressColumn, TaskProgressColumn, Task
+from rich.text import Text
 
 
-class SimpleRichProgressBarTask:
+class SimpleCopyToolProgressBarTask:
     def __init__(self, progress: Progress, tid):
         self._progress = progress
         self.tid = tid
@@ -18,19 +20,19 @@ class SimpleRichProgressBarTask:
         return make_listener(self._progress, self.tid)
 
 
-class SimpleRichProgressBar:
+class SimpleCopyToolProgressBar:
     def __init__(self, *args, description: Optional[str] = None, total: int, visible: bool = True, **kwargs):
         self.description = description
         self.total = total
         self.visible = visible
         if len(args) == 0:
-            args = RichProgressBar.get_default_columns()
+            args = CopyToolProgressBar.get_default_columns()
         self._progress = Progress(*args, **kwargs)
 
-    def __enter__(self) -> SimpleRichProgressBarTask:
+    def __enter__(self) -> SimpleCopyToolProgressBarTask:
         self._progress.start()
         tid = self._progress.add_task(self.description or '', total=self.total, visible=self.visible)
-        return SimpleRichProgressBarTask(self._progress, tid)
+        return SimpleCopyToolProgressBarTask(self._progress, tid)
 
     def __exit__(self, exc_type, exc_value, traceback):
         del exc_type
@@ -55,10 +57,52 @@ def make_listener(progress: Progress, tid) -> Callable[[int], None]:
     return listen
 
 
-class RichProgressBar:
+def units(task: Task) -> Tuple[List[str], int]:
+    if task.description == 'files':
+        return ["files", "K files", "M files", "G files", "T files", "P files", "E files", "Z files", "Y files"], 1000
+    if task.description == 'bytes':
+        return ["bytes", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"], 1024
+    return ["", "K", "M", "G", "T", "P", "E", "Z", "Y"], 1000
+
+
+class BytesOrCountOrN(ProgressColumn):
+    def render(self, task: "Task") -> Text:
+        completed = int(task.completed)
+        n = int(task.total) if task.total is not None else completed
+        unit, suffix = filesize.pick_unit_and_suffix(n, *units(task))
+        precision = 0 if unit == 1 else 1
+
+        completed_ratio = completed / unit
+        completed_str = f"{completed_ratio:,.{precision}f}"
+
+        if task.total is not None:
+            total = int(task.total)
+            total_ratio = total / unit
+            total_str = f"{total_ratio:,.{precision}f}"
+        else:
+            total_str = "?"
+
+        download_status = f"{completed_str}/{total_str} {suffix}"
+        download_text = Text(download_status, style="progress.download")
+        return download_text
+
+
+class RateColumn(ProgressColumn):
+    def render(self, task: "Task") -> Text:
+        speed = task.finished_speed or task.speed
+        if speed is None:
+            return Text("?", style="progress.data.speed")
+
+        speed = int(speed)
+        unit, suffix = filesize.pick_unit_and_suffix(speed, *units(task))
+        precision = 0 if unit == 1 else 1
+        return Text(f"{speed / unit:,.{precision}f} {suffix}/s", style="progress.data.speed")
+
+
+class CopyToolProgressBar:
     def __init__(self, *args, **kwargs):
         if len(args) == 0:
-            args = RichProgressBar.get_default_columns()
+            args = CopyToolProgressBar.get_default_columns()
         self._progress = Progress(*args, **kwargs)
 
     @staticmethod
@@ -67,6 +111,8 @@ class RichProgressBar:
             TextColumn("[progress.description]{task.description}"),
             BarColumn(complete_style="bar.finished"),
             TaskProgressColumn(),
+            BytesOrCountOrN(),
+            RateColumn(),
             TimeRemainingColumn(),
             TimeElapsedColumn()
         )
