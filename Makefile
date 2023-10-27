@@ -244,3 +244,15 @@ else
 $(SERVICES_DATABASES): %-db:
 	python3 ci/create_local_database.py $* local-$*
 endif
+
+.PHONY: sass-compile-watch
+sass-compile-watch:
+	cd web_common/web_common && sass --watch -I styles --style=compressed styles:static/css
+
+.PHONY: run-dev-proxy
+run-dev-proxy:
+	SERVICE=$(SERVICE) adev runserver --root . devbin/dev_proxy.py
+
+.PHONY: devserver
+devserver:
+	$(MAKE) -j 2 sass-compile-watch run-dev-proxy
