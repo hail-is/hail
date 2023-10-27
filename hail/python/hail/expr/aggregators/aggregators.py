@@ -12,7 +12,7 @@ from hail.expr import (ExpressionException, Expression, ArrayExpression,
 from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
                              tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
 from hail.expr.expressions.typed_expressions import construct_variable
-from hail.expr.functions import rbind, float32, _quantile_from_cdf, _result_from_raw_cdf, _func
+from hail.expr.functions import rbind, float32, _quantile_from_cdf, _result_from_raw_cdf
 import hail.ir as ir
 from hail.typecheck import (TypeChecker, typecheck_method, typecheck,
                             sequenceof, func_spec, identity, nullable, oneof)

@@ -100,12 +100,10 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   }
 
   override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
-    cb += Code(
-      k := Region.loadInt(kOffset(src)),
-      aggr := Code.newInstance[ApproxCDFStateManager, Int](k),
-      id := region.storeJavaObject(aggr),
-      this.initialized := true
-    )
+    cb.assign(k, Region.loadInt(kOffset(src)))
+    cb.assign(aggr, Code.invokeScalaObject1[Int, ApproxCDFStateManager](ApproxCDFStateManager.getClass, "apply", this.k))
+    cb.assign(id, region.storeJavaObject(aggr))
+    cb.assign(this.initialized, true)
   }
 }
 
