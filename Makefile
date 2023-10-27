@@ -151,25 +151,22 @@ $(HAILTOP_VERSION):
 hailgenetics-%-image: IMAGE_NAME = hailgenetics/$(patsubst hailgenetics-%-image,%,$@):$(TOKEN)
 
 hail-ubuntu-image: $(shell git ls-files docker/hail-ubuntu)
-	DOCKER_BUILD_ARGS='--build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)' \
-		./docker-build.sh docker/hail-ubuntu Dockerfile $(IMAGE_NAME)
+	./docker-build.sh docker/hail-ubuntu Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
 base-image: hail-ubuntu-image docker/Dockerfile.base
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . docker/Dockerfile.base $(IMAGE_NAME)
+	./docker-build.sh . docker/Dockerfile.base $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt docker/core-site.xml
 	$(MAKE) -C hail wheel
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat base-image) \
-		./docker-build.sh . hail/Dockerfile.hail-run $(IMAGE_NAME)
+	./docker-build.sh . hail/Dockerfile.hail-run $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
 hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) -C hail wheel
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 hail-0.1-docs-5a6778710097.tar.gz:
@@ -191,18 +188,15 @@ docs.tar.gz: hail/build/www
 website-image: docs.tar.gz
 
 $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . $*/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh . $*/Dockerfile $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 ci-utils-image: base-image $(SERVICES_IMAGE_DEPS) $(shell git ls-files ci)
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat base-image) \
-		./docker-build.sh . ci/Dockerfile.ci-utils $(IMAGE_NAME)
+	./docker-build.sh . ci/Dockerfile.ci-utils $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
 hail-buildkit-image: ci/buildkit/Dockerfile
-	DOCKER_BUILD_ARGS='--build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)' \
-		./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
 batch/jvm-entryway/build/libs/jvm-entryway.jar: $(shell git ls-files batch/jvm-entryway)
@@ -214,13 +208,13 @@ batch-worker-image: batch/jvm-entryway/build/libs/jvm-entryway.jar $(SERVICES_IM
 	echo $(IMAGE_NAME) > $@
 
 hailgenetics-vep-grch37-85-image: hail-ubuntu-image
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh docker/vep docker/vep/grch37/85/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh docker/vep docker/vep/grch37/85/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 hailgenetics-vep-grch38-95-image: hail-ubuntu-image
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 $(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image

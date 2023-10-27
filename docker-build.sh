@@ -5,6 +5,7 @@ set -ex
 CONTEXT="$(cd $1 && pwd)"
 DOCKERFILE="$CONTEXT/$2"
 IMAGE_NAME=$3
+DOCKER_ARGS="${@:4}"
 
 WITHOUT_TAG=$(echo $IMAGE_NAME | sed -E 's/(:[^:]+)(@[^@]+)?$//')
 MAIN_CACHE=${WITHOUT_TAG}:cache
@@ -22,7 +23,7 @@ DOCKER_BUILDKIT=1 docker build \
        --cache-from ${MAIN_CACHE} \
        ${DEV_CACHE:+--cache-from ${DEV_CACHE}} \
        --build-arg BUILDKIT_INLINE_CACHE=1 \
-       ${DOCKER_BUILD_ARGS} \
+       ${DOCKER_ARGS} \
        --tag ${IMAGE_NAME} \
        --tag ${CACHE_IMAGE_NAME} \
        ${CONTEXT}
