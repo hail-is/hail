@@ -9,6 +9,7 @@ import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
+import org.apache.log4j.Logger
 
 import java.io._
 import java.nio.ByteBuffer
