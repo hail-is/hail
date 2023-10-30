@@ -16,8 +16,8 @@
 </ul>
 
 <h2>Attributes</h2>
-{% if 'attributes' in job_specification %}
-{% for name, value in job_specification['attributes'].items() %}
+{% if 'attributes' in job %}
+{% for name, value in job['attributes'].items() %}
 <p>{{ name }}: {{ value }}</p>
 {% endfor %}
 {% endif %}
