@@ -470,6 +470,7 @@ trait FSSuite extends TestNGSuite {
       fs.fileListEntry(s"$d/x")
       assert(false)
     } catch {
+      // Hadoop, in particular, errors when you touch an object whose name is a prefix of another object.
       case exc: FileAndDirectoryException if exc.getMessage() == s"$d/x" =>
       case exc: FileNotFoundException if exc.getMessage() == s"$d/x (Is a directory)" =>
     }
@@ -480,7 +481,7 @@ trait FSSuite extends TestNGSuite {
     assert(etag.isEmpty)
   }
 
-  @Test def fileAndDirectoryIsErrorEvenIfNotFirstEntryInList(): Unit = {
+  @Test def fileAndDirectoryIsErrorEvenIfPrefixedFileIsNotLexicographicallyFirst(): Unit = {
     val d = t()
     fs.mkDir(d)
     fs.touch(s"$d/x")
@@ -515,12 +516,13 @@ trait FSSuite extends TestNGSuite {
       fs.fileListEntry(s"$d/x")
       assert(false)
     } catch {
+      // Hadoop, in particular, errors when you touch an object whose name is a prefix of another object.
       case exc: FileAndDirectoryException if exc.getMessage() == s"$d/x" =>
       case exc: FileAlreadyExistsException if exc.getMessage() == s"Destination exists and is not a directory: $d/x" =>
     }
   }
 
-  @Test def fileListEntrySeesDirectoryEvenIfNotFirstEntryInList(): Unit = {
+  @Test def fileListEntrySeesDirectoryEvenIfPrefixedFileIsNotLexicographicallyFirst(): Unit = {
     val d = t()
     fs.mkDir(d)
     // fs.touch(s"$d/x ") // Hail does not support spaces in path names
@@ -590,6 +592,7 @@ trait FSSuite extends TestNGSuite {
     val fle = fs.fileListEntry(s"$d/x")
     assert(!fle.isDirectory)
     assert(fle.isFile)
+    assert(fle.getPath == s"$d/x")
   }
 }
 

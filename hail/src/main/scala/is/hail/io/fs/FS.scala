@@ -485,17 +485,16 @@ trait FS extends Serializable {
         }
       } else {
         if (trailingSlashFle != null) {
-          log.warning(s"Two blobs exist matching ${url.toString}: once with and once without a trailing slash. We will return the one without a trailing slash.")
+          log.warn(s"Two blobs exist matching ${url.toString}: once with and once without a trailing slash. We will return the one without a trailing slash.")
         }
         fileFle
       }
     } else {
       if (dirFle != null) {
         if (trailingSlashFle != null) {
-          log.warning(s"A blob with a literal trailing slash exists as well as blobs with that prefix. We will treat this as a directory. ${url.toString}")
-        } else {
-          dirFle
+          log.warn(s"A blob with a literal trailing slash exists as well as blobs with that prefix. We will treat this as a directory. ${url.toString}")
         }
+        dirFle
       } else {
         if (trailingSlashFle != null) {
           throw new FileNotFoundException(
