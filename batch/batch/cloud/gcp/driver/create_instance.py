@@ -319,7 +319,7 @@ cat >/deploy-config/deploy-config.json <<EOF
 EOF
 
 curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
-bash add-google-cloud-ops-agent-repo.sh --also-install --version=1.*.*
+bash add-google-cloud-ops-agent-repo.sh --also-install --version=2.*.*
 
 # retry once
 docker pull $BATCH_WORKER_IMAGE || \
