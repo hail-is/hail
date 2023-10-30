@@ -36,10 +36,10 @@ final case class EUnsortedSet(val elementType: EType, override val required: Boo
     val decodedUnsortedArray = arrayDecoder(cb, region, in).asInstanceOf[SIndexablePointerValue]
     val sct = SingleCodeType.fromSType(decodedUnsortedArray.st.elementType)
 
-    val ab = new StagedArrayBuilder(sct, elementType.required, cb.emb, 0)
-    cb.append(ab.ensureCapacity(decodedUnsortedArray.length))
+    val ab = new StagedArrayBuilder(cb, sct, elementType.required, 0)
+    ab.ensureCapacity(cb, decodedUnsortedArray.length)
     decodedUnsortedArray.forEachDefined(cb) { (cb, i, res) =>
-      cb.append(ab.add(ab.elt.coerceSCode(cb, res, region, false).code))
+      ab.add(cb, ab.elt.coerceSCode(cb, res, region, false).code)
     }
 
     val sorter = new ArraySorter(EmitRegion(cb.emb, region), ab)

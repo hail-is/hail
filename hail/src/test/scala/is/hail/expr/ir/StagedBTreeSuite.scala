@@ -136,20 +136,19 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
-    val sab = new StagedArrayBuilder(Int64SingleCodeType, true, fb.apply_method, 16)
     val idx = fb.newLocal[Int]()
     val returnArray = fb.newLocal[Array[java.lang.Long]]()
 
     fb.emitWithBuilder { cb =>
+      val sab = new StagedArrayBuilder(cb, Int64SingleCodeType, true, 16)
       cb += (r := fb.getCodeParam[Region](1))
       cb += (root := fb.getCodeParam[Long](2))
-      cb += sab.clear
       btree.foreach(cb) { (cb, _koff) =>
         val koff = cb.memoize(_koff)
         val ec = key.loadCompKey(cb, koff)
         cb.if_(ec.m,
-          cb += sab.addMissing(),
-          cb += sab.add(ec.pv.asInt64.value))
+          sab.addMissing(cb),
+          sab.add(cb, ec.pv.asInt64.value))
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
       cb.for_(
