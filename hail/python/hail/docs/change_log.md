@@ -58,7 +58,7 @@ Released 2023-10-30
 
 ### Bug Fixes
 
-- (hail#13939) Fix a bug which could cause dict literals created in python to be decoded incorrectly, causing runtime errors or, potentially, incorrect results.
+- (hail#13939) Fix a bug introduced in 0.2.125 which could cause dict literals created in python to be decoded incorrectly, causing runtime errors or, potentially, incorrect results.
 
 ## Version 0.2.125
 
