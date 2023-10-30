@@ -2561,6 +2561,7 @@ async def api_get_billing_projects_remove_user(request: web.Request) -> web.Resp
 async def _add_user_to_billing_project(request: web.Request, db: Database, billing_project: str, user: str):
     try:
         session_id = await get_session_id(request)
+        assert session_id is not None
         url = deploy_config.url('auth', f'/api/v1alpha/users/{user}')
         await impersonate_user(session_id, request.app['client_session'], url)
     except aiohttp.ClientResponseError as e:
