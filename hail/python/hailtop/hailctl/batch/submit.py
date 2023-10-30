@@ -31,6 +31,7 @@ async def submit(name, image_name, files, output, script, arguments):
     tmpdir_path_prefix = secret_alnum_string()
 
     def cloud_prefix(path):
+        path = path.lstrip('/')
         return f'{remote_tmpdir}/{tmpdir_path_prefix}/{path}'
 
     def file_input_to_src_dest(file: str) -> Tuple[str, str, str]:
