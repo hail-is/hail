@@ -279,6 +279,16 @@ async def test_add_and_delete_user(dev_client: BatchClient, new_billing_project:
     assert r['user'] not in bp['users']
 
 
+async def test_error_adding_nonexistent_user(dev_client: BatchClient, new_billing_project: str):
+    project = new_billing_project
+    try:
+        await dev_client.add_user('foobar', project)
+    except httpx.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+
 async def test_edit_billing_limit_dev(dev_client: BatchClient, new_billing_project: str):
     project = new_billing_project
     r = await dev_client.add_user('test', project)
