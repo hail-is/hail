@@ -39,7 +39,6 @@ def test_file_with_no_dest(runner: CliRunner):
         assert res.exit_code == 0
 
 
-# failed
 def test_file_in_current_dir(runner: CliRunner):
     with tempfile.TemporaryDirectory() as dir:
         os.chdir(dir)
@@ -58,7 +57,6 @@ def test_file_mount_in_child_dir(runner: CliRunner):
         assert res.exit_code == 0
 
 
-# failed
 def test_file_mount_in_child_dir_to_root_dir(runner: CliRunner):
     with tempfile.TemporaryDirectory() as dir:
         os.chdir(dir)
@@ -88,7 +86,6 @@ def test_dir_mount_in_child_dir_to_child_dir(runner: CliRunner):
         assert res.exit_code == 0
 
 
-# failed
 def test_file_outside_curdir(runner: CliRunner):
     with tempfile.TemporaryDirectory() as dir:
         os.mkdir(f'{dir}/working_dir')
@@ -110,7 +107,6 @@ def test_dir_outside_curdir(runner: CliRunner):
         assert res.exit_code == 0
 
 
-# failed
 def test_file_prefixed_with_file(runner: CliRunner):
     with tempfile.TemporaryDirectory() as dir:
         os.chdir(dir)

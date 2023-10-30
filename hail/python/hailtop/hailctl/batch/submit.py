@@ -47,6 +47,7 @@ async def submit(name, image_name, files, output, script, arguments):
         if src is None:
             raise ValueError(f'invalid file specification {file}. Must have a "src" defined.')
         src = os.path.abspath(os.path.expanduser(src))
+        src = src.rstrip('/')
 
         dest = result.get('dest')
         if dest is not None:
