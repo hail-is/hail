@@ -1497,6 +1497,7 @@ steps:
         COPY web_common/pinned-requirements.txt web_common-requirements.txt
         COPY batch/pinned-requirements.txt batch-requirements.txt
         COPY ci/pinned-requirements.txt ci-requirements.txt
+        COPY benchmark/python/pinned-requirements.txt benchmark-requirements.txt
         RUN python3 -m pip install \
             -r hail-requirements.txt \
             -r dev-requirements.txt \
@@ -1504,6 +1505,7 @@ steps:
             -r web_common-requirements.txt \
             -r batch-requirements.txt \
             -r ci-requirements.txt \
+            -r benchmark-requirements.txt \
             && \
             python3 -m pyright --version # Force the installation of node and npm pyright in the image
     publishAs: linting
