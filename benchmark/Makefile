@@ -20,7 +20,7 @@ cleanup_image:
 	if [ -f image ]; then docker image rm `cat image`; fi
 	rm -f image pushed_image
 
-init = $(shell echo $(1) | sed -r 's|^/?[^/]*/?||')
+tail = $(shell echo $(1) | sed -r 's|^/?[^/]*/?||')
 
 .PHONY: hail-ubuntu-image
 hail-ubuntu-image:
@@ -39,7 +39,7 @@ image: hail-ubuntu-image $(HAIL_WHEEL) $(HAIL_BENCHMARK_VERSION) cleanup_image
 	docker build -f Dockerfile -t hail-benchmarks:$(BENCHMARK_DOCKER_TAG) ../ \
 		--platform linux/amd64 \
 		--build-arg HAIL_UBUNTU=$(shell cat ../hail-ubuntu-image) \
-		--build-arg HAIL_WHEEL_DIR=$(dir $(call init,$(HAIL_WHEEL)))
+		--build-arg HAIL_WHEEL_DIR=$(dir $(call tail,$(HAIL_WHEEL)))
 	@printf $$(docker images -q --no-trunc hail-benchmarks:$(BENCHMARK_DOCKER_TAG) | sed -e 's,[^:]*:,,') > image
 	@echo Image sha is `cat image`
 
