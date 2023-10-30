@@ -6,13 +6,9 @@ SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 HAIL_PYTHON3 ?= python3
 PIP := $(HAIL_PYTHON3) -m pip
 
-HAIL_BENCHMARK_VERSION := python/version
-$(HAIL_BENCHMARK_VERSION):
-	echo $(HAIL_PIP_VERSION) > $@
-
 .PHONY: install
-install: $(HAIL_BENCHMARK_VERSION)
-	export HAIL_BENCHMARK_VERSION=$(shell cat $<) && $(PIP) install python/
+install: export HAIL_BENCHMARK_VERSION=$(HAIL_PIP_VERSION)
+	$(PIP) install python/
 
 .PHONY: cleanup_image
 cleanup_image:
@@ -35,7 +31,12 @@ BENCHMARK_CONTEXT ?= $(USER)
 BENCHMARK_IMAGE_REPOSITORY ?= us-docker.pkg.dev/$(BENCHMARK_PROJECT)/hail-benchmarks/$(BENCHMARK_CONTEXT)
 BENCHMARK_DOCKER_TAG ?= $(HAIL_VERSION)
 
-image: hail-ubuntu-image $(HAIL_WHEEL) $(HAIL_BENCHMARK_VERSION) cleanup_image
+# Need to emulate CI by writing the version to a file within the python directory.
+HAIL_BENCHMARK_VERSION_FILE := python/version
+$(HAIL_BENCHMARK_VERSION_FILE): ../hail/version.mk
+	echo $(HAIL_PIP_VERSION) > $@
+
+image: hail-ubuntu-image $(HAIL_WHEEL) $(HAIL_BENCHMARK_VERSION_FILE) cleanup_image
 	docker build -f Dockerfile -t hail-benchmarks:$(BENCHMARK_DOCKER_TAG) ../ \
 		--platform linux/amd64 \
 		--build-arg HAIL_UBUNTU=$(shell cat ../hail-ubuntu-image) \
@@ -66,6 +67,6 @@ submit: pushed_image install
 clean: cleanup_image
 	rm -rf python/dist/*
 	rm -rf python/build/*
-	rm -r $(HAIL_BENCHMARK_VERSION)
+	rm -r $(HAIL_BENCHMARK_VERSION_FILE)
 
 FORCE:
