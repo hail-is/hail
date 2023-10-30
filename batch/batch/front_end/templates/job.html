@@ -15,6 +15,13 @@
   <li>Cost: {% if 'cost' in job and job['cost'] is not none %}{{ job['cost'] }}{% endif %}</li>
 </ul>
 
+<h2>Attributes</h2>
+{% if 'attributes' in job_specification %}
+{% for name, value in job_specification['attributes'].items() %}
+<p>{{ name }}: {{ value }}</p>
+{% endfor %}
+{% endif %}
+
 <h2>Cost Breakdown</h2>
 {% if job['cost_breakdown'] %}
 <table class="data-table">
