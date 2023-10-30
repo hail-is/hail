@@ -1522,6 +1522,8 @@ steps:
         to: /io/repo/batch/pinned-requirements.txt
       - from: /repo/ci/pinned-requirements.txt
         to: /io/repo/ci/pinned-requirements.txt
+      - from: /repo/benchmark/python/pinned-requirements.txt
+        to: /io/repo/benchmark/python/pinned-requirements.txt
     dependsOn:
       - merge_code
       - hail_ubuntu_image
