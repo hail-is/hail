@@ -260,30 +260,6 @@ class LocalBackend(
     }
   }
 
-  def executeEncode(ir: IR, bufferSpecString: String, timed: Boolean): (Array[Byte], String) = {
-    val (bytes, timer) = ExecutionTimer.time("LocalBackend.encodeToBytes") { timer =>
-      val bs = BufferSpec.parseOrDefault(bufferSpecString)
-      withExecuteContext(timer) { ctx =>
-        executeToEncoded(timer, ir, bs)
-      }
-    }
-    (bytes, if (timed) Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}) else "")
-  }
-
-  def decodeToJSON(ptypeString: String, b: Array[Byte], bufferSpecString: String): String = {
-    ExecutionTimer.logTime("LocalBackend.decodeToJSON") { timer =>
-      val t = IRParser.parsePType(ptypeString)
-      val bs = BufferSpec.parseOrDefault(bufferSpecString)
-      val codec = TypedCodecSpec(EType.defaultFromPType(t), t.virtualType, bs)
-      withExecuteContext(timer) { ctx =>
-        val (pt, off) = codec.decode(ctx, t.virtualType, b, ctx.r)
-        assert(pt.virtualType == t.virtualType)
-        JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
-          UnsafeRow.read(pt, ctx.r, off), pt.virtualType))
-      }
-    }
-  }
-
   def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
   def pyRemoveReference(name: String): Unit = removeReference(name)
 

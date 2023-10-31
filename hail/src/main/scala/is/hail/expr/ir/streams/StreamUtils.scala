@@ -53,7 +53,7 @@ object StreamUtils {
     val aTyp = PCanonicalArray(stream.element.emitType.storageType, true)
     stream.length match {
       case None =>
-        val vab = new StagedArrayBuilder(SingleCodeType.fromSType(stream.element.st), stream.element.required, mb, 0)
+        val vab = new StagedArrayBuilder(cb, SingleCodeType.fromSType(stream.element.st), stream.element.required, 0)
         writeToArrayBuilder(cb, stream, vab, destRegion)
         cb.assign(xLen, vab.size)
 
@@ -86,17 +86,17 @@ object StreamUtils {
     destRegion: Value[Region]
   ): Unit = {
     stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
-      cb += ab.clear
+      ab.clear(cb)
       stream.length match {
-        case Some(computeLen) => cb += ab.ensureCapacity(computeLen(cb))
-        case None => cb += ab.ensureCapacity(16)
+        case Some(computeLen) => ab.ensureCapacity(cb, computeLen(cb))
+        case None => ab.ensureCapacity(cb, 16)
       }
 
 
     }) { cb =>
       stream.element.toI(cb).consume(cb,
-        cb += ab.addMissing(),
-        sc => cb += ab.add(ab.elt.coerceSCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
+        ab.addMissing(cb),
+        sc => ab.add(cb, ab.elt.coerceSCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
       )
     }
   }

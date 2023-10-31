@@ -5,13 +5,13 @@ def register_aggregators():
     from hail.expr.types import dtype
 
     register_aggregator('ApproxCDF', (dtype('int32'),), (dtype('int32'),),
-                        dtype('struct{values:array<int32>,ranks:array<int64>,_compaction_counts:array<int32>}'))
+                        dtype('struct{levels:array<int32>,items:array<int32>,_compaction_counts:array<int32>}'))
     register_aggregator('ApproxCDF', (dtype('int32'),), (dtype('int64'),),
-                        dtype('struct{values:array<int64>,ranks:array<int64>,_compaction_counts:array<int32>}'))
+                        dtype('struct{levels:array<int32>,items:array<int64>,_compaction_counts:array<int32>}'))
     register_aggregator('ApproxCDF', (dtype('int32'),), (dtype('float32'),),
-                        dtype('struct{values:array<float32>,ranks:array<int64>,_compaction_counts:array<int32>}'))
+                        dtype('struct{levels:array<int32>,items:array<float32>,_compaction_counts:array<int32>}'))
     register_aggregator('ApproxCDF', (dtype('int32'),), (dtype('float64'),),
-                        dtype('struct{values:array<float64>,ranks:array<int64>,_compaction_counts:array<int32>}'))
+                        dtype('struct{levels:array<int32>,items:array<float64>,_compaction_counts:array<int32>}'))
 
     register_aggregator('Collect', (), (dtype("?in"),), dtype('array<?in>'))
     register_aggregator('Densify', (dtype('int32'),), (dtype("?in"),), dtype('?in'))

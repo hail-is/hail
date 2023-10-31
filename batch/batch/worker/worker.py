@@ -1862,16 +1862,17 @@ class DockerJob(Job):
             if container.state in ('pending', 'creating'):
                 return
 
-            with container._step('uploading_log'):
-                assert self.worker.file_store
-                await self.worker.file_store.write_log_file(
-                    self.format_version,
-                    self.batch_id,
-                    self.job_id,
-                    self.attempt_id,
-                    task_name,
-                    await self.worker.fs.read(container.log_path),
-                )
+            if os.path.exists(container.log_path):
+                with container._step('uploading_log'):
+                    assert self.worker.file_store
+                    await self.worker.file_store.write_log_file(
+                        self.format_version,
+                        self.batch_id,
+                        self.job_id,
+                        self.attempt_id,
+                        task_name,
+                        await self.worker.fs.read(container.log_path),
+                    )
 
             with container._step('uploading_resource_usage'):
                 await self.worker.file_store.write_resource_usage_file(
@@ -2328,11 +2329,12 @@ class JVMJob(Job):
         assert self.worker.fs
         assert self.jvm
 
-        with self.step('uploading_log'):
-            log_contents = await self.worker.fs.read(self.log_file)
-            await self.worker.file_store.write_log_file(
-                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
-            )
+        if os.path.exists(self.log_file):
+            with self.step('uploading_log'):
+                log_contents = await self.worker.fs.read(self.log_file)
+                await self.worker.file_store.write_log_file(
+                    self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', log_contents
+                )
 
         with self.step('uploading_resource_usage'):
             resource_usage_contents = await self.jvm.get_job_resource_usage()

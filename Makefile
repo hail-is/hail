@@ -8,10 +8,11 @@ SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
+SPECIAL_IMAGES := hail-ubuntu batch-worker
 
 HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
 CI_IMAGES = ci-utils ci-buildkit base hail-run
-PRIVATE_REGISTRY_IMAGES = $(patsubst %, push-private-%-image, hail-ubuntu $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
+PRIVATE_REGISTRY_IMAGES = $(patsubst %, pushed-private-%-image, $(SPECIAL_IMAGES) $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
 
 HAILTOP_VERSION := hail/python/hailtop/hail_version
 SERVICES_IMAGE_DEPS = hail-ubuntu-image $(HAILTOP_VERSION) $(shell git ls-files hail/python/hailtop gear web_common)
@@ -150,29 +151,22 @@ $(HAILTOP_VERSION):
 hailgenetics-%-image: IMAGE_NAME = hailgenetics/$(patsubst hailgenetics-%-image,%,$@):$(TOKEN)
 
 hail-ubuntu-image: $(shell git ls-files docker/hail-ubuntu)
-	DOCKER_BUILD_ARGS='--build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)' \
-		./docker-build.sh docker/hail-ubuntu Dockerfile $(IMAGE_NAME)
+	./docker-build.sh docker/hail-ubuntu Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
 base-image: hail-ubuntu-image docker/Dockerfile.base
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . docker/Dockerfile.base $(IMAGE_NAME)
+	./docker-build.sh . docker/Dockerfile.base $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt docker/core-site.xml
 	$(MAKE) -C hail wheel
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat base-image) \
-		./docker-build.sh . hail/Dockerfile.hail-run $(IMAGE_NAME)
+	./docker-build.sh . hail/Dockerfile.hail-run $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
 hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) -C hail wheel
-	tar -cvf wheel-container.tar \
-		-C hail/build/deploy/dist \
-		hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME)
-	rm wheel-container.tar
+	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 hail-0.1-docs-5a6778710097.tar.gz:
@@ -194,18 +188,15 @@ docs.tar.gz: hail/build/www
 website-image: docs.tar.gz
 
 $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . $*/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh . $*/Dockerfile $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 ci-utils-image: base-image $(SERVICES_IMAGE_DEPS) $(shell git ls-files ci)
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat base-image) \
-		./docker-build.sh . ci/Dockerfile.ci-utils $(IMAGE_NAME)
+	./docker-build.sh . ci/Dockerfile.ci-utils $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
 hail-buildkit-image: ci/buildkit/Dockerfile
-	DOCKER_BUILD_ARGS='--build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)' \
-		./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
 batch/jvm-entryway/build/libs/jvm-entryway.jar: $(shell git ls-files batch/jvm-entryway)
@@ -217,20 +208,22 @@ batch-worker-image: batch/jvm-entryway/build/libs/jvm-entryway.jar $(SERVICES_IM
 	echo $(IMAGE_NAME) > $@
 
 hailgenetics-vep-grch37-85-image: hail-ubuntu-image
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh docker/vep docker/vep/grch37/85/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh docker/vep docker/vep/grch37/85/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
 hailgenetics-vep-grch38-95-image: hail-ubuntu-image
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(IMAGE_NAME)
+	./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
-$(PRIVATE_REGISTRY_IMAGES): push-private-%-image: %-image
+$(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image
 	! [ -z $(NAMESPACE) ]  # call this like: make ... NAMESPACE=default
 	[ $(DOCKER_PREFIX) != docker.io ]  # DOCKER_PREFIX should be an internal private registry
+	! [ -z $(DOCKER_PREFIX) ]  # DOCKER_PREFIX must not be empty
 	docker tag $(shell cat $*-image) $(DOCKER_PREFIX)/$(shell cat $*-image)
 	docker push $(DOCKER_PREFIX)/$(shell cat $*-image)
+	echo $(DOCKER_PREFIX)/$(shell cat $*-image) > $@
 
 .PHONY: local-mysql
 local-mysql:
@@ -245,3 +238,15 @@ else
 $(SERVICES_DATABASES): %-db:
 	python3 ci/create_local_database.py $* local-$*
 endif
+
+.PHONY: sass-compile-watch
+sass-compile-watch:
+	cd web_common/web_common && sass --watch -I styles --style=compressed styles:static/css
+
+.PHONY: run-dev-proxy
+run-dev-proxy:
+	SERVICE=$(SERVICE) adev runserver --root . devbin/dev_proxy.py
+
+.PHONY: devserver
+devserver:
+	$(MAKE) -j 2 sass-compile-watch run-dev-proxy

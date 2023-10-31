@@ -15,9 +15,7 @@ from .function import define_function
 from .ldscsim import simulate_phenotypes
 from .full_outer_join_mt import full_outer_join_mt
 from .tidyr import gather, separate, spread
-from .codec import encode, decode
 from .db import DB
-from .compile import compile_comparison_binary, compiled_compare
 from .loop import loop
 from .time import strftime, strptime
 from .pca import pc_project
@@ -48,11 +46,7 @@ __all__ = ['ld_score',
            'gather',
            'separate',
            'spread',
-           'encode',
            'DB',
-           'decode',
-           'compile_comparison_binary',
-           'compiled_compare',
            'sparse_split_multi',
            'densify',
            'loop',

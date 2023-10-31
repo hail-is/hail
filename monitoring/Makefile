@@ -2,7 +2,7 @@ include ../config.mk
 
 .PHONY: build
 build:
-	$(MAKE) -C .. push-private-monitoring-image
+	$(MAKE) -C .. pushed-private-monitoring-image
 
 .PHONY: deploy
 deploy: build

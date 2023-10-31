@@ -87,6 +87,25 @@ def _quantile_from_cdf(cdf, q):
     return hl.rbind(cdf, compute)
 
 
+@typecheck(raw_cdf=expr_struct())
+def _result_from_raw_cdf(raw_cdf):
+    levels = raw_cdf.levels
+    item_weights = hl._stream_range(hl.len(levels) - 1) \
+        .flatmap(lambda l: hl._stream_range(levels[l], levels[l+1])
+                 .map(lambda i: hl.struct(level=l, value=raw_cdf['items'][i]))) \
+        .aggregate(lambda x: hl.agg.group_by(x.value, hl.agg.sum(hl.bit_lshift(1, x.level))))
+    weights = item_weights.values()
+    ranks = weights.scan(lambda acc, weight: acc + weight, 0)
+    values = item_weights.keys()
+    return hl.struct(values=values, ranks=ranks, _compaction_counts=raw_cdf._compaction_counts)
+
+
+@typecheck(k=expr_int32, left=expr_struct(), right=expr_struct())
+def _cdf_combine(k, left, right):
+    t = tstruct(levels=tarray(tint32), items=tarray(tfloat64), _compaction_counts=tarray(tint32))
+    return _func('approxCDFCombine', t, k, left, right)
+
+
 @typecheck(cdf=expr_struct(), failure_prob=expr_oneof(expr_float32, expr_float64), all_quantiles=bool)
 def _error_from_cdf(cdf, failure_prob, all_quantiles=False):
     """Estimates error of approx_cdf aggregator, using Hoeffding's inequality.

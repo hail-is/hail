@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from rich.progress import Progress, TaskID
 
 from ..utils.utils import sleep_before_try
-from ..utils.rich_progress_bar import RichProgressBar, make_listener
+from ..utils.rich_progress_bar import CopyToolProgressBar, make_listener
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
 
@@ -94,7 +94,7 @@ async def copy(*,
                                  gcs_kwargs=gcs_kwargs,
                                  azure_kwargs=azure_kwargs,
                                  s3_kwargs=s3_kwargs) as fs:
-            with RichProgressBar(transient=True, disable=not verbose) as progress:
+            with CopyToolProgressBar(transient=True, disable=not verbose) as progress:
                 initial_simultaneous_transfers = 10
                 parallelism_tid = progress.add_task(description='parallelism',
                                                     completed=initial_simultaneous_transfers,

@@ -52,9 +52,18 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.126
+
+Released 2023-10-30
+
+### Bug Fixes
+
+- (hail#13939) Fix a bug introduced in 0.2.125 which could cause dict literals created in python to be decoded incorrectly, causing runtime errors or, potentially, incorrect results.
+- (hail#13751) Correct the broadcasting of ndarrays containing at least one dimension of length zero. This previously produced incorrect results.
+
 ## Version 0.2.125
 
-Released 2023-10-25
+Released 2023-10-26
 
 ### New Features
 
@@ -100,6 +109,7 @@ Released 2023-10-25
 
 - (hail#13894) Fix #13837 in which Hail could break a Spark installation if the Hail JAR appears on the classpath before the Scala JARs.
 
+- (hail#13919) Fix #13915 which prevented using a glob pattern in `hl.import_vcf`.
 
 ## Version 0.2.124
 

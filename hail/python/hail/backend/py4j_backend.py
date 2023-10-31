@@ -12,8 +12,7 @@ from py4j.java_gateway import JavaObject, JVMView
 
 import hail
 from hail.expr import construct_expr
-from hail.ir import finalize_randomness, JavaIR
-from hail.ir.renderer import CSERenderer
+from hail.ir import JavaIR
 from hail.utils.java import FatalError, Env, scala_package_object
 
 from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
@@ -260,13 +259,6 @@ class Py4JBackend(Backend):
     def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
 
-    def _to_java_ir(self, ir, parse):
-        if not hasattr(ir, '_jir'):
-            r = CSERenderer()
-            # FIXME parse should be static
-            ir._jir = parse(r(finalize_randomness(ir)))
-        return ir._jir
-
     def _parse_value_ir(self, code, ref_map={}):
         return self._jbackend.parse_value_ir(
             code,
@@ -282,11 +274,8 @@ class Py4JBackend(Backend):
     def _parse_blockmatrix_ir(self, code):
         return self._jbackend.parse_blockmatrix_ir(code)
 
-    def _to_java_value_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_value_ir)
-
     def _to_java_blockmatrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_blockmatrix_ir)
+        return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def stop(self):
         self._backend_server.stop()

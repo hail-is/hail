@@ -3,12 +3,9 @@ package is.hail.expr.ir.agg
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
-import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PInt32, PInt64, PStruct, PType}
-import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PFloat64, PInt32}
 import is.hail.utils._
-import org.apache.commons.lang.SerializationUtils
-import org.apache.spark.sql.Row
 
 object ApproxCDFHelper {
   def sort(a: Array[Double], begin: Int, end: Int): Unit = java.util.Arrays.sort(a, begin, end)
@@ -113,20 +110,15 @@ object ApproxCDFHelper {
 }
 
 object ApproxCDFCombiner {
-  def apply(
-    numLevels: Int, capacity: Int, keepRatio: Option[Double], rand: java.util.Random
-  ): ApproxCDFCombiner = new ApproxCDFCombiner(
+  def apply(numLevels: Int, capacity: Int, rand: java.util.Random): ApproxCDFCombiner = new ApproxCDFCombiner(
     { val a = Array.ofDim[Int](numLevels + 1); java.util.Arrays.fill(a, capacity); a },
     Array.ofDim[Double](capacity),
     Array.ofDim[Int](numLevels),
     1,
-    keepRatio.getOrElse(Double.NaN),
     rand)
 
-  def apply(
-    numLevels: Int, capacity: Int, keepRatio: Option[Double]
-  ): ApproxCDFCombiner =
-    apply(numLevels, capacity, keepRatio, new java.util.Random())
+  def apply(numLevels: Int, capacity: Int): ApproxCDFCombiner =
+    apply(numLevels, capacity, new java.util.Random())
 
   def deserializeFrom(ib: InputBuffer): ApproxCDFCombiner = {
     val levels = new Array[Int](ib.readInt())
@@ -148,8 +140,7 @@ object ApproxCDFCombiner {
       i += 1
     }
     val numLevels = ib.readInt()
-    val keepRatio = ib.readDouble()
-    new ApproxCDFCombiner(levels, items, compactionCounts, numLevels, keepRatio, new java.util.Random())
+    new ApproxCDFCombiner(levels, items, compactionCounts, numLevels, new java.util.Random())
   }
 }
 
@@ -170,7 +161,6 @@ class ApproxCDFCombiner(
   val items: Array[Double],
   val compactionCounts: Array[Int],
   var numLevels: Int,
-  val keepRatio: Double,
   val rand: java.util.Random
 ) extends Serializable {
 
@@ -197,15 +187,24 @@ class ApproxCDFCombiner(
     }
 
     ob.writeInt(numLevels)
-    ob.writeDouble(keepRatio)
   }
 
   def copy(): ApproxCDFCombiner =
-    new ApproxCDFCombiner(levels.clone(), items.clone(), compactionCounts.clone(), numLevels, keepRatio, rand)
+    new ApproxCDFCombiner(levels.clone(), items.clone(), compactionCounts.clone(), numLevels, rand)
 
   def maxNumLevels = levels.length - 1
 
   def capacity = items.length
+
+  def n: Int = {
+    var n = 0
+    var i = 0
+    while (i < numLevels) {
+      n += (levels(i + 1) - levels(i)) << i
+      i += 1
+    }
+    n
+  }
 
   def isFull = levels(0) == 0
 
@@ -224,7 +223,7 @@ class ApproxCDFCombiner(
     levels(0) = newBot
   }
 
-  def grow(newNumLevels: Int, newCapacity: Int, dummy: Double = 0): ApproxCDFCombiner = {
+  def grow(newNumLevels: Int, newCapacity: Int): ApproxCDFCombiner = {
     require(newNumLevels > maxNumLevels && newCapacity > capacity)
     val newLevels = Array.ofDim[Int](newNumLevels + 1)
     val newItems = Array.ofDim[Double](newCapacity)
@@ -242,7 +241,7 @@ class ApproxCDFCombiner(
     }
     System.arraycopy(items, levels(0), newItems, newLevels(0), size)
 
-    new ApproxCDFCombiner(newLevels, newItems, newCompactionCounts, numLevels, keepRatio, rand)
+    new ApproxCDFCombiner(newLevels, newItems, newCompactionCounts, numLevels, rand)
   }
 
   def clear() {
@@ -261,12 +260,8 @@ class ApproxCDFCombiner(
    * Returns the new end of 'level'. If 'shiftLowerLevels', this is always
    * equal to 'levels(level + 1)`.
    */
-  def compactLevel(level: Int, shiftLowerLevels: Boolean = true, dummy: Double = 0): Int = {
-    val keep = if (keepRatio.isNaN) {
-      if (level == 0) 1 else 0
-    } else {
-      (levelSize(level) * keepRatio).toInt + 1
-    }
+  def compactLevel(level: Int, shiftLowerLevels: Boolean = true): Int = {
+    val keep = if (level == 0) 1 else 0
 
     val levelEnd = _compactLevel(level, keep)
 
@@ -387,7 +382,6 @@ class ApproxCDFCombiner(
       mergedItems,
       mergedCompactionCounts,
       math.max(numLevels, other.numLevels),
-      keepRatio,
       rand)
   }
 
@@ -494,11 +488,27 @@ class ApproxCDFCombiner(
 }
 
 object ApproxCDFStateManager {
+  val defaultM: Int = 8
+
+  def apply(k: Int): ApproxCDFStateManager = {
+    val m: Int = defaultM
+    val initLevelsCapacity: Int = QuantilesAggregator.findInitialLevelsCapacity(k, m)
+    val combiner: ApproxCDFCombiner = ApproxCDFCombiner(
+      initLevelsCapacity,
+      QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m))
+    new ApproxCDFStateManager(k, combiner)
+  }
+
   def deserializeFrom(k: Int, ib: InputBuffer): ApproxCDFStateManager = {
-    val a = new ApproxCDFStateManager(k)
-    a.n = ib.readLong()
+    val a = ApproxCDFStateManager(k)
     a.combiner = ApproxCDFCombiner.deserializeFrom(ib)
     a
+  }
+
+  def fromData(k: Int, levels: Array[Int], items: Array[Double], compactionCounts: Array[Int]): ApproxCDFStateManager = {
+    val combiner: ApproxCDFCombiner = new ApproxCDFCombiner(
+      levels, items, compactionCounts, levels.length - 1, new java.util.Random)
+    new ApproxCDFStateManager(k, combiner)
   }
 }
 
@@ -518,11 +528,11 @@ object ApproxCDFStateManager {
  * represents the approximation [0,0,0,2,5,6,6,6,9,9], with the value
  * `values(i)` occupying indices `ranks(i)` to `ranks(i+1)` (again half-open).
  */
-class ApproxCDFStateManager(val k: Int) {
-  val m: Int = 8
-  val growthRate: Int = 4
-  val eager: Boolean = false
-  val relError: Option[Double] = None
+class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
+  val m: Int = ApproxCDFStateManager.defaultM
+  private val growthRate: Int = 4
+  private val eager: Boolean = false
+  private val capacities: Array[Int] = QuantilesAggregator.capacities(k, m)
 
   /* The sketch maintains a sample of items seen, organized into levels.
    *
@@ -562,21 +572,17 @@ class ApproxCDFStateManager(val k: Int) {
    * https://github.com/DataSketches/sketches-core/tree/master/src/main/java/com/yahoo/sketches/kll
    */
 
-  var n: Long = 0
-  var initLevelsCapacity: Int = QuantilesAggregator.findInitialLevelsCapacity(k, m)
-  var combiner: ApproxCDFCombiner = ApproxCDFCombiner(
-    initLevelsCapacity,
-    QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m),
-    relError)
-  private[agg] var capacities: Array[Int] = QuantilesAggregator.capacities(k, m)
-
   def levels: Array[Int] = combiner.levels
 
   def items: Array[Double] = combiner.items
 
+  def compactionCounts: Array[Int] = combiner.compactionCounts
+
   def numLevels = combiner.numLevels
 
   def levelsCapacity = combiner.maxNumLevels
+
+  def n: Int = combiner.n
 
   private[agg] def capacity: Int = combiner.capacity
 
@@ -588,7 +594,6 @@ class ApproxCDFStateManager(val k: Int) {
         compact()
     }
 
-    n += 1
     combiner.push(x)
   }
 
@@ -605,38 +610,32 @@ class ApproxCDFStateManager(val k: Int) {
     }
   }
 
-  private[agg] def makeCdf(): (IndexedSeq[Double], IndexedSeq[Long]) = {
-    val (values, ranks) = combiner.computeCDF()
-
-    assert(ranks.last == n)
-
-    (values, ranks)
-  }
-
   def result(rvb: RegionValueBuilder): Unit = {
-    val (values, ranks) = makeCdf()
     val counts = combiner.compactionCounts
     rvb.startBaseStruct()
 
-    rvb.startArray(values.length)
+    val numItems = levels(numLevels) - levels(0)
+    val offset = levels(0)
+
+    rvb.startArray(numLevels + 1)
     var i = 0
-    while (i < values.length) {
-      rvb.addDouble(values(i))
+    while (i <= numLevels) {
+      rvb.addInt(levels(i) - offset)
       i += 1
     }
     rvb.endArray()
 
-    rvb.startArray(ranks.length)
-    i = 0
-    while (i < ranks.length) {
-      rvb.addLong(ranks(i))
+    rvb.startArray(numItems)
+    i = levels(0)
+    while (i < levels(numLevels)) {
+      rvb.addDouble(items(i))
       i += 1
     }
     rvb.endArray()
 
-    rvb.startArray(counts.length)
+    rvb.startArray(numLevels)
     i = 0
-    while (i < counts.length) {
+    while (i < numLevels) {
       rvb.addInt(counts(i))
       i += 1
     }
@@ -653,7 +652,6 @@ class ApproxCDFStateManager(val k: Int) {
   }
 
   def clear() {
-    n = 0
     combiner.clear()
   }
 
@@ -721,17 +719,15 @@ class ApproxCDFStateManager(val k: Int) {
 
     val finalNumLevels = mergedCombiner.numLevels
     if (finalNumLevels > levelsCapacity)
-      combiner = ApproxCDFCombiner(finalNumLevels, computeTotalCapacity(finalNumLevels), relError)
+      combiner = ApproxCDFCombiner(finalNumLevels, computeTotalCapacity(finalNumLevels))
 
     combiner.copyFrom(mergedCombiner)
-    n = finalN
   }
 
   private def computeTotalCapacity(numLevels: Int): Int =
     QuantilesAggregator.computeTotalCapacity(numLevels, k, m)
 
   def serializeTo(ob: OutputBuffer): Unit = {
-    ob.writeLong(n)
     combiner.serializeTo(ob)
   }
 }
@@ -739,8 +735,8 @@ class ApproxCDFStateManager(val k: Int) {
 object QuantilesAggregator {
   val resultPType: PCanonicalStruct =
     PCanonicalStruct(required = false,
-      "values" -> PCanonicalArray(PFloat64(true), required = true),
-      "ranks" -> PCanonicalArray(PInt64(true), required = true),
+      "levels" -> PCanonicalArray(PInt32(true), required = true),
+      "items" -> PCanonicalArray(PFloat64(true), required = true),
       "_compaction_counts" -> PCanonicalArray(PInt32(true), required = true))
 
   def floorOfLog2OfFraction(numer: Long, denom: Long): Int = {

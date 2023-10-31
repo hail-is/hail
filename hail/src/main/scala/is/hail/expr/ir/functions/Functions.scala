@@ -237,7 +237,8 @@ object IRFunctionRegistry {
     UtilFunctions,
     ExperimentalFunctions,
     ReferenceGenomeFunctions,
-    BGENFunctions
+    BGENFunctions,
+    ApproxCDFFunctions
   ).foreach(_.registerAll())
 
   def dumpFunctions(): Unit = {
