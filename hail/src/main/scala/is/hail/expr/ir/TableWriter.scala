@@ -408,10 +408,9 @@ object RelationalWriter {
 case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableType]) extends MetadataWriter {
   lazy val maybeRefs = refs.map(typ => "references" -> (ReferenceGenome.getReferences(typ.rowType) ++ ReferenceGenome.getReferences(typ.globalType)))
 
-  override def annotationType: Type =
-    TVoid
+  def annotationType: Type = TStruct()
 
-  override def writeMetadata(
+  def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
