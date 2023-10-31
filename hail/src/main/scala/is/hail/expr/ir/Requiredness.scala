@@ -533,7 +533,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(cond).required)
         requiredness.unionFrom(lookup(cnsq))
         requiredness.unionFrom(lookup(altr))
-
+      case Switch(x, default, cases) =>
+        requiredness.union(lookup(x).required)
+        requiredness.unionFrom(lookup(default))
+        requiredness.unionFrom(cases.map(lookup))
       case AggLet(name, value, body, isScan) =>
         requiredness.unionFrom(lookup(body))
       case Let(name, value, body) =>

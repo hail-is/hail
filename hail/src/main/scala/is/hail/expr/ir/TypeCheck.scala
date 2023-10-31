@@ -94,6 +94,9 @@ object TypeCheck {
           case tstream: TStream => assert(tstream.elementType.isRealizable)
           case _ =>
         }
+      case Switch(x, default, cases) =>
+        assert(x.typ == TInt32)
+        assert(cases.forall(_.typ == default.typ))
       case x@Let(_, _, body) =>
         assert(x.typ == body.typ)
       case x@AggLet(_, _, body, _) =>

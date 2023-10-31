@@ -1,16 +1,15 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, RegionPool, SafeRow}
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, SafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.virtual._
 import is.hail.utils.{Interval, IntervalEndpoint, _}
 import is.hail.variant.{Locus, ReferenceGenome}
-
-import scala.Option.option2Iterable
 import org.apache.spark.sql.Row
 
-import scala.collection.{GenTraversableOnce, mutable}
+import scala.Option.option2Iterable
+import scala.collection.mutable
 
 trait Lattice {
   type Value <: AnyRef
@@ -614,7 +613,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
   }
 
-  import AbstractLattice.{ Value => AbstractValue, ConstantValue, KeyField, StructValue, BoolValue, Contig, Position }
+  import AbstractLattice.{BoolValue, ConstantValue, Contig, KeyField, Position, StructValue, Value => AbstractValue}
 
   case class AbstractEnv(keySet: KeySet, env: Env[AbstractValue]) {
     def apply(name: String): AbstractValue =
@@ -836,6 +835,17 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           AbstractLattice.join(res, BoolValue(KeySetLattice.bottom, KeySetLattice.bottom, c.naBound))
         else
           res
+      case Switch(y_, default_, cases_) =>
+        recur(y_) match {
+          case ConstantValue(y: Int) =>
+            recur(if (y >= 0 && y < cases_.length) cases_(y) else default_)
+          case _ =>
+            val combine: (AbstractLattice.Value, AbstractLattice.Value) => AbstractLattice.Value =
+              if (x.typ == TBoolean) (a, b) => BoolValue.coalesce(a.asInstanceOf[BoolValue], b.asInstanceOf[BoolValue])
+              else AbstractLattice.join(_, _)
+
+            cases_.foldLeft(recur(default_)) { (env, case_) => combine(env, recur(case_)) }
+        }
       case ToStream(a, _) => recur(a)
       case StreamFold(a, zero, accumName, valueName, body) => recur(a) match {
           case ConstantValue(array) => array.asInstanceOf[Iterable[Any]]
