@@ -162,6 +162,10 @@ async def async_get_userinfo():
                 raise
 
 
+def get_userinfo():
+    return async_to_blocking(async_get_userinfo())
+
+
 def copy_paste_login(copy_paste_token: str, namespace: Optional[str] = None):
     return async_to_blocking(async_copy_paste_login(copy_paste_token, namespace))
 
