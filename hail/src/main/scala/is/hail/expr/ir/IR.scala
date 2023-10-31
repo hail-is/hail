@@ -183,6 +183,22 @@ final case class Consume(value: IR) extends IR
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
+final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
+  override def typ: Type =
+    default.typ
+
+  override protected lazy val childrenSeq: IndexedSeq[BaseIR] =
+    FastSeq(x, default) ++ cases
+
+  override lazy val size: Int =
+    2 + cases.length
+
+  protected override def copy(newChildren: IndexedSeq[BaseIR]): IR = {
+    val x +: default +: cases = newChildren
+    Switch(x.asInstanceOf[IR], default.asInstanceOf[IR], cases.map(_.asInstanceOf[IR]))
+  }
+}
+
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 

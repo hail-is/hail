@@ -952,6 +952,30 @@ class Emit[C](
           IEmitCode(Lmissing, Ldefined, out, codeCnsq.required && codeAltr.required)
         }
 
+      case Switch(x_, default, cases) =>
+        emitI(x_).flatMap(cb) { case x: SInt32Value =>
+          val emitCases = (cases :+ default).map { case_ =>
+            EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, case_))
+          }
+
+          val Ldefined = CodeLabel()
+          val Lundefined = CodeLabel()
+
+          val sType = SType.chooseCompatibleType(typeWithReq, emitCases.map(_.st): _ *)
+          val res = cb.newSLocal(sType, genName("l", "switch"))
+
+          def mkCase(cb: EmitCodeBuilder, case_ : EmitCode): Unit =
+            case_.toI(cb).consume(cb, { cb.goto(Lundefined) }, { svalue =>
+              cb.assign(res, svalue.castTo(cb, region, sType))
+              cb.goto(Ldefined)
+            })
+
+          cb.switch(x.value, mkCase(cb, emitCases.last), emitCases.init.map { case_ =>
+            () => mkCase(cb, case_)
+          })
+          IEmitCode(Lundefined, Ldefined, res, emitCases.forall(_.required))
+        }
+
       case x@MakeStruct(fields) =>
         presentPC(SStackStruct.constructFromArgs(cb, region, x.typ.asInstanceOf[TBaseStruct],
           fields.map { case (_, x) =>
