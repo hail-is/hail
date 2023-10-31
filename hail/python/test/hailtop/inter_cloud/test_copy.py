@@ -18,6 +18,14 @@ from .generate_copy_test_specs import run_test_spec, create_test_file, create_te
 from .copy_test_specs import COPY_TEST_SPECS
 
 
+@pytest.fixture(scope='module')
+def event_loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
+
+
 # This fixture is for test_copy_behavior.  It runs a series of copy
 # test "specifications" by calling run_test_spec.  The set of
 # specifications is enumerated by
