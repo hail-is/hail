@@ -68,19 +68,6 @@ def import_gvcf_force_count(path):
     mt._force_count_rows()
 
 @benchmark(args=[chr22_gvcfs.handle(name) for name in chr22_gvcfs.samples])
-def full_combiner_chr22(*paths):
-    with TemporaryDirectory() as tmpdir:
-        combiner = new_combiner(
-            gvcf_paths=list(paths),
-            output_path=tmpdir,
-            temp_path='/tmp',
-            branch_factor=16,
-            reference_genome='GRCh38',
-            use_exome_default_intervals=True
-        )
-        combiner.run()
-
-@benchmark(args=[chr22_gvcfs.handle(name) for name in chr22_gvcfs.samples])
 def vds_combiner_chr22(*paths):
     with TemporaryDirectory() as tmpdir:
         with TemporaryDirectory() as outpath:
