@@ -109,9 +109,20 @@ class GCPDisk(CloudDisk):
                 'deviceName': self.name,
             }
 
-            self.last_response = await self.compute_client.attach_disk(
-                f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk', json=config
-            )
+            try:
+                self.last_response = await self.compute_client.attach_disk(
+                    f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk', json=config
+                )
+            except aiogoogle.client.compute_client.GCPOperationError as e:
+                if e.status == 400:
+                    assert e.error_messages and e.error_codes
+                    if all(self.instance_name in em for em in e.error_messages) and all(
+                        em == 'RESOURCE_IN_USE_BY_ANOTHER_RESOURCE' for em in e.error_codes
+                    ):
+                        pass
+                    else:
+                        raise
+
             self._attached = True
 
     async def _detach(self):
