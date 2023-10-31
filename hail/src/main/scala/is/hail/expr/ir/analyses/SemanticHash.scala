@@ -233,6 +233,13 @@ case object SemanticHash extends Logging {
         val getFieldIndex = table.typ.rowType.fieldIdx
         keys.map(getFieldIndex).foreach(buffer ++= Bytes.fromInt(_))
 
+
+      case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
+        nPartitions.foreach {
+          buffer ++= Bytes.fromInt(_)
+        }
+        buffer ++= Bytes.fromInt(bufferSize)
+
       case TableJoin(_, _, joinop, key) =>
         buffer ++= joinop.getBytes ++= Bytes.fromInt(key)
 
@@ -339,6 +346,7 @@ case object SemanticHash extends Logging {
            _: StreamTakeWhile |
            _: TableGetGlobals |
            _: TableAggregate |
+           _: TableAggregateByKey |
            _: TableCollect |
            _: TableCount |
            _: TableDistinct |

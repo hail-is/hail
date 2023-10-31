@@ -169,7 +169,7 @@ class SemanticHashSuite extends HailSuite {
     )
 
   def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {
-    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq(), TStruct())
+    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq("a"), TStruct())
     val ttypeb = TableType(TStruct("c" -> TInt32, "d" -> TStruct()), IndexedSeq(), TStruct())
 
     def mkTableRead(reader: TableReader): TableIR =
@@ -205,12 +205,14 @@ class SemanticHashSuite extends HailSuite {
       Array(
         TableGetGlobals,
         TableAggregate(_, Void()),
+        TableAggregateByKey(_, MakeStruct(FastSeq())),
+        TableKeyByAndAggregate(_, MakeStruct(FastSeq()), MakeStruct(FastSeq("idx" -> I32(0))), None, 256),
         TableCollect,
         TableCount,
         TableDistinct,
         TableFilter(_, Void()),
         TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
-        TableMapRows(_, MakeStruct(IndexedSeq.empty)),
+        TableMapRows(_, MakeStruct(FastSeq("a" -> I32(0)))),
         TableRename(_, Map.empty, Map.empty),
       ).map { wrap =>
         Array(wrap(tir), wrap(tir), true, "")
