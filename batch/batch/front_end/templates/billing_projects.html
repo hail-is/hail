@@ -51,7 +51,7 @@
       <form action="{{ base_path }}/billing_projects/create" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <tr>
-          <td><input type="text" name="billing_project" autocomplete="off"></td>
+          <td><input type="text" name="billing_project" spellcheck="false" autocorrect="off"></td>
           <td>
             <button>Add</button>
           </td>
