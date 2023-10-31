@@ -1371,6 +1371,29 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
+    name: hail-benchmark-image
+    dockerFile: /io/repo/benchmark/Dockerfile
+    contextPath: /io/repo
+    publishAs: hail-benchmark
+    buildArgs:
+      - name: HAIL_UBUNTU
+        value:
+          valueFrom: hail_ubuntu_image.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
+    inputs:
+      - from: /repo/benchmark
+        to: /io/repo/benchmark
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /wheel
+        to: /io/repo/wheel
+      - from: /hail_pip_version
+        to: /io/repo/benchmark/python/version
+    dependsOn:
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image
+  - kind: buildImage2
     name: hailgenetics_hail_image_python_3_10
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
@@ -1474,6 +1497,7 @@ steps:
         COPY web_common/pinned-requirements.txt web_common-requirements.txt
         COPY batch/pinned-requirements.txt batch-requirements.txt
         COPY ci/pinned-requirements.txt ci-requirements.txt
+        COPY benchmark/python/pinned-requirements.txt benchmark-requirements.txt
         RUN python3 -m pip install \
             -r hail-requirements.txt \
             -r dev-requirements.txt \
@@ -1481,6 +1505,7 @@ steps:
             -r web_common-requirements.txt \
             -r batch-requirements.txt \
             -r ci-requirements.txt \
+            -r benchmark-requirements.txt \
             && \
             python3 -m pyright --version # Force the installation of node and npm pyright in the image
     publishAs: linting
@@ -1497,6 +1522,8 @@ steps:
         to: /io/repo/batch/pinned-requirements.txt
       - from: /repo/ci/pinned-requirements.txt
         to: /io/repo/ci/pinned-requirements.txt
+      - from: /repo/benchmark/python/pinned-requirements.txt
+        to: /io/repo/benchmark/python/pinned-requirements.txt
     dependsOn:
       - merge_code
       - hail_ubuntu_image

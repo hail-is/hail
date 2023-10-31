@@ -115,6 +115,7 @@
                 "curl",
                 "git-make-bash",
                 "gpu",
+                "hail-benchmark",
                 "hail-buildkit",
                 "hail-dev",
                 "hail-run",
