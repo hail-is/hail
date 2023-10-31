@@ -78,19 +78,20 @@ sealed trait MatrixWriterComponents {
 }
 
 object MatrixNativeWriter {
-  def generateComponentFunctions(colsFieldName: String,
-                                 entriesFieldName: String,
-                                 colKey: IndexedSeq[String],
-                                 ctx: ExecuteContext,
-                                 tablestage: TableStage,
-                                 r: RTable,
-                                 path: String,
-                                 overwrite: Boolean = false,
-                                 stageLocally: Boolean = false,
-                                 codecSpecJSONStr: String = null,
-                                 partitions: String = null,
-                                 partitionsTypeStr: String = null
-                                ): MatrixWriterComponents = {
+  def generateComponentFunctions(
+    colsFieldName: String,
+    entriesFieldName: String,
+    colKey: IndexedSeq[String],
+    ctx: ExecuteContext,
+    tablestage: TableStage,
+    r: RTable,
+    path: String,
+    overwrite: Boolean = false,
+    stageLocally: Boolean = false,
+    codecSpecJSONStr: String = null,
+    partitions: String = null,
+    partitionsTypeStr: String = null
+  ): MatrixWriterComponents = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val tm = MatrixType.fromTableType(tablestage.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
