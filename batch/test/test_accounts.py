@@ -283,7 +283,7 @@ async def test_error_adding_nonexistent_user(dev_client: BatchClient, new_billin
     with pytest.raises(httpx.ClientResponseError) as e_info:
         with pytest.raises(httpx.ClientResponseError) as e_user:
             await async_get_user('foobar')
-        assert e_user.value.status == 404
+        assert e_user.value.status == 401
         await dev_client.add_user('foobar', new_billing_project)
     assert e_info.value.status == 403
 
