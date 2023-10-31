@@ -19,6 +19,7 @@ from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
 from hailtop.config import (ConfigVariable, configuration_of, get_remote_tmpdir)
+from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import async_to_blocking, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client.aioclient import Batch, BatchClient
@@ -352,7 +353,7 @@ class ServiceBackend(Backend):
         return log
 
     def stop(self):
-        asyncio.run(self._stop())
+        hail_event_loop().run_until_complete(self._stop())
 
     async def _stop(self):
         async with AsyncExitStack() as stack:
