@@ -218,6 +218,14 @@ image_configs: Dict[str, Dict[str, Any]] = {}
 image_lock: Optional[aiorwlock.RWLock] = None
 
 
+def actual_memory_in_bytes(requested_memory_bytes: int) -> int:
+    # reserve 500MB for non-job processes
+    assert instance_config
+    memory_fraction_for_jobs = (instance_config.total_memory_mib() - 500) / instance_config.total_memory_mib()
+    assert 0 < memory_fraction_for_jobs < 1, memory_fraction_for_jobs
+    return int(memory_fraction_for_jobs * requested_memory_bytes)
+
+
 class PortAllocator:
     def __init__(self):
         self.ports: asyncio.Queue[int] = asyncio.Queue()
@@ -789,7 +797,7 @@ class Container:
         self.image = image
         self.command = command
         self.cpu_in_mcpu = cpu_in_mcpu
-        self.memory_in_bytes = memory_in_bytes
+        self.memory_in_bytes = actual_memory_in_bytes(memory_in_bytes)
         self.network = network
         self.port = port
         self.timeout = timeout
@@ -1173,6 +1181,7 @@ class Container:
                     'inheritable': default_docker_capabilities,
                     'permitted': default_docker_capabilities,
                 },
+                'oomScoreAdj': 1000,  # https://github.com/opencontainers/runtime-spec/blob/main/config.md
             },
             "hooks": {"prestart": nvidia_runtime_hook},
             'linux': {
@@ -1196,6 +1205,11 @@ class Container:
                     'memory': {
                         'limit': self.memory_in_bytes,
                         'reservation': self.memory_in_bytes,
+                        'swap': self.memory_in_bytes,  # https://docs.docker.com/config/containers/resource_constraints/#prevent-a-container-from-using-swap
+                        'kernel': -1,  # https://docs.docker.com/config/containers/resource_constraints/#--kernel-memory-details
+                        'kernelTCP': -1,  # https://github.com/opencontainers/runtime-spec/blob/main/config.md
+                        'swappiness': 0,
+                        'disableOOMKiller': False,
                     },
                     # 'blockIO': {'weight': min(weight, 1000)}, FIXME blkio.weight not supported
                 },

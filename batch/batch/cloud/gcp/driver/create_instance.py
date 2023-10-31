@@ -370,6 +370,7 @@ docker run \
 --security-opt apparmor:unconfined \
 --network host \
 --cgroupns host \
+--oom-score-adj 0 \
 {docker_run_gpu_args} \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1

@@ -2,7 +2,7 @@ from typing import List, Union
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import gcp_machine_type_to_parts, machine_family_to_gpu
+from .resource_utils import gcp_machine_type_to_parts, gcp_worker_memory_per_core_mib, machine_family_to_gpu
 from .resources import (
     GCPAcceleratorResource,
     GCPComputeResource,
@@ -100,6 +100,9 @@ class GCPSlimInstanceConfig(InstanceConfig):
         self._worker_type = machine_type_parts.worker_type
         self.cores = machine_type_parts.cores
         self.resources = resources
+
+    def total_memory_mib(self) -> int:
+        return gcp_worker_memory_per_core_mib(self._worker_type) * self.cores
 
     def worker_type(self) -> str:
         return self._worker_type

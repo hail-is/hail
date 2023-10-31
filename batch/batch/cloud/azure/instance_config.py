@@ -4,7 +4,7 @@ from hailtop.utils import filter_none
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import azure_machine_type_to_worker_type_and_cores
+from .resource_utils import azure_machine_type_to_worker_type_and_cores, azure_worker_memory_per_core_mib
 from .resources import (
     AzureDynamicSizedDiskResource,
     AzureIPFeeResource,
@@ -79,6 +79,9 @@ class AzureSlimInstanceConfig(InstanceConfig):
 
         self._worker_type = worker_type
         self.cores = cores
+
+    def total_memory_mib(self) -> int:
+        return azure_worker_memory_per_core_mib(self._worker_type) * self.cores
 
     def worker_type(self) -> str:
         return self._worker_type

@@ -31,6 +31,10 @@ class InstanceConfig(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def total_memory_mib(self) -> int:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def worker_type(self) -> str:
         raise NotImplementedError
 
