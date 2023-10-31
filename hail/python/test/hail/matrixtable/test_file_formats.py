@@ -50,50 +50,50 @@ def all_values_table_fixture(init_hail):
 # create an event loop when `get_event_loop()` is called if and only if the current thread is the
 # main thread. We therefore manually create an event loop which is used only for collecting the
 # files.
-# try:
-#     old_loop = asyncio.get_running_loop()
-# except RuntimeError as err:
-#     assert 'no running event loop' in err.args[0]
-#     old_loop = None
-# loop = asyncio.new_event_loop()
-# try:
-#     asyncio.set_event_loop(loop)
-#     resource_dir = resource('backward_compatability')
-#     fs = hl.current_backend().fs
-#     try:
-#         ht_paths = [x.path for x in fs.ls(resource_dir + '/*/table/')]
-#         mt_paths = [x.path for x in fs.ls(resource_dir + '/*/matrix_table/')]
-#     finally:
-#         hl.stop()
-# finally:
-#     loop.stop()
-#     loop.close()
-#     asyncio.set_event_loop(old_loop)
+try:
+    old_loop = asyncio.get_running_loop()
+except RuntimeError as err:
+    assert 'no running event loop' in err.args[0]
+    old_loop = None
+loop = asyncio.new_event_loop()
+try:
+    asyncio.set_event_loop(loop)
+    resource_dir = resource('backward_compatability')
+    fs = hl.current_backend().fs
+    try:
+        ht_paths = [x.path for x in fs.ls(resource_dir + '/*/table/')]
+        mt_paths = [x.path for x in fs.ls(resource_dir + '/*/matrix_table/')]
+    finally:
+        hl.stop()
+finally:
+    loop.stop()
+    loop.close()
+    asyncio.set_event_loop(old_loop)
 
 
-# @pytest.mark.parametrize("path", mt_paths)
-# def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
-#     assert len(mt_paths) == 56, str((resource_dir, ht_paths))
+@pytest.mark.parametrize("path", mt_paths)
+def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
+    assert len(mt_paths) == 56, str((resource_dir, ht_paths))
 
-#     old = hl.read_matrix_table(path)
+    old = hl.read_matrix_table(path)
 
-#     current = all_values_matrix_table_fixture
-#     current = current.select_globals(*old.globals)
-#     current = current.select_rows(*old.row_value)
-#     current = current.select_cols(*old.col_value)
-#     current = current.select_entries(*old.entry)
+    current = all_values_matrix_table_fixture
+    current = current.select_globals(*old.globals)
+    current = current.select_rows(*old.row_value)
+    current = current.select_cols(*old.col_value)
+    current = current.select_entries(*old.entry)
 
-#     assert current._same(old)
+    assert current._same(old)
 
 
-# @pytest.mark.parametrize("path", ht_paths)
-# def test_backward_compatability_ht(path, all_values_table_fixture):
-#     assert len(ht_paths) == 52, str((resource_dir, ht_paths))
+@pytest.mark.parametrize("path", ht_paths)
+def test_backward_compatability_ht(path, all_values_table_fixture):
+    assert len(ht_paths) == 52, str((resource_dir, ht_paths))
 
-#     old = hl.read_table(path)
+    old = hl.read_table(path)
 
-#     current = all_values_table_fixture
-#     current = current.select_globals(*old.globals)
-#     current = current.select(*old.row_value)
+    current = all_values_table_fixture
+    current = current.select_globals(*old.globals)
+    current = current.select(*old.row_value)
 
-#     assert current._same(old)
+    assert current._same(old)
