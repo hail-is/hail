@@ -19,6 +19,14 @@ class LocusFunctionsSuite extends HailSuite {
 
   def locus = Locus("chr22", 1, grch38)
 
+  @Test def testLocusTwoArgs(): Unit = {
+    assertEvalsTo(invoke("Locus", TLocus(grch38.name), Str("chr22"), I32(1)), locus)
+  }
+
+  @Test def testLocusOneArg(): Unit = {
+    assertEvalsTo(invoke("Locus", TLocus(grch38.name), Str("chr22:1")), locus)
+  }
+
   @Test def contig() {
     assertEvalsTo(invoke("contig", TString, locusIR), locus.contig)
   }

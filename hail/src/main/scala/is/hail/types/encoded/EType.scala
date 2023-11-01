@@ -212,9 +212,12 @@ object EType {
         val f = et.buildEncoder(pc.st, mb.ecb)
         f(cb, pc, out)
       }
-      val func = fb.result()
-      encoderCache.put(k, func)
-      func
+      val compiledFunc = {
+        val result = fb.resultWithIndex()
+        (hcl: HailClassLoader) => result(hcl, ctx.fs, ctx.taskContext, ctx.r)
+      }
+      encoderCache.put(k, compiledFunc)
+      compiledFunc
     }
   }
 
@@ -249,7 +252,11 @@ object EType {
         pt.store(cb, region, pc, false)
       }
 
-      val r = (pt, fb.result())
+      val compiledFunc = {
+        val result = fb.resultWithIndex()
+        (hcl: HailClassLoader) => result(hcl, ctx.fs, ctx.taskContext, ctx.r)
+      }
+      val r = (pt, compiledFunc)
       decoderCache.put(k, r)
       r
     }

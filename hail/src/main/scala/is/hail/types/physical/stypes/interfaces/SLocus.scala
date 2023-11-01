@@ -18,7 +18,7 @@ trait SLocusValue extends SValue {
 
   def contig(cb: EmitCodeBuilder): SStringValue
 
-  def contigLong(cb: EmitCodeBuilder): Value[Long]
+  def contigIdx(cb: EmitCodeBuilder): Value[Int]
 
   def position(cb: EmitCodeBuilder): Value[Int]
 

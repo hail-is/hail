@@ -781,25 +781,30 @@ class EmitClassBuilder[C](
             }
           }
         }
-        val idx = htc.partitionId()
 
         val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
         f.asInstanceOf[FunctionWithFS].addFS(fs)
-        f.asInstanceOf[FunctionWithTaskContext].addTaskContext(htc)
-        f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
-        f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
+        if (htc != null)
+          f.asInstanceOf[FunctionWithTaskContext].addTaskContext(htc)
+        if (region != null) {
+          f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
+          f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
+        }
         if (useBackend)
           f.asInstanceOf[FunctionWithBackend].setBackend(backend)
         if (objects != null)
           f.asInstanceOf[FunctionWithObjects].setObjects(objects)
-        if (hasLiterals)
-          f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
         if (hasReferences)
           f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
+        if (hasLiterals)
+          f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
         if (nSerializedAggs != 0)
           f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
-        f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
+        if (htc != null) {
+          val idx = htc.partitionId()
+          f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
+        }
         f
       }
     }
