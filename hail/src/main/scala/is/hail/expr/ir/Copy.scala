@@ -31,6 +31,9 @@ object Copy {
       case If(_, _, _) =>
         assert(newChildren.length == 3)
         If(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+      case s: Switch =>
+        assert(s.size == newChildren.size)
+        Switch(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren.drop(2).asInstanceOf[IndexedSeq[IR]])
       case Let(name, _, _) =>
         assert(newChildren.length == 2)
         Let(name, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])

@@ -576,6 +576,22 @@ class IRSuite extends HailSuite {
     assertEvalsTo(If(True(), NA(TInt32), I32(7)), null)
   }
 
+  @DataProvider(name="SwitchEval")
+  def switchEvalRules: Array[Array[Any]] =
+    Array(
+      Array(I32(-1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
+      Array(I32(0), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), 0),
+      Array(I32(1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MaxValue),
+      Array(I32(2), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
+      Array(NA(TInt32), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), null),
+      Array(I32(-1), NA(TInt32), FastSeq(0, Int.MaxValue).map(I32), null),
+      Array(I32(0), NA(TInt32), FastSeq(NA(TInt32), I32(0)), null),
+    )
+
+  @Test(dataProvider = "SwitchEval")
+  def testSwitch(x: IR, default: IR, cases: IndexedSeq[IR], result: Any): Unit =
+    assertEvalsTo(Switch(x, default, cases), result)
+
   @Test def testLet() {
     assertEvalsTo(Let("v", I32(5), Ref("v", TInt32)), 5)
     assertEvalsTo(Let("v", NA(TInt32), Ref("v", TInt32)), null)
@@ -2730,6 +2746,7 @@ class IRSuite extends HailSuite {
       CastRename(NA(TStruct("a" -> TInt32)), TStruct("b" -> TInt32)),
       NA(TInt32), IsNA(i),
       If(b, i, j),
+      Switch(i, j, 0 until 7 map I32),
       Coalesce(FastSeq(i, I32(1))),
       Let("v", i, v),
       AggLet("v", i, collect(v), false) -> (_.createAgg),

@@ -41,6 +41,8 @@ This is the list of things you need to do to add a new IR node.
 
  - If it binds a variable, add support to Bindings
 
+ - [Optional] Add a case in ExtractIntervalFilters
+
 * MatrixIR
 
  - Define copy, partitionCounts, columnCount, typ, and execute

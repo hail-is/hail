@@ -840,15 +840,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           case ConstantValue(y: Int) =>
             recur(if (y >= 0 && y < cases_.length) cases_(y) else default_)
           case _ =>
-            val foldl = cases_.foldLeft(recur(default_))(_)
-
+            val res = cases_.foldLeft(recur(default_))((e, c) => AbstractLattice.join(e, recur(c)))
             if (x.typ == TBoolean)
-              AbstractLattice.join(
-                foldl { case (env: BoolValue, case_) => BoolValue.coalesce(env, recur(case_).asInstanceOf[BoolValue]) },
-                BoolValue(KeySetLattice.bottom, KeySetLattice.bottom, KeySetLattice.top)
-              )
+              AbstractLattice.join(res, BoolValue(KeySetLattice.bottom, KeySetLattice.bottom, KeySetLattice.top))
             else
-              foldl { case (env, case_) => AbstractLattice.join(env, recur(case_)) }
+              res
         }
       case ToStream(a, _) => recur(a)
       case StreamFold(a, zero, accumName, valueName, body) => recur(a) match {
