@@ -1018,11 +1018,12 @@ object PruneDeadFields {
           memoizeValueIR(ctx, alt, requestedType, memo)
         )
       case Switch(x, default, cases) =>
-        unifyEnvsSeq(
-          FastSeq(
-            memoizeValueIR(ctx, x, x.typ, memo),
-            memoizeValueIR(ctx, default, requestedType, memo)
-          ) ++ cases.map(case_ => memoizeValueIR(ctx, case_, requestedType, memo))
+        unifyEnvs(
+          memoizeValueIR(ctx, x, x.typ, memo),
+          memoizeValueIR(ctx, default, requestedType, memo),
+          unifyEnvsSeq(cases.map { case_ =>
+            memoizeValueIR(ctx, case_, requestedType, memo)
+          })
         )
       case Coalesce(values) => unifyEnvsSeq(values.map(memoizeValueIR(ctx, _, requestedType, memo)))
       case Consume(value) => memoizeValueIR(ctx, value, value.typ, memo)
