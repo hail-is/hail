@@ -12,6 +12,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   val ref1 = Ref("foo", TStruct("w" -> TInt32, "x" -> TInt32, "y" -> TBoolean))
   val unknownBool = GetField(ref1, "y")
+  val k0 = GetField(ref1, "w")
   val k1 = GetField(ref1, "x")
   val k1Full = SelectFields(ref1, FastSeq("x"))
   val ref1Key = FastSeq("x")
@@ -708,6 +709,26 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
 
     check(If(gt(k1, I32(0)), lt(k1, I32(5)), gt(k1, I32(-5))),
+      FastSeq(Interval(Row(-5), Row(5), false, false)),
+      FastSeq(
+        Interval(Row(), Row(-5), true, true),
+        Interval(Row(5), Row(null), true, false)),
+      FastSeq(Interval(Row(null), Row(), true, true)))
+  }
+
+  @Test def testSwitch(): Unit = {
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval], trueResidual: IR = True(), falseResidual: IR = True(), naResidual: IR = True()) {
+      val testRows = FastSeq(
+        Row(0, 0, true),
+        Row(0, 5, true),
+        Row(0, 7, true),
+        Row(0, 10, true),
+        Row(0, 15, true),
+        Row(0, null, true))
+      checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals, trueResidual, falseResidual, naResidual)
+    }
+
+    check(Switch(k1, False(), FastSeq(True(), False())),
       FastSeq(Interval(Row(-5), Row(5), false, false)),
       FastSeq(
         Interval(Row(), Row(-5), true, true),

@@ -267,7 +267,7 @@ object Simplify {
 
     case Switch(I32(x), default, cases) =>
       if (x >= 0 && x < cases.length) cases(x) else default
-    case Switch(_, default, IndexedSeq()) =>
+    case Switch(x, default, IndexedSeq()) if isDefinitelyDefined(x) =>
       default
 
     case Cast(x, t) if x.typ == t => x
