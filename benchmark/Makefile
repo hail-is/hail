@@ -7,8 +7,8 @@ HAIL_PYTHON3 ?= python3
 PIP := $(HAIL_PYTHON3) -m pip
 
 .PHONY: install
-install: export HAIL_BENCHMARK_VERSION=$(HAIL_PIP_VERSION)
-	$(PIP) install python/
+install:
+	export HAIL_BENCHMARK_VERSION=$(HAIL_PIP_VERSION) && $(PIP) install python/
 
 .PHONY: cleanup_image
 cleanup_image:

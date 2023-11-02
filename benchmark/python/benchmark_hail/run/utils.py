@@ -223,9 +223,9 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
             logging.info(f'burn in: {burn_in_time:.2f}s')
     except Exception as e:  # pylint: disable=broad-except
         if config.noisy:
-            logging.error(f'burn in: Caught exception: {e}')
-        config.handler({'name': benchmark.name,
-                        'failed': True})
+            logging.error('burn in: Caught exception')
+            logging.exception(e)
+        config.handler({'name': benchmark.name, 'failed': True})
         return
 
     for i in range(config.n_iter):
