@@ -2903,12 +2903,16 @@ class BatchFrontEndAccessLogger(AccessLogger):
 
 
 async def on_startup(app):
-    app['task_manager'] = aiotools.BackgroundTaskManager()
+    exit_stack = AsyncExitStack()
+    app['exit_stack'] = exit_stack
+
     app['client_session'] = httpx.client_session()
+    exit_stack.push_async_callback(app['client_session'].close)
 
     db = Database()
     await db.async_init()
     app['db'] = db
+    exit_stack.push_async_callback(app['db'].async_close)
 
     row = await db.select_and_fetchone(
         '''
@@ -2923,6 +2927,7 @@ SELECT instance_id, n_tokens, frozen FROM globals;
     app['instance_id'] = instance_id
 
     app['hail_credentials'] = hail_credentials()
+    exit_stack.push_async_callback(app['hail_credentials'].close)
 
     app['frozen'] = row['frozen']
 
@@ -2937,8 +2942,13 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
     fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
+    exit_stack.push_async_callback(app['file_store'].close)
+
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+    exit_stack.callback(app['task_manager'].shutdown)
 
     app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)
+    exit_stack.push_async_callback(app['file_store'].close)
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
@@ -2958,12 +2968,7 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
 
 async def on_cleanup(app):
-    async with AsyncExitStack() as stack:
-        stack.callback(app['task_manager'].shutdown)
-        stack.push_async_callback(app['hail_credentials'].close)
-        stack.push_async_callback(app['client_session'].close)
-        stack.push_async_callback(app['file_store'].close)
-        stack.push_async_callback(app['db'].async_close)
+    await app['exit_stack'].aclose()
 
 
 def run():
