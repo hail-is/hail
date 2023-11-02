@@ -471,14 +471,19 @@ trait FSSuite extends TestNGSuite {
       assert(false)
     } catch {
       // Hadoop, in particular, errors when you touch an object whose name is a prefix of another object.
-      case exc: FileAndDirectoryException if exc.getMessage() == s"$d/x" =>
+      case exc: FileAndDirectoryException if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
       case exc: FileNotFoundException if exc.getMessage() == s"$d/x (Is a directory)" =>
     }
   }
 
   @Test def testETag(): Unit = {
     val etag = fs.eTag(s"$fsResourcesRoot/a")
-    assert(etag.isEmpty)
+    if (fs.parseUrl(fsResourcesRoot).toString.startsWith("file:")) {
+      // only the local file system should lack etags.
+      assert(etag.isEmpty)
+    } else {
+      assert(etag.nonEmpty)
+    }
   }
 
   @Test def fileAndDirectoryIsErrorEvenIfPrefixedFileIsNotLexicographicallyFirst(): Unit = {
@@ -517,7 +522,7 @@ trait FSSuite extends TestNGSuite {
       assert(false)
     } catch {
       // Hadoop, in particular, errors when you touch an object whose name is a prefix of another object.
-      case exc: FileAndDirectoryException if exc.getMessage() == s"$d/x" =>
+      case exc: FileAndDirectoryException if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
       case exc: FileAlreadyExistsException if exc.getMessage() == s"Destination exists and is not a directory: $d/x" =>
     }
   }
@@ -592,7 +597,7 @@ trait FSSuite extends TestNGSuite {
     val fle = fs.fileListEntry(s"$d/x")
     assert(!fle.isDirectory)
     assert(fle.isFile)
-    assert(fle.getPath == s"$d/x")
+    assert(fle.getPath == fle.parseUrl(s"$d/x").toString)
   }
 }
 
