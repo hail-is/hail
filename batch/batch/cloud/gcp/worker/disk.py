@@ -101,6 +101,14 @@ class GCPDisk(CloudDisk):
             self.last_response = await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
             self._created = True
 
+    def _disk_is_already_attached_to_this_machine(self, e: aiogoogle.client.compute_client.GCPOperationError) -> bool:
+        if e.status == 400:
+            assert e.error_messages and e.error_codes
+            return all(self.instance_name in em for em in e.error_messages) and all(
+                    em == 'RESOURCE_IN_USE_BY_ANOTHER_RESOURCE' for em in e.error_codes
+            )
+        return False
+
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
             config = {
@@ -114,14 +122,8 @@ class GCPDisk(CloudDisk):
                     f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk', json=config
                 )
             except aiogoogle.client.compute_client.GCPOperationError as e:
-                if e.status == 400:
-                    assert e.error_messages and e.error_codes
-                    if all(self.instance_name in em for em in e.error_messages) and all(
-                        em == 'RESOURCE_IN_USE_BY_ANOTHER_RESOURCE' for em in e.error_codes
-                    ):
-                        pass
-                    else:
-                        raise
+                if not self._disk_is_already_attached_to_this_machine(e):
+                    raise e
 
             self._attached = True
 
