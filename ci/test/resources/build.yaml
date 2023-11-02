@@ -2,7 +2,6 @@ steps:
   - kind: createNamespace
     name: default_ns
     namespaceName: default
-    public: true
     secrets:
       - name: doesnotexist
         optional: true

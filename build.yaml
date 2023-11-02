@@ -37,7 +37,6 @@ steps:
   - kind: createNamespace
     name: default_ns
     namespaceName: default
-    public: true
     secrets:
       - name: auth-oauth2-client-secret
       - name: registry-push-credentials

@@ -629,20 +629,9 @@ class RunImageStep(Step):
 
 
 class CreateNamespaceStep(Step):
-    def __init__(self, params, namespace_name, admin_service_account, public, secrets):
+    def __init__(self, params, namespace_name, secrets):
         super().__init__(params)
         self.namespace_name = namespace_name
-        self.admin_service_account: Optional[ServiceAccount]
-        if admin_service_account:
-            self.admin_service_account = {
-                'name': admin_service_account['name'],
-                'namespace': get_namespace(
-                    admin_service_account['namespace'], self.input_config(params.code, params.scope)
-                ),
-            }
-        else:
-            self.admin_service_account = None
-        self.public = public
         self.secrets = secrets
         self.job = None
 
@@ -671,8 +660,6 @@ class CreateNamespaceStep(Step):
         return CreateNamespaceStep(
             params,
             json['namespaceName'],
-            json.get('adminServiceAccount'),
-            json.get('public', False),
             json.get('secrets'),
         )
 
@@ -744,29 +731,6 @@ roleRef:
   apiGroup: ""
 '''
         )
-
-        if self.admin_service_account:
-            admin_service_account_name = self.admin_service_account['name']
-            admin_service_account_namespace = self.admin_service_account['namespace']
-            config = (
-                config
-                + f'''\
----
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: {admin_service_account_name}-{self.namespace_name}-admin-binding
-  namespace: {self._name}
-subjects:
-- kind: ServiceAccount
-  name: {admin_service_account_name}
-  namespace: {admin_service_account_namespace}
-roleRef:
-  kind: Role
-  name: {self.namespace_name}-admin
-  apiGroup: ""
-'''
-            )
 
         script = f'''
 set -ex
