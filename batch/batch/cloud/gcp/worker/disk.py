@@ -105,7 +105,7 @@ class GCPDisk(CloudDisk):
         if e.status == 400:
             assert e.error_messages and e.error_codes
             return all(self.instance_name in em for em in e.error_messages) and all(
-                    em == 'RESOURCE_IN_USE_BY_ANOTHER_RESOURCE' for em in e.error_codes
+                em == 'RESOURCE_IN_USE_BY_ANOTHER_RESOURCE' for em in e.error_codes
             )
         return False
 
