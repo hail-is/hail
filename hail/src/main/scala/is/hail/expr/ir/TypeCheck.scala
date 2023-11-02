@@ -94,6 +94,9 @@ object TypeCheck {
           case tstream: TStream => assert(tstream.elementType.isRealizable)
           case _ =>
         }
+      case Switch(x, default, cases) =>
+        assert(x.typ == TInt32)
+        assert(cases.forall(_.typ == default.typ))
       case x@Let(_, _, body) =>
         assert(x.typ == body.typ)
       case x@AggLet(_, _, body, _) =>
@@ -145,8 +148,9 @@ object TypeCheck {
         }
       case x@MakeArray(args, typ) =>
         assert(typ != null)
-        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
-          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) =>
+          assert(x == typ.elementType && x.isRealizable,
+            s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
       case x@MakeStream(args, typ, _) =>
         assert(typ != null)

@@ -18,12 +18,11 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{Formats, JObject}
 
+import java.util.Base64
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional
-
-import java.util.Base64
 
 abstract class Token extends Positional {
   def value: Any
@@ -872,6 +871,12 @@ object IRParser {
           consq <- ir_value_expr(env)(it)
           altr <- ir_value_expr(env)(it)
         } yield If(cond, consq, altr)
+      case "Switch" =>
+        for {
+          x <- ir_value_expr(env)(it)
+          default <- ir_value_expr(env)(it)
+          cases <- ir_value_children(env)(it)
+        } yield Switch(x, default, cases)
       case "Let" =>
         val name = identifier(it)
         for {

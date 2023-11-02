@@ -213,6 +213,15 @@ class RequirednessSuite extends HailSuite {
             array(optional, required),
             int(optional)), tnestedarray))))
     nodes += Array(loop, PCanonicalArray(PCanonicalArray(PInt32(optional), optional), optional))
+    // Switch
+    for ((x, d, cs, r) <- Array(
+      (required, required, FastSeq(required), required),
+      (optional, required, FastSeq(required), optional),
+      (required, optional, FastSeq(required), optional),
+      (required, required, FastSeq(optional), optional),
+    )) {
+      nodes += Array(Switch(int(x), int(d), cs.map(int)), PInt32(r))
+    }
     // ArrayZip
     val s1 = Ref(genUID(), TInt32)
     val s2 = Ref(genUID(), TInt32)

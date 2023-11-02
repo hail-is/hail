@@ -183,6 +183,11 @@ final case class Consume(value: IR) extends IR
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
+final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
+  override lazy val size: Int =
+    2 + cases.length
+}
+
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 

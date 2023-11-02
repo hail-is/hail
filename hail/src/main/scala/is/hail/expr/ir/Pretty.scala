@@ -492,6 +492,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(String, String)]] = ir match {
       case If(_, _, _) =>
         if (i > 0) Some(FastSeq()) else None
+      case _: Switch =>
+        if (i > 0) Some(FastSeq()) else None
       case TailLoop(name, args, body) => if (i == args.length)
         Some(args.map { case (name, ir) => name -> "loopvar" } :+
           name -> "loop") else None

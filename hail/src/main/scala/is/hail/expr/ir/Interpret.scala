@@ -122,6 +122,13 @@ object Interpret {
           interpret(cnsq, env, args)
         else
           interpret(altr, env, args)
+      case Switch(x_, default, cases) =>
+        interpret(x_, env, args) match {
+          case x: Int =>
+            interpret(if (x >= 0 && x < cases.length) cases(x) else default, env, args)
+          case null =>
+            null
+        }
       case Let(name, value, body) =>
         val valueValue = interpret(value, env, args)
         interpret(body, env.bind(name, valueValue), args)

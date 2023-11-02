@@ -265,6 +265,11 @@ object Simplify {
 
     case If(c1, cnsq1, If(c2, _, altr2)) if c1 == c2 => If(c1, cnsq1, altr2)
 
+    case Switch(I32(x), default, cases) =>
+      if (x >= 0 && x < cases.length) cases(x) else default
+    case Switch(x, default, IndexedSeq()) if isDefinitelyDefined(x) =>
+      default
+
     case Cast(x, t) if x.typ == t => x
     case Cast(Cast(x, _), t) if x.typ == t =>x
 
