@@ -25,7 +25,7 @@ class ForwardLetsSuite extends HailSuite {
       MakeTuple.ordered(FastSeq(ApplyBinaryPrimOp(Add(), x, I32(1)), ApplyBinaryPrimOp(Add(), x, I32(2)))),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, x), I32(1)),
       StreamAgg(ToStream(a), "y", ApplyAggOp(Sum())(x + y))
-    ).map(ir => Array[IR](Let("x", In(0, TInt32) + In(0, TInt32), ir)))
+    ).map(ir => Array[IR](Let(FastSeq("x" -> (In(0, TInt32) + In(0, TInt32))), ir)))
   }
 
   @DataProvider(name = "nonForwardingNonEvalOps")
@@ -36,7 +36,7 @@ class ForwardLetsSuite extends HailSuite {
       NDArrayMap(In(1, TNDArray(TInt32, Nat(1))), "y", x + y),
       NDArrayMap2(In(1, TNDArray(TInt32, Nat(1))), In(2, TNDArray(TInt32, Nat(1))), "y", "z", x + y + Ref("z", TInt32), ErrorIDs.NO_ERROR),
       TailLoop("f", FastSeq("y" -> I32(0)), If(y < x, Recur("f", FastSeq[IR](y - I32(1)), TInt32), x))
-    ).map(ir => Array[IR](Let("x", In(0, TInt32) + In(0, TInt32), ir)))
+    ).map(ir => Array[IR](Let(FastSeq("x" -> (In(0, TInt32) + In(0, TInt32))), ir)))
   }
 
   def aggMin(value: IR): ApplyAggOp = ApplyAggOp(FastSeq(), FastSeq(value), AggSignature(Min(), FastSeq(), FastSeq(value.typ)))
@@ -63,7 +63,7 @@ class ForwardLetsSuite extends HailSuite {
       ApplyUnaryPrimOp(Negate, x),
       ToArray(StreamMap(StreamRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32))),
       ToArray(StreamFilter(StreamRange(I32(0), x, I32(1)), "foo", Ref("foo", TInt32) <= I32(0)))
-    ).map(ir => Array[IR](Let("x", In(0, TInt32) + In(0, TInt32), ir)))
+    ).map(ir => Array[IR](Let(FastSeq("x" -> (In(0, TInt32) + In(0, TInt32))), ir)))
   }
 
   @DataProvider(name = "forwardingAggOps")
@@ -117,12 +117,12 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test def testLetNoMention(): Unit = {
-    val ir = Let("x", I32(1), I32(2))
+    val ir = Let(FastSeq("x" -> I32(1)), I32(2))
     assert(ForwardLets[IR](ir) == I32(2))
   }
 
   @Test def testLetRefRewrite(): Unit = {
-    val ir = Let("x", I32(1), Ref("x", TInt32))
+    val ir = Let(FastSeq("x" -> I32(1)), Ref("x", TInt32))
     assert(ForwardLets[IR](ir) == I32(1))
   }
 
@@ -151,16 +151,15 @@ class ForwardLetsSuite extends HailSuite {
 
   @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): Unit = {
     val x = Let(
-      "x",
+      FastSeq(
+        "x" -> StreamAgg(ToStream(In(0, TArray(TInt32))), "foo", Ref("y", TInt32))
+      ),
       StreamAgg(
-        ToStream(In(0, TArray(TInt32))),
-        "foo",
-        Ref(
-          "y", TInt32)),
-      StreamAgg(ToStream(In(1, TArray(TInt32))),
+        ToStream(In(1, TArray(TInt32))),
         "bar",
-        Ref("y", TInt32) + Ref("x", TInt32
-        )))
+        Ref("y", TInt32) + Ref("x", TInt32)
+      )
+    )
 
     TypeCheck(ctx, x, BindingEnv(Env("y" -> TInt32)))
     TypeCheck(ctx, ForwardLets(x).asInstanceOf[IR], BindingEnv(Env("y" -> TInt32)))

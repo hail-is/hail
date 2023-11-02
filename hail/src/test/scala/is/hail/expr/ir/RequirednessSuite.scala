@@ -492,7 +492,7 @@ class RequirednessSuite extends HailSuite {
 
   @Test def sharedNodesWorkCorrectly(): Unit = {
     val n1 = Ref("foo", TInt32)
-    val n2 = Let("foo", I32(1), MakeStruct(FastSeq("a" -> n1, "b" -> n1)))
+    val n2 = Let(FastSeq("foo" -> I32(1)), MakeStruct(FastSeq("a" -> n1, "b" -> n1)))
     val node = InsertFields(n2, FastSeq("c" -> GetField(n2, "a"), "d" -> GetField(n2, "b")))
     val res = Requiredness.apply(node, ctx)
     val actual = tcoerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)

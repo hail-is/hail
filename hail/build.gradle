@@ -73,7 +73,10 @@ compileScala {
     ]
 
     if (scalaMajorVersion == "2.12") {
-        scalaCompileOptions.additionalParameters += "-Xlint:-unused"
+        scalaCompileOptions.additionalParameters +=
+            [ "-Xlint:-unused"
+            , "-Ypartial-unification"
+            ]
     }
 
     scalaCompileOptions.forkOptions.with {

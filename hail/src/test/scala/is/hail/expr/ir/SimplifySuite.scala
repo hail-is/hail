@@ -99,29 +99,33 @@ class SimplifySuite extends HailSuite {
     val r = Ref("row", TStruct(("x", TInt32)))
     val r2 = Ref("row2", TStruct(("x", TInt32), ("y", TFloat64)))
 
-    val ir1 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD))))
-    val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD + GetField(r2, "y")))))
-    val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", GetField(r2, "y").toI))))
+    val ir1 = Let(FastSeq(r2.name -> InsertFields(r, FastSeq(("y", F64(0.0))))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD))))
+    val ir2 = Let(FastSeq(r2.name -> InsertFields(r, FastSeq(("y", F64(0.0))))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD + GetField(r2, "y")))))
+    val ir3 = Let(FastSeq(r2.name -> InsertFields(r, FastSeq(("y", F64(0.0))))), InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", GetField(r2, "y").toI))))
 
     assert(Simplify(ctx, ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastSeq("x", "y", "z"))))
     assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD)), Some(FastSeq("x", "y", "z"))))
 
     assert(Optimize[IR](ir3, "direct", ctx) == InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", I32(0)))))
 
-    val shouldNotRewrite = Let("row2", InsertFields(r, FastSeq(("y", Ref("other", TFloat64)))), InsertFields(r2, FastSeq(("z", invoke("str", TString, r2)))))
+    val shouldNotRewrite = Let(FastSeq(r2.name -> InsertFields(r, FastSeq(("y", Ref("other", TFloat64))))), InsertFields(r2, FastSeq(("z", invoke("str", TString, r2)))))
 
     assert(Simplify(ctx, shouldNotRewrite) == shouldNotRewrite)
   }
 
   @Test def testNestedInsertsSimplifyAcrossLets() {
-    val l = Let("a",
-      Let("b",
-        I32(1) + Ref("OTHER_1", TInt32),
-        InsertFields(
-          Ref("TOP", TStruct("foo" -> TInt32)),
-          FastSeq(
-            ("field0", Ref("b", TInt32)),
-            ("field1", I32(1) + Ref("b", TInt32))))),
+    val l = Let(
+      FastSeq(
+        "a" -> Let(FastSeq("b" -> (I32(1) + Ref("OTHER_1", TInt32))),
+          InsertFields(
+            Ref("TOP", TStruct("foo" -> TInt32)),
+            FastSeq(
+              "field0" -> Ref("b", TInt32),
+              "field1" -> (I32(1) + Ref("b", TInt32))
+            )
+          )
+        )
+      ),
       InsertFields(
         Ref("a", TStruct("foo" -> TInt32, "field0" -> TInt32, "field1" -> TInt32)),
         FastSeq(
@@ -130,16 +134,19 @@ class SimplifySuite extends HailSuite {
       )
     )
     val simplified = new NormalizeNames(_.toString, true).apply(Simplify(ctx, l))
-    val expected = Let("1",
-      I32(1) + Ref("OTHER_1", TInt32),
-      Let("2", I32(1) + Ref("1", TInt32),
-        InsertFields(Ref("TOP", TStruct("foo" -> TInt32)),
-          FastSeq(
-            ("field0", Ref("1", TInt32)),
-            ("field1", Ref("2", TInt32)),
-            ("field2", I32(1) + Ref("2", TInt32))
-          ),
-          Some(FastSeq("foo", "field0", "field1", "field2")))))
+    val expected = Let(
+      FastSeq(
+        "1" -> (I32(1) + Ref("OTHER_1", TInt32)),
+        "2" -> (I32(1) + Ref("1", TInt32))
+      ),
+      InsertFields(Ref("TOP", TStruct("foo" -> TInt32)),
+        FastSeq(
+          ("field0", Ref("1", TInt32)),
+          ("field1", Ref("2", TInt32)),
+          ("field2", I32(1) + Ref("2", TInt32))
+        ),
+        Some(FastSeq("foo", "field0", "field1", "field2")))
+    )
 
     assert(simplified == expected)
   }
@@ -232,7 +239,7 @@ class SimplifySuite extends HailSuite {
 
     assert(Simplify(ctx, StreamLen(rangeIR)) == Simplify(ctx, StreamLen(mapOfRange)))
     assert(Simplify(ctx, StreamLen(mapBlockedByLet)) match {
-      case Let(name, value, body) => body == Simplify(ctx, StreamLen(mapOfRange))
+      case Let(_, body) => body == Simplify(ctx, StreamLen(mapOfRange))
     })
   }
 
