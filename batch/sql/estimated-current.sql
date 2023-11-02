@@ -597,7 +597,7 @@ BEGIN
   IF msec_diff_rollup != 0 THEN
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
     SELECT batches.billing_project, batches.`user`,
-      attempt_resources.resource_id,
+      attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -607,7 +607,7 @@ BEGIN
 
     INSERT INTO aggregated_job_group_resources_v3 (batch_id, resource_id, token, `usage`)
     SELECT attempt_resources.batch_id,
-      attempt_resources.resource_id,
+      attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -616,7 +616,7 @@ BEGIN
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
     SELECT attempt_resources.batch_id, attempt_resources.job_id,
-      attempt_resources.resource_id,
+      attempt_resources.deduped_resource_id,
       msec_diff_rollup * quantity
     FROM attempt_resources
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
@@ -626,7 +626,7 @@ BEGIN
     SELECT cur_billing_date,
       batches.billing_project,
       batches.`user`,
-      attempt_resources.resource_id,
+      attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
@@ -830,7 +830,7 @@ BEGIN
 
   IF msec_diff_rollup != 0 THEN
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-    VALUES (cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+    VALUES (cur_billing_project, cur_user, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
@@ -840,12 +840,12 @@ BEGIN
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
-    VALUES (NEW.batch_id, NEW.job_id, NEW.resource_id, NEW.quantity * msec_diff_rollup)
+    VALUES (NEW.batch_id, NEW.job_id, NEW.deduped_resource_id, NEW.quantity * msec_diff_rollup)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
     INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
-    VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+    VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
   END IF;
