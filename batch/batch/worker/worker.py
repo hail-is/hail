@@ -3483,16 +3483,15 @@ async def async_main():
                 await worker.run()
         finally:
             asyncio.get_event_loop().set_debug(True)
-            if asyncio.all_tasks():
-                other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                if other_tasks:
-                    log.warning('Tasks immediately after docker close')
-                    dump_all_stacktraces()
-                    _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                    for t in pending:
-                        log.warning('Dangling task:')
-                        t.print_stack()
-                        t.cancel()
+            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+            if other_tasks:
+                log.warning('Tasks immediately after docker close')
+                dump_all_stacktraces()
+                _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                for t in pending:
+                    log.warning('Dangling task:')
+                    t.print_stack()
+                    t.cancel()
 
 
 loop = asyncio.get_event_loop()
