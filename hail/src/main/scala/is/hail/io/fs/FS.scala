@@ -278,12 +278,14 @@ object FS {
 
     new RouterFS(Array(cloudSpecificFS, new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration()))))
   }
+
+  private val log = Logger.getLogger(getClass.getName())
 }
 
 trait FS extends Serializable {
-  private[this] val log = Logger.getLogger(getClass.getName())
-
   type URL <: FSURL
+
+  import FS.log
 
   def parseUrl(filename: String): URL
 
