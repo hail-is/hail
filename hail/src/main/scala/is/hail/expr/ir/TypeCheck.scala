@@ -97,7 +97,7 @@ object TypeCheck {
       case Switch(x, default, cases) =>
         assert(x.typ == TInt32)
         assert(cases.forall(_.typ == default.typ))
-      case x@Let(_, _, body) =>
+      case x@Let(_, body) =>
         assert(x.typ == body.typ)
       case x@AggLet(_, _, body, _) =>
         assert(x.typ == body.typ)

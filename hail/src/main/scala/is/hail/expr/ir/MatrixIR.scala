@@ -816,11 +816,13 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
     path.zip(refs).zipWithIndex.foldRight[IR](idx) {
       case (((field, ref), i), arg) =>
-        InsertFields(ref, FastSeq(field ->
-          (if (i == refs.length - 1)
-            ArrayRef(ToArray(ToStream(GetField(ref, field))), arg)
-          else
-            Let(refs(i + 1).name, GetField(ref, field), arg))))
+        InsertFields(ref, FastSeq(
+          field ->
+            (if (i == refs.length - 1)
+              ArrayRef(ToArray(ToStream(GetField(ref, field))), arg)
+            else
+              Let(FastSeq(refs(i + 1).name -> GetField(ref, field)), arg))
+        ))
     }.asInstanceOf[InsertFields]
   }
 

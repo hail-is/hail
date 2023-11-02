@@ -878,11 +878,18 @@ object IRParser {
           cases <- ir_value_children(env)(it)
         } yield Switch(x, default, cases)
       case "Let" =>
-        val name = identifier(it)
+        val names = identifiers(it)
+        val bindings = Array.ofDim[(String, IR)](names.length)
         for {
-          value <- ir_value_expr(env)(it)
-          body <- ir_value_expr(env.bindEval(name, value.typ))(it)
-        } yield Let(name, value, body)
+          (env, _) <- names.foldLeft(done((env, 0))) { case (get, name) =>
+            for {
+              (env, idx) <- get
+              value <- ir_value_expr(env)(it)
+              _ = bindings(idx) = (name -> value)
+            } yield (env.bindEval(name, value.typ), idx + 1)
+          }
+          body <- ir_value_expr(env)(it)
+        } yield Let(bindings, body)
       case "AggLet" =>
         val name = identifier(it)
         val isScan = boolean_literal(it)

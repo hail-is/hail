@@ -178,7 +178,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         else
           "<literal value>")
     case EncodedLiteral(codec, _) => single(codec.encodedVirtualType.parsableString())
-    case Let(name, _, _) if !elideBindings => single(prettyIdentifier(name))
+    case Let(bindings, _) if !elideBindings => bindings.map(b => prettyIdentifier(b._1).asInstanceOf[Doc])
     case AggLet(name, _, _, isScan) => if (elideBindings)
       single(Pretty.prettyBooleanLiteral(isScan))
     else
@@ -667,9 +667,13 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     }
 
     def pretty(ir: BaseIR, bindings: Env[String]): (Doc, Doc) = ir match {
-      case Let(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
-        val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
+      case Let(binds, body) =>
+        val (valueDoc, newBindings) =
+          binds.foldLeft((empty, bindings)) { case ((valueDoc, bindings), (name, value)) =>
+            val (doc, ident) = prettyWithIdent(value, bindings, "%")
+            (concat(valueDoc, doc), bindings.bind(name, ident))
+          }
+        val (bodyPre, bodyHead) = pretty(body, newBindings)
         (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLet(name, value, body) =>
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")

@@ -155,7 +155,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
     node match {
       case AggLet(name, value, body, isScan) => addBinding(name, value)
-      case Let(name, value, body) => addBinding(name, value)
+      case Let(bindings, _) => bindings.foreach(Function.tupled(addBinding))
       case RelationalLet(name, value, body) => addBinding(name, value)
       case RelationalLetTable(name, value, body) => addBinding(name, value)
       case TailLoop(loopName, params, body) =>
@@ -539,7 +539,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(cases.map(lookup))
       case AggLet(name, value, body, isScan) =>
         requiredness.unionFrom(lookup(body))
-      case Let(name, value, body) =>
+      case Let(_, body) =>
         requiredness.unionFrom(lookup(body))
       case RelationalLet(name, value, body) =>
         requiredness.unionFrom(lookup(body))

@@ -111,17 +111,18 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
 
         val newNode = aggs.rewriteFromInitBindingRoot { root =>
           Let(
-            res,
-            RunAgg(
-              Begin(FastSeq(
-                aggs.init,
-                StreamFor(
-                  a,
-                  name,
-                  aggs.seqPerElt))),
-              aggs.results,
-              aggs.states),
-            root)
+            FastSeq(
+              res -> RunAgg(
+                Begin(FastSeq(
+                  aggs.init,
+                  StreamFor(a, name, aggs.seqPerElt)
+                )),
+                aggs.results,
+                aggs.states
+              )
+            ),
+            root
+          )
         }
 
         if (newNode.typ != x.typ)
@@ -136,7 +137,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
             name,
             aggs.init,
             aggs.seqPerElt,
-            Let(res, aggs.results, root),
+            Let(FastSeq(res -> aggs.results), root),
             aggs.states
           )
         }

@@ -189,7 +189,27 @@ final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
 }
 
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
-final case class Let(name: String, value: IR, body: IR) extends IR
+final case class Let(bindings: IndexedSeq[(String, IR)], body: IR) extends IR {
+  override lazy val size: Int =
+    bindings.length + 1
+}
+
+object Let {
+  case class Extract(p: ((String, IR)) => Boolean) {
+    def unapply(bindings: IndexedSeq[(String, IR)]):
+    Option[(Seq[(String, IR)], (String, IR), Seq[(String, IR)])] = {
+      val idx = bindings.indexWhere(p)
+      if (idx == -1) None else {
+        val splits = bindings.splitAt(idx)
+        Some((splits._1.init, splits._1.last, splits._2))
+      }
+    }
+  }
+
+  object Nested extends Extract(_._2.isInstanceOf[Let])
+  object Insert extends Extract(_._2.isInstanceOf[InsertFields])
+
+}
 
 sealed abstract class BaseRef extends IR with TrivialIR {
   def name: String
@@ -441,7 +461,7 @@ object StreamJoin {
       // joined is a stream of {leftElement, rightGroup}
       bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
         flatMapIR(joined) { x =>
-          Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
+          Let(FastSeq(l -> GetField(x, "left")), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
             joinType match {
               case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts), requiresMemoryManagement), r, joinF)
               case "right" | "inner" => StreamMap(ToStream(rightElts, requiresMemoryManagement), r, joinF)
@@ -723,10 +743,8 @@ final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], e
   lazy val body: IR = conversion(typeArgs, refs, errorID).deepCopy()
   lazy val refIdx: Map[String, Int] = refs.map(_.name).zipWithIndex.toMap
 
-  lazy val explicitNode: IR = {
-    // foldRight because arg1 should be at the top so it is evaluated first
-    refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
-  }
+  lazy val explicitNode: IR =
+    Let(refs.map(_.name).zip(args), body)
 }
 
 sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {

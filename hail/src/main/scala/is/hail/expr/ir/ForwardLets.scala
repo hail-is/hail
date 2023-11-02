@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
+import is.hail.utils.BoxedArrayBuilder
 
 import scala.collection.mutable
 
@@ -24,18 +24,19 @@ object ForwardLets {
             !ContainsAggIntermediate(value)
       }
 
-      def mapRewrite(): BaseIR = ir.mapChildrenWithIndex { (ir1, i) =>
-        rewrite(ir1, ChildEnvWithoutBindings(ir, i, env))
-      }
-
       ir match {
-        case l@Let(name, value, body) =>
+        case l@Let(bindings, body) =>
           val refs = uses.lookup(ir)
-          val rewriteValue = rewrite(value, env).asInstanceOf[IR]
-          if (shouldForward(rewriteValue, refs, l))
-            rewrite(body, env.bindEval(name -> rewriteValue))
-          else
-            Let(name, rewriteValue, rewrite(body, env).asInstanceOf[IR])
+          val keep = new BoxedArrayBuilder[(String, IR)]
+          val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
+            val rewriteValue = rewrite(value, env).asInstanceOf[IR]
+            if (shouldForward(rewriteValue, refs, l))
+              env.bindEval(name -> rewriteValue)
+            else {keep += (name -> rewriteValue); env}
+          }
+
+          Let(keep.underlying(), rewrite(body, newEnv).asInstanceOf[IR])
+
         case l@AggLet(name, value, body, isScan) =>
           val refs = uses.lookup(ir)
           val rewriteValue = rewrite(value, if (isScan) env.promoteScan else env.promoteAgg).asInstanceOf[IR]
@@ -50,7 +51,9 @@ object ForwardLets {
           .map { forwarded => if (uses.lookup(defs.lookup(x)).size > 1) forwarded.deepCopy() else forwarded }
           .getOrElse(x)
         case _ =>
-          mapRewrite()
+          ir.mapChildrenWithIndex { (ir1, i) =>
+            rewrite(ir1, ChildEnvWithoutBindings(ir, i, env))
+          }
       }
     }
 

@@ -4,6 +4,8 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.compat.immutable.LazyList
+
 object Binds {
   def apply(x: IR, v: String, i: Int): Boolean = Bindings(x, i).exists(_._1 == v)
 }
@@ -12,7 +14,11 @@ object Bindings {
   private val empty: Array[(String, Type)] = Array()
 
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
-    case Let(name, value, _) => if (i == 1) Array(name -> value.typ) else empty
+    case Let(bindings, _) =>
+      LazyList
+        .from(bindings)
+        .scanLeft(empty) { case (res, (name, ir)) => res :+ (name -> ir.typ) }
+        .apply(i)
     case TailLoop(name, args, body) => if (i == args.length)
       args.map { case (name, ir) => name -> ir.typ } :+
         name -> TTuple(TTuple(args.map(_._2.typ): _*), body.typ) else empty

@@ -815,7 +815,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     var res: AbstractLattice.Value = if (env.keySet == KeySetLattice.bottom)
       AbstractLattice.bottom
     else x match {
-      case Let(name, value, body) => recur(body, env.bind(name -> recur(value)))
+      case Let(bindings, body) =>
+        recur(body, bindings.foldLeft(env) { case (env, (name, value)) =>
+          env.bind(name -> recur(value, env))
+        })
       case Ref(name, _) => env(name)
       case GetField(o, name) => recur(o).asInstanceOf[StructValue](name)
       case MakeStruct(fields) => StructValue(fields.view.map { case (name, field) =>

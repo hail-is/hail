@@ -39,9 +39,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
     val bcFields = broadcastVals.filter { ref => bodyFreeVars.eval.lookupOption(ref.name).isDefined }
     val bcVals = MakeStruct(bcFields.map { ref => ref.name -> ref })
     val bcRef = Ref(genUID(), bcVals.typ)
-    val wrappedBody = bcFields.foldLeft(body) { case (accum, Ref(f, _)) =>
-      Let(f, GetField(bcRef, f), accum)
-    }
+    val wrappedBody = Let(bcFields.map(ref => ref.name -> GetField(bcRef, ref.name)), body)
     CollectDistributedArray(ctxs, bcVals, ctxRef.name, bcRef.name, wrappedBody, dynamicID, staticID)
   }
 
@@ -73,7 +71,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
       })
     }
 
-    Let(blockResults.name, cda, NDArrayConcat(rows, 0))
+    Let(FastSeq(blockResults.name -> cda), NDArrayConcat(rows, 0))
   }
 
   def addContext(newTyp: Type)(newCtx: ((Int, Int)) => IR): BlockMatrixStage = {
@@ -545,7 +543,7 @@ class BlockMatrixStage2 private (
     if (ctx.name == ctxRefName)
       _blockIR
     else
-      Let(ctxRefName, ctx, _blockIR)
+      Let(FastSeq(ctxRefName -> ctx), _blockIR)
   }
 
   def ctxType: Type = contexts.elementType
@@ -557,11 +555,12 @@ class BlockMatrixStage2 private (
       override def blockContext(idx: (Int, Int)): IR = contexts(idx._1, idx._2)
 
       override def blockBody(ctxRef: Ref): IR =
-        Let(ctxRefName, ctxRef, _blockIR)
+        Let(FastSeq(ctxRefName -> ctxRef), _blockIR)
     }
   }
 
-  def getBlock(i: IR, j: IR): IR = Let(ctxRefName, contexts(i, j), _blockIR)
+  def getBlock(i: IR, j: IR): IR =
+    Let(FastSeq(ctxRefName -> contexts(i, j)), _blockIR)
 
   def getElement(i: IR, j: IR): IR = {
     assert(i.typ == TInt64)
@@ -639,10 +638,8 @@ class BlockMatrixStage2 private (
   }
 
   def mapBody(f: IR => IR): BlockMatrixStage2 = {
-    val blockRef = Ref(genUID(), _blockIR.typ)
-    val newBlockIR = Let(blockRef.name, _blockIR, f(blockRef))
+    val newBlockIR = bindIR(_blockIR)(f)
     val newType = typ.copy(elementType = newBlockIR.typ.asInstanceOf[TNDArray].elementType)
-
     new BlockMatrixStage2(broadcastVals, newType, contexts, ctxRefName, newBlockIR)
   }
 
@@ -812,7 +809,7 @@ class BlockMatrixStage2 private (
       val s = makestruct(
         "blockRow" -> GetTupleElement(newCtxRef, 0),
         "blockCol" -> GetTupleElement(newCtxRef, 1),
-        "block" -> Let(ctxRefName, GetTupleElement(newCtxRef, 2), _blockIR))
+        "block" -> Let(FastSeq(ctxRefName -> GetTupleElement(newCtxRef, 2)), _blockIR))
       MakeStream(FastSeq(s), TStream(s.typ))
     }
 
@@ -834,16 +831,19 @@ class BlockMatrixStage2 private (
   ): IR = {
     val posRef = Ref(genUID(), TInt32)
     val newCtxRef = Ref(genUID(), TTuple(TInt32, ctxType))
-    val body = Let(posRef.name, GetTupleElement(newCtxRef, 0),
-      Let(ctxRefName, GetTupleElement(newCtxRef, 1),
-        f(ctxRef, posRef, _blockIR)))
+    val body = Let(
+      FastSeq(
+        posRef.name -> GetTupleElement(newCtxRef, 0),
+        ctxRefName -> GetTupleElement(newCtxRef, 1),
+      ),
+      f(ctxRef, posRef, _blockIR)
+    )
+
     val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
     val bcFields = broadcastVals.filter { case Ref(f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
     val bcVals = MakeStruct(bcFields.map { ref => ref.name -> ref })
     val bcRef = Ref(genUID(), bcVals.typ)
-    val wrappedBody = bcFields.foldLeft(body) { case (accum, Ref(f, _)) =>
-      Let(f, GetField(bcRef, f), accum)
-    }
+    val wrappedBody = Let(bcFields.map(ref => ref.name -> GetField(bcRef, ref.name)), body)
 
     val cdaContexts = ToStream(contexts.map(ib) { (rowIdx, colIdx, pos, oldContext) =>
       maketuple(pos, oldContext)

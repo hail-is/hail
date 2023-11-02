@@ -1027,13 +1027,15 @@ object PruneDeadFields {
         )
       case Coalesce(values) => unifyEnvsSeq(values.map(memoizeValueIR(ctx, _, requestedType, memo)))
       case Consume(value) => memoizeValueIR(ctx, value, value.typ, memo)
-      case Let(name, value, body) =>
+      case Let(bindings, body) =>
         val bodyEnv = memoizeValueIR(ctx, body, requestedType, memo)
-        val valueType = unifySeq(value.typ, uses(name, bodyEnv.eval))
-        unifyEnvs(
-          bodyEnv.deleteEval(name),
-          memoizeValueIR(ctx, value, valueType, memo)
-        )
+        bindings.foldRight(bodyEnv) { case ((name, value), bodyEnv) =>
+          val valueType = unifySeq(value.typ, uses(name, bodyEnv.eval))
+          unifyEnvs(
+            bodyEnv.deleteEval(name),
+            memoizeValueIR(ctx, value, valueType, memo)
+          )
+        }
       case AggLet(name, value, body, isScan) =>
         val bodyEnv = memoizeValueIR(ctx, body, requestedType, memo)
         if (isScan) {
@@ -1897,13 +1899,15 @@ object PruneDeadFields {
       case Consume(value) =>
         val value2 = rebuildIR(ctx, value, env, memo)
         Consume(value2)
-      case Let(name, value, body) =>
-        val value2 = rebuildIR(ctx, value, env, memo)
-        Let(
-          name,
-          value2,
-          rebuildIR(ctx, body, env.bindEval(name, value2.typ), memo)
-        )
+      case Let(bindings, body) =>
+        val newBindings = new Array[(String, IR)](bindings.length)
+        val (_, newEnv) = bindings.foldLeft((0, env)) { case ((idx, env), (name, value)) =>
+          val newValue = rebuildIR(ctx, value, env, memo)
+          newBindings(idx) = (name -> newValue)
+          (idx + 1, env.bindEval(name -> newValue.typ))
+        }
+
+        Let(newBindings, rebuildIR(ctx, body, newEnv, memo))
       case AggLet(name, value, body, isScan) =>
         val value2 = rebuildIR(ctx, value, if (isScan) env.promoteScan else env.promoteAgg, memo)
         AggLet(
@@ -2203,15 +2207,12 @@ object PruneDeadFields {
     else {
       val result = ir.typ match {
         case _: TStruct =>
-          val rs = rType.asInstanceOf[TStruct]
-          val uid = genUID()
-          val ref = Ref(uid, ir.typ)
-          val ms = MakeStruct(
-            rs.fields.map { f =>
+          bindIR(ir) { ref =>
+            val ms = MakeStruct(rType.asInstanceOf[TStruct].fields.map { f =>
               f.name -> upcast(ctx, GetField(ref, f.name), f.typ)
-            }
-          )
-          Let(uid, ir, If(IsNA(ref), NA(ms.typ), ms))
+            })
+            If(IsNA(ref), NA(ms.typ), ms)
+          }
         case ts: TStream =>
           val ra = rType.asInstanceOf[TStream]
           val uid = genUID()
@@ -2223,13 +2224,12 @@ object PruneDeadFields {
           val ref = Ref(uid, ts.elementType)
           ToArray(StreamMap(ToStream(ir), uid, upcast(ctx, ref, ra.elementType)))
         case _: TTuple =>
-          val rt = rType.asInstanceOf[TTuple]
-          val uid = genUID()
-          val ref = Ref(uid, ir.typ)
-          val mt = MakeTuple(rt._types.map { tupleField =>
-            tupleField.index -> upcast(ctx, GetTupleElement(ref, tupleField.index), tupleField.typ)
-          })
-          Let(uid, ir, If(IsNA(ref), NA(mt.typ), mt))
+          bindIR(ir) { ref =>
+            val mt = MakeTuple(rType.asInstanceOf[TTuple]._types.map { tupleField =>
+              tupleField.index -> upcast(ctx, GetTupleElement(ref, tupleField.index), tupleField.typ)
+            })
+            If(IsNA(ref), NA(mt.typ), mt)
+          }
         case _: TDict =>
           val rd = rType.asInstanceOf[TDict]
           ToDict(upcast(ctx, ToStream(ir), TArray(rd.elementType)))

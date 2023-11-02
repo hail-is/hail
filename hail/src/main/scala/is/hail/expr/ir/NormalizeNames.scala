@@ -25,12 +25,23 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       call(normalizeIR(next, env, context :+ ir.getClass().getName()).asInstanceOf[StackFrame[IR]])
 
     ir match {
-      case Let(name, value, body) =>
-        val newName = gen()
+      case Let(bindings, body) =>
+        val newBindings: Array[(String, IR)] =
+          Array.ofDim(bindings.length)
+
         for {
-          newValue <- normalize(value)
-          newBody <- normalize(body, env.bindEval(name, newName))
-        } yield Let(newName, newValue, newBody)
+          (env, _) <- bindings.foldLeft(done((env, 0))) {
+            case (get, (name, value)) =>
+              for {
+                (env, idx) <- get
+                newValue <- normalize(value, env)
+                newName = gen()
+                _ = newBindings(idx) = newName -> newValue
+              } yield (env.bindEval(name, newName), idx + 1)
+          }
+          newBody <- normalize(body, env)
+        } yield Let(newBindings, newBody)
+
       case Ref(name, typ) =>
         val newName = env.eval.lookupOption(name) match {
           case Some(n) => n

@@ -668,11 +668,18 @@ class Emit[C](
 
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
-      case Let(name, value, body) =>
-        val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
-        cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
-          emitVoid(body, env = env.bind(name, ev))
+      case Let(bindings, body) =>
+        def go(env: EmitEnv): IndexedSeq[(String, IR)] => Unit = {
+          case (name, value) +: rest =>
+            val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
+            cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
+              go(env.bind(name, ev))(rest)
+            }
+          case Seq() =>
+            emitVoid(body, env = env)
         }
+
+        go(env)(bindings)
 
       case StreamFor(a, valueName, body) =>
         emitStream(a, region).toI(cb).consume(cb,
@@ -2716,12 +2723,19 @@ class Emit[C](
 
     val result: EmitCode = (ir: @unchecked) match {
 
-      case Let(name, value, body) =>
+      case Let(bindings, body) =>
         EmitCode.fromI(mb) { cb =>
-          val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
-          cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
-            emitI(body, cb, env = env.bind(name, ev))
+          def go(env: EmitEnv): IndexedSeq[(String, IR)] => IEmitCode = {
+            case (name, value) +: rest =>
+              val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
+              cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
+                go(env.bind(name, ev))(rest)
+              }
+            case Seq() =>
+              emitI(body, cb, env = env)
           }
+
+          go(env)(bindings)
         }
 
       case Ref(name, t) =>
