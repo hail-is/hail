@@ -6,7 +6,7 @@ object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {
     val builder = new IRBuilder()
     val result = f(builder)
-    Let(builder.bindings.underlying(), result)
+    Let(builder.bindings.result(), result)
   }
 }
 

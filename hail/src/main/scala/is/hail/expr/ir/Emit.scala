@@ -635,7 +635,7 @@ class Emit[C](
     def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
 
-    def emitStream(ir: IR, outerRegion: Value[Region], mb: EmitMethodBuilder[C] = mb): EmitCode =
+    def emitStream(ir: IR, outerRegion: Value[Region], mb: EmitMethodBuilder[C] = mb, env: EmitEnv = env): EmitCode =
       EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container))
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
@@ -671,7 +671,10 @@ class Emit[C](
       case Let(bindings, body) =>
         def go(env: EmitEnv): IndexedSeq[(String, IR)] => Unit = {
           case (name, value) +: rest =>
-            val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
+            val xVal =
+              if (value.typ.isInstanceOf[TStream]) emitStream(value, region, env = env)
+              else emit(value, env = env)
+
             cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
               go(env.bind(name, ev))(rest)
             }
@@ -2710,7 +2713,7 @@ class Emit[C](
       }
     }
 
-    def emitStream(ir: IR, outerRegion: Value[Region]): EmitCode =
+    def emitStream(ir: IR, outerRegion: Value[Region], env: EmitEnv = env): EmitCode =
       EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container))
 
     // ideally, emit would not be called with void values, but initOp args can be void
@@ -2727,7 +2730,10 @@ class Emit[C](
         EmitCode.fromI(mb) { cb =>
           def go(env: EmitEnv): IndexedSeq[(String, IR)] => IEmitCode = {
             case (name, value) +: rest =>
-              val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
+              val xVal =
+                if (value.typ.isInstanceOf[TStream]) emitStream(value, region, env = env)
+                else emit(value, env = env)
+
               cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
                 go(env.bind(name, ev))(rest)
               }

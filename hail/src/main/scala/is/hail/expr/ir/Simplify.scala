@@ -467,7 +467,7 @@ object Simplify {
       }
 
       Let(
-        before.toFastSeq ++ fieldNames.map(f => f -> newFieldMap(f)) :+ (name -> old),
+        before.toFastSeq ++ fieldNames.map(f => newFieldRefs(f).name -> newFieldMap(f)) ++ FastSeq(name -> old),
         rewrite(Let(after.toFastSeq, body))
       )
 

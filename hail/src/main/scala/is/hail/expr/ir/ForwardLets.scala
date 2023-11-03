@@ -35,7 +35,7 @@ object ForwardLets {
             else {keep += (name -> rewriteValue); env}
           }
 
-          Let(keep.underlying(), rewrite(body, newEnv).asInstanceOf[IR])
+          Let(keep.result(), rewrite(body, newEnv).asInstanceOf[IR])
 
         case l@AggLet(name, value, body, isScan) =>
           val refs = uses.lookup(ir)

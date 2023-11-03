@@ -201,7 +201,7 @@ object Let {
       val idx = bindings.indexWhere(p)
       if (idx == -1) None else {
         val splits = bindings.splitAt(idx)
-        Some((splits._1.init, splits._1.last, splits._2))
+        Some((splits._1, splits._2.head, splits._2.tail))
       }
     }
   }

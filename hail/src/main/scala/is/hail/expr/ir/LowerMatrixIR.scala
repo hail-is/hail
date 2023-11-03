@@ -212,7 +212,7 @@ object LowerMatrixIR {
             case AggFilter(filt, body, true) =>
               val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
-              val aggs = ab.underlying()
+              val aggs = ab.result()
               val structResult = MakeStruct(aggs)
               val uid = Ref(genUID(), structResult.typ)
               builder += (uid.name -> AggFilter(filt, structResult, true))
@@ -221,7 +221,7 @@ object LowerMatrixIR {
             case AggExplode(a, name, body, true) =>
               val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
-              val aggs = ab.underlying()
+              val aggs = ab.result()
               val structResult = MakeStruct(aggs)
               val uid = Ref(genUID(), structResult.typ)
               builder += (uid.name -> AggExplode(a, name, structResult, true))
@@ -230,8 +230,7 @@ object LowerMatrixIR {
             case AggGroupBy(a, body, true) =>
               val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
-              val aggs = ab.underlying()
-
+              val aggs = ab.result()
 
               val aggIR = AggGroupBy(a,  MakeStruct(aggs), true)
               val uid = Ref(genUID(), aggIR.typ)
@@ -251,7 +250,7 @@ object LowerMatrixIR {
               val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
 
-              val aggs = ab.underlying()
+              val aggs = ab.result()
               val aggIR = AggArrayPerElement(a, elementName, indexName, MakeStruct(aggs), knownLength, true)
               val uid = Ref(genUID(), aggIR.typ)
               builder += (uid.name -> aggIR)
@@ -263,7 +262,7 @@ object LowerMatrixIR {
             case AggLet(name, value, body, true) =>
               val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
-              val aggs = ab.underlying()
+              val aggs = ab.result()
               val structResult = MakeStruct(aggs)
               val uid = genUID()
               builder += (uid -> AggLet(name, value, structResult, true))
@@ -276,7 +275,7 @@ object LowerMatrixIR {
           val ab = new BoxedArrayBuilder[(String, IR)]
           val b0 = lift(ir, ab)
 
-          val scans = ab.underlying()
+          val scans = ab.result()
           val scanStruct = MakeStruct(scans)
 
           val scanResultRef = Ref(genUID(), scanStruct.typ)
@@ -331,7 +330,7 @@ object LowerMatrixIR {
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
-            val aggs = ab.underlying()
+            val aggs = ab.result()
             val structResult = MakeStruct(aggs)
 
             val uid = Ref(genUID(), structResult.typ)
@@ -344,7 +343,7 @@ object LowerMatrixIR {
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
-            val aggs = ab.underlying()
+            val aggs = ab.result()
             val structResult = MakeStruct(aggs)
             val uid = Ref(genUID(), structResult.typ)
             builder += (uid.name -> AggExplode(a, name, structResult, isScan))
@@ -356,7 +355,7 @@ object LowerMatrixIR {
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
-            val aggs = ab.underlying()
+            val aggs = ab.result()
             val aggIR = AggGroupBy(a, MakeStruct(aggs), isScan)
             val uid = Ref(genUID(), aggIR.typ)
             builder += (uid.name -> aggIR)
@@ -381,7 +380,7 @@ object LowerMatrixIR {
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
-            val aggs = ab.underlying()
+            val aggs = ab.result()
             val aggIR = AggArrayPerElement(a, elementName, indexName, MakeStruct(aggs), knownLength, isScan)
             val uid = Ref(genUID(), aggIR.typ)
             builder += (uid.name -> aggIR)
@@ -395,7 +394,7 @@ object LowerMatrixIR {
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
-            val aggs = ab.underlying()
+            val aggs = ab.result()
             val structResult = MakeStruct(aggs)
 
             val uid = Ref(genUID(), structResult.typ)
