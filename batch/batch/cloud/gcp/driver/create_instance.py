@@ -129,7 +129,7 @@ tag jvm-{idx}.log
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-14',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-15',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
@@ -234,62 +234,60 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
 
 sudo mkdir -p /etc/netns
 
-# Setup fluentd
+# Setup ops agent
 touch /worker.log
 touch /run.log
-
-sudo rm /etc/google-fluentd/config.d/*  # remove unused config files
-
-sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF
-<source>
-@type tail
-format json
-path /worker.log
-pos_file /var/lib/google-fluentd/pos/worker-log.pos
-read_from_head true
-tag worker.log
-</source>
-
-<filter worker.log>
-@type record_transformer
-enable_ruby
-<record>
-    severity \${{ record["levelname"] }}
-    timestamp \${{ record["asctime"] }}
-</record>
-</filter>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
-<source>
-@type tail
-format none
-path /run.log
-pos_file /var/lib/google-fluentd/pos/run-log.pos
-read_from_head true
-tag run.log
-</source>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/jvm-logs.conf <<EOF
-{jvm_fluentd_config}
-EOF
-
-sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
-head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
-sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
-labels {{
-"namespace": "$NAMESPACE",
-"instance_id": "$INSTANCE_ID"
-}}
-</match>
-EOF
-rm /etc/google-fluentd/google-fluentd.conf.bak
-
 mkdir -p /batch/jvm-container-logs/
-{jvm_touch_command}
 
-sudo service google-fluentd restart
+sudo tee /etc/google-cloud-ops-agent/config.yaml <<EOF
+logging:
+  receivers:
+    runlog:
+      type: files
+      include_paths:
+      - /run.log
+      record_log_file_path: true
+    workerlog:
+      type: files
+      include_paths:
+      - /worker.log
+      record_log_file_path: true
+    jvmlog:
+      type: files
+      include_paths:
+      - /batch/jvm-container-logs/jvm-*.log
+      record_log_file_path: true
+  processors:
+    labels:
+      type: modify_fields
+      fields:
+        labels.namespace:
+          static_value: $NAMESPACE
+        labels.instance_id:
+          static_value: $INSTANCE_ID
+  service:
+    pipelines:
+      default_pipeline:
+        processors: [labels]
+        receivers: [runlog, workerlog, jvmlog]
+
+metrics:
+  receivers:
+    hostmetrics:
+      type: hostmetrics
+      collection_interval: 60s
+  processors:
+    metrics_filter:
+      type: exclude_metrics
+      metrics_pattern: []
+  service:
+    pipelines:
+      default_pipeline:
+        receivers: [hostmetrics]
+        processors: [metrics_filter]
+EOF
+
+sudo systemctl restart google-cloud-ops-agent
 
 # private job network = 172.20.0.0/16
 # public job network = 172.21.0.0/16
@@ -317,9 +315,6 @@ mkdir /deploy-config
 cat >/deploy-config/deploy-config.json <<EOF
 { json.dumps(get_deploy_config().with_location('gce').get_config()) }
 EOF
-
-curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
-bash add-google-cloud-ops-agent-repo.sh --also-install --version=2.*.*
 
 # retry once
 docker pull $BATCH_WORKER_IMAGE || \
