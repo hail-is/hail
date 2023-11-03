@@ -53,112 +53,157 @@
     <thead>
     <tr>
       <th colspan="1">Name</th>
-      <th colspan="1">Worker Type</th>
-      <th colspan="1">Preemptible</th>
-      <th colspan="2">Total</th>
-      <th colspan="2">Pending</th>
-      <th colspan="2">Active</th>
-      <th colspan="2">Inactive</th>
-      <th colspan="2">Deleted</th>
-      <th colspan="2">Live</th>
-      <th colspan="4">Schedulable</th>
+      <th colspan="4">Instances</th>
+      <th></th>
+      <th colspan="4">Cores</th>
+      <th></th>
+      <th colspan="3">Schedulable Cores</th>
     </tr>
     <tr>
       <th></th>
+      <th>Pending</th>
+      <th>Active</th>
+      <th>Inactive</th>
+      <th>Deleted</th>
       <th></th>
+      <th>Pending</th>
+      <th>Active</th>
+      <th>Inactive</th>
+      <th>Deleted</th>
       <th></th>
-      <th>Instances</th>
-      <th>Cores</th>
-      <th>Instances</th>
-      <th>Cores</th>
-      <th>Instances</th>
-      <th>Cores</th>
-      <th>Instances</th>
-      <th>Cores</th>
-      <th>Instances</th>
-      <th>Cores</th>
-      <th>Instances</th>
-      <th>Cores</th>
-      <th>Instances</th>
-      <th>Cores</th>
-      <th>Free Cores</th>
-      <th>Percent Free Cores</th>
+      <th>Free</th>
+      <th>Total</th>
+      <th>% Free</th>
     </tr>
     </thead>
     <tbody>
     {% for pool in pools %}
     <tr>
       <td><a href="{{ base_path }}/inst_coll/pool/{{ pool.name }}">{{ pool.name }}</a></td>
-      <td>{{ pool.worker_type }}</td>
-      <td>{{ pool.preemptible }}</td>
-      <td class="numeric-cell">{{ pool.all_versions_total_n_instances }}</td>
-      <td class="numeric-cell">{{ pool.all_versions_total_cores_mcpu / 1000 }}</td>
+      {% if pool.all_versions_total_n_instances != 0 %}
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['pending'] }}</td>
-      <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['pending'] / 1000 }}</td>
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['active'] }}</td>
-      <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['active'] / 1000 }}</td>
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['inactive'] }}</td>
-      <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['inactive'] / 1000 }}</td>
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['deleted'] }}</td>
+      <td></td>
+      <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['pending'] / 1000 }}</td>
+      <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['active'] / 1000 }}</td>
+      <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['inactive'] / 1000 }}</td>
       <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['deleted'] / 1000 }}</td>
-      <td class="numeric-cell">{{ pool.all_versions_live_n_instances }}</td>
-      <td class="numeric-cell">{{ pool.all_versions_live_cores_mcpu / 1000 }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.n_instances_by_state['active'] }}</td>
-      <td class="numeric-cell">{{ pool.current_worker_version_stats.cores_mcpu_by_state['active'] / 1000 }}</td>
+      <td></td>
       <td class="numeric-cell">{{ pool.current_worker_version_stats.active_schedulable_free_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ pool.current_worker_version_stats.cores_mcpu_by_state['active'] / 1000 }}</td>
       {% if pool.current_worker_version_stats.cores_mcpu_by_state['active'] != 0 %}
       <td class="numeric-cell">{{ (pool.current_worker_version_stats.active_schedulable_free_cores_mcpu * 100 / pool.current_worker_version_stats.cores_mcpu_by_state['active']) | round(1)}}%</td>
       {% else %}
-      <td class="numeric-cell">NA</td>
+      <td class="numeric-cell"></td>
+      {% endif %}
+      {% else %}
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
       {% endif %}
     </tr>
     {% endfor %}
     <tr>
       <td><a href="{{ base_path }}/inst_coll/jpim">{{ jpim.name }}</a></td>
-      <td>NA</td>
-      <td>NA</td>
-      <td class="numeric-cell">{{ jpim.all_versions_total_n_instances }}</td>
-      <td class="numeric-cell">{{ jpim.all_versions_total_cores_mcpu / 1000 }}</td>
+      {% if jpim.all_versions_total_n_instances != 0 %}
       <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['pending'] }}</td>
-      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['pending'] / 1000 }}</td>
       <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['active'] }}</td>
-      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['active'] / 1000 }}</td>
       <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['inactive'] }}</td>
-      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['inactive'] / 1000 }}</td>
       <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['deleted'] }}</td>
+      <td></td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['pending'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['active'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['inactive'] / 1000 }}</td>
       <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['deleted'] / 1000 }}</td>
-      <td class="numeric-cell">{{ jpim.all_versions_live_n_instances }}</td>
-      <td class="numeric-cell">{{ jpim.all_versions_live_cores_mcpu / 1000 }}</td>
-      <td class="numeric-cell">NA</td>
-      <td class="numeric-cell">NA</td>
-      <td class="numeric-cell">NA</td>
-      <td class="numeric-cell">NA</td>
+      <td></td>
+      <td class="numeric-cell"></td>
+      <td class="numeric-cell"></td>
+      <td class="numeric-cell"></td>
+      {% else %}
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      {% endif %}
+    </tr>
+    <tr>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
     </tr>
     </tbody>
-    <tfoot style="background-color:lightblue;">
+    <tfoot>
     <tr>
       <td>Total</td>
-      <td>NA</td>
-      <td>NA</td>
-      <td class="numeric-cell">{{ global_total_n_instances }}</td>
-      <td class="numeric-cell">{{ global_total_cores_mcpu / 1000 }}</td>
+      {% if global_total_n_instances != 0 %}
       <td class="numeric-cell">{{ global_n_instances_by_state['pending'] }}</td>
-      <td class="numeric-cell">{{ global_cores_mcpu_by_state['pending'] / 1000 }}</td>
       <td class="numeric-cell">{{ global_n_instances_by_state['active'] }}</td>
-      <td class="numeric-cell">{{ global_cores_mcpu_by_state['active'] / 1000 }}</td>
       <td class="numeric-cell">{{ global_n_instances_by_state['inactive'] }}</td>
-      <td class="numeric-cell">{{ global_cores_mcpu_by_state['inactive'] / 1000 }}</td>
       <td class="numeric-cell">{{ global_n_instances_by_state['deleted'] }}</td>
+      <td></td>
+      <td class="numeric-cell">{{ global_cores_mcpu_by_state['pending'] / 1000 }}</td>
+      <td class="numeric-cell">{{ global_cores_mcpu_by_state['active'] / 1000 }}</td>
+      <td class="numeric-cell">{{ global_cores_mcpu_by_state['inactive'] / 1000 }}</td>
       <td class="numeric-cell">{{ global_cores_mcpu_by_state['deleted'] / 1000 }}</td>
-      <td class="numeric-cell">{{ global_live_n_instances }}</td>
-      <td class="numeric-cell">{{ global_live_cores_mcpu / 1000 }}</td>
-      <td class="numeric-cell">{{ global_schedulable_n_instances }}</td>
-      <td class="numeric-cell">{{ global_schedulable_cores_mcpu / 1000 }}</td>
+      <td></td>
       <td class="numeric-cell">{{ global_schedulable_free_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ global_schedulable_cores_mcpu / 1000 }}</td>
       {% if global_schedulable_cores_mcpu != 0 %}
       <td class="numeric-cell">{{ (global_schedulable_free_cores_mcpu * 100 / global_schedulable_cores_mcpu) | round(1)}}%</td>
       {% else %}
-      <td class="numeric-cell">NA</td>
+      <td class="numeric-cell"></td>
+      {% endif %}
+      {% else %}
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
       {% endif %}
     </tr>
     </tfoot>
