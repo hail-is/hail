@@ -410,8 +410,31 @@ object Simplify {
       Let(xs ++ ys, body)
 
       // assumes `NormalizeNames` has been run before this.
-    case Let(Let.Nested(before, (x, y: Let), after), body) =>
-      Let(before.toFastSeq ++ y.bindings ++ FastSeq(x -> y.body) ++ after.toFastSeq, body)
+    case Let(Let.Nested(before, let@(_, y: Let), after), body) =>
+      def numBindings(b: (String, IR)): Int =
+        b._2 match {
+          case let: Let => 1 + let.bindings.length
+          case _ => 1
+        }
+
+      val newBindings =
+        new BoxedArrayBuilder[(String, IR)](
+          after.foldLeft(before.length + y.bindings.length + 1) { (sum, binding) =>
+            sum + numBindings(binding)
+          }
+        )
+
+      newBindings ++= before
+
+      (let +: after).foreach {
+        case (name: String, ir: Let) =>
+          newBindings ++= ir.bindings
+          newBindings += name -> ir.body
+        case (name, value) =>
+          newBindings += name -> value
+      }
+
+      Let(newBindings.underlying(), body)
 
     case Let(Let.Insert(before, (name, x@InsertFields(old, newFields, _)), after), body) if x.typ.size < 500  && {
       val r = Ref(name, x.typ)

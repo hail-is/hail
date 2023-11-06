@@ -878,7 +878,7 @@ object IRParser {
           cases <- ir_value_children(env)(it)
         } yield Switch(x, default, cases)
       case "Let" =>
-        val names = identifiers(it)
+        val names = repUntilNonStackSafe(it, identifier, PunctuationToken("("))
         val bindings = Array.ofDim[(String, IR)](names.length)
         for {
           (env, _) <- names.foldLeft(done((env, 0))) { case (get, name) =>
