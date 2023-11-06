@@ -1206,10 +1206,9 @@ class Container:
                         'limit': self.memory_in_bytes,
                         'reservation': self.memory_in_bytes,
                         'swap': self.memory_in_bytes,  # https://docs.docker.com/config/containers/resource_constraints/#prevent-a-container-from-using-swap
-                        'kernel': -1,  # https://docs.docker.com/config/containers/resource_constraints/#--kernel-memory-details
-                        'kernelTCP': -1,  # https://github.com/opencontainers/runtime-spec/blob/main/config.md
                         'swappiness': 0,
                         'disableOOMKiller': False,
+                        'oom_group': 1,
                     },
                     # 'blockIO': {'weight': min(weight, 1000)}, FIXME blkio.weight not supported
                 },

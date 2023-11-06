@@ -293,6 +293,8 @@ docker run \
 --security-opt apparmor:unconfined \
 --network host \
 --cgroupns host \
+--oom-score-adj 0 \
+--oom-kill-disable \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 
