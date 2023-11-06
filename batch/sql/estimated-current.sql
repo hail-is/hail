@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS `job_groups` (
   `user` VARCHAR(100) NOT NULL,
   `attributes` TEXT,
   `cancel_after_n_failures` INT DEFAULT NULL,
-  `state` ENUM('running', 'complete') NOT NULL,
+  `state` ENUM('running', 'complete', 'open') NOT NULL,
   `n_jobs` INT NOT NULL,
   `time_created` BIGINT NOT NULL,
   `time_completed` BIGINT,
