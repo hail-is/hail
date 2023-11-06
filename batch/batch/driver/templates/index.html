@@ -80,7 +80,6 @@
     {% for pool in pools %}
     <tr>
       <td><a href="{{ base_path }}/inst_coll/pool/{{ pool.name }}">{{ pool.name }}</a></td>
-      {% if pool.all_versions_total_n_instances != 0 %}
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['active'] }}</td>
       <td class="numeric-cell">{{ pool.all_versions_instances_by_state['inactive'] }}</td>
@@ -98,26 +97,10 @@
       {% else %}
       <td class="numeric-cell"></td>
       {% endif %}
-      {% else %}
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      {% endif %}
     </tr>
     {% endfor %}
     <tr>
       <td><a href="{{ base_path }}/inst_coll/jpim">{{ jpim.name }}</a></td>
-      {% if jpim.all_versions_total_n_instances != 0 %}
       <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['active'] }}</td>
       <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['inactive'] }}</td>
@@ -131,21 +114,6 @@
       <td class="numeric-cell"></td>
       <td class="numeric-cell"></td>
       <td class="numeric-cell"></td>
-      {% else %}
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      {% endif %}
     </tr>
     <tr>
       <td></td>
@@ -169,7 +137,6 @@
     <tfoot>
     <tr>
       <td>Total</td>
-      {% if global_total_n_instances != 0 %}
       <td class="numeric-cell">{{ global_n_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ global_n_instances_by_state['active'] }}</td>
       <td class="numeric-cell">{{ global_n_instances_by_state['inactive'] }}</td>
@@ -186,24 +153,6 @@
       <td class="numeric-cell">{{ (global_schedulable_free_cores_mcpu * 100 / global_schedulable_cores_mcpu) | round(1)}}%</td>
       {% else %}
       <td class="numeric-cell"></td>
-      {% endif %}
-      {% else %}
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
       {% endif %}
     </tr>
     </tfoot>

@@ -237,6 +237,15 @@ a {
         background-color: #888;
     }
 
+    tfoot {
+        td {
+            white-space: nowrap;
+            padding: 3px 10px;
+            color: $white;
+            background-color: #888;
+        }
+    }
+
     tr {
         &:nth-of-type(even) {
             background-color: #f0f0f0;
