@@ -85,7 +85,7 @@ Released 2023-10-26
 
 - (hail#13713) Fix (hail#13704), in which Hail could encounter an IllegalArgumentException if there are too many transient errors.
 
-- (hail#13730) Fix (hail#133560 and (hail#13409). In QoB pipelines with 10K or more partitions, transient "Corrupted block detected" errors were common.  This was caused by incorrect retry logic. That logic has been fixed.
+- (hail#13730) Fix (hail#13356) and (hail#13409). In QoB pipelines with 10K or more partitions, transient "Corrupted block detected" errors were common.  This was caused by incorrect retry logic. That logic has been fixed.
 
 - (hail#13732) Fix (hail#13721) which manifested with the message "Missing Range header in response". The root cause was a bug in the Google Cloud Storage SDK on which we rely. The fix is to update to a version without this bug. The buggy version of GCS SDK was introduced in 0.2.123.
 
@@ -101,15 +101,15 @@ Released 2023-10-26
 
 - (hail#13805) Fix (hail#13767). `hailctl dataproc submit` now expands `~` in the `--files` and `--pyfiles` arguments.
 
-- (hail#13797) Fix #13756. Operations that collect large results such as `to_pandas` may require up to 3x less memory.
+- (hail#13797) Fix (hail#13756). Operations that collect large results such as `to_pandas` may require up to 3x less memory.
 
 - (hail#13826) Fix (hail#13793). Ensure `hailctl describe -u` overrides the `gcs_requester_pays/project` config variable.
 
 - (hail#13814) Fix (hail#13757). Pipelines that are memory-bound by copious use of `hl.literal`, such as `hl.vds.filter_intervals`, require substantially less memory.
 
-- (hail#13894) Fix #13837 in which Hail could break a Spark installation if the Hail JAR appears on the classpath before the Scala JARs.
+- (hail#13894) Fix (hail#13837) in which Hail could break a Spark installation if the Hail JAR appears on the classpath before the Scala JARs.
 
-- (hail#13919) Fix #13915 which prevented using a glob pattern in `hl.import_vcf`.
+- (hail#13919) Fix (hail#13915) which prevented using a glob pattern in `hl.import_vcf`.
 
 ## Version 0.2.124
 
