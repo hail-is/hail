@@ -44,7 +44,7 @@ object TypeCheck {
   }
 
   private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type]): Unit = ir match {
-    case _: Let if i == 1 =>
+    case l: Let if i == l.bindings.length =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>
     case _: StreamBufferedAggregate if (i == 1 || i == 3) =>

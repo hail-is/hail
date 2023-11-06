@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.utils.BoxedArrayBuilder
 
-import scala.collection.mutable
+import scala.collection.Set
 
 object ForwardLets {
   def apply[T <: BaseIR](ir0: T): T = {
@@ -12,7 +12,7 @@ object ForwardLets {
 
     def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR = {
 
-      def shouldForward(value: IR, refs: mutable.Set[RefEquality[BaseRef]], base: IR): Boolean = {
+      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: IR): Boolean = {
         value.isInstanceOf[Ref] ||
         value.isInstanceOf[In] ||
           (IsConstant(value) && !value.isInstanceOf[Str]) ||
@@ -26,16 +26,18 @@ object ForwardLets {
 
       ir match {
         case l@Let(bindings, body) =>
-          val refs = uses.lookup(ir)
           val keep = new BoxedArrayBuilder[(String, IR)]
+          val refs = uses(ir)
           val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
             val rewriteValue = rewrite(value, env).asInstanceOf[IR]
-            if (shouldForward(rewriteValue, refs, l))
+            if (shouldForward(rewriteValue, refs.filter(_.t.name == name), l))
               env.bindEval(name -> rewriteValue)
             else {keep += (name -> rewriteValue); env}
           }
 
-          Let(keep.result(), rewrite(body, newEnv).asInstanceOf[IR])
+          val newBody = rewrite(body, newEnv).asInstanceOf[IR]
+          if (keep.isEmpty) newBody
+          else Let(keep.result(), newBody)
 
         case l@AggLet(name, value, body, isScan) =>
           val refs = uses.lookup(ir)
@@ -47,9 +49,11 @@ object ForwardLets {
               rewrite(body, env.copy(agg = Some(env.agg.get.bind(name -> rewriteValue))))
           else
             AggLet(name, rewriteValue, rewrite(body, env).asInstanceOf[IR], isScan)
-        case x@Ref(name, _) => env.eval.lookupOption(name)
-          .map { forwarded => if (uses.lookup(defs.lookup(x)).size > 1) forwarded.deepCopy() else forwarded }
-          .getOrElse(x)
+        case x@Ref(name, _) =>
+          env.eval
+            .lookupOption(name)
+            .map { forwarded => if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy() else forwarded }
+            .getOrElse(x)
         case _ =>
           ir.mapChildrenWithIndex { (ir1, i) =>
             rewrite(ir1, ChildEnvWithoutBindings(ir, i, env))
