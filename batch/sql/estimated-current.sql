@@ -1699,7 +1699,7 @@ BEGIN
     # necessary for backwards compatibility
     UPDATE job_groups_n_jobs_in_complete_states
     INNER JOIN (
-      SELECT batch_id, parent_id
+      SELECT batch_id, ancestor_id
       FROM job_group_self_and_ancestors
       WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id AND job_group_id != 0
       ORDER BY job_group_id ASC
