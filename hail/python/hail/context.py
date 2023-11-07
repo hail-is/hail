@@ -10,7 +10,7 @@ import pkg_resources
 from pyspark import SparkContext
 
 import hail
-from hail.genetics.reference_genome import ReferenceGenome
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.typecheck import (nullable, typecheck, typecheck_method, enumeration, dictof, oneof,
                             sized_tupleof, sequenceof)
 from hail.utils import get_env_or_default
@@ -141,7 +141,7 @@ class HailContext(object):
         return self._default_ref
 
     @default_reference.setter
-    def set_default_reference(self, value):
+    def default_reference(self, value):
         if not isinstance(value, ReferenceGenome):
             raise TypeError(f'{value} is {type(value)} not a ReferenceGenome')
         self._default_ref = value
@@ -166,7 +166,7 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=nullable(str),
-           default_reference=enumeration(*BUILTIN_REFERENCES),
+           default_reference=nullable(enumeration(*BUILTIN_REFERENCES)),
            idempotent=bool,
            global_seed=nullable(int),
            spark_conf=nullable(dictof(str, str)),
@@ -191,7 +191,7 @@ def init(sc=None,
          min_block_size=0,
          branching_factor=50,
          tmp_dir=None,
-         default_reference='GRCh37',
+         default_reference=None,
          idempotent=False,
          global_seed=None,
          spark_conf=None,
@@ -211,11 +211,11 @@ def init(sc=None,
 
     This function will be called with default arguments if any Hail functionality is used. If you
     need custom configuration, you must explicitly call this function before using Hail. For
-    example, to set the default reference genome to GRCh38, import Hail and immediately call
+    example, to set the global random seed to 0, import Hail and immediately call
     :func:`.init`:
 
     >>> import hail as hl
-    >>> hl.init(default_reference='GRCh38')  # doctest: +SKIP
+    >>> hl.init(global_seed=0)  # doctest: +SKIP
 
     Hail has two backends, ``spark`` and ``batch``. Hail selects a backend by consulting, in order,
     these configuration locations:
@@ -288,6 +288,8 @@ def init(sc=None,
         Networked temporary directory.  Must be a network-visible file
         path.  Defaults to /tmp in the default scheme.
     default_reference : :class:`str`
+        *Deprecated*. Please use :func:`.default_reference` to set the default reference genome
+
         Default reference genome. Either ``'GRCh37'``, ``'GRCh38'``,
         ``'GRCm38'``, or ``'CanFam3'``.
     idempotent : :obj:`bool`
@@ -332,6 +334,14 @@ def init(sc=None,
         else:
             warning('Hail has already been initialized. If this call was intended to change configuration,'
                     ' close the session with hl.stop() first.')
+
+    if default_reference is not None:
+        warnings.warn('Using hl.init with a default_reference argument is deprecated. '
+                      'To set a default reference genome after initializing hail, '
+                      'call `default_reference` with an argument to set the '
+                      'default reference genome.')
+    else:
+        default_reference = 'GRCh37'
 
     backend = choose_backend(backend)
 
@@ -793,7 +803,8 @@ async def _async_current_backend() -> Backend:
     return (await Env._async_hc())._backend
 
 
-def default_reference(new_default_reference: Optional[ReferenceGenome] = None) -> Optional[ReferenceGenome]:
+@typecheck(new_default_reference=nullable(reference_genome_type))
+def default_reference(new_default_reference=None) -> Optional[ReferenceGenome]:
     """With no argument, returns the default reference genome (``'GRCh37'`` by default).
     With an argument, sets the default reference genome to the argument.
 
