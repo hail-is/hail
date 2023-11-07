@@ -6,16 +6,16 @@ RENAME TABLE batch_attributes TO job_group_attributes,
              aggregated_batch_resources_v3 TO aggregated_job_group_resources_v3,
              batches_n_jobs_in_complete_states TO job_groups_n_jobs_in_complete_states;
 
-ALTER TABLE RENAME INDEX batch_attributes_key_value TO job_group_attributes_key_value;
-ALTER TABLE RENAME INDEX batch_attributes_value TO job_group_attributes_value;
-ALTER TABLE RENAME INDEX batch_attributes_batch_id_key_value TO job_group_attributes_batch_id_key_value;
-ALTER TABLE RENAME INDEX batch_attributes_batch_id_value TO job_group_attributes_batch_id_value;
+ALTER TABLE job_group_attributes RENAME INDEX batch_attributes_key_value TO job_group_attributes_key_value;
+ALTER TABLE job_group_attributes RENAME INDEX batch_attributes_value TO job_group_attributes_value;
+ALTER TABLE job_group_attributes RENAME INDEX batch_attributes_batch_id_key_value TO job_group_attributes_batch_id_key_value;
+ALTER TABLE job_group_attributes RENAME INDEX batch_attributes_batch_id_value TO job_group_attributes_batch_id_value;
 
-ALTER TABLE RENAME INDEX batches_inst_coll_staging_inst_coll TO job_groups_inst_coll_staging_inst_coll;
-ALTER TABLE RENAME INDEX batches_inst_coll_staging_batch_id_jg_id TO job_groups_inst_coll_staging_batch_id_jg_id;
+ALTER TABLE job_groups_inst_coll_staging RENAME INDEX batches_inst_coll_staging_inst_coll TO job_groups_inst_coll_staging_inst_coll;
+ALTER TABLE job_groups_inst_coll_staging RENAME INDEX batches_inst_coll_staging_batch_id_jg_id TO job_groups_inst_coll_staging_batch_id_jg_id;
 
-ALTER TABLE RENAME INDEX batch_inst_coll_cancellable_resources_inst_coll TO job_group_inst_coll_cancellable_resources_inst_coll;
-ALTER TABLE RENAME INDEX batch_inst_coll_cancellable_resources_jg_id ON job_group_inst_coll_cancellable_resources_jg_id;
+ALTER TABLE job_group_inst_coll_cancellable_resources RENAME INDEX batch_inst_coll_cancellable_resources_inst_coll TO job_group_inst_coll_cancellable_resources_inst_coll;
+ALTER TABLE job_group_inst_coll_cancellable_resources RENAME INDEX batch_inst_coll_cancellable_resources_jg_id TO job_group_inst_coll_cancellable_resources_jg_id;
 
 DELIMITER $$
 
