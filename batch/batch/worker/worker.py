@@ -1173,6 +1173,7 @@ class Container:
                     'inheritable': default_docker_capabilities,
                     'permitted': default_docker_capabilities,
                 },
+                'oomScoreAdj': 900,  # https://github.com/opencontainers/runtime-spec/blob/main/config.md
             },
             "hooks": {"prestart": nvidia_runtime_hook},
             'linux': {
@@ -1197,6 +1198,8 @@ class Container:
                         'limit': self.memory_in_bytes,
                         'reservation': self.memory_in_bytes,
                     },
+                    'swap': self.memory_in_bytes,  # https://docs.docker.com/config/containers/resource_constraints/#prevent-a-container-from-using-swap
+                    'swappiness': 0,
                     # 'blockIO': {'weight': min(weight, 1000)}, FIXME blkio.weight not supported
                 },
                 'maskedPaths': [
