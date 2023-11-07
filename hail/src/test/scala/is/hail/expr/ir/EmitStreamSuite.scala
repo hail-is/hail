@@ -248,9 +248,9 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testEmitLet() {
+  @Test def testEmitLet(): Unit = {
     val ir =
-      Let(FastSeq("end" -> 10, "start" -> 10),
+      Let(FastSeq("start" -> 3, "end" -> 10),
         StreamFlatMap(
           StreamRange(Ref("start", TInt32), Ref("end", TInt32), 1),
           "i",

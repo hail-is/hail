@@ -30,7 +30,7 @@ case object SemanticHash extends Logging {
       // Running the algorithm on the name-normalised IR
       // removes sensitivity to compiler-generated names
       val nameNormalizedIR = ctx.timer.time("NormalizeNames") {
-        new NormalizeNames(_ => genUID(), allowFreeVariables = true)(root)
+        new NormalizeNames(iruid(_), allowFreeVariables = true)(root)
       }
 
       val semhash = ctx.timer.time("Hash") {
@@ -211,7 +211,11 @@ case object SemanticHash extends Logging {
         }
 
       case MatrixWrite(_, writer) =>
+        buffer ++= Bytes.fromClass(writer.getClass)
         buffer ++= writer.path.getBytes
+
+      case MatrixMultiWrite(_, writer) =>
+        buffer ++= writer.paths.flatMap(_.getBytes)
 
       case NDArrayReindex(_, indices) =>
         indices.foreach(buffer ++= Bytes.fromInt(_))
