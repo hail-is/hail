@@ -98,8 +98,11 @@ sealed abstract class BaseTypeWithRequiredness {
       throw new AssertionError(
         s"children lengths differed ${children.length} ${newChildren.length}. ${children} ${newChildren} ${this}")
     }
-    (children, newChildren).zipped.foreach { (r1, r2) =>
-      r1.unionFrom(r2)
+
+    // foreach on zipped seqs is very slow as the implementation
+    // doesn't know that the seqs are the same length.
+    for (i <- children.indices) {
+      children(i).unionFrom(newChildren(i))
     }
   }
 

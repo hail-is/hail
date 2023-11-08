@@ -35,7 +35,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   type State = Memo[BaseTypeWithRequiredness]
   private val cache = Memo.empty[BaseTypeWithRequiredness]
   private val dependents = Memo.empty[mutable.Set[RefEquality[BaseIR]]]
-  private val q = mutable.Set[RefEquality[BaseIR]]()
+  private[this] val q = new Queue()
 
   private val defs = Memo.empty[IndexedSeq[BaseTypeWithRequiredness]]
   private val states = Memo.empty[IndexedSeq[TypeWithRequiredness]]
@@ -90,8 +90,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def run(): Unit = {
     while (q.nonEmpty) {
-      val node = q.head
-      q -= node
+      val node = q.pop()
       if (analyze(node.t) && dependents.contains(node)) {
         q ++= dependents.lookup(node)
       }
@@ -827,5 +826,35 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     // BlockMatrix is always required, so I don't change anything.
 
     requiredness.probeChangedAndReset()
+  }
+
+  // "Oh god, why? Why not just use a HashSet like a normal person?" I hear you ask.
+  // Well, it turns out that half of the time spent in `Requiredness` for large IRs
+  // would be spent removing items from a HashSet.
+  // Go on, profile it.
+  // Be as astonished as I was.
+  final class Queue {
+    private[this] val q =
+      mutable.Queue[RefEquality[BaseIR]]()
+    private[this] val seen =
+      mutable.AnyRefMap[RefEquality[BaseIR], Int]()
+
+    def nonEmpty: Boolean =
+      q.nonEmpty
+
+    def pop(): RefEquality[BaseIR] = {
+      val n = q.dequeue()
+      seen.update(n, 0)
+      n
+    }
+
+    def +=(re: RefEquality[BaseIR]): Unit =
+      if (0 == seen.getOrElse(re, 0)) {
+        seen.update(re, 1)
+        q += re
+      }
+
+    def ++=(res: Iterable[RefEquality[BaseIR]]): Unit =
+      res.foreach(this += _)
   }
 }
