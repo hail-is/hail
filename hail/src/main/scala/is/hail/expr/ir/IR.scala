@@ -197,12 +197,9 @@ final case class Let(bindings: IndexedSeq[(String, IR)], body: IR) extends IR {
 object Let {
   case class Extract(p: ((String, IR)) => Boolean) {
     def unapply(bindings: IndexedSeq[(String, IR)]):
-    Option[(Seq[(String, IR)], (String, IR), Seq[(String, IR)])] = {
+    Option[(IndexedSeq[(String, IR)], IndexedSeq[(String, IR)])] = {
       val idx = bindings.indexWhere(p)
-      if (idx == -1) None else {
-        val splits = bindings.splitAt(idx)
-        Some((splits._1, splits._2.head, splits._2.tail))
-      }
+      if (idx == -1) None else Some(bindings.splitAt(idx))
     }
   }
 
