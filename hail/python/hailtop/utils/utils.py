@@ -224,6 +224,10 @@ class AsyncWorkerPool:
             except Exception:
                 pass
 
+    async def shutdown_and_wait(self):
+        self.shutdown()
+        await asyncio.gather(*self.workers, return_exceptions=True)
+
 
 class WaitableSharedPool:
     def __init__(self, worker_pool: AsyncWorkerPool):

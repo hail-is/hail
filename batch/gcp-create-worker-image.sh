@@ -14,7 +14,7 @@ PROJECT=$(get_global_config_field gcp_project $NAMESPACE)
 ZONE=$(get_global_config_field gcp_zone $NAMESPACE)
 DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
 
-WORKER_IMAGE_VERSION=14
+WORKER_IMAGE_VERSION=15
 
 if [ "$NAMESPACE" == "default" ]; then
     WORKER_IMAGE=batch-worker-${WORKER_IMAGE_VERSION}

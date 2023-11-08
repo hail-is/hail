@@ -85,7 +85,6 @@ from ..instance_config import InstanceConfig
 from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
-from ..utils import Box
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
@@ -1828,7 +1827,7 @@ class DockerJob(Job):
     async def setup_io(self):
         assert instance_config
         if not instance_config.job_private:
-            if self.worker.data_disk_space_remaining.value < self.external_storage_in_gib:
+            if self.worker.data_disk_space_remaining < self.external_storage_in_gib:
                 log.info(
                     f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {self.worker.data_disk_space_remaining}Gi remaining'
                 )
@@ -1849,7 +1848,7 @@ class DockerJob(Job):
                 log.info(f'created disk {self.disk.name} for job {self.id}')
                 return
 
-            self.worker.data_disk_space_remaining.value -= self.external_storage_in_gib
+            self.worker.data_disk_space_remaining -= self.external_storage_in_gib
             log.info(
                 f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {self.worker.data_disk_space_remaining}Gi remaining'
             )
@@ -2015,7 +2014,7 @@ class DockerJob(Job):
             except Exception:
                 log.exception(f'while detaching and deleting disk {self.disk.name} for job {self.id}')
         else:
-            self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
+            self.worker.data_disk_space_remaining += self.external_storage_in_gib
 
         if self.cloudfuse:
             for config in self.cloudfuse:
@@ -2959,7 +2958,7 @@ class Worker:
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
-        self.data_disk_space_remaining = Box(UNRESERVED_WORKER_DATA_DISK_SIZE_GB)
+        self.data_disk_space_remaining = UNRESERVED_WORKER_DATA_DISK_SIZE_GB
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs: Dict[Tuple[int, int], Job] = {}
         self.stop_event = asyncio.Event()
@@ -3040,15 +3039,15 @@ class Worker:
         log.info('Worker.shutdown')
         self._jvm_initializer_task.cancel()
         async with AsyncExitStack() as cleanup:
+            cleanup.push_async_callback(self.client_session.close)
+            if self.fs:
+                cleanup.push_async_callback(self.fs.close)
+            if self.file_store:
+                cleanup.push_async_callback(self.file_store.close)
             for jvmqueue in self._jvmpools_by_cores.values():
                 while not jvmqueue.queue.empty():
                     cleanup.push_async_callback(jvmqueue.queue.get_nowait().kill)
             cleanup.push_async_callback(self.task_manager.shutdown_and_wait)
-            if self.file_store:
-                cleanup.push_async_callback(self.file_store.close)
-            if self.fs:
-                cleanup.push_async_callback(self.fs.close)
-            cleanup.push_async_callback(self.client_session.close)
 
     async def run_job(self, job):
         try:
@@ -3247,7 +3246,7 @@ class Worker:
                         break
                     log.info(
                         f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration} '
-                        f'free worker data disk storage {self.data_disk_space_remaining.value}Gi'
+                        f'free worker data disk storage {self.data_disk_space_remaining}Gi'
                     )
         finally:
             self.active = False
@@ -3476,11 +3475,10 @@ async def async_main():
     with aiomonitor.start_monitor(asyncio.get_event_loop(), locals=locals()):
         try:
             async with AsyncExitStack() as cleanup:
-                cleanup.push_async_callback(worker.shutdown)
-                cleanup.push_async_callback(CLOUD_WORKER_API.close)
-                cleanup.push_async_callback(network_allocator_task_manager.shutdown_and_wait)
                 cleanup.push_async_callback(docker.close)
-
+                cleanup.push_async_callback(network_allocator_task_manager.shutdown_and_wait)
+                cleanup.push_async_callback(CLOUD_WORKER_API.close)
+                cleanup.push_async_callback(worker.shutdown)
                 await worker.run()
         finally:
             asyncio.get_event_loop().set_debug(True)

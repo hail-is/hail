@@ -25,7 +25,6 @@ class GCPDriver(CloudDriver):
         machine_name_prefix: str,
         namespace: str,
         inst_coll_configs: InstanceCollectionConfigs,
-        task_manager: aiotools.BackgroundTaskManager,  # BORROWED
     ) -> 'GCPDriver':
         gcp_config = get_gcp_config()
         project = gcp_config.project
@@ -67,6 +66,8 @@ ON DUPLICATE KEY UPDATE region = region;
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
 
+        task_manager = aiotools.BackgroundTaskManager()
+
         create_pools_coros = [
             Pool.create(
                 app,
@@ -105,6 +106,7 @@ ON DUPLICATE KEY UPDATE region = region;
             inst_coll_manager,
             jpim,
             billing_manager,
+            task_manager,
         )
 
         task_manager.ensure_future(periodically_call(15, driver.process_activity_logs))
@@ -126,6 +128,7 @@ ON DUPLICATE KEY UPDATE region = region;
         inst_coll_manager: InstanceCollectionManager,
         job_private_inst_manager: JobPrivateInstanceManager,
         billing_manager: GCPBillingManager,
+        task_manager: aiotools.BackgroundTaskManager,
     ):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
@@ -137,6 +140,7 @@ ON DUPLICATE KEY UPDATE region = region;
         self.job_private_inst_manager = job_private_inst_manager
         self._billing_manager = billing_manager
         self._inst_coll_manager = inst_coll_manager
+        self._task_manager = task_manager
 
     @property
     def billing_manager(self) -> GCPBillingManager:
@@ -148,12 +152,15 @@ ON DUPLICATE KEY UPDATE region = region;
 
     async def shutdown(self) -> None:
         try:
-            await self.compute_client.close()
+            await self._task_manager.shutdown_and_wait()
         finally:
             try:
-                await self.activity_logs_client.close()
+                await self.compute_client.close()
             finally:
-                await self._billing_manager.close()
+                try:
+                    await self.activity_logs_client.close()
+                finally:
+                    await self._billing_manager.close()
 
     async def process_activity_logs(self) -> None:
         async def _process_activity_log_events_since(mark):
