@@ -120,99 +120,102 @@ object Simplify {
 
   private def numericRules: IR => Option[IR] = {
 
-    def integralBinaryIdentities(pure: Int => IR) = (ir: IR) => ir match {
-      case ApplyBinaryPrimOp(op, x, y) if ir.typ.isInstanceOf[TIntegral] =>
-        op match {
-          case Add() =>
-            if (x == y) Some(ApplyBinaryPrimOp(Multiply(), pure(2), x))
-            else None
+    def integralBinaryIdentities(pure: Int => IR)(ir: IR): Option[IR] =
+      ir match {
+        case ApplyBinaryPrimOp(op, x, y) if ir.typ.isInstanceOf[TIntegral] =>
+          op match {
+            case Add() =>
+              if (x == y) Some(ApplyBinaryPrimOp(Multiply(), pure(2), x))
+              else None
 
-          case Subtract() =>
-            if (x == y) Some(pure(0))
-            else None
+            case Subtract() =>
+              if (x == y) Some(pure(0))
+              else None
 
-          case Multiply() =>
-            if (x == pure(0) || y == pure(0)) Some(pure(0))
-            else None
+            case Multiply() =>
+              if (x == pure(0) || y == pure(0)) Some(pure(0))
+              else None
 
-          case RoundToNegInfDivide() =>
-            if (x == y) Some(pure(1))
-            else if (x == pure(0)) Some(pure(0))
-            else if (y == pure(0)) Some(Die("division by zero", ir.typ))
-            else None
+            case RoundToNegInfDivide() =>
+              if (x == y) Some(pure(1))
+              else if (x == pure(0)) Some(pure(0))
+              else if (y == pure(0)) Some(Die("division by zero", ir.typ))
+              else None
 
-          case _: LeftShift | _:RightShift | _: LogicalRightShift  =>
-            if (x == pure(0)) Some(pure(0))
-            else if (y == I32(0)) Some(x)
-            else None
+            case _: LeftShift | _: RightShift | _: LogicalRightShift =>
+              if (x == pure(0)) Some(pure(0))
+              else if (y == I32(0)) Some(x)
+              else None
 
-          case BitAnd() =>
-            if (x == pure(0) || y == pure(0)) Some(pure(0))
-            else if (x == pure(-1)) Some(y)
-            else if (y == pure(-1)) Some(x)
-            else None
+            case BitAnd() =>
+              if (x == pure(0) || y == pure(0)) Some(pure(0))
+              else if (x == pure(-1)) Some(y)
+              else if (y == pure(-1)) Some(x)
+              else None
 
-          case BitOr() =>
-            if (x == pure(-1) || y == pure(-1)) Some(pure(-1))
-            else if (x == pure(0)) Some(y)
-            else if (y == pure(0)) Some(x)
-            else None
+            case BitOr() =>
+              if (x == pure(-1) || y == pure(-1)) Some(pure(-1))
+              else if (x == pure(0)) Some(y)
+              else if (y == pure(0)) Some(x)
+              else None
 
-          case BitXOr() =>
-            if (x == y) Some(pure(0))
-            else if (x == pure(0)) Some(y)
-            else if (y == pure(0)) Some(x)
-            else None
+            case BitXOr() =>
+              if (x == y) Some(pure(0))
+              else if (x == pure(0)) Some(y)
+              else if (y == pure(0)) Some(x)
+              else None
 
-          case _ =>
-            None
+            case _ =>
+              None
+          }
+        case _ =>
+          None
+      }
+
+    def hoistUnaryOp(ir: IR): Option[IR] =
+      ir match {
+        case ApplyUnaryPrimOp(f@(Negate | BitNot | Bang), x) => x match {
+          case ApplyUnaryPrimOp(g, y) if g == f => Some(y)
+          case _ => None
         }
-      case _ =>
-        None
-    }
-
-    def hoistUnaryOp = (ir: IR) => ir match {
-      case ApplyUnaryPrimOp(f@(Negate | BitNot | Bang), x) => x match {
-        case ApplyUnaryPrimOp(g, y) if g == f => Some(y)
         case _ => None
       }
-      case _ => None
-    }
 
-    def commonBinaryIdentities(pure: Int => IR) = (ir: IR) => ir match {
-      case ApplyBinaryPrimOp(f, x, y) =>
-        f match {
-          case Add() =>
-            if (x == pure(0)) Some(y)
-            else if (y == pure(0)) Some(x)
-            else None
+    def commonBinaryIdentities(pure: Int => IR)(ir: IR): Option[IR] =
+      ir match {
+        case ApplyBinaryPrimOp(f, x, y) =>
+          f match {
+            case Add() =>
+              if (x == pure(0)) Some(y)
+              else if (y == pure(0)) Some(x)
+              else None
 
-          case Subtract() =>
-            if (x == pure(0)) Some(ApplyUnaryPrimOp(Negate, y))
-            else if (y == pure(0)) Some(x)
-            else None
+            case Subtract() =>
+              if (x == pure(0)) Some(ApplyUnaryPrimOp(Negate, y))
+              else if (y == pure(0)) Some(x)
+              else None
 
-          case Multiply() =>
-            if (x == pure(1)) Some(y)
-            else if (x == pure(-1)) Some(ApplyUnaryPrimOp(Negate, y))
-            else if (y == pure(1)) Some(x)
-            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate, x))
-            else None
+            case Multiply() =>
+              if (x == pure(1)) Some(y)
+              else if (x == pure(-1)) Some(ApplyUnaryPrimOp(Negate, y))
+              else if (y == pure(1)) Some(x)
+              else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate, x))
+              else None
 
-          case RoundToNegInfDivide() =>
-            if (y == pure(1)) Some(x)
-            else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate, x))
-            else None
+            case RoundToNegInfDivide() =>
+              if (y == pure(1)) Some(x)
+              else if (y == pure(-1)) Some(ApplyUnaryPrimOp(Negate, x))
+              else None
 
-          case _ =>
-            None
-        }
-      case _ =>
-        None
-    }
+            case _ =>
+              None
+          }
+        case _ =>
+          None
+      }
 
     Array(
-      hoistUnaryOp,
+      hoistUnaryOp(_),
       (ir: IR) => integralBinaryIdentities(Literal.coerce(ir.typ, _))(ir),
       (ir: IR) => commonBinaryIdentities(Literal.coerce(ir.typ, _))(ir),
     ).reduce((f, g) => ir => f(ir).orElse(g(ir)))
