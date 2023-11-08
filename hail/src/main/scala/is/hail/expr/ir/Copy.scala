@@ -339,8 +339,8 @@ object Copy {
       case ConsoleLog(message, result) =>
         assert(newChildren.length == 2)
         ConsoleLog(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case x@ApplyIR(fn, typeArgs, args, errorID) =>
-        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), errorID)
+      case x@ApplyIR(fn, rt, typeArgs, args, errorID) =>
+        val r = ApplyIR(fn, rt, typeArgs, newChildren.map(_.asInstanceOf[IR]), errorID)
         r.conversion = x.conversion
         r.inline = x.inline
         r

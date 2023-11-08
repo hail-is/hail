@@ -80,7 +80,7 @@ object InferType {
           case _: Compare => TInt32
           case _ => TBoolean
         }
-      case a: ApplyIR => a.explicitNode.typ
+      case a: ApplyIR => a.returnType
       case a: AbstractApplyNode[_] =>
         val typeArgs = a.typeArgs
         val argTypes = a.args.map(_.typ)

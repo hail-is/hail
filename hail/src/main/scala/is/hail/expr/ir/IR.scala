@@ -196,7 +196,12 @@ sealed abstract class BaseRef extends IR with TrivialIR {
   def _typ: Type
 }
 
-final case class Ref(name: String, var _typ: Type) extends BaseRef
+final case class Ref(name: String, var _typ: Type) extends BaseRef {
+  override def typ: Type = {
+    assert(_typ != null)
+    _typ
+  }
+}
 
 
 // Recur can't exist outside of loop
@@ -211,7 +216,7 @@ final case class RelationalRef(name: String, _typ: Type) extends BaseRef
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
-final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
+final case class ApplyComparisonOp(var op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
   def apply(args: IR*): MakeArray = {
@@ -715,7 +720,7 @@ final case class Trap(child: IR) extends IR
 final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 final case class ConsoleLog(message: IR, result: IR) extends IR
 
-final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], errorID: Int) extends IR {
+final case class ApplyIR(function: String, returnType: Type, typeArgs: Seq[Type], args: Seq[IR], errorID: Int) extends IR {
   var conversion: (Seq[Type], Seq[IR], Int) => IR = _
   var inline: Boolean = _
 
@@ -725,7 +730,9 @@ final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], e
 
   lazy val explicitNode: IR = {
     // foldRight because arg1 should be at the top so it is evaluated first
-    refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
+    val ir = refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
+    assert(ir.typ == returnType)
+    ir
   }
 }
 

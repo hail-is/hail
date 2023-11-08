@@ -29,17 +29,15 @@ object TypeCheck {
 
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {
-      _ <- ir.children
-        .zipWithIndex
-        .foreachRecur { case (child, i) =>
-          for {
-            _ <- call(check(ctx, child, ChildBindings(ir, i, env)))
-          } yield {
-            if (child.typ == TVoid) {
-              checkVoidTypedChild(ctx, ir, i, env)
-            } else ()
-          }
+      _ <- ir.forEachChildWithEnvStackSafe(env) { (child, i, childEnv) =>
+        for {
+          _ <- call(check(ctx, child, childEnv))
+        } yield {
+          if (child.typ == TVoid) {
+            checkVoidTypedChild(ctx, ir, i, env)
+          } else ()
         }
+      }
     } yield checkSingleNode(ctx, ir, env)
   }
 
@@ -142,6 +140,7 @@ object TypeCheck {
       case x@ApplyComparisonOp(op, l, r) =>
         assert(op.t1 == l.typ)
         assert(op.t2 == r.typ)
+        ComparisonOp.checkCompatible(op.t1, op.t2)
         op match {
           case _: Compare => assert(x.typ == TInt32)
           case _ => assert(x.typ == TBoolean)
@@ -520,7 +519,7 @@ object TypeCheck {
         assert(msg.typ == TString)
       case Trap(child) =>
       case ConsoleLog(msg, _) => assert(msg.typ == TString)
-      case x@ApplyIR(fn, typeArgs, args, _) =>
+      case x@ApplyIR(fn, _, typeArgs, args, _) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>
@@ -575,6 +574,9 @@ object TypeCheck {
         val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
         assert(child.typ.key.forall(newFieldSet.contains))
       case TableMapPartitions(child, globalName, partitionStreamName, body, requestedKey, allowedOverlap) =>
+        assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
+        assert(allowedOverlap >= -1 && allowedOverlap <= child.typ.key.size)
+        assert(requestedKey >= 0 && requestedKey <= child.typ.key.size)
         assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}

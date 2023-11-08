@@ -2337,9 +2337,6 @@ case class TableMapPartitions(child: TableIR,
   requestedKey: Int,
   allowedOverlap: Int
 ) extends TableIR {
-  assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
-  assert(allowedOverlap >= -1 && allowedOverlap <= child.typ.key.size)
-  assert(requestedKey >= 0 && requestedKey <= child.typ.key.size)
 
   lazy val typ = child.typ.copy(
     rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct])
@@ -2410,7 +2407,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
-  val typ: TableType = child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
+  lazy val typ: TableType = child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
     assert(newChildren.length == 2)

@@ -553,7 +553,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
     MatrixAggregateRowsByKey(newChild, newEntryExpr, newRowExpr)
   }
 
-  val typ: MatrixType = child.typ.copy(
+  lazy val typ: MatrixType = child.typ.copy(
     rowType = child.typ.rowKeyStruct ++ tcoerce[TStruct](rowExpr.typ),
     entryType = tcoerce[TStruct](entryExpr.typ)
   )
@@ -573,7 +573,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
     MatrixAggregateColsByKey(newChild, newEntryExpr, newColExpr)
   }
 
-  val typ = child.typ.copy(
+  lazy val typ = child.typ.copy(
     entryType = tcoerce[TStruct](entryExpr.typ),
     colType = child.typ.colKeyStruct ++ tcoerce[TStruct](colExpr.typ))
 
@@ -632,7 +632,7 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
     MatrixMapEntries(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
-  val typ: MatrixType =
+  lazy val typ: MatrixType =
     child.typ.copy(entryType = tcoerce[TStruct](newEntries.typ))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -669,7 +669,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
-  val typ: MatrixType = {
+  lazy val typ: MatrixType = {
     child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
   }
 
@@ -688,7 +688,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     MatrixMapCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR], newKey)
   }
 
-  val typ: MatrixType = {
+  lazy val typ: MatrixType = {
     val newColType = newCol.typ.asInstanceOf[TStruct]
     val newColKey = newKey.getOrElse(child.typ.colKey)
     child.typ.copy(colKey = newColKey, colType = newColType)

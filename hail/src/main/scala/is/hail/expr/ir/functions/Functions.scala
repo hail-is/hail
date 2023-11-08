@@ -99,8 +99,8 @@ object IRFunctionRegistry {
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
     val body = IRParser.parse_value_ir(
       bodyStr,
-      IRParserEnvironment(ctx, refMap, Map())
-    )
+      IRParserEnvironment(ctx, Map()),
+      refMap)
 
     userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
     addIR(
@@ -147,7 +147,7 @@ object IRFunctionRegistry {
   ): JVMFunction = {
     jvmRegistry.lift(name) match {
       case None =>
-        fatal(s"no functions found with the name ${name}")
+        fatal(s"no functions found with the signature $name(${valueParameterTypes.mkString(", ")}): $returnType")
       case Some(functions) =>
         functions.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq match {
           case Seq() =>
@@ -196,7 +196,7 @@ object IRFunctionRegistry {
   def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[IRFunctionImplementation] = {
     val validIR: Option[IRFunctionImplementation] = lookupIR(name, returnType, typeParameters, arguments).map {
       case ((_, _, _, inline), conversion) => (typeParametersPassed, args, errorID) =>
-        val x = ApplyIR(name, typeParametersPassed, args, errorID)
+        val x = ApplyIR(name, returnType, typeParametersPassed, args, errorID)
         x.conversion = conversion
         x.inline = inline
         x

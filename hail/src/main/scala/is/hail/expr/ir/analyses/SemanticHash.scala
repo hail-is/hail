@@ -114,7 +114,7 @@ case object SemanticHash extends Logging {
       case ApplyComparisonOp(op, _, _) =>
         buffer ++= Bytes.fromClass(op.getClass)
 
-      case ApplyIR(fname, tyArgs, _, _) =>
+      case ApplyIR(fname, _, tyArgs, _, _) =>
         buffer ++= fname.getBytes
         tyArgs.foreach(buffer ++= EncodeTypename(_))
 
