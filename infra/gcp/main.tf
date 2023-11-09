@@ -437,7 +437,7 @@ module "auth_gsa_secret" {
   iam_roles = [
     "iam.serviceAccountAdmin",
     "iam.serviceAccountKeyAdmin",
-    "cloudprofile.agent",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -447,7 +447,7 @@ module "testns_auth_gsa_secret" {
   project = var.gcp_project
   iam_roles = [
     "iam.serviceAccountViewer",
-    "cloudprofile.agent",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -460,7 +460,7 @@ module "batch_gsa_secret" {
     "iam.serviceAccountUser",
     "logging.viewer",
     "storage.admin",
-    "cloudprofile.agent",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -478,7 +478,7 @@ module "testns_batch_gsa_secret" {
     "compute.instanceAdmin.v1",
     "iam.serviceAccountUser",
     "logging.viewer",
-    "cloudprofile.agent",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -493,7 +493,7 @@ module "ci_gsa_secret" {
   name = "ci"
   project = var.gcp_project
   iam_roles = [
-    "cloudprofile.agent",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -502,7 +502,7 @@ module "testns_ci_gsa_secret" {
   name = "testns-ci"
   project = var.gcp_project
   iam_roles = [
-    "cloudprofile.agent",
+    "cloudprofiler.agent",
   ]
 }
 
