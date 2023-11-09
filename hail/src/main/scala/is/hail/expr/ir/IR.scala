@@ -206,7 +206,7 @@ final case class Ref(name: String, var _typ: Type) extends BaseRef {
 
 // Recur can't exist outside of loop
 // Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
-final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR {
+final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], resultType: Type, body: IR) extends IR {
   lazy val paramIdx: Map[String, Int] = params.map(_._1).zipWithIndex.toMap
 }
 final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends BaseRef

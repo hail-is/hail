@@ -183,8 +183,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       single(Pretty.prettyBooleanLiteral(isScan))
     else
       FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
-    case TailLoop(name, args, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastSeq))
+    case TailLoop(name, args, returnType, _) if !elideBindings =>
+      FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastSeq), returnType.parsableString())
     case Recur(name, _, t) => if (elideBindings)
       single(t.parsableString())
     else
@@ -496,7 +496,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         if (i > 0) Some(FastSeq()) else None
       case _: Switch =>
         if (i > 0) Some(FastSeq()) else None
-      case TailLoop(name, args, body) => if (i == args.length)
+      case TailLoop(name, args, _, body) => if (i == args.length)
         Some(args.map { case (name, ir) => name -> "loopvar" } :+
           name -> "loop") else None
       case StreamMap(a, name, _) =>

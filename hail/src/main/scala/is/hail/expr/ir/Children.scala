@@ -40,7 +40,7 @@ object Children {
       Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
-    case TailLoop(_, args, body) =>
+    case TailLoop(_, args, _, body) =>
       args.map(_._2).toFastSeq :+ body
     case Recur(_, args, _) =>
       args.toFastSeq

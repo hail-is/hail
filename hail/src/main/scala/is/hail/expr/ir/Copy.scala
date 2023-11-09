@@ -40,9 +40,9 @@ object Copy {
       case AggLet(name, _, _, isScan) =>
         assert(newChildren.length == 2)
         AggLet(name, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
-      case TailLoop(name, params, _) =>
+      case TailLoop(name, params, resultType,  _) =>
         assert(newChildren.length == params.length + 1)
-        TailLoop(name, params.map(_._1).zip(newChildren.init.map(_.asInstanceOf[IR])), newChildren.last.asInstanceOf[IR])
+        TailLoop(name, params.map(_._1).zip(newChildren.init.map(_.asInstanceOf[IR])), resultType, newChildren.last.asInstanceOf[IR])
       case Recur(name, args, t) =>
         assert(newChildren.length == args.length)
         Recur(name, newChildren.map(_.asInstanceOf[IR]), t)

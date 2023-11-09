@@ -11,7 +11,7 @@ object ControlFlowPreventsSplit {
       case r@Recur(name, _, _) =>
         var parent: BaseIR = r
         while (parent match {
-          case TailLoop(`name`, _, _) => false
+          case TailLoop(`name`, _, _, _) => false
           case _ => true
         }) {
           if (!m.contains(parent))

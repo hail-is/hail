@@ -13,9 +13,9 @@ object Bindings {
 
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
     case Let(name, value, _) => if (i == 1) Array(name -> value.typ) else empty
-    case TailLoop(name, args, body) => if (i == args.length)
+    case TailLoop(name, args, resultType, _) => if (i == args.length)
       args.map { case (name, ir) => name -> ir.typ } :+
-        name -> TTuple(TTuple(args.map(_._2.typ): _*), body.typ) else empty
+        name -> TTuple(TTuple(args.map(_._2.typ): _*), resultType) else empty
     case StreamMap(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamZip(as, names, _, _, _) => if (i == as.length) names.zip(as.map(a => tcoerce[TStream](a.typ).elementType)) else empty
     case StreamZipJoin(as, key, curKey, curVals, _) =>

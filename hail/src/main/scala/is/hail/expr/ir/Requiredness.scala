@@ -158,7 +158,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case Let(name, value, body) => addBinding(name, value)
       case RelationalLet(name, value, body) => addBinding(name, value)
       case RelationalLetTable(name, value, body) => addBinding(name, value)
-      case TailLoop(loopName, params, body) =>
+      case TailLoop(loopName, params, _, body) =>
         addBinding(loopName, body)
         val argDefs = Array.fill(params.length)(new BoxedArrayBuilder[IR]())
         refMap.getOrElse(loopName, FastSeq()).map(_.t).foreach { case Recur(_, args, _) =>
@@ -543,7 +543,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(lookup(body))
       case RelationalLet(name, value, body) =>
         requiredness.unionFrom(lookup(body))
-      case TailLoop(name, params, body) =>
+      case TailLoop(name, params, _, body) =>
         requiredness.unionFrom(lookup(body))
       case x: BaseRef =>
         requiredness.unionFrom(defs(node).map(tcoerce[TypeWithRequiredness]))

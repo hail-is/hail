@@ -830,11 +830,12 @@ object IRParser {
       case "TailLoop" =>
         val name = identifier(it)
         val paramNames = identifiers(it)
+        val resultType = type_expr(it)
         for {
           paramIRs <- fillArray(paramNames.length)(ir_value_expr(env)(it))
           params = paramNames.zip(paramIRs)
           body <- ir_value_expr(env)(it)
-        } yield TailLoop(name, params, body)
+        } yield TailLoop(name, params, resultType, body)
       case "Recur" =>
         val name = identifier(it)
         val typ = type_expr(it)

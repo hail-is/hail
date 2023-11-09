@@ -66,8 +66,8 @@ object InferType {
         body.typ
       case AggLet(name, value, body, _) =>
         body.typ
-      case TailLoop(_, _, body) =>
-        body.typ
+      case TailLoop(_, _, resultType, _) =>
+        resultType
       case Recur(_, _, typ) =>
         typ
       case ApplyBinaryPrimOp(op, l, r) =>

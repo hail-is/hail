@@ -116,17 +116,18 @@ object TypeCheck {
           case None =>
             throw new RuntimeException(s"RelationalRef not found in env: $name")
         }
-      case x@TailLoop(name, _, body) =>
-        assert(x.typ == body.typ)
+      case x@TailLoop(name, _, rt, body) =>
+        assert(x.typ == rt)
+        assert(body.typ == rt)
         def recurInTail(node: IR, tailPosition: Boolean): Boolean = node match {
           case x: Recur =>
             x.name != name || tailPosition
           case _ =>
             node.children.zipWithIndex
               .forall {
-                case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
+              case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
                 case _ => true
-              }
+            }
         }
         assert(recurInTail(body, tailPosition = true))
       case x@Recur(name, args, typ) =>

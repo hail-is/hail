@@ -2879,7 +2879,7 @@ class IRSuite extends HailSuite {
       WriteValue(I32(1), Str("foo"), ETypeValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default)), Some(Str("/tmp/uid/part"))),
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
-      TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
+      TailLoop("y", IndexedSeq("x" -> I32(0)), TInt32, Recur("y", FastSeq(I32(4)), TInt32))
       )
     val emptyEnv = BindingEnv.empty[Type]
     irs.map { case (ir, bind) => Array(ir, bind(emptyEnv)) }
@@ -3314,6 +3314,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val triangleSum: IR = TailLoop("f",
       FastSeq("x" -> In(0, TInt32), "accum" -> In(1, TInt32)),
+      TInt32,
       If(Ref("x", TInt32) <= I32(0),
         Ref("accum", TInt32),
         Recur("f",
@@ -3331,9 +3332,11 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val triangleSum: IR = TailLoop("f1",
       FastSeq("x" -> In(0, TInt32), "accum" -> I32(0)),
+      TInt32,
       If(Ref("x", TInt32) <= I32(0),
         TailLoop("f2",
           FastSeq("x2" -> Ref("accum", TInt32), "accum2" -> I32(0)),
+          TInt32,
           If(Ref("x2", TInt32) <= I32(0),
             Ref("accum2", TInt32),
             Recur("f2",
@@ -3357,6 +3360,7 @@ class IRSuite extends HailSuite {
 
     val ndSum: IR = TailLoop("f",
       FastSeq("x" -> In(0, TInt32), "accum" -> In(1, ndType)),
+      ndType,
       If(Ref("x", TInt32) <= I32(0),
         Ref("accum", ndType),
         Recur("f",
