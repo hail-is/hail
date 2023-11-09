@@ -30,7 +30,7 @@ object LocusOrdering {
             val strcmp = CodeOrdering.makeOrdering(lhsContigType, rhsContigType, ecb)
 
             val ret = cb.newLocal[Int]("locus_cmp_ret", 0)
-            cb.ifx(strcmp.compareNonnull(cb, lhsContig, rhsContig).ceq(0), {
+            cb.if_(strcmp.compareNonnull(cb, lhsContig, rhsContig).ceq(0), {
               cb.assign(ret, Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
                 "compare", lhs.position(cb), rhs.position(cb)))
             }, {

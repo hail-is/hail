@@ -1,5 +1,5 @@
 from typing import Set, Dict
-from hail.typecheck import typecheck, setof, nullable
+from hail.typecheck import typecheck, setof
 
 from .indices import Indices, Aggregation
 from ..expressions import Expression, ExpressionException, expr_any
@@ -130,8 +130,8 @@ def analyze(caller: str,
         raise errors[0]
 
 
-@typecheck(expression=expr_any, _execute_kwargs=nullable(dict))
-def eval_timed(expression, *, _execute_kwargs=None):
+@typecheck(expression=expr_any)
+def eval_timed(expression):
     """Evaluate a Hail expression, returning the result and the times taken for
     each stage in the evaluation process.
 
@@ -158,12 +158,11 @@ def eval_timed(expression, *, _execute_kwargs=None):
         uid = Env.get_uid()
         ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
 
-    _execute_kwargs = _execute_kwargs or {}
-    return Env.backend().execute(MakeTuple([ir]), timed=True, **_execute_kwargs)[0]
+    return Env.backend().execute(MakeTuple([ir]), timed=True)[0]
 
 
-@typecheck(expression=expr_any, _execute_kwargs=nullable(dict))
-def eval(expression, *, _execute_kwargs=None):
+@typecheck(expression=expr_any)
+def eval(expression):
     """Evaluate a Hail expression, returning the result.
 
     This method is extremely useful for learning about Hail expressions and
@@ -189,7 +188,7 @@ def eval(expression, *, _execute_kwargs=None):
     -------
     Any
     """
-    return eval_timed(expression, _execute_kwargs=_execute_kwargs)[0]
+    return eval_timed(expression)[0]
 
 
 @typecheck(expression=expr_any)
@@ -288,23 +287,37 @@ def table_source(caller, expr):
     return source
 
 
-@typecheck(caller=str,
-           expr=Expression)
-def check_entry_indexed(caller, expr):
+@typecheck(caller=str, expr=Expression)
+def raise_unless_entry_indexed(caller, expr):
     if expr._indices.source is None:
-        raise ExpressionException("{}: expression must be entry-indexed,"
-                                  " found no indices (no source)")
+        raise ExpressionException(f"{caller}: expression must be entry-indexed"
+                                  f", found no indices (no source)"
+                                  )
     if expr._indices != expr._indices.source._entry_indices:
-        raise ExpressionException("{}: expression must be entry-indexed,"
-                                  " found indices {}".format(caller, list(expr._indices.axes)))
+        raise ExpressionException(f"{caller}: expression must be entry-indexed"
+                                  f", found indices {list(expr._indices.axes)}."
+                                  )
 
 
-@typecheck(caller=str,
-           expr=Expression)
-def check_row_indexed(caller, expr):
+@typecheck(caller=str, expr=Expression)
+def raise_unless_row_indexed(caller, expr):
     if expr._indices.source is None:
-        raise ExpressionException("{}: expression must be row-indexed,"
-                                  " found no indices (no source)")
+        raise ExpressionException(f"{caller}: expression must be row-indexed"
+                                  f", found no indices (no source)."
+                                  )
     if expr._indices != expr._indices.source._row_indices:
-        raise ExpressionException("{}: expression must be row-indexed,"
-                                  " found indices {}".format(caller, list(expr._indices.axes)))
+        raise ExpressionException(f"{caller}: expression must be row-indexed"
+                                  f", found indices {list(expr._indices.axes)}."
+                                  )
+
+
+@typecheck(caller=str, expr=Expression)
+def raise_unless_column_indexed(caller, expr):
+    if expr._indices.source is None:
+        raise ExpressionException(f"{caller}: expression must be column-indexed"
+                                  f", found no indices (no source)."
+                                  )
+    if expr._indices != expr._indices.source._col_indices:
+        raise ExpressionException(f"{caller}: expression must be column-indexed"
+                                  f", found indices ({list(expr._indices.axes)})."
+                                  )

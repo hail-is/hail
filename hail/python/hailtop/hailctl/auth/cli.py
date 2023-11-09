@@ -55,10 +55,9 @@ def list():
     from hailtop.auth import get_tokens  # pylint: disable=import-outside-toplevel
 
     deploy_config = get_deploy_config()
-    auth_ns = deploy_config.service_ns('auth')
     tokens = get_tokens()
     for ns in tokens:
-        if ns == auth_ns:
+        if ns == deploy_config.default_namespace():
             s = '*'
         else:
             s = ' '

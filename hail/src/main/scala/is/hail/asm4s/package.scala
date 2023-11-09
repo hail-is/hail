@@ -7,6 +7,16 @@ import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 package asm4s {
+
+  // lifted from https://github.com/milessabin/shapeless
+  @scala.annotation.implicitAmbiguous("${A} must not be equal to ${B}")
+  sealed abstract class =!=[A, B] extends Serializable
+  object =!= {
+    implicit def refl[A, B]: A =!= B = new=!=[A, B] {}
+    implicit def ambig1[A]: A =!= A = ???
+    implicit def ambig2[A]: A =!= A = ???
+  }
+
   trait TypeInfo[T] {
     val desc: String
     val iname: String = desc

@@ -8,7 +8,7 @@ import orjson
 import pytest
 
 from hailtop import httpx
-from hailtop.auth import session_id_encode_to_str
+from hailtop.auth import async_get_user, session_id_encode_to_str
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.utils import secret_alnum_string
 from hailtop.utils.rich_progress_bar import BatchProgressBar
@@ -277,6 +277,15 @@ async def test_add_and_delete_user(dev_client: BatchClient, new_billing_project:
 
     bp = await dev_client.get_billing_project(project)
     assert r['user'] not in bp['users']
+
+
+async def test_error_adding_nonexistent_user(dev_client: BatchClient, new_billing_project: str):
+    with pytest.raises(httpx.ClientResponseError) as e_info:
+        with pytest.raises(httpx.ClientResponseError) as e_user:
+            await async_get_user('foobar')
+        assert e_user.value.status == 401
+        await dev_client.add_user('foobar', new_billing_project)
+    assert e_info.value.status == 403
 
 
 async def test_edit_billing_limit_dev(dev_client: BatchClient, new_billing_project: str):

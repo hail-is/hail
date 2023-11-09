@@ -5,6 +5,8 @@ import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.rvd.RVDType
 import is.hail.utils._
+
+import org.json4s._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
@@ -77,5 +79,13 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     indent -= 4
     newline()
     sb += '}'
+  }
+
+  def toJSON: JObject = {
+    JObject(
+      "global_type" -> JString(globalType.toString),
+      "row_type" -> JString(rowType.toString),
+      "row_key" -> JArray(key.map(f => JString(f)).toList)
+    )
   }
 }

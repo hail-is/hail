@@ -675,7 +675,7 @@ def new_combiner(*,
                              "'use_genome_default_intervals', or 'use_exome_default_intervals' to choose GVCF partitioning")
 
         if n_partition_args > 1:
-            warning("'run_combiner': multiple colliding arguments found from 'intervals', 'import_interval_size', "
+            warning("'new_combiner': multiple colliding arguments found from 'intervals', 'import_interval_size', "
                     "'use_genome_default_intervals', or 'use_exome_default_intervals'."
                     "\n  The argument found first in the list in this warning will be used, and others ignored.")
 

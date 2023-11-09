@@ -53,7 +53,7 @@ object StreamUtils {
     val aTyp = PCanonicalArray(stream.element.emitType.storageType, true)
     stream.length match {
       case None =>
-        val vab = new StagedArrayBuilder(SingleCodeType.fromSType(stream.element.st), stream.element.required, mb, 0)
+        val vab = new StagedArrayBuilder(cb, SingleCodeType.fromSType(stream.element.st), stream.element.required, 0)
         writeToArrayBuilder(cb, stream, vab, destRegion)
         cb.assign(xLen, vab.size)
 
@@ -86,17 +86,17 @@ object StreamUtils {
     destRegion: Value[Region]
   ): Unit = {
     stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
-      cb += ab.clear
+      ab.clear(cb)
       stream.length match {
-        case Some(computeLen) => cb += ab.ensureCapacity(computeLen(cb))
-        case None => cb += ab.ensureCapacity(16)
+        case Some(computeLen) => ab.ensureCapacity(cb, computeLen(cb))
+        case None => ab.ensureCapacity(cb, 16)
       }
 
 
     }) { cb =>
       stream.element.toI(cb).consume(cb,
-        cb += ab.addMissing(),
-        sc => cb += ab.add(ab.elt.coerceSCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
+        ab.addMissing(cb),
+        sc => ab.add(cb, ab.elt.coerceSCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
       )
     }
   }
@@ -199,7 +199,7 @@ object StreamUtils {
       val ord1 = StructOrdering.make(l.asBaseStruct.st, r.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
       val ord2 = StructOrdering.make(r.asBaseStruct.st, l.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
       val b = cb.newLocal[Boolean]("stream_merge_comp_result")
-      cb.ifx(li < ri,
+      cb.if_(li < ri,
         cb.assign(b, ord1.compareNonnull(cb, l, r) <= 0),
         cb.assign(b, ord2.compareNonnull(cb, r, l) > 0))
       b
@@ -210,7 +210,7 @@ object StreamUtils {
       implInit(cb, outerRegion)
       cb.assign(bracket, Code.newArray[Int](k))
       cb.assign(heads, Code.newArray[Long](k))
-      cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
+      cb.for_(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
         cb += (bracket(i) = -1)
       })
       cb.assign(i, 0)
@@ -259,7 +259,7 @@ object StreamUtils {
 
       def forEachIterator(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], Value[NoBoxLongIterator]) => Unit) = {
         val idx = cb.newLocal[Int]("idx", 0)
-        cb.whileLoop(idx < k, {
+        cb.while_(idx < k, {
           val iter = cb.memoize(iterators(idx))
           f(cb, idx, iter)
           cb.assign(idx, idx + 1)
@@ -275,7 +275,7 @@ object StreamUtils {
         forEachIterator(cb) { case (cb, idx, iter) =>
           val reqMM = lookupMemoryManagementByIndex(cb, idx)
           val eltRegion = cb.newLocal[Region]("eltRegion")
-          cb.ifx(reqMM,
+          cb.if_(reqMM,
             cb.assign(eltRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool())),
             cb.assign(eltRegion, outerRegion))
           cb += iter.invoke[Region, Region, Unit]("init", outerRegion, eltRegion)
@@ -296,29 +296,29 @@ object StreamUtils {
 
         cb.define(LpullChild)
 
-        cb.ifx(winner >= k, cb.goto(LendOfStream))
+        cb.if_(winner >= k, cb.goto(LendOfStream))
         val winnerIter = cb.memoize(iterators(winner))
         val next = cb.memoize(winnerIter.invoke[Long]("next"))
-        cb.ifx(winnerIter.invoke[Boolean]("eos"), {
+        cb.if_(winnerIter.invoke[Boolean]("eos"), {
           cb.assign(matchIdx, (winner + k) >>> 1)
           cb.assign(winner, k)
           cb.goto(LrunMatch)
         })
 
-        cb.ifx(next ceq 0L, cb._fatal("stream multi merge: elements cannot be missing"))
+        cb.if_(next ceq 0L, cb._fatal("stream multi merge: elements cannot be missing"))
         cb += heads.update(winner, next)
         cb.assign(matchIdx, (winner + k) >>> 1)
         cb.goto(LrunMatch)
 
         cb.define(LrunMatch)
         cb.assign(challenger, bracket(matchIdx))
-        cb.ifx(matchIdx.ceq(0) || challenger.ceq(-1), cb.goto(LloopEnd))
+        cb.if_(matchIdx.ceq(0) || challenger.ceq(-1), cb.goto(LloopEnd))
 
         val LafterChallenge = CodeLabel()
-        cb.ifx(challenger.cne(k), {
+        cb.if_(challenger.cne(k), {
           val Lwon = CodeLabel()
-          cb.ifx(winner.ceq(k), cb.goto(Lwon))
-          cb.ifx(comp(cb, challenger, heads(challenger), winner, heads(winner)), cb.goto(Lwon), cb.goto(LafterChallenge))
+          cb.if_(winner.ceq(k), cb.goto(Lwon))
+          cb.if_(comp(cb, challenger, heads(challenger), winner, heads(winner)), cb.goto(Lwon), cb.goto(LafterChallenge))
 
           cb.define(Lwon)
           cb += (bracket(matchIdx) = winner)
@@ -331,14 +331,14 @@ object StreamUtils {
 
         cb.define(LloopEnd)
 
-        cb.ifx(matchIdx.ceq(0), {
+        cb.if_(matchIdx.ceq(0), {
           // 'winner' is smallest of all k heads. If 'winner' = k, all heads
           // must be k, and all streams are exhausted.
-          cb.ifx(winner.ceq(k),
+          cb.if_(winner.ceq(k),
             cb.goto(LendOfStream),
             {
               // we have a winner
-              cb.ifx(lookupMemoryManagementByIndex(cb, winner), {
+              cb.if_(lookupMemoryManagementByIndex(cb, winner), {
                 val winnerRegion = cb.newLocal[Region]("smm_winner_region", regionArray(winner))
                 cb += elementRegion.trackAndIncrementReferenceCountOf(winnerRegion)
                 cb += winnerRegion.clearRegion()
@@ -355,7 +355,7 @@ object StreamUtils {
 
       override def implClose(cb: EmitCodeBuilder): Unit = {
         forEachIterator(cb) { case (cb, idx, iter) =>
-          cb.ifx(lookupMemoryManagementByIndex(cb, idx), cb += regionArray(idx).invalidate())
+          cb.if_(lookupMemoryManagementByIndex(cb, idx), cb += regionArray(idx).invalidate())
           cb += iter.invoke[Unit]("close")
         }
       }

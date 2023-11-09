@@ -7,7 +7,7 @@ import sys
 
 from concurrent.futures import ThreadPoolExecutor
 
-from ..utils.rich_progress_bar import SimpleRichProgressBar, SimpleRichProgressBarTask
+from ..utils.rich_progress_bar import SimpleCopyToolProgressBar, SimpleCopyToolProgressBarTask
 from .router_fs import RouterAsyncFS
 from .fs import AsyncFS, FileStatus
 
@@ -51,7 +51,7 @@ async def diff(*,
                                  gcs_kwargs=gcs_kwargs,
                                  azure_kwargs=azure_kwargs,
                                  s3_kwargs=s3_kwargs) as fs:
-            with SimpleRichProgressBar(
+            with SimpleCopyToolProgressBar(
                     description='files',
                     transient=True,
                     total=0,
@@ -68,7 +68,7 @@ class DiffException(ValueError):
     pass
 
 
-async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneous: int, pbar: SimpleRichProgressBarTask) -> List[dict]:
+async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneous: int, pbar: SimpleCopyToolProgressBarTask) -> List[dict]:
     if await fs.isfile(top_source):
         result = await diff_one(top_source, top_target, fs)
         if result is None:

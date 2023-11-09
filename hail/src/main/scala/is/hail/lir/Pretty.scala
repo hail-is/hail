@@ -167,7 +167,7 @@ object Pretty {
       s"${ asm.util.Printer.OPCODES(x.op) } ${ x.f }"
     case x: NewInstanceX => s"${ x.ti.iname } ${ x.ctor }"
     case x: TypeInsnX =>
-      s"${ asm.util.Printer.OPCODES(x.op) } ${ x.t }"
+      s"${ asm.util.Printer.OPCODES(x.op) } ${ x.ti.iname }"
     case x: NewArrayX => x.eti.desc
     case x: MethodX =>
       s"${ asm.util.Printer.OPCODES(x.op) } ${ x.method }"

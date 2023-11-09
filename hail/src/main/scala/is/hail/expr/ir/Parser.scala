@@ -5,8 +5,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
-import is.hail.io.BufferSpec
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVDPartitioner, RVDType}
+import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq, tcoerce}
@@ -17,6 +18,7 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{Formats, JObject}
 
+import java.util.Base64
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -127,7 +129,7 @@ object IRLexer extends JavaTokenParsers {
 case class IRParserEnvironment(
   ctx: ExecuteContext,
   refMap: BindingEnv[Type] = BindingEnv.empty[Type],
-  irMap: Map[String, BaseIR] = Map.empty,
+  irMap: Map[Int, BaseIR] = Map.empty,
 ) {
 
   def promoteAgg: IRParserEnvironment = copy(refMap = refMap.promoteAgg)
@@ -841,7 +843,14 @@ object IRParser {
         val (t, v) = ir_value(it)
         done(Literal.coerce(t, v))
       case "EncodedLiteral" =>
-        throw new UnsupportedOperationException("Not currently parsable")
+        val typ = type_expr(it)
+        val encodedValue = Base64.getDecoder.decode(string_literal(it))
+        val codec = TypedCodecSpec(
+          EType.fromPythonTypeEncoding(typ),
+          typ,
+          BufferSpec.unblockedUncompressed
+        )
+        done(EncodedLiteral(codec, Array(encodedValue)))
       case "Void" => done(Void())
       case "Cast" =>
         val typ = type_expr(it)
@@ -862,6 +871,12 @@ object IRParser {
           consq <- ir_value_expr(env)(it)
           altr <- ir_value_expr(env)(it)
         } yield If(cond, consq, altr)
+      case "Switch" =>
+        for {
+          x <- ir_value_expr(env)(it)
+          default <- ir_value_expr(env)(it)
+          cases <- ir_value_children(env)(it)
+        } yield Switch(x, default, cases)
       case "Let" =>
         val name = identifier(it)
         for {
@@ -1529,8 +1544,8 @@ object IRParser {
           dynamicID <- ir_value_expr(env)(it)
         } yield CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID)
       case "JavaIR" =>
-        val name = identifier(it)
-        done(env.irMap(name).asInstanceOf[IR])
+        val id = int32_literal(it)
+        done(env.irMap(id).asInstanceOf[IR])
       case "ReadPartition" =>
         val requestedTypeRaw = it.head match {
           case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
@@ -1795,8 +1810,8 @@ object IRParser {
           body <- table_ir(env.onlyRelational.bindRelational(name, value.typ))(it)
         } yield RelationalLetTable(name, value, body)
       case "JavaTable" =>
-        val name = identifier(it)
-        done(env.irMap(name).asInstanceOf[TableIR])
+        val id = int32_literal(it)
+        done(env.irMap(id).asInstanceOf[TableIR])
     }
   }
 
@@ -2002,9 +2017,6 @@ object IRParser {
           value <- ir_value_expr(env.onlyRelational)(it)
           body <- matrix_ir(env.onlyRelational.bindRelational(name, value.typ))(it)
         } yield RelationalLetMatrixTable(name, value, body)
-      case "JavaMatrix" =>
-        val name = identifier(it)
-        done(env.irMap(name).asInstanceOf[MatrixIR])
     }
   }
 
@@ -2141,9 +2153,6 @@ object IRParser {
           value <- ir_value_expr(env.onlyRelational)(it)
           body <- blockmatrix_ir(env.onlyRelational.bindRelational(name, value.typ))(it)
         } yield RelationalLetBlockMatrix(name, value, body)
-      case "JavaBlockMatrix" =>
-        val name = identifier(it)
-        done(env.irMap(name).asInstanceOf[BlockMatrixIR])
     }
   }
 

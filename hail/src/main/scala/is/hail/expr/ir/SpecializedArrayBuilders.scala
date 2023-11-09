@@ -9,8 +9,9 @@ import is.hail.utils.BoxedArrayBuilder
 
 import scala.reflect.ClassTag
 
-class StagedArrayBuilder(val elt: SingleCodeType, val eltRequired: Boolean, mb: EmitMethodBuilder[_], len: Code[Int]) {
+class StagedArrayBuilder(cb: EmitCodeBuilder, val elt: SingleCodeType, val eltRequired: Boolean, len: Int) {
 
+  def mb = cb.emb
   val ti: TypeInfo[_] = elt.ti
 
   val ref: Value[Any] = coerce[Any](ti match {
@@ -22,13 +23,19 @@ class StagedArrayBuilder(val elt: SingleCodeType, val eltRequired: Boolean, mb: 
     case ti => throw new RuntimeException(s"unsupported typeinfo found: $ti")
   })
 
-  def add(x: Code[_]): Code[Unit] = ti match {
+  // If a method containing `new StagedArrayBuilder(...)` is called multiple times,
+  // the invocations will share the same array builder at runtime. Clearing
+  // here ensures a "new" array builder is always empty.
+  clear(cb)
+  ensureCapacity(cb, len)
+
+  def add(cb: EmitCodeBuilder, x: Code[_]): Unit = cb.append(ti match {
     case BooleanInfo => coerce[BooleanMissingArrayBuilder](ref).invoke[Boolean, Unit]("add", coerce[Boolean](x))
     case IntInfo => coerce[IntMissingArrayBuilder](ref).invoke[Int, Unit]("add", coerce[Int](x))
     case LongInfo => coerce[LongMissingArrayBuilder](ref).invoke[Long, Unit]("add", coerce[Long](x))
     case FloatInfo => coerce[FloatMissingArrayBuilder](ref).invoke[Float, Unit]("add", coerce[Float](x))
     case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Double, Unit]("add", coerce[Double](x))
-  }
+  })
 
   def apply(i: Code[Int]): Code[_] = ti match {
     case BooleanInfo => coerce[BooleanMissingArrayBuilder](ref).invoke[Int, Boolean]("apply", i)
@@ -38,34 +45,36 @@ class StagedArrayBuilder(val elt: SingleCodeType, val eltRequired: Boolean, mb: 
     case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double]("apply", i)
   }
 
-  def update(i: Code[Int], x: Code[_]): Code[Unit] = ti match {
+  def update(cb: EmitCodeBuilder, i: Code[Int], x: Code[_]): Unit = cb.append(ti match {
     case BooleanInfo => coerce[BooleanMissingArrayBuilder](ref).invoke[Int, Boolean, Unit]("update", i, coerce[Boolean](x))
     case IntInfo => coerce[IntMissingArrayBuilder](ref).invoke[Int, Int, Unit]("update", i, coerce[Int](x))
     case LongInfo => coerce[LongMissingArrayBuilder](ref).invoke[Int, Long, Unit]("update", i, coerce[Long](x))
     case FloatInfo => coerce[FloatMissingArrayBuilder](ref).invoke[Int, Float, Unit]("update", i, coerce[Float](x))
     case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
-  }
+  })
 
-  def addMissing(): Code[Unit] =
-    coerce[MissingArrayBuilder](ref).invoke[Unit]("addMissing")
+  def addMissing(cb: EmitCodeBuilder): Unit =
+    cb += coerce[MissingArrayBuilder](ref).invoke[Unit]("addMissing")
 
   def isMissing(i: Code[Int]): Code[Boolean] =
     coerce[MissingArrayBuilder](ref).invoke[Int, Boolean]("isMissing", i)
 
-  def setMissing(i: Code[Int], m: Code[Boolean]): Code[Unit] =
-    coerce[MissingArrayBuilder](ref).invoke[Int, Boolean, Unit]("setMissing", i, m)
+  def setMissing(cb: EmitCodeBuilder, i: Code[Int], m: Code[Boolean]): Unit =
+    cb += coerce[MissingArrayBuilder](ref).invoke[Int, Boolean, Unit]("setMissing", i, m)
 
   def size: Code[Int] = coerce[MissingArrayBuilder](ref).invoke[Int]("size")
 
-  def setSize(n: Code[Int]): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("setSize", n)
+  def setSize(cb: EmitCodeBuilder, n: Code[Int]): Unit =
+    cb += coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("setSize", n)
 
-  def ensureCapacity(n: Code[Int]): Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("ensureCapacity", n)
+  def ensureCapacity(cb: EmitCodeBuilder, n: Code[Int]): Unit =
+    cb += coerce[MissingArrayBuilder](ref).invoke[Int, Unit]("ensureCapacity", n)
 
-  def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
+  def clear(cb: EmitCodeBuilder): Unit =
+    cb += coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
 
-  def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Code[Int]): IEmitCode = {
-    val idx = cb.newLocal[Int]("loadFromIndex_idx", i)
-    IEmitCode(cb, isMissing(idx), elt.loadToSValue(cb, cb.memoizeAny(apply(idx), ti)))
+  def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Value[Int]): IEmitCode = {
+    IEmitCode(cb, isMissing(i), elt.loadToSValue(cb, cb.memoizeAny(apply(i), ti)))
   }
 }
 

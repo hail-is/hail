@@ -576,6 +576,13 @@ class PruneSuite extends HailSuite {
       Array(TBoolean, justA, justA))
   }
 
+  @Test def testSwitchMemo(): Unit =
+    checkMemo(
+      Switch(I32(0), ref, FastSeq(ref)),
+      justA,
+      Array(TInt32, justA, justA)
+    )
+
   @Test def testCoalesceMemo() {
     checkMemo(Coalesce(FastSeq(ref, ref)),
       justA,
@@ -1158,6 +1165,14 @@ class PruneSuite extends HailSuite {
         ir.cnsq.typ == subsetTS("b") && ir.altr.typ == subsetTS("b")
       })
   }
+
+  @Test def testSwitchRebuild(): Unit =
+    checkRebuild[IR](Switch(I32(0), NA(ts), FastSeq(NA(ts))), subsetTS("b"), {
+      case (_, Switch(_, default, cases)) =>
+        default.typ == subsetTS("b") &&
+          cases(0).typ == subsetTS("b")
+      }
+    )
 
   @Test def testCoalesceRebuild() {
     checkRebuild(Coalesce(FastSeq(NA(ts), NA(ts))), subsetTS("b"),

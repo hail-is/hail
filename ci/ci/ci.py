@@ -5,7 +5,7 @@ import logging
 import os
 import traceback
 from contextlib import AsyncExitStack
-from typing import Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
 import kubernetes_asyncio
@@ -40,9 +40,10 @@ from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
-from .environment import DEFAULT_NAMESPACE, STORAGE_URI
+from .environment import CLOUD, DEFAULT_NAMESPACE, STORAGE_URI
 from .envoy import create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
+from .utils import gcp_logging_queries
 
 oauth_path = os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token')
 if os.path.exists(oauth_path):
@@ -172,7 +173,7 @@ def filter_jobs(jobs):
 async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     wb, pr = wb_and_pr_from_request(request)
 
-    page_context = {}
+    page_context: Dict[str, Any] = {}
     page_context['repo'] = wb.branch.repo.short_str()
     page_context['wb'] = wb
     page_context['pr'] = pr
@@ -189,6 +190,16 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
             artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
             page_context['artifacts_uri'] = artifacts_uri
             page_context['artifacts_url'] = storage_uri_to_url(artifacts_uri)
+
+            if CLOUD == 'gcp':
+                start_time = status['time_created']
+                end_time = status['time_completed']
+                assert start_time is not None
+                page_context['logging_queries'] = gcp_logging_queries(
+                    batch.attributes['namespace'], start_time, end_time
+                )
+            else:
+                page_context['logging_queries'] = None
         else:
             page_context['exception'] = '\n'.join(
                 traceback.format_exception(None, batch.exception, batch.exception.__traceback__)

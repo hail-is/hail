@@ -139,7 +139,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   def loadContainer(cb: EmitCodeBuilder, kec: EmitCode): Unit = {
     val kev = cb.memoize(kec, "ga_load_cont_k")
     cb.assign(_elt, tree.getOrElseInitialize(cb, kev))
-    cb.ifx(keyed.isEmpty(cb, _elt), {
+    cb.if_(keyed.isEmpty(cb, _elt), {
       initElement(cb, _elt, kev)
       keyed.copyStatesFrom(cb, initStatesOffset)
     }, {
@@ -160,7 +160,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     super.load(cb, regionLoader, src)
-    cb.ifx(off.cne(0L),
+    cb.if_(off.cne(0L),
       {
         cb.assign(size, Region.loadInt(typ.loadField(off, 1)))
         cb.assign(root, Region.loadAddress(typ.loadField(off, 2)))
@@ -214,7 +214,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         cb.assign(_elt, kvOff)
         val km = keyed.isKeyMissing(cb, _elt)
         cb += (ob.writeBoolean(km))
-        cb.ifx(!km, {
+        cb.if_(!km, {
           val k = keyed.loadKey(cb, _elt)
           keyEType.buildEncoder(k.st, kb)
             .apply(cb, k, ob)

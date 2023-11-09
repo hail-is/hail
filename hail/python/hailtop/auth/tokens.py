@@ -76,8 +76,8 @@ class Tokens(collections.abc.MutableMapping):
             return self._tokens[ns]
 
         deploy_config = get_deploy_config()
-        auth_ns = deploy_config.service_ns('auth')
-        ns_arg = '' if ns == auth_ns else f'-n {ns}'
+        default_ns = deploy_config.default_namespace()
+        ns_arg = '' if ns == default_ns else f'-n {ns}'
         raise NotLoggedInError(ns_arg)
 
     def __delitem__(self, key: str):

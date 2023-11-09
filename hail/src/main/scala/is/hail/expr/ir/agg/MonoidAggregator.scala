@@ -65,9 +65,9 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     ev2: EmitValue
   ): Unit = {
     val combined = primitive(monoid.typ, monoid(cb, ev1.pv.asPrimitive.primitiveValue, ev2.pv.asPrimitive.primitiveValue))
-    cb.ifx(ev1.m,
-      cb.ifx(!ev2.m, cb.assign(ev1, ev2)),
-      cb.ifx(!ev2.m,
+    cb.if_(ev1.m,
+      cb.if_(!ev2.m, cb.assign(ev1, ev2)),
+      cb.if_(!ev2.m,
         cb.assign(ev1, EmitCode.present(cb.emb, combined))))
   }
 }

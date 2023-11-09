@@ -183,6 +183,11 @@ final case class Consume(value: IR) extends IR
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
+final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
+  override lazy val size: Int =
+    2 + cases.length
+}
+
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 
@@ -986,8 +991,8 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def toF: IR = Cast(self, TFloat32)
   def toD: IR = Cast(self, TFloat64)
 
-  def unary_-(): IR = ApplyUnaryPrimOp(Negate(), self)
-  def unary_!(): IR = ApplyUnaryPrimOp(Bang(), self)
+  def unary_-(): IR = ApplyUnaryPrimOp(Negate, self)
+  def unary_!(): IR = ApplyUnaryPrimOp(Bang, self)
 
   def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA(self.typ, other.typ), self, other)
   def cne(other: IR): IR = ApplyComparisonOp(NEQWithNA(self.typ, other.typ), self, other)

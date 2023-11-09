@@ -139,7 +139,7 @@ object StringFunctions extends RegistryFunctions {
       separator match {
         case Left(sepChar) =>
           (_: Value[Int], char: Value[Char]) => {
-            cb.ifx(char.ceq(sepChar), cb.assign(x, 1), cb.assign(x, -1));
+            cb.if_(char.ceq(sepChar), cb.assign(x, 1), cb.assign(x, -1));
             x
           }
         case Right(regex) =>
@@ -164,37 +164,37 @@ object StringFunctions extends RegistryFunctions {
 
     val LreturnWithoutAppending = CodeLabel()
 
-    cb.whileLoop(i < string.length(), {
+    cb.while_(i < string.length(), {
       val c = cb.newLocal[Char]("c", string(i))
 
       val l = getPatternMatch(i, c)
-      cb.ifx(l.cne(-1), {
+      cb.if_(l.cne(-1), {
         addValueOrNA(cb, i)
         cb.assign(i, i + l) // skip delim
         cb.assign(lastFieldStart, i)
       }, {
         quoteChar match {
           case Some(qc) =>
-            cb.ifx(c.ceq(qc), {
-              cb.ifx(i.cne(lastFieldStart),
+            cb.if_(c.ceq(qc), {
+              cb.if_(i.cne(lastFieldStart),
                 cb._fatalWithError(errorID, "opening quote character '", qc.toS, "' not at start of field"))
               cb.assign(i, i + 1) // skip quote
               cb.assign(lastFieldStart, i)
 
-              cb.whileLoop(i < string.length() && string(i).cne(qc), {
+              cb.while_(i < string.length() && string(i).cne(qc), {
                 cb.assign(i, i + 1)
               })
 
               addValueOrNA(cb, i)
 
-              cb.ifx(i.ceq(string.length()),
+              cb.if_(i.ceq(string.length()),
                 cb._fatalWithError(errorID, "missing terminating quote character '", qc.toS, "'"))
               cb.assign(i, i + 1) // skip quote
 
-              cb.ifx(i < string.length, {
+              cb.if_(i < string.length, {
                 cb.assign(c, string(i))
                 val l = getPatternMatch(i, c)
-                cb.ifx(l.ceq(-1), {
+                cb.if_(l.ceq(-1), {
                   cb._fatalWithError(errorID, "terminating quote character '", qc.toS, "' not at end of field")
                 })
                 cb.assign(i, i + l) // skip delim
@@ -282,7 +282,7 @@ object StringFunctions extends RegistryFunctions {
     registerIEmitCode1("showStr", tv("T"), TString, {
       (_: Type, _: EmitType) => EmitType(SJavaString, true)
     }) { case (cb, r, st: SJavaString.type, _, a) =>
-      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
+      val jObj = cb.newLocalAny("showstr_java_obj", boxedTypeInfo(a.st.virtualType))
       a.toI(cb).consume(cb,
         cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
         sc => cb.assignAny(jObj, svalueToJavaValue(cb, r, sc)))
@@ -295,7 +295,7 @@ object StringFunctions extends RegistryFunctions {
     registerIEmitCode2("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: EmitType, truncType: EmitType) => EmitType(SJavaString, truncType.required)
     }) { case (cb, r, st: SJavaString.type, _, a, trunc) =>
-      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
+      val jObj = cb.newLocalAny("showstr_java_obj", boxedTypeInfo(a.st.virtualType))
       trunc.toI(cb).map(cb) { trunc =>
 
         a.toI(cb).consume(cb,
@@ -310,7 +310,7 @@ object StringFunctions extends RegistryFunctions {
     registerIEmitCode1("json", tv("T"), TString, (_: Type, _: EmitType) => EmitType(SJavaString, true)) {
       case (cb, r, st: SJavaString.type, _, a) =>
         val ti = boxedTypeInfo(a.st.virtualType)
-        val inputJavaValue = cb.newLocal("json_func_input_jv")(ti)
+        val inputJavaValue = cb.newLocalAny("json_func_input_jv", ti)
         a.toI(cb).consume(cb,
           cb.assignAny(inputJavaValue, Code._null(ti)),
           { sc =>
@@ -372,7 +372,7 @@ object StringFunctions extends RegistryFunctions {
     }) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
       val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString(cb))
       val quoteChar = cb.newLocal[Char]("quoteChar")
-      cb.ifx(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
+      cb.if_(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
       cb.assign(quoteChar, quoteStr(0))
 
       val string = cb.newLocal[String]("string", s.asString.loadString(cb))
@@ -387,13 +387,13 @@ object StringFunctions extends RegistryFunctions {
     }) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
       val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString(cb))
       val quoteChar = cb.newLocal[Char]("quoteChar")
-      cb.ifx(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
+      cb.if_(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
       cb.assign(quoteChar, quoteStr(0))
 
       val string = cb.newLocal[String]("string", s.asString.loadString(cb))
       val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val sepChar = cb.newLocal[Char]("sepChar")
-      cb.ifx(sep.length().cne(1), cb._fatalWithError(errorID, "splitQuotedChar expected a single character for separator"))
+      cb.if_(sep.length().cne(1), cb._fatalWithError(errorID, "splitQuotedChar expected a single character for separator"))
       cb.assign(sepChar, sep(0))
       val mv = missing.asIndexable
 
@@ -415,7 +415,7 @@ object StringFunctions extends RegistryFunctions {
       val string = cb.newLocal[String]("string", s.asString.loadString(cb))
       val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val sepChar = cb.newLocal[Char]("sepChar")
-      cb.ifx(sep.length().cne(1), cb._fatalWithError(errorID, "splitChar expected a single character for separator"))
+      cb.if_(sep.length().cne(1), cb._fatalWithError(errorID, "splitChar expected a single character for separator"))
       cb.assign(sepChar, sep(0))
       val mv = missing.asIndexable
 
@@ -457,8 +457,8 @@ object StringFunctions extends RegistryFunctions {
             val m = l1.cne(l2)
 
             IEmitCode(cb, m, {
-              cb.whileLoop(i < l1, {
-                cb.ifx(v1.invoke[Int, Char]("charAt", i).toI.cne(v2.invoke[Int, Char]("charAt", i).toI),
+              cb.while_(i < l1, {
+                cb.if_(v1.invoke[Int, Char]("charAt", i).toI.cne(v2.invoke[Int, Char]("charAt", i).toI),
                   cb.assign(n, n + 1))
                 cb.assign(i, i + 1)
               })
@@ -482,7 +482,7 @@ object StringFunctions extends RegistryFunctions {
     ) { case (er, cb, _, resultType, Array(s: SStringValue), _) =>
 
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
-      cb.ifx(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))
+      cb.if_(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))
 
       val row = Code.invokeScalaObject3[String, Type, mutable.HashSet[String], Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
         s.loadString(cb), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)), warnCtx)

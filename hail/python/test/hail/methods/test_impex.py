@@ -473,8 +473,8 @@ class VCFTests(unittest.TestCase):
         vds.reference_data._force_count_rows()
         vds.variant_data._force_count_rows()
 
-    def test_combiner_parse_as_annotations(self):
-        from hail.vds.combiner.combine import parse_as_fields
+    def test_combiner_parse_allele_specific_annotations(self):
+        from hail.vds.combiner.combine import parse_allele_specific_fields
         infos = hl.array([
             hl.struct(
                 AS_QUALapprox="|1171|",
@@ -491,7 +491,7 @@ class VCFTests(unittest.TestCase):
                 AS_RAW_MQRankSum="|NaN|NaN",
                 AS_RAW_ReadPosRankSum="|NaN|NaN")])
 
-        output = hl.eval(infos.map(lambda info: parse_as_fields(info, False)))
+        output = hl.eval(infos.map(lambda info: parse_allele_specific_fields(info, False)))
         expected = [
             hl.Struct(
                 AS_QUALapprox=[None, 1171, None],

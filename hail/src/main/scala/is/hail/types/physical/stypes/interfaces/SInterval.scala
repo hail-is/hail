@@ -54,7 +54,7 @@ trait SIntervalValue extends SValue {
     val start = cb.memoize(loadStart(cb), "start")
     val end = cb.memoize(loadEnd(cb), "end")
     val empty = cb.newLocal[Boolean]("is_empty")
-    cb.ifx(includesStart && includesEnd,
+    cb.if_(includesStart && includesEnd,
       cb.assign(empty, gt(cb, start, end)),
       cb.assign(empty, gteq(cb, start, end)))
     empty

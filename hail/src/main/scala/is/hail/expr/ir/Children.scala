@@ -28,6 +28,12 @@ object Children {
     case Consume(value) => FastSeq(value)
     case If(cond, cnsq, altr) =>
       Array(cond, cnsq, altr)
+    case s@Switch(x, default, cases) =>
+      val children = Array.ofDim[BaseIR](s.size)
+      children(0) = x
+      children(1) = default
+      for (i <- cases.indices) children(2 + i) = cases(i)
+      children
     case Let(name, value, body) =>
       Array(value, body)
     case RelationalLet(name, value, body) =>

@@ -20,6 +20,11 @@ def submit(
 ):
     print("Submitting to cluster '{}'...".format(name))
 
+    if ',' in files:
+        files_list = files.split(',')
+        files_list = [os.path.expanduser(file) for file in files_list]
+        files = ','.join(files_list)
+
     def _filter_pyfile(fname: str) -> bool:
         return not fname.endswith('.pyc')
 
@@ -32,7 +37,8 @@ def submit(
         if pyfiles_list:
             tfile = tempfile.mkstemp(suffix='.zip', prefix='pyscripts_')[1]
             with zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for hail_script_entry in pyfiles_list:
+                for _hail_script_entry in pyfiles_list:
+                    hail_script_entry = os.path.expanduser(_hail_script_entry)
                     if os.path.isfile(hail_script_entry) and _filter_pyfile(hail_script_entry):
                         zipf.write(hail_script_entry, arcname=os.path.basename(hail_script_entry))
                     else:

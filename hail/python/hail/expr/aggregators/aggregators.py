@@ -12,7 +12,7 @@ from hail.expr import (ExpressionException, Expression, ArrayExpression,
 from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
                              tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
 from hail.expr.expressions.typed_expressions import construct_variable
-from hail.expr.functions import rbind, float32, _quantile_from_cdf
+from hail.expr.functions import rbind, float32, _quantile_from_cdf, _result_from_raw_cdf
 import hail.ir as ir
 from hail.typecheck import (TypeChecker, typecheck_method, typecheck,
                             sequenceof, func_spec, identity, nullable, oneof)
@@ -287,8 +287,8 @@ def _check_agg_bindings(expr, bindings):
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 
-@typecheck(expr=expr_numeric, k=int)
-def approx_cdf(expr, k=100):
+@typecheck(expr=expr_numeric, k=int, _raw=bool)
+def approx_cdf(expr, k=100, *, _raw=False):
     """Produce a summary of the distribution of values.
 
     Notes
@@ -330,8 +330,8 @@ def approx_cdf(expr, k=100):
     :class:`.StructExpression`
         Struct containing `values` and `ranks` arrays.
     """
-    res = _agg_func('ApproxCDF', [hl.float64(expr)],
-                    tstruct(values=tarray(tfloat64), ranks=tarray(tint64), _compaction_counts=tarray(tint32)),
+    raw_res = _agg_func('ApproxCDF', [hl.float64(expr)],
+                    tstruct(levels=tarray(tint32), items=tarray(tfloat64), _compaction_counts=tarray(tint32)),
                     init_op_args=[k])
     conv = {
         tint32: lambda x: x.map(hl.int),
@@ -339,7 +339,11 @@ def approx_cdf(expr, k=100):
         tfloat32: lambda x: x.map(hl.float32),
         tfloat64: identity
     }
-    return hl.struct(values=conv[expr.dtype](res['values']), ranks=res.ranks, _compaction_counts=res._compaction_counts)
+    if _raw:
+        return raw_res
+    else:
+        raw_res = raw_res.annotate(items=conv[expr.dtype](raw_res['items']))
+        return _result_from_raw_cdf(raw_res)
 
 
 @typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)

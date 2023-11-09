@@ -39,6 +39,10 @@ case object SInt64 extends SPrimitive {
   override def storageType(): PType = PInt64()
 }
 
+object SInt64Value {
+  def apply(value: Value[Long]): SInt64Value = new SInt64Value(value)
+}
+
 class SInt64Value(val value: Value[Long]) extends SPrimitiveValue {
   val pt: PInt64 = PInt64(false)
 

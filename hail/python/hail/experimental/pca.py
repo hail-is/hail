@@ -1,7 +1,7 @@
 import hail as hl
 from hail.typecheck import typecheck
 from hail.expr.expressions import expr_call, expr_numeric, expr_array, \
-    check_entry_indexed, check_row_indexed
+    raise_unless_entry_indexed, raise_unless_row_indexed
 
 
 @typecheck(call_expr=expr_call,
@@ -37,9 +37,9 @@ def pc_project(call_expr, loadings_expr, af_expr):
     :class:`.Table`
         Table with scores calculated from loadings in column `scores`
     """
-    check_entry_indexed('pc_project', call_expr)
-    check_row_indexed('pc_project', loadings_expr)
-    check_row_indexed('pc_project', af_expr)
+    raise_unless_entry_indexed('pc_project', call_expr)
+    raise_unless_row_indexed('pc_project', loadings_expr)
+    raise_unless_row_indexed('pc_project', af_expr)
 
     gt_source = call_expr._indices.source
     loadings_source = loadings_expr._indices.source

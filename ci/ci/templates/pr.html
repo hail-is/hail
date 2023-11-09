@@ -24,6 +24,16 @@
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <button type="submit">Retry</button>
     </form>
+
+    {% if logging_queries is not none %}
+    <h2>Logging Queries</h2>
+    <div class="logging-queries">
+    {% for name, link in logging_queries.items() %}
+    <div><a href="{{ link }}">{{ name }}</a></div>
+    {% endfor %}
+    </div>
+    {% endif %}
+
     <h2>Jobs</h2>
     {{ filtered_jobs(running, failed, pending, completed) }}
     {% elif exception is defined %}

@@ -50,8 +50,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   mtContigs: Set[String] = Set.empty[String], parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)]) extends Serializable {
 
   @transient lazy val broadcastRG: BroadcastRG = new BroadcastRG(this)
-  val contigIdx = contigs.zipWithIndex.toMap
-
   val nContigs = contigs.length
 
   if (nContigs <= 0)
@@ -178,7 +176,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Locus(contig, (idx - globalPosContigStarts(contig) + 1).toInt)
   }
 
-  def getContigIndex(contig: String): Int = contigIdx(contig)
+  def getContigIndex(contig: String): Int = contigsIndex.get(contig)
 
   def contigLength(contig: String): Int = {
     val r = jLengths.get(contig)
@@ -466,7 +464,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   @transient lazy val broadcast: BroadcastValue[ReferenceGenome] = HailContext.backend.broadcast(this)
 
   override def hashCode: Int = {
-    import org.apache.commons.lang.builder.HashCodeBuilder
+    import org.apache.commons.lang3.builder.HashCodeBuilder
 
     val b = new HashCodeBuilder()
       .append(name)
