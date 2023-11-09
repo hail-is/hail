@@ -416,10 +416,11 @@ resource "google_artifact_registry_repository" "repository" {
   format = "DOCKER"
   repository_id = "hail"
   location = var.artifact_registry_location
+  cleanup_policy_dry_run = false
 
   # https://github.com/hashicorp/terraform-provider-azurerm/issues/7396
   lifecycle {
-    ignore_changes = [cleanup_policies, timeouts, cleanup_policy_dry_run]
+    ignore_changes = [cleanup_policies, timeout]
   }
 }
 
