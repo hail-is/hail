@@ -75,7 +75,7 @@ frozenlist==1.4.0
     #   aiosignal
 google-api-core==2.12.0
     # via google-api-python-client
-google-api-python-client==2.105.0
+google-api-python-client==2.106.0
     # via google-cloud-profiler
 google-auth==2.23.3
     # via
@@ -135,7 +135,7 @@ orjson==3.9.9
     #   -r hail/gear/requirements.txt
 prometheus-async==19.2.0
     # via -r hail/gear/requirements.txt
-prometheus-client==0.17.1
+prometheus-client==0.18.0
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -r hail/gear/requirements.txt
@@ -223,7 +223,7 @@ urllib3==1.26.18
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   kubernetes-asyncio
     #   requests
-wcwidth==0.2.8
+wcwidth==0.2.9
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   prompt-toolkit
