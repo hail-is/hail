@@ -8,7 +8,7 @@ import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskF
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.streams.StreamProducer
+import is.hail.expr.ir.streams.{StreamProducer, StreamUtils}
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
@@ -72,6 +72,8 @@ abstract sealed class TableIR extends BaseIR {
   }
 
   def pyUnpersist(): TableIR = unpersist()
+
+  def typecheck(): Unit = {}
 }
 
 object TableLiteral {
@@ -1684,14 +1686,13 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
-  require(rowsAndGlobal.typ.isInstanceOf[TStruct])
-  require(rowsAndGlobal.typ.asInstanceOf[TStruct].fieldNames.sameElements(Array("rows", "global")))
-  require(nPartitions.forall(_ > 0))
+  override def typecheck(): Unit = {
+    assert(rowsAndGlobal.typ.isInstanceOf[TStruct])
+    assert(rowsAndGlobal.typ.asInstanceOf[TStruct].fieldNames.sameElements(Array("rows", "global")))
+    assert(nPartitions.forall(_ > 0))
+  }
 
   lazy val rowCountUpperBound: Option[Long] = None
-
-  private val rowsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("rows").asInstanceOf[TArray]
-  private val globalsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global").asInstanceOf[TStruct]
 
   val childrenSeq: IndexedSeq[BaseIR] = FastSeq(rowsAndGlobal)
 
@@ -1700,10 +1701,14 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     TableParallelize(newrowsAndGlobal, nPartitions)
   }
 
-  val typ: TableType = TableType(
-    rowsType.elementType.asInstanceOf[TStruct],
-    FastSeq(),
-    globalsType)
+  lazy val typ: TableType = {
+    def rowsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("rows").asInstanceOf[TArray]
+    def globalsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global").asInstanceOf[TStruct]
+    TableType(
+      rowsType.elementType.asInstanceOf[TStruct],
+      FastSeq(),
+      globalsType)
+  }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val (ptype: PStruct, res) = CompileAndEvaluate._apply(ctx, rowsAndGlobal, optimize = false) match {
@@ -1776,14 +1781,16 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
   * - Otherwise, if 'isSorted' is false and n < 'keys.length', then shuffle.
   */
 case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolean = false) extends TableIR {
-  private val fields = child.typ.rowType.fieldNames.toSet
-  assert(keys.forall(fields.contains), s"${ keys.filter(k => !fields.contains(k)).mkString(", ") }")
+  override def typecheck(): Unit = {
+    val fields = child.typ.rowType.fieldNames.toSet
+    assert(keys.forall(fields.contains), s"${keys.filter(k => !fields.contains(k)).mkString(", ")}")
+  }
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   val childrenSeq: IndexedSeq[BaseIR] = Array(child)
 
-  val typ: TableType = child.typ.copy(key = keys)
+  lazy val typ: TableType = child.typ.copy(key = keys)
 
   def definitelyDoesNotShuffle: Boolean = child.typ.key.startsWith(keys) || isSorted
 
@@ -1794,7 +1801,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val tv = child.execute(ctx, r).asTableValue(ctx)
-    new TableValueIntermediate(tv.copy(typ = typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
+    TableValueIntermediate(tv.copy(typ = typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
   }
 }
 
@@ -1820,24 +1827,29 @@ case class TableGen(contexts: IR,
                     errorId: Int = ErrorIDs.NO_ERROR
                    ) extends TableIR {
 
-  TypeCheck.coerce[TStream]("contexts", contexts.typ)
+  override def typecheck(): Unit = {
+    TypeCheck.coerce[TStream]("contexts", contexts.typ)
+    TypeCheck.coerce[TStruct]("globals", globals.typ)
+    val bodyType = TypeCheck.coerce[TStream]("body", body.typ)
+    val rowType = TypeCheck.coerce[TStruct]("body.elementType", bodyType.elementType)
 
-  private val globalType =
+    if (!partitioner.kType.isSubsetOf(rowType))
+      throw new IllegalArgumentException(
+        s"""'partitioner': key type contains fields absent from row type
+           |  Key type: ${partitioner.kType}
+           |  Row type: $rowType""".stripMargin
+        )
+  }
+
+  private def globalType =
     TypeCheck.coerce[TStruct]("globals", globals.typ)
 
-  private val rowType = {
+  private def rowType = {
     val bodyType = TypeCheck.coerce[TStream]( "body", body.typ)
     TypeCheck.coerce[TStruct]( "body.elementType", bodyType.elementType)
   }
 
-  if (!partitioner.kType.isSubsetOf(rowType))
-    throw new IllegalArgumentException(
-      s"""'partitioner': key type contains fields absent from row type
-         |  Key type: ${partitioner.kType}
-         |  Row type: $rowType""".stripMargin
-    )
-
-  override def typ: TableType =
+  override lazy val typ: TableType =
     TableType(rowType, partitioner.kType.fieldNames, globalType)
 
   override val rowCountUpperBound: Option[Long] =
@@ -1910,7 +1922,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 case class TableFilter(child: TableIR, pred: IR) extends TableIR {
   val childrenSeq: IndexedSeq[BaseIR] = Array(child, pred)
 
-  val typ: TableType = child.typ
+  def typ: TableType = child.typ
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
@@ -2048,22 +2060,26 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   extends TableIR {
 
   require(joinKey >= 0)
-  require(left.typ.key.length >= joinKey)
-  require(right.typ.key.length >= joinKey)
-  require(left.typ.keyType.truncate(joinKey) isIsomorphicTo right.typ.keyType.truncate(joinKey))
-  require(left.typ.globalType.fieldNames.toSet
-    .intersect(right.typ.globalType.fieldNames.toSet)
-    .isEmpty)
   require(joinType == "inner" ||
     joinType == "left" ||
     joinType == "right" ||
     joinType == "outer")
 
+  override def typecheck(): Unit = {
+    assert(left.typ.key.length >= joinKey)
+    assert(right.typ.key.length >= joinKey)
+    assert(left.typ.keyType.truncate(joinKey) isIsomorphicTo right.typ.keyType.truncate(joinKey))
+    assert(
+      left.typ.globalType.fieldNames.toSet
+        .intersect(right.typ.globalType.fieldNames.toSet)
+        .isEmpty)
+  }
+
   val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
 
   lazy val rowCountUpperBound: Option[Long] = None
 
-  private val newRowType = {
+  lazy val typ: TableType = {
     val leftRowType = left.typ.rowType
     val rightRowType = right.typ.rowType
     val leftKey = left.typ.key.take(joinKey)
@@ -2077,14 +2093,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       .nonEmpty)
       throw new RuntimeException(s"invalid join: \n  left value:  $leftValueType\n  right value: $rightValueType")
 
-    leftKeyType ++ leftValueType ++ rightValueType
+    val newRowType = leftKeyType ++ leftValueType ++ rightValueType
+    val newGlobalType = left.typ.globalType ++ right.typ.globalType
+    val newKey = left.typ.key ++ right.typ.key.drop(joinKey)
+
+    TableType(newRowType, newKey, newGlobalType)
   }
-
-  private val newGlobalType = left.typ.globalType ++ right.typ.globalType
-
-  private val newKey = left.typ.key ++ right.typ.key.drop(joinKey)
-
-  val typ: TableType = TableType(newRowType, newKey, newGlobalType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableJoin = {
     assert(newChildren.length == 2)
@@ -2112,8 +2126,10 @@ case class TableIntervalJoin(
 
   lazy val rowCountUpperBound: Option[Long] = left.rowCountUpperBound
 
-  val rightType: Type = if (product) TArray(right.typ.valueType) else right.typ.valueType
-  val typ: TableType = left.typ.copy(rowType = left.typ.rowType.appendKey(root, rightType))
+  lazy val typ: TableType = {
+    val rightType: Type = if (product) TArray(right.typ.valueType) else right.typ.valueType
+    left.typ.copy(rowType = left.typ.rowType.appendKey(root, rightType))
+  }
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root, product)
@@ -2194,21 +2210,25 @@ case class TableIntervalJoin(
   * is likely the last.
   */
 case class TableMultiWayZipJoin(childrenSeq: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
-  require(childrenSeq.length > 0, "there must be at least one table as an argument")
+  require(childrenSeq.nonEmpty, "there must be at least one table as an argument")
 
-  private val first = childrenSeq.head
-  private val rest = childrenSeq.tail
+  override def typecheck(): Unit = {
+    val first = childrenSeq.head
+    val rest = childrenSeq.tail
+    assert(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
+    assert(rest.forall(e => e.typ.key == first.typ.key), "all keys must be the same")
+    assert(
+      rest.forall(e => e.typ.globalType == first.typ.globalType),
+      "all globals must have the same type")
+  }
+
+  private def first = childrenSeq.head
 
   lazy val rowCountUpperBound: Option[Long] = None
 
-  require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
-  require(rest.forall(e => e.typ.key == first.typ.key), "all keys must be the same")
-  require(rest.forall(e => e.typ.globalType == first.typ.globalType),
-    "all globals must have the same type")
-
-  private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
-  private val newValueType = TStruct(fieldName -> TArray(first.typ.valueType))
-  private val newRowType = first.typ.keyType ++ newValueType
+  private def newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
+  private def newValueType = TStruct(fieldName -> TArray(first.typ.valueType))
+  private def newRowType = first.typ.keyType ++ newValueType
 
   lazy val typ: TableType = first.typ.copy(
     rowType = newRowType,
@@ -2294,15 +2314,18 @@ case class TableMultiWayZipJoin(childrenSeq: IndexedSeq[TableIR], fieldName: Str
 }
 
 case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String) extends TableIR {
-  require(right.typ.keyType isPrefixOf left.typ.keyType,
-    s"\n  L: ${ left.typ }\n  R: ${ right.typ }")
+  override def typecheck(): Unit = {
+    assert(
+      right.typ.keyType isPrefixOf left.typ.keyType,
+      s"\n  L: ${left.typ}\n  R: ${right.typ}")
+  }
 
   lazy val rowCountUpperBound: Option[Long] = left.rowCountUpperBound
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
 
-  private val newRowType = left.typ.rowType.structInsert(right.typ.valueType, List(root))._1
-  val typ: TableType = left.typ.copy(rowType = newRowType)
+  lazy val typ: TableType = left.typ.copy(
+    rowType = left.typ.rowType.structInsert(right.typ.valueType, List(root)))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
@@ -2337,8 +2360,16 @@ case class TableMapPartitions(child: TableIR,
   requestedKey: Int,
   allowedOverlap: Int
 ) extends TableIR {
+  override def typecheck(): Unit = {
+    assert(body.typ.isInstanceOf[TStream], s"${body.typ}")
+    assert(allowedOverlap >= -1 && allowedOverlap <= child.typ.key.size)
+    assert(requestedKey >= 0 && requestedKey <= child.typ.key.size)
+    assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
+    val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+    child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}") }
+  }
 
-  lazy val typ = child.typ.copy(
+  lazy val typ: TableType = child.typ.copy(
     rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct])
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, body)
@@ -2403,6 +2434,11 @@ case class TableMapPartitions(child: TableIR,
 
 // Must leave key fields unchanged.
 case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
+  override def typecheck(): Unit = {
+    val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
+    assert(child.typ.key.forall(newFieldSet.contains))
+  }
+
   val childrenSeq: IndexedSeq[BaseIR] = Array(child, newRow)
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
@@ -2726,7 +2762,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
-  val typ: TableType =
+  lazy val typ: TableType =
     child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
@@ -2755,24 +2791,19 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
 
 case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableIR {
   assert(path.nonEmpty)
-  assert(!child.typ.key.contains(path.head))
+
+  override def typecheck(): Unit = {
+    assert(!child.typ.key.contains(path.head))
+  }
 
   lazy val rowCountUpperBound: Option[Long] = None
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
 
-  private val childRowType = child.typ.rowType
+  private def childRowType = child.typ.rowType
 
-  private val length: IR = {
-    Coalesce(FastSeq(
-      ArrayLen(CastToArray(
-        path.foldLeft[IR](Ref("row", childRowType))((struct, field) =>
-          GetField(struct, field)))),
-      0))
-  }
-
-  val idx = Ref(genUID(), TInt32)
-  val newRow: InsertFields = {
+  private[this] lazy val idx = Ref(genUID(), TInt32)
+  private[this] lazy val newRow: InsertFields = {
     val refs = path.init.scanLeft(Ref("row", childRowType))((struct, name) =>
       Ref(genUID(), tcoerce[TStruct](struct.typ).field(name).typ))
 
@@ -2786,7 +2817,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
     }.asInstanceOf[InsertFields]
   }
 
-  val typ: TableType = child.typ.copy(rowType = newRow.typ)
+  lazy val typ: TableType = child.typ.copy(rowType = newRow.typ)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableExplode = {
     assert(newChildren.length == 1)
@@ -2795,6 +2826,14 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val prev = child.execute(ctx, r).asTableValue(ctx)
+
+    val length: IR =
+      Coalesce(FastSeq(
+        ArrayLen(CastToArray(
+          path.foldLeft[IR](Ref("row", childRowType)) { (struct, field) =>
+            GetField(struct, field)
+          })),
+        0))
 
     val (len, l) = Compile[AsmFunction2RegionLongInt](ctx,
       FastSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)))),
@@ -2813,7 +2852,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       prev.rvd.typ.key.takeWhile(_ != path.head)
     )
     val fsBc = ctx.fsBc
-    new TableValueIntermediate(
+    TableValueIntermediate(
       TableValue(ctx, typ,
         prev.globals,
         prev.rvd.boundary.mapPartitionsWithIndex(rvdType) { (i, ctx, it) =>
@@ -2841,8 +2880,11 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
 case class TableUnion(childrenSeq: IndexedSeq[TableIR]) extends TableIR {
   assert(childrenSeq.nonEmpty)
-  assert(childrenSeq.tail.forall(_.typ.rowType == childrenSeq(0).typ.rowType))
-  assert(childrenSeq.tail.forall(_.typ.key == childrenSeq(0).typ.key))
+
+  override def typecheck(): Unit = {
+    assert(childrenSeq.tail.forall(_.typ.rowType == childrenSeq(0).typ.rowType))
+    assert(childrenSeq.tail.forall(_.typ.key == childrenSeq(0).typ.key))
+  }
 
   lazy val rowCountUpperBound: Option[Long] = {
     val definedChildren = childrenSeq.flatMap(_.rowCountUpperBound)
@@ -2856,11 +2898,11 @@ case class TableUnion(childrenSeq: IndexedSeq[TableIR]) extends TableIR {
     TableUnion(newChildren.map(_.asInstanceOf[TableIR]))
   }
 
-  val typ: TableType = childrenSeq(0).typ
+  def typ: TableType = childrenSeq(0).typ
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val tvs = childrenSeq.map(_.execute(ctx, r).asTableValue(ctx))
-    new TableValueIntermediate(
+    TableValueIntermediate(
       tvs(0).copy(
         rvd = RVD.union(RVD.unify(ctx, tvs.map(_.rvd)), tvs(0).typ.key.length, ctx)))
   }
@@ -2878,7 +2920,7 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR {
     MatrixRowsTable(newChildren(0).asInstanceOf[MatrixIR])
   }
 
-  val typ: TableType = child.typ.rowsTableType
+  def typ: TableType = child.typ.rowsTableType
 }
 
 case class MatrixColsTable(child: MatrixIR) extends TableIR {
@@ -2891,7 +2933,7 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
     MatrixColsTable(newChildren(0).asInstanceOf[MatrixIR])
   }
 
-  val typ: TableType = child.typ.colsTableType
+  def typ: TableType = child.typ.colsTableType
 }
 
 case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
@@ -2904,7 +2946,7 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
     MatrixEntriesTable(newChildren(0).asInstanceOf[MatrixIR])
   }
 
-  val typ: TableType = child.typ.entriesTableType
+  def typ: TableType = child.typ.entriesTableType
 }
 
 case class TableDistinct(child: TableIR) extends TableIR {
@@ -2917,7 +2959,7 @@ case class TableDistinct(child: TableIR) extends TableIR {
     TableDistinct(newChild.asInstanceOf[TableIR])
   }
 
-  val typ: TableType = child.typ
+  def typ: TableType = child.typ
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val prev = child.execute(ctx, r).asTableValue(ctx)
@@ -2930,10 +2972,14 @@ case class TableKeyByAndAggregate(
   expr: IR,
   newKey: IR,
   nPartitions: Option[Int] = None,
-  bufferSize: Int) extends TableIR {
-  require(expr.typ.isInstanceOf[TStruct])
-  require(newKey.typ.isInstanceOf[TStruct])
-  require(bufferSize > 0)
+  bufferSize: Int
+) extends TableIR {
+  assert(bufferSize > 0)
+
+  override def typecheck(): Unit = {
+    assert(expr.typ.isInstanceOf[TStruct])
+    assert(newKey.typ.isInstanceOf[TStruct])
+  }
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, expr, newKey)
 
@@ -2944,8 +2990,9 @@ case class TableKeyByAndAggregate(
     TableKeyByAndAggregate(newChild, newExpr, newNewKey, nPartitions, bufferSize)
   }
 
-  private val keyType = newKey.typ.asInstanceOf[TStruct]
-  val typ: TableType = TableType(rowType = keyType ++ tcoerce[TStruct](expr.typ),
+  private lazy val keyType = newKey.typ.asInstanceOf[TStruct]
+  lazy val typ: TableType = TableType(
+    rowType = keyType ++ tcoerce[TStruct](expr.typ),
     globalType = child.typ.globalType,
     key = keyType.fieldNames
   )
@@ -3091,7 +3138,9 @@ case class TableKeyByAndAggregate(
 
 // follows key_by non-empty key
 case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
-  require(child.typ.key.nonEmpty)
+  override def typecheck(): Unit = {
+    assert(child.typ.key.nonEmpty)
+  }
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
@@ -3103,7 +3152,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     TableAggregateByKey(newChild, newExpr)
   }
 
-  val typ: TableType = child.typ.copy(rowType = child.typ.keyType ++ tcoerce[TStruct](expr.typ))
+  lazy val typ: TableType = child.typ.copy(rowType = child.typ.keyType ++ tcoerce[TStruct](expr.typ))
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val prev = child.execute(ctx, r).asTableValue(ctx)
@@ -3233,7 +3282,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     TableOrderBy(newChild.asInstanceOf[TableIR], sortFields)
   }
 
-  val typ: TableType = child.typ.copy(key = FastSeq())
+  lazy val typ: TableType = child.typ.copy(key = FastSeq())
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val prev = child.execute(ctx, r).asTableValue(ctx)
@@ -3286,14 +3335,14 @@ case class CastMatrixToTable(
 }
 
 case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: Map[String, String]) extends TableIR {
-  require(rowMap.keys.forall(child.typ.rowType.hasField))
-  require(globalMap.keys.forall(child.typ.globalType.hasField))
+  override def typecheck(): Unit = {
+    assert(rowMap.keys.forall(child.typ.rowType.hasField))
+    assert(globalMap.keys.forall(child.typ.globalType.hasField))
+  }
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   def rowF(old: String): String = rowMap.getOrElse(old, old)
-
-  def globalF(old: String): String = globalMap.getOrElse(old, old)
 
   lazy val typ: TableType = child.typ.copy(
     rowType = child.typ.rowType.rename(rowMap),
@@ -3311,7 +3360,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate =
-    new TableValueIntermediate(
+    TableValueIntermediate(
       child.execute(ctx, r).asTableValue(ctx).rename(globalMap, rowMap))
 }
 
@@ -3325,7 +3374,7 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
     TableFilterIntervals(newChild, intervals, keep)
   }
 
-  override lazy val typ: TableType = child.typ
+  override def typ: TableType = child.typ
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
     val tv = child.execute(ctx, r).asTableValue(ctx)
@@ -3378,7 +3427,8 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
 case class BlockMatrixToTableApply(
   bm: BlockMatrixIR,
   aux: IR,
-  function: BlockMatrixToTableFunction) extends TableIR {
+  function: BlockMatrixToTableFunction
+) extends TableIR {
 
   override lazy val childrenSeq: IndexedSeq[BaseIR] = Array(bm, aux)
 
@@ -3415,7 +3465,7 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
   }
 
   protected[ir] override def execute(ctx: ExecuteContext, r: LoweringAnalyses): TableExecuteIntermediate = {
-    new TableValueIntermediate(child.execute(ctx).entriesTable(ctx))
+    TableValueIntermediate(child.execute(ctx).entriesTable(ctx))
   }
 }
 

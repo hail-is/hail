@@ -523,14 +523,22 @@ object TypeCheck {
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>
-      case MatrixMultiWrite(_, _) => // do nothing
+      case MatrixMultiWrite(children, _) =>
+        val t = children.head.typ
+        assert(
+          !t.rowType.hasField(MatrixReader.rowUIDFieldName) &&
+            !t.colType.hasField(MatrixReader.colUIDFieldName), t
+          )
+        assert(children.forall(_.typ == t))
       case x@TableAggregate(child, query) =>
         assert(x.typ == query.typ)
       case x@MatrixAggregate(child, query) =>
         assert(x.typ == query.typ)
       case RelationalLet(_, _, _) =>
       case TableWrite(_, _) =>
-      case TableMultiWrite(_, _) =>
+      case TableMultiWrite(children, _) =>
+        val t = children.head.typ
+        assert(children.forall(_.typ == t))
       case TableCount(_) =>
       case MatrixCount(_) =>
       case TableGetGlobals(_) =>
@@ -542,8 +550,6 @@ object TypeCheck {
       case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, writer) => writer.loweredTyp
       case BlockMatrixMultiWrite(_, _) =>
-      case ValueToBlockMatrix(child, _, _) =>
-        assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)
       case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, _, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
         assert(dynamicID.typ == TString)
@@ -570,24 +576,10 @@ object TypeCheck {
         assert(stagingFile.forall(_.typ == TString))
       case LiftMeOut(_) =>
       case Consume(_) =>
-      case TableMapRows(child, newRow) =>
-        val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
-        assert(child.typ.key.forall(newFieldSet.contains))
-      case TableMapPartitions(child, globalName, partitionStreamName, body, requestedKey, allowedOverlap) =>
-        assert(body.typ.isInstanceOf[TStream], s"${ body.typ }")
-        assert(allowedOverlap >= -1 && allowedOverlap <= child.typ.key.size)
-        assert(requestedKey >= 0 && requestedKey <= child.typ.key.size)
-        assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
-        val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-        child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
-      case MatrixUnionCols(left, right, joinType) =>
-        assert(left.typ.rowKeyStruct == right.typ.rowKeyStruct, s"${left.typ.rowKeyStruct} != ${right.typ.rowKeyStruct}")
-        assert(left.typ.colType == right.typ.colType, s"${left.typ.colType} != ${right.typ.colType}")
-        assert(left.typ.entryType == right.typ.entryType, s"${left.typ.entryType} != ${right.typ.entryType}")
 
-      case _: TableIR =>
-      case _: MatrixIR =>
-      case _: BlockMatrixIR =>
+      case x: TableIR => x.typecheck()
+      case x: MatrixIR => x.typecheck()
+      case x: BlockMatrixIR => x.typecheck()
     }
   }
 

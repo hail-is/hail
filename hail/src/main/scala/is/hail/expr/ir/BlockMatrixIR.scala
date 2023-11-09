@@ -68,6 +68,8 @@ abstract sealed class BlockMatrixIR extends BaseIR {
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR
 
   def blockCostIsLinear: Boolean
+
+  def typecheck(): Unit = {}
 }
 
 case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
@@ -246,8 +248,11 @@ case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends Bl
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
-  override lazy val typ: BlockMatrixType = child.typ
-  assert(!needsDense || !typ.isSparse)
+  override def typecheck(): Unit = {
+    assert(!(needsDense && child.typ.isSparse))
+  }
+
+  override def typ: BlockMatrixType = child.typ
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, f)
 
@@ -370,11 +375,20 @@ case object NeedsDense extends SparsityStrategy {
   }
 }
 
-case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: String, rightName: String, f: IR, sparsityStrategy: SparsityStrategy) extends BlockMatrixIR {
-  assert(
-    left.typ.nRows == right.typ.nRows &&
-    left.typ.nCols == right.typ.nCols &&
-    left.typ.blockSize == right.typ.blockSize)
+case class BlockMatrixMap2(
+  left: BlockMatrixIR,
+  right: BlockMatrixIR,
+  leftName: String,
+  rightName: String,
+  f: IR,
+  sparsityStrategy: SparsityStrategy
+) extends BlockMatrixIR {
+  override def typecheck(): Unit = {
+    assert(
+      left.typ.nRows == right.typ.nRows &&
+        left.typ.nCols == right.typ.nCols &&
+        left.typ.blockSize == right.typ.blockSize)
+  }
 
   override lazy val typ: BlockMatrixType = left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
 
@@ -477,7 +491,6 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
 }
 
 case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
-
   override lazy val typ: BlockMatrixType = {
     val blockSize = left.typ.blockSize
     val (lRows, lCols) = BlockMatrixIR.tensorShapeToMatrixShape(left)
@@ -531,20 +544,24 @@ case class BlockMatrixBroadcast(
   child: BlockMatrixIR,
   inIndexExpr: IndexedSeq[Int],
   shape: IndexedSeq[Long],
-  blockSize: Int) extends BlockMatrixIR {
+  blockSize: Int
+) extends BlockMatrixIR {
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
   assert(shape.length == 2)
   assert(inIndexExpr.length <= 2 && inIndexExpr.forall(x => x == 0 || x == 1))
 
-  val (nRows, nCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
-  val childMatrixShape = IndexedSeq(nRows, nCols)
-  assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) =>
-    !child.typ.shape.contains(in) || childMatrixShape(in) == shape(out)
-  }))
+  override def typecheck(): Unit = {
+    val (nRows, nCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
+    val childMatrixShape = IndexedSeq(nRows, nCols)
 
-  override val typ: BlockMatrixType = {
+    assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) =>
+      !child.typ.shape.contains(in) || childMatrixShape(in) == shape(out)
+    }))
+  }
+
+  override lazy val typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
     val nRowBlocks = BlockMatrixType.numBlocks(shape(0), blockSize)
     val nColBlocks = BlockMatrixType.numBlocks(shape(1), blockSize)
@@ -626,11 +643,12 @@ case class BlockMatrixBroadcast(
 
 case class BlockMatrixAgg(
   child: BlockMatrixIR,
-  axesToSumOut: IndexedSeq[Int]) extends BlockMatrixIR {
+  axesToSumOut: IndexedSeq[Int]
+) extends BlockMatrixIR {
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  assert(axesToSumOut.length > 0)
+  assert(axesToSumOut.nonEmpty)
 
   override lazy val typ: BlockMatrixType = {
     val matrixShape = BlockMatrixIR.tensorShapeToMatrixShape(child)
@@ -675,21 +693,22 @@ case class BlockMatrixAgg(
 
 case class BlockMatrixFilter(
   child: BlockMatrixIR,
-  indices: Array[Array[Long]]) extends BlockMatrixIR {
+  indices: Array[Array[Long]]
+) extends BlockMatrixIR {
 
   assert(indices.length == 2)
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
   private[this] val Array(keepRow, keepCol) = indices
-  private[this] val blockSize = child.typ.blockSize
-
-  lazy val keepRowPartitioned: Array[Array[Long]] = keepRow.grouped(blockSize).toArray
-  lazy val keepColPartitioned: Array[Array[Long]] = keepCol.grouped(blockSize).toArray
-
-  lazy val rowBlockDependents: Array[Array[Int]] = child.typ.rowBlockDependents(keepRowPartitioned)
-  lazy val colBlockDependents: Array[Array[Int]] = child.typ.colBlockDependents(keepColPartitioned)
 
   override lazy val typ: BlockMatrixType = {
+    val blockSize = child.typ.blockSize
+    val keepRowPartitioned: Array[Array[Long]] = keepRow.grouped(blockSize).toArray
+    val keepColPartitioned: Array[Array[Long]] = keepCol.grouped(blockSize).toArray
+
+    val rowBlockDependents: Array[Array[Int]] = child.typ.rowBlockDependents(keepRowPartitioned)
+    val colBlockDependents: Array[Array[Int]] = child.typ.colBlockDependents(keepColPartitioned)
+
     val childTensorShape = child.typ.shape
     val childMatrixShape = (childTensorShape, child.typ.isRowVector) match {
       case (IndexedSeq(vectorLength), true) => IndexedSeq(1, vectorLength)
@@ -918,7 +937,11 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
 case class ValueToBlockMatrix(
   child: IR,
   shape: IndexedSeq[Long],
-  blockSize: Int) extends BlockMatrixIR {
+  blockSize: Int
+) extends BlockMatrixIR {
+  override def typecheck(): Unit = {
+    assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)
+  }
 
   assert(shape.length == 2)
 
@@ -984,7 +1007,7 @@ case class BlockMatrixRandom(
 }
 
 case class RelationalLetBlockMatrix(name: String, value: IR, body: BlockMatrixIR) extends BlockMatrixIR {
-  override lazy val typ: BlockMatrixType = body.typ
+  override def typ: BlockMatrixType = body.typ
 
   def childrenSeq: IndexedSeq[BaseIR] = Array(value, body)
 
