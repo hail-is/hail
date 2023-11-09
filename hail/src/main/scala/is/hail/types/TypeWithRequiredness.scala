@@ -503,12 +503,12 @@ object RTable {
     RTable(rowStruct.fields.map(f => f.name -> f.typ), globStruct.fields.map(f => f.name -> f.typ), key)
   }
 
-  def fromTableStage(ec: ExecuteContext, s: TableStage): RTable = {
+  def fromTableStage(ctx: ExecuteContext, s: TableStage): RTable = {
     def virtualTypeWithReq(ir: IR, inputs: Env[PType]): VirtualTypeWithReq = {
       import is.hail.expr.ir.Requiredness
-      val ns = ir.noSharing
+      val ns = ir.noSharing(ctx)
       val usesAndDefs = ComputeUsesAndDefs(ns, errorIfFreeVariables = false)
-      val req = Requiredness.apply(ns, usesAndDefs, ec, inputs)
+      val req = Requiredness.apply(ns, usesAndDefs, ctx, inputs)
       VirtualTypeWithReq(ir.typ, req.lookup(ns).asInstanceOf[TypeWithRequiredness])
     }
 

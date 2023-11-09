@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.types.BaseType
 import is.hail.utils.StackSafe._
 import is.hail.utils._
@@ -15,7 +16,10 @@ abstract class BaseIR {
 
   def deepCopy(): this.type = copy(newChildren = childrenSeq.map(_.deepCopy())).asInstanceOf[this.type]
 
-  lazy val noSharing: this.type = if (HasIRSharing(this)) this.deepCopy() else this
+  def noSharing(ctx: ExecuteContext): this.type =
+    if (HasIRSharing(ctx)(this)) this.deepCopy() else this
+
+  var mark: Int = 0
 
   def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): BaseIR = {
     val newChildren = childrenSeq.view.zipWithIndex.map(f.tupled).toArray

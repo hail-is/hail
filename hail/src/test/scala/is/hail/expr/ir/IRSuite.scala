@@ -3383,8 +3383,8 @@ class IRSuite extends HailSuite {
   @Test def testHasIRSharing(): Unit = {
     val r = Ref("x", TInt32)
     val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
-    assert(HasIRSharing(ir1))
-    assert(!HasIRSharing(ir1.deepCopy()))
+    assert(HasIRSharing(ctx)(ir1))
+    assert(!HasIRSharing(ctx)(ir1.deepCopy()))
   }
 
   @Test def freeVariablesAggScanBindingEnv(): Unit = {

@@ -21,9 +21,9 @@ object Optimize {
         last = ir
         runOpt(FoldConstants(ctx, _), iter, "FoldConstants")
         runOpt(ExtractIntervalFilters(ctx, _), iter, "ExtractIntervalFilters")
-        runOpt(normalizeNames(_), iter, "NormalizeNames")
+        runOpt(normalizeNames(ctx, _), iter, "NormalizeNames")
         runOpt(Simplify(ctx, _), iter, "Simplify")
-        runOpt(ForwardLets(_), iter, "ForwardLets")
+        runOpt(ForwardLets(ctx), iter, "ForwardLets")
         runOpt(ForwardRelationalLets(_), iter, "ForwardRelationalLets")
         runOpt(PruneDeadFields(ctx, _), iter, "PruneDeadFields")
 
