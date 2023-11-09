@@ -838,9 +838,8 @@ object IRParser {
         } yield TailLoop(name, params, resultType, body)
       case "Recur" =>
         val name = identifier(it)
-        val typ = type_expr(it)
         ir_value_children(env)(it).map { args =>
-          Recur(name, args, typ)
+          Recur(name, args, null)
         }
       case "Ref" =>
         val id = identifier(it)
@@ -2089,6 +2088,10 @@ object IRParser {
       rw match {
         case x: Ref =>
           x._typ = env.eval(x.name)
+          x
+        case x: Recur =>
+          val TTuple(IndexedSeq(_, TupleField(_, rt))) = env.eval.lookup(x.name)
+          x._typ = rt
           x
         case x: ApplyAggOp =>
           x.aggSig.initOpArgs = x.initOpArgs.map(_.typ)

@@ -209,7 +209,7 @@ final case class Ref(name: String, var _typ: Type) extends BaseRef {
 final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], resultType: Type, body: IR) extends IR {
   lazy val paramIdx: Map[String, Int] = params.map(_._1).zipWithIndex.toMap
 }
-final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends BaseRef
+final case class Recur(name: String, args: IndexedSeq[IR], var _typ: Type) extends BaseRef
 
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR
 final case class RelationalRef(name: String, _typ: Type) extends BaseRef

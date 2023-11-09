@@ -489,7 +489,7 @@ class Recur(IR):
         return Recur(self.name, args, self.return_type)
 
     def head_str(self):
-        return f'{escape_id(self.name)} {self.return_type._parsable_string()}'
+        return f'{escape_id(self.name)}'
 
     def _eq(self, other):
         return other.name == self.name
