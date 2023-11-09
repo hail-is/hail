@@ -1267,7 +1267,7 @@ BEGIN
       END IF;
 
       INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
-      SELECT batch_id, job_group_id, job_group_id, level + 1
+      SELECT new_ancestors.batch_id, new_ancestors.job_group_id, new_ancestors.ancestor_id, new_ancestors.level
       FROM (
         SELECT batch_id, job_group_id, MIN(ancestor_id) AS last_known_ancestor, MAX(level) AS last_known_level
         FROM job_group_self_and_ancestors
@@ -1276,7 +1276,7 @@ BEGIN
         HAVING last_known_ancestor != 0
       ) AS last_known_ancestors
       LEFT JOIN LATERAL (
-        SELECT batch_id, last_known_ancestors.job_group_id, ancestor_id, last_known_ancestors.last_known_level + 1
+        SELECT last_known_ancestors.batch_id, last_known_ancestors.job_group_id, ancestor_id, (last_known_ancestors.last_known_level + 1) AS level
         FROM job_group_self_and_ancestors
         WHERE last_known_ancestors.batch_id = job_group_self_and_ancestors.batch_id AND
           last_known_ancestors.last_known_ancestor = job_group_self_and_ancestors.job_group_id
