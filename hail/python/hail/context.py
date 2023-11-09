@@ -338,7 +338,7 @@ def init(sc=None,
     if default_reference is not None:
         warnings.warn('Using hl.init with a default_reference argument is deprecated. '
                       'To set a default reference genome after initializing hail, '
-                      'call `default_reference` with an argument to set the '
+                      'call `hl.default_reference` with an argument to set the '
                       'default reference genome.')
     else:
         default_reference = 'GRCh37'
