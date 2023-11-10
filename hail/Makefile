@@ -55,6 +55,9 @@ FAST_PYTHON_JAR_EXTRA_CLASSPATH := python/hail/backend/extra_classpath
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
+ifdef GRADLE_CACHE_URI
+GRADLE_ARGS += --build-cache
+endif
 
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
 GCP_PROJECT = $(shell kubectl get secret global-config --template={{.data.gcp_project}} | base64 --decode)
