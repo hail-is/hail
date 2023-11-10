@@ -1,0 +1,35 @@
+plugins {
+  id 'java'
+  id 'scala'
+}
+
+plugins {
+    id "com.gradle.plugin-publish" version "1.0.0"
+}
+
+group = "is.hail.gcsbuildcache"
+version = "0.0.1"
+
+repositories {
+    mavenCentral()
+}
+
+project.ext {
+    scalaVersion = System.getProperty("scala.version", "2.12.15")
+}
+
+dependencies {
+    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.27.1')
+    implementation(group: 'org.scala-lang', name: 'scala-library', version: scalaVersion)
+    implementation(group: 'org.scala-lang', name: 'scala-reflect', version: scalaVersion)
+}
+
+gradlePlugin {
+    plugins {
+	simplePlugin {
+            id = "is.hail.gcsbuildcache"
+            implementationClass = "is.hail.gcsbuildcache.GCSBuildCachePlugin"
+            displayName = "Hail GCS Build Cache"
+        }
+    }
+}

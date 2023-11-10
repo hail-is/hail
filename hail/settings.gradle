@@ -1,2 +1,23 @@
+buildscript {
+    dependencies {
+	classpath files("../gcsbuildcache/build/libs/gcsbuildcache-0.0.1.jar")
+    }
+}
+
+apply plugin: 'is.hail.gcsbuildcache'
+
+buildCache {
+    local {
+        // Local build cache is dangerous as it might produce inconsistent results
+        // in case developer modifies files while the build is running
+        // https://github.com/burrunan/gradle-s3-build-cache
+        enabled = false
+    }
+
+    remote(is.hail.buildcache.GCSBuildCacheConfiguration) {
+       gcsURL = 'gs://danking/gradlebuildcache' // System.env.TEST_STORAGE_URI
+    }
+}
+
 rootProject.name='hail'
 include 'shadedazure'
