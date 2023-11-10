@@ -16,7 +16,7 @@ create_database_config = None
 
 
 async def migrate(database_name, db, mysql_cnf_file, i, migration):
-    print(f'applying migration {i} {migration}')
+    print(f'\nchecking migration {i} {migration}')
 
     # version to migrate to
     # the 0th migration migrates from 1 to 2
@@ -34,6 +34,7 @@ async def migrate(database_name, db, mysql_cnf_file, i, migration):
     current_version = row['version']
 
     if current_version + 1 == to_version:
+        print('applying')
         if not online:
             await _shutdown()
 
@@ -47,6 +48,7 @@ mysql --defaults-extra-file={mysql_cnf_file} <{script}
 '''
             )
 
+        print('recording as applied')
         await db.just_execute(
             f'''
 UPDATE `{database_name}_migration_version`
@@ -58,6 +60,7 @@ VALUES (%s, %s, %s);
             (to_version, to_version, name, script_sha1),
         )
     else:
+        print('previously applied')
         assert current_version >= to_version
 
         # verify checksum
