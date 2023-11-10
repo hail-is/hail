@@ -396,6 +396,9 @@ object LowerMatrixIR {
             builder += ((uid, aggIR))
             aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(uid, structResult.typ), name), acc) }
 
+          case x: StreamAgg => x
+          case x: StreamAggScan => x
+
           case _ =>
             MapIR(lift(_, scanBindings, aggBindings))(ir)
         }
@@ -865,7 +868,7 @@ object LowerMatrixIR {
               ) { case (e, c) =>
                 MakeTuple.ordered(FastSeq(e, c))
               }) { filterTuple =>
-              ApplyUnaryPrimOp(Bang(), IsNA(GetTupleElement(filterTuple, 0)))
+              ApplyUnaryPrimOp(Bang, IsNA(GetTupleElement(filterTuple, 0)))
             }) { explodedTuple =>
             AggLet("g", GetTupleElement(explodedTuple, 0),
               AggLet("sa", GetTupleElement(explodedTuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),

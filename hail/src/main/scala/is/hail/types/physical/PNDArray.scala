@@ -32,7 +32,7 @@ abstract class PNDArray extends PType {
   def unstagedLoadStrides(addr: Long): IndexedSeq[Long]
 
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long]
-  
+
   def makeRowMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
   def makeColumnMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): IndexedSeq[Value[Long]]

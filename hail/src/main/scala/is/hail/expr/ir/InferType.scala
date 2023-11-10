@@ -60,6 +60,8 @@ object InferType {
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)
         cnsq.typ
+      case Switch(_, default, _) =>
+        default.typ
       case Let(name, value, body) =>
         body.typ
       case AggLet(name, value, body, _) =>

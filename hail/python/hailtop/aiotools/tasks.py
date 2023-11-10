@@ -45,4 +45,5 @@ class BackgroundTaskManager:
 
     async def shutdown_and_wait(self):
         self.shutdown()
-        await asyncio.wait(self.tasks, return_when=asyncio.ALL_COMPLETED)
+        if self.tasks:
+            await asyncio.wait(self.tasks, return_when=asyncio.ALL_COMPLETED)

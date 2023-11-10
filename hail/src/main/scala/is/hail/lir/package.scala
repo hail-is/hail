@@ -121,12 +121,12 @@ package object lir {
 
   def load(l: Local): ValueX = new LoadX(l)
 
-  def typeInsn1(op: Int, t: String): (ValueX) => ValueX = (c) => typeInsn(op, t, c)
+  def typeInsn1(op: Int, tti: TypeInfo[_]): (ValueX) => ValueX = (c) => typeInsn(op, tti, c)
 
-  def typeInsn(op: Int, t: String): ValueX = new TypeInsnX(op, t)
+  def typeInsn(op: Int, tti: TypeInfo[_]): ValueX = new TypeInsnX(op, tti)
 
-  def typeInsn(op: Int, t: String, v: ValueX): ValueX = {
-    val x = new TypeInsnX(op, t)
+  def typeInsn(op: Int, tti: TypeInfo[_], v: ValueX): ValueX = {
+    val x = new TypeInsnX(op, tti)
     setChildren(x, v)
     x
   }
@@ -259,9 +259,9 @@ package object lir {
     x
   }
 
-  def checkcast(iname: String): (ValueX) => ValueX = (c) => checkcast(iname, c)
+  def checkcast(tti: TypeInfo[_]): (ValueX) => ValueX = (c) => checkcast(tti, c)
 
-  def checkcast(iname: String, c: ValueX): ValueX = typeInsn(CHECKCAST, iname, c: ValueX)
+  def checkcast(tti: TypeInfo[_], c: ValueX): ValueX = typeInsn(CHECKCAST, tti, c: ValueX)
 
   def newArray(tti: TypeInfo[_]): (ValueX) => ValueX = (len) => newArray(len, tti)
 

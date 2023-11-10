@@ -23,14 +23,14 @@ def test_tiny_driver_has_tiny_memory():
 def test_big_driver_has_big_memory():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
+    # A fresh backend is used for every test so this should only affect this method
+    backend.driver_cores = 8
+    backend.driver_memory = 'highmem'
     t = hl.utils.range_table(100_000_000, 50)
     # The pytest (client-side) worker dies if we try to realize all 100M rows in memory.
     # Instead, we realize the 100M rows in memory on the driver and then take just the first 10M
     # rows back to the client.
-    hl.eval(
-        t.aggregate(hl.agg.collect(t.idx), _localize=False)[:10_000_000],
-        _execute_kwargs={'driver_cores': 8, 'driver_memory': 'highmem'}
-    )
+    hl.eval(t.aggregate(hl.agg.collect(t.idx), _localize=False)[:10_000_000])
 
 
 @qobtest
@@ -52,14 +52,13 @@ def test_tiny_worker_has_tiny_memory():
 def test_big_worker_has_big_memory():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
+    backend.worker_cores = 8
+    backend.worker_memory = 'highmem'
     t = hl.utils.range_table(2, n_partitions=2).annotate(nd=hl.nd.ones((30_000, 30_000)))
     t = t.annotate(nd_sum=t.nd.sum())
     # We only eval the small thing so that we trigger an OOM on the worker
     # but not the driver or client
-    hl.eval(
-        t.aggregate(hl.agg.sum(t.nd_sum), _localize=False),
-        _execute_kwargs={'worker_cores': 8, 'worker_memory': 'highmem'}
-    )
+    hl.eval(t.aggregate(hl.agg.sum(t.nd_sum), _localize=False))
 
 
 @qobtest

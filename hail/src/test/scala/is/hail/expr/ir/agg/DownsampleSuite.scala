@@ -34,7 +34,7 @@ class DownsampleSuite extends HailSuite {
       cb.assign(i, 0)
       ds1.init(cb, 100)
       ds2.init(cb, 100)
-      cb.whileLoop(i < 10000000, {
+      cb.while_(i < 10000000, {
           cb.assign(x, rng.invoke[Double, Double, Double]("runif", 0d, 1d))
           cb.assign(y, rng.invoke[Double, Double, Double]("runif", 0d, 1d))
 

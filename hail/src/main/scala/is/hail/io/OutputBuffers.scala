@@ -74,7 +74,7 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
 
   def indexOffset(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 
-  override def writeByte(b: Byte): Unit = out.write(Array(b))
+  override def writeByte(b: Byte): Unit = out.write(b.toInt)
 
   override def writeInt(i: Int) {
     Memory.storeInt(buf, 0, i)

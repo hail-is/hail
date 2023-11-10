@@ -796,6 +796,36 @@ class BlockMatrixStage2 private (
     BlockMatrixStage2(broadcastVals, typ, ctxs, newBody)
   }
 
+  def toTableStage(ib: IRBuilder, ctx: ExecuteContext, bmTyp: BlockMatrixType): TableStage = {
+    val bodyFreeVars = FreeVariables(_blockIR, supportsAgg = false, supportsScan = false)
+    val bcFields = broadcastVals.filter { case Ref(f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
+
+    val contextsIR = ToStream(contexts.map(ib) { (rowIdx, colIdx, pos, oldContext) =>
+      maketuple(rowIdx, colIdx, oldContext)
+    }.contexts)
+
+    val emptyGlobals = MakeStruct(FastSeq())
+    val globalsId = genUID()
+    val letBindings = ib.getBindings :+ globalsId -> emptyGlobals
+
+    def tsPartitionFunction(newCtxRef: Ref): IR = {
+      val s = makestruct(
+        "blockRow" -> GetTupleElement(newCtxRef, 0),
+        "blockCol" -> GetTupleElement(newCtxRef, 1),
+        "block" -> Let(ctxRefName, GetTupleElement(newCtxRef, 2), _blockIR))
+      MakeStream(FastSeq(s), TStream(s.typ))
+    }
+
+    TableStage(
+      letBindings,
+      bcFields.map(ref => ref.name -> ref) :+ globalsId -> Ref(globalsId, emptyGlobals.typ),
+      Ref(globalsId, emptyGlobals.typ),
+      RVDPartitioner.unkeyed(ctx.stateManager, bmTyp.nDefinedBlocks),
+      TableStageDependency.none,
+      contextsIR,
+      tsPartitionFunction)
+  }
+
   def collectBlocks(
     ib: IRBuilder,
     staticID: String,
@@ -867,31 +897,8 @@ object LowerBlockMatrixIR {
     analyses: LoweringAnalyses
   ): TableStage = {
     val ib = new IRBuilder()
-    val bms = lower(bmir, ib, typesToLower, ctx, analyses).toOldBMS
-    val typ = bmir.typ
-    val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(FastSeq(0 -> i, 1 -> j))}
-    val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
-      Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
-    }
-    val emptyGlobals = MakeStruct(FastSeq())
-    val globalsId = genUID()
-    val letBindings = ib.getBindings :+ globalsId -> emptyGlobals
-    val contextsIR = MakeStream(blocksRowMajor.map{ case (i, j) =>  bmsWithCtx.blockContext((i, j)) }, TStream(bmsWithCtx.ctxType))
-
-    val ctxRef = Ref(genUID(), bmsWithCtx.ctxType)
-    val body = bmsWithCtx.blockBody(ctxRef)
-    val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
-    val bcFields = (bmsWithCtx.broadcastVals
-      .filter { case Ref(f, _) => bodyFreeVars.eval.lookupOption(f).isDefined }
-      .map { ref => ref.name -> ref }
-      :+ globalsId -> Ref(globalsId, emptyGlobals.typ))
-
-    def tsPartitionFunction(ctxRef: Ref): IR = {
-      val s = MakeStruct(FastSeq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
-      MakeStream(FastSeq(s), TStream(s.typ))
-    }
-    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(ctx.stateManager, blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
-    ts
+    val bms = lower(bmir, ib, typesToLower, ctx, analyses)
+    bms.toTableStage(ib, ctx, bmir.typ)
   }
 
   private def unimplemented[T](ctx: ExecuteContext, node: BaseIR): T =

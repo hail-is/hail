@@ -42,6 +42,7 @@ object Interpretable {
         _: WriteValue |
         _: NDArrayWrite |
         _: StreamZipJoinProducers |
+        _: ArrayMaximalIndependentSet |
         _: RNGStateLiteral => false
       case x: ApplyIR =>
         !Exists(x.body, {

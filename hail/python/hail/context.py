@@ -1,4 +1,5 @@
-from typing import Optional, Union, Tuple, List, Dict
+from typing import Optional, Union, Tuple, Type, List, Dict
+from types import TracebackType
 import warnings
 import sys
 import os
@@ -16,6 +17,7 @@ from hail.typecheck import (nullable, typecheck, typecheck_method, enumeration, 
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
+from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import secret_alnum_string
 from hailtop.fs.fs import FS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
@@ -138,6 +140,12 @@ class HailContext(object):
     def default_reference(self) -> ReferenceGenome:
         assert self._default_ref is not None, '_default_ref should have been initialized in HailContext.create'
         return self._default_ref
+
+    @default_reference.setter
+    def set_default_reference(self, value):
+        if not isinstance(value, ReferenceGenome):
+            raise TypeError(f'{value} is {type(value)} not a ReferenceGenome')
+        self._default_ref = value
 
     def stop(self):
         assert self._backend
@@ -336,10 +344,7 @@ def init(sc=None,
         backend = 'batch'
 
     if backend == 'batch':
-        import nest_asyncio
-        nest_asyncio.apply()
-        import asyncio
-        return asyncio.get_event_loop().run_until_complete(init_batch(
+        return hail_event_loop().run_until_complete(init_batch(
             log=log,
             quiet=quiet,
             append=append,
@@ -427,7 +432,8 @@ def init_spark(sc=None,
                _optimizer_iterations=None,
                gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None
                ):
-    from hail.backend.spark_backend import SparkBackend, connect_logger
+    from hail.backend.py4j_backend import connect_logger
+    from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
@@ -554,7 +560,8 @@ def init_local(
         _optimizer_iterations=None,
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None
 ):
-    from hail.backend.local_backend import LocalBackend, connect_logger
+    from hail.backend.py4j_backend import connect_logger
+    from hail.backend.local_backend import LocalBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
@@ -684,7 +691,21 @@ class _TemporaryFilenameManager:
 
     def __exit__(self, type, value, traceback):
         try:
-            return self.fs.remove(self.name)
+            self.fs.remove(self.name)
+        except FileNotFoundError:
+            pass
+
+    async def __aenter__(self):
+        return self.name
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ):
+        try:
+            await self.fs.aremove(self.name)
         except FileNotFoundError:
             pass
 
@@ -725,18 +746,38 @@ def TemporaryFilename(*,
 
 
 class _TemporaryDirectoryManager:
-    def __init__(self, fs: FS, name: str):
+    def __init__(self, fs: FS, name: str, ensure_exists: bool):
         self.fs = fs
         self.name = name
+        self.ensure_exists = ensure_exists
 
     def __enter__(self):
+        if self.ensure_exists:
+            self.fs.mkdir(self.name)
         return self.name
 
     def __exit__(self, type, value, traceback):
         try:
-            return self.fs.rmtree(self.name)
+            self.fs.rmtree(self.name)
         except FileNotFoundError:
             pass
+
+    async def __aenter__(self):
+        if self.ensure_exists:
+            await self.fs.amkdir(self.name)
+        return self.name
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ):
+        try:
+            await self.fs.armtree(self.name)
+        except FileNotFoundError:
+            pass
+
 
 
 def TemporaryDirectory(*,
@@ -774,9 +815,7 @@ def TemporaryDirectory(*,
         dir = dir + '/'
     dirname = dir + prefix + secret_alnum_string(10) + suffix
     fs = current_backend().fs
-    if ensure_exists:
-        fs.mkdir(dirname)
-    return _TemporaryDirectoryManager(fs, dirname)
+    return _TemporaryDirectoryManager(fs, dirname, ensure_exists)
 
 
 def current_backend() -> Backend:
@@ -787,13 +826,17 @@ async def _async_current_backend() -> Backend:
     return (await Env._async_hc())._backend
 
 
-def default_reference():
-    """Returns the default reference genome ``'GRCh37'``.
+def default_reference(new_default_reference: Optional[ReferenceGenome] = None) -> Optional[ReferenceGenome]:
+    """With no argument, returns the default reference genome (``'GRCh37'`` by default).
+    With an argument, sets the default reference genome to the argument.
 
     Returns
     -------
     :class:`.ReferenceGenome`
     """
+    if new_default_reference is not None:
+        Env.hc().default_reference = new_default_reference
+        return None
     return Env.hc().default_reference
 
 

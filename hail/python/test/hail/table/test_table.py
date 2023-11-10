@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 import pyspark.sql
 import pytest
-import random
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -14,7 +13,6 @@ import hail.ir as ir
 
 from hail import ExpressionException
 from ..helpers import *
-from test.hail.matrixtable.test_file_formats import create_all_values_datasets
 
 
 class Tests(unittest.TestCase):

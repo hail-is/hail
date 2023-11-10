@@ -1744,7 +1744,7 @@ object MatrixVCFReader {
 
     LoadVCF.warnDuplicates(sampleIDs)
 
-    new MatrixVCFReader(params, fileListEntries, referenceGenome, header1)
+    new MatrixVCFReader(params.copy(files = fileListEntries.map(_.getPath)), fileListEntries, referenceGenome, header1)
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixVCFReader = {
@@ -2044,7 +2044,7 @@ case class GVCFPartitionReader(header: VCFHeaderInfo,
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.assign(currentElt, iter.invoke[Region, Long]("next", eltRegion))
-          cb.ifx(currentElt ceq 0L, cb.goto(LendOfStream), cb.goto(LproduceElementDone))
+          cb.if_(currentElt ceq 0L, cb.goto(LendOfStream), cb.goto(LproduceElementDone))
         }
         override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, requestedPType.loadCheapSCode(cb, currentElt)))
         override def close(cb: EmitCodeBuilder): Unit = {

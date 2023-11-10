@@ -284,7 +284,7 @@ class Tests(unittest.TestCase):
                 (hl.abs(bad.p_value - bad.Pval) < 0.001)))
 
         if bad.count() != 0:
-            bad.order_by(hl.asc(bad.v)).show()
+            bad.order_by(hl.asc(bad.u)).show()
             self.fail('Found rows in violation of the predicate (see show output)')
 
     def test_de_novo(self):

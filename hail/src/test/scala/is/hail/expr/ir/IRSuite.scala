@@ -142,42 +142,42 @@ class IRSuite extends HailSuite {
 
   @Test def testApplyUnaryPrimOpNegate() {
     assertAllEvalTo(
-      (ApplyUnaryPrimOp(Negate(), I32(5)), -5),
-      (ApplyUnaryPrimOp(Negate(), i32na), null),
-      (ApplyUnaryPrimOp(Negate(), I64(5)), -5L),
-      (ApplyUnaryPrimOp(Negate(), i64na), null),
-      (ApplyUnaryPrimOp(Negate(), F32(5)), -5F),
-      (ApplyUnaryPrimOp(Negate(), f32na), null),
-      (ApplyUnaryPrimOp(Negate(), F64(5)), -5D),
-      (ApplyUnaryPrimOp(Negate(), f64na), null)
+      (ApplyUnaryPrimOp(Negate, I32(5)), -5),
+      (ApplyUnaryPrimOp(Negate, i32na), null),
+      (ApplyUnaryPrimOp(Negate, I64(5)), -5L),
+      (ApplyUnaryPrimOp(Negate, i64na), null),
+      (ApplyUnaryPrimOp(Negate, F32(5)), -5F),
+      (ApplyUnaryPrimOp(Negate, f32na), null),
+      (ApplyUnaryPrimOp(Negate, F64(5)), -5D),
+      (ApplyUnaryPrimOp(Negate, f64na), null)
     )
   }
 
   @Test def testApplyUnaryPrimOpBang() {
-    assertEvalsTo(ApplyUnaryPrimOp(Bang(), False()), true)
-    assertEvalsTo(ApplyUnaryPrimOp(Bang(), True()), false)
-    assertEvalsTo(ApplyUnaryPrimOp(Bang(), bna), null)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang, False()), true)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang, True()), false)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang, bna), null)
   }
 
   @Test def testApplyUnaryPrimOpBitFlip() {
     assertAllEvalTo(
-      (ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef)), ~0xdeadbeef),
-      (ApplyUnaryPrimOp(BitNot(), I32(-0xdeadbeef)), ~(-0xdeadbeef)),
-      (ApplyUnaryPrimOp(BitNot(), i32na), null),
-      (ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L),
-      (ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L)),
-      (ApplyUnaryPrimOp(BitNot(), i64na), null)
+      (ApplyUnaryPrimOp(BitNot, I32(0xdeadbeef)), ~0xdeadbeef),
+      (ApplyUnaryPrimOp(BitNot, I32(-0xdeadbeef)), ~(-0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitNot, i32na), null),
+      (ApplyUnaryPrimOp(BitNot, I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L),
+      (ApplyUnaryPrimOp(BitNot, I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitNot, i64na), null)
     )
   }
 
   @Test def testApplyUnaryPrimOpBitCount() {
     assertAllEvalTo(
-      (ApplyUnaryPrimOp(BitCount(), I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
-      (ApplyUnaryPrimOp(BitCount(), I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
-      (ApplyUnaryPrimOp(BitCount(), i32na), null),
-      (ApplyUnaryPrimOp(BitCount(), I64(0xdeadbeef12345678L)), java.lang.Long.bitCount(0xdeadbeef12345678L)),
-      (ApplyUnaryPrimOp(BitCount(), I64(-0xdeadbeef12345678L)), java.lang.Long.bitCount(-0xdeadbeef12345678L)),
-      (ApplyUnaryPrimOp(BitCount(), i64na), null)
+      (ApplyUnaryPrimOp(BitCount, I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitCount, I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitCount, i32na), null),
+      (ApplyUnaryPrimOp(BitCount, I64(0xdeadbeef12345678L)), java.lang.Long.bitCount(0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitCount, I64(-0xdeadbeef12345678L)), java.lang.Long.bitCount(-0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitCount, i64na), null)
     )
   }
 
@@ -575,6 +575,22 @@ class IRSuite extends HailSuite {
     assertEvalsTo(If(NA(TBoolean), I32(5), I32(7)), null)
     assertEvalsTo(If(True(), NA(TInt32), I32(7)), null)
   }
+
+  @DataProvider(name="SwitchEval")
+  def switchEvalRules: Array[Array[Any]] =
+    Array(
+      Array(I32(-1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
+      Array(I32(0), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), 0),
+      Array(I32(1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MaxValue),
+      Array(I32(2), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
+      Array(NA(TInt32), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), null),
+      Array(I32(-1), NA(TInt32), FastSeq(0, Int.MaxValue).map(I32), null),
+      Array(I32(0), NA(TInt32), FastSeq(NA(TInt32), I32(0)), null),
+    )
+
+  @Test(dataProvider = "SwitchEval")
+  def testSwitch(x: IR, default: IR, cases: IndexedSeq[IR], result: Any): Unit =
+    assertEvalsTo(Switch(x, default, cases), result)
 
   @Test def testLet() {
     assertEvalsTo(Let("v", I32(5), Ref("v", TInt32)), 5)
@@ -1562,7 +1578,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamFilter(a, "x",
       IsNA(Ref("x", TInt32)))), FastSeq(null))
     assertEvalsTo(ToArray(StreamFilter(a, "x",
-      ApplyUnaryPrimOp(Bang(), IsNA(Ref("x", TInt32))))), FastSeq(3, 7))
+      ApplyUnaryPrimOp(Bang, IsNA(Ref("x", TInt32))))), FastSeq(3, 7))
 
     assertEvalsTo(ToArray(StreamFilter(a, "x",
       ApplyComparisonOp(LT(TInt32), Ref("x", TInt32), I32(6)))), FastSeq(3))
@@ -1747,10 +1763,14 @@ class IRSuite extends HailSuite {
     assertNDEvals(NDArrayConcat(nds(nd1, rowwise), 0), rowwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, rowwise, emptyRowwise), 0), rowwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, emptyRowwise, rowwise), 0), rowwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(emptyRowwise, nd1, rowwise), 0), rowwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(emptyRowwise), 0), FastSeq())
 
     assertNDEvals(NDArrayConcat(nds(nd1, colwise), 1), colwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, colwise, emptyColwise), 1), colwiseExpected)
     assertNDEvals(NDArrayConcat(nds(nd1, emptyColwise, colwise), 1), colwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(emptyColwise, nd1, colwise), 1), colwiseExpected)
+    assertNDEvals(NDArrayConcat(nds(emptyColwise), 1), FastSeq(FastSeq(), FastSeq()))
 
     assertNDEvals(NDArrayConcat(nds(nd1, na), 1), null)
     assertNDEvals(NDArrayConcat(nds(na, na), 1), null)
@@ -1765,12 +1785,12 @@ class IRSuite extends HailSuite {
     val nDim = 2
 
     val positives = makeNDArray(data.map(_.toDouble), shape, True())
-    val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64)))
+    val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate, Ref("e", TFloat64)))
     assertEvalsTo(makeNDArrayRef(positives, FastSeq(1L, 0L)), 5.0)
     assertEvalsTo(makeNDArrayRef(negatives, FastSeq(1L, 0L)), -5.0)
 
     val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean)), MakeTuple.ordered(shape.map(I64)), True(), ErrorIDs.NO_ERROR)
-    val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean)))
+    val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang, Ref("e", TBoolean)))
     assertEvalsTo(makeNDArrayRef(trues, FastSeq(1L, 0L)), true)
     assertEvalsTo(makeNDArrayRef(falses, FastSeq(1L, 0L)), false)
 
@@ -1850,12 +1870,29 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(0, 0)), 2.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(0, 1)), 3.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(1, 0)), 2.0)
+
+    val vectorWithEmpty = NDArrayMap2(
+      NDArrayReindex(vectorRowMajor, FastSeq(1, 0)),
+      makeNDArray(FastSeq(), FastSeq(0, 2), True()),
+      "v", "m",
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
+    assertEvalsTo(NDArrayShape(vectorWithEmpty), Row(0L, 2L))
+
+    val colVectorWithEmpty = NDArrayMap2(
+      colVector,
+      makeNDArray(FastSeq(), FastSeq(2, 0), True()),
+      "v", "m",
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
+    assertEvalsTo(NDArrayShape(colVectorWithEmpty), Row(2L, 0L))
   }
 
-  @Test(enabled = false) def testNDArrayAgg() {
+  @Test def testNDArrayAgg() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-    val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
+    val empty = makeNDArrayRef(NDArrayAgg(makeNDArray(IndexedSeq(), IndexedSeq(0, 5), true), IndexedSeq(0, 1)), IndexedSeq())
+    assertEvalsTo(empty, 0.0)
+
+    val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq())
     assertEvalsTo(three, 3.0)
 
     val zero = makeNDArrayRef(NDArrayAgg(vectorRowMajor, IndexedSeq(0)), IndexedSeq.empty)
@@ -2709,12 +2746,13 @@ class IRSuite extends HailSuite {
       CastRename(NA(TStruct("a" -> TInt32)), TStruct("b" -> TInt32)),
       NA(TInt32), IsNA(i),
       If(b, i, j),
+      Switch(i, j, 0 until 7 map I32),
       Coalesce(FastSeq(i, I32(1))),
       Let("v", i, v),
       AggLet("v", i, collect(v), false) -> (_.createAgg),
       Ref("x", TInt32) -> (_.bindEval("x", TInt32)),
       ApplyBinaryPrimOp(Add(), i, j),
-      ApplyUnaryPrimOp(Negate(), i),
+      ApplyUnaryPrimOp(Negate, i),
       ApplyComparisonOp(EQ(TInt32), i, j),
       MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
       MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
@@ -2722,7 +2760,7 @@ class IRSuite extends HailSuite {
       NDArrayReshape(nd, MakeTuple.ordered(IndexedSeq(I64(4))), ErrorIDs.NO_ERROR),
       NDArrayConcat(MakeArray(FastSeq(nd, nd), TArray(nd.typ)), 0),
       NDArrayRef(nd, FastSeq(I64(1), I64(2)), -1),
-      NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
+      NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate, v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r), ErrorIDs.NO_ERROR),
       NDArrayReindex(nd, FastSeq(0, 1)),
       NDArrayAgg(nd, FastSeq(0)),
@@ -3097,27 +3135,18 @@ class IRSuite extends HailSuite {
 
   @Test def testCachedIR() {
     val cached = Literal(TSet(TInt32), Set(1))
-    val s = s"(JavaIR __uid1)"
+    val s = s"(JavaIR 1)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
     }
     assert(x2 eq cached)
   }
 
   @Test def testCachedTableIR() {
     val cached = TableRange(1, 1)
-    val s = s"(JavaTable __uid1)"
+    val s = s"(JavaTable 1)"
     val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
-    }
-    assert(x2 eq cached)
-  }
-
-  @Test def testCachedMatrixIR() {
-    val cached = MatrixIR.range(3, 7, None)
-    val s = s"(JavaMatrix __uid1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = Map("__uid1" -> cached)))
+      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
     }
     assert(x2 eq cached)
   }

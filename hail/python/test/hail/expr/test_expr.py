@@ -7,7 +7,7 @@ import numpy as np
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.types import *
-from hail.expr.functions import _error_from_cdf
+from hail.expr.functions import _error_from_cdf, _cdf_combine, _result_from_raw_cdf
 import hail.ir as ir
 from ..helpers import *
 
@@ -444,43 +444,6 @@ class Tests(unittest.TestCase):
 
         array_agg_count = t.aggregate(hl.agg.array_agg(lambda x: hl.agg.count(), hl.range(hl.int32(aggregated_count))))
         self.assertEqual(array_agg_count, [10 for i in range(10)])
-
-    def test_approx_cdf(self):
-        table = hl.utils.range_table(100)
-        table = table.annotate(i=table.idx)
-        table.aggregate(hl.agg.approx_cdf(table.i))
-        table.aggregate(hl.agg.approx_cdf(hl.int64(table.i)))
-        table.aggregate(hl.agg.approx_cdf(hl.float32(table.i)))
-        table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
-
-    def test_approx_cdf_all_missing(self):
-        table = hl.utils.range_table(10).annotate(foo=hl.missing(tint))
-        table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
-
-    def test_approx_cdf_col_aggregate(self):
-        mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)
-        mt = mt.annotate_cols(bar=hl.agg.approx_cdf(mt.foo))
-        mt.cols()._force_count()
-
-    def test_approx_quantiles(self):
-        table = hl.utils.range_table(100)
-        table = table.annotate(i=table.idx)
-        table.aggregate(hl.agg.approx_quantiles(table.i, hl.float32(0.5)))
-        table.aggregate(hl.agg.approx_median(table.i))
-        table.aggregate(hl.agg.approx_quantiles(table.i, [0.0, 0.1, 0.5, 0.9, 1.0]))
-
-    def test_error_from_cdf(self):
-        table = hl.utils.range_table(100)
-        table = table.annotate(i=table.idx)
-        table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001))
-        table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001, all_quantiles=True))
-
-    def test_approx_cdf_array_agg(self):
-        mt = hl.utils.range_matrix_table(5, 5)
-        mt = mt.annotate_entries(x = mt.col_idx)
-        mt = mt.group_cols_by(mt.col_idx).aggregate(cdf = hl.agg.approx_cdf(mt.x))
-        mt._force_count_rows()
 
     def test_counter_ordering(self):
         ht = hl.utils.range_table(10)
@@ -3934,6 +3897,89 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.str(s2)._split_line(' ', ['1', '2'], quote='"', regex=False)) == [None, None, '3 4', 'a b c d']
         assert hl.eval(hl.str(s2)._split_line(r'\s+', ['1', '2'], quote='"', regex=True)) == [None, None, '3 4', 'a b c d']
 
+
+def test_approx_cdf():
+    table = hl.utils.range_table(100)
+    table = table.annotate(i=table.idx)
+    table.aggregate(hl.agg.approx_cdf(table.i))
+    table.aggregate(hl.agg.approx_cdf(hl.int64(table.i)))
+    table.aggregate(hl.agg.approx_cdf(hl.float32(table.i)))
+    table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
+
+
+# assumes cdf was computed from a (possibly shuffled) range table
+def cdf_max_observed_error(cdf):
+    rank_error = max(
+        max(abs(cdf['values'][i+1] - cdf.ranks[i+1]),
+            abs(cdf['values'][i] + 1 - cdf.ranks[i+1]))
+        for i in range(len(cdf['values']) - 1))
+    return rank_error / cdf.ranks[-1]
+
+
+@pytest.fixture(scope='module')
+def cdf_test_data():
+    with hl.TemporaryDirectory(ensure_exists=False) as f:
+        t = hl.utils.range_table(1_000_000)
+        t = t.annotate(x=hl.rand_int64())
+        t.key_by(t.x).write(f, overwrite=True)
+        t = hl.read_table(f)
+        print('generating')
+        yield t
+        print('deleting')
+
+
+def test_approx_cdf_accuracy(cdf_test_data):
+    t = cdf_test_data
+    cdf = t.aggregate(hl.agg.approx_cdf(t.idx, 200))
+    error = cdf_max_observed_error(cdf)
+    assert(error < 0.01)
+
+
+def test_approx_cdf_all_missing():
+    table = hl.utils.range_table(10).annotate(foo=hl.missing(tint))
+    table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
+
+
+def test_approx_cdf_col_aggregate():
+    mt = hl.utils.range_matrix_table(10, 10)
+    mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)
+    mt = mt.annotate_cols(bar=hl.agg.approx_cdf(mt.foo))
+    mt.cols()._force_count()
+
+
+def test_approx_quantiles():
+    table = hl.utils.range_table(100)
+    table = table.annotate(i=table.idx)
+    table.aggregate(hl.agg.approx_quantiles(table.i, hl.float32(0.5)))
+    table.aggregate(hl.agg.approx_median(table.i))
+    table.aggregate(hl.agg.approx_quantiles(table.i, [0.0, 0.1, 0.5, 0.9, 1.0]))
+
+
+def test_error_from_cdf():
+    table = hl.utils.range_table(100)
+    table = table.annotate(i=table.idx)
+    cdf = hl.agg.approx_cdf(table.i)
+    table.aggregate(_error_from_cdf(cdf, .001))
+    table.aggregate(_error_from_cdf(cdf, .001, all_quantiles=True))
+
+
+def test_cdf_combine(cdf_test_data):
+    t = cdf_test_data
+    t1 = t.filter(t.x < 0)
+    cdf1 = t1.aggregate(hl.agg.approx_cdf(t1.idx, 200, _raw=True), _localize=False)
+    t2 = t.filter(t.x >= 0)
+    cdf2 = t2.aggregate(hl.agg.approx_cdf(t2.idx, 200, _raw=True), _localize=False)
+    cdf = _cdf_combine(200, cdf1, cdf2)
+    cdf = hl.eval(_result_from_raw_cdf(cdf))
+    error = cdf_max_observed_error(cdf)
+    assert(error < 0.01)
+
+
+def test_approx_cdf_array_agg():
+    mt = hl.utils.range_matrix_table(5, 5)
+    mt = mt.annotate_entries(x = mt.col_idx)
+    mt = mt.group_cols_by(mt.col_idx).aggregate(cdf = hl.agg.approx_cdf(mt.x))
+    mt._force_count_rows()
 
 @pytest.mark.parametrize("delimiter", ['\t', ',', '@'])
 @pytest.mark.parametrize("missing", ['NA', 'null'])

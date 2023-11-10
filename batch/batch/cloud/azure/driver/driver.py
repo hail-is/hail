@@ -28,7 +28,6 @@ class AzureDriver(CloudDriver):
         machine_name_prefix: str,
         namespace: str,
         inst_coll_configs: InstanceCollectionConfigs,
-        task_manager: aiotools.BackgroundTaskManager,  # BORROWED
     ) -> 'AzureDriver':
         azure_config = get_azure_config()
         subscription_id = azure_config.subscription_id
@@ -67,6 +66,8 @@ ON DUPLICATE KEY UPDATE region = region;
         resource_manager = AzureResourceManager(
             app, subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
         )
+
+        task_manager = aiotools.BackgroundTaskManager()
 
         create_pools_coros = [
             Pool.create(
@@ -110,6 +111,7 @@ ON DUPLICATE KEY UPDATE region = region;
             inst_coll_manager,
             jpim,
             billing_manager,
+            task_manager,
         )
 
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_nics))
@@ -135,6 +137,7 @@ ON DUPLICATE KEY UPDATE region = region;
         inst_coll_manager: InstanceCollectionManager,
         job_private_inst_manager: JobPrivateInstanceManager,
         billing_manager: AzureBillingManager,
+        task_manager: aiotools.BackgroundTaskManager,
     ):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
@@ -150,6 +153,7 @@ ON DUPLICATE KEY UPDATE region = region;
         self.job_private_inst_manager = job_private_inst_manager
         self._billing_manager = billing_manager
         self._inst_coll_manager = inst_coll_manager
+        self._task_manager = task_manager
 
     @property
     def billing_manager(self) -> AzureBillingManager:
@@ -161,18 +165,21 @@ ON DUPLICATE KEY UPDATE region = region;
 
     async def shutdown(self) -> None:
         try:
-            await self.arm_client.close()
+            await self._task_manager.shutdown_and_wait()
         finally:
             try:
-                await self.compute_client.close()
+                await self.arm_client.close()
             finally:
                 try:
-                    await self.resources_client.close()
+                    await self.compute_client.close()
                 finally:
                     try:
-                        await self.network_client.close()
+                        await self.resources_client.close()
                     finally:
-                        await self.pricing_client.close()
+                        try:
+                            await self.network_client.close()
+                        finally:
+                            await self.pricing_client.close()
 
     def _resource_is_orphaned(self, resource_name: str) -> bool:
         instance_name = resource_name.rsplit('-', maxsplit=1)[0]

@@ -22,12 +22,26 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     sb.append("]")
   }
 
+  def printDebug(cb: EmitCodeBuilder, addr: Value[Long]): Unit = {
+    val a = cb.newLocal[Long]("a", addr)
+    val l = cb.memoize(loadLength(addr))
+    cb.println("array header:")
+    cb.while_(a < firstElementOffset(addr, l), {
+      cb.println("  ", Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", Region.loadLong(a)),
+                 " (", Code.invokeStatic1[java.lang.Integer, Int, String]("toHexString", Region.loadInt(a)),
+                 " ", Code.invokeStatic1[java.lang.Integer, Int, String]("toHexString", Region.loadInt(a+4)),
+                 ")")
+      cb.assign(a, a + 8)
+    })
+  }
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
+  private val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
 
-  val contentsAlignment: Long = elementType.alignment.max(4)
+  def zeroSizeElements: Boolean = elementByteSize == 0
 
-  val lengthHeaderBytes: Long = 4
+  private val contentsAlignment: Long = 8
+
+  private val lengthHeaderBytes: Long = 8
 
   override val byteSize: Long = 8
 
@@ -61,15 +75,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   private def _elementsOffset(length: Int): Long =
     if (elementRequired)
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, contentsAlignment)
     else
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), contentsAlignment)
 
   private def _elementsOffset(length: Code[Int]): Code[Long] =
     if (elementRequired)
-      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(lengthHeaderBytes, contentsAlignment)
     else
-      UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, elementType.alignment)
+      UnsafeUtils.roundUpAlignment(nMissingBytes(length).toL + lengthHeaderBytes, contentsAlignment)
 
   private lazy val lengthOffsetTable = 10
   private lazy val elementsOffsetTable: Array[Long] = Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
@@ -84,6 +98,11 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def elementsOffset(length: Code[Int]): Code[Long] = {
     _elementsOffset(length)
   }
+
+  def missingBytesOffset: Long = lengthHeaderBytes
+
+  def pastLastMissingByteOff(aoff: Code[Long], len: Code[Int]): Code[Long] =
+    aoff + lengthHeaderBytes + nMissingBytes(len).toL
 
   def isElementDefined(aoff: Long, i: Int): Boolean =
     elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i)
@@ -105,11 +124,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       Region.setBit(aoff + lengthHeaderBytes, i)
   }
 
-  def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
-    if (!elementRequired)
-      cb += Region.setBit(aoff + lengthHeaderBytes, i.toL)
-    else
-      cb._fatal(s"Required element cannot be missing")
+  override def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit = {
+    assert(!elementRequired, s"Array elements of ptype '${elementType.asIdent}' cannot be missing.")
+    cb += Region.setBit(aoff + lengthHeaderBytes, i.toL)
+  }
 
   def setElementPresent(aoff: Long, i: Int) {
     if (!elementRequired)
@@ -149,6 +167,18 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
 
   private def elementOffsetFromFirst(firstElementAddr: Code[Long], i: Code[Int]): Code[Long] = firstElementAddr + i.toL * const(elementByteSize)
+
+  override def incrementElementOffset(currentOffset: Long, increment: Int): Long =
+    currentOffset + increment * elementByteSize
+
+  override def incrementElementOffset(currentOffset: Code[Long], increment: Code[Int]): Code[Long] =
+    currentOffset + increment.toL * elementByteSize
+
+  override def pastLastElementOffset(aoff: Long, length: Int): Long =
+    firstElementOffset(aoff, length) + length * elementByteSize
+
+  override def pastLastElementOffset(aoff: Code[Long], length: Value[Int]): Code[Long] =
+    firstElementOffset(aoff, length) + length.toL * elementByteSize
 
   def nextElementAddress(currentOffset: Long) =
     currentOffset + elementByteSize
@@ -240,8 +270,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long] = {
     require(elementType.isNumeric)
     val lengthMem = cb.memoize(length)
-    val aoff = cb.newLocal[Long]("pcanonical_array_zeroes_aoff")
-    cb.assign(aoff, allocate(region, lengthMem))
+    val aoff = cb.memoize[Long](allocate(region, lengthMem))
     stagedInitialize(cb, aoff, lengthMem)
     cb += Region.setMemory(aoff + elementsOffset(lengthMem), lengthMem.toL * elementByteSize, 0.toByte)
     aoff
@@ -291,7 +320,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstAddressCode: Code[Long], len: Value[Int]): Unit = {
-    if (!this.elementType.containsPointers) {
+    if (!elementType.containsPointers) {
       return
     }
 
@@ -299,15 +328,16 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     cb.assign(dstAddress, dstAddressCode)
     val currentIdx = cb.newLocal[Int]("pcarray_deep_pointer_copy_current_idx")
     val currentElementAddress = cb.newLocal[Long]("pcarray_deep_pointer_copy_current_element_addr")
-    cb.forLoop(
-      cb.assign(currentIdx, 0),
-      currentIdx < len,
-      cb.assign(currentIdx, currentIdx + 1),
-      cb.ifx(isElementDefined(dstAddress, currentIdx),
+    cb.for_(cb.assign(currentIdx, 0), currentIdx < len, cb.assign(currentIdx, currentIdx + 1),
+      cb.if_(isElementDefined(dstAddress, currentIdx),
         {
           cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
-          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapSCode(cb, this.elementType.loadFromNested(currentElementAddress)), true)
-        }))
+          elementType.storeAtAddress(cb, currentElementAddress, region,
+            elementType.loadCheapSCode(cb, elementType.loadFromNested(currentElementAddress)),
+            deepCopy = true
+          )
+        })
+    )
   }
 
   def deepPointerCopy(sm: HailStateManager, region: Region, dstAddress: Long) {
@@ -378,7 +408,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       case SIndexablePointer(otherType@PCanonicalArray(otherElementType, _)) if otherElementType.equalModuloRequired(elementType) =>
         // other is optional, constructing required
         if (elementType.required) {
-          cb.ifx(indexable.hasMissingValues(cb),
+          cb.if_(indexable.hasMissingValues(cb),
             cb._fatal("tried to copy array with missing values to array of required elements"))
         }
         stagedInitialize(cb, addr, indexable.loadLength(), setMissing = false)
@@ -389,17 +419,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       case _ =>
         stagedInitialize(cb, addr, length, setMissing = false)
 
-        val idx = cb.newLocal[Int]("pcarray_store_at_addr_idx", 0)
-        cb.whileLoop(idx < length, {
+        val idx = cb.newLocal[Int]("pcarray_store_at_addr_idx")
+        cb.for_(cb.assign(idx, 0), idx < length, cb.assign(idx, idx + 1),
           indexable
             .loadElement(cb, idx)
-            .consume(
-              cb,
-              { setElementMissing(cb, addr, idx) },
-              { pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc, deepCopy) }
+            .consume(cb,
+              PContainer.unsafeSetElementMissing(cb, this, addr, idx),
+              pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc, deepCopy)
             )
-          cb.assign(idx, idx + 1)
-        })
+        )
     }
   }
 
@@ -431,22 +459,30 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   private def deepRenameArray(t: TArray): PArray =
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 
+  def padWithMissing(cb: EmitCodeBuilder, region: Value[Region], oldLength: Value[Int], newLength: Value[Int], srcAddress: Value[Long]): Value[Long] = {
+    val dstAddress = cb.memoize(allocate(region, newLength))
+    stagedInitialize(cb, dstAddress, newLength, setMissing = true)
+    cb += Region.copyFrom(srcAddress + lengthHeaderBytes, dstAddress + lengthHeaderBytes, nMissingBytes(oldLength).toL)
+    cb += Region.copyFrom(
+      srcAddress + elementsOffset(oldLength),
+      dstAddress + elementsOffset(newLength),
+      oldLength.toL * elementByteSize)
+    dstAddress
+  }
+
   def constructFromElements(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean)
     (f: (EmitCodeBuilder, Value[Int]) => IEmitCode): SIndexablePointerValue = {
 
     val addr = cb.newLocal[Long]("pcarray_construct1_addr", allocate(region, length))
     stagedInitialize(cb, addr, length, setMissing = false)
-    val i = cb.newLocal[Int]("pcarray_construct1_i", 0)
+    val i = cb.newLocal[Int]("pcarray_construct1_i")
 
     val firstElementAddr = cb.newLocal[Long]("pcarray_construct1_firstelementaddr", firstElementOffset(addr, length))
-    cb.whileLoop(i < length, {
+    cb.for_(cb.assign(i, 0), i < length, cb.assign(i, i + 1), {
       f(cb, i).consume(cb,
-        setElementMissing(cb, addr, i),
-        { sc =>
-          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
-        })
-
-      cb.assign(i, i + 1)
+        PContainer.unsafeSetElementMissing(cb, this, addr, i),
+        { sc => elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy) }
+      )
     })
 
     new SIndexablePointerValue(sType, addr, length, firstElementAddr)
@@ -454,7 +490,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   // unsafe StagedArrayBuilder-like interface that gives caller control over pushing elements and finishing
   def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
-  (((EmitCodeBuilder, IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerValue))) = {
+  ((EmitCodeBuilder, IEmitCode) => Unit, EmitCodeBuilder => SIndexablePointerValue) = {
 
     val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
     stagedInitialize(cb, addr, length, setMissing = false)
@@ -462,20 +498,26 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val firstElementAddress = cb.newLocal[Long]("pcarray_construct2_first_addr", firstElementOffset(addr, length))
     val currentElementAddress = cb.newLocal[Long]("pcarray_construct2_current_addr", firstElementAddress)
 
-    val push: (EmitCodeBuilder, IEmitCode) => Unit = { case (cb, iec) =>
+    def push(cb: EmitCodeBuilder, iec: IEmitCode): Unit = {
       iec.consume(cb,
-        setElementMissing(cb, addr, currentElementIndex),
+        PContainer.unsafeSetElementMissing(cb, this, addr, currentElementIndex),
         { sc =>
           elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
         })
-        cb.assign(currentElementIndex, currentElementIndex + 1)
-        cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
+      cb.assign(currentElementIndex, currentElementIndex + 1)
+      cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
     }
-    val finish: EmitCodeBuilder => SIndexablePointerValue = { (cb: EmitCodeBuilder) =>
-      cb.ifx(currentElementIndex.cne(length), cb._fatal("PCanonicalArray.constructFromFunctions push was called the wrong number of times: len=",
-        length.toS, ", calls=", currentElementIndex.toS))
+
+    def finish(cb: EmitCodeBuilder): SIndexablePointerValue = {
+      cb.if_(currentElementIndex cne length,
+        cb._fatal("PCanonicalArray.constructFromFunctions push was called the wrong number of times",
+          ": len=", length.toS,
+          ", calls=", currentElementIndex.toS
+        )
+      )
       new SIndexablePointerValue(sType, addr, length, firstElementAddress)
     }
+
     (push, finish)
   }
 
@@ -489,7 +531,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val push: (EmitCodeBuilder, Value[Int], IEmitCode) => Unit = {
       case (cb, idx, iec) =>
         iec.consume(cb,
-          setElementMissing(cb, addr, idx),
+          PContainer.unsafeSetElementMissing(cb, this, addr, idx),
           { sc =>
             setElementPresent(cb, addr, idx)
             elementType.storeAtAddress(cb, firstElementAddress + idx.toL * elementByteSize, region, sc, deepCopy = deepCopy)
@@ -541,5 +583,23 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       this
     else
       PCanonicalArray(copiedElement, required)
+  }
+
+  def forEachDefined(cb: EmitCodeBuilder, aoff: Value[Long])(f: (EmitCodeBuilder, Value[Int], SValue) => Unit) {
+    val length = cb.memoize(loadLength(aoff))
+    val elementsAddress = cb.memoize(firstElementOffset(aoff))
+    val idx = cb.newLocal[Int]("foreach_pca_idx", 0)
+    val elementPtr = cb.newLocal[Long]("foreach_pca_elt_ptr", elementsAddress)
+    val et = elementType
+    cb.while_(idx < length, {
+      cb.if_(isElementMissing(aoff, idx),
+        {}, // do nothing,
+        {
+          val elt = et.loadCheapSCode(cb, et.loadFromNested(elementPtr))
+          f(cb, idx, elt)
+        })
+      cb.assign(idx, idx + 1)
+      cb.assign(elementPtr, elementPtr + elementByteSize)
+    })
   }
 }

@@ -5,7 +5,7 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir.Literal
 import is.hail.types.virtual._
 import is.hail.utils._
-import org.apache.commons.lang.builder.HashCodeBuilder
+import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}

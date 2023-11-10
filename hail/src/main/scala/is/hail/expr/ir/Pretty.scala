@@ -35,8 +35,11 @@ object Pretty {
   def prettyBooleanLiteral(b: Boolean): String =
     if (b) "True" else "False"
 
-  def prettyClass(x: AnyRef): String =
-    x.getClass.getName.split("\\.").last
+  def prettyClass(x: AnyRef): String = {
+    val name = x.getClass.getName.split("\\.").last
+    if (name.endsWith("$")) name.substring(0, name.length - 1)
+    else name
+  }
 }
 
 class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, allowUnboundRefs: Boolean, useSSA: Boolean) {
@@ -488,6 +491,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
 
     def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(String, String)]] = ir match {
       case If(_, _, _) =>
+        if (i > 0) Some(FastSeq()) else None
+      case _: Switch =>
         if (i > 0) Some(FastSeq()) else None
       case TailLoop(name, args, body) => if (i == args.length)
         Some(args.map { case (name, ir) => name -> "loopvar" } :+

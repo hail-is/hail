@@ -1,4 +1,5 @@
 import struct
+from typing import Union
 
 
 class ByteReader:
@@ -38,3 +39,29 @@ class ByteReader:
 
     def read_bytes(self, num_bytes):
         return self.read_bytes_view(num_bytes).tobytes()
+
+
+class ByteWriter:
+    def __init__(self, buf):
+        self._buf: bytearray = buf
+
+    def write_byte(self, v):
+        self._buf += struct.pack('=B', v)
+
+    def write_int32(self, v):
+        self._buf += struct.pack('=i', v)
+
+    def write_int64(self, v):
+        self._buf += struct.pack('=q', v)
+
+    def write_bool(self, v):
+        self._buf += b'\x01' if v else b'\x00'
+
+    def write_float32(self, v):
+        self._buf += struct.pack('=f', v)
+
+    def write_float64(self, v):
+        self._buf += struct.pack('=d', v)
+
+    def write_bytes(self, bs: Union[bytes, memoryview]):
+        self._buf += bs

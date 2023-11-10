@@ -13,6 +13,7 @@ hail/.ensime.cache.d/
 hail/.ensime_cache.d/
 hail/.ensime_cache/
 hail/build/
+!hail/build/deploy/dist/*.whl
 hail/hail.iml
 hail/hail.log
 hail/out/
@@ -25,4 +26,5 @@ hail/src/main/c/libsimdpp-2.0-rc2.tar.gz
 hail/src/main/resources/build-info.properties
 hail/src/test/resources/example.v11.bgen.idx
 hail/src/test/resources/random.bgen.idx
+benchmark/python/build/
 ci/repos

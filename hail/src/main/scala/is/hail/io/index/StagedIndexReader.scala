@@ -87,7 +87,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     // handle the cases where the query is less than all keys (including the
     // empty index case), to establish the precondition of runQuery, and as a
     // fast path for a common case
-    cb.ifx(nKeys.ceq(0), {
+    cb.if_(nKeys.ceq(0), {
       cb.assign(index, 0L)
       cb.goto(LReturn)
     })
@@ -97,7 +97,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     val firstKey = firstChild.loadField(cb, "first_key").get(cb).asBaseStruct
     val compEndpointWithFirstKey =
       compareStructWithPartitionIntervalEndpoint(cb, firstKey, endpoint, leansRight)
-    cb.ifx(compEndpointWithFirstKey > 0, {
+    cb.if_(compEndpointWithFirstKey > 0, {
       cb.assign(index, firstChild.loadField(cb, "first_idx").get(cb).asLong.value)
       cb.assign(leaf, getFirstLeaf(cb, firstChild))
       cb.goto(LReturn)
@@ -138,7 +138,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     // handle the cases where the query is less than all keys (including the
     // empty index case), to establish the precondition of runQuery, and as a
     // fast path for a common case
-    cb.ifx(nKeys.ceq(0), {
+    cb.if_(nKeys.ceq(0), {
       cb.assign(startIdx, 0L)
       cb.assign(endIdx, 0L)
       cb.goto(LReturn)
@@ -149,13 +149,13 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     val firstKey = firstChild.loadField(cb, "first_key").get(cb).asBaseStruct
     val compStartWithFirstKey =
       compareStructWithPartitionIntervalEndpoint(cb, firstKey, startKey, startLeansRight)
-    cb.ifx(compStartWithFirstKey > 0, {
+    cb.if_(compStartWithFirstKey > 0, {
       cb.assign(startIdx, firstChild.loadField(cb, "first_idx").get(cb).asLong.value)
       cb.assign(startLeaf, getFirstLeaf(cb, firstChild))
 
       val compEndWithFirstKey =
         compareStructWithPartitionIntervalEndpoint(cb, firstKey, endKey, endLeansRight)
-      cb.ifx(compEndWithFirstKey > 0, {
+      cb.if_(compEndWithFirstKey > 0, {
         cb.assign(endIdx, startIdx)
       }, {
         queryBound(cb, endKey, endLeansRight, rootLevel, rootOffset, nKeys, startLeaf)
@@ -174,8 +174,8 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     cb.define(LReturn)
 
     val n = cb.memoize(endIdx - startIdx)
-    cb.ifx(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startIdx=", startIdx.toS, ", endIdx=", endIdx.toS, ", query=", cb.strValue(interval)))
-    cb.ifx(n > 0L && startIdx >= nKeys, cb._fatal("bad start idx: ", startIdx.toS, ", nKeys=", nKeys.toS))
+    cb.if_(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startIdx=", startIdx.toS, ", endIdx=", endIdx.toS, ", query=", cb.strValue(interval)))
+    cb.if_(n > 0L && startIdx >= nKeys, cb._fatal("bad start idx: ", startIdx.toS, ", nKeys=", nKeys.toS))
 
     SStackStruct.constructFromArgs(cb, null, TTuple(TInt64, TInt64, leafChildType.virtualType),
       EmitCode.present(cb.emb, primitive(startIdx)),
@@ -267,14 +267,14 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     cb.define(Lstart)
 
     def updateSuccessor(children: SIndexableValue, idx: Value[Int]): Unit = {
-      cb.ifx(idx < children.loadLength(), {
+      cb.if_(idx < children.loadLength(), {
         val successorChild = children.loadElement(cb, idx).get(cb).asBaseStruct
         cb.assign(successorIndex, successorChild.loadField(cb, "first_idx").get(cb).asLong.value)
         cb.assign(successorLeaf, getFirstLeaf(cb, successorChild))
       })
     }
 
-    cb.ifx(level > 0, {
+    cb.if_(level > 0, {
       /*
       InternalNode(
         children: IndexedSeq[InternalChild])
@@ -290,15 +290,15 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
       val (start, end) = searchChildren(children, isInternalNode = true)
 
       cb.assign(level, level-1)
-      cb.ifx(start.ceq(0) || end.ceq(0), cb._fatal("queryInterval broken invariant"))
+      cb.if_(start.ceq(0) || end.ceq(0), cb._fatal("queryInterval broken invariant"))
 
-      cb.ifx(if (isPointQuery) const(true).get else start.ceq(end), {
+      cb.if_(if (isPointQuery) const(true).get else start.ceq(end), {
         updateSuccessor(children, start)
         cb.assign(nodeOffset, children.loadElement(cb, start-1).get(cb).asBaseStruct.loadField(cb, "index_file_offset").get(cb).asLong.value)
         cb.goto(Lstart)
       })
 
-      cb.ifx(!(start < children.loadLength()), cb._fatal("unreachable"))
+      cb.if_(!(start < children.loadLength()), cb._fatal("unreachable"))
 
       // continue with separate point queries for each endpoint
       updateSuccessor(children, end)
@@ -327,11 +327,11 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
       val (start, end) = searchChildren(children, isInternalNode = false)
 
       val firstIndex = cb.memoize(node.asBaseStruct.loadField(cb, "first_idx")).get(cb).asInt64.value
-      cb.ifx(start < children.loadLength(), {
+      cb.if_(start < children.loadLength(), {
         cb.assign(startIndex, firstIndex + start.toL)
         cb.assign(startLeaf, children.loadElement(cb, start).get(cb).asBaseStruct.toStackStruct(cb))
       }, {
-        cb.ifx(successorIndex.cne(firstIndex + start.toL), cb._fatal("queryInterval broken invariant"))
+        cb.if_(successorIndex.cne(firstIndex + start.toL), cb._fatal("queryInterval broken invariant"))
         cb.assign(startIndex, successorIndex)
         cb.assign(startLeaf, successorLeaf)
       })
@@ -355,7 +355,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     // returns an address if cached, or 0L if not found
     val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
 
-    cb.ifx(cached cne 0L, {
+    cb.if_(cached cne 0L, {
       cb.assign(ret, internalPType.loadCheapSCode(cb, cached))
     }, {
       cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readInternalNode", ("readInternalNode", this), FastSeq(LongInfo), ret.st.paramType) { emb =>
@@ -363,7 +363,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
           val offset = emb.getCodeParam[Long](1)
           cb += is.invoke[Long, Unit]("seek", offset)
           val ib = cb.memoize(internalCodec.buildCodeInputBuffer(is))
-          cb.ifx(ib.readByte() cne 1, cb._fatal("bad buffer at internal!"))
+          cb.if_(ib.readByte() cne 1, cb._fatal("bad buffer at internal!"))
           val region = cb.memoize(cb.emb.ecb.pool().invoke[Region.Size, Region]("getRegion", Region.TINIER))
           val internalNode = internalDec.apply(cb, region, ib)
           val internalNodeAddr = internalPType.store(cb, region, internalNode, false)
@@ -383,7 +383,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     // returns an address if cached, or 0L if not found
     val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
 
-    cb.ifx(cached cne 0L, {
+    cb.if_(cached cne 0L, {
       cb.assign(ret, leafPType.loadCheapSCode(cb, cached))
     }, {
       cb.assign(ret, cb.invokeSCode(cb.emb.ecb.getOrGenEmitMethod("readLeafNode", ("readLeafNode", this), FastSeq(LongInfo), ret.st.paramType) { emb =>
@@ -391,7 +391,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
           val offset = emb.getCodeParam[Long](1)
           cb += is.invoke[Long, Unit]("seek", offset)
           val ib = cb.memoize(leafCodec.buildCodeInputBuffer(is))
-          cb.ifx(ib.readByte() cne 0, cb._fatal("bad buffer at leaf!"))
+          cb.if_(ib.readByte() cne 0, cb._fatal("bad buffer at leaf!"))
           val region = cb.memoize(cb.emb.ecb.pool().invoke[Region.Size, Region]("getRegion", Region.TINIER))
           val leafNode = leafDec.apply(cb, region, ib)
           val leafNodeAddr = leafPType.store(cb, region, leafNode, false)
@@ -418,11 +418,11 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
           val branchingFactor = cb.memoize(metadata.invoke[Int]("branchingFactor"))
           val result = cb.emb.newPLocal(leafChildType)
 
-          cb.ifx(absIndex >= nKeys(cb), cb._fatal("bad idx: ", absIndex.toS))
+          cb.if_(absIndex >= nKeys(cb), cb._fatal("bad idx: ", absIndex.toS))
 
           val Lstart = CodeLabel()
           cb.define(Lstart)
-          cb.ifx(level ceq 0, {
+          cb.if_(level ceq 0, {
             val leafNode = readLeafNode(cb, offset)
             val localIdx = cb.memoize((absIndex - leafNode.loadField(cb, "first_idx").get(cb).asInt64.value.toL).toI)
             cb.assign(result, leafNode.loadField(cb, "keys").get(cb).asIndexable.loadElement(cb, localIdx).get(cb))

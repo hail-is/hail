@@ -195,7 +195,7 @@ async def async_logout():
     deploy_config = get_deploy_config()
 
     # Logout any legacy auth tokens that might still exist
-    auth_ns = deploy_config.service_ns('auth')
+    auth_ns = deploy_config.default_namespace()
     tokens = get_tokens()
     if auth_ns in tokens:
         await logout_deprecated_token_credentials(deploy_config, tokens[auth_ns])

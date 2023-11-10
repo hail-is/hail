@@ -1,5 +1,6 @@
-from typing import Callable, TypeVar, cast
+from typing import Callable, Optional, TypeVar, cast
 from typing_extensions import ParamSpec
+import base64
 import copy
 import json
 from collections import defaultdict
@@ -7,7 +8,7 @@ from collections import defaultdict
 from hailtop.hail_decorator import decorator
 
 import hail
-from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
+from hail.expr.types import HailType, hail_type, tint32, tint64, \
     tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
     tstruct, ttuple, tinterval, tvoid, trngstate, tlocus, tcall
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
@@ -290,6 +291,10 @@ class Let(IR):
 
     def _handle_randomness(self, create_uids):
         return Let(self.name, self.value, self.body.handle_randomness(create_uids))
+
+    @property
+    def might_be_stream(self):
+        return self.body.might_be_stream
 
     @typecheck_method(value=IR, body=IR)
     def copy(self, value, body):
@@ -3644,6 +3649,34 @@ class Literal(IR):
         return self._typ
 
 
+class EncodedLiteral(IR):
+    @typecheck_method(typ=hail_type, value=anytype, encoded_value=nullable(str))
+    def __init__(self, typ, value, *, encoded_value = None):
+        super(EncodedLiteral, self).__init__()
+        self._typ: HailType = typ
+        self._value = value
+        self._encoded_value = encoded_value
+
+    @property
+    def encoded_value(self):
+        if self._encoded_value is None:
+            self._encoded_value = base64.b64encode(self._typ._to_encoding(self._value)).decode('utf-8')
+        return self._encoded_value
+
+    def copy(self):
+        return EncodedLiteral(self._typ, self._value, encoded_value=self._encoded_value)
+
+    def head_str(self):
+        return f'{self._typ._parsable_string()} "{self.encoded_value}"'
+
+    def _eq(self, other):
+        return other._typ == self._typ and \
+            other.encoded_value == self.encoded_value
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return self._typ
+
+
 class LiftMeOut(IR):
     @typecheck_method(child=IR)
     def __init__(self, child):
@@ -3705,23 +3738,36 @@ class Join(IR):
         return self.virtual_ir.typ
 
 
+class JavaIRSharedReference:
+    def __init__(self, ir_id):
+        self._id = ir_id
+
+    def __del__(self):
+        from hail.backend.py4j_backend import Py4JBackend
+        if Env._hc:
+            backend = Env.backend()
+            assert isinstance(backend, Py4JBackend)
+            backend._jbackend.removeJavaIR(self._id)
+
+
 class JavaIR(IR):
-    def __init__(self, jir):
+    def __init__(self, hail_type: HailType, ir_id: int, ref: Optional[JavaIRSharedReference] = None):
         super(JavaIR, self).__init__()
-        self._jir = jir
-        super().__init__()
+        self._type = hail_type
+        self._id = ir_id
+        self._ref = ref or JavaIRSharedReference(ir_id)
 
     def copy(self):
-        return JavaIR(self._jir)
+        return JavaIR(self._type, self._id, self._ref)
 
     def render_head(self, r):
-        return f'(JavaIR{r.add_jir(self._jir)}'
+        return f'(JavaIR {self._id}'
 
     def _eq(self, other):
-        return self._jir == other._jir
+        return self._id == other._id
 
     def _compute_type(self, env, agg_env, deep_typecheck):
-        return dtype(self._jir.typ().toString())
+        return self._type
 
 
 def subst(ir, env, agg_env):

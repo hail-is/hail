@@ -330,7 +330,7 @@ class SimplifySuite extends HailSuite {
   @DataProvider(name = "unaryBooleanArithmetic")
   def unaryBooleanArithmetic: Array[Array[Any]] =
     Array(
-      Array(ApplyUnaryPrimOp(Bang(), ApplyUnaryPrimOp(Bang(), ref(TBoolean))), ref(TBoolean))
+      Array(ApplyUnaryPrimOp(Bang, ApplyUnaryPrimOp(Bang, ref(TBoolean))), ref(TBoolean))
     ).asInstanceOf[Array[Array[Any]]]
 
   @Test(dataProvider = "unaryBooleanArithmetic")
@@ -341,10 +341,10 @@ class SimplifySuite extends HailSuite {
   def unaryIntegralArithmetic: Array[Array[Any]] =
     Array(TInt32, TInt64).flatMap { typ =>
       Array(
-        Array(ApplyUnaryPrimOp(Negate(), ApplyUnaryPrimOp(Negate(), ref(typ))), ref(typ)),
-        Array(ApplyUnaryPrimOp(BitNot(), ApplyUnaryPrimOp(BitNot(), ref(typ))), ref(typ)),
-        Array(ApplyUnaryPrimOp(Negate(), ApplyUnaryPrimOp(BitNot(), ref(typ))), ApplyUnaryPrimOp(Negate(), ApplyUnaryPrimOp(BitNot(), ref(typ)))),
-        Array(ApplyUnaryPrimOp(BitNot(), ApplyUnaryPrimOp(Negate(), ref(typ))), ApplyUnaryPrimOp(BitNot(), ApplyUnaryPrimOp(Negate(), ref(typ))))
+        Array(ApplyUnaryPrimOp(Negate, ApplyUnaryPrimOp(Negate, ref(typ))), ref(typ)),
+        Array(ApplyUnaryPrimOp(BitNot, ApplyUnaryPrimOp(BitNot, ref(typ))), ref(typ)),
+        Array(ApplyUnaryPrimOp(Negate, ApplyUnaryPrimOp(BitNot, ref(typ))), ApplyUnaryPrimOp(Negate, ApplyUnaryPrimOp(BitNot, ref(typ)))),
+        Array(ApplyUnaryPrimOp(BitNot, ApplyUnaryPrimOp(Negate, ref(typ))), ApplyUnaryPrimOp(BitNot, ApplyUnaryPrimOp(Negate, ref(typ))))
       ).asInstanceOf[Array[Array[Any]]]
     }
 
@@ -364,7 +364,7 @@ class SimplifySuite extends HailSuite {
 
           // Subtraction
           Array(ApplyBinaryPrimOp(Subtract(), ref(typ), ref(typ)), pure(0)),
-          Array(ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+          Array(ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)), ApplyUnaryPrimOp(Negate, ref(typ))),
           Array(ApplyBinaryPrimOp(Subtract(), ref(typ), pure(0)), ref(typ)),
 
           // Multiplication
@@ -372,15 +372,15 @@ class SimplifySuite extends HailSuite {
           Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(0)), pure(0)),
           Array(ApplyBinaryPrimOp(Multiply(), pure(1), ref(typ)), ref(typ)),
           Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(1)), ref(typ)),
-          Array(ApplyBinaryPrimOp(Multiply(), pure(-1), ref(typ)), ApplyUnaryPrimOp(Negate(), ref(typ))),
-          Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+          Array(ApplyBinaryPrimOp(Multiply(), pure(-1), ref(typ)), ApplyUnaryPrimOp(Negate, ref(typ))),
+          Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate, ref(typ))),
 
           // Div (truncated to -Inf)
           Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), ref(typ)), pure(1)),
           Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), pure(0), ref(typ)), pure(0)),
           Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(0)), Die("division by zero", typ)),
           Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
-          Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+          Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate, ref(typ))),
 
           // Bitwise And
           Array(ApplyBinaryPrimOp(BitAnd(), pure(0), ref(typ)), pure(0)),
@@ -422,18 +422,18 @@ class SimplifySuite extends HailSuite {
         Array(ApplyBinaryPrimOp(Add(), ref(typ), pure(0)), ref(typ)),
 
         // Subtraction
-        Array(ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+        Array(ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)), ApplyUnaryPrimOp(Negate, ref(typ))),
         Array(ApplyBinaryPrimOp(Subtract(), ref(typ), pure(0)), ref(typ)),
 
         // Multiplication
         Array(ApplyBinaryPrimOp(Multiply(), pure(1), ref(typ)), ref(typ)),
         Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(1)), ref(typ)),
-        Array(ApplyBinaryPrimOp(Multiply(), pure(-1), ref(typ)), ApplyUnaryPrimOp(Negate(), ref(typ))),
-        Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+        Array(ApplyBinaryPrimOp(Multiply(), pure(-1), ref(typ)), ApplyUnaryPrimOp(Negate, ref(typ))),
+        Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate, ref(typ))),
 
         // Div (truncated to -Inf)
         Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
-        Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate(), ref(typ))),
+        Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)), ApplyUnaryPrimOp(Negate, ref(typ))),
       ).asInstanceOf[Array[Array[Any]]]
     }
 
@@ -471,6 +471,21 @@ class SimplifySuite extends HailSuite {
   @Test(dataProvider = "blockMatrixRules")
   def testBlockMatrixSimplification(input: BlockMatrixIR, expected: BlockMatrixIR): Unit =
     assert(Simplify(ctx, input) == expected)
+
+  @DataProvider(name = "SwitchRules")
+  def switchRules: Array[Array[Any]] =
+    Array(
+      Array(I32(-1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(-1)),
+      Array(I32(1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(1)),
+      Array(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32), Switch(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32))),
+      Array(I32(256), I32(-1), IndexedSeq.empty[IR], I32(-1)),
+      Array(ref(TInt32), I32(-1), IndexedSeq.empty[IR], Switch(ref(TInt32), I32(-1), IndexedSeq.empty[IR])), // missingness
+    )
+
+  @Test(dataProvider = "SwitchRules")
+  def testTestSwitchSimplification(x: IR, default: IR, cases: IndexedSeq[IR], expected: Any): Unit =
+    assert(Simplify(ctx, Switch(x, default, cases)) == expected)
+
 }
 
 

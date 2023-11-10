@@ -1794,3 +1794,17 @@ def test_logistic_regression_epacts_firth(logistic_epacts_mt):
     assert actual[4].locus == hl.Locus("22", 16117953, 'GRCh37')
     assert actual[4].beta == pytest.approx(0.5258, rel=1e-4)
     assert actual[4].p_value == pytest.approx(0.22562, rel=1e-4)
+
+
+## issue 13788
+def test_logistic_regression_y_parameter_sanity():
+    mt = hl.utils.range_matrix_table(2,2)
+    mt = mt.annotate_entries(prod = mt.row_idx * mt.col_idx)
+
+    with pytest.raises(hl.ExpressionException):
+        hl.logistic_regression_rows(
+            test='wald',
+            x=mt.prod,
+            y=mt.row_idx,
+            covariates=[1.0]
+        ).describe()

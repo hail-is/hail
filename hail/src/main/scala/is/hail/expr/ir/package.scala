@@ -31,7 +31,7 @@ package object ir {
   def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean): ir.IR = {
     val pred = genUID()
     ir.Let(pred,
-      if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang(), irPred),
+      if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang, irPred),
       ir.If(ir.IsNA(ir.Ref(pred, TBoolean)),
         ir.False(),
         ir.Ref(pred, TBoolean)))

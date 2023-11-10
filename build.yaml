@@ -37,7 +37,6 @@ steps:
   - kind: createNamespace
     name: default_ns
     namespaceName: default
-    public: true
     secrets:
       - name: auth-oauth2-client-secret
       - name: registry-push-credentials
@@ -751,15 +750,16 @@ steps:
       du -h $WHEEL_PATH
       $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
 
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+      mkdir /io/wheel
+      mv build/deploy/dist/hail-*-py3-none-any.whl /io/wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /hail.jar
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /wheel-container.tar
+      - from: /io/wheel
+        to: /wheel
     dependsOn:
       - base_image
       - merge_code
@@ -776,15 +776,16 @@ steps:
       chmod 755 ./gradlew
       time retry ./gradlew --version
       time retry make jars wheel HAIL_DEBUG_MODE=1
-      (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+      mkdir /io/debug-wheel
+      mv build/deploy/dist/hail-*-py3-none-any.whl /io/debug-wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
         to: /hail-debug-test.jar
-      - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
-        to: /debug-wheel-container.tar
+      - from: /io/debug-wheel
+        to: /debug-wheel
     dependsOn:
       - base_image
       - merge_code
@@ -838,13 +839,15 @@ steps:
       time retry ./gradlew --version
       export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
       time retry make wheel
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+
+      mkdir /io/azure-wheel
+      mv build/deploy/dist/hail-*-py3-none-any.whl /io/azure-wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /wheel-for-azure-container.tar
+      - from: /io/azure-wheel
+        to: /azure-wheel
     dependsOn:
       - base_image
       - merge_code
@@ -1004,8 +1007,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/debug-wheel/hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1017,8 +1019,8 @@ steps:
       export VECLIB_MAXIMUM_THREADS=2
       export NUMEXPR_NUM_THREADS=2
 
-      export HAIL_TEST_RESOURCES_DIR=./resources
-      export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_TEST_RESOURCES_DIR=$(realpath ./resources)
+      export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
@@ -1034,8 +1036,8 @@ steps:
               --timeout=120 \
               test
     inputs:
-      - from: /debug-wheel-container.tar
-        to: /io/debug-wheel-container.tar
+      - from: /debug-wheel
+        to: /io/debug-wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1133,14 +1135,13 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
 
-      export HAIL_TEST_RESOURCES_DIR=./resources
-      export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_TEST_RESOURCES_DIR=$(realpath ./resources)
+      export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
@@ -1157,8 +1158,8 @@ steps:
               --timeout=120 \
               test
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1191,8 +1192,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/debug-wheel/hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       # The test should use the test credentials, not CI's credentials
@@ -1209,8 +1209,8 @@ steps:
 
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_TEST_STORAGE_URI=/io/tmp/
-      export HAIL_TEST_RESOURCES_DIR=./resources
-      export HAIL_DOCTEST_DATA_DIR=./data
+      export HAIL_TEST_RESOURCES_DIR=$(realpath ./resources)
+      export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_LOCAL_BACKEND_HEAP_SIZE=3G
 
       hailctl config set query/backend local
@@ -1228,8 +1228,8 @@ steps:
               test
     timeout: 1800
     inputs:
-      - from: /debug-wheel-container.tar
-        to: /io/debug-wheel-container.tar
+      - from: /debug-wheel
+        to: /io/debug-wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1256,8 +1256,7 @@ steps:
       cpu: '2'
     script: |
       set -ex
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       export HAIL_QUERY_N_CORES=2
       export OMP_NUM_THREADS=2
@@ -1289,8 +1288,8 @@ steps:
     inputs:
       - from: /repo/hail/python/hail/docs
         to: /io/docs
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
     dependsOn:
       - build_hail_jar_and_wheel
       - hail_run_image
@@ -1309,8 +1308,7 @@ steps:
       export HAIL_SHORT_VERSION='0.2'
       export SPHINXOPTS='-tgenerate_notebook_outputs'
 
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       cd /io/hail
       export HAIL_WEBSITE_DIR=/io/website/website/
@@ -1337,8 +1335,8 @@ steps:
         to: /io/repo/hail/python/hail/hail_version
       - from: /repo/website/website
         to: /io/website/website
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
     outputs:
       - from: /io/www.tar.gz
         to: /www.tar.gz
@@ -1355,15 +1353,40 @@ steps:
       - name: BASE_IMAGE
         value:
           valueFrom: hail_ubuntu_image.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
+      - from: /wheel
+        to: /io/repo/wheel
     dependsOn:
       - merge_code
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image
+  - kind: buildImage2
+    name: hail-benchmark-image
+    dockerFile: /io/repo/benchmark/Dockerfile
+    contextPath: /io/repo
+    publishAs: hail-benchmark
+    buildArgs:
+      - name: HAIL_UBUNTU
+        value:
+          valueFrom: hail_ubuntu_image.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
+    inputs:
+      - from: /repo/benchmark
+        to: /io/repo/benchmark
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /wheel
+        to: /io/repo/wheel
+      - from: /hail_pip_version
+        to: /io/repo/benchmark/python/version
+    dependsOn:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
@@ -1375,13 +1398,15 @@ steps:
       - name: BASE_IMAGE
         value:
           valueFrom: hail_ubuntu_image_python_3_10.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
+      - from: /wheel
+        to: /io/repo/wheel
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel
@@ -1395,13 +1420,15 @@ steps:
       - name: BASE_IMAGE
         value:
           valueFrom: hail_ubuntu_image_python_3_11.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel-container.tar
-        to: /io/repo/wheel-container.tar
+      - from: /wheel
+        to: /io/repo/wheel
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel
@@ -1459,20 +1486,24 @@ steps:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
         FROM $BASE_IMAGE
-        RUN hail-apt-get-install make
+        RUN hail-apt-get-install git make
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
         COPY gear/pinned-requirements.txt gear-requirements.txt
         COPY web_common/pinned-requirements.txt web_common-requirements.txt
         COPY batch/pinned-requirements.txt batch-requirements.txt
         COPY ci/pinned-requirements.txt ci-requirements.txt
+        COPY benchmark/python/pinned-requirements.txt benchmark-requirements.txt
         RUN python3 -m pip install \
             -r hail-requirements.txt \
             -r dev-requirements.txt \
             -r gear-requirements.txt \
             -r web_common-requirements.txt \
             -r batch-requirements.txt \
-            -r ci-requirements.txt
+            -r ci-requirements.txt \
+            -r benchmark-requirements.txt \
+            && \
+            python3 -m pyright --version # Force the installation of node and npm pyright in the image
     publishAs: linting
     inputs:
       - from: /repo/hail/python/pinned-requirements.txt
@@ -1487,6 +1518,8 @@ steps:
         to: /io/repo/batch/pinned-requirements.txt
       - from: /repo/ci/pinned-requirements.txt
         to: /io/repo/ci/pinned-requirements.txt
+      - from: /repo/benchmark/python/pinned-requirements.txt
+        to: /io/repo/benchmark/python/pinned-requirements.txt
     dependsOn:
       - merge_code
       - hail_ubuntu_image
@@ -2301,6 +2334,18 @@ steps:
       - name: dedup-agg-batch-resources
         script: /io/sql/dedup_agg_batch_resources.py
         online: true
+      - name: setup-job-groups
+        script: /io/sql/setup-job-groups.sql
+        online: true
+      - name: dedup-job-resources
+        script: /io/sql/dedup_job_resources.py
+        online: true
+      - name: fix-job-groups-state-enum
+        script: /io/sql/fix-job-groups-state-enum.sql
+        online: true
+      - name: populate-job-groups
+        script: /io/sql/populate_job_groups.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2418,8 +2463,7 @@ steps:
       preemptible: False
     script: |
       set -ex
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -2451,13 +2495,14 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              --ignore=test/hail/matrixtable/test_file_formats.py \
               -m qobtest \
               --timeout=600 \
               test
     timeout: 5400
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
     secrets:
@@ -2489,8 +2534,7 @@ steps:
       preemptible: False
     script: |
       set -ex
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -2523,13 +2567,14 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              --ignore=test/hail/matrixtable/test_file_formats.py \
               -m qobtest \
               --timeout=600 \
               test
     timeout: 5400
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
     secrets:
@@ -2563,8 +2608,7 @@ steps:
       preemptible: False
     script: |
       set -ex
-      tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
 
       export YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS=1
 
@@ -2578,8 +2622,8 @@ steps:
               --durations=50 \
               /io/test_requester_pays_parsing.py
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /wheel
+        to: /io/wheel
       - from: /repo/hail/scripts/test_requester_pays_parsing.py
         to: /io/test_requester_pays_parsing.py
     dependsOn:
@@ -2616,8 +2660,11 @@ steps:
       storage: 10Gi
     dockerFile:
       inline: |
-        FROM python:3.9
-        RUN pip install torch torchvision -f https://download.pytorch.org/whl/cu113/torch_stable.html
+        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
+        FROM $BASE_IMAGE
+        RUN hail-pip-install torch torchvision -f https://download.pytorch.org/whl/cu113/torch_stable.html
+    dependsOn:
+      - hail_ubuntu_image
   - kind: buildImage2
     name: workdir_image
     publishAs: workdir
@@ -2790,12 +2837,14 @@ steps:
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/tls/create_test_db_config.sh ./ci/test/resources/
       cp /io/repo/pylintrc ./
+      cp /io/repo/check-sql.sh ./
       cp /io/repo/pyproject.toml ./
       cp -R /io/repo/docker ./
       cp -R /io/repo/gear ./
       cp -R /io/repo/hail/python ./hail/
       cp /io/repo/hail/Makefile ./hail/
       cp /io/repo/hail/env_var.mk ./hail/
+      cp /io/repo/hail/version.mk ./hail/
       cp -R /io/repo/web_common ./
       cp /io/repo/hail/python/setup-hailtop.py ./hail/python/
 
@@ -2928,6 +2977,10 @@ steps:
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
+
+      {% if global.cloud == 'gcp' %}
+      export GCS_REQUESTER_PAYS_PROJECT={{ global.gcp_project }}
+      {% endif %}
 
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_hailtop_batch/{{ token }}/
@@ -3256,7 +3309,7 @@ steps:
     clouds:
       - gcp
   - kind: runImage
-    name: deploy
+    name: release
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -3288,24 +3341,22 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
-      (mkdir /io/wheel-for-azure && cd /io/wheel-for-azure && tar xvf /io/wheel-for-azure-container.tar)
-
-      bash scripts/deploy.sh $(cat /io/hail_pip_version) \
-                             $(cat /io/hail_version) \
-                             $(cat /io/git_version) \
-                             origin \
-                             /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
-                             /io/github-oauth \
-                             docker://{{ hailgenetics_hail_image.image }} \
-                             docker://{{ hailgenetics_hailtop_image.image }} \
-                             docker://{{ hailgenetics_hail_image_python_3_10.image }} \
-                             docker://{{ hailgenetics_hail_image_python_3_11.image }} \
-                             docker://{{ hailgenetics_vep_grch37_85_image.image }} \
-                             docker://{{ hailgenetics_vep_grch38_95_image.image }} \
-                             /io/wheel-for-azure/hail-*-py3-none-any.whl \
-                             /io/www.tar.gz \
-                             {{ global.gcp_project }} \
-                             /io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt
+      bash scripts/release.sh $(cat /io/hail_pip_version) \
+                              $(cat /io/hail_version) \
+                              $(cat /io/git_version) \
+                              origin \
+                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
+                              /io/github-oauth \
+                              docker://{{ hailgenetics_hail_image.image }} \
+                              docker://{{ hailgenetics_hailtop_image.image }} \
+                              docker://{{ hailgenetics_hail_image_python_3_10.image }} \
+                              docker://{{ hailgenetics_hail_image_python_3_11.image }} \
+                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+                              docker://{{ hailgenetics_vep_grch38_95_image.image }} \
+                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
+                              /io/www.tar.gz \
+                              {{ global.gcp_project }} \
+                              /io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3315,8 +3366,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
-      - from: /wheel-for-azure-container.tar
-        to: /io/wheel-for-azure-container.tar
+      - from: /azure-wheel
+        to: /io/wheel-for-azure
       - from: /www.tar.gz
         to: /io/www.tar.gz
     secrets:

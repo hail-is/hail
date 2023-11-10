@@ -104,6 +104,7 @@ configurations {
     hailJar.extendsFrom implementation
     hailJar {
         exclude group: 'org.scala-lang', module: 'scala-library'
+        exclude group: 'org.scala-lang', module: 'scala-reflect'
         exclude group: 'org.apache.spark'
     }
 
