@@ -743,6 +743,8 @@ steps:
     script: |
       set -ex
 
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
       cd /io/repo/hail
@@ -766,6 +768,11 @@ steps:
         to: /hail.jar
       - from: /io/wheel
         to: /wheel
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
     dependsOn:
       - base_image
       - merge_code
@@ -779,6 +786,8 @@ steps:
     script: |
       set -ex
 
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
       cd /io/repo/hail
@@ -795,6 +804,11 @@ steps:
         to: /hail-debug-test.jar
       - from: /io/debug-wheel
         to: /debug-wheel
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
     dependsOn:
       - base_image
       - merge_code
@@ -808,6 +822,8 @@ steps:
     script: |
       set -ex
 
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
       cd /io/repo/hail
@@ -834,6 +850,11 @@ steps:
         to: /splits.tar.gz
       - from: /io/repo/hail/data.tar.gz
         to: /data.tar.gz
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
     dependsOn:
       - base_image
       - merge_code
@@ -847,6 +868,8 @@ steps:
     script: |
       set -ex
 
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
       cd /io/repo/hail
@@ -863,6 +886,11 @@ steps:
     outputs:
       - from: /io/azure-wheel
         to: /azure-wheel
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
     dependsOn:
       - base_image
       - merge_code
@@ -3248,8 +3276,6 @@ steps:
     script: |
       set -ex
 
-      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
-
       cd /io/repo
 
       gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
@@ -3263,8 +3289,17 @@ steps:
       fi
 
       cd hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      (
+          # only use these credentials for building, not for uploading
+          export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+          export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+          export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
+
+          chmod 755 ./gradlew
+          time retry ./gradlew --version
+          time install-hailctl DEV_CLARIFIER=ci_test_dataproc-37
+      )
+
       make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37
     dependsOn:
       - ci_utils_image
@@ -3280,6 +3315,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-dataproc-service-account-key
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
     scopes:
       - deploy
       - dev
@@ -3291,8 +3330,6 @@ steps:
       valueFrom: ci_utils_image.image
     script: |
       set -ex
-
-      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
       cd /io/repo
 
@@ -3307,8 +3344,18 @@ steps:
       fi
 
       cd hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+
+      (
+          # only use these credentials for building, not for uploading
+          export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+          export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+          export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
+
+          chmod 755 ./gradlew
+          time retry ./gradlew --version
+          time install-hailctl DEV_CLARIFIER=ci_test_dataproc-38
+      )
+
       make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38
     dependsOn:
       - ci_utils_image
@@ -3324,6 +3371,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-dataproc-service-account-key
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
     scopes:
       - deploy
       - dev
@@ -3336,8 +3387,6 @@ steps:
     script: |
       set -ex
       cd /io
-
-      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
       gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
 
@@ -3360,9 +3409,18 @@ steps:
           exit 0
       fi
 
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      make wheel upload-artifacts DEPLOY_REMOTE=origin
+      (
+          # only use these credentials for building, not for uploading
+          export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+          export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+          export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
+
+          chmod 755 ./gradlew
+          time retry ./gradlew --version
+          make wheel DEPLOY_REMOTE=origin
+      )
+
+      make upload-artifacts DEPLOY_REMOTE=origin
 
       bash scripts/release.sh $(cat /io/hail_pip_version) \
                               $(cat /io/hail_version) \
@@ -3410,6 +3468,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /hail-ci-0-1-github-oauth-token
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
     scopes:
       - deploy
       - dev
