@@ -110,6 +110,8 @@ class GCSBuildCacheServiceFactory extends BuildCacheServiceFactory[GCSBuildCache
     describer
       .`type`("Google Cloud Storage")
       .config("gcsURL", conf.getGcsURL)
+      .config("isPush", conf.getIsPush.toString)
+      .config("enabled", conf.getEnabled.toString)
 
     return new GCSBuildCache(conf)
   }
