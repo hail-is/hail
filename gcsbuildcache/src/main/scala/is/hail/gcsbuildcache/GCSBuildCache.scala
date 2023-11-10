@@ -7,15 +7,28 @@ import org.gradle.caching.configuration.AbstractBuildCache
 import org.gradle.caching.{BuildCacheEntryWriter, BuildCacheEntryReader, BuildCacheService, BuildCacheServiceFactory, BuildCacheKey}
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.{Bucket, StorageException, StorageOptions, BlobId, BlobInfo}
+import com.google.cloud.storage.Storage.{BlobWriteOption, BlobTargetOption}
 import com.google.common.io.FileBackedOutputStream
 import java.nio.channels.Channels
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 
 
-class GCSBuildCacheConfiguration(
-  var gcsURL: String = "",
-) extends AbstractBuildCache
+// Gradle requirs a no-argument constructor. A one-argument Scala constructor with default arguments
+// *does not work*.
+class GCSBuildCacheConfiguration() extends AbstractBuildCache {
+  // Gradle requires literal setters and getters. Do not try to expose a mutable field directly to
+  // gradle, you will get errors like "Could not set unknown property 'gcsURL'"
+  private[this] var _gcsURL: String = null
+  def setGcsURL(gcsURL: String) = _gcsURL = gcsURL
+  def getGcsURL: String = _gcsURL
+  def getIsPush: Boolean = isPush()
+  def setIsPush(isPush: Boolean) = setPush(isPush)
+  // Gradle cannot directly modify isEnabled/setEnabled because they do not follow the get/set
+  // pattern.
+  def getEnabled: Boolean = isEnabled()
+  override def setEnabled(enabled: Boolean) = super.setEnabled(enabled)
+}
 
 class GCSBuildCache(
   conf: GCSBuildCacheConfiguration
@@ -27,47 +40,59 @@ class GCSBuildCache(
     .getService
 
   override def store(key: BuildCacheKey, writer: BuildCacheEntryWriter): Unit = {
-    val path = conf.gcsURL + "/" + key.hashCode.toString
-    val blobinfo = BlobInfo.newBuilder(BlobId.fromGsUtilUri(path)).build()
-    val value = new FileBackedOutputStream(8 * 1024 * 1024, true)
-    writer.writeTo(value)
-    val is = value.asByteSource().openBufferedStream()
     try {
-      storage.create(blobinfo, is)
-      System.out.println(s"cache stored $key")
+      val path = conf.getGcsURL + "/" + key.hashCode
+      val blobinfo = BlobInfo.newBuilder(BlobId.fromGsUtilUri(path)).build()
+      val value = new FileBackedOutputStream(8 * 1024 * 1024, true)
+      writer.writeTo(value)
+      log.lifecycle(s"storing cache $key ${key.hashCode} $path")
+      val is = value.asByteSource().openBufferedStream()
+      try {
+        val onlyCreateIfNotExists = BlobWriteOption.doesNotExist()
+        storage.create(blobinfo, is, onlyCreateIfNotExists)
+        log.lifecycle(s"cache stored $key ${key.hashCode} $path")
+      } catch {
+        case exc: StorageException =>
+          throw new RuntimeException(s"$key ${key.hashCode} could not be stored in cache at $path", exc)
+      } finally {
+        is.close()
+      }
     } catch {
-      case exc: StorageException =>
-        throw new RuntimeException(s"$key could not be stored in cache at $path", exc)
-    } finally {
-      is.close()
+      case exc: Exception =>
+        // Gradle will silence all exceptions and quietly disable the build cache, so we loudly
+        // print the exception.
+        exc.printStackTrace()
+        throw exc
     }
   }
 
   override def load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean = {
-    System.out.println(s"checking cache key $key")
-    val path = conf.gcsURL + "/" + key.hashCode.toString
+    val path = conf.getGcsURL + "/" + key.hashCode
     val blobid = BlobId.fromGsUtilUri(path)
+    log.lifecycle(s"checking cache key $key ${key.hashCode} $path")
     try {
       val blob = storage.get(blobid)
+      if (blob == null) {
+        return false
+      }
       reader.readFrom(Channels.newInputStream(blob.reader()))
-      System.out.println(s"cache hit $key")
+      log.lifecycle(s"cache hit $key ${key.hashCode} $path")
 
       if (blob.getCreateTimeOffsetDateTime().until(OffsetDateTime.now(), ChronoUnit.SECONDS) > 24 * 60 * 60) {
         val blobinfo = BlobInfo.newBuilder(blobid).build()
-        System.out.println(s"will refreshing cache $key")
-        storage.create(blobinfo, blob.getContent())
-        System.out.println(s"refreshed cache $key")
+        log.lifecycle(s"will refreshing cache $key ${key.hashCode} $path")
+        val onlyUpdateIfNoOneHasBeatenMeToIt = BlobTargetOption.generationMatch(blob.getGeneration)
+        storage.create(blobinfo, blob.getContent(), onlyUpdateIfNoOneHasBeatenMeToIt)
+        log.lifecycle(s"refreshed cache $key ${key.hashCode} $path")
       }
       return true
     } catch {
-      case exc: StorageException if exc.getCode == 404 =>
-        System.out.println(s"cache miss $key")
-        return false
-      case exc: StorageException =>
-        throw new RuntimeException(s"$key could not be loaded from cache at $path", exc)
+      case exc: Exception =>
+        // Gradle will silence all exceptions and quietly disable the build cache, so we loudly
+        // print the exception.
+        exc.printStackTrace()
+        throw exc
     }
-
-    return false
   }
 
   override def close(): Unit = {}
@@ -78,13 +103,13 @@ class GCSBuildCacheServiceFactory extends BuildCacheServiceFactory[GCSBuildCache
     conf: GCSBuildCacheConfiguration,
     describer: BuildCacheServiceFactory.Describer
   ): BuildCacheService = {
-    if (conf.gcsURL == null || conf.gcsURL == "") {
+    if (conf.getGcsURL == null || conf.getGcsURL == "") {
       throw new GradleException("gcsURL must be set.")
     }
 
     describer
       .`type`("Google Cloud Storage")
-      .config("gcsURL", conf.gcsURL)
+      .config("gcsURL", conf.getGcsURL)
 
     return new GCSBuildCache(conf)
   }

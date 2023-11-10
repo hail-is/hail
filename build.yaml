@@ -742,6 +742,9 @@ steps:
       cpu: '2'
     script: |
       set -ex
+
+      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
+
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
@@ -775,6 +778,9 @@ steps:
       cpu: '2'
     script: |
       set -ex
+
+      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
+
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
@@ -801,6 +807,9 @@ steps:
       cpu: '2'
     script: |
       set -ex
+
+      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
+
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
@@ -837,6 +846,9 @@ steps:
       cpu: '2'
     script: |
       set -ex
+
+      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
+
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
@@ -3236,6 +3248,8 @@ steps:
     script: |
       set -ex
 
+      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
+
       cd /io/repo
 
       gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
@@ -3277,6 +3291,8 @@ steps:
       valueFrom: ci_utils_image.image
     script: |
       set -ex
+
+      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
       cd /io/repo
 
@@ -3320,6 +3336,8 @@ steps:
     script: |
       set -ex
       cd /io
+
+      export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
       gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
 

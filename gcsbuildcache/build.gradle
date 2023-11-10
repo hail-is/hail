@@ -1,10 +1,14 @@
-plugins {
-  id 'java'
-  id 'scala'
+buildscript {
+    repositories {
+        mavenCentral()
+    }
 }
 
 plugins {
+    id 'java'
+    id 'scala'
     id "com.gradle.plugin-publish" version "1.0.0"
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = "is.hail.gcsbuildcache"
@@ -33,3 +37,8 @@ gradlePlugin {
         }
     }
 }
+
+shadowJar {
+    archiveClassifier = ''
+}
+
