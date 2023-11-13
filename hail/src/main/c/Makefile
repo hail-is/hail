@@ -5,6 +5,7 @@ MAKEFLAGS += --no-builtin-rules
 
 UNAME_S :=$(shell uname -s)
 UNAME_P :=$(shell uname -p)
+UNAME_M :=$(shell uname -m)
 
 BUILD := build
 
@@ -22,46 +23,12 @@ LIBSIMDPP := libsimdpp-2.1
 
 CATCH_HEADER_LOCATION := ../resources/include/catch.hpp
 
-# If you want to add a new cpp file, like foo.cpp, to the library, add foo to
-# this list. Remember to rerun make prebuilt.
-OBJECTS := \
-  ibs \
-  Decoder \
-  Encoder \
-  Logging \
-  NativeCodeSuite \
-  NativeLongFunc \
-  NativeModule \
-  NativePtr \
-  NativeStatus \
-  ObjectArray \
-  PartitionIterators \
-  Region \
-  Upcalls \
-  FS \
-
-BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
-
 # before libsimdpp and catch.hpp are downloaded, clang -MG -MM will generate
 # unresolved dependencies
 .PHONY: simdpp/simd.h catch.hpp
 simdpp/simd.h: $(LIBSIMDPP)
 catch.hpp: $(CATCH_HEADER_LOCATION)
 
-TEST_CPP := $(wildcard *_test.cpp) testutils/unit-tests.cpp
-TEST_OBJECTS := $(foreach file,$(TEST_CPP),$(BUILD)/$(basename $(file)).o)
-
-ALL_CPP := $(shell find * -iname '*.cpp')
-HEADER_DEPENDENCIES := $(ALL_CPP:%.cpp=build/%.d)
--include $(HEADER_DEPENDENCIES)
-
-$(BUILD)/%.d: %.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $< -MG -M -MF $@ -MT $(@:%.d=%.o)
-
-$(BUILD)/%.o: %.cpp
-	@mkdir -p $(@D)
-	$(CXX) -o $@ $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
 
 ifndef JAVA_HOME
   TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)
@@ -102,29 +69,16 @@ ifneq ($(WARNFLAGS),)
   CXXFLAGS := $(filter-out $(WARNFLAGS),$(CXXFLAGS))
 endif
 
-# If no inherited "-march=%", then use "-march=sandybridge" or "-march=corei7-avx"
-# for ISA compatibility with MacBook Pro's since 2011 (also the earliest cpu with AVX).
-# Fall back to "-march=native" if the compiler doesn't support either of those.
-
-ifeq ($(filter -march=%,$(CXXFLAGS)),)
-  FAIL_A :=$(shell cp /dev/null a.cpp; $(CXX) -march=sandybridge -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
-  ifeq ($(FAIL_A),)
-    CXXFLAGS += -march=sandybridge
-  else
-    # g++-4.8.x accepts "-march=corei7-avx" but not "-march=sandybridge	"
-    FAIL_B :=$(shell cp /dev/null a.cpp; $(CXX) -march=corei7-avx -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
-    ifeq ($(FAIL_B),)
-      CXXFLAGS += -march=corei7-avx
-    else
-      CXXFLAGS += -march=native
-    endif
-  endif
-endif
-
 # Append to any inherited flags which survived filtering
 CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Wextra
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
+ifeq ($(UNAME_S),Darwin)
+  BREW_PREFIX := $(shell brew --prefix)
+  ifneq ($(BREW_PREFIX),)
+    CXXFLAGS += -I$(BREW_PREFIX)/include
+  endif
+endif
 LIBFLAGS += -fvisibility=default
 PREBUILT := ../../../prebuilt
 
@@ -136,12 +90,104 @@ ifeq ($(UNAME_S),Linux)
     LIBBOOT := lib/linux-x86/libboot.so
     LIBHAIL := lib/linux-x86/libhail.so
   endif
+  NATIVE_BUILD := $(BUILD_X86_64)
 endif
 ifeq ($(UNAME_S),Darwin)
   LIBFLAGS += -dynamiclib -Wl,-undefined,dynamic_lookup
+  LIBBOOT_X86_64 := lib/darwin/x86_64/libboot.dylib
+  LIBHAIL_X86_64 := lib/darwin/x86_64/libhail.dylib
+  LIBBOOT_ARM64 := lib/darwin/arm64/libboot.dylib
+  LIBHAIL_ARM64 := lib/darwin/arm64/libhail.dylib
   LIBBOOT := lib/darwin/libboot.dylib
   LIBHAIL := lib/darwin/libhail.dylib
+  ifeq ($(UNAME_M),arm64)
+    NATIVE_BUILD := $(BUILD_ARM64)
+  else
+    NATIVE_BUILD := $(BUILD_X86_64)
+  endif
 endif
+
+# If you want to add a new cpp file, like foo.cpp, to the library, add foo to
+# this list. Remember to rerun make prebuilt.
+OBJECTS := \
+  ibs \
+  Decoder \
+  Encoder \
+  Logging \
+  NativeCodeSuite \
+  NativeLongFunc \
+  NativeModule \
+  NativePtr \
+  NativeStatus \
+  ObjectArray \
+  PartitionIterators \
+  Region \
+  Upcalls \
+  FS \
+
+BUILD_X86_64 := $(BUILD)/x86_64
+CXXFLAGS_X86_64 := $(CXXFLAGS) -arch x86_64
+LIBFLAGS_X86_64 := $(LIBFLAGS) -arch x86_64
+BUILD_OBJECTS_X86_64 := $(addprefix $(BUILD_X86_64)/, $(OBJECTS:%=%.o))
+
+BUILD_ARM64 := $(BUILD)/arm64
+CXXFLAGS_ARM64 := $(CXXFLAGS) -arch arm64
+LIBFLAGS_ARM64 := $(LIBFLAGS) -arch arm64
+BUILD_OBJECTS_ARM64 := $(addprefix $(BUILD_ARM64)/, $(OBJECTS:%=%.o))
+
+TEST_CPP := $(wildcard *_test.cpp) testutils/unit-tests.cpp
+TEST_OBJECTS_X86_64 := $(foreach file,$(TEST_CPP),$(BUILD_X86_64)/$(basename $(file)).o)
+TEST_OBJECTS_ARM64 := $(foreach file,$(TEST_CPP),$(BUILD_ARM64)/$(basename $(file)).o)
+
+ALL_CPP := $(shell find * -iname '*.cpp')
+HEADER_DEPENDENCIES := $(addprefix $(BUILD_X86_64)/, $(ALL_CPP:%.cpp=%.d))
+HEADER_DEPENDENCIES += $(addprefix $(BUILD_ARM64)/, $(ALL_CPP:%.cpp=%.d))
+-include $(HEADER_DEPENDENCIES)
+
+# If no inherited "-march", and we are targeting x86_64, then use "-march=sandybridge" or
+# "-march=corei7-avx" for ISA compatibility with MacBook Pro's since 2011 (also the earliest cpu
+# with AVX).
+#
+# If no inherited "-march", and we are targeting arm64, then use "-march=apple-m1".
+#
+# Fall back to "-march=native" if the compiler doesn't support any of those.
+ifeq ($(filter -march=%,$(CXXFLAGS)),)
+  FAIL_A_X86_64 :=$(shell cp /dev/null a.cpp; $(CXX) -arch x86_64 -march=sandybridge -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
+  ifeq ($(FAIL_A_X86_64),)
+    CXXFLAGS_X86_64 += -march=sandybridge
+  else
+    # g++-4.8.x accepts "-march=corei7-avx" but not "-march=sandybridge	"
+    FAIL_B_X86_64 :=$(shell cp /dev/null a.cpp; $(CXX) -arch x86_64 -march=corei7-avx -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
+    ifeq ($(FAIL_B_X86_64),)
+      CXXFLAGS_X86_64 += -march=corei7-avx
+    else
+      CXXFLAGS_X86_64 += -march=native
+    endif
+  endif
+
+  FAIL_A_ARM64 :=$(shell cp /dev/null a.cpp; $(CXX) -arch arm64 -march=apple-m1 -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
+  ifeq ($(FAIL_A_ARM64),)
+    CXXFLAGS_ARM64 += -march=apple-m1
+  else
+    CXXFLAGS_ARM64 += -march=native
+  endif
+endif
+
+$(BUILD_X86_64)/%.d: %.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS_X86_64) $< -MG -M -MF $@ -MT $(@:%.d=%.o)
+
+$(BUILD_ARM64)/%.d: %.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS_ARM64) $< -MG -M -MF $@ -MT $(@:%.d=%.o)
+
+$(BUILD_X86_64)/%.o: %.cpp
+	@mkdir -p $(@D)
+	$(CXX) -o $@ $(CXXFLAGS_X86_64) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
+
+$(BUILD_ARM64)/%.o: %.cpp
+	@mkdir -p $(@D)
+	$(CXX) -o $@ $(CXXFLAGS_ARM64) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
 
 all: $(LIBBOOT) $(LIBHAIL)
 
@@ -154,38 +200,47 @@ endif
 	echo "CXX is $(CXX)"
 	-$(CXX) --version
 
-$(BUILD)/functional-tests: ibs.cpp test.cpp $(LIBSIMDPP)
+$(BUILD_X86_64)/functional-tests: ibs.cpp test.cpp $(LIBSIMDPP)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 -o $(BUILD)/functional-tests ibs.cpp test.cpp
+	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 -o $(BUILD_X86_64)/functional-tests ibs.cpp test.cpp
 
-$(BUILD)/unit-tests: $(BUILD_OBJECTS) $(TEST_OBJECTS)
+$(BUILD_ARM64)/functional-tests: ibs.cpp test.cpp $(LIBSIMDPP)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS) -ldl
+	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 -o $(BUILD_ARM64)/functional-tests ibs.cpp test.cpp
+
+$(BUILD_X86_64)/unit-tests: $(BUILD_OBJECTS_X86_64) $(TEST_OBJECTS)
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -o $(BUILD_X86_64)/unit-tests $(BUILD_OBJECTS_X86_64) $(TEST_OBJECTS) -ldl
+
+$(BUILD_ARM64)/unit-tests: $(BUILD_OBJECTS_ARM64) $(TEST_OBJECTS)
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -o $(BUILD_ARM64)/unit-tests $(BUILD_OBJECTS_ARM64) $(TEST_OBJECTS) -ldl
 
 prebuilt: $(LIBBOOT) $(LIBHAIL)
+	@mkdir -p $(PREBUILT)/$(dir $<)
 	cp -p -f $^ $(PREBUILT)/$(dir $<)
 
 reset-prebuilt:
 	git checkout HEAD -- $(PREBUILT)/$(LIBBOOT)
 	git checkout HEAD -- $(PREBUILT)/$(LIBHAIL)
 
-test: $(BUILD)/functional-tests $(BUILD)/unit-tests
-	./$(BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
+test: $(NATIVE_BUILD)/functional-tests $(NATIVE_BUILD)/unit-tests
+	./$(NATIVE_BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(NATIVE_BUILD)/cxx-test.xml; \
 			case "$$?" in \
 				*) \
-				mkdir -p $(BUILD)/reports; \
-				cp testutils/style.css $(BUILD)/reports; \
-				xsltproc -o $(BUILD)/reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-test.xml;; \
+				mkdir -p $(NATIVE_BUILD)/reports; \
+				cp testutils/style.css $(NATIVE_BUILD)/reports; \
+				xsltproc -o $(NATIVE_BUILD)/reports/index.html testutils/test-reporter.xslt $(NATIVE_BUILD)/cxx-test.xml;; \
 			esac
-	./$(BUILD)/functional-tests
+	./$(NATIVE_BUILD)/functional-tests
 
-benchmark: $(BUILD)/unit-tests
-	./$(BUILD)/unit-tests "[!benchmark]" -s -d yes -# -r xml -o $(BUILD)/cxx-benchmark.xml; \
+benchmark: $(NATIVE_BUILD)/unit-tests
+	./$(NATIVE_BUILD)/unit-tests "[!benchmark]" -s -d yes -# -r xml -o $(NATIVE_BUILD)/cxx-benchmark.xml; \
 			case "$$?" in \
 				*) \
-				mkdir -p $(BUILD)/benchmark-reports; \
-				cp testutils/style.css $(BUILD)/benchmark-reports; \
-				xsltproc -o $(BUILD)/benchmark-reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-benchmark.xml;; \
+				mkdir -p $(NATIVE_BUILD)/benchmark-reports; \
+				cp testutils/style.css $(NATIVE_BUILD)/benchmark-reports; \
+				xsltproc -o $(NATIVE_BUILD)/benchmark-reports/index.html testutils/test-reporter.xslt $(NATIVE_BUILD)/cxx-benchmark.xml;; \
 			esac
 
 clean:
@@ -201,9 +256,13 @@ clean:
 ALL_HEADER_FILES := $(shell find ../resources/include -name "*.h")
 ALL_HEADER_CKSUM := $(shell $(CXX) --version >.cxx.vsn ; cat .cxx.vsn $(ALL_HEADER_FILES) | cksum | cut -d " " -f 1)
 
-$(BUILD)/NativeModule.o: NativeModule.cpp
+$(BUILD_X86_64)/NativeModule.o: NativeModule.cpp
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -DALL_HEADER_CKSUM=$(ALL_HEADER_CKSUM)UL -c NativeModule.cpp -o $@
+	$(CXX) $(CXXFLAGS_X86_64) -DALL_HEADER_CKSUM=$(ALL_HEADER_CKSUM)UL -c NativeModule.cpp -o $@
+
+$(BUILD_ARM64)/NativeModule.o: NativeModule.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS_ARM64) -DALL_HEADER_CKSUM=$(ALL_HEADER_CKSUM)UL -c NativeModule.cpp -o $@
 
 $(CATCH_HEADER_LOCATION):
 	@mkdir -p $(@D)
@@ -215,10 +274,32 @@ $(LIBSIMDPP).tar.gz:
 $(LIBSIMDPP): $(LIBSIMDPP).tar.gz
 	tar -xzf $<
 
-$(LIBBOOT): $(BUILD)/NativeBoot.o
-	@mkdir -p $(dir $(LIBBOOT))
-	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD)/NativeBoot.o -o $@
+ifeq ($(UNAME_S),Darwin)
+$(LIBBOOT_X86_64): $(BUILD_X86_64)/NativeBoot.o
+	@mkdir -p $(dir $@)
+	$(CXX) $(LIBFLAGS_X86_64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
+$(LIBHAIL_X86_64): $(BUILD_OBJECTS_X86_64)
+	@mkdir -p $(dir $@)
+	$(CXX) $(LIBFLAGS_X86_64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
 
-$(LIBHAIL): $(BUILD_OBJECTS)
-	@mkdir -p $(dir $(LIBHAIL))
-	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@
+$(LIBBOOT_ARM64): $(BUILD_ARM64)/NativeBoot.o
+	@mkdir -p $(dir $@)
+	$(CXX) $(LIBFLAGS_ARM64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
+$(LIBHAIL_ARM64): $(BUILD_OBJECTS_ARM64)
+	@mkdir -p $(dir $@)
+	$(CXX) $(LIBFLAGS_ARM64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
+
+$(LIBBOOT): $(LIBBOOT_X86_64) $(LIBBOOT_ARM64)
+	@mkdir -p $(dir $@)
+	lipo -create $^ -output $@
+$(LIBHAIL): $(LIBHAIL_X86_64) $(LIBHAIL_ARM64)
+	@mkdir -p $(dir $@)
+	lipo -create $^ -output $@
+else
+$(LIBBOOT): $(BUILD_X86_64)/NativeBoot.o
+	@mkdir -p $(dir $@)
+	$(CXX) $(LIBFLAGS_X86_64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
+$(LIBHAIL): $(BUILD_OBJECTS_X86_64)
+	@mkdir -p $(dir $@)
+	$(CXX) $(LIBFLAGS_X86_64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
+endif
