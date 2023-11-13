@@ -37,13 +37,22 @@ class FS(abc.ABC):
     def mkdir(self, path: str):
         raise NotImplementedError
 
+    async def amkdir(self, path: str):
+        return self.mkdir(path)
+
     @abc.abstractmethod
     def remove(self, path: str):
         raise NotImplementedError
 
+    async def aremove(self, path: str):
+        return self.remove(path)
+
     @abc.abstractmethod
     def rmtree(self, path: str):
         raise NotImplementedError
+
+    async def armtree(self, path: str):
+        return self.rmtree(path)
 
     @abc.abstractmethod
     def supports_scheme(self, scheme: str) -> bool:

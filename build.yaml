@@ -2496,6 +2496,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              --ignore=test/hail/matrixtable/test_file_formats.py \
               -m qobtest \
               --timeout=600 \
               test
@@ -2567,6 +2568,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              --ignore=test/hail/matrixtable/test_file_formats.py \
               -m qobtest \
               --timeout=600 \
               test

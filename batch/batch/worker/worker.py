@@ -1192,9 +1192,10 @@ class Container:
                 'resources': {
                     "devices": [{"allow": False, "access": "rwm"}],
                     'cpu': {'shares': weight},
-                    'memory': {
-                        'limit': self.memory_in_bytes,
-                        'reservation': self.memory_in_bytes,
+                    'unified': {  # https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md
+                        'memory.max': str(int(0.99 * self.memory_in_bytes)),
+                        'memory.high': str(int(0.95 * self.memory_in_bytes)),
+                        'memory.swap.max': '0',
                     },
                     # 'blockIO': {'weight': min(weight, 1000)}, FIXME blkio.weight not supported
                 },

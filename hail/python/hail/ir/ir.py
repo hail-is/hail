@@ -292,6 +292,10 @@ class Let(IR):
     def _handle_randomness(self, create_uids):
         return Let(self.name, self.value, self.body.handle_randomness(create_uids))
 
+    @property
+    def might_be_stream(self):
+        return self.body.might_be_stream
+
     @typecheck_method(value=IR, body=IR)
     def copy(self, value, body):
         return Let(self.name, value, body)

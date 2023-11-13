@@ -1,5 +1,7 @@
 import pytest
-import asyncio
+import os
+from typing import List
+from pathlib import Path
 
 import hail as hl
 from hail.utils.java import Env, scala_object
@@ -45,35 +47,26 @@ def all_values_table_fixture(init_hail):
     return create_all_values_table()
 
 
-# pytest sometimes uses background threads, named "Dummy-1", to collect tests. Our synchronous
-# interfaces will try to get an event loop by calling `asyncio.get_event_loop()`. asyncio will
-# create an event loop when `get_event_loop()` is called if and only if the current thread is the
-# main thread. We therefore manually create an event loop which is used only for collecting the
-# files.
-try:
-    old_loop = asyncio.get_running_loop()
-except RuntimeError as err:
-    assert 'no running event loop' in err.args[0]
-    old_loop = None
-loop = asyncio.new_event_loop()
-try:
-    asyncio.set_event_loop(loop)
-    resource_dir = resource('backward_compatability')
-    fs = hl.current_backend().fs
-    try:
-        ht_paths = [x.path for x in fs.ls(resource_dir + '/*/table/')]
-        mt_paths = [x.path for x in fs.ls(resource_dir + '/*/matrix_table/')]
-    finally:
-        hl.stop()
-finally:
-    loop.stop()
-    loop.close()
-    asyncio.set_event_loop(old_loop)
+resource_dir = resource('backward_compatability')
+def add_paths(dirname):
+    file_paths: List[str] = []
+    with os.scandir(resource_dir) as versions:
+        for version_dir in versions:
+            try:
+                with os.scandir(Path(resource_dir, version_dir, dirname)) as old_files:
+                    for file in old_files:
+                        file_paths.append(file.path)
+            except FileNotFoundError:
+                pass
+    return file_paths
+
+ht_paths = add_paths('table')
+mt_paths = add_paths('matrix_table')
 
 
 @pytest.mark.parametrize("path", mt_paths)
 def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
-    assert len(mt_paths) == 56, str((resource_dir, ht_paths))
+    assert len(mt_paths) == 56, str((resource_dir, mt_paths))
 
     old = hl.read_matrix_table(path)
 

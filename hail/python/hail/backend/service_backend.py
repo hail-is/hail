@@ -7,6 +7,7 @@ import struct
 from hail.expr.expressions.base_expression import Expression
 import orjson
 import logging
+from contextlib import AsyncExitStack
 import warnings
 
 from hail.context import TemporaryDirectory, TemporaryFilename, tmp_dir, revision, version
@@ -18,10 +19,10 @@ from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
 from hailtop.config import (ConfigVariable, configuration_of, get_remote_tmpdir)
+from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import async_to_blocking, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
-from hailtop.batch_client import client as hb
-from hailtop.batch_client import aioclient as aiohb
+from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 import hailtop.aiotools.fs as afs
@@ -188,7 +189,7 @@ class ServiceBackend(Backend):
     @staticmethod
     async def create(*,
                      billing_project: Optional[str] = None,
-                     batch_client: Optional[aiohb.BatchClient] = None,
+                     batch_client: Optional[BatchClient] = None,
                      disable_progress_bar: Optional[bool] = None,
                      remote_tmpdir: Optional[str] = None,
                      flags: Optional[Dict[str, str]] = None,
@@ -218,8 +219,8 @@ class ServiceBackend(Backend):
         )
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
-            batch_client = await aiohb.BatchClient.create(billing_project, _token=credentials_token)
-        bc = hb.BatchClient.from_async(batch_client)
+            batch_client = await BatchClient.create(billing_project, _token=credentials_token)
+        batch_attributes: Dict[str, str] = dict()
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
         jar_url = configuration_of(ConfigVariable.QUERY_JAR_URL, jar_url, None)
@@ -244,7 +245,7 @@ class ServiceBackend(Backend):
                 regions = regions_from_conf.split(',')
 
         if regions is None or regions == ANY_REGION:
-            regions = bc.supported_regions()
+            regions = await batch_client.supported_regions()
 
         assert len(regions) > 0, regions
 
@@ -273,7 +274,7 @@ class ServiceBackend(Backend):
             billing_project=billing_project,
             sync_fs=sync_fs,
             async_fs=async_fs,
-            bc=bc,
+            batch_client=batch_client,
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
             remote_tmpdir=remote_tmpdir,
@@ -292,7 +293,7 @@ class ServiceBackend(Backend):
                  billing_project: str,
                  sync_fs: FS,
                  async_fs: RouterAsyncFS,
-                 bc: hb.BatchClient,
+                 batch_client: BatchClient,
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
                  remote_tmpdir: str,
@@ -306,8 +307,7 @@ class ServiceBackend(Backend):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
         self._async_fs = async_fs
-        self.bc = bc
-        self.async_bc = self.bc._async_client
+        self._batch_client = batch_client
         self._batch_was_submitted: bool = False
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
@@ -322,10 +322,10 @@ class ServiceBackend(Backend):
         self.worker_memory = worker_memory
         self.regions = regions
 
-        self._batch: aiohb.Batch = self._create_batch()
+        self._batch: Batch = self._create_batch()
 
-    def _create_batch(self) -> aiohb.Batch:
-        return self.async_bc.create_batch(attributes=self.batch_attributes)
+    def _create_batch(self) -> Batch:
+        return self._batch_client.create_batch(attributes=self.batch_attributes)
 
     def validate_file(self, uri: str) -> None:
         validate_file(uri, self._async_fs, validate_scheme=True)
@@ -353,8 +353,12 @@ class ServiceBackend(Backend):
         return log
 
     def stop(self):
-        async_to_blocking(self._async_fs.close())
-        async_to_blocking(self.async_bc.close())
+        hail_event_loop().run_until_complete(self._stop())
+
+    async def _stop(self):
+        async with AsyncExitStack() as stack:
+            stack.push_async_callback(self._async_fs.close)
+            stack.push_async_callback(self._batch_client.close)
         self.functions = []
         self._registered_ir_function_names = set()
 
@@ -370,7 +374,7 @@ class ServiceBackend(Backend):
         driver_memory: Optional[str] = None,
     ) -> Tuple[bytes, str]:
         timings = Timings()
-        with TemporaryDirectory(ensure_exists=False) as iodir:
+        async with TemporaryDirectory(ensure_exists=False) as iodir:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
                     await infile.write(orjson.dumps({
