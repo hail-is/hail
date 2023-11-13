@@ -767,7 +767,7 @@ BEGIN
   SET delta_running_cancellable_cores_mcpu  = delta_n_running_cancellable_jobs * cores_mcpu;
   SET delta_running_cores_mcpu              = delta_n_running_jobs * cores_mcpu;
 
-  INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, job_group_id, update_id, inst_coll, token,
+  INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token,
     n_ready_cancellable_jobs,
     ready_cancellable_cores_mcpu,
     n_creating_cancellable_jobs,
