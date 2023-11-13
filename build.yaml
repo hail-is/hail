@@ -774,6 +774,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
     dependsOn:
+      - default_ns
       - base_image
       - merge_code
   - kind: runImage
@@ -810,6 +811,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
     dependsOn:
+      - default_ns
       - base_image
       - merge_code
   - kind: runImage
@@ -856,6 +858,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
     dependsOn:
+      - default_ns
       - base_image
       - merge_code
   - kind: runImage
@@ -892,6 +895,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
     dependsOn:
+      - default_ns
       - base_image
       - merge_code
   - kind: buildImage2
