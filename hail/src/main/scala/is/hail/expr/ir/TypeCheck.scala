@@ -283,7 +283,7 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStream])
         assert(lessThan.typ == TBoolean)
       case x@ToSet(a) =>
-        assert(a.typ.isInstanceOf[TStream])
+        assert(a.typ.isInstanceOf[TStream], a.typ)
       case x@ToDict(a) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(tcoerce[TBaseStruct](tcoerce[TStream](a.typ).elementType).size == 2)
@@ -360,7 +360,7 @@ object TypeCheck {
         assert(key.forall(eltType.hasField))
       case x@StreamFilter(a, name, cond) =>
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
-        assert(cond.typ == TBoolean)
+        assert(cond.typ == TBoolean, cond.typ)
         assert(x.typ == a.typ)
       case x@StreamTakeWhile(a, name, cond) =>
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)

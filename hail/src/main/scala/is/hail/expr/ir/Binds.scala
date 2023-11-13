@@ -11,6 +11,8 @@ object Binds {
 object Bindings {
   private val empty: Array[(String, Type)] = Array()
 
+  // A call to Bindings(x, i) may only query the types of children with
+  // index < i
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
     case Let(name, value, _) => if (i == 1) Array(name -> value.typ) else empty
     case TailLoop(name, args, resultType, _) => if (i == args.length)
@@ -26,14 +28,14 @@ object Bindings {
       else
         empty
     case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, _) =>
-      val contextType = TIterable.elementType(contexts.typ)
-      val eltType = tcoerce[TStruct](tcoerce[TStream](makeProducer.typ).elementType)
-      if (i == 1)
+      if (i == 1) {
+        val contextType = TIterable.elementType(contexts.typ)
         Array(ctxName -> contextType)
-      else if (i == 2)
+      } else if (i == 2) {
+        val eltType = tcoerce[TStruct](tcoerce[TStream](makeProducer.typ).elementType)
         Array(curKey -> eltType.typeAfterSelectNames(key),
           curVals -> TArray(eltType))
-      else
+      } else
         empty
     case StreamFor(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamFlatMap(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty

@@ -185,10 +185,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
     case TailLoop(name, args, returnType, _) if !elideBindings =>
       FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastSeq), returnType.parsableString())
-    case Recur(name, _, t) => if (elideBindings)
-      single(t.parsableString())
-    else
-      FastSeq(prettyIdentifier(name), t.parsableString())
+    case Recur(name, _, t) if !elideBindings =>
+      FastSeq(prettyIdentifier(name))
 //    case Ref(name, t) if t != null => FastSeq(prettyIdentifier(name), t.parsableString())  // For debug purposes
     case Ref(name, _) => single(prettyIdentifier(name))
     case RelationalRef(name, t) => if (elideBindings)
