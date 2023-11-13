@@ -469,7 +469,7 @@ BEGIN
     INNER JOIN job_group_self_and_ancestors ON job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
       job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
-      job_group_self_and_ancestors.parent_id = in_job_group_id AND
+      job_group_self_and_ancestors.ancestor_id = in_job_group_id AND
       batch_updates.committed;
 
     INSERT INTO job_groups_cancelled (id, job_group_id) VALUES (in_batch_id, in_job_group_id);
