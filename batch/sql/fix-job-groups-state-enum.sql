@@ -6,7 +6,8 @@ FOR EACH ROW
 BEGIN
   DECLARE jg_state VARCHAR(40);
 
-  SET jg_state = IF(NEW.state = "open", "complete", NEW.state);
+  -- 2023-11-14: IF() patched locally to account for CPG database state
+  SET jg_state = IF(NEW.state = "running", "running", "complete");
 
   IF OLD.migrated_batch = 0 AND NEW.migrated_batch = 1 THEN
     INSERT INTO job_groups (batch_id, job_group_id, `user`, cancel_after_n_failures, `state`, n_jobs, time_created, time_completed, callback, attributes)
