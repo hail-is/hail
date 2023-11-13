@@ -118,12 +118,12 @@ class ForwardLetsSuite extends HailSuite {
 
   @Test def testLetNoMention(): Unit = {
     val ir = Let("x", I32(1), I32(2))
-    assert(ForwardLets(ctx)(ir) == I32(2))
+    assert(ForwardLets[IR](ctx)(ir) == I32(2))
   }
 
   @Test def testLetRefRewrite(): Unit = {
     val ir = Let("x", I32(1), Ref("x", TInt32))
-    assert(ForwardLets(ctx)(ir) == I32(1))
+    assert(ForwardLets[IR](ctx)(ir) == I32(1))
   }
 
   @Test def testAggregators(): Unit = {
