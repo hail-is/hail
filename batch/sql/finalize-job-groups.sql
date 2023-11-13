@@ -450,7 +450,7 @@ BEGIN
       job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
       job_group_inst_coll_cancellable_resources.job_group_id = in_job_group_id AND
-      job_group_updates.committed
+      batch_updates.committed
     GROUP BY user, inst_coll
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,
