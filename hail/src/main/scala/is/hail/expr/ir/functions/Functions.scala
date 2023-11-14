@@ -196,7 +196,7 @@ object IRFunctionRegistry {
   def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[IRFunctionImplementation] = {
     val validIR: Option[IRFunctionImplementation] = lookupIR(name, returnType, typeParameters, arguments).map {
       case ((_, _, _, inline), conversion) => (typeParametersPassed, args, errorID) =>
-        val x = ApplyIR(name, returnType, typeParametersPassed, args, errorID)
+        val x = ApplyIR(name, typeParametersPassed, args, returnType, errorID)
         x.conversion = conversion
         x.inline = inline
         x

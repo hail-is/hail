@@ -766,6 +766,16 @@ object IRParser {
     } yield ir
   }
 
+  def apply_like(env: IRParserEnvironment, cons: (String, Seq[Type], Seq[IR], Type, Int) => IR)(it: TokenIterator): StackFrame[IR] = {
+    val errorID = int32_literal(it)
+    val function = identifier(it)
+    val typeArgs = type_exprs(it)
+    val rt = type_expr(it)
+    ir_value_children(env)(it).map { args =>
+      cons(function, typeArgs, args, rt, errorID)
+    }
+  }
+
   def ir_value_expr_1(env: IRParserEnvironment)(it: TokenIterator): StackFrame[IR] = {
     identifier(it) match {
       case "I32" => done(I32(int32_literal(it)))
@@ -1364,29 +1374,11 @@ object IRParser {
           args <- ir_value_children(env)(it)
         } yield ApplySeeded(function, args, rngState, staticUID, rt)
       case "ApplyIR" =>
-        val errorID = int32_literal(it)
-        val function = identifier(it)
-        val typeArgs = type_exprs(it)
-        val rt = type_expr(it)
-        ir_value_children(env)(it).map { args =>
-          ApplyIR(function, rt, typeArgs, args, errorID)
-        }
+        apply_like(env, ApplyIR)(it)
       case "ApplySpecial" =>
-        val errorID = int32_literal(it)
-        val function = identifier(it)
-        val typeArgs = type_exprs(it)
-        val rt = type_expr(it)
-        ir_value_children(env)(it).map { args =>
-          ApplySpecial(function, typeArgs, args, rt, errorID)
-        }
+        apply_like(env, ApplySpecial)(it)
       case "Apply" =>
-        val errorID = int32_literal(it)
-        val function = identifier(it)
-        val typeArgs = type_exprs(it)
-        val rt = type_expr(it)
-        ir_value_children(env)(it).map { args =>
-          Apply(function, typeArgs, args, rt, errorID)
-        }
+        apply_like(env, Apply)(it)
       case "MatrixCount" =>
         matrix_ir(env)(it).map(MatrixCount)
       case "TableCount" =>

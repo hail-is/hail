@@ -712,7 +712,7 @@ final case class Trap(child: IR) extends IR
 final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 final case class ConsoleLog(message: IR, result: IR) extends IR
 
-final case class ApplyIR(function: String, returnType: Type, typeArgs: Seq[Type], args: Seq[IR], errorID: Int) extends IR {
+final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends IR {
   var conversion: (Seq[Type], Seq[IR], Int) => IR = _
   var inline: Boolean = _
 

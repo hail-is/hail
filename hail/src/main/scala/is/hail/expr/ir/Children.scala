@@ -227,7 +227,7 @@ object Children {
     case Trap(child) => Array(child)
     case ConsoleLog(message, result) =>
       Array(message, result)
-    case ApplyIR(_, _, _, args, _) =>
+    case ApplyIR(_, _, args, _, _) =>
       args.toFastSeq
     case Apply(_, _, args, _, _) =>
       args.toFastSeq

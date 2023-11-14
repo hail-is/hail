@@ -384,10 +384,9 @@ case class BlockMatrixMap2(
   sparsityStrategy: SparsityStrategy
 ) extends BlockMatrixIR {
   override def typecheck(): Unit = {
-    assert(
-      left.typ.nRows == right.typ.nRows &&
-        left.typ.nCols == right.typ.nCols &&
-        left.typ.blockSize == right.typ.blockSize)
+    assert(left.typ.nRows == right.typ.nRows)
+    assert(left.typ.nCols == right.typ.nCols)
+    assert(left.typ.blockSize == right.typ.blockSize)
   }
 
   override lazy val typ: BlockMatrixType = left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
