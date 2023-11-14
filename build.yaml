@@ -777,6 +777,7 @@ steps:
       - default_ns
       - base_image
       - merge_code
+      - create_test_gsa_keys
   - kind: runImage
     name: build_hail_debug_jar_and_wheel
     image:
@@ -814,6 +815,7 @@ steps:
       - default_ns
       - base_image
       - merge_code
+      - create_test_gsa_keys
   - kind: runImage
     name: build_hail_test_artifacts
     image:
@@ -861,6 +863,7 @@ steps:
       - default_ns
       - base_image
       - merge_code
+      - create_test_gsa_keys
   - kind: runImage
     name: build_wheel_for_azure
     image:
@@ -898,6 +901,7 @@ steps:
       - default_ns
       - base_image
       - merge_code
+      - create_test_gsa_keys
   - kind: buildImage2
     name: hail_run_image
     dockerFile: /io/repo/hail/Dockerfile.hail-run
