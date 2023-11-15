@@ -1648,7 +1648,7 @@ async def _create_batch_update(
 ) -> Tuple[int, int, int]:
     @transaction(db)
     async def update(tx: Transaction):
-        assert n_jobs > 0
+        assert n_jobs > 0 or n_job_groups > 0
         record = await tx.execute_and_fetchone(
             '''
 SELECT update_id, start_job_id, start_job_group_id FROM batch_updates
