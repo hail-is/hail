@@ -420,7 +420,7 @@ resource "google_artifact_registry_repository" "repository" {
 
   # https://github.com/hashicorp/terraform-provider-azurerm/issues/7396
   lifecycle {
-    ignore_changes = [cleanup_policies, timeout]
+    ignore_changes = [cleanup_policies, timeouts]
   }
 }
 
