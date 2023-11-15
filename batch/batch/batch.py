@@ -109,7 +109,8 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
     d = {
-        'id': record['id'],
+        'batch_id': record['batch_id'],
+        'job_group_id': record['job_group_id'],
         'state': state,
         'complete': record['state'] == 'complete',
         'n_jobs': record['n_jobs'],
