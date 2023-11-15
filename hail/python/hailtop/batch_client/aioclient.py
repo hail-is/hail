@@ -345,6 +345,7 @@ class JobGroup:
         self.cancel_after_n_failures = cancel_after_n_failures
         self._parent_job_group = parent_job_group
         self._n_jobs = 0
+        self._last_known_status = None
 
     def _raise_if_not_submitted(self):
         if not self.is_submitted:
@@ -1082,7 +1083,7 @@ class Batch:
                 log.warning('Tried to submit an update with 0 jobs and 0 job groups. Doing nothing.')
                 return None
             if n_job_bunches <= 1 and n_job_group_bunches <= 1:
-                byte_job_specs_bunches = byte_job_specs_bunches[0] if byte_job_group_specs_bunches else []
+                byte_job_specs_bunches = byte_job_specs_bunches[0] if byte_job_specs_bunches else []
                 job_bunch_sizes = job_bunch_sizes[0] if job_bunch_sizes else 0
                 byte_job_group_specs_bunches = byte_job_group_specs_bunches[0] if byte_job_group_specs_bunches else []
                 job_group_bunch_sizes = job_group_bunch_sizes[0] if job_group_bunch_sizes else 0

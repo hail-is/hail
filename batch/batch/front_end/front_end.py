@@ -1621,8 +1621,11 @@ async def update_batch_fast(request, userdata):
                 {'update_id': update_id, 'start_job_id': start_job_id, 'start_job_group_id': start_job_group_id}
             )
         raise
+
     await _commit_update(app, batch_id, update_id, user, db)
+
     request['batch_telemetry']['batch_id'] = str(batch_id)
+
     return json_response(
         {'update_id': update_id, 'start_job_id': start_job_id, 'start_job_group_id': start_job_group_id}
     )
@@ -1936,7 +1939,7 @@ WHERE job_groups.user = %s AND job_groups.batch_id = %s AND job_groups.job_group
         raise web.HTTPBadRequest(reason='Cannot commit an update to a cancelled batch')
 
     await _commit_update(app, batch_id, update_id, user, db)
-    return json_response({'start_job_id': record['start_job_id']})
+    return json_response({'start_job_id': record['start_job_id'], 'start_job_group_id': record['start_job_group_id']})
 
 
 async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
