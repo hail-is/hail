@@ -1776,6 +1776,7 @@ SELECT job_groups.*,
   job_groups_n_jobs_in_complete_states.n_cancelled,
   cost_t.*
 FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN job_groups_n_jobs_in_complete_states
        ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
 LEFT JOIN job_groups_cancelled
