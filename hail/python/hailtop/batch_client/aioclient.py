@@ -403,7 +403,7 @@ class JobGroup:
             version = 1
         last_job_id = None
         while True:
-            params = {'recursive': str(recursive)}
+            params: Dict[str, Any] = {'recursive': str(recursive)}
             if q is not None:
                 params['q'] = q
             if last_job_id is not None:

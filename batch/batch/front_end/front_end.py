@@ -743,6 +743,8 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
+    if len(job_specs) == 0:
+        raise web.HTTPBadRequest(reason='at least one job spec must be submitted')
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
@@ -759,6 +761,8 @@ async def create_jobs_for_update(request: web.Request, userdata: UserData) -> we
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_specs = await json_request(request)
+    if len(job_specs) == 0:
+        raise web.HTTPBadRequest(reason='at least one job spec must be submitted')
     return await _create_jobs(userdata, job_specs, batch_id, update_id, app)
 
 
@@ -791,6 +795,8 @@ def assert_is_sha_1_hex_string(revision: str):
 async def _create_jobs(
     userdata, job_specs: List[Dict[str, Any]], batch_id: int, update_id: int, app: web.Application
 ) -> web.Response:
+    assert len(job_specs) > 0
+
     db: Database = app['db']
     file_store: FileStore = app['file_store']
     user = userdata['username']
@@ -1288,10 +1294,9 @@ async def create_batch_fast(request, userdata):
     batch_spec = batch_and_bunch['batch']
     bunch = batch_and_bunch['bunch']
 
-    if 'job_groups' not in batch_and_bunch:
+    job_group_specs = batch_and_bunch.get('job_groups')
+    if job_group_specs is None:
         job_group_specs = [root_job_group_spec(batch_spec)]
-    else:
-        job_group_specs = batch_and_bunch.get('job_groups', [])
 
     batch_id = await _create_batch(batch_spec, userdata, db)
 
@@ -1300,6 +1305,7 @@ async def create_batch_fast(request, userdata):
     )
 
     try:
+        assert len(job_group_specs) > 0
         await _create_job_groups(db, batch_id, update_id, user, job_group_specs)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
@@ -1307,7 +1313,8 @@ async def create_batch_fast(request, userdata):
         raise
 
     try:
-        await _create_jobs(userdata, bunch, batch_id, update_id, app)
+        if len(bunch) != 0:
+            await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return json_response({'id': batch_id})
@@ -1340,6 +1347,8 @@ async def create_batch(request, userdata):
 
 
 async def _create_job_groups(db: Database, batch_id: int, update_id: int, user: str, specs: List[dict]) -> web.Response:
+    assert len(specs) > 0
+
     @transaction(db)
     async def insert(tx):
         record = await tx.execute_and_fetchone(
@@ -1594,7 +1603,8 @@ async def update_batch_fast(request, userdata):
     )
 
     try:
-        await _create_job_groups(db, batch_id, update_id, user, job_group_specs)
+        if len(job_group_specs) > 0:
+            await _create_job_groups(db, batch_id, update_id, user, job_group_specs)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return json_response(
@@ -1603,7 +1613,8 @@ async def update_batch_fast(request, userdata):
         raise
 
     try:
-        await _create_jobs(userdata, bunch, batch_id, update_id, app)
+        if len(bunch) > 0:
+            await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return json_response(
