@@ -29,17 +29,15 @@ object TypeCheck {
 
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
     for {
-      _ <- ir.children
-        .zipWithIndex
-        .foreachRecur { case (child, i) =>
-          for {
-            _ <- call(check(ctx, child, ChildBindings(ir, i, env)))
-          } yield {
-            if (child.typ == TVoid) {
-              checkVoidTypedChild(ctx, ir, i, env)
-            } else ()
-          }
+      _ <- ir.forEachChildWithEnvStackSafe(env) { (child, i, childEnv) =>
+        for {
+          _ <- call(check(ctx, child, childEnv))
+        } yield {
+          if (child.typ == TVoid) {
+            checkVoidTypedChild(ctx, ir, i, env)
+          } else ()
         }
+      }
     } yield checkSingleNode(ctx, ir, env)
   }
 
@@ -118,17 +116,18 @@ object TypeCheck {
           case None =>
             throw new RuntimeException(s"RelationalRef not found in env: $name")
         }
-      case x@TailLoop(name, _, body) =>
-        assert(x.typ == body.typ)
+      case x@TailLoop(name, _, rt, body) =>
+        assert(x.typ == rt)
+        assert(body.typ == rt)
         def recurInTail(node: IR, tailPosition: Boolean): Boolean = node match {
           case x: Recur =>
             x.name != name || tailPosition
           case _ =>
             node.children.zipWithIndex
               .forall {
-                case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
+              case (c: IR, i) => recurInTail(c, tailPosition && InTailPosition(node, i))
                 case _ => true
-              }
+            }
         }
         assert(recurInTail(body, tailPosition = true))
       case x@Recur(name, args, typ) =>
@@ -142,6 +141,7 @@ object TypeCheck {
       case x@ApplyComparisonOp(op, l, r) =>
         assert(op.t1 == l.typ)
         assert(op.t2 == r.typ)
+        ComparisonOp.checkCompatible(op.t1, op.t2)
         op match {
           case _: Compare => assert(x.typ == TInt32)
           case _ => assert(x.typ == TBoolean)
@@ -283,7 +283,7 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStream])
         assert(lessThan.typ == TBoolean)
       case x@ToSet(a) =>
-        assert(a.typ.isInstanceOf[TStream])
+        assert(a.typ.isInstanceOf[TStream], a.typ)
       case x@ToDict(a) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(tcoerce[TBaseStruct](tcoerce[TStream](a.typ).elementType).size == 2)
@@ -360,7 +360,7 @@ object TypeCheck {
         assert(key.forall(eltType.hasField))
       case x@StreamFilter(a, name, cond) =>
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
-        assert(cond.typ == TBoolean)
+        assert(cond.typ == TBoolean, cond.typ)
         assert(x.typ == a.typ)
       case x@StreamTakeWhile(a, name, cond) =>
         assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
@@ -520,18 +520,26 @@ object TypeCheck {
         assert(msg.typ == TString)
       case Trap(child) =>
       case ConsoleLog(msg, _) => assert(msg.typ == TString)
-      case x@ApplyIR(fn, typeArgs, args, _) =>
+      case x@ApplyIR(fn, _, typeArgs, args, _) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>
-      case MatrixMultiWrite(_, _) => // do nothing
+      case MatrixMultiWrite(children, _) =>
+        val t = children.head.typ
+        assert(
+          !t.rowType.hasField(MatrixReader.rowUIDFieldName) &&
+            !t.colType.hasField(MatrixReader.colUIDFieldName), t
+          )
+        assert(children.forall(_.typ == t))
       case x@TableAggregate(child, query) =>
         assert(x.typ == query.typ)
       case x@MatrixAggregate(child, query) =>
         assert(x.typ == query.typ)
       case RelationalLet(_, _, _) =>
       case TableWrite(_, _) =>
-      case TableMultiWrite(_, _) =>
+      case TableMultiWrite(children, _) =>
+        val t = children.head.typ
+        assert(children.forall(_.typ == t))
       case TableCount(_) =>
       case MatrixCount(_) =>
       case TableGetGlobals(_) =>
@@ -543,8 +551,6 @@ object TypeCheck {
       case BlockMatrixCollect(_) =>
       case BlockMatrixWrite(_, writer) => writer.loweredTyp
       case BlockMatrixMultiWrite(_, _) =>
-      case ValueToBlockMatrix(child, _, _) =>
-        assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)
       case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, _, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
         assert(dynamicID.typ == TString)
@@ -571,21 +577,10 @@ object TypeCheck {
         assert(stagingFile.forall(_.typ == TString))
       case LiftMeOut(_) =>
       case Consume(_) =>
-      case TableMapRows(child, newRow) =>
-        val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
-        assert(child.typ.key.forall(newFieldSet.contains))
-      case TableMapPartitions(child, globalName, partitionStreamName, body, requestedKey, allowedOverlap) =>
-        assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
-        val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-        child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
-      case MatrixUnionCols(left, right, joinType) =>
-        assert(left.typ.rowKeyStruct == right.typ.rowKeyStruct, s"${left.typ.rowKeyStruct} != ${right.typ.rowKeyStruct}")
-        assert(left.typ.colType == right.typ.colType, s"${left.typ.colType} != ${right.typ.colType}")
-        assert(left.typ.entryType == right.typ.entryType, s"${left.typ.entryType} != ${right.typ.entryType}")
 
-      case _: TableIR =>
-      case _: MatrixIR =>
-      case _: BlockMatrixIR =>
+      case x: TableIR => x.typecheck()
+      case x: MatrixIR => x.typecheck()
+      case x: BlockMatrixIR => x.typecheck()
     }
   }
 

@@ -881,7 +881,7 @@ class TableFilterIntervals(TableIR):
         return TableFilterIntervals(self.child.handle_randomness(uid_field_name), self.intervals, self.point_type, self.keep)
 
     def head_str(self):
-        return f'{dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
+        return f'{self.child.typ.key_type._parsable_string()} {dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
 
     def _eq(self, other):
         return self.intervals == other.intervals and self.point_type == other.point_type and self.keep == other.keep

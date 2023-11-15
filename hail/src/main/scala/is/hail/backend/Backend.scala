@@ -151,7 +151,7 @@ abstract class Backend {
   def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T
 
   final def valueType(s: String): Array[Byte] = {
-    withExecuteContext("tableType") { ctx =>
+    withExecuteContext("valueType") { ctx =>
       val v = IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
       v.typ.toString.getBytes(StandardCharsets.UTF_8)
     }

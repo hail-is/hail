@@ -2368,7 +2368,7 @@ class Emit[C](
           }
         }
 
-      case x@TailLoop(name, args, body) =>
+      case x@TailLoop(name, args, _, body) =>
         val loopStartLabel = CodeLabel()
 
         val accTypes = ctx.req.lookupState(x).zip(args.map(_._2.typ))

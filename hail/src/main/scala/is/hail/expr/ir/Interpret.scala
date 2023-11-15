@@ -790,7 +790,7 @@ object Interpret {
         val message_ = interpret(message).asInstanceOf[String]
         info(message_)
         interpret(result)
-      case ir@ApplyIR(function, _, functionArgs, _) =>
+      case ir@ApplyIR(function, _, _, functionArgs, _) =>
         interpret(ir.explicitNode, env, args)
       case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>
         val left = interpret(left_)
