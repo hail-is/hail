@@ -186,6 +186,8 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
     await b._open_batch()
     update_id = await b._create_update()
     with BatchProgressBar() as pbar:
+        with pbar.with_task('submitting job groups', total=1) as pbar_task:
+            await b._submit_job_groups(update_id, [orjson.dumps(b._job_group_specs[0])], 1, pbar_task)
         process = {
             'type': 'docker',
             'command': ['sleep', '30'],

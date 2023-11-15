@@ -989,13 +989,12 @@ class Batch:
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
         self._id = batch_json['id']
         update_id = batch_json['update_id']
-        if update_id is None:
-            assert batch_spec['n_jobs'] == 0
+        assert update_id is not None
         return update_id
 
     def _update_spec(self) -> dict:
         update_token = secrets.token_urlsafe(32)
-        return {'n_jobs': len(self._jobs), 'token': update_token}
+        return {'n_jobs': len(self._jobs), 'n_job_groups': len(self._job_groups), 'token': update_token}
 
     async def _create_update(self) -> int:
         self._raise_if_not_created()
@@ -1055,7 +1054,7 @@ class Batch:
                 log.info(f'created batch {self.id}')
                 return None
             if n_job_bunches <= 1 and n_job_group_bunches == 1:
-                byte_job_specs_bunches = byte_job_specs_bunches[0] if byte_job_group_specs_bunches else []
+                byte_job_specs_bunches = byte_job_specs_bunches[0] if byte_job_specs_bunches else []
                 job_bunch_sizes = job_bunch_sizes[0] if job_bunch_sizes else 0
                 await self._create_fast(byte_job_specs_bunches, job_bunch_sizes, byte_job_group_specs_bunches[0], job_group_bunch_sizes[0])
                 start_job_id = 1
