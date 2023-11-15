@@ -453,22 +453,29 @@ class JobGroup:
                     description: str,
                     progress: BatchProgressBar,
                     disable_progress_bar: bool,
+                    starting_job: Optional[int],
                     ) -> Dict[str, Any]:
         self._raise_if_not_submitted()
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{self.batch_id}')
         i = 0
         status = await self.status()
+
+        # FIXME: this will not be necessary once QoB uses job groups
+        if starting_job is None:
+            starting_job = 1
+
         if is_notebook():
             description += f'[link={url}]{self.batch_id}[/link]'
         else:
             description += url
+
         with progress.with_task(description,
-                                total=status['n_jobs'],
+                                total=status['n_jobs'] - starting_job + 1,
                                 disable=disable_progress_bar) as progress_task:
             while True:
                 status = await self.status()
-                progress_task.update(None, total=status['n_jobs'], completed=status['n_completed'])
+                progress_task.update(None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1)
                 if status['complete']:
                     return status
                 j = random.randrange(math.floor(1.1 ** i))
@@ -483,14 +490,15 @@ class JobGroup:
                    disable_progress_bar: bool = False,
                    description: str = '',
                    progress: Optional[BatchProgressBar] = None,
+                   starting_job: Optional[int] = None,
                    ) -> Dict[str, Any]:
         self._raise_if_not_submitted()
         if description:
             description += ': '
         if progress is not None:
-            return await self._wait(description, progress, disable_progress_bar)
+            return await self._wait(description, progress, disable_progress_bar, starting_job)
         with BatchProgressBar(disable=disable_progress_bar) as progress2:
-            return await self._wait(description, progress2, disable_progress_bar)
+            return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
     async def debug_info(self,
                          _jobs_query_string: Optional[str] = None,
@@ -679,10 +687,11 @@ class Batch:
                    *,
                    disable_progress_bar: bool = False,
                    description: str = '',
-                   progress: Optional[BatchProgressBar] = None
+                   progress: Optional[BatchProgressBar] = None,
+                   starting_job: Optional[int] = None,
                    ) -> Dict[str, Any]:
         self._raise_if_not_created()
-        return await self._root_job_group.wait(disable_progress_bar=disable_progress_bar, description=description, progress=progress)
+        return await self._root_job_group.wait(disable_progress_bar=disable_progress_bar, description=description, progress=progress, starting_job=starting_job)
 
     async def debug_info(self,
                          _jobs_query_string: Optional[str] = None,
