@@ -866,7 +866,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     res = if (res == null) {
-      val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastSeq
+      val children = x.children.map {
+        case child: IR => recur(child)
+        case _ => AbstractLattice.top
+      }.toFastSeq
       val keyOrConstVal = computeKeyOrConst(x, children)
       if (x.typ == TBoolean) {
         if (keyOrConstVal == AbstractLattice.top)
