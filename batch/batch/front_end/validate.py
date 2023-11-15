@@ -154,10 +154,6 @@ def validate_job_groups(job_groups, start_job_group_id):
         raise ValidationError('job groups is not list')
     for i, job_group in enumerate(job_groups):
         job_group_validator.validate(f"job_groups[{i}]", job_group)
-        if job_group['name'] is None and not (
-            job_group['job_group_id'] == ROOT_JOB_GROUP_ID and start_job_group_id == 0
-        ):
-            raise ValidationError(f"job_groups[{i}] does not have name defined")
         if start_job_group_id == 0 and job_group['job_group_id'] == ROOT_JOB_GROUP_ID:
             job_group['absolute_parent_id'] = ROOT_JOB_GROUP_ID
 
