@@ -356,7 +356,7 @@ class JobGroup:
 
     def _submit(self, in_update_start_job_group_id: int):
         self._raise_if_submitted()
-        self._job_group_id = AbsoluteJobGroupId(in_update_start_job_group_id + self._job_group_id - 1)
+        self._job_group_id = AbsoluteJobGroupId(in_update_start_job_group_id + self._job_group_id)
 
     async def name(self):
         return self._name

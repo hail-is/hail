@@ -1582,7 +1582,7 @@ async def update_batch_fast(request, userdata):
     update_and_bunch = await json_request(request)
     update_spec = update_and_bunch['update']
     bunch = update_and_bunch['bunch']
-    job_group_specs = update_and_bunch['job_groups']  # fixme validate
+    job_group_specs = update_and_bunch.get('job_groups', [])
 
     try:
         validate_batch_update(update_spec)
