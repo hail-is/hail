@@ -43,7 +43,7 @@ object Children {
       Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
-    case TailLoop(_, args, body) =>
+    case TailLoop(_, args, _, body) =>
       args.map(_._2).toFastSeq :+ body
     case Recur(_, args, _) =>
       args.toFastSeq
@@ -230,7 +230,7 @@ object Children {
     case Trap(child) => Array(child)
     case ConsoleLog(message, result) =>
       Array(message, result)
-    case ApplyIR(_, _, args, _) =>
+    case ApplyIR(_, _, args, _, _) =>
       args.toFastSeq
     case Apply(_, _, args, _, _) =>
       args.toFastSeq

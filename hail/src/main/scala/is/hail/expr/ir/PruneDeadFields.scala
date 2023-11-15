@@ -366,9 +366,9 @@ object PruneDeadFields {
             if (lkSet.contains(f))
               Some(f -> left.typ.rowType.field(f).typ)
             else
-              requestedType.rowType.fieldOption(f).map(reqF => f -> reqF.typ)): _*),
+              requestedType.rowType.selfField(f).map(reqF => f -> reqF.typ)): _*),
           globalType = TStruct(left.typ.globalType.fieldNames.flatMap(f =>
-            requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
+            requestedType.globalType.selfField(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(ctx, left, leftDep, memo)
 
         val rk = right.typ.key.take(joinKey + math.max(0, requestedType.key.length - left.typ.key.length))
@@ -379,12 +379,12 @@ object PruneDeadFields {
             if (rightKeyFields.contains(f))
               Some(f -> right.typ.rowType.field(f).typ)
             else
-              requestedType.rowType.fieldOption(f).map(reqF => f -> reqF.typ)): _*),
+              requestedType.rowType.selfField(f).map(reqF => f -> reqF.typ)): _*),
           globalType = TStruct(right.typ.globalType.fieldNames.flatMap(f =>
-            requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
+            requestedType.globalType.selfField(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(ctx, right, rightDep, memo)
       case TableLeftJoinRightDistinct(left, right, root) =>
-        val fieldDep = requestedType.rowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
+        val fieldDep = requestedType.rowType.selfField(root).map(_.typ.asInstanceOf[TStruct])
         fieldDep match {
           case Some(struct) =>
             val rightDep = TableType(
@@ -408,7 +408,7 @@ object PruneDeadFields {
             memoizeTableIR(ctx, left, requestedType, memo)
         }
       case TableIntervalJoin(left, right, root, product) =>
-        val fieldDep = requestedType.rowType.fieldOption(root).map { field =>
+        val fieldDep = requestedType.rowType.selfField(root).map { field =>
           if (product)
             field.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
           else
@@ -437,17 +437,17 @@ object PruneDeadFields {
             memoizeTableIR(ctx, left, requestedType, memo)
         }
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
-        val gType = requestedType.globalType.fieldOption(globalName)
+        val gType = requestedType.globalType.selfField(globalName)
           .map(_.typ.asInstanceOf[TArray].elementType)
           .getOrElse(TStruct.empty).asInstanceOf[TStruct]
-        val rType = requestedType.rowType.fieldOption(fieldName)
+        val rType = requestedType.rowType.selfField(fieldName)
           .map(_.typ.asInstanceOf[TArray].elementType)
           .getOrElse(TStruct.empty).asInstanceOf[TStruct]
         val child1 = children.head
         val dep = TableType(
           key = child1.typ.key,
           rowType = TStruct(child1.typ.rowType.fieldNames.flatMap(f =>
-            child1.typ.keyType.fieldOption(f).orElse(rType.fieldOption(f)).map(reqF => f -> reqF.typ)
+            child1.typ.keyType.selfField(f).orElse(rType.selfField(f)).map(reqF => f -> reqF.typ)
           ): _*),
           globalType = gType)
         children.foreach(memoizeTableIR(ctx, _, dep, memo))
@@ -465,7 +465,7 @@ object PruneDeadFields {
           case e: AnnotationPathException => minimal(preExplosionFieldType)
         }
         val dep = requestedType.copy(rowType = unify(child.typ.rowType,
-          requestedType.rowType.insert(prunedPreExlosionFieldType, path.toList)._1.asInstanceOf[TStruct]))
+          requestedType.rowType.insert(prunedPreExlosionFieldType, path)._1.asInstanceOf[TStruct]))
         memoizeTableIR(ctx, child, dep, memo)
       case TableFilter(child, pred) =>
         val irDep = memoizeAndGetDep(ctx, pred, pred.typ, child.typ, memo)
@@ -566,11 +566,11 @@ object PruneDeadFields {
           colKey = requestedType.key.drop(child.typ.rowKey.length),
           globalType = requestedType.globalType,
           colType = TStruct(
-            child.typ.colType.fields.flatMap(f => requestedType.rowType.fieldOption(f.name).map(f2 => f.name -> f2.typ)): _*),
+            child.typ.colType.fields.flatMap(f => requestedType.rowType.selfField(f.name).map(f2 => f.name -> f2.typ)): _*),
           rowType = TStruct(
-            child.typ.rowType.fields.flatMap(f => requestedType.rowType.fieldOption(f.name).map(f2 => f.name -> f2.typ)): _*),
+            child.typ.rowType.fields.flatMap(f => requestedType.rowType.selfField(f.name).map(f2 => f.name -> f2.typ)): _*),
           entryType = TStruct(
-            child.typ.entryType.fields.flatMap(f => requestedType.rowType.fieldOption(f.name).map(f2 => f.name -> f2.typ)): _*)
+            child.typ.entryType.fields.flatMap(f => requestedType.rowType.selfField(f.name).map(f2 => f.name -> f2.typ)): _*)
           )
         memoizeMatrixIR(ctx, child, mtDep, memo)
       case TableUnion(children) =>
@@ -702,7 +702,7 @@ object PruneDeadFields {
             if (colKeySet.contains(f.name))
               Some(f.name -> f.typ)
             else {
-              requestedColType.fieldOption(f.name)
+              requestedColType.selfField(f.name)
                 .map(requestedField => f.name -> requestedField.typ.asInstanceOf[TArray].elementType)
             }
           }: _*),
@@ -732,7 +732,7 @@ object PruneDeadFields {
           entryType = irDepEntry.entryType)
         memoizeMatrixIR(ctx, child, childDep, memo)
       case MatrixAnnotateRowsTable(child, table, root, product) =>
-        val fieldDep = requestedType.rowType.fieldOption(root).map { field =>
+        val fieldDep = requestedType.rowType.selfField(root).map { field =>
           if (product)
             field.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
           else
@@ -760,7 +760,7 @@ object PruneDeadFields {
             memoizeMatrixIR(ctx, child, requestedType, memo)
         }
       case MatrixAnnotateColsTable(child, table, uid) =>
-        val fieldDep = requestedType.colType.fieldOption(uid).map(_.typ.asInstanceOf[TStruct])
+        val fieldDep = requestedType.colType.selfField(uid).map(_.typ.asInstanceOf[TStruct])
         fieldDep match {
           case Some(struct) =>
             val tk = table.typ.key
@@ -794,7 +794,7 @@ object PruneDeadFields {
           case e: AnnotationPathException => minimal(preExplosionFieldType)
         }
         val dep = requestedType.copy(rowType = unify(child.typ.rowType,
-          requestedType.rowType.insert(prunedPreExlosionFieldType, path.toList)._1.asInstanceOf[TStruct]))
+          requestedType.rowType.insert(prunedPreExlosionFieldType, path)._1.asInstanceOf[TStruct]))
         memoizeMatrixIR(ctx, child, dep, memo)
       case MatrixExplodeCols(child, path) =>
         def getExplodedField(typ: MatrixType): Type = typ.colType.queryTyped(path.toList)._1
@@ -810,7 +810,7 @@ object PruneDeadFields {
           case e: AnnotationPathException => minimal(preExplosionFieldType)
         }
         val dep = requestedType.copy(colType = unify(child.typ.colType,
-          requestedType.colType.insert(prunedPreExplosionFieldType, path.toList)._1.asInstanceOf[TStruct]))
+          requestedType.colType.insert(prunedPreExplosionFieldType, path)._1.asInstanceOf[TStruct]))
         memoizeMatrixIR(ctx, child, dep, memo)
       case MatrixRepartition(child, _, _) =>
         memoizeMatrixIR(ctx, child, requestedType, memo)
@@ -1417,7 +1417,7 @@ object PruneDeadFields {
         val sType = requestedType.asInstanceOf[TStruct]
         unifyEnvsSeq(fields.flatMap { case (fname, fir) =>
           // ignore unreachable fields, these are eliminated on the upwards pass
-          sType.fieldOption(fname).map(f => memoizeValueIR(ctx, fir, f.typ, memo))
+          sType.selfField(fname).map(f => memoizeValueIR(ctx, fir, f.typ, memo))
         })
       case InsertFields(old, fields, _) =>
         val sType = requestedType.asInstanceOf[TStruct]
@@ -1431,20 +1431,20 @@ object PruneDeadFields {
               if (rightDep.hasField(f.name))
                 Some(f.name -> minimal(f.typ))
               else
-                sType.fieldOption(f.name).map(f.name -> _.typ)
+                sType.selfField(f.name).map(f.name -> _.typ)
             }: _*)
         unifyEnvsSeq(
           FastSeq(memoizeValueIR(ctx, old, leftDep, memo)) ++
             // ignore unreachable fields, these are eliminated on the upwards pass
             fields.flatMap { case (fname, fir) =>
-              rightDep.fieldOption(fname).map(f => memoizeValueIR(ctx, fir, f.typ, memo))
+              rightDep.selfField(fname).map(f => memoizeValueIR(ctx, fir, f.typ, memo))
             }
         )
       case SelectFields(old, fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
         val oldReqType = TStruct(old.typ.asInstanceOf[TStruct]
           .fieldNames
-          .flatMap(fn => sType.fieldOption(fn).map(fd => (fd.name, fd.typ))): _*)
+          .flatMap(fn => sType.selfField(fn).map(fd => (fd.name, fd.typ))): _*)
         memoizeValueIR(ctx, old, oldReqType, memo)
       case GetField(o, name) =>
         memoizeValueIR(ctx, o, TStruct(name -> requestedType), memo)
@@ -1481,8 +1481,8 @@ object PruneDeadFields {
         memoizeTableIR(ctx, child, TableType(
           key = child.typ.key,
           rowType = unify(child.typ.rowType,
-            rStruct.fieldOption("rows").map(_.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]).getOrElse(TStruct.empty)),
-          globalType = rStruct.fieldOption("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct.empty)),
+            rStruct.selfField("rows").map(_.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]).getOrElse(TStruct.empty)),
+          globalType = rStruct.selfField("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct.empty)),
           memo)
         BindingEnv.empty
       case TableToValueApply(child, _) =>
@@ -1513,7 +1513,7 @@ object PruneDeadFields {
         )
         memoizeMatrixIR(ctx, child, dep, memo)
         BindingEnv.empty
-      case TailLoop(name, params, body) =>
+      case TailLoop(name, params, _, body) =>
         val bodyEnv = memoizeValueIR(ctx, body, body.typ, memo)
         val paramTypes = params.map{ case (paramName, paramIR) =>
           unifySeq(paramIR.typ, uses(paramName, bodyEnv.eval))
@@ -2122,7 +2122,7 @@ object PruneDeadFields {
             MakeStruct(FastSeq())
         else {
           val rRowType = TIterable.elementType(rStruct.fieldType("rows")).asInstanceOf[TStruct]
-          val rGlobType = rStruct.fieldOption("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())
+          val rGlobType = rStruct.selfField("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())
           TableCollect(upcastTable(ctx, rebuild(ctx, child, memo), TableType(rowType = rRowType, FastSeq(), rGlobType),
             upcastRow = true, upcastGlobals = false))
         }

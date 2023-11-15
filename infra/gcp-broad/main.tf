@@ -384,6 +384,10 @@ resource "google_sql_database_instance" "db" {
     }
   }
 
+  lifecycle {
+     ignore_changes = [settings.0.tier]
+  }
+
   timeouts {}
 }
 
@@ -412,6 +416,12 @@ resource "google_artifact_registry_repository" "repository" {
   format = "DOCKER"
   repository_id = "hail"
   location = var.artifact_registry_location
+  cleanup_policy_dry_run = false
+
+  # https://github.com/hashicorp/terraform-provider-azurerm/issues/7396
+  lifecycle {
+    ignore_changes = [cleanup_policies, timeouts]
+  }
 }
 
 resource "google_service_account" "gcr_push" {
@@ -458,6 +468,7 @@ module "auth_gsa_secret" {
   iam_roles = [
     "iam.serviceAccountAdmin",
     "iam.serviceAccountKeyAdmin",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -467,6 +478,7 @@ module "testns_auth_gsa_secret" {
   project = var.gcp_project
   iam_roles = [
     "iam.serviceAccountViewer",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -478,6 +490,7 @@ module "batch_gsa_secret" {
     "compute.instanceAdmin.v1",
     "iam.serviceAccountUser",
     "logging.viewer",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -495,6 +508,7 @@ module "testns_batch_gsa_secret" {
     "compute.instanceAdmin.v1",
     "iam.serviceAccountUser",
     "logging.viewer",
+    "cloudprofiler.agent",
   ]
 }
 
@@ -508,6 +522,9 @@ module "ci_gsa_secret" {
   source = "./gsa"
   name = "ci"
   project = var.gcp_project
+  iam_roles = [
+    "cloudprofiler.agent",
+  ]
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {

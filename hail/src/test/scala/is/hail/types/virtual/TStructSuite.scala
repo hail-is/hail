@@ -1,6 +1,9 @@
 package is.hail.types.virtual
 
 import is.hail.HailSuite
+import is.hail.annotations.{Annotation, Inserter}
+import is.hail.utils.FastSeq
+import org.apache.spark.sql.Row
 import org.testng.Assert.{assertFalse, assertTrue}
 import org.testng.annotations.{DataProvider, Test}
 
@@ -40,5 +43,39 @@ class TStructSuite extends HailSuite {
   @Test(dataProvider = "isSubsetOf")
   def testIsSubsetOf(a: TStruct, b: TStruct, isSubset: Boolean): Unit =
     assert(a.isSubsetOf(b) == isSubset, s"expected $a `isSubsetOf` $b == $isSubset")
+
+
+  @DataProvider(name = "structInsert")
+  def structInsertData: Array[Array[Any]] =
+    Array(
+      Array(TStruct("a" -> TInt32), FastSeq("a"), TInt32, TStruct("a" -> TInt32)),
+      Array(TStruct("a" -> TInt32), FastSeq("b"), TInt32, TStruct("a" -> TInt32, "b" -> TInt32)),
+      Array(TStruct("a" -> TInt32), FastSeq("a"), TVoid, TStruct("a" -> TVoid)),
+      Array(TStruct("a" -> TInt32), FastSeq("a", "b"), TInt32, TStruct("a" -> TStruct("b" -> TInt32))),
+      Array(TStruct.empty, FastSeq("a"), TInt32, TStruct("a" -> TInt32)),
+      Array(TStruct.empty, FastSeq("a", "b"), TInt32, TStruct("a" -> TStruct("b" -> TInt32))),
+    )
+
+  @Test(dataProvider = "structInsert")
+  def testStructInsert(base: TStruct, path: IndexedSeq[String], signature: Type, expected: TStruct): Unit =
+    assert(base.structInsert(signature, path) == expected)
+
+
+  @DataProvider(name = "inserter")
+  def inserterData: Array[Array[Any]] =
+    Array(
+      Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("a"))._2, null, 0, Row(0)),
+      Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("a"))._2, Row(0), 1, Row(1)),
+
+      Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("b"))._2, null, 0, Row(null, 0)),
+      Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("b"))._2, Row(0), 1, Row(0, 1)),
+
+      Array(TStruct.empty.insert(TInt32, FastSeq("a", "b"))._2, null, 0, Row(Row(0))),
+      Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("a", "b"))._2, Row(0), 1, Row(Row(1))),
+    )
+
+  @Test(dataProvider = "inserter")
+  def testInsert(inserter: Inserter, base: Annotation, value: Any, expected: Annotation): Unit =
+    assert(inserter(base, value) == expected)
 
 }

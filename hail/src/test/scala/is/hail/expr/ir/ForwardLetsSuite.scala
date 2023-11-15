@@ -43,7 +43,7 @@ class ForwardLetsSuite extends HailSuite {
     Array(
       NDArrayMap(In(1, TNDArray(TInt32, Nat(1))), "y", x + y),
       NDArrayMap2(In(1, TNDArray(TInt32, Nat(1))), In(2, TNDArray(TInt32, Nat(1))), "y", "z", x + y + Ref("z", TInt32), ErrorIDs.NO_ERROR),
-      TailLoop("f", FastSeq("y" -> I32(0)), If(y < x, Recur("f", FastSeq[IR](y - I32(1)), TInt32), x))
+      TailLoop("f", FastSeq("y" -> I32(0)), TInt32, If(y < x, Recur("f", FastSeq[IR](y - I32(1)), TInt32), x))
     ).map(ir => Array[IR](Let(FastSeq("x" -> (In(0, TInt32) + In(0, TInt32))), ir)))
   }
 

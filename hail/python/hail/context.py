@@ -1,4 +1,5 @@
-from typing import Optional, Union, Tuple, List, Dict
+from typing import Optional, Union, Tuple, Type, List, Dict
+from types import TracebackType
 import warnings
 import sys
 import os
@@ -690,7 +691,21 @@ class _TemporaryFilenameManager:
 
     def __exit__(self, type, value, traceback):
         try:
-            return self.fs.remove(self.name)
+            self.fs.remove(self.name)
+        except FileNotFoundError:
+            pass
+
+    async def __aenter__(self):
+        return self.name
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ):
+        try:
+            await self.fs.aremove(self.name)
         except FileNotFoundError:
             pass
 
@@ -731,18 +746,38 @@ def TemporaryFilename(*,
 
 
 class _TemporaryDirectoryManager:
-    def __init__(self, fs: FS, name: str):
+    def __init__(self, fs: FS, name: str, ensure_exists: bool):
         self.fs = fs
         self.name = name
+        self.ensure_exists = ensure_exists
 
     def __enter__(self):
+        if self.ensure_exists:
+            self.fs.mkdir(self.name)
         return self.name
 
     def __exit__(self, type, value, traceback):
         try:
-            return self.fs.rmtree(self.name)
+            self.fs.rmtree(self.name)
         except FileNotFoundError:
             pass
+
+    async def __aenter__(self):
+        if self.ensure_exists:
+            await self.fs.amkdir(self.name)
+        return self.name
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ):
+        try:
+            await self.fs.armtree(self.name)
+        except FileNotFoundError:
+            pass
+
 
 
 def TemporaryDirectory(*,
@@ -780,9 +815,7 @@ def TemporaryDirectory(*,
         dir = dir + '/'
     dirname = dir + prefix + secret_alnum_string(10) + suffix
     fs = current_backend().fs
-    if ensure_exists:
-        fs.mkdir(dirname)
-    return _TemporaryDirectoryManager(fs, dirname)
+    return _TemporaryDirectoryManager(fs, dirname, ensure_exists)
 
 
 def current_backend() -> Backend:

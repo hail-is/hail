@@ -1,9 +1,8 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.{Annotation, AnnotationPathException, _}
+import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
-import is.hail.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
@@ -82,15 +81,14 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   def fieldType(name: String): Type = types(fieldIdx(name))
 
-  override def fieldOption(path: List[String]): Option[Field] =
-    if (path.isEmpty)
-      None
-    else {
-      val f = selfField(path.head)
-      if (path.length == 1)
-        f
-      else
-        f.flatMap(_.typ.fieldOption(path.tail))
+  def fieldOption(path: IndexedSeq[String]): Option[Field] =
+    if (path.isEmpty) None
+    else (1 until path.length).foldLeft(selfField(path.head)) {
+      case (Some(f), i) => f.typ match {
+        case s: TStruct => s.selfField(path(i))
+        case _ => return None
+      }
+      case _ => return None
     }
 
   override def queryTyped(p: List[String]): (Type, Querier) = {
@@ -111,43 +109,72 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     }
   }
 
-  override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
-    if (p.isEmpty)
-      (signature, (a, toIns) => toIns)
-    else {
-      val key = p.head
-      val f = selfField(key)
-      val keyIndex = f.map(_.index)
-      val (newKeyType, keyF) = f
-        .map(_.typ)
-        .getOrElse(TStruct.empty)
-        .insert(signature, p.tail)
+  def insert(signature: Type, path: IndexedSeq[String]): (TStruct, Inserter) = {
 
-      val newSignature = keyIndex match {
-        case Some(i) => updateKey(key, i, newKeyType)
-        case None => appendKey(key, newKeyType)
+    val missing: Annotation =
+      null.asInstanceOf[Annotation]
+
+    def updateRow(typ: TStruct, idx: Int)(f: Inserter)(a: Annotation, v: Any): Annotation =
+      a match {
+        case r: Row =>
+          r.update(idx, f(r.get(idx), v))
+        case _ =>
+          val arr = new Array[Any](typ.size)
+          arr.update(idx, f(missing, v))
+          Row.fromSeq(arr)
       }
 
-      val localSize = fields.size
-
-      val inserter: Inserter = (a, toIns) => {
-        val r = if (a == null || localSize == 0) // localsize == 0 catches cases where we overwrite a path
-          Row.fromSeq(Array.fill[Any](localSize)(null))
-        else
-          a.asInstanceOf[Row]
-        keyIndex match {
-          case Some(i) => r.update(i, keyF(r.get(i), toIns))
-          case None => r.append(keyF(null, toIns))
-        }
+    def insertField(typ: TStruct)(f: Inserter)(a: Annotation, v: Any): Annotation = {
+      val arr = new Array[Any](typ.size + 1)
+      a match {
+        case r: Row =>
+          for (i <- 0 until typ.size) {
+            arr.update(i, r.get(i))
+          }
+        case _ =>
       }
-      (newSignature, inserter)
+      arr(typ.size) = f(missing, v)
+      Row.fromSeq(arr)
     }
+
+    val (newType, inserter) =
+      path
+        .view
+        .scanLeft((this, identity[Type] _, identity[Inserter] _)) {
+          case ((parent, _, _), name) =>
+            parent.selfField(name) match {
+              case Some(Field(name, struct: TStruct, idx)) =>
+                (
+                  struct,
+                  typ => parent.updateKey(name, idx, typ),
+                  updateRow(parent, idx)
+                )
+              case Some(Field(name, _, idx)) =>
+                (
+                  TStruct.empty,
+                  typ => parent.updateKey(name, idx, typ),
+                  updateRow(parent, idx)
+                )
+              case None =>
+                (
+                  TStruct.empty,
+                  typ => parent.appendKey(name, typ),
+                  insertField(parent)
+                )
+            }
+        }
+        .foldRight((signature, ((_, toIns) => toIns): Inserter)) {
+          case ((_, insertField, transform), (newType, inserter)) =>
+            (insertField(newType), transform(inserter))
+        }
+
+    (newType.asInstanceOf[TStruct], inserter)
   }
 
-  def structInsert(signature: Type, p: List[String]): (TStruct, Inserter) = {
+  def structInsert(signature: Type, p: IndexedSeq[String]): TStruct = {
     require(p.nonEmpty || signature.isInstanceOf[TStruct], s"tried to remap top-level struct to non-struct $signature")
-    val (t, f) = insert(signature, p)
-    (t.asInstanceOf[TStruct], f)
+    val (t, _) = insert(signature, p)
+    t
   }
 
   def updateKey(key: String, i: Int, sig: Type): TStruct = {

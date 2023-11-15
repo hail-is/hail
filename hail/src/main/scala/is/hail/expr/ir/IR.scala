@@ -213,22 +213,27 @@ sealed abstract class BaseRef extends IR with TrivialIR {
   def _typ: Type
 }
 
-final case class Ref(name: String, var _typ: Type) extends BaseRef
+final case class Ref(name: String, var _typ: Type) extends BaseRef {
+  override def typ: Type = {
+    assert(_typ != null)
+    _typ
+  }
+}
 
 
 // Recur can't exist outside of loop
 // Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
-final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR {
+final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], resultType: Type, body: IR) extends IR {
   lazy val paramIdx: Map[String, Int] = params.map(_._1).zipWithIndex.toMap
 }
-final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends BaseRef
+final case class Recur(name: String, args: IndexedSeq[IR], var _typ: Type) extends BaseRef
 
 final case class RelationalLet(name: String, value: IR, body: IR) extends IR
 final case class RelationalRef(name: String, _typ: Type) extends BaseRef
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
-final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
+final case class ApplyComparisonOp(var op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
   def apply(args: IR*): MakeArray = {
@@ -336,8 +341,7 @@ final case class StreamLen(a: IR) extends IR
 final case class StreamGrouped(a: IR, groupSize: IR) extends IR
 final case class StreamGroupByKey(a: IR, key: IndexedSeq[String], missingEqual: Boolean) extends IR
 
-final case class StreamMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TStream = tcoerce[TStream](super.typ)
+final case class StreamMap(a: IR, name: String, body: IR) extends TypedIR[TStream] {
   def elementTyp: Type = typ.elementType
 }
 
@@ -371,34 +375,30 @@ object ArrayZipBehavior extends Enumeration {
   val ExtendNA: Value = Value(3)
 }
 
-final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior,
-                           errorID: Int = ErrorIDs.NO_ERROR) extends IR {
-  lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
-  override def typ: TStream = tcoerce[TStream](super.typ)
-}
-final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
-  override def typ: TStream = tcoerce[TStream](super.typ)
-}
+final case class StreamZip(
+  as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior,
+  errorID: Int = ErrorIDs.NO_ERROR
+) extends TypedIR[TStream]
 
-final case class StreamZipJoinProducers(contexts: IR, ctxName: String, makeProducer: IR,
-  key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
-  override def typ: TStream = tcoerce[TStream](super.typ)
-}
+final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) extends TypedIR[TStream]
+
+
+final case class StreamZipJoinProducers(
+  contexts: IR, ctxName: String, makeProducer: IR, key: IndexedSeq[String],
+  curKey: String, curVals: String, joinF: IR
+) extends TypedIR[TStream]
 
 /**
   * The StreamZipJoin node assumes that input streams have distinct keys. If input streams
   * do not have distinct keys, the key that is included in the result is undefined, but
   * is likely the last.
  */
-final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
-  override def typ: TStream = tcoerce[TStream](super.typ)
-}
-final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
-  override def typ: TStream = tcoerce[TStream](super.typ)
-}
-final case class StreamFlatMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TStream = tcoerce[TStream](super.typ)
-}
+final case class StreamZipJoin(
+  as: IndexedSeq[IR], key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR
+) extends TypedIR[TStream]
+
+final case class StreamFilter(a: IR, name: String, cond: IR) extends TypedIR[TStream]
+final case class StreamFlatMap(a: IR, name: String, body: IR) extends TypedIR[TStream]
 
 final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
@@ -678,10 +678,7 @@ final case class SelectFields(old: IR, fields: IndexedSeq[String]) extends IR
 object InsertFields {
   def apply(old: IR, fields: Seq[(String, IR)]): InsertFields = InsertFields(old, fields, None)
 }
-final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Option[IndexedSeq[String]]) extends IR {
-
-  override def typ: TStruct = tcoerce[TStruct](super.typ)
-}
+final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Option[IndexedSeq[String]]) extends TypedIR[TStruct]
 
 object GetFieldByIdx {
   def apply(s: IR, field: Int): IR = {
@@ -732,7 +729,7 @@ final case class Trap(child: IR) extends IR
 final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
 final case class ConsoleLog(message: IR, result: IR) extends IR
 
-final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], errorID: Int) extends IR {
+final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends IR {
   var conversion: (Seq[Type], Seq[IR], Int) => IR = _
   var inline: Boolean = _
 
@@ -740,8 +737,11 @@ final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], e
   lazy val body: IR = conversion(typeArgs, refs, errorID).deepCopy()
   lazy val refIdx: Map[String, Int] = refs.map(_.name).zipWithIndex.toMap
 
-  lazy val explicitNode: IR =
-    Let(refs.map(_.name).zip(args), body)
+  lazy val explicitNode: IR = {
+    val ir = Let(refs.map(_.name).zip(args), body)
+    assert(ir.typ == returnType)
+    ir
+  }
 }
 
 sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
@@ -771,22 +771,14 @@ final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
 
 final case class TableWrite(child: TableIR, writer: TableWriter) extends IR
 
-final case class TableMultiWrite(_children: IndexedSeq[TableIR], writer: WrappedMatrixNativeMultiWriter) extends IR {
-  private val t = _children.head.typ
-  require(_children.forall(_.typ == t))
-}
+final case class TableMultiWrite(_children: IndexedSeq[TableIR], writer: WrappedMatrixNativeMultiWriter) extends IR
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR
 
 final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
 
-final case class MatrixMultiWrite(_children: IndexedSeq[MatrixIR], writer: MatrixNativeMultiWriter) extends IR {
-  private val t = _children.head.typ
-  assert(!t.rowType.hasField(MatrixReader.rowUIDFieldName) &&
-    !t.colType.hasField(MatrixReader.colUIDFieldName), t)
-  require(_children.forall(_.typ == t))
-}
+final case class MatrixMultiWrite(_children: IndexedSeq[MatrixIR], writer: MatrixNativeMultiWriter) extends IR
 
 final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR
 final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
@@ -975,10 +967,7 @@ final case class SimpleMetadataWriter(val annotationType: Type) extends Metadata
     writeAnnotations.consume(cb, {}, {_ => ()})
 }
 
-final case class ReadPartition(context: IR, rowType: TStruct, reader: PartitionReader) extends IR {
-  assert(context.typ == reader.contextType, s"context: ${context.typ}, expected: ${reader.contextType}")
-  assert(PruneDeadFields.isSupertype(rowType, reader.fullRowType), s"requested type: $rowType, full type: ${reader.fullRowType}")
-}
+final case class ReadPartition(context: IR, rowType: TStruct, reader: PartitionReader) extends IR
 final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 

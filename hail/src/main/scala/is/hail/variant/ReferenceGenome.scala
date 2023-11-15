@@ -1,29 +1,25 @@
 package is.hail.variant
 
-import java.io.InputStream
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
-import is.hail.asm4s.Code
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
+import is.hail.annotations.ExtendedOrdering
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitClassBuilder, RelationalSpec}
+import is.hail.expr.ir.RelationalSpec
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
 import is.hail.io.fs.FS
-import is.hail.io.reference.LiftOver
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.types._
-import is.hail.types.virtual.{TInt64, TLocus, Type}
+import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
-
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.language.implicitConversions
 import org.apache.spark.TaskContext
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-import java.lang.ThreadLocal
-import is.hail.annotations.ExtendedOrdering
+import java.io.InputStream
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.language.implicitConversions
 
 
 class BroadcastRG(rgParam: ReferenceGenome) extends Serializable {
@@ -464,7 +460,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   @transient lazy val broadcast: BroadcastValue[ReferenceGenome] = HailContext.backend.broadcast(this)
 
   override def hashCode: Int = {
-    import org.apache.commons.lang.builder.HashCodeBuilder
+    import org.apache.commons.lang3.builder.HashCodeBuilder
 
     val b = new HashCodeBuilder()
       .append(name)

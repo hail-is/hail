@@ -390,7 +390,9 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
 "''')
         output_gcs = self.outputs + f'{name}/output'
         batch.write_output(j.ofile, output_gcs)
-        backend_batch = batch.run(wait=False, disable_progress_bar=True)._async_batch
+        sync_batch = batch.run(wait=False, disable_progress_bar=True)
+        assert sync_batch is not None
+        backend_batch = sync_batch._async_batch
         try:
             return BatchPoolFuture(self,
                                    backend_batch,

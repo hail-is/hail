@@ -118,7 +118,7 @@ hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt
 hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/dev
 
-benchmark/python/pinned-requirements.txt: benchmark/python/requirements.txt
+benchmark/python/pinned-requirements.txt: benchmark/python/requirements.txt hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt
 	./generate-linux-pip-lockfile.sh benchmark/python
 
 gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt

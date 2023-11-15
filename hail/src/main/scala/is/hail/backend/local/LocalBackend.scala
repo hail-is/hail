@@ -1,31 +1,29 @@
 package is.hail.backend.local
 
-import is.hail.annotations.{Region, SafeRow, UnsafeRow}
+import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.expr.Validate
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
-import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.io.fs._
-import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.hadoop
 import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.Serialization
 import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 import java.io.PrintWriter
-import java.nio.charset.StandardCharsets
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
@@ -296,7 +294,7 @@ class LocalBackend(
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR = {
     ExecutionTimer.logTime("LocalBackend.parse_value_ir") { timer =>
       withExecuteContext(timer) { ctx =>
-        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*), persistedIR.toMap))
+        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, persistedIR.toMap), BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*))
       }
     }
   }

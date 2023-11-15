@@ -746,9 +746,9 @@ object Interpret {
               val oldIndices = old.typ.asInstanceOf[TStruct].fields.map(f => f.name -> f.index).toMap
               Row.fromSeq(fds.map(name => newValues.getOrElse(name, struct.asInstanceOf[Row].get(oldIndices(name)))))
             case None =>
-              var t = old.typ
+              var t = old.typ.asInstanceOf[TStruct]
               fields.foreach { case (name, body) =>
-                val (newT, ins) = t.insert(body.typ, name)
+                val (newT, ins) = t.insert(body.typ, FastSeq(name))
                 t = newT.asInstanceOf[TStruct]
                 struct = ins(struct, interpret(body, env, args))
               }
@@ -790,7 +790,7 @@ object Interpret {
         val message_ = interpret(message).asInstanceOf[String]
         info(message_)
         interpret(result)
-      case ir@ApplyIR(function, _, functionArgs, _) =>
+      case ir@ApplyIR(function, _, _, functionArgs, _) =>
         interpret(ir.explicitNode, env, args)
       case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>
         val left = interpret(left_)
