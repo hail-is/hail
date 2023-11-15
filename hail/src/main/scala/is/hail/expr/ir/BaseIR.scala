@@ -20,6 +20,12 @@ abstract class BaseIR {
   def noSharing(ctx: ExecuteContext): this.type =
     if (HasIRSharing(ctx)(this)) this.deepCopy() else this
 
+
+  // For use as a boolean flag by IR passes. Each pass uses a different sentinel value to encode
+  // "true" (and anything else is false). As long as we maintain the global invariant that no
+  // two passes use the same sentinel value, this allows us to reuse this field across passes
+  // without ever having to initialize it at the start of a pass.
+  // New sentinel values can be obtained by `nextFlag` on `IRMetadata`.
   var mark: Int = 0
 
   def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): BaseIR = {
