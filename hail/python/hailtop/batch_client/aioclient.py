@@ -852,24 +852,26 @@ class Batch:
         self._id = batch_json['id']
         self._submission_info = BatchSubmissionInfo(used_fast_path=True)
 
-    async def _update_fast(self, byte_job_specs: List[bytes], n_jobs: int, byte_job_group_specs: List[bytes], n_job_groups: int) -> Tuple[int, int]:
+    async def _update_fast(self, byte_job_specs: List[List[bytes]], n_jobs: List[int], byte_job_group_specs: List[List[bytes]], n_job_groups: List[int]) -> Tuple[int, int]:
         self._raise_if_not_created()
         assert n_jobs == len(self._job_specs)
         assert n_job_groups == len(self._job_group_specs)
         b = bytearray()
         b.extend(b'{"bunch":')
         b.append(ord('['))
-        for i, spec in enumerate(byte_job_specs):
-            if i > 0:
-                b.append(ord(','))
-            b.extend(spec)
+        if byte_job_specs:
+            for i, spec in enumerate(byte_job_specs[0]):
+                if i > 0:
+                    b.append(ord(','))
+                b.extend(spec)
         b.append(ord(']'))
         b.extend(b',"job_groups":')
         b.append(ord('['))
-        for i, spec in enumerate(byte_job_group_specs):
-            if i > 0:
-                b.append(ord(','))
-            b.extend(spec)
+        if byte_job_group_specs:
+            for i, spec in enumerate(byte_job_group_specs[0]):
+                if i > 0:
+                    b.append(ord(','))
+                b.extend(spec)
         b.append(ord(']'))
         b.extend(b',"update":')
         b.extend(json.dumps(self._update_spec()).encode('utf-8'))
@@ -1053,12 +1055,12 @@ class Batch:
                 update_id = await self._open_batch()
                 assert update_id is not None
 
-                with progress.with_task('submit job bunches', total=n_jobs, disable=(disable_progress_bar or n_job_bunches < 100)) as job_progress_task:
-                    await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
-
                 with progress.with_task('submit job group bunches', total=n_job_groups, disable=(disable_progress_bar or n_job_group_bunches < 100)) as job_group_progress_task:
                     await self._submit_job_group_bunches(update_id, byte_job_group_specs_bunches, job_group_bunch_sizes,
                                                          job_group_progress_task)
+
+                with progress.with_task('submit job bunches', total=n_jobs, disable=(disable_progress_bar or n_job_bunches < 100)) as job_progress_task:
+                    await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
 
                 start_job_id, start_job_group_id = await self._commit_update(update_id)
 
@@ -1071,17 +1073,17 @@ class Batch:
             if n_job_bunches == 0 and n_job_group_bunches == 0:
                 log.warning('Tried to submit an update with 0 jobs and 0 job groups. Doing nothing.')
                 return None
-            if n_job_bunches == 1:
-                start_job_id, start_job_group_id = await self._update_fast(byte_job_specs_bunches[0], job_bunch_sizes[0], byte_job_group_specs_bunches[0], job_group_bunch_sizes[0])
+            if n_job_bunches <= 1 and n_job_group_bunches <= 1:
+                start_job_id, start_job_group_id = await self._update_fast(byte_job_specs_bunches, job_bunch_sizes, byte_job_group_specs_bunches, job_group_bunch_sizes)
             else:
                 update_id = await self._create_update()
-
-                with progress.with_task('submit job bunches', total=n_jobs, disable=(disable_progress_bar or n_job_bunches < 100)) as job_progress_task:
-                    await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
 
                 with progress.with_task('submit job group bunches', total=n_job_groups, disable=(disable_progress_bar or n_job_group_bunches < 100)) as job_group_progress_task:
                     await self._submit_job_group_bunches(update_id, byte_job_group_specs_bunches, job_group_bunch_sizes,
                                                          job_group_progress_task)
+
+                with progress.with_task('submit job bunches', total=n_jobs, disable=(disable_progress_bar or n_job_bunches < 100)) as job_progress_task:
+                    await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
 
                 start_job_id, start_job_group_id = await self._commit_update(update_id)
                 self._submission_info = BatchSubmissionInfo(used_fast_path=False)
