@@ -130,7 +130,6 @@ batch_update_validator = keyed(
 job_group_validator = keyed(
     {
         required('job_group_id'): int_type,
-        required('name'): nullable(str_type),
         'attributes': nullable(dictof(str_type)),
         'callback': nullable(str_type),
         required('n_jobs'): int_type,

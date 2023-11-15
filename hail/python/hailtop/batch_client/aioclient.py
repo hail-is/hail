@@ -525,7 +525,6 @@ class JobGroup:
     def _spec(self):
         spec = {
             'job_group_id': self._job_group_id,
-            'name': self._name,
             'attributes': self._attributes,
             'callback': self.callback,
             'cancel_after_n_failures': self.cancel_after_n_failures,
