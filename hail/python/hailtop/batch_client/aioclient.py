@@ -329,7 +329,6 @@ class JobGroup:
                  batch: 'Batch',
                  job_group_id: Union[AbsoluteJobGroupId, InUpdateJobGroupId],
                  *,
-                 name: Optional[str] = None,
                  attributes: Optional[dict] = None,
                  callback: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None,
@@ -337,12 +336,9 @@ class JobGroup:
                  ):
         self._batch = batch
         self._job_group_id = job_group_id
-        self._name = name
 
         attributes = attributes or {}
-
-        if attributes and 'name' in attributes:
-            raise ValueError('the attributes argument cannot contain the key "name"')
+        self._name = attributes.get('name')
 
         self._attributes = attributes
         self.callback = callback
@@ -595,7 +591,6 @@ class Batch:
         else:
             self._root_job_group = JobGroup(self,
                                             InUpdateJobGroupId(ROOT_JOB_GROUP_ID),
-                                            name=None,
                                             parent_job_group=None,
                                             attributes=self.attributes,
                                             cancel_after_n_failures=self._cancel_after_n_failures,
