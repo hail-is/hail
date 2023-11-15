@@ -37,7 +37,7 @@ attrs==23.1.0
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -c hail/batch/../web_common/pinned-requirements.txt
     #   aiohttp
-charset-normalizer==3.3.1
+charset-normalizer==3.3.2
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
@@ -78,11 +78,11 @@ packaging==23.2
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   plotly
-pandas==2.1.1
+pandas==2.1.2
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -r hail/batch/requirements.txt
-plotly==5.17.0
+plotly==5.18.0
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -r hail/batch/requirements.txt

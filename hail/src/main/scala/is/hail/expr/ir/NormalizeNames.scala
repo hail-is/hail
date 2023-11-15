@@ -67,14 +67,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newValue <- normalize(value, valueEnv)
           newBody <- normalize(body, bodyEnv)
         } yield AggLet(newName, newValue, newBody, isScan)
-      case TailLoop(name, args, body) =>
+      case TailLoop(name, args, resultType, body) =>
         val newFName = gen()
         val newNames = Array.tabulate(args.length)(i => gen())
         val (names, values) = args.unzip
         for {
           newValues <- values.mapRecur(v => normalize(v))
           newBody <- normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames) :+ name -> newFName: _*)))
-        } yield TailLoop(newFName, newNames.zip(newValues), newBody)
+        } yield TailLoop(newFName, newNames.zip(newValues), resultType, newBody)
       case ArraySort(a, left, right, lessThan) =>
         val newLeft = gen()
         val newRight = gen()

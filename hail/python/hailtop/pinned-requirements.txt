@@ -22,7 +22,7 @@ azure-core==1.29.5
     #   azure-mgmt-core
     #   azure-storage-blob
     #   msrest
-azure-identity==1.14.1
+azure-identity==1.15.0
     # via -r hail/hail/python/hailtop/requirements.txt
 azure-mgmt-core==1.4.0
     # via azure-mgmt-storage
@@ -30,14 +30,14 @@ azure-mgmt-storage==20.1.0
     # via -r hail/hail/python/hailtop/requirements.txt
 azure-storage-blob==12.18.3
     # via -r hail/hail/python/hailtop/requirements.txt
-boto3==1.28.69
+boto3==1.28.80
     # via -r hail/hail/python/hailtop/requirements.txt
-botocore==1.31.69
+botocore==1.31.80
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
-cachetools==5.3.1
+cachetools==5.3.2
     # via google-auth
 certifi==2023.7.22
     # via
@@ -47,7 +47,7 @@ cffi==1.16.0
     # via
     #   cryptography
     #   pycares
-charset-normalizer==3.3.1
+charset-normalizer==3.3.2
     # via
     #   aiohttp
     #   requests
@@ -68,7 +68,7 @@ frozenlist==1.4.0
     #   -r hail/hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.23.3
+google-auth==2.23.4
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   google-auth-oauthlib
@@ -92,7 +92,7 @@ jmespath==1.0.1
     #   botocore
 jproperties==2.1.1
     # via -r hail/hail/python/hailtop/requirements.txt
-msal==1.24.1
+msal==1.25.0
     # via
     #   azure-identity
     #   msal-extensions
@@ -108,7 +108,7 @@ nest-asyncio==1.5.8
     # via -r hail/hail/python/hailtop/requirements.txt
 oauthlib==3.2.2
     # via requests-oauthlib
-orjson==3.9.9
+orjson==3.9.10
     # via -r hail/hail/python/hailtop/requirements.txt
 portalocker==2.8.2
     # via msal-extensions

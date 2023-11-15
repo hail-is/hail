@@ -454,7 +454,7 @@ class TailLoop(IR):
         return TailLoop(self.name, [(n, v) for (n, _), v in zip(self.params, params)], body)
 
     def head_str(self):
-        return f'{escape_id(self.name)} ({" ".join([escape_id(n) for n, _ in self.params])})'
+        return f'{escape_id(self.name)} ({" ".join([escape_id(n) for n, _ in self.params])}) {self.body.typ._parsable_string()}'
 
     def _eq(self, other):
         return self.name == other.name
@@ -493,7 +493,7 @@ class Recur(IR):
         return Recur(self.name, args, self.return_type)
 
     def head_str(self):
-        return f'{escape_id(self.name)} {self.return_type._parsable_string()}'
+        return f'{escape_id(self.name)}'
 
     def _eq(self, other):
         return other.name == self.name

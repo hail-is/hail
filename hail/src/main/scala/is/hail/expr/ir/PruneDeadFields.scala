@@ -1511,7 +1511,7 @@ object PruneDeadFields {
         )
         memoizeMatrixIR(ctx, child, dep, memo)
         BindingEnv.empty
-      case TailLoop(name, params, body) =>
+      case TailLoop(name, params, _, body) =>
         val bodyEnv = memoizeValueIR(ctx, body, body.typ, memo)
         val paramTypes = params.map{ case (paramName, paramIR) =>
           unifySeq(paramIR.typ, uses(paramName, bodyEnv.eval))

@@ -183,12 +183,10 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       single(Pretty.prettyBooleanLiteral(isScan))
     else
       FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
-    case TailLoop(name, args, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastSeq))
-    case Recur(name, _, t) => if (elideBindings)
-      single(t.parsableString())
-    else
-      FastSeq(prettyIdentifier(name), t.parsableString())
+    case TailLoop(name, args, returnType, _) if !elideBindings =>
+      FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastSeq), returnType.parsableString())
+    case Recur(name, _, t) if !elideBindings =>
+      FastSeq(prettyIdentifier(name))
 //    case Ref(name, t) if t != null => FastSeq(prettyIdentifier(name), t.parsableString())  // For debug purposes
     case Ref(name, _) => single(prettyIdentifier(name))
     case RelationalRef(name, t) => if (elideBindings)
@@ -276,7 +274,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case NDArrayInv(_, errorID) => single(s"$errorID")
     case ArraySort(_, l, r, _) if !elideBindings => FastSeq(prettyIdentifier(l), prettyIdentifier(r))
     case ArrayRef(_,_, errorID) => single(s"$errorID")
-    case ApplyIR(function, typeArgs, _, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
+    case ApplyIR(function, typeArgs, _, _, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
     case Apply(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case ApplySeeded(function, _, rngState, staticUID, t) => FastSeq(prettyIdentifier(function), staticUID.toString, t.parsableString())
     case ApplySpecial(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
@@ -414,12 +412,14 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         prettyStrings(entryKV.map(_._1)), prettyStrings(entryKV.map(_._2)))
     case TableFilterIntervals(child, intervals, keep) =>
       FastSeq(
+        child.typ.keyType.parsableString(),
         prettyStringLiteral(Serialization.write(
           JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.keyType)))
         )(RelationalSpec.formats)),
         Pretty.prettyBooleanLiteral(keep))
     case MatrixFilterIntervals(child, intervals, keep) =>
       FastSeq(
+        child.typ.rowType.parsableString(),
         prettyStringLiteral(Serialization.write(
           JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.rowKeyStruct)))
         )(RelationalSpec.formats)),
@@ -494,7 +494,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         if (i > 0) Some(FastSeq()) else None
       case _: Switch =>
         if (i > 0) Some(FastSeq()) else None
-      case TailLoop(name, args, body) => if (i == args.length)
+      case TailLoop(name, args, _, body) => if (i == args.length)
         Some(args.map { case (name, ir) => name -> "loopvar" } :+
           name -> "loop") else None
       case StreamMap(a, name, _) =>

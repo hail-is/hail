@@ -729,27 +729,31 @@ object LowerTableIR {
                 }))
             }
 
-            bindIR(TailLoop(treeAggFunction,
+            val loopBody = If(
+              ArrayLen(currentAggStates) <= I32(branchFactor),
+              currentAggStates,
+              Recur(
+                treeAggFunction,
+                FastSeq(
+                  CollectDistributedArray(
+                    mapIR(StreamGrouped(ToStream(currentAggStates), I32(branchFactor)))(x => ToArray(x)),
+                    MakeStruct(FastSeq()),
+                    distAggStatesRef.name,
+                    genUID(),
+                    RunAgg(
+                      combineGroup(distAggStatesRef, false),
+                      WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
+                      aggs.states),
+                    strConcat(Str("iteration="), invoke("str", TString, iterNumber), Str(", n_states="), invoke("str", TString, ArrayLen(currentAggStates))),
+                    "table_tree_aggregate"),
+                  iterNumber + 1),
+                currentAggStates.typ))
+            bindIR(TailLoop(
+              treeAggFunction,
               FastSeq[(String, IR)](currentAggStates.name -> collected, iterNumber.name -> I32(0)),
-              If(ArrayLen(currentAggStates) <= I32(branchFactor),
-                currentAggStates,
-                Recur(treeAggFunction,
-                  FastSeq(
-                    CollectDistributedArray(
-                      mapIR(StreamGrouped(ToStream(currentAggStates), I32(branchFactor)))(x => ToArray(x)),
-                      MakeStruct(FastSeq()),
-                      distAggStatesRef.name,
-                      genUID(),
-                      RunAgg(
-                        combineGroup(distAggStatesRef, false),
-                        WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
-                        aggs.states
-                      ),
-                      strConcat(Str("iteration="), invoke("str", TString, iterNumber), Str(", n_states="), invoke("str", TString, ArrayLen(currentAggStates))),
-                      "table_tree_aggregate"),
-                    iterNumber + 1),
-                  currentAggStates.typ)))
-            ) { finalParts =>
+              loopBody.typ,
+              loopBody
+            )) { finalParts =>
               RunAgg(
                 combineGroup(finalParts, true),
                 Let("global", globals,
@@ -1073,17 +1077,25 @@ object LowerTableIR {
               val howManyPartsToTry = if (targetNumRows == 1L) 1 else 4
               val iteration = Ref(genUID(), TInt32)
 
+              val loopBody = bindIR(
+                loweredChild
+                  .mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)) { ctx: IR => ctx }
+                  .mapCollect(
+                    "table_head_recursive_count",
+                    strConcat(Str("iteration="), invoke("str", TString, iteration), Str(",nParts="), invoke("str", TString, howManyPartsToTryRef))
+                    )(streamLenOrMax)
+                ) { counts =>
+                  If(
+                    (Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows)
+                      || (ArrayLen(childContexts) <= ArrayLen(counts)),
+                    counts,
+                    Recur(partitionSizeArrayFunc, FastSeq(howManyPartsToTryRef * 4, iteration + 1), TArray(TInt32)))
+              }
               TailLoop(
                 partitionSizeArrayFunc,
                 FastSeq(howManyPartsToTryRef.name -> howManyPartsToTry, iteration.name -> 0),
-                bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)) { ctx: IR => ctx }
-                  .mapCollect("table_head_recursive_count",
-                    strConcat(Str("iteration="), invoke("str", TString, iteration), Str(",nParts="), invoke("str", TString, howManyPartsToTryRef))
-                  )(streamLenOrMax)) { counts =>
-                  If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
-                    counts,
-                    Recur(partitionSizeArrayFunc, FastSeq(howManyPartsToTryRef * 4, iteration + 1), TArray(TInt32)))
-                })
+                loopBody.typ,
+                loopBody)
           }
         }
 
@@ -1094,16 +1106,22 @@ object LowerTableIR {
             val numLeft = Ref(genUID(), TInt64)
             def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple(FastSeq((0, howManyParts), (1, howManyFromLast)))
 
+            val loopBody = If(
+              (i ceq numPartitions - 1) || ((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)) <= 0L),
+              makeAnswer(i + 1, numLeft),
+              Recur(
+                howManyPartsToKeep,
+                FastSeq(
+                  i + 1,
+                  numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)),
+                TTuple(TInt32, TInt64)))
             If(numPartitions ceq 0,
               makeAnswer(0, 0L),
-              TailLoop(howManyPartsToKeep, FastSeq(i.name -> 0, numLeft.name -> targetNumRows),
-                If((i ceq numPartitions - 1) || ((numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)) <= 0L),
-                  makeAnswer(i + 1, numLeft),
-                  Recur(howManyPartsToKeep,
-                    FastSeq(
-                      i + 1,
-                      numLeft - Cast(ArrayRef(partitionSizeArrayRef, i), TInt64)),
-                    TTuple(TInt32, TInt64)))))
+              TailLoop(
+                howManyPartsToKeep,
+                FastSeq(i.name -> 0, numLeft.name -> targetNumRows),
+                loopBody.typ,
+                loopBody))
           }
 
         val newCtxs = bindIR(ToArray(loweredChild.contexts)) { childContexts =>
@@ -1168,19 +1186,24 @@ object LowerTableIR {
 
               val iteration = Ref(genUID(), TInt32)
 
+              val loopBody = bindIR(
+                loweredChild
+                  .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTryRef, 0))) { ctx: IR => ctx }
+                  .mapCollect(
+                    "table_tail_recursive_count",
+                    strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nParts="), invoke("str", TString, howManyPartsToTryRef))
+                    )(StreamLen)
+                ) { counts =>
+                If(
+                  (Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
+                  counts,
+                  Recur(partitionSizeArrayFunc, FastSeq(howManyPartsToTryRef * 4, iteration + 1), TArray(TInt32)))
+              }
               TailLoop(
                 partitionSizeArrayFunc,
                 FastSeq(howManyPartsToTryRef.name -> howManyPartsToTry, iteration.name -> 0),
-                bindIR(
-                  loweredChild
-                    .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTryRef, 0))) { ctx: IR => ctx }
-                    .mapCollect("table_tail_recursive_count",
-                      strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nParts="), invoke("str", TString, howManyPartsToTryRef)))(StreamLen)
-                ) { counts =>
-                  If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
-                    counts,
-                    Recur(partitionSizeArrayFunc, FastSeq(howManyPartsToTryRef * 4, iteration + 1), TArray(TInt32)))
-                })
+                loopBody.typ,
+                loopBody)
           }
         }
 
@@ -1192,19 +1215,22 @@ object LowerTableIR {
             val nRowsToRight = Ref(genUID(), TInt64)
             def makeAnswer(howManyParts: IR, howManyFromLast: IR) = MakeTuple.ordered(FastSeq(howManyParts, howManyFromLast))
 
+            val loopBody = If(
+              (i ceq numPartitions) || ((nRowsToRight + Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64)) >= targetNumRows),
+              makeAnswer(i, maxIR(0L, Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64) - (I64(targetNumRows) - nRowsToRight)).toI),
+              Recur(
+                howManyPartsToDrop,
+                FastSeq(
+                  i + 1,
+                  nRowsToRight + Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64)),
+                TTuple(TInt32, TInt32)))
             If(numPartitions ceq 0,
               makeAnswer(0, 0),
               TailLoop(
                 howManyPartsToDrop,
                 FastSeq(i.name -> 1, nRowsToRight.name -> 0L),
-                If((i ceq numPartitions) || ((nRowsToRight + Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64)) >= targetNumRows),
-                  makeAnswer(i, maxIR(0L, Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64) - (I64(targetNumRows) - nRowsToRight)).toI),
-                  Recur(
-                    howManyPartsToDrop,
-                    FastSeq(
-                      i + 1,
-                      nRowsToRight + Cast(ArrayRef(partitionSizeArrayRef, numPartitions - i), TInt64)),
-                    TTuple(TInt32, TInt32)))))
+                loopBody.typ,
+                loopBody))
           }
         }
 
@@ -1325,30 +1351,33 @@ object LowerTableIR {
                 val iteration = Ref(genUID(), TInt32)
                 val loopName = genUID()
 
-                TailLoop(loopName, IndexedSeq((aggStack.name, MakeArray(collected)), (iteration.name, I32(0))),
-                  bindIR(ArrayRef(aggStack, (ArrayLen(aggStack) - 1))) { states =>
-                    bindIR(ArrayLen(states)) { statesLen =>
-                      If(statesLen > branchFactor,
-                        bindIR((statesLen + branchFactor - 1) floorDiv branchFactor) { nCombines =>
-                          val contexts = mapIR(rangeIR(nCombines)) { outerIdxRef =>
-                            sliceArrayIR(states, outerIdxRef * branchFactor, (outerIdxRef + 1) * branchFactor)
-                          }
-                          val cdaResult = cdaIR(contexts, MakeStruct(FastSeq()), "table_scan_up_pass",
-                            strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nStates="), invoke("str", TString, statesLen))
-                          ) { case (contexts, _) =>
-                            RunAgg(
-                              combineGroup(contexts),
-                              WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
-                              aggs.states
-                            )
-                          }
-                          Recur(loopName, IndexedSeq(invoke("extend", TArray(TArray(TString)), aggStack, MakeArray(cdaResult)), iteration + 1), TArray(TArray(TString)))
-                        },
-                        aggStack
-                      )
-                    }
+                val loopBody = bindIR(ArrayRef(aggStack, (ArrayLen(aggStack) - 1))) { states =>
+                  bindIR(ArrayLen(states)) { statesLen =>
+                    If(
+                      statesLen > branchFactor,
+                      bindIR((statesLen + branchFactor - 1) floorDiv branchFactor) { nCombines =>
+                        val contexts = mapIR(rangeIR(nCombines)) { outerIdxRef =>
+                          sliceArrayIR(states, outerIdxRef * branchFactor, (outerIdxRef + 1) * branchFactor)
+                        }
+                        val cdaResult = cdaIR(
+                          contexts, MakeStruct(FastSeq()), "table_scan_up_pass",
+                          strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nStates="), invoke("str", TString, statesLen))
+                        ) { case (contexts, _) =>
+                          RunAgg(
+                            combineGroup(contexts),
+                            WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
+                            aggs.states)
+                        }
+                        Recur(loopName, IndexedSeq(invoke("extend", TArray(TArray(TString)), aggStack, MakeArray(cdaResult)), iteration + 1), TArray(TArray(TString)))
+                      },
+                      aggStack)
                   }
-                )
+                }
+                TailLoop(
+                  loopName,
+                  IndexedSeq((aggStack.name, MakeArray(collected)), (iteration.name, I32(0))),
+                  loopBody.typ,
+                  loopBody)
               }
 
               // The downward pass traverses the tree from root to leaves, computing partial scan
@@ -1365,53 +1394,54 @@ object LowerTableIR {
 
 
                 bindIR(WriteValue(initState, Str(tmpDir) + UUID4(), writer)) { freshState =>
-                  TailLoop(downPassLoopName, IndexedSeq((level.name, ArrayLen(aggStack) - 1), (last.name, MakeArray(freshState)), (iteration.name, I32(0))),
-                    If(level < 0,
-                      last,
-                      bindIR(ArrayRef(aggStack, level)) { aggsArray =>
-
-                        val groups = mapIR(zipWithIndex(mapIR(StreamGrouped(ToStream(aggsArray), I32(branchFactor)))(x => ToArray(x)))) { eltAndIdx =>
-                          MakeStruct(FastSeq(
-                            ("prev", ArrayRef(last, GetField(eltAndIdx, "idx"))),
-                            ("partialSums", GetField(eltAndIdx, "elt"))
-                          ))
-                        }
-
-                        val results = cdaIR(groups, MakeTuple.ordered(FastSeq()), "table_scan_down_pass",
-                          strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", level="), invoke("str", TString, level))
-                        ) { case (context, _) =>
-                          bindIR(GetField(context, "prev")) { prev =>
-
-                            val elt = Ref(genUID(), TString)
-                            ToArray(RunAggScan(
-                              ToStream(GetField(context, "partialSums"), requiresMemoryManagementPerElement = true),
-                              elt.name,
-                              bindIR(ReadValue(prev, reader, reader.spec.encodedVirtualType)) { serializedTuple =>
-                                Begin(
-                                  aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                                    InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
-                                  })
-                              },
-                              bindIR(ReadValue(elt, reader, reader.spec.encodedVirtualType)) { serializedTuple =>
-                                Begin(
-                                  aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                                    CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
-                                  })
-                              },
-                              WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
-                              aggs.states
-                            ))
-                          }
-                        }
-                        Recur(downPassLoopName,
-                          IndexedSeq(
-                            level - 1,
-                            ToArray(flatten(ToStream(results))),
-                            iteration + 1),
-                          TArray(TString))
+                  val loopBody = If(
+                    level < 0,
+                    last,
+                    bindIR(ArrayRef(aggStack, level)) { aggsArray =>
+                      val groups = mapIR(zipWithIndex(mapIR(StreamGrouped(ToStream(aggsArray), I32(branchFactor)))(x => ToArray(x)))) { eltAndIdx =>
+                        MakeStruct(FastSeq(
+                          ("prev", ArrayRef(last, GetField(eltAndIdx, "idx"))),
+                          ("partialSums", GetField(eltAndIdx, "elt"))))
                       }
-                    )
-                  )
+
+                      val results = cdaIR(
+                        groups, MakeTuple.ordered(FastSeq()), "table_scan_down_pass",
+                        strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", level="), invoke("str", TString, level))
+                      ) { case (context, _) =>
+                        bindIR(GetField(context, "prev")) { prev =>
+                          val elt = Ref(genUID(), TString)
+                          ToArray(RunAggScan(
+                            ToStream(GetField(context, "partialSums"), requiresMemoryManagementPerElement = true),
+                            elt.name,
+                            bindIR(ReadValue(prev, reader, reader.spec.encodedVirtualType)) { serializedTuple =>
+                              Begin(
+                                aggs.aggs.zipWithIndex.map { case (sig, i) =>
+                                  InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
+                                })
+                            },
+                            bindIR(ReadValue(elt, reader, reader.spec.encodedVirtualType)) { serializedTuple =>
+                              Begin(
+                                aggs.aggs.zipWithIndex.map { case (sig, i) =>
+                                  CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
+                                })
+                            },
+                            WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), writer),
+                            aggs.states))
+                        }
+                      }
+                      Recur(
+                        downPassLoopName,
+                        IndexedSeq(
+                          level - 1,
+                          ToArray(flatten(ToStream(results))),
+                          iteration + 1),
+                        TArray(TString))
+                    })
+                  TailLoop(
+                    downPassLoopName,
+                    IndexedSeq((level.name, ArrayLen(aggStack) - 1), (last.name, MakeArray(freshState)), (iteration.name, I32(0))),
+                    loopBody.typ,
+                    loopBody)
                 }
               }
             }

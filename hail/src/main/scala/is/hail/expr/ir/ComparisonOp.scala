@@ -14,28 +14,21 @@ object ComparisonOp {
     if (lt != rt)
       throw new RuntimeException(s"Cannot compare types $lt and $rt")
 
-  val fromStringAndTypes: PartialFunction[(String, Type, Type), ComparisonOp[_]] = {
-    case ("==" | "EQ", t1, t2) =>
-      checkCompatible(t1, t2)
-      EQ(t1, t2)
-    case ("!=" | "NEQ", t1, t2) =>
-      checkCompatible(t1, t2)
-      NEQ(t1, t2)
-    case (">=" | "GTEQ", t1, t2) =>
-      checkCompatible(t1, t2)
-      GTEQ(t1, t2)
-    case ("<=" | "LTEQ", t1, t2) =>
-      checkCompatible(t1, t2)
-      LTEQ(t1, t2)
-    case (">" | "GT", t1, t2) =>
-      checkCompatible(t1, t2)
-      GT(t1, t2)
-    case ("<" | "LT", t1, t2) =>
-      checkCompatible(t1, t2)
-      LT(t1, t2)
-    case ("Compare", t1, t2) =>
-      checkCompatible(t1, t2)
-      Compare(t1, t2)
+  val fromString: PartialFunction[String, ComparisonOp[_]] = {
+    case "==" | "EQ" =>
+      EQ(null, null)
+    case "!=" | "NEQ" =>
+      NEQ(null, null)
+    case ">=" | "GTEQ" =>
+      GTEQ(null, null)
+    case "<=" | "LTEQ" =>
+      LTEQ(null, null)
+    case ">" | "GT" =>
+      GT(null, null)
+    case "<" | "LT" =>
+      LT(null, null)
+    case "Compare" =>
+      Compare(null, null)
   }
 
   def negate(op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
@@ -84,33 +77,56 @@ sealed trait ComparisonOp[ReturnType] {
   }
 
   def render(): is.hail.utils.prettyPrint.Doc = Pretty.prettyClass(this)
+
+  def copy(t1: Type, t2: Type): ComparisonOp[ReturnType]
 }
 
-case class GT(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Gt() }
+case class GT(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.Gt()
+  override def copy(t1: Type = t1, t2: Type = t2): GT = GT(t1, t2)
+}
 object GT { def apply(typ: Type): GT = GT(typ, typ) }
-case class GTEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Gteq() }
+case class GTEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.Gteq()
+  override def copy(t1: Type = t1, t2: Type = t2): GTEQ = GTEQ(t1, t2)
+}
 object GTEQ { def apply(typ: Type): GTEQ = GTEQ(typ, typ) }
-case class LTEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Lteq() }
+case class LTEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.Lteq()
+  override def copy(t1: Type = t1, t2: Type = t2): LTEQ = LTEQ(t1, t2)
+}
 object LTEQ { def apply(typ: Type): LTEQ = LTEQ(typ, typ) }
-case class LT(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Lt() }
+case class LT(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.Lt()
+  override def copy(t1: Type = t1, t2: Type = t2): LT = LT(t1, t2)
+}
 object LT { def apply(typ: Type): LT = LT(typ, typ) }
-case class EQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Equiv() }
+case class EQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.Equiv()
+  override def copy(t1: Type = t1, t2: Type = t2): EQ = EQ(t1, t2)
+}
 object EQ { def apply(typ: Type): EQ = EQ(typ, typ) }
-case class NEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] { val op: CodeOrdering.Op = CodeOrdering.Neq() }
+case class NEQ(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.Neq()
+  override def copy(t1: Type = t1, t2: Type = t2): NEQ = NEQ(t1, t2)
+}
 object NEQ { def apply(typ: Type): NEQ = NEQ(typ, typ) }
 case class EQWithNA(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
   val op: CodeOrdering.Op = CodeOrdering.Equiv()
   override val strict: Boolean = false
+  override def copy(t1: Type = t1, t2: Type = t2): EQWithNA = EQWithNA(t1, t2)
 }
 object EQWithNA { def apply(typ: Type): EQWithNA = EQWithNA(typ, typ) }
 case class NEQWithNA(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
   val op: CodeOrdering.Op = CodeOrdering.Neq()
   override val strict: Boolean = false
+  override def copy(t1: Type = t1, t2: Type = t2): NEQWithNA = NEQWithNA(t1, t2)
 }
 object NEQWithNA { def apply(typ: Type): NEQWithNA = NEQWithNA(typ, typ) }
 case class Compare(t1: Type, t2: Type) extends ComparisonOp[Int] {
   override val strict: Boolean = false
   val op: CodeOrdering.Op = CodeOrdering.Compare()
+  override def copy(t1: Type = t1, t2: Type = t2): Compare = Compare(t1, t2)
 }
 object Compare { def apply(typ: Type): Compare = Compare(typ, typ) }
 
@@ -126,28 +142,33 @@ trait StructComparisonOp[T] extends ComparisonOp[T] {
 case class StructCompare(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Int] {
   val op: CodeOrdering.Op = CodeOrdering.StructCompare()
   override val strict: Boolean = false
+  override def copy(t1: Type = t1, t2: Type = t2): StructCompare = StructCompare(t1, t2, sortFields)
 }
 
 case class StructLT(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
   val op: CodeOrdering.Op = CodeOrdering.StructLt()
+  override def copy(t1: Type = t1, t2: Type = t2): StructLT = StructLT(t1, t2, sortFields)
 }
 
 object StructLT { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructLT = StructLT(typ, typ, sortFields.toArray) }
 
 case class StructLTEQ(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
   val op: CodeOrdering.Op = CodeOrdering.StructLteq()
+  override def copy(t1: Type = t1, t2: Type = t2): StructLTEQ = StructLTEQ(t1, t2, sortFields)
 }
 
 object StructLTEQ { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructLTEQ = StructLTEQ(typ, typ, sortFields.toArray) }
 
 case class StructGT(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
   val op: CodeOrdering.Op = CodeOrdering.StructGt()
+  override def copy(t1: Type = t1, t2: Type = t2): StructGT = StructGT(t1, t2, sortFields)
 }
 
 object StructGT { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructGT = StructGT(typ, typ, sortFields.toArray) }
 
 case class StructGTEQ(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
   val op: CodeOrdering.Op = CodeOrdering.StructGteq()
+  override def copy(t1: Type = t1, t2: Type = t2): StructGTEQ = StructGTEQ(t1, t2, sortFields)
 }
 
 object StructGTEQ { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructGTEQ = StructGTEQ(typ, typ, sortFields.toArray) }
