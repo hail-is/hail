@@ -1,27 +1,31 @@
 package is.hail.backend
 
-import is.hail.asm4s._
-import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{BaseIR, CodeCacheKey, CompiledFunction, IRParser, IRParserEnvironment, LoweringAnalyses, SortField, TableIR, TableReader}
-import is.hail.io.fs._
-import is.hail.io.plink.LoadPlink
-import is.hail.io.vcf.LoadVCF
-import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.linalg.BlockMatrix
-import is.hail.types._
-import is.hail.types.encoded.EType
-import is.hail.types.physical.PTuple
-import is.hail.types.virtual.TFloat64
-import is.hail.utils._
-import is.hail.variant.ReferenceGenome
+import java.io._
+import java.nio.charset.StandardCharsets
+
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-import java.io._
-import java.nio.charset.StandardCharsets
+import is.hail.asm4s._
+import is.hail.backend.spark.SparkBackend
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.{CodeCacheKey, CompiledFunction, LoweringAnalyses, SortField, TableIR, TableReader}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.fs._
+import is.hail.io.plink.LoadPlink
+import is.hail.io.vcf.LoadVCF
+import is.hail.expr.ir.{IRParser, BaseIR}
+import is.hail.linalg.BlockMatrix
+import is.hail.types._
+import is.hail.types.encoded.EType
+import is.hail.types.virtual.TFloat64
+import is.hail.types.physical.PTuple
+import is.hail.utils._
+import is.hail.variant.ReferenceGenome
+
 import scala.collection.mutable
 import scala.reflect.ClassTag
+import is.hail.expr.ir.IRParserEnvironment
 
 
 object Backend {
