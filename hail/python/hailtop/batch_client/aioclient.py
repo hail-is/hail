@@ -867,14 +867,14 @@ class Batch:
         b = bytearray()
         b.extend(b'{"bunch":')
         b.append(ord('['))
-        for i, spec in enumerate(byte_job_specs[0]):
+        for i, spec in enumerate(byte_job_specs):
             if i > 0:
                 b.append(ord(','))
             b.extend(spec)
         b.append(ord(']'))
         b.extend(b',"job_groups":')
         b.append(ord('['))
-        for i, spec in enumerate(byte_job_group_specs[0]):
+        for i, spec in enumerate(byte_job_group_specs):
             if i > 0:
                 b.append(ord(','))
             b.extend(spec)
