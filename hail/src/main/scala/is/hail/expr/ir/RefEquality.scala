@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
+
 import scala.collection.mutable
 
 object RefEquality {
@@ -61,19 +63,14 @@ class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
 
 
 object HasIRSharing {
-  def apply(ir: BaseIR): Boolean = {
-    val m = mutable.HashSet.empty[RefEquality[BaseIR]]
+  def apply(ctx: ExecuteContext)(ir: BaseIR): Boolean = {
+    val mark = ctx.irMetadata.nextFlag
 
-    def recur(x: BaseIR): Boolean = {
-      val re = RefEquality(x)
-      if (m.contains(re))
-        true
-      else {
-        m.add(re)
-        x.children.exists(recur)
-      }
+    for (node <- IRTraversal.levelOrder(ir)) {
+      if (node.mark == mark) return true
+      node.mark = mark
     }
 
-    recur(ir)
+    false
   }
 }

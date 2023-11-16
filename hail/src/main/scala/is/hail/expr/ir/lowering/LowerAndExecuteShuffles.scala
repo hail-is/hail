@@ -57,7 +57,7 @@ object LowerAndExecuteShuffles {
                 })
               }, newKey, seq, "row", aggSigs, bufferSize)
             ),
-            0, 0).noSharing
+            0, 0).noSharing(ctx)
 
 
         val analyses = LoweringAnalyses(partiallyAggregated, ctx)

@@ -60,6 +60,6 @@ object LowerOrInterpretNonCompilable {
       }
     }
 
-    rewrite(ir.noSharing, mutable.HashMap.empty)
+    rewrite(ir.noSharing(ctx), mutable.HashMap.empty)
   }
 }

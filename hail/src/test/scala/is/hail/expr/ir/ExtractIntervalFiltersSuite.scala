@@ -757,6 +757,19 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
+  @Test def testRelationalChildren(): Unit = {
+    val testRows = FastSeq(
+      Row(0, 0, true),
+      Row(0, 10, true),
+      Row(0, 20, true),
+      Row(0, null, true))
+
+    val count = TableAggregate(TableRange(10, 1), ApplyAggOp(FastSeq(), FastSeq(), AggSignature(Count(), FastSeq(), FastSeq())))
+    print(count.typ)
+    val filter = gt(count, Cast(k1, TInt64))
+    check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(Row(), Row(), true, true)))
+  }
+
   @Test def testIntegration() {
     hc // force initialization
     val tab1 = TableRange(10, 5)

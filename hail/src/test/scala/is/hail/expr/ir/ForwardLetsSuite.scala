@@ -93,34 +93,34 @@ class ForwardLetsSuite extends HailSuite {
 
   @Test(dataProvider = "nonForwardingOps")
   def testNonForwardingOps(ir: IR): Unit = {
-    val after = ForwardLets(ir)
-    val normalizedBefore = (new NormalizeNames(_.toString)).apply(ir)
-    val normalizedAfter = (new NormalizeNames(_.toString)).apply(after)
+    val after = ForwardLets(ctx)(ir)
+    val normalizedBefore = (new NormalizeNames(_.toString))(ctx, ir)
+    val normalizedAfter = (new NormalizeNames(_.toString))(ctx, after)
     assert(normalizedBefore == normalizedAfter)
   }
 
   @Test(dataProvider = "nonForwardingNonEvalOps")
   def testNonForwardingNonEvalOps(ir: IR): Unit = {
-    val after = ForwardLets(ir)
+    val after = ForwardLets(ctx)(ir)
     assert(after.isInstanceOf[Let])
   }
 
   @Test(dataProvider = "nonForwardingAggOps")
   def testNonForwardingAggOps(ir: IR): Unit = {
-    val after = ForwardLets(ir)
+    val after = ForwardLets(ctx)(ir)
     assert(after.isInstanceOf[AggLet])
   }
 
   @Test(dataProvider = "forwardingOps")
   def testForwardingOps(ir: IR): Unit = {
-    val after = ForwardLets(ir)
+    val after = ForwardLets(ctx)(ir)
     assert(!after.isInstanceOf[Let])
     assertEvalSame(ir, args = Array(5 -> TInt32))
   }
 
   @Test(dataProvider = "forwardingAggOps")
   def testForwardingAggOps(ir: IR): Unit = {
-    val after = ForwardLets(ir)
+    val after = ForwardLets(ctx)(ir)
     assert(!after.isInstanceOf[AggLet])
   }
 
@@ -193,7 +193,7 @@ class ForwardLetsSuite extends HailSuite {
 
   @Test(dataProvider = "TrivialIRCases")
   def testTrivialCases(input: IR, expected: IR, reason: String): Unit =
-    ForwardLets(input) should be(expected) withClue reason
+    ForwardLets(ctx)(input) should be(expected) withClue reason
 
   @Test def testAggregators(): Unit = {
     val aggEnv = Env[Type]("row" -> TStruct("idx" -> TInt32))
@@ -202,10 +202,7 @@ class ForwardLetsSuite extends HailSuite {
     }))
       .apply(aggEnv)
 
-    TypeCheck(
-      ctx,
-      ForwardLets(ir0).asInstanceOf[IR],
-      BindingEnv(Env.empty, agg = Some(aggEnv)))
+    TypeCheck(ctx, ForwardLets(ctx)(ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
   }
 
   @Test def testNestedBindingOverwrites(): Unit = {
@@ -215,7 +212,7 @@ class ForwardLetsSuite extends HailSuite {
     }(env)
 
     TypeCheck(ctx, ir, BindingEnv(env))
-    TypeCheck(ctx, ForwardLets(ir).asInstanceOf[IR], BindingEnv(env))
+    TypeCheck(ctx, ForwardLets(ctx)(ir), BindingEnv(env))
   }
 
   @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): Unit = {
@@ -231,6 +228,6 @@ class ForwardLetsSuite extends HailSuite {
     )
 
     TypeCheck(ctx, x, BindingEnv(Env("y" -> TInt32)))
-    TypeCheck(ctx, ForwardLets(x).asInstanceOf[IR], BindingEnv(Env("y" -> TInt32)))
+    TypeCheck(ctx, ForwardLets(ctx)(x), BindingEnv(Env("y" -> TInt32)))
   }
 }

@@ -30,8 +30,9 @@ object Simplify {
   private[this] def simplifyValue(ctx: ExecuteContext): IR => IR =
     visitNode(
       Simplify(ctx, _),
-      rewriteValueNode,
-      simplifyValue(ctx))
+      rewriteValueNode(ctx),
+      simplifyValue(ctx)
+    )
 
   private[this] def simplifyTable(ctx: ExecuteContext)(tir: TableIR): TableIR =
     visitNode(
@@ -55,8 +56,8 @@ object Simplify {
     )(bmir)
   }
 
-  private[this] def rewriteValueNode(ir: IR): Option[IR] =
-    valueRules.lift(ir).orElse(numericRules(ir))
+  private[this] def rewriteValueNode(ctx: ExecuteContext)(ir: IR): Option[IR] =
+    valueRules(ctx).lift(ir).orElse(numericRules(ir))
 
   private[this] def rewriteTableNode(ctx: ExecuteContext)(tir: TableIR): Option[TableIR] =
     tableRules(ctx).lift(tir)
@@ -221,7 +222,7 @@ object Simplify {
     ).reduce((f, g) => ir => f(ir).orElse(g(ir)))
   }
 
-  private[this] def valueRules: PartialFunction[IR, IR] = {
+  private[this] def valueRules(ctx: ExecuteContext): PartialFunction[IR, IR] = {
     // propagate NA
     case x: IR if hasMissingStrictChild(x) =>
       NA(x.typ)
