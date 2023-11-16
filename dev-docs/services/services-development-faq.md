@@ -29,3 +29,16 @@ The next dev deploy will set up a new database:
 ```bash
 hailctl dev deploy -b <github_username>/hail:<your branch> -s deploy_batch,add_developers
 ```
+
+#### My namespace scaled down overnight. How do I get them back?
+
+There is a Kubernetes `CronJob` that runs in the evenings that scales down
+development namespaces. To scale back up, you need to use `kubectl scale`,
+or you can use the devbin function `kscale`, like
+
+```bash
+kscale <your_namespace> up
+```
+
+If you want to manually scale down your namespace when not using it, run
+`kscale <your_namespace> down`.
