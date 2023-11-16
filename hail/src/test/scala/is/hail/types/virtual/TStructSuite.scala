@@ -60,6 +60,11 @@ class TStructSuite extends HailSuite {
   def testStructInsert(base: TStruct, path: IndexedSeq[String], signature: Type, expected: TStruct): Unit =
     assert(base.structInsert(signature, path) == expected)
 
+  @Test def testInsertEmptyPath(): Unit =
+    intercept[IllegalArgumentException] {
+      TStruct.empty.insert(TInt32, FastSeq())
+    }
+
 
   @DataProvider(name = "inserter")
   def inserterData: Array[Array[Any]] =

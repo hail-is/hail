@@ -110,6 +110,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   }
 
   def insert(signature: Type, path: IndexedSeq[String]): (TStruct, Inserter) = {
+    if (path.isEmpty)
+      throw new IllegalArgumentException(s"Empty path to new field of type '$signature'.")
 
     val missing: Annotation =
       null.asInstanceOf[Annotation]
