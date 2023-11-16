@@ -9,6 +9,7 @@ import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
 import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
 
 class TStructSerializer extends CustomSerializer[TStruct](format => (
   { case JString(s) => IRParser.parseStructType(s) },
@@ -116,7 +117,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     val missing: Annotation =
       null.asInstanceOf[Annotation]
 
-    def updateRow(typ: TStruct, idx: Int)(f: Inserter)(a: Annotation, v: Any): Annotation =
+
+    def updateField(typ: TStruct, idx: Int)(f: Inserter)(a: Annotation, v: Any): Annotation =
       a match {
         case r: Row =>
           r.update(idx, f(r.get(idx), v))
@@ -126,7 +128,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
           Row.fromSeq(arr)
       }
 
-    def insertField(typ: TStruct)(f: Inserter)(a: Annotation, v: Any): Annotation = {
+    def addField(typ: TStruct)(f: Inserter)(a: Annotation, v: Any): Annotation = {
       val arr = new Array[Any](typ.size + 1)
       a match {
         case r: Row =>
@@ -145,23 +147,17 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
         .scanLeft((this, identity[Type] _, identity[Inserter] _)) {
           case ((parent, _, _), name) =>
             parent.selfField(name) match {
-              case Some(Field(name, struct: TStruct, idx)) =>
+              case Some(Field(name, t, idx)) =>
                 (
-                  struct,
+                  t match { case s: TStruct => s case _ => TStruct.empty },
                   typ => parent.updateKey(name, idx, typ),
-                  updateRow(parent, idx)
-                )
-              case Some(Field(name, _, idx)) =>
-                (
-                  TStruct.empty,
-                  typ => parent.updateKey(name, idx, typ),
-                  updateRow(parent, idx)
+                  updateField(parent, idx)
                 )
               case None =>
                 (
                   TStruct.empty,
                   typ => parent.appendKey(name, typ),
-                  insertField(parent)
+                  addField(parent)
                 )
             }
         }
