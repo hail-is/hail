@@ -244,7 +244,7 @@ logging:
       default_pipeline:
         processors: [labels]
         receivers: [runlog, workerlog, jvmlog]
-        
+
 metrics:
   processors:
     metrics_filter:
