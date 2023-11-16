@@ -244,6 +244,13 @@ logging:
       default_pipeline:
         processors: [labels]
         receivers: [runlog, workerlog, jvmlog]
+        
+metrics:
+  processors:
+    metrics_filter:
+      type: exclude_metrics
+      metrics_pattern:
+      - agent.googleapis.com/processes/*
 EOF
 
 sudo systemctl restart google-cloud-ops-agent
