@@ -246,19 +246,11 @@ logging:
         receivers: [runlog, workerlog, jvmlog]
 
 metrics:
-  receivers:
-    hostmetrics:
-      type: hostmetrics
-      collection_interval: 60s
   processors:
     metrics_filter:
       type: exclude_metrics
-      metrics_pattern: []
-  service:
-    pipelines:
-      default_pipeline:
-        receivers: [hostmetrics]
-        processors: [metrics_filter]
+      metrics_pattern:
+      - agent.googleapis.com/processes/*
 EOF
 
 sudo systemctl restart google-cloud-ops-agent
