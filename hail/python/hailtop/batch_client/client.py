@@ -219,12 +219,19 @@ class Batch:
     def jobs(self, q=None, version=None):
         return ait_to_blocking(self._async_batch.jobs(q=q, version=version))
 
+    def job_groups(self, *, last_job_group_id=None, limit=2 ** 64):
+        return ait_to_blocking(self._async_batch.job_groups(last_job_group_id=last_job_group_id, limit=limit))
+
     def get_job(self, job_id: int) -> Job:
         j = async_to_blocking(self._async_batch.get_job(job_id))
         return Job(j)
 
     def get_job_log(self, job_id: int) -> Dict[str, Any]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
+
+    def get_job_group(self, job_group_id: int) -> JobGroup:
+        jg = async_to_blocking(self._async_batch.get_job_group(job_group_id))
+        return JobGroup(jg)
 
     def wait(self, *args, **kwargs):
         return async_to_blocking(self._async_batch.wait(*args, **kwargs))
@@ -234,6 +241,12 @@ class Batch:
 
     def delete(self):
         async_to_blocking(self._async_batch.delete())
+
+    def create_job_group(self,
+                         attributes: Optional[dict] = None,
+                         callback: Optional[str] = None,
+                         cancel_after_n_failures: Optional[int] = None) -> JobGroup:
+        raise NotImplementedError
 
     def create_job(self,
                    image,

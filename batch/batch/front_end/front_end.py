@@ -108,6 +108,7 @@ from .query import (
     parse_job_group_jobs_query_v1,
     parse_list_batches_query_v1,
     parse_list_batches_query_v2,
+    parse_list_job_groups_query_v1,
 )
 from .validate import (
     ValidationError,
@@ -711,6 +712,35 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     if last_batch_id is not None:
         return json_response({'batches': batches, 'last_batch_id': last_batch_id})
     return json_response({'batches': batches})
+
+
+async def _query_job_groups(request, batch_id: int, job_group_id: int, last_child_job_group_id: Optional[int]):
+    db: Database = request.app['db']
+    sql, sql_args = parse_list_job_groups_query_v1(batch_id, job_group_id, last_child_job_group_id)
+    job_groups = [job_group_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
+
+    if len(job_groups) == 51:
+        job_groups.pop()
+        last_child_job_group_id = job_groups[-1]['job_group_id']
+    else:
+        last_child_job_group_id = None
+
+    return (job_groups, last_child_job_group_id)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/job-groups')
+@billing_project_users_only()
+@add_metadata_to_request
+async def get_job_groups_v1(request: web.Request, _, batch_id: int):  # pylint: disable=unused-argument
+    job_group_id = int(request.match_info['job_group_id'])
+    last_child_job_group_id = cast_query_param_to_int(request.query.get('last_child_job_group_id'))
+    result = await _handle_api_error(_query_job_groups, request, batch_id, job_group_id, last_child_job_group_id)
+    assert result is not None
+    job_groups, last_child_job_group_id = result
+
+    if last_child_job_group_id is not None:
+        return json_response({'job_groups': job_groups, 'last_child_job_group_id': last_child_job_group_id})
+    return json_response({'job_groups': job_groups})
 
 
 def check_service_account_permissions(user, sa):

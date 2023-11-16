@@ -325,6 +325,7 @@ class JobGroup:
                  attributes: Optional[dict] = None,
                  callback: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None,
+                 last_known_status: Optional[dict] = None,
                  ):
         self._batch = batch
         self._job_group_id = job_group_id
@@ -335,7 +336,7 @@ class JobGroup:
         self._attributes = attributes
         self.callback = callback
         self.cancel_after_n_failures = cancel_after_n_failures
-        self._last_known_status = None
+        self._last_known_status = last_known_status
 
     def _raise_if_not_submitted(self):
         if not self.is_submitted:
@@ -379,6 +380,30 @@ class JobGroup:
     async def cancel(self):
         self._raise_if_not_submitted()
         await self._client._patch(f'/api/v1alpha/batches/{self.batch_id}/job-groups/{self.job_group_id}/cancel')
+
+    async def job_groups(self, last_job_group_id=None, limit=2 ** 64, version=None) -> AsyncIterator['JobGroup']:
+        n = 0
+        while True:
+            params = {}
+            if last_job_group_id is not None:
+                params['last_child_job_group_id'] = last_job_group_id
+
+            resp = await self._client._get(f'/api/v{version}alpha/batches/{self.id}/job-groups/{self.job_group_id}/job-groups', params=params)
+            body = await resp.json()
+
+            for job_group in body['job_groups']:
+                if n >= limit:
+                    return
+                n += 1
+                yield JobGroup(
+                    self._batch,
+                    job_group['job_group_id'],
+                    attributes=job_group.get('attributes'),
+                    last_known_status=job_group,
+                )
+            last_job_group_id = body.get('last_child_job_group_id')
+            if last_job_group_id is None:
+                break
 
     async def jobs(self,
                    q: Optional[str] = None,
@@ -552,9 +577,19 @@ class Batch:
         self._raise_if_not_created()
         return JobGroup(self, AbsoluteJobGroupId(job_group_id))
 
+    def create_job_group(self,
+                         attributes: Optional[dict] = None,
+                         callback: Optional[str] = None,
+                         cancel_after_n_failures: Optional[int] = None) -> JobGroup:
+        raise NotImplementedError
+
     async def cancel(self):
         self._raise_if_not_created()
         await self._root_job_group.cancel()
+
+    def job_groups(self, *, last_job_group_id=None, limit=2 ** 64) -> AsyncIterator[JobGroup]:
+        self._raise_if_not_created()
+        return self._root_job_group.job_groups(last_job_group_id=last_job_group_id, limit=limit)
 
     def jobs(self,
              q: Optional[str] = None,

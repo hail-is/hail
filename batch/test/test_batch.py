@@ -1757,3 +1757,71 @@ def test_get_job_group_status(client: BatchClient):
     last_known_status = jg.last_known_status()
     assert status['batch_id'] == b.id, str(status)
     assert last_known_status['batch_id'] == b.id, str(last_known_status)
+
+
+def test_job_group_creation_with_no_jobs(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo'})
+    b.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    assert job_groups[0]['name'] == 'foo', str(job_groups)
+
+
+def test_job_group_creation_on_update_with_no_jobs(client: BatchClient):
+    b = create_batch(client)
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b.submit()
+    b.create_job_group(attributes={'name': 'foo'})
+    b.submit()
+
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    assert job_groups[0]['name'] == 'foo', str(job_groups)
+
+    b.cancel()
+
+
+def test_job_group_attributes(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo', 'test': '1'})
+    b.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    jg = job_groups[0]
+    assert jg['name'] == 'foo', str(jg)
+    assert jg['attributes'] == {'name': 'foo', 'test': '1'}, str(jg)
+
+
+def test_job_groups_with_slow_create(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo'})
+    for _ in range(4):
+        b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+    b.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+
+
+def test_job_groups_with_slow_update(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo'})
+    b.submit()
+
+    for _ in range(4):
+        b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+    b.submit()
+
+    status = b.status()
+    debug_info = b.debug_info()
+    assert status['n_jobs'] == 4, str(debug_info)
+
+
+# FIXME: how big does this need to be?
+def test_more_than_100_job_groups_created(client: BatchClient):
+    b = create_batch(client)
+    for i in range(110):
+        b.create_job_group(attributes={'name': f'foo{i}'})
+    b.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 110, str(job_groups)

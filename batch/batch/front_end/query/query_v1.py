@@ -124,6 +124,50 @@ ORDER BY batch_id DESC;
     return (sql, where_args)
 
 
+def parse_list_job_groups_query_v1(batch_id: int, job_group_id: int, last_child_job_group_id: Optional[int]) -> Tuple[str, List[Any]]:
+    where_conds = ['(job_groups.batch_id = %s)',
+                   '(NOT deleted)',
+                   '(job_group_self_and_ancestors.ancestor_id = %s AND job_group_self_and_ancestors.level = 1)']
+    sql_args = [batch_id, job_group_id]
+
+    if last_child_job_group_id is not None:
+        where_conds.append('(job_groups.job_group_id > %s)')
+        sql_args.append(last_child_job_group_id)
+
+    sql = f'''
+SELECT job_groups.*,
+job_groups_cancelled.id IS NOT NULL AS cancelled,
+job_groups_n_jobs_in_complete_states.n_completed,
+job_groups_n_jobs_in_complete_states.n_succeeded,
+job_groups_n_jobs_in_complete_states.n_failed,
+job_groups_n_jobs_in_complete_states.n_cancelled,
+cost_t.*
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
+LEFT JOIN job_group_self_and_ancestors ON job_group_self_and_ancestors.batch_id = job_groups.batch_id AND job_group_self_and_ancestors.job_group_id = job_groups.job_group_id
+LEFT JOIN job_groups_n_jobs_in_complete_states
+   ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
+LEFT JOIN job_groups_cancelled
+   ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
+LEFT JOIN LATERAL (
+SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+FROM (
+SELECT batch_id, job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM aggregated_job_group_resources_v3
+WHERE job_groups.batch_id = aggregated_job_group_resources_v3.batch_id AND job_groups.job_group_id = aggregated_job_group_resources_v3.job_group_id
+GROUP BY batch_id, job_group_id, resource_id
+) AS usage_t
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY batch_id, job_group_id
+) AS cost_t ON TRUE
+WHERE {' AND '.join(where_conds)}
+ORDER BY job_group_id ASC
+LIMIT 51;
+'''
+
+    return (sql, sql_args)
+
+
 def parse_job_group_jobs_query_v1(
     batch_id: int, job_group_id: int, q: str, last_job_id: Optional[int], recursive: bool
 ) -> Tuple[str, List[Any]]:
