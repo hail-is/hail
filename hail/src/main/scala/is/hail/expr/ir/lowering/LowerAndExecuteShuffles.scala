@@ -53,7 +53,7 @@ object LowerAndExecuteShuffles {
           StreamBufferedAggregate(Ref(streamName, streamTyp), bindIR(GetField(insGlob, "__initState")) { states =>
             Begin(aggSigs.indices.map { aIdx => InitFromSerializedValue(aIdx, GetTupleElement(states, aIdx), aggSigs(aIdx).state) })
           }, newKey, seq, "row", aggSigs, bufferSize)),
-          0, 0).noSharing
+          0, 0).noSharing(ctx)
 
 
         val analyses = LoweringAnalyses(partiallyAggregated, ctx)

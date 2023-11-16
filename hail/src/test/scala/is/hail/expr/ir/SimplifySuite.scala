@@ -129,7 +129,7 @@ class SimplifySuite extends HailSuite {
         )
       )
     )
-    val simplified = new NormalizeNames(_.toString, true).apply(Simplify(ctx, l))
+    val simplified = new NormalizeNames(_.toString, true)(ctx, Simplify(ctx, l))
     val expected = Let("1",
       I32(1) + Ref("OTHER_1", TInt32),
       Let("2", I32(1) + Ref("1", TInt32),

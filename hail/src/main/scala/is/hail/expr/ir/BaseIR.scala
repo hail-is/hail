@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.types.BaseType
 import is.hail.types.virtual.Type
 import is.hail.utils.StackSafe._
@@ -16,7 +17,16 @@ abstract class BaseIR {
 
   def deepCopy(): this.type = copy(newChildren = childrenSeq.map(_.deepCopy())).asInstanceOf[this.type]
 
-  lazy val noSharing: this.type = if (HasIRSharing(this)) this.deepCopy() else this
+  def noSharing(ctx: ExecuteContext): this.type =
+    if (HasIRSharing(ctx)(this)) this.deepCopy() else this
+
+
+  // For use as a boolean flag by IR passes. Each pass uses a different sentinel value to encode
+  // "true" (and anything else is false). As long as we maintain the global invariant that no
+  // two passes use the same sentinel value, this allows us to reuse this field across passes
+  // without ever having to initialize it at the start of a pass.
+  // New sentinel values can be obtained by `nextFlag` on `IRMetadata`.
+  var mark: Int = 0
 
   def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): BaseIR = {
     val newChildren = childrenSeq.view.zipWithIndex.map(f.tupled).toArray
