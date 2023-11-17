@@ -1,54 +1,39 @@
-import plotly
-import hail as hl
+from dataclasses import dataclass, fields
+from functools import wraps
+from typing import Any, Callable, TypeVar, Union
+
+from typeguard import check_type
 
 
-def n_partitions(items: int, n_splits: int) -> int:
-    return (items + n_splits - 1) // n_splits
+ReturnType = TypeVar("ReturnType")
+WrappedDecorator = Callable[[ReturnType], ReturnType]
 
 
-def check_scale_continuity(scale, dtype, aes_key):
-    if not scale.valid_dtype(dtype):
-        raise ValueError(f"Invalid scale for aesthetic {aes_key} of type {dtype}")
+def typeguard_dataclass(cls: ReturnType = None, /, **kwargs: Any) -> Union[ReturnType, WrappedDecorator]:
+    """
+    Creates a `dataclass` that is `frozen` by default and has runtime typechecking for its fields.
+    """
 
+    @wraps(dataclass)
+    def wrapper(cls: ReturnType) -> ReturnType:
+        def __setattr__(obj: ReturnType, name: str, value: Any) -> None:
+            if len(types := [_field.type for _field in fields(obj) if _field.name == name]) == 0:
+                raise TypeError(f"'{getattr(cls, '__name__', str(cls))}' has no field '{name}'.")
+            super().__setattr__(name, check_type(value, types[0]))
 
-def is_genomic_type(dtype):
-    return isinstance(dtype, hl.tlocus)
+        def __post_init__(obj: ReturnType) -> None:
+            for _field in fields(obj):
+                check_type(getattr(obj, _field.name), _field.type)
 
+        setattr(
+            cls,
+            *(
+                ["__post_init__", __post_init__]
+                if (frozen := kwargs.get("frozen", True))
+                else ["__setattr__", __setattr__]
+            ),
+        )
+        dataclass(cls, frozen=frozen, **{k: v for k, v in kwargs.items() if k != "frozen"})
+        return cls
 
-def is_continuous_type(dtype):
-    return dtype in [hl.tint32, hl.tint64, hl.tfloat32, hl.tfloat64]
-
-
-def is_discrete_type(dtype):
-    return dtype in [hl.tstr]
-
-
-excluded_from_grouping = {"x", "tooltip", "label"}
-
-
-def should_use_for_grouping(name, type, scale):
-    return (name not in excluded_from_grouping) and is_discrete_type(type)
-
-
-def should_use_scale_for_grouping(scale):
-    return (scale.aesthetic_name not in excluded_from_grouping) and scale.is_discrete()
-
-
-def continuous_nums_to_colors(min_color, max_color, continuous_color_scale):
-    def adjust_color(input_color):
-        return (input_color - min_color) / (max_color - min_color)
-
-    def transform_color(input_color):
-        return plotly.colors.sample_colorscale(continuous_color_scale, adjust_color(input_color))[0]
-
-    return transform_color
-
-
-def bar_position_plotly_to_gg(plotly_pos):
-    ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack', 'identity': 'overlay'}
-    return ggplot_to_plotly[plotly_pos]
-
-
-def linetype_plotly_to_gg(plotly_linetype):
-    linetype_dict = {"solid": "solid", "dashed": "dash", "dotted": "dot", "longdash": "longdash", "dotdash": "dashdot"}
-    return linetype_dict[plotly_linetype]
+    return wrapper if cls is None else wrapper(cls)
