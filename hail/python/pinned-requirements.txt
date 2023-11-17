@@ -4,6 +4,8 @@
 #
 #    pip-compile --output-file=hail/hail/python/pinned-requirements.txt hail/hail/python/requirements.txt
 #
+altair==5
+typeguard==4
 aiodns==2.0.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
