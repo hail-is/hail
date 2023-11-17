@@ -2,6 +2,8 @@
 -c dataproc-pre-installed-requirements.txt
 -r hailtop/requirements.txt
 
+altair==5
+typeguard==4
 avro>=1.10,<1.12
 bokeh>=3,<3.4
 decorator<5
