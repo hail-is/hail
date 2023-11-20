@@ -1,24 +1,83 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, SafeIndexedSeq}
+import is.hail.annotations.{Annotation, Region, SafeIndexedSeq, SafeRow, UnsafeRow}
 import is.hail.asm4s.{ThisFieldRef, _}
-import is.hail.check.Gen
+import is.hail.backend.HailStateManager
+import is.hail.check.{Arbitrary, Gen}
 import is.hail.check.Prop.forAll
-import is.hail.expr.ir.functions.LocusFunctions
+import is.hail.expr.ir.functions.{IntervalFunctions, LocusFunctions}
 import is.hail.expr.ir.streams.EmitMinHeap
-import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerValue, SIntervalPointer, SIntervalPointerValue}
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32}
-import is.hail.utils.{FastSeq, using}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalInterval, PCanonicalLocus, PInt32, PType}
+import is.hail.types.virtual.Type
+import is.hail.utils.{FastSeq, Interval, using}
 import is.hail.variant.{Locus, ReferenceGenome}
+import org.apache.spark.sql.catalyst.analysis.FunctionRegistry
 import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test
 
-import scala.language.implicitConversions
+import scala.language.{higherKinds, implicitConversions}
 
-class StagedMinHeapSuite extends HailSuite {
+sealed trait StagedCoercions[A] {
+  def ti: TypeInfo[A]
+  def sType: SType
+  def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[A]): SValue
+  def toType(cb: EmitCodeBuilder, sa: SValue): Value[A]
+}
+
+sealed trait StagedCoercionInstances {
+  implicit object StagedIntCoercions extends StagedCoercions[Int] {
+    override def ti: TypeInfo[Int] =
+      implicitly
+    override def sType: SType =
+      SInt32
+    override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Int]): SValue =
+      new SInt32Value(a)
+    override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Int] =
+      sa.asInt.value
+  }
+
+  def stagedLocusCoercions(rg: ReferenceGenome): StagedCoercions[Locus] =
+    new StagedCoercions[Locus] {
+      override def ti: TypeInfo[Locus] =
+        implicitly
+      override def sType: SType =
+        PCanonicalLocus(rg.name, required = true).sType
+      override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Locus]): SValue =
+        LocusFunctions.emitLocus(cb, region, a, sType.storageType().asInstanceOf[PCanonicalLocus])
+      override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Locus] =
+        sa.asLocus.getLocusObj(cb)
+    }
+
+//  def intervalCoercions(pt: PCanonicalInterval): Coercions[Interval] =
+//    new Coercions[Interval] {
+//      override def ti: TypeInfo[Interval] =
+//        implicitly
+//
+//      override def sType: SType =
+//        pt.sType
+//
+//      override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Interval]): SValue = {
+//          val cpt = cb.emb.getPType(pt)
+//          val sm = cb.emb.getObject(cb.emb.ctx.stateManager)
+//          val ptr = cpt.invoke[HailStateManager, Annotation, Region, Long](
+//            "unstagedStoreJavaObject", sm, a, region
+//          )
+//          pt.loadCheapSCode(cb, ptr)
+//      }
+//
+//      override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Interval] = {
+//        val cpt = cb.emb.getPType(pt)
+//        val any = Code.invokeScalaObject[]()
+//      }
+//
+//    }
+}
+
+class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
 
   @Test def testSorting(): Unit =
     forAll { (xs: IndexedSeq[Int]) => sort(xs) == xs.sorted }.check()
@@ -39,27 +98,43 @@ class StagedMinHeapSuite extends HailSuite {
       heap.nonEmpty should be (true)
       for (_ <- 0 to 10) heap.pop()
       heap.nonEmpty should be (false)
-    }(BuildIntHeap)
-
-  @Test def testInnerClass(): Unit =
-    forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
-      withReferenceGenome(rg) {
-
-        val sortedLoci =
-          gen("InnerClass") { (heap: LocusHeap) =>
-            loci.foreach(heap.push)
-            IndexedSeq.fill(loci.size)(heap.pop())
-          }(buildLocusHeap(rg))
-
-        sortedLoci == loci.sorted(rg.locusOrdering)
-      }
-    }.check()
+    }
 
   val loci: Gen[(ReferenceGenome, IndexedSeq[Locus])] =
     for {
       genome <- ReferenceGenome.gen
       loci <- Gen.buildableOf(Locus.gen(genome))
     } yield (genome, loci)
+
+  @Test def testLocus(): Unit =
+    forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
+      withReferenceGenome(rg) {
+
+        val sortedLoci =
+          gen("Locus", stagedLocusCoercions(rg)) { (heap: LocusHeap) =>
+            loci.foreach(heap.push)
+            IndexedSeq.fill(loci.size)(heap.pop())
+          }
+
+        sortedLoci == loci.sorted(rg.locusOrdering)
+      }
+    }.check()
+
+//  val intervals: Gen[(PCanonicalInterval, IndexedSeq[Interval])] =
+//    for {
+//      point <- PType.genArb.map(PCanonicalInterval(_))
+//      sm = ctx.stateManager
+//      intervals <- Gen.buildableOf(Interval.gen(point.virtualType.ordering(sm), point.genValue(sm)))
+//    } yield (point, intervals)
+//
+//  @Test def testIntervals(): Unit =
+//    forAll(intervals) { case (pointType, intervals: IndexedSeq[Interval]) =>
+//      gen("Intervals", intervalCoercions(pointType)) { (heap: IntervalHeap) =>
+//        intervals.foreach(heap.push)
+//        val sorted = IndexedSeq.fill(intervals.size)(heap.pop())
+//        sorted == intervals.sortWith(pointType.virtualType.ordering(ctx.stateManager).lt)
+//      }
+//    }
 
   def withReferenceGenome[A](rg: ReferenceGenome)(f: => A): A = {
     ctx.backend.addReference(rg)
@@ -70,7 +145,7 @@ class StagedMinHeapSuite extends HailSuite {
     gen("Sort") { (heap: IntHeap) =>
       xs.foreach(heap.push)
       IndexedSeq.fill(xs.size)(heap.pop())
-    }(BuildIntHeap)
+    }
 
   def heapify(xs: IndexedSeq[Int]): IndexedSeq[Int] =
     gen("Heapify") { (heap: IntHeap) =>
@@ -79,46 +154,29 @@ class StagedMinHeapSuite extends HailSuite {
         val ptr = heap.toArray(r)
         SafeIndexedSeq(PCanonicalArray(PInt32()), ptr).asInstanceOf[IndexedSeq[Int]]
       }
-    }(BuildIntHeap)
+    }
 
-  def gen[Heap, A](name: String)(f: Heap => A)(implicit B: Build[Heap]): A = {
+  def gen[H <: Heap[A], A, B](name: String, A: StagedCoercions[A])(f: H => B)(implicit H: TypeInfo[H]): B =
+    gen[H, A, B](name)(f)(H, A)
+
+  def gen[H <: Heap[A], A, B](name: String)(f: H => B)(implicit H: TypeInfo[H], A: StagedCoercions[A]): B = {
     val emodb = new EmitModuleBuilder(ctx, new ModuleBuilder())
-    val Main = emodb.genEmitClass[B.Heap](name)(B.hti)
+    val Main = emodb.genEmitClass[H](name)(H)
 
-    def compare: EmitMethodBuilder[_] =
-      Main.defineEmitMethod("compare", Array.fill(2)(B.sType.paramType), IntInfo) { mb =>
-        mb.emitWithBuilder[Int] { cb =>
-          val p = mb.getSCodeParam(1)
-          val q = mb.getSCodeParam(2)
-          Main.getOrdering(B.sType, B.sType).compareNonnull(cb, p, q)
-        }
-      }
-
-    // The reference genome is added to the "Main" class by `resultWithIndex` and is not
-    // accessible from the MinHeap. Thus, we need to define a comparator in the outer class
-    // (Main) and hold a reference to it in the generated MinHeap.
-    val MinHeap = EmitMinHeap(Main.emodb, B.sType) { classBuilder =>
-      new EmitMinHeap.StagedComparator {
-        val mainRef: ThisFieldRef[_] =
-          classBuilder.genFieldThisRef("parent")(Main.cb.ti)
-
-        override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
-          cb.assignAny(mainRef, Code.checkcast(enclosingRef)(Main.cb.ti))
-
-        override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] =
-          cb.invokeCode[Int](compare, mainRef, a, b)
-      }
+    val MinHeap = EmitMinHeap(Main.emodb, A.sType) { classBuilder =>
+      (cb: EmitCodeBuilder, a: SValue, b: SValue) =>
+        classBuilder.getOrdering(A.sType, A.sType).compareNonnull(cb, a, b)
     }(Main)
 
-    Main.defineEmitMethod("push", FastSeq(B.ti), UnitInfo) { mb =>
+    Main.defineEmitMethod("push", FastSeq(A.ti), UnitInfo) { mb =>
       mb.voidWithBuilder { cb =>
-        MinHeap.push(cb, B.fromType(cb, Main.partitionRegion, mb.getCodeParam[B.Type](1)(B.ti)))
+        MinHeap.push(cb, A.fromType(cb, Main.partitionRegion, mb.getCodeParam[A](1)(A.ti)))
       }
     }
 
-    Main.defineEmitMethod("pop", FastSeq(), B.ti) { mb =>
-      mb.emitWithBuilder[B.Type] { cb =>
-        val res = B.toType(cb, MinHeap.peek(cb))
+    Main.defineEmitMethod("pop", FastSeq(), A.ti) { mb =>
+      mb.emitWithBuilder[A] { cb =>
+        val res = A.toType(cb, MinHeap.peek(cb))
         MinHeap.pop(cb)
         MinHeap.realloc(cb)
         res
@@ -155,70 +213,31 @@ class StagedMinHeapSuite extends HailSuite {
     pool.scopedRegion { r =>
       val heap = Main
         .resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
-        .asInstanceOf[B.Heap with Resource]
+        .asInstanceOf[H with Resource]
 
       heap.init()
       using(heap)(f)
     }
   }
 
-  trait LocusHeap extends Heap {
+  trait LocusHeap extends Heap[Locus] {
     def push(locus: Locus): Unit
     def pop(): Locus
   }
 
-  trait IntHeap extends Heap {
+  trait IntHeap extends Heap[Int] {
     def push(x: Int): Unit
     def pop(): Int
   }
 
-  trait Heap {
+  trait IntervalHeap extends Heap[Interval] {
+    def push(x: Interval): Unit
+    def pop(): Int
+  }
+
+  trait Heap[A] {
     def nonEmpty: Boolean
     def toArray(r: Region): Long
   }
-
-  sealed trait Build[H] {
-    type Heap = H
-    type Type
-
-    def hti: TypeInfo[Heap]
-    def ti: TypeInfo[Type]
-
-    def sType: SType
-    def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Type]): SValue
-    def toType(cb: EmitCodeBuilder, sa: SValue): Value[Type]
-  }
-
-  implicit object BuildIntHeap extends Build[IntHeap] {
-    override type Type =
-      Int
-    override def hti: TypeInfo[IntHeap] =
-      implicitly
-    override def ti: TypeInfo[Int] =
-      implicitly
-
-    override def sType: SType =
-      SInt32
-    override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Int]): SValue =
-      new SInt32Value(a)
-    override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Int] =
-      sa.asInt.value
-  }
-
-  implicit def buildLocusHeap(rg: ReferenceGenome): Build[LocusHeap]  =
-    new Build[LocusHeap] {
-      override type Type =
-        Locus
-      override def hti: TypeInfo[LocusHeap] =
-        implicitly
-      override def ti: TypeInfo[Locus] =
-        implicitly
-
-      override def sType: SType =
-        PCanonicalLocus(rg.name, required = true).sType
-      override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Locus]): SValue =
-        LocusFunctions.emitLocus(cb, region, a, sType.storageType().asInstanceOf[PCanonicalLocus])
-      override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Locus] =
-        sa.asLocus.getLocusObj(cb)
-    }
 }
+

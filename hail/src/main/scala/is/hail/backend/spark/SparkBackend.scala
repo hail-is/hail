@@ -9,7 +9,6 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.io.fs._
-import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.rvd.RVD
@@ -29,11 +28,10 @@ import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.json4s
+import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.json4s.{DefaultFormats, Formats}
 
-import com.sun.net.httpserver.{HttpExchange}
-import java.io.{Closeable, PrintWriter, OutputStream}
+import java.io.{Closeable, PrintWriter}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer

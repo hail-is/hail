@@ -1462,9 +1462,12 @@ object EmitStream {
               rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName))
 
             val loadInterval: EmitMethodBuilder[_] =
-              mb.ecb.defineEmitMethod(genName("m", "loadInterval"), FastSeq(rElemSTy.paramType), intrvlSTy.paramType) { mb =>
+              mb.ecb.defineEmitMethod(genName("m", "loadInterval"),
+                FastSeq(rElemSTy.paramType),
+                intrvlSTy.paramType
+              ) { mb =>
                 mb.emitSCode { cb =>
-                 mb.getEmitParam(cb, 1)
+                  mb.getEmitParam(cb, 1)
                     .get(cb)
                     .asBaseStruct
                     .loadField(cb, rIntrvlName)
@@ -1475,27 +1478,6 @@ object EmitStream {
             val leftStructField = mb.newPField(lProd.element.st)
             val eltRegion = mb.genFieldThisRef[Region]("interval_join_region")
 
-            // Needs to be defined in parent class so the endpoint comparator
-            // can have access to reference genomes and other fields not exposed
-            // to the generated MinHeap class.
-            val compareEndpoints: EmitMethodBuilder[_] =
-              mb.ecb.defineEmitMethod(genName("m", "compareEndpoints"),
-                FastSeq(intrvlSTy.paramType, intrvlSTy.paramType),
-                IntInfo
-              ) { mb =>
-                val a = mb.getSCodeParam(1)
-                val b = mb.getSCodeParam(2)
-
-                mb.emitWithBuilder[Int] { cb =>
-                  val l = cb.invokeSCode(loadInterval, cb._this, a).asInterval
-                  val r = cb.invokeSCode(loadInterval, cb._this, b).asInterval
-                  IntervalFunctions.intervalEndpointCompare(cb,
-                    l.loadEnd(cb).get(cb), l.includesEnd,
-                    r.loadEnd(cb).get(cb), r.includesEnd
-                  )
-                }
-              }
-
             val minHeap: StagedMinHeap =
               EmitMinHeap(mb.ecb.emodb, rElemSTy) { heapClassBuilder =>
                 new EmitMinHeap.StagedComparator {
@@ -1505,8 +1487,14 @@ object EmitStream {
                   override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
                     cb.assignAny(parent, Code.checkcast(enclosingRef)(mb.cb.ti))
 
-                  override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] =
-                    cb.invokeCode[Int](compareEndpoints, parent, a, b)
+                  override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] = {
+                    val l = cb.invokeSCode(loadInterval, parent, a).asInterval
+                    val r = cb.invokeSCode(loadInterval, parent, b).asInterval
+                    IntervalFunctions.intervalEndpointCompare(cb,
+                      l.loadEnd(cb).get(cb), l.includesEnd,
+                      r.loadEnd(cb).get(cb), r.includesEnd
+                    )
+                  }
                 }
               }(mb.ecb)
 
