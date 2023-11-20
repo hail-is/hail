@@ -1744,7 +1744,7 @@ object MatrixVCFReader {
 
     LoadVCF.warnDuplicates(sampleIDs)
 
-    new MatrixVCFReader(params, fileListEntries, referenceGenome, header1)
+    new MatrixVCFReader(params.copy(files = fileListEntries.map(_.getPath)), fileListEntries, referenceGenome, header1)
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixVCFReader = {

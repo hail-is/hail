@@ -35,7 +35,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   type State = Memo[BaseTypeWithRequiredness]
   private val cache = Memo.empty[BaseTypeWithRequiredness]
   private val dependents = Memo.empty[mutable.Set[RefEquality[BaseIR]]]
-  private val q = mutable.Set[RefEquality[BaseIR]]()
+  private[this] val q = new Queue(ctx.irMetadata.nextFlag)
 
   private val defs = Memo.empty[IndexedSeq[BaseTypeWithRequiredness]]
   private val states = Memo.empty[IndexedSeq[TypeWithRequiredness]]
@@ -90,8 +90,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def run(): Unit = {
     while (q.nonEmpty) {
-      val node = q.head
-      q -= node
+      val node = q.pop()
       if (analyze(node.t) && dependents.contains(node)) {
         q ++= dependents.lookup(node)
       }
@@ -158,7 +157,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case Let(name, value, body) => addBinding(name, value)
       case RelationalLet(name, value, body) => addBinding(name, value)
       case RelationalLetTable(name, value, body) => addBinding(name, value)
-      case TailLoop(loopName, params, body) =>
+      case TailLoop(loopName, params, _, body) =>
         addBinding(loopName, body)
         val argDefs = Array.fill(params.length)(new BoxedArrayBuilder[IR]())
         refMap.getOrElse(loopName, FastSeq()).map(_.t).foreach { case Recur(_, args, _) =>
@@ -173,7 +172,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           i += 1
         }
         states.bind(node, s)
-      case x@ApplyIR(_, _, args, _) =>
+      case x@ApplyIR(_, _, args, _, _) =>
         x.refIdx.foreach { case (n, i) => addBinding(n, args(i)) }
       case ArraySort(a, l, r, c) =>
         addElementBinding(l, a, makeRequired = true)
@@ -536,14 +535,17 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(cond).required)
         requiredness.unionFrom(lookup(cnsq))
         requiredness.unionFrom(lookup(altr))
-
+      case Switch(x, default, cases) =>
+        requiredness.union(lookup(x).required)
+        requiredness.unionFrom(lookup(default))
+        requiredness.unionFrom(cases.map(lookup))
       case AggLet(name, value, body, isScan) =>
         requiredness.unionFrom(lookup(body))
       case Let(name, value, body) =>
         requiredness.unionFrom(lookup(body))
       case RelationalLet(name, value, body) =>
         requiredness.unionFrom(lookup(body))
-      case TailLoop(name, params, body) =>
+      case TailLoop(name, params, _, body) =>
         requiredness.unionFrom(lookup(body))
       case x: BaseRef =>
         requiredness.unionFrom(defs(node).map(tcoerce[TypeWithRequiredness]))
@@ -615,7 +617,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val eltType = tcoerce[RIterable](requiredness).elementType
         eltType.unionFrom(lookup(joinF))
       case StreamMultiMerge(as, _) =>
-       requiredness.union(as.forall(lookup(_).required))
+        requiredness.union(as.forall(lookup(_).required))
         val elt = tcoerce[RStruct](tcoerce[RIterable](requiredness).elementType)
         as.foreach { a =>
           elt.unionFields(tcoerce[RStruct](tcoerce[RIterable](lookup(a)).elementType))
@@ -827,5 +829,28 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     // BlockMatrix is always required, so I don't change anything.
 
     requiredness.probeChangedAndReset()
+  }
+
+
+  final class Queue(val markFlag: Int) {
+    private[this] val q = mutable.Queue[RefEquality[BaseIR]]()
+
+    def nonEmpty: Boolean =
+      q.nonEmpty
+
+    def pop(): RefEquality[BaseIR] = {
+      val n = q.dequeue()
+      n.t.mark = 0
+      n
+    }
+
+    def +=(re: RefEquality[BaseIR]): Unit =
+      if (re.t.mark != markFlag) {
+        re.t.mark = markFlag
+        q += re
+      }
+
+    def ++=(res: Iterable[RefEquality[BaseIR]]): Unit =
+      res.foreach(this += _)
   }
 }

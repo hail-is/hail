@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from shlex import quote as shq
-from typing import Dict, List
+from typing import Dict
 
 from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
@@ -77,32 +77,6 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
-    configs: List[str] = []
-    touch_commands = []
-    for jvm_cores in (1, 2, 4, 8):
-        for _ in range(cores // jvm_cores):
-            idx = len(configs)
-            log_path = f'/batch/jvm-container-logs/jvm-{idx}.log'
-            touch_commands.append(f'touch {log_path}')
-
-            config = f'''
-<source>
-@type tail
-<parse>
-    # 'none' indicates the log is unstructured (text).
-    @type none
-</parse>
-path {log_path}
-pos_file /var/lib/google-fluentd/pos/jvm-{idx}.pos
-read_from_head true
-tag jvm-{idx}.log
-</source>
-'''
-            configs.append(config)
-
-    jvm_fluentd_config = '\n'.join(configs)
-    jvm_touch_command = '\n'.join(touch_commands)
-
     def scheduling() -> dict:
         result = {
             'automaticRestart': False,
@@ -129,7 +103,7 @@ tag jvm-{idx}.log
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-14',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-15',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
@@ -234,62 +208,52 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
 
 sudo mkdir -p /etc/netns
 
-# Setup fluentd
+# Setup ops agent
 touch /worker.log
 touch /run.log
-
-sudo rm /etc/google-fluentd/config.d/*  # remove unused config files
-
-sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF
-<source>
-@type tail
-format json
-path /worker.log
-pos_file /var/lib/google-fluentd/pos/worker-log.pos
-read_from_head true
-tag worker.log
-</source>
-
-<filter worker.log>
-@type record_transformer
-enable_ruby
-<record>
-    severity \${{ record["levelname"] }}
-    timestamp \${{ record["asctime"] }}
-</record>
-</filter>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/run-log.conf <<EOF
-<source>
-@type tail
-format none
-path /run.log
-pos_file /var/lib/google-fluentd/pos/run-log.pos
-read_from_head true
-tag run.log
-</source>
-EOF
-
-sudo tee /etc/google-fluentd/config.d/jvm-logs.conf <<EOF
-{jvm_fluentd_config}
-EOF
-
-sudo cp /etc/google-fluentd/google-fluentd.conf /etc/google-fluentd/google-fluentd.conf.bak
-head -n -1 /etc/google-fluentd/google-fluentd.conf.bak | sudo tee /etc/google-fluentd/google-fluentd.conf
-sudo tee -a /etc/google-fluentd/google-fluentd.conf <<EOF
-labels {{
-"namespace": "$NAMESPACE",
-"instance_id": "$INSTANCE_ID"
-}}
-</match>
-EOF
-rm /etc/google-fluentd/google-fluentd.conf.bak
-
 mkdir -p /batch/jvm-container-logs/
-{jvm_touch_command}
 
-sudo service google-fluentd restart
+sudo tee /etc/google-cloud-ops-agent/config.yaml <<EOF
+logging:
+  receivers:
+    runlog:
+      type: files
+      include_paths:
+      - /run.log
+      record_log_file_path: true
+    workerlog:
+      type: files
+      include_paths:
+      - /worker.log
+      record_log_file_path: true
+    jvmlog:
+      type: files
+      include_paths:
+      - /batch/jvm-container-logs/jvm-*.log
+      record_log_file_path: true
+  processors:
+    labels:
+      type: modify_fields
+      fields:
+        labels.namespace:
+          static_value: $NAMESPACE
+        labels.instance_id:
+          static_value: $INSTANCE_ID
+  service:
+    pipelines:
+      default_pipeline:
+        processors: [labels]
+        receivers: [runlog, workerlog, jvmlog]
+
+metrics:
+  processors:
+    metrics_filter:
+      type: exclude_metrics
+      metrics_pattern:
+      - agent.googleapis.com/processes/*
+EOF
+
+sudo systemctl restart google-cloud-ops-agent
 
 # private job network = 172.20.0.0/16
 # public job network = 172.21.0.0/16
@@ -317,7 +281,6 @@ mkdir /deploy-config
 cat >/deploy-config/deploy-config.json <<EOF
 { json.dumps(get_deploy_config().with_location('gce').get_config()) }
 EOF
-
 
 # retry once
 docker pull $BATCH_WORKER_IMAGE || \

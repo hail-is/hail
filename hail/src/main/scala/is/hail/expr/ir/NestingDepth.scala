@@ -103,7 +103,7 @@ object NestingDepth {
           computeIR(left, depth)
           computeIR(right, depth)
           computeIR(body, depth.incrementEval)
-        case TailLoop(_, params, body) =>
+        case TailLoop(_, params, _, body) =>
           params.foreach { case (_, p) => computeIR(p, depth) }
           computeIR(body, depth.incrementEval)
         case NDArrayMap(nd, _, body) =>

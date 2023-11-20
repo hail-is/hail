@@ -8,6 +8,11 @@ SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
+SPECIAL_IMAGES := hail-ubuntu batch-worker
+
+HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
+CI_IMAGES = ci-utils ci-buildkit base hail-run
+PRIVATE_REGISTRY_IMAGES = $(patsubst %, pushed-private-%-image, $(SPECIAL_IMAGES) $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
 
 HAILTOP_VERSION := hail/python/hailtop/hail_version
 SERVICES_IMAGE_DEPS = hail-ubuntu-image $(HAILTOP_VERSION) $(shell git ls-files hail/python/hailtop gear web_common)
@@ -98,6 +103,7 @@ install-dev-requirements:
 	python3 -m pip install \
 		-r hail/python/pinned-requirements.txt \
 		-r hail/python/dev/pinned-requirements.txt \
+		-r benchmark/python/pinned-requirements.txt \
 		-r gear/pinned-requirements.txt \
 		-r web_common/pinned-requirements.txt \
 		-r batch/pinned-requirements.txt \
@@ -111,6 +117,9 @@ hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt
 
 hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/dev
+
+benchmark/python/pinned-requirements.txt: benchmark/python/requirements.txt hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt
+	./generate-linux-pip-lockfile.sh benchmark/python
 
 gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
 	./generate-linux-pip-lockfile.sh gear
@@ -128,6 +137,7 @@ ci/pinned-requirements.txt: web_common/pinned-requirements.txt ci/requirements.t
 generate-pip-lockfiles: hail/python/hailtop/pinned-requirements.txt
 generate-pip-lockfiles: hail/python/pinned-requirements.txt
 generate-pip-lockfiles: hail/python/dev/pinned-requirements.txt
+generate-pip-lockfiles: benchmark/python/pinned-requirements.txt
 generate-pip-lockfiles: gear/pinned-requirements.txt
 generate-pip-lockfiles: web_common/pinned-requirements.txt
 generate-pip-lockfiles: batch/pinned-requirements.txt
@@ -136,35 +146,28 @@ generate-pip-lockfiles: ci/pinned-requirements.txt
 $(HAILTOP_VERSION):
 	$(MAKE) -C hail python/hailtop/hail_version
 
+
+%-image: IMAGE_NAME = $(patsubst %-image,%,$@):$(TOKEN)
+hailgenetics-%-image: IMAGE_NAME = hailgenetics/$(patsubst hailgenetics-%-image,%,$@):$(TOKEN)
+
 hail-ubuntu-image: $(shell git ls-files docker/hail-ubuntu)
-	$(eval HAIL_UBUNTU_IMAGE := $(DOCKER_PREFIX)/hail-ubuntu:$(TOKEN))
-	DOCKER_BUILD_ARGS='--build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)' \
-		./docker-build.sh docker/hail-ubuntu Dockerfile $(HAIL_UBUNTU_IMAGE)
-	echo $(HAIL_UBUNTU_IMAGE) > $@
+	./docker-build.sh docker/hail-ubuntu Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
+	echo $(IMAGE_NAME) > $@
 
 base-image: hail-ubuntu-image docker/Dockerfile.base
-	$(eval BASE_IMAGE := $(DOCKER_PREFIX)/base:$(TOKEN))
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . docker/Dockerfile.base $(BASE_IMAGE)
-	echo $(BASE_IMAGE) > $@
+	./docker-build.sh . docker/Dockerfile.base $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
 
 hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt docker/core-site.xml
-	$(eval BASE_IMAGE := $(DOCKER_PREFIX)/hail-run:$(TOKEN))
 	$(MAKE) -C hail wheel
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat base-image) \
-		./docker-build.sh . hail/Dockerfile.hail-run $(BASE_IMAGE)
-	echo $(BASE_IMAGE) > $@
+	./docker-build.sh . hail/Dockerfile.hail-run $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
+	echo $(IMAGE_NAME) > $@
 
-private-repo-hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
-	$(eval PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE := $(DOCKER_PREFIX)/hailgenetics/hail:$(TOKEN))
+hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) -C hail wheel
-	tar -cvf wheel-container.tar \
-		-C hail/build/deploy/dist \
-		hail-$$(cat hail/python/hail/hail_pip_version)-py3-none-any.whl
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE)
-	rm wheel-container.tar
-	echo $(PRIVATE_REPO_HAILGENETICS_HAIL_IMAGE) > $@
+	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
 
 hail-0.1-docs-5a6778710097.tar.gz:
 	gcloud storage cp gs://hail-common/builds/0.1/docs/$@ .
@@ -185,43 +188,42 @@ docs.tar.gz: hail/build/www
 website-image: docs.tar.gz
 
 $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
-	$(eval IMAGE := $(DOCKER_PREFIX)/$*:$(TOKEN))
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh . $*/Dockerfile $(IMAGE)
-	echo $(IMAGE) > $@
+	./docker-build.sh . $*/Dockerfile $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
 
 ci-utils-image: base-image $(SERVICES_IMAGE_DEPS) $(shell git ls-files ci)
-	$(eval CI_UTILS_IMAGE := $(DOCKER_PREFIX)/ci-utils:$(TOKEN))
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat base-image) \
-		./docker-build.sh . ci/Dockerfile.ci-utils $(CI_UTILS_IMAGE)
-	echo $(CI_UTILS_IMAGE) > $@
+	./docker-build.sh . ci/Dockerfile.ci-utils $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
+	echo $(IMAGE_NAME) > $@
 
 hail-buildkit-image: ci/buildkit/Dockerfile
-	$(eval HAIL_BUILDKIT_IMAGE := $(DOCKER_PREFIX)/hail-buildkit:$(TOKEN))
-	DOCKER_BUILD_ARGS='--build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)' \
-		./docker-build.sh ci buildkit/Dockerfile $(HAIL_BUILDKIT_IMAGE)
-	echo $(HAIL_BUILDKIT_IMAGE) > $@
+	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
+	echo $(IMAGE_NAME) > $@
 
 batch/jvm-entryway/build/libs/jvm-entryway.jar: $(shell git ls-files batch/jvm-entryway)
 	cd batch/jvm-entryway && ./gradlew shadowJar
 
 batch-worker-image: batch/jvm-entryway/build/libs/jvm-entryway.jar $(SERVICES_IMAGE_DEPS) $(shell git ls-files batch)
-	$(eval BATCH_WORKER_IMAGE := $(DOCKER_PREFIX)/batch-worker:$(TOKEN))
 	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"},"global":{"cloud":"$(CLOUD)"}}' batch/Dockerfile.worker batch/Dockerfile.worker.out
-	./docker-build.sh . batch/Dockerfile.worker.out $(BATCH_WORKER_IMAGE)
-	echo $(BATCH_WORKER_IMAGE) > $@
+	./docker-build.sh . batch/Dockerfile.worker.out $(IMAGE_NAME)
+	echo $(IMAGE_NAME) > $@
 
-vep-grch37-image: hail-ubuntu-image
-	$(eval VEP_GRCH37_IMAGE := $(DOCKER_PREFIX)/hailgenetics/vep-grch37-85:$(TOKEN))
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh docker/vep docker/vep/grch37/85/Dockerfile $(VEP_GRCH37_IMAGE)
-	echo $(VEP_GRCH37_IMAGE) > $@
+hailgenetics-vep-grch37-85-image: hail-ubuntu-image
+	./docker-build.sh docker/vep docker/vep/grch37/85/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
 
-vep-grch38-image: hail-ubuntu-image
-	$(eval VEP_GRCH38_IMAGE := $(DOCKER_PREFIX)/hailgenetics/vep-grch38-95:$(TOKEN))
-	DOCKER_BUILD_ARGS='--build-arg BASE_IMAGE='$$(cat hail-ubuntu-image) \
-		./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(VEP_GRCH38_IMAGE)
-	echo $(VEP_GRCH38_IMAGE) > $@
+hailgenetics-vep-grch38-95-image: hail-ubuntu-image
+	./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
+
+$(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image
+	! [ -z $(NAMESPACE) ]  # call this like: make ... NAMESPACE=default
+	[ $(DOCKER_PREFIX) != docker.io ]  # DOCKER_PREFIX should be an internal private registry
+	! [ -z $(DOCKER_PREFIX) ]  # DOCKER_PREFIX must not be empty
+	docker tag $(shell cat $*-image) $(DOCKER_PREFIX)/$(shell cat $*-image)
+	docker push $(DOCKER_PREFIX)/$(shell cat $*-image)
+	echo $(DOCKER_PREFIX)/$(shell cat $*-image) > $@
 
 .PHONY: local-mysql
 local-mysql:
@@ -236,3 +238,15 @@ else
 $(SERVICES_DATABASES): %-db:
 	python3 ci/create_local_database.py $* local-$*
 endif
+
+.PHONY: sass-compile-watch
+sass-compile-watch:
+	cd web_common/web_common && sass --watch -I styles --style=compressed styles:static/css
+
+.PHONY: run-dev-proxy
+run-dev-proxy:
+	SERVICE=$(SERVICE) adev runserver --root . devbin/dev_proxy.py
+
+.PHONY: devserver
+devserver:
+	$(MAKE) -j 2 sass-compile-watch run-dev-proxy

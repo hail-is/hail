@@ -28,13 +28,19 @@ object Children {
     case Consume(value) => FastSeq(value)
     case If(cond, cnsq, altr) =>
       Array(cond, cnsq, altr)
+    case s@Switch(x, default, cases) =>
+      val children = Array.ofDim[BaseIR](s.size)
+      children(0) = x
+      children(1) = default
+      for (i <- cases.indices) children(2 + i) = cases(i)
+      children
     case Let(name, value, body) =>
       Array(value, body)
     case RelationalLet(name, value, body) =>
       Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
-    case TailLoop(_, args, body) =>
+    case TailLoop(_, args, _, body) =>
       args.map(_._2).toFastSeq :+ body
     case Recur(_, args, _) =>
       args.toFastSeq
@@ -221,7 +227,7 @@ object Children {
     case Trap(child) => Array(child)
     case ConsoleLog(message, result) =>
       Array(message, result)
-    case ApplyIR(_, _, args, _) =>
+    case ApplyIR(_, _, args, _, _) =>
       args.toFastSeq
     case Apply(_, _, args, _, _) =>
       args.toFastSeq

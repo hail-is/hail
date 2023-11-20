@@ -30,8 +30,9 @@ object Simplify {
   private[this] def simplifyValue(ctx: ExecuteContext): IR => IR =
     visitNode(
       Simplify(ctx, _),
-      rewriteValueNode,
-      simplifyValue(ctx))
+      rewriteValueNode(ctx),
+      simplifyValue(ctx)
+    )
 
   private[this] def simplifyTable(ctx: ExecuteContext)(tir: TableIR): TableIR =
     visitNode(
@@ -55,8 +56,8 @@ object Simplify {
     )(bmir)
   }
 
-  private[this] def rewriteValueNode(ir: IR): Option[IR] =
-    valueRules.lift(ir).orElse(numericRules(ir))
+  private[this] def rewriteValueNode(ctx: ExecuteContext)(ir: IR): Option[IR] =
+    valueRules(ctx).lift(ir).orElse(numericRules(ir))
 
   private[this] def rewriteTableNode(ctx: ExecuteContext)(tir: TableIR): Option[TableIR] =
     tableRules(ctx).lift(tir)
@@ -218,7 +219,7 @@ object Simplify {
     ).reduce((f, g) => ir => f(ir).orElse(g(ir)))
   }
 
-  private[this] def valueRules: PartialFunction[IR, IR] = {
+  private[this] def valueRules(ctx: ExecuteContext): PartialFunction[IR, IR] = {
     // propagate NA
     case x: IR if hasMissingStrictChild(x) =>
       NA(x.typ)
@@ -265,21 +266,26 @@ object Simplify {
 
     case If(c1, cnsq1, If(c2, _, altr2)) if c1 == c2 => If(c1, cnsq1, altr2)
 
+    case Switch(I32(x), default, cases) =>
+      if (x >= 0 && x < cases.length) cases(x) else default
+    case Switch(x, default, IndexedSeq()) if isDefinitelyDefined(x) =>
+      default
+
     case Cast(x, t) if x.typ == t => x
     case Cast(Cast(x, _), t) if x.typ == t =>x
 
     case CastRename(x, t) if x.typ == t => x
     case CastRename(CastRename(x, _), t) => CastRename(x, t)
 
-    case ApplyIR("indexArray", _, Seq(a, i@I32(v)), errorID) if v >= 0 =>
+    case ApplyIR("indexArray", _, Seq(a, i@I32(v)), _, errorID) if v >= 0 =>
       ArrayRef(a, i, errorID)
 
-    case ApplyIR("contains", _, Seq(CastToArray(x), element), _) if x.typ.isInstanceOf[TSet] => invoke("contains", TBoolean, x, element)
+    case ApplyIR("contains", _, Seq(CastToArray(x), element), _, _) if x.typ.isInstanceOf[TSet] => invoke("contains", TBoolean, x, element)
 
-    case ApplyIR("contains", _, Seq(Literal(t, v), element), _) if t.isInstanceOf[TArray] =>
+    case ApplyIR("contains", _, Seq(Literal(t, v), element), _, _) if t.isInstanceOf[TArray] =>
       invoke("contains", TBoolean, Literal(TSet(t.asInstanceOf[TArray].elementType), v.asInstanceOf[IndexedSeq[_]].toSet), element)
 
-    case ApplyIR("contains", _, Seq(ToSet(x), element), _) if x.typ.isInstanceOf[TArray] => invoke("contains", TBoolean, x, element)
+    case ApplyIR("contains", _, Seq(ToSet(x), element), _, _) if x.typ.isInstanceOf[TArray] => invoke("contains", TBoolean, x, element)
 
     case x: ApplyIR if x.inline || x.body.size < 10 => x.explicitNode
 
@@ -451,7 +457,7 @@ object Simplify {
       val rw = fieldNames.foldLeft[IR](Let(name, old, rewrite(body))) { case (comb, fieldName) =>
         Let(newFieldRefs(fieldName).name, newFieldMap(fieldName), comb)
       }
-      ForwardLets[IR](rw)
+      ForwardLets(ctx)(rw)
 
     case SelectFields(old, fields) if tcoerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
@@ -630,7 +636,7 @@ object Simplify {
     //           ArrayAgg(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", query)))
     //   }
 
-    case ApplyIR("annotate", _, Seq(s, MakeStruct(fields)), _) =>
+    case ApplyIR("annotate", _, Seq(s, MakeStruct(fields)), _, _) =>
       InsertFields(s, fields)
 
     // simplify Boolean equality

@@ -109,13 +109,20 @@ class ResourceUsageMonitor:
         # and here for the authoritative source:
         # https://git.kernel.org/pub/scm/linux/kernel/git/tj/cgroup.git/tree/Documentation/admin-guide/cgroup-v2.rst#n1038
         usage_file = f'/sys/fs/cgroup/{self.container_name}/cpu.stat'
-        if os.path.exists(usage_file):
+        try:
             with open(usage_file, 'r', encoding='utf-8') as f:
                 for line in f.readlines():
                     stat, val = line.strip().split(' ')
                     if stat == 'usage_usec':
                         return int(val) * 1000
-        return None
+                return None
+        except FileNotFoundError:
+            return None
+        except OSError as e:
+            # OSError: [Errno 19] No such device
+            if e.errno == 19:
+                return None
+            raise
 
     def percent_cpu_usage(self) -> Optional[float]:
         now_time_ns = time_ns()
@@ -138,15 +145,15 @@ class ResourceUsageMonitor:
         # https://git.kernel.org/pub/scm/linux/kernel/git/tj/cgroup.git/tree/Documentation/admin-guide/cgroup-v2.rst#n1156
         usage_file = f'/sys/fs/cgroup/{self.container_name}/memory.current'
         try:
-            if os.path.exists(usage_file):
-                with open(usage_file, 'r', encoding='utf-8') as f:
-                    return int(f.read().rstrip())
+            with open(usage_file, 'r', encoding='utf-8') as f:
+                return int(f.read().rstrip())
+        except FileNotFoundError:
+            return None
         except OSError as e:
             # OSError: [Errno 19] No such device
             if e.errno == 19:
                 return None
             raise
-        return None
 
     def overlay_storage_usage_bytes(self) -> int:
         return shutil.disk_usage(self.container_overlay).used

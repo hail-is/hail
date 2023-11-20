@@ -522,7 +522,7 @@ object BGENFunctions extends RegistryFunctions {
           "alleles" -> PCanonicalArray(PCanonicalString(true), true),
           "offset" -> PInt64Required)
         val bufferSct = SingleCodeType.fromSType(rowPType.sType)
-        val buffer = new StagedArrayBuilder(bufferSct, true, mb, 8)
+        val buffer = new StagedArrayBuilder(cb, bufferSct, true, 8)
         val currSize = cb.newLocal[Int]("currSize", 0)
 
         val spec = TypedCodecSpec(
@@ -553,7 +553,7 @@ object BGENFunctions extends RegistryFunctions {
           cb += ob.invoke[Unit]("close")
 
           cb.assign(groupIndex, groupIndex + 1)
-          cb += buffer.clear
+          buffer.clear(cb)
           cb.assign(currSize, 0)
         }
 
@@ -569,7 +569,7 @@ object BGENFunctions extends RegistryFunctions {
             cb.if_(currSize ceq bufferSize, {
               dumpBuffer(cb)
             })
-            cb += buffer.add(bufferSct.coerceSCode(cb, row, er.region, false).code)
+            buffer.add(cb, bufferSct.coerceSCode(cb, row, er.region, false).code)
             cb.assign(currSize, currSize + 1)
             cb.assign(nWritten, nWritten + 1)
           })

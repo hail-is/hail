@@ -69,23 +69,48 @@
 </div>
 <table class="data-table" id="status">
   <thead>
-  <tr>
-    <th>Pending</th>
-    <th>Active</th>
-    <th>Inactive</th>
-    <th>Deleted</th>
-    <th>Provisioned Cores</th>
-    <th>Schedulable Cores</th>
-  </tr>
+    <tr>
+      <th colspan="4">Instances</th>
+      <th></th>
+      <th colspan="4">Cores</th>
+      <th></th>
+      <th colspan="3">Schedulable Cores</th>
+    </tr>
+    <tr>
+      <th>Pending</th>
+      <th>Active</th>
+      <th>Inactive</th>
+      <th>Deleted</th>
+      <th></th>
+      <th>Pending</th>
+      <th>Active</th>
+      <th>Inactive</th>
+      <th>Deleted</th>
+      <th></th>
+      <th>Free</th>
+      <th>Total</th>
+      <th>% Free</th>
+    </tr>
   </thead>
-  <tbody>
+<tbody>
   <tr>
     <td class="numeric-cell">{{ pool.all_versions_instances_by_state['pending'] }}</td>
     <td class="numeric-cell">{{ pool.all_versions_instances_by_state['active'] }}</td>
     <td class="numeric-cell">{{ pool.all_versions_instances_by_state['inactive'] }}</td>
     <td class="numeric-cell">{{ pool.all_versions_instances_by_state['deleted'] }}</td>
-    <td class="numeric-cell">{{ pool.all_versions_provisioned_cores_mcpu / 1000 }}</td>
-    <td class="numeric-cell">{{ pool.current_worker_version_stats.live_free_cores_mcpu / 1000 }} / {{ pool.all_versions_provisioned_cores_mcpu / 1000 }} </td>
+    <td></td>
+    <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['pending'] / 1000 }}</td>
+    <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['active'] / 1000 }}</td>
+    <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['inactive'] / 1000 }}</td>
+    <td class="numeric-cell">{{ pool.all_versions_cores_mcpu_by_state['deleted'] / 1000 }}</td>
+    <td></td>
+    <td class="numeric-cell">{{ pool.current_worker_version_stats.active_schedulable_free_cores_mcpu / 1000 }}</td>
+    <td class="numeric-cell">{{ pool.current_worker_version_stats.cores_mcpu_by_state['active'] / 1000 }}</td>
+    {% if pool.current_worker_version_stats.cores_mcpu_by_state['active'] != 0 %}
+    <td class="numeric-cell">{{ (pool.current_worker_version_stats.active_schedulable_free_cores_mcpu * 100 / pool.current_worker_version_stats.cores_mcpu_by_state['active']) | round(1)}}%</td>
+    {% else %}
+    <td class="numeric-cell"></td>
+    {% endif %}
   </tr>
   </tbody>
 </table>

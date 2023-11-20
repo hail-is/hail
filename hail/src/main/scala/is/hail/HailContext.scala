@@ -123,9 +123,6 @@ object HailContext {
 
     info(s"Running Hail version ${ theContext.version }")
 
-    // needs to be after `theContext` is set, since this creates broadcasts
-    backend.addDefaultReferences()
-
     theContext
   }
 

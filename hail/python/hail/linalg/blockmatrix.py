@@ -11,7 +11,7 @@ import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.expressions import (expr_float64, matrix_table_source, expr_ndarray,
-                                   check_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
+                                   raise_unless_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
 from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
                      BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead,
                      BlockMatrixMap, ApplyUnaryPrimOp, BlockMatrixDot, BlockMatrixCollect,
@@ -734,7 +734,7 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        check_entry_indexed('BlockMatrix.write_from_entry_expr', entry_expr)
+        raise_unless_entry_indexed('BlockMatrix.write_from_entry_expr', entry_expr)
         mt = matrix_table_source('BlockMatrix.write_from_entry_expr', entry_expr)
 
         if not (mean_impute or center or normalize):

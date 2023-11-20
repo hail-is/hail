@@ -202,8 +202,8 @@ public class Memory {
     }
 
     static void checkBytes(byte[] mem, long off, long size) {
-        if (! (off + size <= mem.length))
-            throw new RuntimeException("invalid memory access");
+        if (off < 0 || size < 0 || off + size > mem.length)
+            throw new RuntimeException("invalid memory access; off: " + off + " size: " + size);
     }
 
     static void checkDoubles(double[] mem, long off, long size) {
@@ -222,7 +222,7 @@ public class Memory {
 
         long blockBase = e.getKey();
         long blockSize = e.getValue();
-        if (! (addr + size <= blockBase + blockSize)) {
+        if ((addr + size > blockBase + blockSize) || addr < blockBase || size < 0) {
             throw new RuntimeException(String.format("invalid memory access: %08x/%08x: not in %08x/%08x", addr, size, blockBase, blockSize));
         }
     }

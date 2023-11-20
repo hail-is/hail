@@ -3,7 +3,7 @@ from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR
 from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     BlockMatrixMultiWrite, TableToValueApply, \
     MatrixToValueApply, BlockMatrixToValueApply, BlockMatrixCollect, \
-    Literal, LiftMeOut, Join, JavaIR, I32, I64, F32, F64, Str, FalseIR, TrueIR, \
+    Literal, EncodedLiteral, LiftMeOut, Join, JavaIR, I32, I64, F32, F64, Str, FalseIR, TrueIR, \
     Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, ProjectedTopLevelReference, SelectedTopLevelReference, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
     MakeArray, ArrayRef, ArraySlice, ArrayLen, ArrayZeros, StreamIota, StreamRange, StreamGrouped, MakeNDArray, \
@@ -36,7 +36,7 @@ from .matrix_ir import MatrixAggregateRowsByKey, MatrixRead, MatrixFilterRows, \
     MatrixRowsHead, MatrixColsHead, MatrixRowsTail, MatrixColsTail, \
     MatrixExplodeCols, CastTableToMatrix, MatrixAnnotateRowsTable, \
     MatrixAnnotateColsTable, MatrixToMatrixApply, MatrixRename, \
-    MatrixFilterIntervals, JavaMatrix
+    MatrixFilterIntervals
 from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     BlockMatrixDot, BlockMatrixBroadcast, BlockMatrixAgg, BlockMatrixFilter, \
     BlockMatrixDensify, BlockMatrixSparsifier, BandSparsifier, \
@@ -227,6 +227,7 @@ __all__ = [
     'MatrixToValueApply',
     'BlockMatrixToValueApply',
     'Literal',
+    'EncodedLiteral',
     'LiftMeOut',
     'Join',
     'JavaIR',
@@ -259,7 +260,6 @@ __all__ = [
     'MatrixToMatrixApply',
     'MatrixRename',
     'MatrixFilterIntervals',
-    'JavaMatrix',
     'MatrixReader',
     'MatrixNativeReader',
     'MatrixRangeReader',

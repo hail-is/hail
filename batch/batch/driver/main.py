@@ -448,11 +448,17 @@ FROM user_inst_coll_resources;
         'pools': inst_coll_manager.pools.values(),
         'jpim': jpim,
         'instance_id': app['instance_id'],
-        'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
+        'global_total_n_instances': inst_coll_manager.global_total_n_instances,
+        'global_total_cores_mcpu': inst_coll_manager.global_total_cores_mcpu,
+        'global_live_n_instances': inst_coll_manager.global_live_n_instances,
+        'global_live_cores_mcpu': inst_coll_manager.global_live_cores_mcpu,
+        'global_n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
+        'global_cores_mcpu_by_state': inst_coll_manager.global_cores_mcpu_by_state,
+        'global_schedulable_n_instances': inst_coll_manager.global_schedulable_n_instances,
+        'global_schedulable_cores_mcpu': inst_coll_manager.global_schedulable_cores_mcpu,
+        'global_schedulable_free_cores_mcpu': inst_coll_manager.global_schedulable_free_cores_mcpu,
         'instances': inst_coll_manager.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
-        'live_schedulable_free_cores_mcpu': inst_coll_manager.global_current_version_live_schedulable_free_cores_mcpu,
         'frozen': app['frozen'],
         'feature_flags': app['feature_flags'],
     }
@@ -1126,8 +1132,8 @@ LOCK IN SHARE MODE;
         agg_job_resources = tx.execute_and_fetchall(
             '''
 SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_job_resources_v2
-LEFT JOIN resources ON aggregated_job_resources_v2.resource_id = resources.resource_id
+FROM aggregated_job_resources_v3
+LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 '''
@@ -1138,7 +1144,7 @@ LOCK IN SHARE MODE;
 SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_batch_resources_v2
+  FROM aggregated_batch_resources_v3
   GROUP BY batch_id, resource_id) AS t
 LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
@@ -1558,18 +1564,25 @@ class BatchDriverAccessLogger(AccessLogger):
 
 
 async def on_startup(app):
-    task_manager = aiotools.BackgroundTaskManager()
-    app['task_manager'] = task_manager
-
-    app['client_session'] = httpx.client_session()
+    exit_stack = AsyncExitStack()
+    app['exit_stack'] = exit_stack
 
     kubernetes_asyncio.config.load_incluster_config()
     app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
     app['k8s_cache'] = K8sCache(app['k8s_client'])
 
+    async def close_and_wait():
+        # - Following warning mitigation described here: https://github.com/aio-libs/aiohttp/pull/2045
+        # - Fixed in aiohttp 4.0.0: https://github.com/aio-libs/aiohttp/issues/1925
+        await app['k8s_client'].api_client.close()
+        await asyncio.sleep(0.250)
+
+    exit_stack.push_async_callback(close_and_wait)
+
     db = Database()
     await db.async_init(maxsize=50)
     app['db'] = db
+    exit_stack.push_async_callback(app['db'].async_close)
 
     row = await db.select_and_fetchone(
         '''
@@ -1590,18 +1603,28 @@ SELECT instance_id, frozen FROM globals;
     app['cancel_ready_state_changed'] = asyncio.Event()
     app['cancel_creating_state_changed'] = asyncio.Event()
     app['cancel_running_state_changed'] = asyncio.Event()
+
     app['async_worker_pool'] = AsyncWorkerPool(100, queue_size=100)
+    exit_stack.push_async_callback(app['async_worker_pool'].shutdown_and_wait)
 
     fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
+    exit_stack.push_async_callback(app['file_store'].close)
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    app['driver'] = await get_cloud_driver(
-        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, task_manager
-    )
+    app['client_session'] = httpx.client_session()
+    exit_stack.push_async_callback(app['client_session'].close)
+
+    app['driver'] = await get_cloud_driver(app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs)
+    exit_stack.push_async_callback(app['driver'].shutdown)
 
     app['canceller'] = await Canceller.create(app)
+    exit_stack.push_async_callback(app['canceller'].shutdown_and_wait)
+
+    task_manager = aiotools.BackgroundTaskManager()
+    app['task_manager'] = task_manager
+    exit_stack.push_async_callback(app['task_manager'].shutdown_and_wait)
 
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
     task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
@@ -1614,15 +1637,7 @@ SELECT instance_id, frozen FROM globals;
 
 async def on_cleanup(app):
     try:
-        async with AsyncExitStack() as cleanup:
-            cleanup.callback(app['canceller'].shutdown)
-            cleanup.callback(app['task_manager'].shutdown)
-            cleanup.push_async_callback(app['driver'].shutdown)
-            cleanup.push_async_callback(app['file_store'].shutdown)
-            cleanup.push_async_callback(app['client_session'].close)
-            cleanup.callback(app['async_worker_pool'].shutdown)
-            cleanup.push_async_callback(app['db'].async_close)
-            cleanup.push_async_callback(app['k8s_client'].api_client.rest_client.pool_manager.close)
+        await app['exit_stack'].aclose()
     finally:
         await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 

@@ -62,21 +62,18 @@ class DeployConfig:
     def with_location(self, location):
         return DeployConfig(location, self._default_namespace, self._domain)
 
-    def default_namespace(self):
+    def default_namespace(self) -> str:
         return self._default_namespace
 
     def location(self):
         return self._location
-
-    def service_ns(self, service):  # pylint: disable=unused-argument
-        return self._default_namespace
 
     def scheme(self, base_scheme='http'):
         # FIXME: should depend on ssl context
         return (base_scheme + 's') if self._location in ('external', 'k8s') else base_scheme
 
     def domain(self, service):
-        ns = self.service_ns(service)
+        ns = self._default_namespace
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
@@ -89,7 +86,7 @@ class DeployConfig:
         return f'internal.{self._domain}'
 
     def base_path(self, service):
-        ns = self.service_ns(service)
+        ns = self._default_namespace
         if ns == 'default':
             return ''
         return f'/{ns}/{service}'
@@ -101,13 +98,12 @@ class DeployConfig:
         return f'{self.base_url(service, base_scheme=base_scheme)}{path}'
 
     def auth_session_cookie_name(self):
-        auth_ns = self.service_ns('auth')
-        if auth_ns == 'default':
+        if self._default_namespace == 'default':
             return 'session'
         return 'sesh'
 
     def external_url(self, service, path, base_scheme='http'):
-        ns = self.service_ns(service)
+        ns = self._default_namespace
         if ns == 'default':
             if service == 'www':
                 return f'{base_scheme}s://{self._domain}{path}'

@@ -129,7 +129,7 @@ class SimplifySuite extends HailSuite {
         )
       )
     )
-    val simplified = new NormalizeNames(_.toString, true).apply(Simplify(ctx, l))
+    val simplified = new NormalizeNames(_.toString, true)(ctx, Simplify(ctx, l))
     val expected = Let("1",
       I32(1) + Ref("OTHER_1", TInt32),
       Let("2", I32(1) + Ref("1", TInt32),
@@ -471,6 +471,21 @@ class SimplifySuite extends HailSuite {
   @Test(dataProvider = "blockMatrixRules")
   def testBlockMatrixSimplification(input: BlockMatrixIR, expected: BlockMatrixIR): Unit =
     assert(Simplify(ctx, input) == expected)
+
+  @DataProvider(name = "SwitchRules")
+  def switchRules: Array[Array[Any]] =
+    Array(
+      Array(I32(-1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(-1)),
+      Array(I32(1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(1)),
+      Array(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32), Switch(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32))),
+      Array(I32(256), I32(-1), IndexedSeq.empty[IR], I32(-1)),
+      Array(ref(TInt32), I32(-1), IndexedSeq.empty[IR], Switch(ref(TInt32), I32(-1), IndexedSeq.empty[IR])), // missingness
+    )
+
+  @Test(dataProvider = "SwitchRules")
+  def testTestSwitchSimplification(x: IR, default: IR, cases: IndexedSeq[IR], expected: Any): Unit =
+    assert(Simplify(ctx, Switch(x, default, cases)) == expected)
+
 }
 
 

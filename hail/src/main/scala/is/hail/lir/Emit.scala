@@ -129,7 +129,7 @@ object Emit {
         case x: InsnX =>
           mv.visitInsn(x.op)
         case x: TypeInsnX =>
-          mv.visitTypeInsn(x.op, x.t)
+          mv.visitTypeInsn(x.op, x.ti.iname)
         case x: MethodX =>
           mv.visitMethodInsn(
             x.op, x.method.owner, x.method.name, x.method.desc, x.method.isInterface)

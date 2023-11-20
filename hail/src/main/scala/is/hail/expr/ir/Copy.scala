@@ -31,15 +31,18 @@ object Copy {
       case If(_, _, _) =>
         assert(newChildren.length == 3)
         If(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+      case s: Switch =>
+        assert(s.size == newChildren.size)
+        Switch(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren.drop(2).asInstanceOf[IndexedSeq[IR]])
       case Let(name, _, _) =>
         assert(newChildren.length == 2)
         Let(name, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
       case AggLet(name, _, _, isScan) =>
         assert(newChildren.length == 2)
         AggLet(name, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
-      case TailLoop(name, params, _) =>
+      case TailLoop(name, params, resultType,  _) =>
         assert(newChildren.length == params.length + 1)
-        TailLoop(name, params.map(_._1).zip(newChildren.init.map(_.asInstanceOf[IR])), newChildren.last.asInstanceOf[IR])
+        TailLoop(name, params.map(_._1).zip(newChildren.init.map(_.asInstanceOf[IR])), resultType, newChildren.last.asInstanceOf[IR])
       case Recur(name, args, t) =>
         assert(newChildren.length == args.length)
         Recur(name, newChildren.map(_.asInstanceOf[IR]), t)
@@ -336,8 +339,8 @@ object Copy {
       case ConsoleLog(message, result) =>
         assert(newChildren.length == 2)
         ConsoleLog(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case x@ApplyIR(fn, typeArgs, args, errorID) =>
-        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), errorID)
+      case x@ApplyIR(fn, typeArgs, args, rt, errorID) =>
+        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), rt, errorID)
         r.conversion = x.conversion
         r.inline = x.inline
         r

@@ -4,7 +4,6 @@ from hail.expr.types import HailType, tint64
 from hail.ir.base_ir import BaseIR, MatrixIR
 from hail.ir.utils import modify_deep_field, zip_with_index, zip_with_index_field, default_row_uid, default_col_uid, unpack_row_uid, unpack_col_uid
 import hail.ir.ir as ir
-from hail.utils import FatalError
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
 from hail.utils.java import Env
@@ -1184,7 +1183,7 @@ class MatrixFilterIntervals(MatrixIR):
         return MatrixFilterIntervals(child, self.intervals, self.point_type, self.keep)
 
     def head_str(self):
-        return f'{dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
+        return f'{self.child.typ.row_key_type._parsable_string()} {dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
 
     def _eq(self, other):
         return self.intervals == other.intervals and self.point_type == other.point_type and self.keep == other.keep
@@ -1192,22 +1191,3 @@ class MatrixFilterIntervals(MatrixIR):
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
         return self.child.typ
-
-
-class JavaMatrix(MatrixIR):
-    def __init__(self, jir):
-        super().__init__()
-        self._jir = jir
-
-    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
-        raise FatalError('JavaMatrix does not support randomness in consumers')
-
-    def render_head(self, r):
-        return f'(JavaMatrix {r.add_jir(self._jir)}'
-
-    def _compute_type(self, deep_typecheck):
-        if self._type is None:
-            return hl.tmatrix._from_java(self._jir.typ())
-        else:
-            return self._type
-

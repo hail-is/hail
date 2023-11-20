@@ -6,7 +6,7 @@ import sys
 import warnings
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Generator, List, Optional, TextIO, Tuple, Any, TypedDict, Set
+from typing import Generator, List, Optional, TextIO, Tuple, Any, TypedDict, Set, Dict
 
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
@@ -396,9 +396,9 @@ async def main():
                 print(f'\t{sa}: {", ".join(str(s) for s in sa.kube_secrets)}')
 
         print('Discovered the following key secrets with no matching service account')
-        unmatched_secrets = set(k.name for k in gsa_key_secrets).difference(seen_secrets)
-        for s in unmatched_secrets:
-            print(f'\t{s}')
+        for k in gsa_key_secrets:
+            if k.name not in seen_secrets:
+                print(f'\t{k}')
 
         print('Discovered the following service accounts with no k8s key secrets')
         for sa in service_accounts:
@@ -437,4 +437,4 @@ async def main():
             await k8s_client.api_client.rest_client.pool_manager.close()
 
 
-asyncio.get_event_loop().run_until_complete(main())
+asyncio.run(main())

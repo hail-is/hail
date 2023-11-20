@@ -71,7 +71,14 @@ docs_pages = set(
 @routes.get('/docs/{tail:.*}')
 @auth.maybe_authenticated_user
 async def serve_docs(request, userdata):
-    tail = request.match_info['tail']
+    tail: str = request.match_info['tail']
+
+    splits = tail.split('/', maxsplit=1)
+    if len(splits) == 2:
+        folder, tailtail = splits
+        if folder == 'latest':
+            raise web.HTTPFound('/docs/0.2/' + tailtail)
+
     if tail in docs_pages:
         if tail.endswith('.html'):
             return await render_template('www', request, userdata, tail, {})

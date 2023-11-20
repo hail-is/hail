@@ -1,7 +1,6 @@
 from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple, Dict, Any
 import asyncio
 import io
-import nest_asyncio
 import os
 import functools
 import glob
@@ -175,7 +174,6 @@ class RouterFS(FS):
                  gcs_kwargs: Optional[Dict[str, Any]] = None,
                  azure_kwargs: Optional[Dict[str, Any]] = None,
                  s3_kwargs: Optional[Dict[str, Any]] = None):
-        nest_asyncio.apply()
         if afs and (local_kwargs or gcs_kwargs or azure_kwargs or s3_kwargs):
             raise ValueError(
                 f'If afs is specified, no other arguments may be specified: {afs=}, {local_kwargs=}, {gcs_kwargs=}, {azure_kwargs=}, {s3_kwargs=}'
@@ -398,11 +396,20 @@ class RouterFS(FS):
     def mkdir(self, path: str):
         return async_to_blocking(self.afs.mkdir(path))
 
+    async def amkdir(self, path: str):
+        return self.afs.mkdir(path)
+
     def remove(self, path: str):
         return async_to_blocking(self.afs.remove(path))
 
+    async def aremove(self, path: str):
+        return await self.afs.remove(path)
+
     def rmtree(self, path: str):
         return async_to_blocking(self.afs.rmtree(None, path))
+
+    async def armtree(self, path: str):
+        return self.afs.rmtree(None, path)
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme in self.afs.schemes

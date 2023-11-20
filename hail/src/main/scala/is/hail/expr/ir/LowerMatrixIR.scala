@@ -396,6 +396,9 @@ object LowerMatrixIR {
             builder += ((uid, aggIR))
             aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(uid, structResult.typ), name), acc) }
 
+          case x: StreamAgg => x
+          case x: StreamAggScan => x
+
           case _ =>
             MapIR(lift(_, scanBindings, aggBindings))(ir)
         }

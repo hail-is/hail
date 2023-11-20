@@ -24,7 +24,7 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR].noSharing
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR].noSharing(ctx)
     lowered.analyzeAndExecute(ctx).asTableValue(ctx)
   }
 
@@ -122,6 +122,13 @@ object Interpret {
           interpret(cnsq, env, args)
         else
           interpret(altr, env, args)
+      case Switch(x_, default, cases) =>
+        interpret(x_, env, args) match {
+          case x: Int =>
+            interpret(if (x >= 0 && x < cases.length) cases(x) else default, env, args)
+          case null =>
+            null
+        }
       case Let(name, value, body) =>
         val valueValue = interpret(value, env, args)
         interpret(body, env.bind(name, valueValue), args)
@@ -783,7 +790,7 @@ object Interpret {
         val message_ = interpret(message).asInstanceOf[String]
         info(message_)
         interpret(result)
-      case ir@ApplyIR(function, _, functionArgs, _) =>
+      case ir@ApplyIR(function, _, _, functionArgs, _) =>
         interpret(ir.explicitNode, env, args)
       case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>
         val left = interpret(left_)

@@ -144,10 +144,10 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     }
   }
 
-  def structInsert(signature: Type, p: List[String]): (TStruct, Inserter) = {
+  def structInsert(signature: Type, p: List[String]): TStruct = {
     require(p.nonEmpty || signature.isInstanceOf[TStruct], s"tried to remap top-level struct to non-struct $signature")
     val (t, f) = insert(signature, p)
-    (t.asInstanceOf[TStruct], f)
+    t.asInstanceOf[TStruct]
   }
 
   def updateKey(key: String, i: Int, sig: Type): TStruct = {

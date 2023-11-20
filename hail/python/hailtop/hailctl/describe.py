@@ -101,7 +101,7 @@ def describe(
     '''
     Describe the MatrixTable or Table at path FILE.
     '''
-    asyncio.get_event_loop().run_until_complete(async_describe(file, requester_pays_project_id))
+    asyncio.run(async_describe(file, requester_pays_project_id))
 
 
 async def async_describe(
@@ -113,7 +113,7 @@ async def async_describe(
 
     gcs_kwargs = {}
     if requester_pays_project_id:
-        gcs_kwargs['project'] = requester_pays_project_id
+        gcs_kwargs['gcs_requester_pays_configuration'] = requester_pays_project_id
 
     async with aio_contextlib.closing(RouterAsyncFS(gcs_kwargs=gcs_kwargs)) as fs:
         j = orjson.loads(decompress(await fs.read(path.join(file, 'metadata.json.gz')), 16 + MAX_WBITS))

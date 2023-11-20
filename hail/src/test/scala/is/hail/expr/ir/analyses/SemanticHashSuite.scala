@@ -1,17 +1,18 @@
 package is.hail.expr.ir.analyses
 
-import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.io.fs.{FS, FakeFS, FileListEntry, FakeURL}
+import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
-import is.hail.types.TableType
 import is.hail.types.virtual._
-import is.hail.utils.using
+import is.hail.types.{MatrixType, TableType}
+import is.hail.utils.{FastSeq, using}
+import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
 import org.json4s.JValue
 import org.testng.annotations.{DataProvider, Test}
 
+import java.io.FileNotFoundException
 import java.lang
 import scala.util.control.NonFatal
 
@@ -168,24 +169,11 @@ class SemanticHashSuite extends HailSuite {
     )
 
   def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {
-    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq(), TStruct())
+    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq("a"), TStruct())
     val ttypeb = TableType(TStruct("c" -> TInt32, "d" -> TStruct()), IndexedSeq(), TStruct())
 
     def mkTableRead(reader: TableReader): TableIR =
       TableRead(typ = reader.fullType, dropRows = false, tr = reader)
-
-    def mkFakeTableSpec(ttype: TableType): AbstractTableSpec =
-      new AbstractTableSpec {
-        override def references_rel_path: String = ???
-        override def table_type: TableType = ttype
-        override def rowsSpec: AbstractRVDSpec = ???
-        override def globalsSpec: AbstractRVDSpec = ???
-        override def file_version: Int = 0
-        override def hail_version: String = ???
-        override def components: Map[String, ComponentSpec] =
-          Map("partition_counts" -> PartitionCountsComponentSpec(Array(1L)))
-        override def toJValue: JValue = ???
-      }
 
     def mkTableIR(ttype: TableType, path: String): TableIR =
       mkTableRead(new TableNativeReader(
@@ -217,12 +205,14 @@ class SemanticHashSuite extends HailSuite {
       Array(
         TableGetGlobals,
         TableAggregate(_, Void()),
+        TableAggregateByKey(_, MakeStruct(FastSeq())),
+        TableKeyByAndAggregate(_, MakeStruct(FastSeq()), MakeStruct(FastSeq("idx" -> I32(0))), None, 256),
         TableCollect,
         TableCount,
         TableDistinct,
         TableFilter(_, Void()),
         TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
-        TableMapRows(_, MakeStruct(IndexedSeq.empty)),
+        TableMapRows(_, MakeStruct(FastSeq("a" -> I32(0)))),
         TableRename(_, Map.empty, Map.empty),
       ).map { wrap =>
         Array(wrap(tir), wrap(tir), true, "")
@@ -230,7 +220,7 @@ class SemanticHashSuite extends HailSuite {
     )
   }
 
-  def isMatrixIRSemanticallyEquivalent: Array[Array[Any]] =
+  def isBlockMatrixIRSemanticallyEquivalent: Array[Array[Any]] =
     Array[String => BlockMatrixReader](
       path => BlockMatrixBinaryReader(path, Array(1L, 1L), 1),
       path => new BlockMatrixNativeReader(BlockMatrixNativeReaderParameters(path), BlockMatrixMetadata(1, 1, 1, None, IndexedSeq.empty))
@@ -249,7 +239,7 @@ class SemanticHashSuite extends HailSuite {
       Array.concat(
         isValueIRSemanticallyEquivalent,
         isTableIRSemanticallyEquivalent,
-        isMatrixIRSemanticallyEquivalent
+        isBlockMatrixIRSemanticallyEquivalent
       )
     } catch {
       case NonFatal(t) =>
@@ -260,17 +250,32 @@ class SemanticHashSuite extends HailSuite {
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
   def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
     assertResult(isEqual, s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment")(
-      semhash(a) == semhash(b)
+      semhash(fakeFs)(a) == semhash(fakeFs)(b)
     )
 
+  @Test
+  def testFileNotFoundExceptions(): Unit = {
+    val fs =
+      new FakeFS {
+        override def eTag(url: FakeURL): Option[String] =
+          throw new FileNotFoundException(url.getPath())
+      }
 
-  val semhash: BaseIR => Option[SemanticHash.Type] =
-    ir => ExecuteContext.scoped() { ctx =>
+    val ir =
+      importMatrix("gs://fake-bucket/fake-matrix")
+
+    assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
+      semhash(fs)(ir)
+    )
+  }
+
+  def semhash(fs: FS)(ir: BaseIR): Option[SemanticHash.Type] =
+    ExecuteContext.scoped() { ctx =>
       using(new ExecuteContext(
         ctx.tmpdir,
         ctx.localTmpdir,
         ctx.backend,
-        fakeFs,
+        fs,
         ctx.r,
         ctx.timer,
         ctx.tempFileManager,
@@ -297,5 +302,63 @@ class SemanticHashSuite extends HailSuite {
           override def isFile: Boolean = true
           override def getOwner: String = ???
         })
+    }
+
+  def importMatrix(path: String): MatrixIR = {
+    val ty =
+      MatrixType(
+        TStruct.empty,
+        FastSeq("col_idx"), TStruct("col_idx" -> TInt32),
+        FastSeq("row_idx"), TStruct("row_idx" -> TInt32),
+        TStruct.empty,
+      )
+
+    val reader =
+      new MatrixNativeReader(
+        MatrixNativeReaderParameters(path, None),
+        new AbstractMatrixTableSpec {
+          override def matrix_type: MatrixType =
+            ty
+          override def references_rel_path: String =
+            "references"
+          override def globalsSpec: AbstractTableSpec =
+            mkFakeTableSpec(ty.canonicalTableType)
+          override def colsSpec: AbstractTableSpec =
+            mkFakeTableSpec(ty.colsTableType)
+          override def rowsSpec: AbstractTableSpec =
+            mkFakeTableSpec(ty.rowsTableType)
+          override def entriesSpec: AbstractTableSpec =
+            mkFakeTableSpec(ty.entriesTableType)
+          override def file_version: Int =
+            1
+          override def hail_version: String =
+            HAIL_PRETTY_VERSION
+          override def components: Map[String, ComponentSpec] =
+            Map.empty
+          override def toJValue: JValue = ???
+        }
+      )
+
+    MatrixRead(ty, false, false, reader)
+  }
+
+  def mkFakeTableSpec(ttype: TableType): AbstractTableSpec =
+    new AbstractTableSpec {
+      override def references_rel_path: String = ???
+
+      override def table_type: TableType = ttype
+
+      override def rowsSpec: AbstractRVDSpec = ???
+
+      override def globalsSpec: AbstractRVDSpec = ???
+
+      override def file_version: Int = 0
+
+      override def hail_version: String = ???
+
+      override def components: Map[String, ComponentSpec] =
+        Map("partition_counts" -> PartitionCountsComponentSpec(Array(1L)))
+
+      override def toJValue: JValue = ???
     }
 }

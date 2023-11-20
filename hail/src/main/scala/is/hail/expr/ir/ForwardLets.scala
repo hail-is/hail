@@ -1,12 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
+import is.hail.backend.ExecuteContext
 
 import scala.collection.mutable
 
 object ForwardLets {
-  def apply[T <: BaseIR](ir0: T): T = {
-    val ir1 = new NormalizeNames(_ => genUID(), allowFreeVariables = true).apply(ir0)
+  def apply[T <: BaseIR](ctx: ExecuteContext)(ir0: T): T = {
+    val ir1 = new NormalizeNames(_ => genUID(), allowFreeVariables = true)(ctx, ir0)
     val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
     val nestingDepth = NestingDepth(ir1)
 

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.utils.StackSafe._
 
 class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
@@ -10,11 +11,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
     normFunction(count)
   }
 
-  def apply(ir: IR, env: Env[String]): IR = apply(ir.noSharing, BindingEnv(env))
+  def apply(ctx: ExecuteContext, ir: IR, env: Env[String]): IR =
+    normalizeIR(ir.noSharing(ctx), BindingEnv(env)).run().asInstanceOf[IR]
 
-  def apply(ir: IR, env: BindingEnv[String]): IR = normalizeIR(ir.noSharing, env).run().asInstanceOf[IR]
+  def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[String]): IR =
+    normalizeIR(ir.noSharing(ctx), env).run().asInstanceOf[IR]
 
-  def apply(ir: BaseIR): BaseIR = normalizeIR(ir.noSharing, BindingEnv(agg=Some(Env.empty), scan=Some(Env.empty))).run()
+  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    normalizeIR(ir.noSharing(ctx), BindingEnv(agg=Some(Env.empty), scan=Some(Env.empty))).run()
 
   private def normalizeIR(ir: BaseIR, env: BindingEnv[String], context: Array[String] = Array()): StackFrame[BaseIR] = {
 
@@ -63,14 +67,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newValue <- normalize(value, valueEnv)
           newBody <- normalize(body, bodyEnv)
         } yield AggLet(newName, newValue, newBody, isScan)
-      case TailLoop(name, args, body) =>
+      case TailLoop(name, args, resultType, body) =>
         val newFName = gen()
         val newNames = Array.tabulate(args.length)(i => gen())
         val (names, values) = args.unzip
         for {
           newValues <- values.mapRecur(v => normalize(v))
           newBody <- normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames) :+ name -> newFName: _*)))
-        } yield TailLoop(newFName, newNames.zip(newValues), newBody)
+        } yield TailLoop(newFName, newNames.zip(newValues), resultType, newBody)
       case ArraySort(a, left, right, lessThan) =>
         val newLeft = gen()
         val newRight = gen()

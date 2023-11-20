@@ -1,5 +1,7 @@
 import re
 import unittest
+import numpy as np
+from numpy.testing import assert_array_equal
 import hail as hl
 import hail.ir as ir
 from hail.ir.renderer import CSERenderer
@@ -20,8 +22,9 @@ class ValueIRTests(unittest.TestCase):
             'mat': hl.tndarray(hl.tfloat64, 2),
             'aa': hl.tarray(hl.tarray(hl.tint32)),
             'sta': hl.tstream(hl.tarray(hl.tint32)),
-            'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
-            'nd': hl.tndarray(hl.tfloat64, 1),
+            'sts': hl.tstream(hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64)),
+            'da': hl.tstream(hl.ttuple(hl.tint32, hl.tstr)),
+            'nd': hl.tndarray(hl.tfloat64, 2),
             'v': hl.tint32,
             's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
             't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
@@ -40,6 +43,7 @@ class ValueIRTests(unittest.TestCase):
         mat = ir.Ref('mat')
         aa = ir.Ref('aa', env['aa'])
         sta = ir.Ref('sta', env['sta'])
+        sts = ir.Ref('sts', env['sts'])
         da = ir.Ref('da', env['da'])
         nd = ir.Ref('nd', env['nd'])
         v = ir.Ref('v', env['v'])
@@ -75,7 +79,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayRef(a, i),
             ir.ArrayLen(a),
             ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l', hl.tint32), ir.Ref('r', hl.tint32))),
-            ir.ToSet(a),
+            ir.ToSet(st),
             ir.ToDict(da),
             ir.ToArray(st),
             ir.CastToArray(ir.NA(hl.tset(hl.tint32))),
@@ -87,17 +91,17 @@ class ValueIRTests(unittest.TestCase):
             ir.NDArrayRef(nd, [ir.I64(1), ir.I64(2)]),
             ir.NDArrayMap(nd, 'v', v),
             ir.NDArrayMatMul(nd, nd),
-            ir.LowerBoundOnOrderedCollection(a, i, True),
+            ir.LowerBoundOnOrderedCollection(a, i, False),
             ir.GroupByKey(da),
-            ir.RNGSplit(rngState, ir.MakeTuple([ir.I64(1), ir.MakeTuple([ir.I64(2), ir.I64(3)])])),
+            ir.RNGSplit(rngState, ir.MakeTuple([ir.I64(1), ir.I64(2), ir.I64(3)])),
             ir.StreamMap(st, 'v', v),
             ir.StreamZip([st, st], ['a', 'b'], ir.TrueIR(), 'ExtendNA'),
-            ir.StreamFilter(st, 'v', v),
+            ir.StreamFilter(st, 'v', c),
             ir.StreamFlatMap(sta, 'v', ir.ToStream(v)),
             ir.StreamFold(st, ir.I32(0), 'x', 'v', v),
             ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
-            ir.StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, False),
-            ir.StreamJoinRightDistinct(st, st, ['k'], ['k'], 'l', 'r', ir.I32(1), "left"),
+            ir.StreamWhiten(whitenStream, "newChunk", "prevWindow", 1, 1, 1, 1, False),
+            ir.StreamJoinRightDistinct(sts, sts, ['x'], ['x'], 'l', 'r', ir.I32(1), "left"),
             ir.StreamFor(st, 'v', ir.Void()),
             aggregate(ir.AggFilter(ir.TrueIR(), ir.I32(0), False)),
             aggregate(ir.AggExplode(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False)),
@@ -117,6 +121,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Apply('land', hl.tbool, b, c),
             ir.Apply('toFloat64', hl.tfloat64, i),
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
+            ir.EncodedLiteral(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
             ir.TableGetGlobals(table),
             ir.TableCollect(ir.TableKeyBy(table, [], False)),
@@ -570,3 +575,69 @@ class CSETests(unittest.TestCase):
                     ' (bar (GetField idx (Ref row)))))'
         )
         assert expected == CSERenderer()(x)
+
+
+def _assert_encoding_roundtrip(value):
+    lit = hl.literal(value)
+    round_trip_just_python_encoding = lit.dtype._from_encoding(lit.dtype._to_encoding(value))
+    round_trip_through_scala = hl.eval(lit)
+    for round_trip in (round_trip_just_python_encoding, round_trip_through_scala):
+        if isinstance(value, np.ndarray):
+            assert_array_equal(round_trip, value)
+        else:
+            assert round_trip == value
+
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        1,
+        5.0,
+        "foo",
+        [1, 2, 3, 4],
+        (5, 6, 7, 8),
+        {"foo", "bar", "baz"},
+        {"a": {"b": 1}},
+        {"a": 1, "b": 2},
+        {1: "a", 2: "b"},  # Check values that are pointers to other memory
+        {1: [], 2: [1, 2, 3, 4]},
+        hl.Call([0, 1]),
+        hl.Call([1, 0], phased=True),
+        hl.Call([2], phased=True),
+        hl.Call([]),
+        hl.Call([1, 1]),
+        hl.Call([17495, 17495]),
+    ]
+)
+def test_literal_encodings(value):
+    _assert_encoding_roundtrip(value)
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        np.array([]),
+        np.array([1]),
+        np.array([1, 2, 3, 4]),
+        np.array([[1, 2], [3, 4], [5, 6]]),
+        np.array([[[[1]], [[2]]], [[[3]], [[4]]], [[[5]], [[6]]]]),
+    ]
+)
+def test_literal_ndarray_encodings(value):
+    _assert_encoding_roundtrip(value)
+    _assert_encoding_roundtrip(value.T)
+
+
+def test_decoding_multiple_dicts():
+    dict = {0: 'a', 1: 'b', 2: 'c'}
+    dict2 = {0: 'x', 1: 'y', 2: 'z'}
+    ht = hl.utils.range_table(1).annotate(indices = hl.array([0, 1, 2]))
+    ht.select(a=ht.indices.map(lambda i: hl.struct(x=hl.dict(dict).get(i), y=hl.dict(dict2).get(i)))).collect()
+
+
+def test_locus_interval_encoding():
+    start = hl.Locus(contig='chr1', position=10001, reference_genome='GRCh38')
+    end = hl.Locus(contig='chr1', position=11001, reference_genome='GRCh38')
+    interval = hl.Interval(start=start, end=end, includes_start=True, includes_end=False)
+    _assert_encoding_roundtrip(start)
+    _assert_encoding_roundtrip(end)
+    _assert_encoding_roundtrip(interval)

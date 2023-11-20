@@ -1440,7 +1440,7 @@ def test_gpu_accesibility_g2(client: BatchClient):
     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
     j = b.create_job(
         os.environ['HAIL_GPU_IMAGE'],
-        ['python', '-c', 'import torch; assert torch.cuda.is_available()'],
+        ['python3', '-c', 'import torch; assert torch.cuda.is_available()'],
         resources=resources,
     )
     b.submit()

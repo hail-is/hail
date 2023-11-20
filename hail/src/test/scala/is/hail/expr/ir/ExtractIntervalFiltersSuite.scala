@@ -715,6 +715,61 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       FastSeq(Interval(Row(null), Row(), true, true)))
   }
 
+  @Test def testSwitch(): Unit = {
+    def check(node: IR, trueIntervals: IndexedSeq[Interval], falseIntervals: IndexedSeq[Interval], naIntervals: IndexedSeq[Interval], trueResidual: IR = True(), falseResidual: IR = True(), naResidual: IR = True()) {
+      val testRows = FastSeq(
+        Row(0, 0, true),
+        Row(0, 5, true),
+        Row(0, -5, true),
+        Row(0, null, true),
+        Row(1, 0, true),
+        Row(1, 5, true),
+        Row(1, -5, true),
+        Row(1, null, true),
+        Row(null, null, true),
+      )
+      checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals, trueResidual, falseResidual, naResidual)
+    }
+
+    check(
+      Switch(I32(0), gt(k1, I32(-5)), FastSeq(lt(k1, I32(5)))),
+      FastSeq(Interval(Row(), Row(5), true, false)),
+      FastSeq(Interval(Row(5), Row(null), true, false)),
+      FastSeq(Interval(Row(null), Row(), true, true))
+    )
+
+    check(
+      Switch(I32(-1), gt(k1, I32(-5)), FastSeq(lt(k1, I32(5)))),
+      FastSeq(Interval(Row(-5), Row(null), false, false)),
+      FastSeq(Interval(Row(), Row(-5), true, true)),
+      FastSeq(Interval(Row(null), Row(), true, true))
+    )
+
+    val filter = Switch(GetField(ref1, "w"), gt(k1, I32(-5)), FastSeq(lt(k1, I32(5))))
+    check(
+      filter,
+      FastSeq(Interval(Row(), Row(null), true, false)),
+      FastSeq(Interval(Row(), Row(-5), true, true), Interval(Row(5), Row(null), true, false)),
+      FastSeq(Interval(Row(), Row(), true, true)),
+      trueResidual = filter,
+      falseResidual = ApplyUnaryPrimOp(Bang, filter),
+      naResidual = IsNA(filter)
+    )
+  }
+
+  @Test def testRelationalChildren(): Unit = {
+    val testRows = FastSeq(
+      Row(0, 0, true),
+      Row(0, 10, true),
+      Row(0, 20, true),
+      Row(0, null, true))
+
+    val count = TableAggregate(TableRange(10, 1), ApplyAggOp(FastSeq(), FastSeq(), AggSignature(Count(), FastSeq(), FastSeq())))
+    print(count.typ)
+    val filter = gt(count, Cast(k1, TInt64))
+    check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(Row(), Row(), true, true)))
+  }
+
   @Test def testIntegration() {
     hc // force initialization
     val tab1 = TableRange(10, 5)

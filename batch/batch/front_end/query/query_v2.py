@@ -143,8 +143,8 @@ LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
     SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-    FROM aggregated_batch_resources_v2
-    WHERE batches.id = aggregated_batch_resources_v2.batch_id
+    FROM aggregated_batch_resources_v3
+    WHERE batches.id = aggregated_batch_resources_v3.batch_id
     GROUP BY batch_id, resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
@@ -281,10 +281,10 @@ LEFT JOIN job_attributes
 {attempts_table_join_str}
 LEFT JOIN LATERAL (
 SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
-FROM (SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_job_resources_v2
-  WHERE aggregated_job_resources_v2.batch_id = jobs.batch_id AND aggregated_job_resources_v2.job_id = jobs.job_id
-  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+FROM (SELECT aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_resources_v3
+  WHERE aggregated_job_resources_v3.batch_id = jobs.batch_id AND aggregated_job_resources_v3.job_id = jobs.job_id
+  GROUP BY aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, aggregated_job_resources_v3.resource_id
 ) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY usage_t.batch_id, usage_t.job_id

@@ -200,9 +200,12 @@ class RequirednessSuite extends HailSuite {
     // TailLoop
     val param1 = Ref(genUID(), tarray)
     val param2 = Ref(genUID(), TInt32)
-    val loop = TailLoop("loop", FastSeq(
-      param1.name -> array(required, required),
-      param2.name -> int(required)),
+    val loop = TailLoop(
+      "loop",
+      FastSeq(
+        param1.name -> array(required, required),
+        param2.name -> int(required)),
+      tnestedarray,
       If(False(), // required
         MakeArray(FastSeq(param1), tnestedarray), // required
         If(param2 <= I32(1), // possibly missing
@@ -213,6 +216,15 @@ class RequirednessSuite extends HailSuite {
             array(optional, required),
             int(optional)), tnestedarray))))
     nodes += Array(loop, PCanonicalArray(PCanonicalArray(PInt32(optional), optional), optional))
+    // Switch
+    for ((x, d, cs, r) <- Array(
+      (required, required, FastSeq(required), required),
+      (optional, required, FastSeq(required), optional),
+      (required, optional, FastSeq(required), optional),
+      (required, required, FastSeq(optional), optional),
+    )) {
+      nodes += Array(Switch(int(x), int(d), cs.map(int)), PInt32(r))
+    }
     // ArrayZip
     val s1 = Ref(genUID(), TInt32)
     val s2 = Ref(genUID(), TInt32)

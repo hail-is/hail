@@ -41,6 +41,7 @@ from gear import (
     setup_aiohttp_session,
     transaction,
 )
+from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
@@ -81,6 +82,7 @@ from ..exceptions import (
     ClosedBillingProjectError,
     InvalidBillingLimitError,
     NonExistentBillingProjectError,
+    NonExistentUserError,
     QueryError,
 )
 from ..file_store import FileStore
@@ -1519,8 +1521,8 @@ LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
     SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-    FROM aggregated_batch_resources_v2
-    WHERE batches.id = aggregated_batch_resources_v2.batch_id
+    FROM aggregated_batch_resources_v3
+    WHERE batches.id = aggregated_batch_resources_v3.batch_id
     GROUP BY batch_id, resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
@@ -1802,10 +1804,10 @@ SELECT base_t.*, cost_t.cost, cost_t.cost_breakdown
 FROM base_t
 LEFT JOIN LATERAL (
 SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
-FROM (SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_job_resources_v2
-  WHERE aggregated_job_resources_v2.batch_id = base_t.batch_id AND aggregated_job_resources_v2.job_id = base_t.job_id
-  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+FROM (SELECT aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_resources_v3
+  WHERE aggregated_job_resources_v3.batch_id = base_t.batch_id AND aggregated_job_resources_v3.job_id = base_t.job_id
+  GROUP BY aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, aggregated_job_resources_v3.resource_id
 ) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY usage_t.batch_id, usage_t.job_id
@@ -2556,7 +2558,17 @@ async def api_get_billing_projects_remove_user(request: web.Request) -> web.Resp
     return json_response({'billing_project': billing_project, 'user': user})
 
 
-async def _add_user_to_billing_project(db, billing_project, user):
+async def _add_user_to_billing_project(request: web.Request, db: Database, billing_project: str, user: str):
+    try:
+        session_id = await get_session_id(request)
+        assert session_id is not None
+        url = deploy_config.url('auth', f'/api/v1alpha/users/{user}')
+        await impersonate_user(session_id, request.app['client_session'], url)
+    except aiohttp.ClientResponseError as e:
+        if e.status == 404:
+            raise NonExistentUserError(user) from e
+        raise
+
     @transaction(db)
     async def insert(tx):
         # we want to be case-insensitive here to avoid duplicates with existing records
@@ -2588,6 +2600,7 @@ WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted' L
             raise BatchOperationAlreadyCompletedError(
                 f'User {user} is already member of billing project {billing_project}.', 'info'
             )
+
         await tx.execute_insertone(
             '''
 INSERT INTO billing_project_users(billing_project, user, user_cs)
@@ -2605,13 +2618,13 @@ VALUES (%s, %s, %s);
 async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
-    user = post['user']
+    user = str(post['user'])
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
 
     try:
-        await _handle_ui_error(session, _add_user_to_billing_project, db, billing_project, user)
+        await _handle_ui_error(session, _add_user_to_billing_project, request, db, billing_project, user)
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -2624,7 +2637,7 @@ async def api_billing_projects_add_user(request: web.Request) -> web.Response:
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
 
-    await _handle_api_error(_add_user_to_billing_project, db, billing_project, user)
+    await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user)
     return json_response({'billing_project': billing_project, 'user': user})
 
 
@@ -2890,12 +2903,16 @@ class BatchFrontEndAccessLogger(AccessLogger):
 
 
 async def on_startup(app):
-    app['task_manager'] = aiotools.BackgroundTaskManager()
+    exit_stack = AsyncExitStack()
+    app['exit_stack'] = exit_stack
+
     app['client_session'] = httpx.client_session()
+    exit_stack.push_async_callback(app['client_session'].close)
 
     db = Database()
     await db.async_init()
     app['db'] = db
+    exit_stack.push_async_callback(app['db'].async_close)
 
     row = await db.select_and_fetchone(
         '''
@@ -2910,6 +2927,7 @@ SELECT instance_id, n_tokens, frozen FROM globals;
     app['instance_id'] = instance_id
 
     app['hail_credentials'] = hail_credentials()
+    exit_stack.push_async_callback(app['hail_credentials'].close)
 
     app['frozen'] = row['frozen']
 
@@ -2924,8 +2942,13 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
     fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
+    exit_stack.push_async_callback(app['file_store'].close)
+
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+    exit_stack.callback(app['task_manager'].shutdown)
 
     app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)
+    exit_stack.push_async_callback(app['file_store'].close)
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
@@ -2945,12 +2968,7 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
 
 async def on_cleanup(app):
-    async with AsyncExitStack() as stack:
-        stack.callback(app['task_manager'].shutdown)
-        stack.push_async_callback(app['hail_credentials'].close)
-        stack.push_async_callback(app['client_session'].close)
-        stack.push_async_callback(app['file_store'].close)
-        stack.push_async_callback(app['db'].async_close)
+    await app['exit_stack'].aclose()
 
 
 def run():

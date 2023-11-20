@@ -4,9 +4,10 @@
 #
 #    pip-compile --output-file=hail/web_common/pinned-requirements.txt hail/web_common/requirements.txt
 #
-aiohttp==3.8.5
+aiohttp==3.8.6
     # via
     #   -c hail/web_common/../gear/pinned-requirements.txt
+    #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   aiohttp-jinja2
 aiohttp-jinja2==1.5.1
@@ -14,11 +15,13 @@ aiohttp-jinja2==1.5.1
 aiosignal==1.3.1
     # via
     #   -c hail/web_common/../gear/pinned-requirements.txt
+    #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
 async-timeout==4.0.3
     # via
     #   -c hail/web_common/../gear/pinned-requirements.txt
+    #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
 attrs==23.1.0
@@ -27,7 +30,7 @@ attrs==23.1.0
     #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
-charset-normalizer==3.3.0
+charset-normalizer==3.3.2
     # via
     #   -c hail/web_common/../gear/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
@@ -36,6 +39,7 @@ charset-normalizer==3.3.0
 frozenlist==1.4.0
     # via
     #   -c hail/web_common/../gear/pinned-requirements.txt
+    #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
@@ -63,11 +67,13 @@ markupsafe==2.1.3
 multidict==6.0.4
     # via
     #   -c hail/web_common/../gear/pinned-requirements.txt
+    #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
 yarl==1.9.2
     # via
     #   -c hail/web_common/../gear/pinned-requirements.txt
+    #   -c hail/web_common/../hail/python/dev/pinned-requirements.txt
     #   -c hail/web_common/../hail/python/pinned-requirements.txt
     #   aiohttp

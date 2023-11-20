@@ -767,12 +767,7 @@ class StmtOpX(val op: Int, var lineNumber: Int = 0) extends StmtX
 
 class MethodStmtX(val op: Int, val method: MethodRef, var lineNumber: Int = 0) extends StmtX
 
-class TypeInsnX(val op: Int, val t: String, var lineNumber: Int = 0) extends ValueX {
-  def ti: TypeInfo[_] = {
-    assert(op == CHECKCAST)
-    // FIXME, ClassInfo should take the internal name
-    new ClassInfo(t.replace("/", "."))
-  }
+class TypeInsnX(val op: Int, val ti: TypeInfo[_], var lineNumber: Int = 0) extends ValueX {
 }
 
 class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends ValueX {
