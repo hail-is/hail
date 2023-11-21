@@ -19,5 +19,5 @@ RUN hail-apt-get-install \
     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
 
-RUN cd hail && ./gradlew dependencies  # warm the gradle dependency cache
+RUN ls && pwd && cd hail && ./gradlew dependencies  # warm the gradle dependency cache
 
