@@ -126,13 +126,13 @@ OBJECTS := \
   FS \
 
 BUILD_X86_64 := $(BUILD)/x86_64
-CXXFLAGS_X86_64 := $(CXXFLAGS) -arch x86_64
-LIBFLAGS_X86_64 := $(LIBFLAGS) -arch x86_64
+CXXFLAGS_X86_64 := $(CXXFLAGS)
+LIBFLAGS_X86_64 := $(LIBFLAGS)
 BUILD_OBJECTS_X86_64 := $(addprefix $(BUILD_X86_64)/, $(OBJECTS:%=%.o))
 
 BUILD_ARM64 := $(BUILD)/arm64
-CXXFLAGS_ARM64 := $(CXXFLAGS) -arch arm64
-LIBFLAGS_ARM64 := $(LIBFLAGS) -arch arm64
+CXXFLAGS_ARM64 := $(CXXFLAGS)
+LIBFLAGS_ARM64 := $(LIBFLAGS)
 BUILD_OBJECTS_ARM64 := $(addprefix $(BUILD_ARM64)/, $(OBJECTS:%=%.o))
 
 TEST_CPP := $(wildcard *_test.cpp) testutils/unit-tests.cpp
@@ -144,32 +144,37 @@ HEADER_DEPENDENCIES := $(addprefix $(BUILD_X86_64)/, $(ALL_CPP:%.cpp=%.d))
 HEADER_DEPENDENCIES += $(addprefix $(BUILD_ARM64)/, $(ALL_CPP:%.cpp=%.d))
 -include $(HEADER_DEPENDENCIES)
 
-# If no inherited "-march", and we are targeting x86_64, then use "-march=sandybridge" or
-# "-march=corei7-avx" for ISA compatibility with MacBook Pro's since 2011 (also the earliest cpu
-# with AVX).
+# If no inherited "-march", and we're not building a universal dylib on Apple Silicon, then use
+# "-march=sandybridge" or "-march=corei7-avx" for ISA compatibility with MacBook Pro's since 2011
+# (also the earliest cpu with AVX). Fall back to "-march=native" if the compiler doesn't support any
+# of those.
 #
-# If no inherited "-march", and we are targeting arm64, then use "-march=apple-m1".
-#
-# Fall back to "-march=native" if the compiler doesn't support any of those.
+# Otherwise, we're on Apple Silicon and building a universal dylib. We know exactly which -march
+# settings are valid.
 ifeq ($(filter -march=%,$(CXXFLAGS)),)
-  FAIL_A_X86_64 :=$(shell cp /dev/null a.cpp; $(CXX) -arch x86_64 -march=sandybridge -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
-  ifeq ($(FAIL_A_X86_64),)
-    CXXFLAGS_X86_64 += -march=sandybridge
-  else
-    # g++-4.8.x accepts "-march=corei7-avx" but not "-march=sandybridge	"
-    FAIL_B_X86_64 :=$(shell cp /dev/null a.cpp; $(CXX) -arch x86_64 -march=corei7-avx -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
-    ifeq ($(FAIL_B_X86_64),)
-      CXXFLAGS_X86_64 += -march=corei7-avx
-    else
-      CXXFLAGS_X86_64 += -march=native
-    endif
-  endif
+  ifeq ($(UNAME_S)-$(UNAME_M),Darwin-arm64)
+    NATIVE_BUILD := $(BUILD_ARM64)
 
-  FAIL_A_ARM64 :=$(shell cp /dev/null a.cpp; $(CXX) -arch arm64 -march=apple-m1 -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
-  ifeq ($(FAIL_A_ARM64),)
-    CXXFLAGS_ARM64 += -march=apple-m1
+    CXXFLAGS_X86_64 += -arch x86_64 -march=sandybridge
+    LIBFLAGS_X86_64 += -arch x86_64
+    CXXFLAGS_ARM64 += -arch arm64 -mcpu=apple-m1
+    LIBFLAGS_ARM64 += -arch arm64
   else
-    CXXFLAGS_ARM64 += -march=native
+    NATIVE_BUILD := $(BUILD_X86_64)
+    FAIL_A_X86_64 :=$(shell cp /dev/null a.cpp; $(CXX) -march=sandybridge -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
+    ifeq ($(FAIL_A_X86_64),)
+      CXXFLAGS_X86_64 += -march=sandybridge
+    else
+      # g++-4.8.x accepts "-march=corei7-avx" but not "-march=sandybridge	"
+      FAIL_B_X86_64 :=$(shell cp /dev/null a.cpp; $(CXX) -march=corei7-avx -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
+      ifeq ($(FAIL_B_X86_64),)
+        CXXFLAGS_X86_64 += -march=corei7-avx
+      else
+        CXXFLAGS_X86_64 += -march=native
+      endif
+    endif
+
+    CXXFLAGS_ARM64 += -march=armv8.5-a  # we do not test on arm chips
   endif
 endif
 
