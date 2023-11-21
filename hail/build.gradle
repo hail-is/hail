@@ -166,7 +166,7 @@ dependencies {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.27.1') {
+    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.29.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
