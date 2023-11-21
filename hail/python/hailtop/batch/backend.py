@@ -17,7 +17,7 @@ from rich.progress import track
 from hailtop import pip_version
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
-from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache, gcs_requester_pays_fs_cache
+from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 
@@ -151,7 +151,7 @@ class LocalBackend(Backend[None]):
                  tmp_dir: str = '/tmp/',
                  gsa_key_file: Optional[str] = None,
                  extra_docker_run_flags: Optional[str] = None):
-        super().__init__(gcs_requester_pays_fs_cache(fs_constructor=RouterAsyncFS))
+        super().__init__(GCSRequesterPaysFSCache(fs_constructor=RouterAsyncFS))
         self._tmp_dir = tmp_dir.rstrip('/')
 
         flags = ''
@@ -533,7 +533,7 @@ class ServiceBackend(Backend[bc.Batch]):
             gcs_kwargs = {'gcs_requester_pays_configuration': gcs_requester_pays_configuration}
 
         super().__init__(
-            gcs_requester_pays_fs_cache(
+            GCSRequesterPaysFSCache(
                 fs_constructor=RouterAsyncFS,
                 default_kwargs={"gcs_kwargs": gcs_kwargs, "gcs_bucket_allow_list": gcs_bucket_allow_list}
             )

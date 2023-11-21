@@ -2,13 +2,13 @@ import io
 from typing import List, Optional
 
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
-from hailtop.utils.gcs_requester_pays import gcs_requester_pays_fs_cache
+from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 
 from .router_fs import RouterFS
 from .stat_result import FileListEntry
 
 
-_fses = gcs_requester_pays_fs_cache(fs_constructor=RouterFS)
+_fses = GCSRequesterPaysFSCache(fs_constructor=RouterFS)
 
 
 def open(
