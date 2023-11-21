@@ -188,6 +188,18 @@ steps:
     inputs:
       - from: /repo/docker/Dockerfile.base
         to: /io/repo/docker/Dockerfile.base
+      - from: /repo/hail/build.gradle
+        to: /io/repo/hail/build.gradle
+      - from: /repo/hail/settings.gradle
+        to: /io/repo/hail/settings.gradle
+      - from: /repo/hail/gradlew
+        to: /io/repo/hail/gradlew
+      - from: /repo/hail/gradle
+        to: /io/repo/hail/gradle
+      - from: /repo/gcsbuildcache
+        to: /io/repo/gcsbuildcache
+      - from: /repo/hail/shadedazure
+        to: /io/repo/hail/shadedazure
     dependsOn:
       - hail_ubuntu_image
       - merge_code
