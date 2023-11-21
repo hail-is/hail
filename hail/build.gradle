@@ -353,18 +353,19 @@ task printClasspath(type: Exec) {
     commandLine = ['echo', "${sourceSets.main.runtimeClasspath.asPath}"]
 }
 
+import java.util.concurrent.TimeUnit
 class TimingsListener implements TaskExecutionListener, BuildListener {
-    private Clock clock
+    private long startTime
     private timings = []
 
     @Override
     void beforeExecute(Task task) {
-        clock = new org.gradle.util.Clock()
+        startTime = System.nanoTime()
     }
 
     @Override
     void afterExecute(Task task, TaskState taskState) {
-        def ms = clock.timeInMs
+        def ms = TimeUnit.MILLISECONDS.convert(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
         timings.add([ms, task.path])
         task.project.logger.warn "${task.path} took ${ms}ms"
     }
@@ -378,9 +379,6 @@ class TimingsListener implements TaskExecutionListener, BuildListener {
             }
         }
     }
-
-    @Override
-    void buildStarted(Gradle gradle) {}
 
     @Override
     void projectsEvaluated(Gradle gradle) {}
