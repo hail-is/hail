@@ -84,7 +84,6 @@ ifeq ($(UNAME_S),Linux)
     LIBBOOT := lib/linux-x86/libboot.so
     LIBHAIL := lib/linux-x86/libhail.so
   endif
-  NATIVE_BUILD := $(BUILD_X86_64)
 else ifeq ($(UNAME_S),Darwin)
   BREW_PREFIX := $(shell brew --prefix)
   ifneq ($(BREW_PREFIX),)
