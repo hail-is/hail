@@ -73,12 +73,6 @@ endif
 CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Wextra
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
-ifeq ($(UNAME_S),Darwin)
-  BREW_PREFIX := $(shell brew --prefix)
-  ifneq ($(BREW_PREFIX),)
-    CXXFLAGS += -I$(BREW_PREFIX)/include
-  endif
-endif
 LIBFLAGS += -fvisibility=default
 PREBUILT := ../../../prebuilt
 
@@ -91,18 +85,24 @@ ifeq ($(UNAME_S),Linux)
     LIBHAIL := lib/linux-x86/libhail.so
   endif
   NATIVE_BUILD := $(BUILD_X86_64)
-endif
-ifeq ($(UNAME_S),Darwin)
+else ifeq ($(UNAME_S),Darwin)
+  BREW_PREFIX := $(shell brew --prefix)
+  ifneq ($(BREW_PREFIX),)
+    CXXFLAGS += -I$(BREW_PREFIX)/include
+  endif
+
   LIBFLAGS += -dynamiclib -Wl,-undefined,dynamic_lookup
-  LIBBOOT_X86_64 := lib/darwin/x86_64/libboot.dylib
-  LIBHAIL_X86_64 := lib/darwin/x86_64/libhail.dylib
-  LIBBOOT_ARM64 := lib/darwin/arm64/libboot.dylib
-  LIBHAIL_ARM64 := lib/darwin/arm64/libhail.dylib
-  LIBBOOT := lib/darwin/libboot.dylib
-  LIBHAIL := lib/darwin/libhail.dylib
   ifeq ($(UNAME_M),arm64)
+    LIBBOOT_X86_64 := lib/darwin/x86_64/libboot.dylib
+    LIBHAIL_X86_64 := lib/darwin/x86_64/libhail.dylib
+    LIBBOOT_ARM64 := lib/darwin/arm64/libboot.dylib
+    LIBHAIL_ARM64 := lib/darwin/arm64/libhail.dylib
+    LIBBOOT := lib/darwin/libboot.dylib
+    LIBHAIL := lib/darwin/libhail.dylib
     NATIVE_BUILD := $(BUILD_ARM64)
   else
+    LIBBOOT := lib/darwin/libboot.dylib
+    LIBHAIL := lib/darwin/libhail.dylib
     NATIVE_BUILD := $(BUILD_X86_64)
   endif
 endif
@@ -279,7 +279,7 @@ $(LIBSIMDPP).tar.gz:
 $(LIBSIMDPP): $(LIBSIMDPP).tar.gz
 	tar -xzf $<
 
-ifeq ($(UNAME_S),Darwin)
+ifeq ($(UNAME_S)-$(UNAME_M),Darwin-arm64)
 $(LIBBOOT_X86_64): $(BUILD_X86_64)/NativeBoot.o
 	@mkdir -p $(dir $@)
 	$(CXX) $(LIBFLAGS_X86_64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
