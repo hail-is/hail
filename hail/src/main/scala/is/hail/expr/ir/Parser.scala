@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg._
-import is.hail.expr.ir.functions.{IRFunctionRegistry, RelationalFunctions}
+import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVDPartitioner, RVDType}
@@ -825,11 +825,17 @@ object IRParser {
           cases <- ir_value_children(env)(it)
         } yield Switch(x, default, cases)
       case "Let" =>
-        val name = identifier(it)
+        val names = repUntilNonStackSafe(it, identifier, PunctuationToken("("))
+        val values = new Array[IR](names.length)
         for {
-          value <- ir_value_expr(env)(it)
+          _ <- names.indices.foldLeft(done(())) { case (update, i) =>
+            for {
+              _ <- update
+              value <- ir_value_expr(env)(it)
+            } yield values.update(i, value)
+          }
           body <- ir_value_expr(env)(it)
-        } yield Let(name, value, body)
+        } yield Let(names.zip(values).toFastSeq, body)
       case "AggLet" =>
         val name = identifier(it)
         val isScan = boolean_literal(it)

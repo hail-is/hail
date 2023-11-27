@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
-import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils.StackSafe._
@@ -42,7 +41,7 @@ object TypeCheck {
   }
 
   private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type]): Unit = ir match {
-    case _: Let if i == 1 =>
+    case l: Let if i == l.bindings.length =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>
     case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
@@ -95,7 +94,7 @@ object TypeCheck {
       case Switch(x, default, cases) =>
         assert(x.typ == TInt32)
         assert(cases.forall(_.typ == default.typ))
-      case x@Let(_, _, body) =>
+      case x@Let(_, body) =>
         assert(x.typ == body.typ)
       case x@AggLet(_, _, body, _) =>
         assert(x.typ == body.typ)

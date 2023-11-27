@@ -62,7 +62,7 @@ object InferType {
         cnsq.typ
       case Switch(_, default, _) =>
         default.typ
-      case Let(name, value, body) =>
+      case Let(_, body) =>
         body.typ
       case AggLet(name, value, body, _) =>
         body.typ

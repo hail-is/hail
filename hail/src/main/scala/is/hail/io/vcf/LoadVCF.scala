@@ -1212,11 +1212,11 @@ class ParseLineContext(
   val fileNum: Int,
   val entriesName: String
 ) {
-  val entryType: TStruct = rowType.fieldOption(entriesName) match {
+  val entryType: TStruct = rowType.selfField(entriesName) match {
     case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
     case None => TStruct.empty
   }
-  val infoSignature = rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
+  val infoSignature = rowType.selfField("info").map(_.typ.asInstanceOf[TStruct]).orNull
   val hasQual = rowType.hasField("qual")
   val hasFilters = rowType.hasField("filters")
   val hasEntryFields = entryType.size > 0

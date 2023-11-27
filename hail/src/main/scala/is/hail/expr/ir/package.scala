@@ -17,10 +17,13 @@ package object ir {
   var uidCounter: Long = 0
 
   def genUID(): String = {
-    val uid = s"__iruid_$uidCounter"
+    val uid = iruid(uidCounter)
     uidCounter += 1
     uid
   }
+
+  def iruid(i: Long): String =
+    s"__iruid_$i"
 
   def uuid4(): String = UUID.randomUUID().toString
 
@@ -28,14 +31,10 @@ package object ir {
 
   // Build consistent expression for a filter-condition with keep polarity,
   // using Let to manage missing-ness.
-  def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean): ir.IR = {
-    val pred = genUID()
-    ir.Let(pred,
-      if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang, irPred),
-      ir.If(ir.IsNA(ir.Ref(pred, TBoolean)),
-        ir.False(),
-        ir.Ref(pred, TBoolean)))
-  }
+  def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean): ir.IR =
+    bindIR(if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang, irPred)) { pred =>
+      ir.If(ir.IsNA(pred), ir.False(), pred)
+    }
 
   def invoke(name: String, rt: Type, typeArgs: Seq[Type], errorID: Int, args: IR*): IR =
     IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
@@ -78,15 +77,12 @@ package object ir {
   }
 
   def bindIRs(values: IR*)(body: Seq[Ref] => IR): IR = {
-    val valuesArray = values.toArray
-    val refs = values.map(v => Ref(genUID(), v.typ))
-    values.indices.foldLeft(body(refs)) { case (acc, i) => Let(refs(i).name, valuesArray(i), acc) }
+    val bindings = values.toFastSeq.map(genUID() -> _)
+    Let(bindings, body(bindings.map(b => Ref(b._1, b._2.typ))))
   }
 
-  def bindIR(v: IR)(body: Ref => IR): IR = {
-    val ref = Ref(genUID(), v.typ)
-    Let(ref.name, v, body(ref))
-  }
+  def bindIR(v: IR)(body: Ref => IR): IR =
+    bindIRs(v) { case Seq(ref) => body(ref) }
 
   def iota(start: IR, step: IR): IR = StreamIota(start, step)
 

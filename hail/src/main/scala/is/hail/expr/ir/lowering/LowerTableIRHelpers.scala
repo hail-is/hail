@@ -22,9 +22,9 @@ object LowerTableIRHelpers {
       loweredRight, joinKey, joinType,
       (lGlobals, rGlobals) => {
         val rGlobalType = rGlobals.typ.asInstanceOf[TStruct]
-        val rGlobalRef = Ref(genUID(), rGlobalType)
-        Let(rGlobalRef.name, rGlobals,
-          InsertFields(lGlobals, rGlobalType.fieldNames.map(f => f -> GetField(rGlobalRef, f))))
+        bindIR(rGlobals) { rGlobalRef  =>
+          InsertFields(lGlobals, rGlobalType.fieldNames.map(f => f -> GetField(rGlobalRef, f)))
+        }
       },
       (lEltRef, rEltRef) => {
         MakeStruct(

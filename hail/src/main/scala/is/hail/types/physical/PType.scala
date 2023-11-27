@@ -418,7 +418,7 @@ abstract class PType extends Serializable with Requiredness {
       case x@PCanonicalStruct(fields, r) =>
         val ts = t.asInstanceOf[TStruct]
         assert(ts.fieldNames.forall(x.fieldNames.contains))
-        PCanonicalStruct(r, fields.flatMap { pf => ts.fieldOption(pf.name).map { vf => (pf.name, pf.typ.subsetTo(vf.typ)) } }: _*)
+        PCanonicalStruct(r, fields.flatMap { pf => ts.selfField(pf.name).map { vf => (pf.name, pf.typ.subsetTo(vf.typ)) } }: _*)
       case PCanonicalTuple(fields, r) =>
         val tt = t.asInstanceOf[TTuple]
         PCanonicalTuple(fields.flatMap { pf => tt.fieldIndex.get(pf.index).map(vi => PTupleField(pf.index, pf.typ.subsetTo(tt.types(vi)))) }, r)

@@ -182,27 +182,6 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
     }
     tr
   }
-
-  def makeGlobalValue(ctx: ExecuteContext, requestedType: TStruct, values: => IndexedSeq[Row]): BroadcastRow = {
-    assert(fullType.globalType.size == 1)
-    val colType = requestedType.fieldOption(LowerMatrixIR.colsFieldName)
-      .map(fd => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
-
-    colType match {
-      case Some(ct) =>
-        assert(requestedType.size == 1)
-        val containedFields = ct.fieldNames.toSet
-        val colValueIndices = fullMatrixType.colType.fields
-          .filter(f => containedFields.contains(f.name))
-          .map(_.index)
-          .toArray
-        val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastSeq
-        BroadcastRow(ctx, Row(arr), requestedType)
-      case None =>
-        assert(requestedType == TStruct.empty)
-        BroadcastRow(ctx, Row(), requestedType)
-    }
-  }
 }
 
 object MatrixNativeReader {
@@ -755,7 +734,7 @@ case class MatrixAnnotateColsTable(
   root: String
 ) extends MatrixIR {
   override def typecheck(): Unit = {
-    assert(child.typ.colType.fieldOption(root).isEmpty)
+    assert(child.typ.colType.selfField(root).isEmpty)
   }
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child, table)
@@ -765,7 +744,7 @@ case class MatrixAnnotateColsTable(
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   lazy val typ: MatrixType = child.typ.copy(
-    colType = child.typ.colType.structInsert(table.typ.valueType, List(root)))
+    colType = child.typ.colType.structInsert(table.typ.valueType, FastSeq(root)))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateColsTable = {
     MatrixAnnotateColsTable(
@@ -828,22 +807,13 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   override def columnCount: Option[Int] = child.columnCount
 
   lazy val typ: MatrixType = {
-    // FIXME: compute row type directly
-    val newRow: InsertFields = {
-      val refs = path.init.scanLeft(Ref("va", child.typ.rowType))((struct, name) =>
-        Ref(genUID(), tcoerce[TStruct](struct.typ).field(name).typ))
-
-      path.zip(refs).zipWithIndex.foldRight[IR](Ref(genUID(), TInt32)) {
-        case (((field, ref), i), arg) =>
-          InsertFields(ref, FastSeq(field ->
-            (if (i == refs.length - 1)
-              ArrayRef(ToArray(ToStream(GetField(ref, field))), arg)
-            else
-              Let(refs(i + 1).name, GetField(ref, field), arg))))
-      }.asInstanceOf[InsertFields]
+    val rowType = child.typ.rowType
+    val f = rowType.fieldOption(path).getOrElse {
+      throw new AssertionError(
+        s"No such row field at path '${path.mkString("/")}' in matrix row type '$rowType'."
+      )
     }
-
-    child.typ.copy(rowType = newRow.typ)
+    child.typ.copy(rowType = rowType.structInsert(TIterable.elementType(f.typ), path))
   }
 }
 
@@ -1011,10 +981,14 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   lazy val typ: MatrixType = {
-    val (keysType, _) = child.typ.colType.queryTyped(path.toList)
-    val keyType = keysType.asInstanceOf[TContainer].elementType
-    child.typ.copy(
-      colType = child.typ.colType.structInsert(keyType, path.toList))
+    val colType = child.typ.colType
+    val f = colType.fieldOption(path).getOrElse {
+      throw new AssertionError(
+        s"No such column field at path '${path.mkString("/")}' in matrix row type '$colType'."
+      )
+    }
+
+    child.typ.copy(colType = colType.structInsert(TIterable.elementType(f.typ), path))
   }
 }
 

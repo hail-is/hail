@@ -234,13 +234,13 @@ object DeprecatedIRBuilder {
     def insertStruct(other: IRProxy, ordering: Option[IndexedSeq[String]] = None): IRProxy = (env: E) => {
       val right = other(env)
       val sym = genUID()
-      Let(
-        sym,
-        right,
+      Let(FastSeq(sym -> right),
         InsertFields(
           ir(env),
           right.typ.asInstanceOf[TStruct].fieldNames.map(f => f -> GetField(Ref(sym, right.typ), f)),
-          ordering))
+          ordering
+        )
+      )
     }
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
@@ -250,7 +250,7 @@ object DeprecatedIRBuilder {
     def orElse(alt: IRProxy): IRProxy = { env: E =>
       val uid = genUID()
       val eir = ir(env)
-      Let(uid, eir, If(IsNA(Ref(uid, eir.typ)), alt(env), Ref(uid, eir.typ)))
+      Let(FastSeq(uid -> eir), If(IsNA(Ref(uid, eir.typ)), alt(env), Ref(uid, eir.typ)))
     }
 
     def filter(pred: LambdaProxy): IRProxy = (env: E) => {
@@ -344,7 +344,7 @@ object DeprecatedIRBuilder {
           val name = sym.name
           val value = binding(env)
           scope match {
-            case Scope.EVAL => Let(name, value, bind(rest, body, env.bind(name -> value.typ), scope))
+            case Scope.EVAL => Let(FastSeq(name -> value), bind(rest, body, env.bind(name -> value.typ), scope))
             case Scope.AGG => AggLet(name, value, bind(rest, body, env.bind(name -> value.typ), scope), isScan = false)
             case Scope.SCAN => AggLet(name, value, bind(rest, body, env.bind(name -> value.typ), scope), isScan = true)
           }

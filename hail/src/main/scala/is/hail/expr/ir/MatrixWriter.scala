@@ -1632,20 +1632,19 @@ case class MatrixNativeMultiWriter(
 
     Begin(FastSeq(
       Begin(components.map(_.setup)),
-      TableStage.wrapInBindings(
+      Let(components.flatMap(_.stage.letBindings),
         bindIR(cdaIR(concatenatedContexts, allBroadcasts, "matrix_multi_writer") { case (ctx, globals) =>
           bindIR(GetField(ctx, "options")) { options =>
             Switch(GetField(ctx, "matrixId"),
               default = Die("MatrixId exceeds matrix count", components.head.writePartitionType),
               cases = components.zipWithIndex.map { case (component, i) =>
-                val writePartition =
-                  bindIR(GetTupleElement(options, i)) { ctxRef =>
-                    component.writePartition(component.stage.partition(ctxRef), ctxRef)
-                  }
-
-                component.stage.broadcastVals.foldRight(writePartition) { case ((name, _), ir) =>
-                  Let(name, GetField(globals, name), ir)
+                val binds = component.stage.broadcastVals.map { case (name, _) =>
+                  name -> GetField(globals, name)
                 }
+
+                Let(binds, bindIR(GetTupleElement(options, i)) { ctxRef =>
+                  component.writePartition(component.stage.partition(ctxRef), ctxRef)
+                })
               }
             )
           }
@@ -1656,8 +1655,7 @@ case class MatrixNativeMultiWriter(
           Begin(components.zipWithIndex.map { case (c, i) =>
             c.finalizeWrite(ArraySlice(cdaResult, partitionCountScan(i), Some(partitionCountScan(i + 1))), c.stage.globals)
           })
-        },
-        components.flatMap(_.stage.letBindings)
+        }
       )
     ))
   }

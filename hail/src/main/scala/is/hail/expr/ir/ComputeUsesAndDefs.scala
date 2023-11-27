@@ -2,13 +2,16 @@ package is.hail.expr.ir
 
 import scala.collection.mutable
 
-case class UsesAndDefs(uses: Memo[mutable.Set[RefEquality[BaseRef]]], defs: Memo[BaseIR], free: mutable.Set[RefEquality[BaseRef]])
+case class UsesAndDefs(uses: Memo[mutable.Set[RefEquality[BaseRef]]],
+                       defs: Memo[BaseIR],
+                       free: mutable.Set[RefEquality[BaseRef]]
+                      )
 
 object ComputeUsesAndDefs {
   def apply(ir0: BaseIR, errorIfFreeVariables: Boolean = true): UsesAndDefs = {
     val uses = Memo.empty[mutable.Set[RefEquality[BaseRef]]]
     val defs = Memo.empty[BaseIR]
-    val free = if (errorIfFreeVariables) null else mutable.Set[RefEquality[BaseRef]]()
+    val free = mutable.Set.empty[RefEquality[BaseRef]]
 
     def compute(ir: BaseIR, env: BindingEnv[BaseIR]): Unit = {
 
