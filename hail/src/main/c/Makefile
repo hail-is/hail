@@ -140,9 +140,15 @@ TEST_OBJECTS_X86_64 := $(foreach file,$(TEST_CPP),$(BUILD_X86_64)/$(basename $(f
 TEST_OBJECTS_ARM64 := $(foreach file,$(TEST_CPP),$(BUILD_ARM64)/$(basename $(file)).o)
 
 ALL_CPP := $(shell find * -iname '*.cpp')
-HEADER_DEPENDENCIES := $(addprefix $(BUILD_X86_64)/, $(ALL_CPP:%.cpp=%.d))
-HEADER_DEPENDENCIES += $(addprefix $(BUILD_ARM64)/, $(ALL_CPP:%.cpp=%.d))
--include $(HEADER_DEPENDENCIES)
+
+ifeq ($(UNAME_S)-$(UNAME_M),Darwin-arm64)
+-include $(addprefix $(BUILD_X86_64)/, $(ALL_CPP:%.cpp=%.d))
+-include $(addprefix $(BUILD_ARM64)/, $(ALL_CPP:%.cpp=%.d))
+else ifeq ($(UNAME_M),arm64)
+-include $(addprefix $(BUILD_ARM64)/, $(ALL_CPP:%.cpp=%.d))
+else ifeq ($(UNAME_M),x86_64)
+-include $(addprefix $(BUILD_X86_64)/, $(ALL_CPP:%.cpp=%.d))
+endif
 
 # If no inherited "-march", and we're not building a universal dylib on Apple Silicon, then use
 # "-march=sandybridge" or "-march=corei7-avx" for ISA compatibility with MacBook Pro's since 2011
@@ -213,13 +219,13 @@ $(BUILD_ARM64)/functional-tests: ibs.cpp test.cpp $(LIBSIMDPP)
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 -o $(BUILD_ARM64)/functional-tests ibs.cpp test.cpp
 
-$(BUILD_X86_64)/unit-tests: $(BUILD_OBJECTS_X86_64) $(TEST_OBJECTS)
+$(BUILD_X86_64)/unit-tests: $(BUILD_OBJECTS_X86_64) $(TEST_OBJECTS_X86_64)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(BUILD_X86_64)/unit-tests $(BUILD_OBJECTS_X86_64) $(TEST_OBJECTS) -ldl
+	$(CXX) $(CXXFLAGS) -o $(BUILD_X86_64)/unit-tests $(BUILD_OBJECTS_X86_64) $(TEST_OBJECTS_X86_64) -ldl
 
-$(BUILD_ARM64)/unit-tests: $(BUILD_OBJECTS_ARM64) $(TEST_OBJECTS)
+$(BUILD_ARM64)/unit-tests: $(BUILD_OBJECTS_ARM64) $(TEST_OBJECTS_ARM64)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(BUILD_ARM64)/unit-tests $(BUILD_OBJECTS_ARM64) $(TEST_OBJECTS) -ldl
+	$(CXX) $(CXXFLAGS) -o $(BUILD_ARM64)/unit-tests $(BUILD_OBJECTS_ARM64) $(TEST_OBJECTS_ARM64) -ldl
 
 prebuilt: $(LIBBOOT) $(LIBHAIL)
 	@mkdir -p $(PREBUILT)/$(dir $<)
