@@ -104,20 +104,6 @@ else ifeq ($(UNAME_S),Darwin)
   endif
 endif
 
-BUILD_X86_64 := $(BUILD)/x86_64
-CXXFLAGS_X86_64 := $(CXXFLAGS)
-LIBFLAGS_X86_64 := $(LIBFLAGS)
-
-BUILD_ARM64 := $(BUILD)/arm64
-CXXFLAGS_ARM64 := $(CXXFLAGS)
-LIBFLAGS_ARM64 := $(LIBFLAGS)
-
-ifeq ($(UNAME_M),arm64)
-  NATIVE_BUILD := $(BUILD_ARM64)
-else
-  NATIVE_BUILD := $(BUILD_X86_64)
-endif
-
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo to
 # this list. Remember to rerun make prebuilt.
 OBJECTS := \
@@ -136,8 +122,25 @@ OBJECTS := \
   Upcalls \
   FS \
 
+BUILD_X86_64 := $(BUILD)/x86_64
+CXXFLAGS_X86_64 := $(CXXFLAGS)
+LIBFLAGS_X86_64 := $(LIBFLAGS)
 BUILD_OBJECTS_X86_64 := $(addprefix $(BUILD_X86_64)/, $(OBJECTS:%=%.o))
+
+BUILD_ARM64 := $(BUILD)/arm64
+CXXFLAGS_ARM64 := $(CXXFLAGS)
+LIBFLAGS_ARM64 := $(LIBFLAGS)
 BUILD_OBJECTS_ARM64 := $(addprefix $(BUILD_ARM64)/, $(OBJECTS:%=%.o))
+
+ifeq ($(UNAME_M),arm64)
+  BUILD_NATIVE := $(BUILD_ARM64)
+  LIBFLAGS_NATIVE := $(LIBFLAGS_ARM64)
+  BUILD_OBJECTS_NATIVE := $(BUILD_OBJECTS_ARM64)
+else
+  BUILD_NATIVE := $(BUILD_X86_64)
+  LIBFLAGS_NATIVE := $(LIBFLAGS_X86_64)
+  BUILD_OBJECTS_NATIVE := $(BUILD_OBJECTS_X86_64)
+endif
 
 TEST_CPP := $(wildcard *_test.cpp) testutils/unit-tests.cpp
 TEST_OBJECTS_X86_64 := $(foreach file,$(TEST_CPP),$(BUILD_X86_64)/$(basename $(file)).o)
@@ -236,23 +239,23 @@ reset-prebuilt:
 	git checkout HEAD -- $(PREBUILT)/$(LIBBOOT)
 	git checkout HEAD -- $(PREBUILT)/$(LIBHAIL)
 
-test: $(NATIVE_BUILD)/functional-tests $(NATIVE_BUILD)/unit-tests
-	./$(NATIVE_BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(NATIVE_BUILD)/cxx-test.xml; \
+test: $(BUILD_NATIVE)/functional-tests $(BUILD_NATIVE)/unit-tests
+	./$(BUILD_NATIVE)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(BUILD_NATIVE)/cxx-test.xml; \
 			case "$$?" in \
 				*) \
-				mkdir -p $(NATIVE_BUILD)/reports; \
-				cp testutils/style.css $(NATIVE_BUILD)/reports; \
-				xsltproc -o $(NATIVE_BUILD)/reports/index.html testutils/test-reporter.xslt $(NATIVE_BUILD)/cxx-test.xml;; \
+				mkdir -p $(BUILD_NATIVE)/reports; \
+				cp testutils/style.css $(BUILD_NATIVE)/reports; \
+				xsltproc -o $(BUILD_NATIVE)/reports/index.html testutils/test-reporter.xslt $(BUILD_NATIVE)/cxx-test.xml;; \
 			esac
-	./$(NATIVE_BUILD)/functional-tests
+	./$(BUILD_NATIVE)/functional-tests
 
-benchmark: $(NATIVE_BUILD)/unit-tests
-	./$(NATIVE_BUILD)/unit-tests "[!benchmark]" -s -d yes -# -r xml -o $(NATIVE_BUILD)/cxx-benchmark.xml; \
+benchmark: $(BUILD_NATIVE)/unit-tests
+	./$(BUILD_NATIVE)/unit-tests "[!benchmark]" -s -d yes -# -r xml -o $(BUILD_NATIVE)/cxx-benchmark.xml; \
 			case "$$?" in \
 				*) \
-				mkdir -p $(NATIVE_BUILD)/benchmark-reports; \
-				cp testutils/style.css $(NATIVE_BUILD)/benchmark-reports; \
-				xsltproc -o $(NATIVE_BUILD)/benchmark-reports/index.html testutils/test-reporter.xslt $(NATIVE_BUILD)/cxx-benchmark.xml;; \
+				mkdir -p $(BUILD_NATIVE)/benchmark-reports; \
+				cp testutils/style.css $(BUILD_NATIVE)/benchmark-reports; \
+				xsltproc -o $(BUILD_NATIVE)/benchmark-reports/index.html testutils/test-reporter.xslt $(BUILD_NATIVE)/cxx-benchmark.xml;; \
 			esac
 
 clean:
@@ -308,10 +311,10 @@ $(LIBHAIL): $(LIBHAIL_X86_64) $(LIBHAIL_ARM64)
 	@mkdir -p $(dir $@)
 	lipo -create $^ -output $@
 else
-$(LIBBOOT): $(BUILD_X86_64)/NativeBoot.o
+$(LIBBOOT): $(BUILD_NATIVE)/NativeBoot.o
 	@mkdir -p $(dir $@)
-	$(CXX) $(LIBFLAGS_X86_64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
-$(LIBHAIL): $(BUILD_OBJECTS_X86_64)
+	$(CXX) $(LIBFLAGS_NATIVE) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
+$(LIBHAIL): $(BUILD_OBJECTS_NATIVE)
 	@mkdir -p $(dir $@)
-	$(CXX) $(LIBFLAGS_X86_64) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
+	$(CXX) $(LIBFLAGS_NATIVE) $(LIBDIRS) $(CXXFLAGS) $^ -o $@
 endif
