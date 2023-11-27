@@ -104,6 +104,14 @@ else ifeq ($(UNAME_S),Darwin)
   endif
 endif
 
+BUILD_X86_64 := $(BUILD)/x86_64
+CXXFLAGS_X86_64 := $(CXXFLAGS)
+LIBFLAGS_X86_64 := $(LIBFLAGS)
+
+BUILD_ARM64 := $(BUILD)/arm64
+CXXFLAGS_ARM64 := $(CXXFLAGS)
+LIBFLAGS_ARM64 := $(LIBFLAGS)
+
 ifeq ($(UNAME_M),arm64)
   NATIVE_BUILD := $(BUILD_ARM64)
 else
@@ -128,14 +136,7 @@ OBJECTS := \
   Upcalls \
   FS \
 
-BUILD_X86_64 := $(BUILD)/x86_64
-CXXFLAGS_X86_64 := $(CXXFLAGS)
-LIBFLAGS_X86_64 := $(LIBFLAGS)
 BUILD_OBJECTS_X86_64 := $(addprefix $(BUILD_X86_64)/, $(OBJECTS:%=%.o))
-
-BUILD_ARM64 := $(BUILD)/arm64
-CXXFLAGS_ARM64 := $(CXXFLAGS)
-LIBFLAGS_ARM64 := $(LIBFLAGS)
 BUILD_OBJECTS_ARM64 := $(addprefix $(BUILD_ARM64)/, $(OBJECTS:%=%.o))
 
 TEST_CPP := $(wildcard *_test.cpp) testutils/unit-tests.cpp
