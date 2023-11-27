@@ -99,12 +99,16 @@ else ifeq ($(UNAME_S),Darwin)
     LIBHAIL_ARM64 := lib/darwin/arm64/libhail.dylib
     LIBBOOT := lib/darwin/libboot.dylib
     LIBHAIL := lib/darwin/libhail.dylib
-    NATIVE_BUILD := $(BUILD_ARM64)
   else
     LIBBOOT := lib/darwin/libboot.dylib
     LIBHAIL := lib/darwin/libhail.dylib
-    NATIVE_BUILD := $(BUILD_X86_64)
   endif
+endif
+
+ifeq ($(UNAME_M),arm64)
+  NATIVE_BUILD := $(BUILD_ARM64)
+else
+  NATIVE_BUILD := $(BUILD_X86_64)
 endif
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo to
@@ -159,14 +163,11 @@ endif
 # settings are valid.
 ifeq ($(filter -march=%,$(CXXFLAGS)),)
   ifeq ($(UNAME_S)-$(UNAME_M),Darwin-arm64)
-    NATIVE_BUILD := $(BUILD_ARM64)
-
     CXXFLAGS_X86_64 += -arch x86_64 -march=sandybridge
     LIBFLAGS_X86_64 += -arch x86_64
     CXXFLAGS_ARM64 += -arch arm64 -mcpu=apple-m1
     LIBFLAGS_ARM64 += -arch arm64
   else
-    NATIVE_BUILD := $(BUILD_X86_64)
     FAIL_A_X86_64 :=$(shell cp /dev/null a.cpp; $(CXX) -march=sandybridge -c a.cpp 2>&1 || echo FAIL; rm -f a.cpp a.o)
     ifeq ($(FAIL_A_X86_64),)
       CXXFLAGS_X86_64 += -march=sandybridge
