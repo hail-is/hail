@@ -4,3 +4,4 @@
 aiohttp-jinja2>=1.1.1,<2
 Jinja2>3,<4
 libsass>=0.19.2,<1
+aiohttp>=3.9.0 # not directly required, pinned by Snyk to avoid a vulnerability
