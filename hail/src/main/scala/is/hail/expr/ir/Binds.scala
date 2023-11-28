@@ -42,7 +42,7 @@ object Bindings {
       } else
         empty
     case StreamLeftIntervalJoin(left, right, _, _, lEltName, rEltName, _) =>
-      if (i == 2) Array(lEltName -> elementType(left.typ), rEltName -> elementType(right.typ))
+      if (i == 2) Array(lEltName -> elementType(left.typ), rEltName -> TArray(elementType(right.typ)))
       else empty
     case StreamFor(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamFlatMap(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty

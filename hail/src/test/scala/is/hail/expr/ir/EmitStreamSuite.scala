@@ -11,6 +11,7 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStreamValue}
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
+import is.hail.types.virtual.TIterable.elementType
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
@@ -1011,33 +1012,44 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testStreamIntervalJoin(): Unit = {
 
-    val keys: IR =
-      mapIR(rangeIR(0, 7))(i => MakeStruct(FastSeq("i" -> i)))
+    val keyStream: IR =
+      mapIR(rangeIR(0, 5))(i => MakeStruct(FastSeq("i" -> i)))
 
-    val keyTy: TStruct =
-      TIterable.elementType(keys.typ).asInstanceOf[TStruct]
+    val kType: TStruct =
+      TIterable.elementType(keyStream.typ).asInstanceOf[TStruct]
 
-    val intervals: IR =
+    val intervalStream: IR =
       ToStream(
         Literal(
-          TArray(TStruct("intrvl" -> TInterval(keyTy))),
-          for {(start, end) <- Array(1 -> 4, 3 -> 5)}
-            yield Interval(IntervalEndpoint(Row(start), -1), IntervalEndpoint(Row(end), -1))
+          TArray(TStruct("interval" -> TInterval(kType))),
+          for {(start, end) <- IndexedSeq(1 -> 4, 3 -> 5)}
+            yield Row(Interval(IntervalEndpoint(Row(start), -1), IntervalEndpoint(Row(end), -1)))
         )
       )
 
     val join =
       StreamLeftIntervalJoin(
-        keys,
-        intervals,
-        keyTy.fieldNames,
-        "intrvl",
+        keyStream,
+        intervalStream,
+        kType.fieldNames,
+        "interval",
         "lname",
         "rname",
         InsertFields(
-          Ref("lname", keyTy),
-          FastSeq("" -> GetField(Ref("rname", TIterable.elementType(intervals.typ)), "intrvl"))
+          Ref("lname", kType),
+          FastSeq("intervals" ->
+            ToArray(
+              mapIR(ToStream(Ref("rname", TArray(elementType(intervalStream.typ))))) { elt =>
+                GetField(elt, "interval")
+              }
+            )
+          )
         )
       )
+
+    val res =
+      evalStream(join)
+
+    assert(2 == 4)
   }
 }

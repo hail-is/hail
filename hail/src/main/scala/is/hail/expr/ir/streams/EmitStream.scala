@@ -19,9 +19,9 @@ import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import is.hail.variant.Locus
 import org.objectweb.asm.Opcodes._
-import org.sparkproject.dmg.pmml.bayesian_network.ParentValue
 
 import java.util
+import scala.language.implicitConversions
 
 
 abstract class StreamProducer {
@@ -159,7 +159,7 @@ object EmitStream {
       val (envParamTypes, envParams, restoreEnv) = env.asParams(fv)
 
       val isMissing = ecb.genFieldThisRef[Boolean]("isMissing")
-      val eosField = ecb.genFieldThisRef[Boolean]("eos")
+      val eosField = ecb.genFieldThisRef[Boolean]("rEOS")
       val outerRegionField = ecb.genFieldThisRef[Region]("outer")
 
       ecb.makeAddPartitionRegion()
@@ -168,13 +168,13 @@ object EmitStream {
       var producerRequired: Boolean = false
 
       val next = ecb.newEmitMethod("next", FastSeq[ParamType](), LongInfo)
-      val ctor = ecb.newEmitMethod("<init>", FastSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
+      val ctor = ecb.newEmitMethod("<rPulled>", FastSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
       ctor.voidWithBuilder { cb =>
         val L = new lir.Block()
         L.append(
           lir.methodStmt(INVOKESPECIAL,
             "java/lang/Object",
-            "<init>",
+            "<rPulled>",
             "()V",
             false,
             UnitInfo,
@@ -218,7 +218,7 @@ object EmitStream {
         ret
       }
 
-      val init = ecb.newEmitMethod("init", FastSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
+      val init = ecb.newEmitMethod("rPulled", FastSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
       init.voidWithBuilder { cb =>
         val outerRegion = init.getCodeParam[Region](1)
         val eltRegion = init.getCodeParam[Region](2)
@@ -230,7 +230,7 @@ object EmitStream {
       }
 
 
-      val isEOS = ecb.newEmitMethod("eos", FastSeq[ParamType](), BooleanInfo)
+      val isEOS = ecb.newEmitMethod("rEOS", FastSeq[ParamType](), BooleanInfo)
       isEOS.emitWithBuilder[Boolean](cb => eosField)
 
       val isMissingMethod = ecb.newEmitMethod("isMissing", FastSeq[ParamType](), BooleanInfo)
@@ -1453,8 +1453,7 @@ object EmitStream {
           SStreamValue(producer)
         }
 
-      case x@StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lEltName, rEltName, body) =>
-
+      case x@StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lName, rName, body) =>
         produce(left, cb).flatMap(cb) { case lStream: SStreamValue =>
           produce(right, cb).map(cb) { case rStream: SStreamValue =>
 
@@ -1468,27 +1467,23 @@ object EmitStream {
               rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName))
 
             val loadInterval: EmitMethodBuilder[_] =
-              mb.ecb.defineEmitMethod(genName("m", "loadInterval"),
+              mb.ecb.defineEmitMethod(genName("m", "LoadInterval"),
                 FastSeq(rElemSTy.paramType),
                 intrvlSTy.paramType
               ) { mb =>
                 mb.emitSCode { cb =>
-                  mb.getEmitParam(cb, 1)
-                    .get(cb)
+                  mb.getSCodeParam(1)
                     .asBaseStruct
                     .loadField(cb, rIntrvlName)
                     .get(cb)
                 }
               }
 
-            val leftStructField = mb.newPField(lProd.element.st)
-            val eltRegion = mb.genFieldThisRef[Region]("interval_join_region")
-
             val minHeap: StagedMinHeap =
               EmitMinHeap(mb.ecb.emodb, rElemSTy) { heapClassBuilder =>
                 new EmitMinHeap.StagedComparator {
                   val parent: ThisFieldRef[_] =
-                    heapClassBuilder.genFieldThisRef("parent")(mb.cb.ti)
+                    heapClassBuilder.genFieldThisRef("ParentRef")(mb.cb.ti)
 
                   override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
                     cb.assignAny(parent, Code.checkcast(enclosingRef)(mb.cb.ti))
@@ -1504,6 +1499,18 @@ object EmitStream {
                 }
               }(mb.ecb)
 
+            val lElement: SBaseStructSettable =
+              mb.newPField("LeftElement", lProd.element.st).asInstanceOf[SBaseStructSettable]
+
+            val eltRegion =
+              mb.genFieldThisRef[Region]("IntervalJoinRegion")
+
+            val rEOS: ThisFieldRef[Boolean] =
+              mb.genFieldThisRef[Boolean]("RightEOS")
+
+            val rPulled: ThisFieldRef[Boolean] =
+              mb.genFieldThisRef[Boolean]("RightPulled")
+
             SStreamValue {
               new StreamProducer {
                 override def method: EmitMethodBuilder[_] =
@@ -1513,6 +1520,8 @@ object EmitStream {
                   lProd.length
 
                 override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                  cb.assign(rEOS, false)
+                  cb.assign(rPulled, false)
                   lProd.initialize(cb, outerRegion)
                   rProd.initialize(cb, outerRegion)
                   minHeap.init(cb, mb.ecb.pool())
@@ -1528,51 +1537,56 @@ object EmitStream {
                   mb.defineAndImplementLabel { cb =>
                     cb.goto(lProd.LproduceElement)
                     cb.define(lProd.LproduceElementDone)
-                    val row = lProd.element.toI(cb).get(cb).asBaseStruct
-                    val key = row.subset(lKeyNames: _*)
+                    cb.assign(lElement, lProd.element.toI(cb).get(cb).asBaseStruct)
+                    val key = lElement.subset(lKeyNames: _*)
 
                     cb.loop { Lrecur =>
-                      cb.if_(minHeap.nonEmpty(cb),
-                        cb.if_({
-                          val interval = cb.invokeSCode(loadInterval, cb._this, minHeap.peek(cb)).asInterval
-                          !IntervalFunctions.intervalContains(cb, interval, key).get(cb).asBoolean.value
-                        }, {
+                      cb.if_(minHeap.nonEmpty(cb), {
+                        val interval = cb.invokeSCode(loadInterval, cb._this, minHeap.peek(cb)).asInterval
+                        val endpoint = interval.loadEnd(cb).get(cb)
+                        cb.if_(IntervalFunctions.pointGTIntervalEndpoint(cb, key, endpoint, interval.includesEnd), {
                           minHeap.pop(cb)
                           cb.goto(Lrecur)
                         })
-                      )
+                      })
                     }
 
                     minHeap.realloc(cb)
 
-                    // now pull from the interval stream and insert into minheap while
-                    // the most-recent interval left endpoint is greater than the current key
-
-                    cb.goto(rProd.LproduceElement)
-                    cb.define(rProd.LproduceElementDone)
-
-                    val rElem: SValue = rProd.element.toI(cb).get(cb)
-                    val rInterval = cb.invokeSCode(loadInterval, cb._this, rElem).asInterval
-
-                    cb.if_(
-                      IntervalFunctions.pointGTIntervalEndpoint(cb, key, rInterval.loadEnd(cb).get(cb), rInterval.includesEnd),
-                      cb.goto(rProd.LproduceElement)
-                    )
-
                     val LallIntervalsFound = CodeLabel()
-                    // need lookahead
-                    cb.if_(
-                      IntervalFunctions.pointLTIntervalEndpoint(cb, key, rInterval.loadStart(cb).get(cb), rInterval.includesStart),
-                      cb.goto(LallIntervalsFound)
-                    )
+                    cb.if_(rEOS, cb.goto(LallIntervalsFound))
+                    cb.if_(!rPulled, cb.goto(rProd.LproduceElement))
 
-                    // we've found the first interval that contains key
-                    // add interval to minheap
-                    minHeap.push(cb, rElem)
-                    cb.goto(rProd.LproduceElement)
+                    cb.loop { LproduceR =>
+                      val rElem: SValue = rProd.element.toI(cb).get(cb)
+                      val rInterval = cb.invokeSCode(loadInterval, cb._this, rElem).asInterval
+
+                      // Drop intervals whose right endpoint is before the key
+                      val end = rInterval.loadEnd(cb).get(cb)
+                      cb.if_(
+                        IntervalFunctions.pointGTIntervalEndpoint(cb, key, end, rInterval.includesEnd),
+                        cb.goto(rProd.LproduceElement)
+                      )
+
+                      // Stop consuming intervals if the left endpoint is after the key
+                      val start = rInterval.loadStart(cb).get(cb)
+                      cb.if_(
+                        IntervalFunctions.pointLTIntervalEndpoint(cb, key, start, rInterval.includesStart),
+                        cb.goto(LallIntervalsFound)
+                      )
+
+                      minHeap.push(cb, rElem)
+
+                      cb.goto(rProd.LproduceElement)
+                      cb.define(rProd.LproduceElementDone)
+                      cb.assign(rPulled, true)
+                      cb.goto(LproduceR)
+                    }
+
+                    cb.define(rProd.LendOfStream)
+                    cb.assign(rEOS, true)
 
                     cb.define(LallIntervalsFound)
-                    cb.assign(leftStructField, row)
                     cb.goto(LproduceElementDone)
 
                     cb.define(lProd.LendOfStream)
@@ -1582,8 +1596,8 @@ object EmitStream {
                 override val element: EmitCode =
                   EmitCode.fromI(mb) { cb =>
                     emit(body, cb, region = eltRegion, env = env.bind(
-                      lEltName -> EmitValue.present(leftStructField),
-                      rEltName -> EmitValue.present(minHeap.toArray(cb, eltRegion))
+                      lName -> EmitValue.present(lElement),
+                      rName -> EmitValue.present(minHeap.toArray(cb, eltRegion))
                     ))
                   }
 
@@ -2625,7 +2639,7 @@ object EmitStream {
 
                     cb.if_(nEOS.ceq(const(producers.length)), cb.goto(LendOfStream))
 
-                    // this stream has ended before each other, so we set the eos flag and the element EmitSettable
+                    // this stream has ended before each other, so we set the rEOS flag and the element EmitSettable
                     cb.assign(eosPerStream(i), true)
                     cb.assign(vars(i), EmitCode.missing(mb, vars(i).st))
 
@@ -2981,7 +2995,7 @@ object EmitStream {
                   cb.updateArray(regionArray, i, r)
                   r
                 } else outerRegion
-                cb += iterArray(i).invoke[Region, Region, Unit]("init", outerRegion, eltRegion)
+                cb += iterArray(i).invoke[Region, Region, Unit]("rPulled", outerRegion, eltRegion)
               })
               cb.assign(result, Code._null)
               cb.assign(i, 0)
@@ -3096,7 +3110,7 @@ object EmitStream {
               cb.if_(winner >= nStreams, cb.goto(LendOfStream)) // can only happen if k=0
               val winnerIter = cb.memoize(iterArray(winner))
               val winnerNextElt = cb.memoize(winnerIter.invoke[Long]("next"))
-              cb.if_(winnerIter.invoke[Boolean]("eos"), {
+              cb.if_(winnerIter.invoke[Boolean]("rEOS"), {
                 cb.assign(matchIdx, (winner + k) >>> 1)
                 cb.assign(winner, k)
               }, {

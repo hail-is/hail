@@ -485,12 +485,10 @@ final case class StreamLeftIntervalJoin(
                                          rIntrvlName: String,
 
                                          // how to combine records
-                                         lEltName: String,
-                                         rEltName: String,
+                                         lname: String,
+                                         rname: String,
                                          body: IR
                                        ) extends IR {
-  override def typ: Type =
-    TStream(body.typ)
 
   override protected lazy val childrenSeq: IndexedSeq[BaseIR] =
     FastSeq(left, right, body)
@@ -500,7 +498,7 @@ final case class StreamLeftIntervalJoin(
 
   protected override def copy(newChildren: IndexedSeq[BaseIR]): IR = {
     val Seq(left: IR, right: IR, body: IR) = newChildren
-    StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lEltName, rEltName, body)
+    StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lname, rname, body)
   }
 }
 
