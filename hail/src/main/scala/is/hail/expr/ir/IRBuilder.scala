@@ -1,17 +1,18 @@
 package is.hail.expr.ir
 
-import scala.collection.mutable
+import is.hail.utils.BoxedArrayBuilder
 
 object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {
-    val ctx = new IRBuilder()
-    val result = f(ctx)
-    ctx.wrap(result)
+    val builder = new IRBuilder()
+    val result = f(builder)
+    Let(builder.bindings.result(), result)
   }
 }
 
 class IRBuilder() {
-  private val bindings: mutable.ArrayBuffer[(String, IR)] = mutable.ArrayBuffer()
+  private val bindings: BoxedArrayBuilder[(String, IR)] =
+    new BoxedArrayBuilder[(String, IR)]()
 
   def getBindings: IndexedSeq[(String, IR)] = bindings.result()
 
@@ -26,9 +27,5 @@ class IRBuilder() {
     val name = genUID()
     bindings += name -> ir
     Ref(name, ir.typ)
-  }
-
-  def wrap(ir: IR): IR = {
-    bindings.foldRight[IR](ir) { case ((f, v), accum) => Let(f, v, accum) }
   }
 }

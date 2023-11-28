@@ -16,7 +16,7 @@ object Optimize {
     }
 
     ctx.timer.time("Optimize") {
-      val normalizeNames = new NormalizeNames(_.toString, allowFreeVariables = true)
+      val normalizeNames = new NormalizeNames(_ => genUID(), allowFreeVariables = true)
       while (iter < maxIter && ir != last) {
         last = ir
         runOpt(FoldConstants(ctx, _), iter, "FoldConstants")

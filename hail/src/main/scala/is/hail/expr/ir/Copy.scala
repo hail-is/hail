@@ -34,9 +34,13 @@ object Copy {
       case s: Switch =>
         assert(s.size == newChildren.size)
         Switch(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren.drop(2).asInstanceOf[IndexedSeq[IR]])
-      case Let(name, _, _) =>
-        assert(newChildren.length == 2)
-        Let(name, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case Let(bindings, _) =>
+        assert(newChildren.length == x.size)
+        val newBindings =
+          (bindings, newChildren.init)
+            .zipped
+            .map { case ((name, _), ir: IR) => name -> ir }
+        Let(newBindings, newChildren.last.asInstanceOf[IR])
       case AggLet(name, _, _, isScan) =>
         assert(newChildren.length == 2)
         AggLet(name, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)

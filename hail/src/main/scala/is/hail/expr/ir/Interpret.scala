@@ -40,18 +40,16 @@ object Interpret {
 
   def apply[T](ctx: ExecuteContext, ir: IR): T = apply(ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]()).asInstanceOf[T]
 
-  def apply[T](ctx: ExecuteContext,
+  def apply[T](
+    ctx: ExecuteContext,
     ir0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     optimize: Boolean = true
   ): T = {
-    val rwIR = env.m.foldLeft[IR](ir0) { case (acc, (k, (value, t))) => Let(k, Literal.coerce(t, value), acc) }
-
-    val lowered = LoweringPipeline.relationalLowerer(optimize).apply(ctx, rwIR).asInstanceOf[IR]
-
+    val bindings = env.m.view.map { case (k, (value, t)) => k -> Literal.coerce(t, value) }.toFastSeq
+    val lowered = LoweringPipeline.relationalLowerer(optimize).apply(ctx, Let(bindings, ir0)).asInstanceOf[IR]
     val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
-
     result
   }
 
@@ -129,9 +127,11 @@ object Interpret {
           case null =>
             null
         }
-      case Let(name, value, body) =>
-        val valueValue = interpret(value, env, args)
-        interpret(body, env.bind(name, valueValue), args)
+      case Let(bindings, body) =>
+        val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
+          env.bind(name -> interpret(value, env, args))
+        }
+        interpret(body, newEnv, args)
       case Ref(name, _) => env.lookup(name)
       case ApplyBinaryPrimOp(op, l, r) =>
         val lValue = interpret(l, env, args)
@@ -746,9 +746,9 @@ object Interpret {
               val oldIndices = old.typ.asInstanceOf[TStruct].fields.map(f => f.name -> f.index).toMap
               Row.fromSeq(fds.map(name => newValues.getOrElse(name, struct.asInstanceOf[Row].get(oldIndices(name)))))
             case None =>
-              var t = old.typ
+              var t = old.typ.asInstanceOf[TStruct]
               fields.foreach { case (name, body) =>
-                val (newT, ins) = t.insert(body.typ, name)
+                val (newT, ins) = t.insert(body.typ, FastSeq(name))
                 t = newT.asInstanceOf[TStruct]
                 struct = ins(struct, interpret(body, env, args))
               }
@@ -992,12 +992,14 @@ object Interpret {
           val rv = value.rvd.combine[WrappedByteArray, RegionValue](
             ctx, mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
-          val (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) = CompileWithAggregators[AsmFunction2RegionLongLong](
-            ctx,
-            extracted.states,
-            FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-            FastSeq(classInfo[Region], LongInfo), LongInfo,
-            Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
+          val (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) =
+            CompileWithAggregators[AsmFunction2RegionLongLong](
+              ctx,
+              extracted.states,
+              FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
+              FastSeq(classInfo[Region], LongInfo), LongInfo,
+              Let(FastSeq(res -> extracted.results), MakeTuple.ordered(FastSeq(extracted.postAggIR)))
+            )
           assert(rTyp.types(0).virtualType == query.typ)
 
           ctx.r.pool.scopedRegion { r =>

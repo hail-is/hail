@@ -16,12 +16,12 @@ import is.hail.io.index.StagedIndexReader
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
+import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
-import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
@@ -198,7 +198,7 @@ object LoweredTableReader {
               "token" -> invokeSeeded("rand_unif", 1, TFloat64, RNGStateLiteral(), F64(0.0), F64(1.0)),
               "prevkey" -> ApplyScanOp(FastSeq(), FastSeq(Ref("key", keyType)), prevkey)))),
           "x",
-          Let("n", ApplyAggOp(FastSeq(), FastSeq(), count),
+          Let(FastSeq("n" -> ApplyAggOp(FastSeq(), FastSeq(), count)),
             AggLet("key", GetField(Ref("x", xType), "key"),
               MakeStruct(FastSeq(
                 "n" -> Ref("n", TInt64),
@@ -273,7 +273,7 @@ object LoweredTableReader {
         val partDataElt = tcoerce[TArray](sortedPartDataIR.typ).elementType
 
         val summary =
-          Let("sortedPartData", sortedPartDataIR,
+          Let(FastSeq("sortedPartData" -> sortedPartDataIR),
             MakeStruct(FastSeq(
               "ksorted" ->
                 invoke("land", TBoolean,
@@ -2325,7 +2325,7 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
 
   lazy val typ: TableType = left.typ.copy(
-    rowType = left.typ.rowType.structInsert(right.typ.valueType, List(root)))
+    rowType = left.typ.rowType.structInsert(right.typ.valueType, FastSeq(root)))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
@@ -2539,7 +2539,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
         ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)))),
       FastSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-      Let(scanRef, extracted.results,
+      Let(FastSeq(scanRef -> extracted.results),
         Coalesce(FastSeq(
           extracted.postAggIR,
           Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ)))))
@@ -2815,7 +2815,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
           (if (i == refs.length - 1)
             ArrayRef(CastToArray(GetField(ref, field)), arg)
           else
-            Let(refs(i + 1).name, GetField(ref, field), arg))))
+            Let(FastSeq(refs(i + 1).name -> GetField(ref, field)), arg))))
     }.asInstanceOf[InsertFields]
   }
 
@@ -3037,7 +3037,7 @@ case class TableKeyByAndAggregate(
       extracted.states,
       FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
       FastSeq(classInfo[Region], LongInfo), LongInfo,
-      Let(res, extracted.results, extracted.postAggIR))
+      Let(FastSeq(res -> extracted.results), extracted.postAggIR))
     assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
     val serialize = extracted.serialize(ctx, spec)
@@ -3178,7 +3178,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       FastSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
       extracted.seqPerElt)
 
-    val valueIR = Let(res, extracted.results, extracted.postAggIR)
+    val valueIR = Let(FastSeq(res -> extracted.results), extracted.postAggIR)
     val keyType = prevRVD.typ.kType
 
     val key = Ref(genUID(), keyType.virtualType)
@@ -3188,7 +3188,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       FastSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
         (key.name, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(keyType)))),
       FastSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
-      Let(value.name, valueIR,
+      Let(FastSeq(value.name -> valueIR),
         InsertFields(key, typ.valueType.fieldNames.map(n => n -> GetField(value, n)))))
 
     assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")

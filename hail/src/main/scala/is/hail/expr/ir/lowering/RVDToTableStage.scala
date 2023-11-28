@@ -101,13 +101,12 @@ object TableStageToRVD {
       .asSpark("TableStageToRVD")
       .sc
 
-    val baseStruct = MakeStruct(FastSeq(
-      ("globals", ts.globals),
-      ("broadcastVals", MakeStruct(ts.broadcastVals)),
-      ("contexts", ToArray(ts.contexts))))
-    val globalsAndBroadcastVals = ts.letBindings.foldRight[IR](baseStruct) { case ((name, value), acc) =>
-      Let(name, value, acc)
-    }
+    val globalsAndBroadcastVals =
+      Let(ts.letBindings, MakeStruct(FastSeq(
+        "globals" -> ts.globals,
+        "broadcastVals" -> MakeStruct(ts.broadcastVals),
+        "contexts" -> ToArray(ts.contexts))
+      ))
 
     val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastSeq(), FastSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
     val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
@@ -142,9 +141,11 @@ object TableStageToRVD {
     val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableStageToRVD(
       ctx,
       decodedContextPType, decodedBcValsPType,
-      ts.broadcastVals.map(_._1).foldRight[IR](ts.partition(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType))))) { case (bcVal, acc) =>
-        Let(bcVal, GetField(In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))), bcVal), acc)
-      })
+      Let(
+        ts.broadcastVals.map(_._1).map(bcVal => bcVal -> GetField(In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))), bcVal)),
+        ts.partition(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType))))
+      )
+    )
 
     val fsBc = ctx.fsBc
 

@@ -72,7 +72,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
     if (node.typ != TVoid) {
       cache.bind(node, BaseTypeWithRequiredness(node.typ))
-      if (usesAndDefs.free == null || !re.t.isInstanceOf[BaseRef] || !usesAndDefs.free.contains(re.asInstanceOf[RefEquality[BaseRef]]))
+      if (usesAndDefs.free.isEmpty || !re.t.isInstanceOf[BaseRef] || !usesAndDefs.free.contains(re.asInstanceOf[RefEquality[BaseRef]]))
         q += re
     }
   }
@@ -82,10 +82,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     usesAndDefs.uses.m.keys.foreach { n =>
       if (supportedType(n.t)) addBindingRelations(n.t)
     }
-    if (usesAndDefs.free != null)
-      usesAndDefs.free.foreach { re =>
-        lookup(re.t).fromPType(env.lookup(re.t.name))
-      }
+
+    usesAndDefs.free.foreach { re =>
+      lookup(re.t).fromPType(env.lookup(re.t.name))
+    }
   }
 
   def run(): Unit = {
@@ -154,7 +154,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
     }
     node match {
       case AggLet(name, value, body, isScan) => addBinding(name, value)
-      case Let(name, value, body) => addBinding(name, value)
+      case Let(bindings, _) => bindings.foreach(Function.tupled(addBinding))
       case RelationalLet(name, value, body) => addBinding(name, value)
       case RelationalLetTable(name, value, body) => addBinding(name, value)
       case TailLoop(loopName, params, _, body) =>
@@ -541,7 +541,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(cases.map(lookup))
       case AggLet(name, value, body, isScan) =>
         requiredness.unionFrom(lookup(body))
-      case Let(name, value, body) =>
+      case Let(_, body) =>
         requiredness.unionFrom(lookup(body))
       case RelationalLet(name, value, body) =>
         requiredness.unionFrom(lookup(body))
