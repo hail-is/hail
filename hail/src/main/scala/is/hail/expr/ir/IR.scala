@@ -495,11 +495,6 @@ final case class StreamLeftIntervalJoin(
 
   override lazy val size: Int =
     3
-
-  protected override def copy(newChildren: IndexedSeq[BaseIR]): IR = {
-    val Seq(left: IR, right: IR, body: IR) = newChildren
-    StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lname, rname, body)
-  }
 }
 
 final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR {

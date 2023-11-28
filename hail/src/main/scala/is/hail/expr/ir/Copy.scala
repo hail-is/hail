@@ -239,6 +239,12 @@ object Copy {
       case StreamScan(_, _, accumName, valueName, _) =>
         assert(newChildren.length == 3)
         StreamScan(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], accumName, valueName, newChildren(2).asInstanceOf[IR])
+      case StreamLeftIntervalJoin(_, _, lKeyNames, rIntrvlName, lname, rname, _) =>
+        assert(newChildren.length == 3)
+        StreamLeftIntervalJoin(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR],
+          lKeyNames, rIntrvlName, lname, rname,
+          newChildren(2).asInstanceOf[IR]
+        )
       case StreamJoinRightDistinct(_, _, lKey, rKey, l, r, _, joinType) =>
         assert(newChildren.length == 3)
         StreamJoinRightDistinct(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lKey, rKey, l, r, newChildren(2).asInstanceOf[IR], joinType)
