@@ -218,7 +218,7 @@ class Step(abc.ABC):
 
     def all_deps(self):
         visited: Set[Step] = set([self])
-        frontier: Set[Step] = [self]
+        frontier: List[Step] = [self]
 
         while frontier:
             current = frontier.pop()
