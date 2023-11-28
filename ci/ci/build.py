@@ -3,7 +3,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Optional, Sequence, TypedDict
+from typing import Dict, List, Optional, Sequence, TypedDict, Set
 
 import jinja2
 import yaml
@@ -217,8 +217,8 @@ class Step(abc.ABC):
         return flatten([d.wrapped_job() for d in self.deps])
 
     def all_deps(self):
-        visited = set([self])
-        frontier = [self]
+        visited: Set[Step] = set([self])
+        frontier: Set[Step] = [self]
 
         while frontier:
             current = frontier.pop()
