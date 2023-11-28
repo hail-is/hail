@@ -9,3 +9,4 @@ plotly>=5.5.0,<6
 aiodocker>=0.17.0,<1
 aiorwlock>=1.0.0,<2
 async-timeout>=4.0.2,<5
+aiohttp>=3.9.0 # not directly required, pinned by Snyk to avoid a vulnerability
