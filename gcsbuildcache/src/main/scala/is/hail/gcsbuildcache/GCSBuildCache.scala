@@ -53,7 +53,11 @@ class GCSBuildCache(
         log.lifecycle(s"cache stored $key ${key.hashCode} $path")
       } catch {
         case exc: StorageException =>
-          throw new RuntimeException(s"$key ${key.hashCode} could not be stored in cache at $path", exc)
+          if (exc.getCode == 412) {
+            log.lifecycle(s"concurrent build already uploaded $key ${key.hashCode} $path")
+          } else {
+            throw new RuntimeException(s"$key ${key.hashCode} could not be stored in cache at $path", exc)
+          }
       } finally {
         is.close()
       }
@@ -82,8 +86,17 @@ class GCSBuildCache(
         val blobinfo = BlobInfo.newBuilder(blobid).build()
         log.lifecycle(s"will refreshing cache $key ${key.hashCode} $path")
         val onlyUpdateIfNoOneHasBeatenMeToIt = BlobTargetOption.generationMatch(blob.getGeneration)
-        storage.create(blobinfo, blob.getContent(), onlyUpdateIfNoOneHasBeatenMeToIt)
-        log.lifecycle(s"refreshed cache $key ${key.hashCode} $path")
+        try {
+          storage.create(blobinfo, blob.getContent(), onlyUpdateIfNoOneHasBeatenMeToIt)
+          log.lifecycle(s"refreshed cache $key ${key.hashCode} $path")
+        } catch {
+          case exc: StorageException =>
+            if (exc.getCode == 412) {
+              log.lifecycle(s"concurrent build already uploaded $key ${key.hashCode} $path")
+            } else {
+              throw new RuntimeException(s"$key ${key.hashCode} could not be stored in cache at $path", exc)
+            }
+        }
       }
       return true
     } catch {
