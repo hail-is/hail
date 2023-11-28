@@ -6,7 +6,7 @@
 #
 aioconsole==0.6.2
     # via aiomonitor
-aiohttp==3.8.6
+aiohttp==3.9.0
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
