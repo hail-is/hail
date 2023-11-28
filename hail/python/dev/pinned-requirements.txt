@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=hail/hail/python/dev/pinned-requirements.txt hail/hail/python/dev/requirements.txt
 #
-aiohttp==3.8.6
+aiohttp==3.9.0
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   aiohttp-devtools
