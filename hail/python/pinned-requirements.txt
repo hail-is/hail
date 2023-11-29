@@ -274,7 +274,7 @@ requests-oauthlib==1.3.1
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   google-auth-oauthlib
     #   msrest
-rich==12.6.0
+rich==13.7.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
