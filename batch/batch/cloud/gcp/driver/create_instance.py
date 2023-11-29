@@ -247,11 +247,13 @@ logging:
         receivers: [runlog, workerlog, jvmlog]
 
 metrics:
+  processors:
+    metrics_filter:
+      type: exclude_metrics
+      metrics_pattern:
+      - agent.googleapis.com/*/*
   service:
     log_level: error
-    pipelines:
-      default_pipeline:
-        receivers: []
 EOF
 
 sudo systemctl restart google-cloud-ops-agent
