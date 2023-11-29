@@ -27,6 +27,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
+from .utils import needs_tokens_mounted
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 from hailtop.aiotools.validators import validate_file
@@ -784,7 +785,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                         cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
                                         env=env,
                                         requester_pays_project=batch.requester_pays_project,
-                                        mount_tokens=True,
+                                        mount_tokens=needs_tokens_mounted(),
                                         user_code=user_code,
                                         regions=job._regions,
                                         always_copy_output=job._always_copy_output)

@@ -42,7 +42,11 @@ class TerraAzureStorageFS extends FS {
       if (filename.startsWith(storageContainerUrl)) {
         sasTokenCache.get(filename) match {
           case Some((sasTokenUrl, expiration)) if expiration > System.currentTimeMillis + TEN_MINUTES_IN_MS => sasTokenUrl
-          case None => getTerraSasToken(filename)
+          case None => {
+            val (sasTokenUrl, expiration) = getTerraSasToken(filename)
+            sasTokenCache += (filename -> (token, expiration))
+            sasTokenUrl
+          }
         }
       } else {
         filename
@@ -51,7 +55,7 @@ class TerraAzureStorageFS extends FS {
     azureFS.parseUrl(urlStr)
   }
 
-  private def getTerraSasToken(filename: String): String = {
+  private def getTerraSasToken(filename: String): (String, Int) = {
     implicit val formats: Formats = DefaultFormats
 
     val context = new TokenRequestContext()
@@ -75,10 +79,7 @@ class TerraAzureStorageFS extends FS {
       (json \ "url").extract[String]
     }
 
-    val tokenAndExpiration = (sasTokenUrl, System.currentTimeMillis() + expiresInSeconds * 1000)
-    sasTokenCache += (filename -> tokenAndExpiration)
-
-    sasTokenUrl
+    (sasTokenUrl, System.currentTimeMillis() + expiresInSeconds * 1000)
   }
 
   def validUrl(filename: String): Boolean = azureFS.validUrl(filename)

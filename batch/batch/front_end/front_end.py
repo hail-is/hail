@@ -965,7 +965,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                         reason=f'Cloudfuse requests with mount_path=/io are not supported. Found {config}'
                     )
 
-        if spec.get('mount_tokens', False) and not os.environ.get('HAIL_TERRA', False):
+        if spec.get('mount_tokens', False):
+            assert not os.environ.get('HAIL_TERRA', False)
             secrets.append(
                 {
                     'namespace': DEFAULT_NAMESPACE,

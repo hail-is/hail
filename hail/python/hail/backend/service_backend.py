@@ -17,11 +17,12 @@ from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
-from hailtop.config import (ConfigVariable, configuration_of, get_remote_tmpdir)
+from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.utils import async_to_blocking, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
+from hailtop.batch.utils import needs_tokens_mounted
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 import hailtop.aiotools.fs as afs
@@ -402,7 +403,7 @@ class ServiceBackend(Backend):
                         iodir + '/in',
                         iodir + '/out',
                     ],
-                    mount_tokens=True,
+                    mount_tokens=needs_tokens_mounted(),
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,

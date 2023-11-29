@@ -3,6 +3,7 @@ import math
 from typing import List, Optional
 
 from ..utils.utils import grouped, digits_needed
+from ..config.deploy_config import TerraDeployConfig, get_deploy_config
 from .batch import Batch
 from .exceptions import BatchException
 from .resource import ResourceGroup, ResourceFile
@@ -114,3 +115,7 @@ def _combine(combop, b, name, xs, branching_factor=100):
         level += 1
     assert len(xs) == 1
     return xs[0]
+
+
+def needs_tokens_mounted() -> bool:
+    return not isinstance(get_deploy_config(), TerraDeployConfig)
