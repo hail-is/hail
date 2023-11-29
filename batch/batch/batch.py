@@ -150,6 +150,7 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
     return {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
+        'job_group_id': record['job_group_id'],
         'name': name,
         'user': record['user'],
         'billing_project': record['billing_project'],

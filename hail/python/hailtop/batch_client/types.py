@@ -10,6 +10,7 @@ class CostBreakdownEntry(TypedDict):
 class GetJobResponseV1Alpha(TypedDict):
     batch_id: int
     job_id: int
+    job_group_id: int
     name: Optional[str]
     user: str
     billing_project: str
@@ -27,6 +28,7 @@ class GetJobResponseV1Alpha(TypedDict):
 class JobListEntryV1Alpha(TypedDict):
     batch_id: int
     job_id: int
+    job_group_id: int
     name: Optional[str]
     user: str
     billing_project: str

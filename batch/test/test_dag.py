@@ -8,6 +8,7 @@ from aiohttp import web
 
 from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient, Job
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 
 from .utils import DOCKER_ROOT_IMAGE, batch_status_job_counter, create_batch, legacy_batch_status
 
@@ -40,7 +41,7 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = create_batch(client)
-        fake_job = aioclient.Job.unsubmitted_job(batch._async_batch, 10000)
+        fake_job = aioclient.Job.unsubmitted_job(batch._async_batch, batch.get_job_group(ROOT_JOB_GROUP_ID), 10000)
         fake_job = Job(fake_job)
         batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
         batch.submit()

@@ -397,7 +397,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
             return BatchPoolFuture(self,
                                    backend_batch,
                                    low_level_batch_client.Job.submitted_job(
-                                       backend_batch, 1),
+                                       backend_batch, backend_batch._root_job_group, 1),
                                    output_gcs)
         except:
             await backend_batch.cancel()

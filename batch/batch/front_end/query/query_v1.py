@@ -124,10 +124,14 @@ ORDER BY batch_id DESC;
     return (sql, where_args)
 
 
-def parse_list_job_groups_query_v1(batch_id: int, job_group_id: int, last_child_job_group_id: Optional[int]) -> Tuple[str, List[Any]]:
-    where_conds = ['(job_groups.batch_id = %s)',
-                   '(NOT deleted)',
-                   '(job_group_self_and_ancestors.ancestor_id = %s AND job_group_self_and_ancestors.level = 1)']
+def parse_list_job_groups_query_v1(
+    batch_id: int, job_group_id: int, last_child_job_group_id: Optional[int]
+) -> Tuple[str, List[Any]]:
+    where_conds = [
+        '(job_groups.batch_id = %s)',
+        '(NOT deleted)',
+        '(job_group_self_and_ancestors.ancestor_id = %s AND job_group_self_and_ancestors.level = 1)',
+    ]
     sql_args = [batch_id, job_group_id]
 
     if last_child_job_group_id is not None:

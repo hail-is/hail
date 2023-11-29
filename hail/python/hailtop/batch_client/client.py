@@ -229,10 +229,6 @@ class Batch:
     def get_job_log(self, job_id: int) -> Dict[str, Any]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
 
-    def get_job_group(self, job_group_id: int) -> JobGroup:
-        jg = async_to_blocking(self._async_batch.get_job_group(job_group_id))
-        return JobGroup(jg)
-
     def wait(self, *args, **kwargs):
         return async_to_blocking(self._async_batch.wait(*args, **kwargs))
 

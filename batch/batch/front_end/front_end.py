@@ -115,6 +115,7 @@ from .validate import (
     validate_and_clean_jobs,
     validate_batch,
     validate_batch_update,
+    validate_job_groups,
 )
 
 uvloop.install()
@@ -743,6 +744,24 @@ async def get_job_groups_v1(request: web.Request, _, batch_id: int):  # pylint: 
     return json_response({'job_groups': job_groups})
 
 
+@routes.post('/api/v1alpha/batches/{batch_id}/job-groups/create')
+@auth.authenticated_users_only()
+@add_metadata_to_request
+async def create_job_groups(request: web.Request, userdata: UserData) -> web.Response:
+    app = request.app
+    db: Database = app['db']
+    user = userdata['username']
+
+    if app['frozen']:
+        log.info('ignoring batch job group create request; batch is frozen')
+        raise web.HTTPServiceUnavailable()
+
+    batch_id = int(request.match_info['batch_id'])
+    job_group_specs = await json_request(request)
+    start_job_group_id = await _create_job_groups(db, batch_id, user, job_group_specs)
+    return json_response({'start_job_group_id': start_job_group_id})
+
+
 def check_service_account_permissions(user, sa):
     if sa is None:
         return
@@ -763,7 +782,7 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
-    return await _create_jobs(userdata, job_specs, batch_id, 1, app)
+    return await _create_jobs(userdata, job_specs, batch_id, 1, None, app)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
@@ -779,7 +798,7 @@ async def create_jobs_for_update(request: web.Request, userdata: UserData) -> we
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_specs = await json_request(request)
-    return await _create_jobs(userdata, job_specs, batch_id, update_id, app)
+    return await _create_jobs(userdata, job_specs, batch_id, update_id, None, app)
 
 
 NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
@@ -790,8 +809,159 @@ def assert_is_sha_1_hex_string(revision: str):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
 
 
+async def _create_job_groups(db: Database, batch_id: int, user: str, specs: List[dict]) -> int:
+    assert len(specs) > 0
+
+    @transaction(db)
+    async def insert(tx):
+        # We don't allow new job groups for batches that have been cancelled
+        record = await tx.execute_and_fetchone(
+            '''
+SELECT job_groups_cancelled.id IS NOT NULL AS cancelled
+FROM batches
+LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id AND job_groups_cancelled.job_group_id = %s
+WHERE batches.id = %s AND batches.user = %s AND NOT deleted
+FOR UPDATE;
+''',
+            (ROOT_JOB_GROUP_ID, batch_id, user),
+        )
+        if not record:
+            raise web.HTTPNotFound()
+        if record['cancelled']:
+            raise web.HTTPBadRequest(reason='Cannot submit new job groups to a cancelled batch')
+
+        record = await tx.execute_and_fetchone(
+            '''
+SELECT job_group_id FROM job_groups
+WHERE batch_id = %s
+ORDER BY job_group_id DESC
+LIMIT 1
+FOR UPDATE;
+''',
+            (batch_id,),
+        )
+        if record:
+            start_job_group_id = int(record['job_group_id']) + 1
+        else:
+            start_job_group_id = 1
+
+        validate_job_groups(specs)
+
+        now = time_msecs()
+
+        for spec in specs:
+            job_group_id = start_job_group_id + spec['job_group_id']
+
+            if 'absolute_parent_id' in spec:
+                parent_job_group_id = spec['absolute_parent_id']
+            else:
+                assert 'in_update_parent_id' in spec
+                parent_job_group_id = start_job_group_id + spec['in_update_parent_id']
+
+            await _create_job_group(
+                tx,
+                batch_id=batch_id,
+                job_group_id=job_group_id,
+                user=user,
+                attributes=spec.get('attributes'),
+                cancel_after_n_failures=spec.get('cancel_after_n_failures'),
+                callback=spec.get('callback'),
+                timestamp=now,
+                parent_job_group_id=parent_job_group_id,
+            )
+
+        return start_job_group_id
+
+    return await insert()
+
+
+async def _create_job_group(
+    tx: Transaction,
+    *,
+    batch_id: int,
+    job_group_id: int,
+    user: str,
+    attributes: Optional[dict],
+    cancel_after_n_failures: Optional[int],
+    callback: Optional[str],
+    timestamp: int,
+    parent_job_group_id: int,
+):
+    await tx.execute_insertone(
+        '''
+INSERT INTO job_groups (batch_id, job_group_id, `user`, attributes, cancel_after_n_failures, state, n_jobs, time_created, time_completed, callback)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+''',
+        (
+            batch_id,
+            job_group_id,
+            user,
+            json.dumps(attributes),
+            cancel_after_n_failures,
+            'complete',
+            0,
+            timestamp,
+            timestamp,
+            callback,
+        ),
+        query_name='insert_job_group',
+    )
+
+    # Note that this code assumes all job groups are inserted in order
+    # We need to modify the database stored procedure for commit_batch_update
+    # if we decide we need to create job groups in parallel
+    await tx.execute_update(
+        '''
+INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
+SELECT batch_id, %s, ancestor_id, ancestors.level + 1
+FROM job_group_self_and_ancestors ancestors
+WHERE batch_id = %s AND job_group_id = %s
+ON DUPLICATE KEY UPDATE job_group_self_and_ancestors.level = job_group_self_and_ancestors.level;
+''',
+        (job_group_id, batch_id, parent_job_group_id),
+        query_name='insert_job_group_ancestors',
+    )
+
+    await tx.execute_insertone(
+        '''
+INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
+VALUES (%s, %s, %s, %s);
+''',
+        (
+            batch_id,
+            job_group_id,
+            job_group_id,
+            0,
+        ),
+        query_name='insert_job_group_self',
+    )
+
+    await tx.execute_insertone(
+        '''
+INSERT INTO job_groups_n_jobs_in_complete_states (id, job_group_id) VALUES (%s, %s);
+''',
+        (batch_id, job_group_id),
+        query_name='insert_job_groups_n_jobs_in_complete_states',
+    )
+
+    if attributes:
+        await tx.execute_many(
+            '''
+INSERT INTO `job_group_attributes` (batch_id, job_group_id, `key`, `value`)
+VALUES (%s, %s, %s, %s)
+''',
+            [(batch_id, ROOT_JOB_GROUP_ID, k, v) for k, v in attributes.items()],
+            query_name='insert_job_group_attributes',
+        )
+
+
 async def _create_jobs(
-    userdata, job_specs: List[Dict[str, Any]], batch_id: int, update_id: int, app: web.Application
+    userdata,
+    job_specs: List[Dict[str, Any]],
+    batch_id: int,
+    update_id: int,
+    start_job_group_id: Optional[int],
+    app: web.Application,
 ) -> web.Response:
     db: Database = app['db']
     file_store: FileStore = app['file_store']
@@ -853,6 +1023,14 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         absolute_parent_ids = spec.pop('absolute_parent_ids', [])
         in_update_parent_ids = spec.pop('in_update_parent_ids', [])
         parent_ids = absolute_parent_ids + [update_start_job_id + parent_id - 1 for parent_id in in_update_parent_ids]
+
+        absolute_job_group_id = spec.pop('absolute_job_group_id')
+        in_update_job_group_id = spec.pop('in_update_job_group_id')
+        if absolute_job_group_id is not None:
+            job_group_id = absolute_job_group_id
+        else:
+            assert start_job_group_id is not None
+            job_group_id = start_job_group_id + in_update_job_group_id - 1
 
         always_run = spec.pop('always_run', False)
 
@@ -1093,7 +1271,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 batch_id,
                 job_id,
                 update_id,
-                ROOT_JOB_GROUP_ID,
+                job_group_id,
                 state,
                 json.dumps(db_spec),
                 always_run,
@@ -1251,18 +1429,6 @@ VALUES (%s, %s, %s);
     return web.Response()
 
 
-def root_job_group_spec(batch_spec: dict):
-    return {
-        'job_group_id': ROOT_JOB_GROUP_ID,
-        'attributes': batch_spec.get('attributes'),
-        'cancel_after_n_failures': batch_spec.get('cancel_after_n_failures'),
-        'callback': batch_spec.get('callback'),
-        'n_jobs': batch_spec['n_jobs'],
-        'absolute_parent_id': None,
-        'in_update_parent_id': None,
-    }
-
-
 @routes.post('/api/v1alpha/batches/create-fast')
 @auth.authenticated_users_only()
 @add_metadata_to_request
@@ -1275,9 +1441,14 @@ async def create_batch_fast(request, userdata):
     batch_spec = batch_and_bunch['batch']
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
+
+    job_group_specs = batch_and_bunch.get('job_groups', [])
+
+    start_job_group_id = await _create_job_groups(db, batch_id, user, job_group_specs)
+
     update_id, _ = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], user, db)
     try:
-        await _create_jobs(userdata, bunch, batch_id, update_id, app)
+        await _create_jobs(userdata, bunch, batch_id, update_id, start_job_group_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return json_response({'id': batch_id})
@@ -1402,57 +1573,18 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             query_name='insert_batches',
         )
 
-        await tx.execute_insertone(
-            '''
-INSERT INTO job_groups (batch_id, job_group_id, `user`, attributes, cancel_after_n_failures, state, n_jobs, time_created, time_completed, callback)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-''',
-            (
-                id,
-                ROOT_JOB_GROUP_ID,
-                user,
-                json.dumps(attributes),
-                batch_spec.get('cancel_after_n_failures'),
-                'complete',
-                0,
-                now,
-                now,
-                batch_spec.get('callback'),
-            ),
-            query_name='insert_job_group',
+        await _create_job_group(
+            tx,
+            batch_id=id,
+            job_group_id=ROOT_JOB_GROUP_ID,
+            user=user,
+            attributes=attributes,
+            cancel_after_n_failures=batch_spec.get('cancel_after_n_failures'),
+            callback=batch_spec.get('callback'),
+            timestamp=now,
+            parent_job_group_id=ROOT_JOB_GROUP_ID,
         )
 
-        await tx.execute_insertone(
-            '''
-INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
-VALUES (%s, %s, %s, %s);
-''',
-            (
-                id,
-                ROOT_JOB_GROUP_ID,
-                ROOT_JOB_GROUP_ID,
-                0,
-            ),
-            query_name='insert_job_group_parent',
-        )
-
-        await tx.execute_insertone(
-            '''
-INSERT INTO job_groups_n_jobs_in_complete_states (id, job_group_id) VALUES (%s, %s);
-''',
-            (id, ROOT_JOB_GROUP_ID),
-            query_name='insert_job_groups_n_jobs_in_complete_states',
-        )
-
-        if attributes:
-            await tx.execute_many(
-                '''
-INSERT INTO `job_group_attributes` (batch_id, job_group_id, `key`, `value`)
-VALUES (%s, %s, %s, %s)
-''',
-                [(id, ROOT_JOB_GROUP_ID, k, v) for k, v in attributes.items()],
-                query_name='insert_job_group_attributes',
-            )
         return id
 
     return await insert()
@@ -1470,6 +1602,9 @@ async def update_batch_fast(request, userdata):
     update_and_bunch = await json_request(request)
     update_spec = update_and_bunch['update']
     bunch = update_and_bunch['bunch']
+    job_group_specs = update_and_bunch.get('job_groups', [])
+
+    start_job_group_id = await _create_job_groups(db, batch_id, user, job_group_specs)
 
     try:
         validate_batch_update(update_spec)
@@ -1481,7 +1616,7 @@ async def update_batch_fast(request, userdata):
     )
 
     try:
-        await _create_jobs(userdata, bunch, batch_id, update_id, app)
+        await _create_jobs(userdata, bunch, batch_id, update_id, start_job_group_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return json_response({'update_id': update_id, 'start_job_id': start_job_id})
@@ -1491,7 +1626,9 @@ async def update_batch_fast(request, userdata):
 
     request['batch_telemetry']['batch_id'] = str(batch_id)
 
-    return json_response({'update_id': update_id, 'start_job_id': start_job_id})
+    return json_response(
+        {'update_id': update_id, 'start_job_id': start_job_id, 'start_job_group_id': start_job_group_id}
+    )
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/create')

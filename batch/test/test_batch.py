@@ -11,6 +11,7 @@ from hailtop import httpx
 from hailtop.auth import hail_credentials
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
+from hailtop.batch_client.aioclient import Batch as AsyncBatch
 from hailtop.batch_client.client import Batch, BatchClient
 from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.config import get_deploy_config
@@ -1765,7 +1766,7 @@ def test_job_group_creation_with_no_jobs(client: BatchClient):
     b.submit()
     job_groups = list(b.job_groups())
     assert len(job_groups) == 1, str(job_groups)
-    assert job_groups[0]['name'] == 'foo', str(job_groups)
+    assert job_groups[0].name() == 'foo', str(job_groups)
 
 
 def test_job_group_creation_on_update_with_no_jobs(client: BatchClient):
@@ -1777,7 +1778,7 @@ def test_job_group_creation_on_update_with_no_jobs(client: BatchClient):
 
     job_groups = list(b.job_groups())
     assert len(job_groups) == 1, str(job_groups)
-    assert job_groups[0]['name'] == 'foo', str(job_groups)
+    assert job_groups[0].name() == 'foo', str(job_groups)
 
     b.cancel()
 
@@ -1789,8 +1790,8 @@ def test_job_group_attributes(client: BatchClient):
     job_groups = list(b.job_groups())
     assert len(job_groups) == 1, str(job_groups)
     jg = job_groups[0]
-    assert jg['name'] == 'foo', str(jg)
-    assert jg['attributes'] == {'name': 'foo', 'test': '1'}, str(jg)
+    assert jg.name() == 'foo', str(jg)
+    assert jg.attributes() == {'name': 'foo', 'test': '1'}, str(jg)
 
 
 def test_job_groups_with_slow_create(client: BatchClient):
@@ -1817,10 +1818,10 @@ def test_job_groups_with_slow_update(client: BatchClient):
     assert status['n_jobs'] == 4, str(debug_info)
 
 
-# FIXME: how big does this need to be?
-def test_more_than_100_job_groups_created(client: BatchClient):
+def test_more_than_one_bunch_of_job_groups_created(client: BatchClient):
+    max_bunch_size = AsyncBatch.MAX_BUNCH_SIZE
     b = create_batch(client)
-    for i in range(110):
+    for i in range(max_bunch_size + 1):
         b.create_job_group(attributes={'name': f'foo{i}'})
     b.submit()
     job_groups = list(b.job_groups())
