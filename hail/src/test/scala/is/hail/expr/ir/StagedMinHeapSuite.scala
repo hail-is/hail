@@ -1,21 +1,18 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.annotations.{Annotation, Region, SafeIndexedSeq, SafeRow, UnsafeRow}
-import is.hail.asm4s.{ThisFieldRef, _}
-import is.hail.backend.HailStateManager
-import is.hail.check.{Arbitrary, Gen}
+import is.hail.annotations.{Region, SafeIndexedSeq}
+import is.hail.asm4s._
+import is.hail.check.Gen
 import is.hail.check.Prop.forAll
-import is.hail.expr.ir.functions.{IntervalFunctions, LocusFunctions}
+import is.hail.expr.ir.functions.LocusFunctions
 import is.hail.expr.ir.streams.EmitMinHeap
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerValue, SIntervalPointer, SIntervalPointerValue}
+import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalInterval, PCanonicalLocus, PInt32, PType}
-import is.hail.types.virtual.Type
+import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32}
 import is.hail.utils.{FastSeq, Interval, using}
 import is.hail.variant.{Locus, ReferenceGenome}
-import org.apache.spark.sql.catalyst.analysis.FunctionRegistry
 import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test
 

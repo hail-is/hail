@@ -25,14 +25,12 @@ sealed trait StagedMinHeap {
 
 object EmitMinHeap {
 
-  private sealed trait MinHeap
-
   def apply(modb: EmitModuleBuilder, elemType: SType)
-           (mkComparator: EmitClassBuilder[MinHeap] => StagedComparator)
+           (mkComparator: EmitClassBuilder[_] => StagedComparator)
   : EmitClassBuilder[_] => StagedMinHeap = {
 
-    val classBuilder: EmitClassBuilder[MinHeap] =
-      modb.genEmitClass[MinHeap](s"MinHeap${elemType.asIdent}")
+    val classBuilder: EmitClassBuilder[Unit] =
+      modb.genEmitClass[Unit](s"MinHeap${elemType.asIdent}")
 
     val pool: ThisFieldRef[RegionPool] =
       classBuilder.genFieldThisRef[RegionPool]("pool")
@@ -46,7 +44,7 @@ object EmitMinHeap {
     val heap = new StagedArrayBuilder(elemType.storageType(), classBuilder, region)
     val compare = mkComparator(classBuilder)
 
-    val init_ : EmitMethodBuilder[MinHeap] =
+    val ctor: EmitMethodBuilder[Unit] =
       classBuilder.defineEmitMethod("<init>", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo) { mb =>
         val outerRef = mb.getCodeParam[AnyRef](1)
         val poolRef = mb.getCodeParam[RegionPool](2)
@@ -214,37 +212,37 @@ object EmitMinHeap {
       }
 
     ecb => new StagedMinHeap {
-      private[this] val _this: ThisFieldRef[_] =
+      private[this] val this_ : ThisFieldRef[_] =
         ecb.genFieldThisRef("minheap")(classBuilder.cb.ti)
 
       override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit =
-        cb.assignAny(_this,
-          Code.newInstance(classBuilder.cb, init_.mb, FastSeq(
+        cb.assignAny(this_,
+          Code.newInstance(classBuilder.cb, ctor.mb, FastSeq(
             cb.memoize(Code.checkcast[AnyRef](cb._this)), // `this` of the parent class
             pool
           ))
         )
 
       override def realloc(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(realloc_, _this)
+        cb.invokeVoid(realloc_, this_)
 
       override def close(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(close_, _this)
+        cb.invokeVoid(close_, this_)
 
       override def push(cb: EmitCodeBuilder, a: SValue): Unit =
-        cb.invokeVoid(push_, _this, a)
+        cb.invokeVoid(push_, this_, a)
 
       override def peek(cb: EmitCodeBuilder): SValue =
-        cb.invokeSCode(peek_, _this)
+        cb.invokeSCode(peek_, this_)
 
       override def pop(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(pop_, _this)
+        cb.invokeVoid(pop_, this_)
 
       override def nonEmpty(cb: EmitCodeBuilder): Value[Boolean] =
-        cb.memoize(classBuilder.getField[Int](heap.size.name).get(_this) > 0)
+        cb.memoize(classBuilder.getField[Int](heap.size.name).get(this_) > 0)
 
       override def toArray(cb: EmitCodeBuilder, region: Value[Region]): SIndexableValue =
-        cb.invokeSCode(toArray_, _this, region).asIndexable
+        cb.invokeSCode(toArray_, this_, region).asIndexable
     }
   }
 

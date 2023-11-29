@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
 import is.hail.expr.ir.functions.IntervalFunctions
+import is.hail.expr.ir.functions.IntervalFunctions.{pointGTIntervalEndpoint, pointLTIntervalEndpoint}
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
@@ -1544,7 +1545,7 @@ object EmitStream {
                       cb.if_(minHeap.nonEmpty(cb), {
                         val interval = cb.invokeSCode(loadInterval, cb._this, minHeap.peek(cb)).asInterval
                         val endpoint = interval.loadEnd(cb).get(cb)
-                        cb.if_(IntervalFunctions.pointGTIntervalEndpoint(cb, key, endpoint, interval.includesEnd), {
+                        cb.if_(pointGTIntervalEndpoint(cb, key, endpoint, interval.includesEnd), {
                           minHeap.pop(cb)
                           cb.goto(Lrecur)
                         })
@@ -1563,15 +1564,13 @@ object EmitStream {
 
                       // Drop intervals whose right endpoint is before the key
                       val end = rInterval.loadEnd(cb).get(cb)
-                      cb.if_(
-                        IntervalFunctions.pointGTIntervalEndpoint(cb, key, end, rInterval.includesEnd),
+                      cb.if_(pointGTIntervalEndpoint(cb, key, end, rInterval.includesEnd),
                         cb.goto(rProd.LproduceElement)
                       )
 
                       // Stop consuming intervals if the left endpoint is after the key
                       val start = rInterval.loadStart(cb).get(cb)
-                      cb.if_(
-                        IntervalFunctions.pointLTIntervalEndpoint(cb, key, start, rInterval.includesStart),
+                      cb.if_(pointLTIntervalEndpoint(cb, key, start, rInterval.includesStart),
                         cb.goto(LallIntervalsFound)
                       )
 
