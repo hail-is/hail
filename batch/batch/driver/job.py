@@ -3,6 +3,7 @@ import base64
 import collections
 import json
 import logging
+import os
 import traceback
 from typing import TYPE_CHECKING, Dict, List
 
@@ -369,7 +370,10 @@ async def job_config(app, record, attempt_id):
             gsa_key = k8s_secret.data
         secret['data'] = k8s_secret.data
 
-    assert gsa_key
+    if os.environ.get('HAIL_TERRA'):
+        assert not gsa_key
+    else:
+        assert gsa_key
 
     service_account = job_spec.get('service_account')
     if service_account:

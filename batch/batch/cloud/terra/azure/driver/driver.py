@@ -15,7 +15,7 @@ from hailtop.aiocloud.aioazure import AzurePricingClient
 from hailtop.aiocloud.aioterra.azure import TerraClient
 from hailtop.config import get_deploy_config
 from hailtop.config.deploy_config import TerraDeployConfig
-from hailtop.utils import periodically_call
+from hailtop.utils import periodically_call, secret_alnum_string
 
 from .....batch_configuration import DOCKER_PREFIX, INTERNAL_GATEWAY_IP
 from .....driver.driver import CloudDriver
@@ -300,7 +300,7 @@ runcmd:
             },
             'vmUser': {
                 'name': 'hail-admin',
-                'password': 'StrongP@ssword123',  # TODO Change
+                'password': secret_alnum_string(),
             },
             'ephemeralOSDisk': 'NONE',
             'customData': encoded_startup_script,
