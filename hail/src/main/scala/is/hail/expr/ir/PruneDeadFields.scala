@@ -1959,15 +1959,15 @@ object PruneDeadFields {
           env.bindEval(curKey -> selectKey(newEltType, key), curVals -> TArray(newEltType)),
           memo)
         StreamZipJoinProducers(newContexts, ctxName, newMakeProducer,key, curKey, curVals, newJoinF)
-      case StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lEltName, rEltName, body) =>
+      case StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lName, rName, body) =>
         val newL = rebuildIR(ctx, left, env, memo)
         val newR = rebuildIR(ctx, right, env, memo)
-        StreamLeftIntervalJoin(newL, newR, lKeyNames, rIntrvlName, lEltName, rEltName, rebuildIR(
+        StreamLeftIntervalJoin(newL, newR, lKeyNames, rIntrvlName, lName, rName, rebuildIR(
           ctx,
           body,
           env.bindEval(
-            lEltName -> TIterable.elementType(newL.typ),
-            rEltName -> TIterable.elementType(newR.typ)
+            lName -> TIterable.elementType(newL.typ),
+            rName -> TArray(TIterable.elementType(newR.typ))
           ),
           memo
         ))

@@ -1481,7 +1481,7 @@ object EmitStream {
               }
 
             val minHeap: StagedMinHeap =
-              EmitMinHeap(mb.ecb.emodb, rElemSTy) { heapClassBuilder =>
+              EmitMinHeap(mb.emodb, rElemSTy) { heapClassBuilder =>
                 new EmitMinHeap.StagedComparator {
                   val parent: ThisFieldRef[_] =
                     heapClassBuilder.genFieldThisRef("ParentRef")(mb.cb.ti)

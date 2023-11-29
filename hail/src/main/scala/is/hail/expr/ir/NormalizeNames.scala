@@ -125,10 +125,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         for {
           newL <- normalize(left)
           newR <- normalize(right)
-          newLEltName = gen()
-          newREltName = gen()
-          newB <- normalize(body, env.bindEval(lEltName -> newREltName, rEltName -> newREltName))
-        } yield StreamLeftIntervalJoin(newL, newR, lKeyNames, rIntrvlName, newREltName, newREltName, newB)
+          newLName = gen()
+          newRName = gen()
+          newB <- normalize(body, env.bindEval(lEltName -> newLName, rEltName -> newRName))
+        } yield StreamLeftIntervalJoin(newL, newR, lKeyNames, rIntrvlName, newLName, newRName, newB)
       case StreamFilter(a, name, body) =>
         val newName = gen()
         for {

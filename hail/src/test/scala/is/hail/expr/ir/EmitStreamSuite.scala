@@ -1047,8 +1047,7 @@ class EmitStreamSuite extends HailSuite {
         )
       )
 
-    val res =
-      evalStream(join)
+    val res = eval(ToArray(join))
 
     assert(2 == 4)
   }
