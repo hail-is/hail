@@ -5,7 +5,7 @@ import unittest
 
 import hail as hl
 import hail.utils as utils
-from ...helpers import get_dataset, test_timeout, qobtest
+from ...helpers import test_timeout, qobtest
 
 
 def plinkify(ds, min=None, max=None):
@@ -42,11 +42,17 @@ def plinkify(ds, min=None, max=None):
     return results
 
 
+def random_dataset():
+    ds = hl.balding_nichols_model(1, 100, 1000)
+    ds = ds.key_cols_by(s=hl.str(ds.sample_idx + 1))
+    return ds
+
+
 @qobtest
 @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
 @test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_default_arguments():
-    ds = get_dataset()
+    ds = random_dataset()
 
     plink_results = plinkify(ds)
     hail_results = hl.identity_by_descent(ds).collect()
@@ -62,10 +68,11 @@ def test_ibd_default_arguments():
         assert plink_results[key][1][2] == row.ibs2
 
 
+@qobtest
 @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
 @test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_0_and_1():
-    ds = get_dataset()
+    ds = random_dataset()
 
     plink_results = plinkify(ds, min=0.0, max=1.0)
     hail_results = hl.identity_by_descent(ds).collect()
@@ -81,15 +88,17 @@ def test_ibd_0_and_1():
         assert plink_results[key][1][2] == row.ibs2
 
 
+@qobtest
 @test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_does_not_error_with_dummy_maf_float64():
-    dataset = get_dataset()
+    dataset = random_dataset()
     dataset = dataset.annotate_rows(dummy_maf=0.01)
     hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
 
 
+@qobtest
 @test_timeout(local=10 * 60, batch=10 * 60)
 def test_ibd_does_not_error_with_dummy_maf_float32():
-    dataset = get_dataset()
+    dataset = random_dataset()
     dataset = dataset.annotate_rows(dummy_maf=0.01)
     hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
