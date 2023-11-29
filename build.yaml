@@ -472,9 +472,15 @@ steps:
       set -ex
 
       # k8s deploy config
+      {% if default_ns.name == "default" %}
       cat > deploy-config.json <<EOF
       {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
       EOF
+      {% else %}
+      cat > deploy-config.json <<EOF
+      {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"internal.{{ global.domain }}","subpath":"/{{ default_ns.name }}"}
+      EOF
+      {% endif %}
       kubectl -n {{ default_ns.name }} create secret generic deploy-config \
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
@@ -2717,7 +2723,7 @@ steps:
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_TOKEN="{{ token }}"
       export HAIL_CLOUD="{{ global.cloud }}"
-      export HAIL_DOMAIN="{{ global.domain }}"
+      export HAIL_PRODUCTION_DOMAIN="{{ global.domain }}"
       export HAIL_GPU_IMAGE="{{ gpu_image.image }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
 
