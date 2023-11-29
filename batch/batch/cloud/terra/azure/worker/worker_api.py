@@ -82,8 +82,9 @@ class TerraAzureWorkerAPI(CloudWorkerAPI[AzureManagedIdentityCredentials]):
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> TerraAzureSlimInstanceConfig:
         return TerraAzureSlimInstanceConfig.from_dict(config_dict)
 
-    async def vm_identity_token(self) -> str:
-        return await self._managed_identity_credentials.access_token()
+    async def extra_hail_headers(self) -> Dict[str, str]:
+        token = await self._managed_identity_credentials.access_token()
+        return {'Authorization': f'Bearer {token}'}
 
     async def _mount_cloudfuse(self, *_):
         raise NotImplementedError

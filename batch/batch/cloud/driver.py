@@ -19,10 +19,9 @@ async def get_cloud_driver(
 ) -> CloudDriver:
     cloud = get_global_config()['cloud']
 
-    if os.environ.get('HAIL_TERRA'):
-        return await TerraAzureDriver.create(app, db, machine_name_prefix, namespace, inst_coll_configs)
-
     if cloud == 'azure':
+        if os.environ.get('HAIL_TERRA'):
+            return await TerraAzureDriver.create(app, db, machine_name_prefix, namespace, inst_coll_configs)
         return await AzureDriver.create(app, db, machine_name_prefix, namespace, inst_coll_configs)
 
     assert cloud == 'gcp', cloud

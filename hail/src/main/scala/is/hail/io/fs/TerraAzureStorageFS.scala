@@ -19,31 +19,34 @@ import org.json4s.jackson.JsonMethods
 
 
 object TerraAzureStorageFS {
-  private val workspaceManagerUrl = sys.env.get("WORKSPACE_MANAGER_URL")
-  private val workspaceId = sys.env.get("WORKSPACE_ID")
-  private val containerResourceId = sys.env.get("WORKSPACE_STORAGE_CONTAINER_ID")
-  private val storageContainerUrl = sys.env.get("WORKSPACE_STORAGE_CONTAINER_URL")
   private val log = Logger.getLogger(getClass.getName)
+  private val TEN_MINUTES_IN_MS = 10 * 60 * 1000
 }
 
-class TerraAzureStorageFS() extends FS {
+class TerraAzureStorageFS extends FS {
   type URL = AzureStorageFSURL
-  import TerraAzureStorageFS.{log, workspaceManagerUrl, workspaceId, containerResourceId, storageContainerUrl}
+  import TerraAzureStorageFS.{log, TEN_MINUTES_IN_MS}
 
   private[this] val azureFS = new AzureStorageFS()
-  private[this] val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
+  private[this] val credential = new DefaultAzureCredentialBuilder().build()
   private[this] val httpClient = HttpClients.custom().build()
   private[this] val sasTokenCache = mutable.Map[String, (String, Long)]()
 
+  private[this] val workspaceManagerUrl = sys.env("WORKSPACE_MANAGER_URL")
+  private[this] val workspaceId = sys.env("WORKSPACE_ID")
+  private[this] val containerResourceId = sys.env("WORKSPACE_STORAGE_CONTAINER_ID")
+  private[this] val storageContainerUrl = sys.env("WORKSPACE_STORAGE_CONTAINER_URL")
+
   def parseUrl(filename: String): AzureStorageFSURL = {
-    val urlStr = storageContainerUrl match {
-      case Some(url) if filename.startsWith(url) =>
+    val urlStr =
+      if (filename.startsWith(storageContainerUrl)) {
         sasTokenCache.get(filename) match {
-          case Some((sasTokenUrl, expiration)) if expiration > System.currentTimeMillis + 10 * 60 * 1000 => sasTokenUrl
+          case Some((sasTokenUrl, expiration)) if expiration > System.currentTimeMillis + TEN_MINUTES_IN_MS => sasTokenUrl
           case None => getTerraSasToken(filename)
         }
-      case _ => filename
-    }
+      } else {
+        filename
+      }
 
     azureFS.parseUrl(urlStr)
   }
@@ -59,10 +62,10 @@ class TerraAzureStorageFS() extends FS {
     val req = new HttpPost(url)
     req.addHeader("Authorization", s"Bearer $token")
 
-    val expiresInSeconds = 3600
+    val tenHoursInSeconds = 10 * 3600
     val uri = new URIBuilder(req.getURI())
       .addParameter("sasPermissions", "racwdl")
-      .addParameter("sasExpirationDuration", expiresInSeconds.toString)
+      .addParameter("sasExpirationDuration", tenHoursInSeconds.toString)
       .build()
     req.setURI(uri)
 

@@ -3038,7 +3038,7 @@ class Worker:
     async def headers(self):
         headers = {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
         if isinstance(CLOUD_WORKER_API, TerraAzureWorkerAPI):
-            headers['Authorization'] = 'Bearer: ' + await CLOUD_WORKER_API.vm_identity_token()
+            headers.update(await CLOUD_WORKER_API.extra_hail_headers())
         return headers
 
     async def shutdown(self):

@@ -61,7 +61,7 @@ class RouterAsyncFS(AsyncFS):
             fs = aioaws.S3AsyncFS(**self._s3_kwargs)
         # Azure URLs are also valid for Terra on Azure
         elif aioazure.AzureAsyncFS.valid_url(uri):
-            if aioterra_azure.TerraAzureAsyncFS.configured():
+            if aioterra_azure.TerraAzureAsyncFS.enabled():
                 fs = aioterra_azure.TerraAzureAsyncFS(**self._azure_kwargs)
             else:
                 fs = aioazure.AzureAsyncFS(**self._azure_kwargs)

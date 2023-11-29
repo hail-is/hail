@@ -17,6 +17,7 @@ WORKSPACE_STORAGE_CONTAINER_URL = os.environ.get('WORKSPACE_STORAGE_CONTAINER_UR
 class TerraAzureAsyncFS(AsyncFS):
 
     def __init__(self, **azure_kwargs):
+        assert WORKSPACE_STORAGE_CONTAINER_URL is not None
         self._terra_client = TerraClient()
         self._azure_fs = AzureAsyncFS(**azure_kwargs)
         self._sas_token_cache: Dict[str, Tuple[str, int]] = {}
@@ -26,7 +27,7 @@ class TerraAzureAsyncFS(AsyncFS):
         return {'https'}
 
     @staticmethod
-    def configured() -> bool:
+    def enabled() -> bool:
         return WORKSPACE_STORAGE_CONTAINER_ID is not None and WORKSPACE_STORAGE_CONTAINER_URL is not None
 
     @staticmethod

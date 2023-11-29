@@ -50,6 +50,9 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
+    async def extra_hail_headers(self) -> Dict[str, str]:
+        return {}
+
     @abc.abstractmethod
     async def user_container_registry_credentials(self, user_credentials: CredsType) -> ContainerRegistryCredentials:
         raise NotImplementedError

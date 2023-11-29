@@ -1,2 +1,5 @@
 values.yaml
+Chart.yaml
 hail-batch-terra-azure-*.tgz
+*-image
+*-stmp

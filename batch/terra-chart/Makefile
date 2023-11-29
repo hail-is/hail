@@ -1,4 +1,5 @@
 include ../../config.mk
+include ../../hail/version.mk
 
 .PHONY: batch-image batch-worker-image shadow-jar publish-terra-helm-chart apply-terra-helm-chart
 
@@ -39,6 +40,7 @@ $(TERRA_IMAGES): pushed-%: % terra-acr-login
 	echo $(shell cat $*) > $@
 
 values.yaml: $(TERRA_IMAGES)
+	python3 ../../ci/jinja2_render.py '{"hail_version":"$(HAIL_PIP_VERSION)"}' Chart.yaml.tmpl Chart.yaml
 	python3 ../../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"batch_image":{"image":"$(shell cat pushed-terra-batch-image)"},"batch_worker_image":{"image":"$(shell cat pushed-terra-batch-worker-image)"}}' values.yaml.tmpl values.yaml
 
 publish-terra-helm-chart: values.yaml
