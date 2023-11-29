@@ -6,7 +6,7 @@ import is.hail.utils._
 import javassist.bytecode.DuplicateMemberException
 import org.apache.spark.TaskContext
 import org.objectweb.asm.ClassReader
-import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.Opcodes.INVOKESPECIAL
 import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 
 import java.io._
@@ -380,7 +380,7 @@ class ClassBuilder[C](
       val generic = newMethod(name, maybeGenericParameterTypeInfo.map(_.generic), maybeGenericReturnTypeInfo.generic)
       generic.emitWithBuilder { cb =>
         maybeGenericReturnTypeInfo.castToGeneric(cb,
-          m.invoke(cb, cb.mb.cb._this +: maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+          cb.invoke(m, cb.mb.cb._this +: maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
             ti.castFromGeneric(cb, generic.getArg(i + 1)(ti.generic))
           }: _*))
       }
@@ -654,27 +654,6 @@ class MethodBuilder[C](
 
     body.clear()
   }
-
-  def invokeCode[T](args: Value[_]*): Code[T] = {
-    val (start, end, argvs) = Code.sequenceValues(args.toFastSeq.map(_.get))
-    val op = if (isStatic) INVOKESTATIC else INVOKEVIRTUAL
-    if (returnTypeInfo eq UnitInfo) {
-      end.append(lir.methodStmt(op, lmethod, argvs))
-      new VCode(start, end, null)
-    } else {
-      val value = lir.methodInsn(op, lmethod, argvs)
-      new VCode(start, end, value)
-    }
-  }
-
-  def invoke[T](cb: CodeBuilderLike, args: Value[_]*): Value[T] =
-    if (returnTypeInfo eq UnitInfo) {
-      cb.append(invokeCode[Unit](args: _*))
-      coerce[T](Code._empty)
-    } else {
-      val result = invokeCode[T](args: _*)
-      cb.memoize[T](result)(returnTypeInfo.asInstanceOf[TypeInfo[T]], implicitly[T =!= Unit])
-    }
 }
 
 final case class FunctionBuilder[F] private(apply_method: MethodBuilder[F])

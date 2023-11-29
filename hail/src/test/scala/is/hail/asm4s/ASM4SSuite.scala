@@ -311,11 +311,11 @@ class ASM4SSuite extends HailSuite {
       val c = fb.getArg[Int](3)
       val res = cb.newLocal[Int]("res")
       cb.if_(a.ceq(0), {
-        cb.assign(res, add.invoke(cb, cb._this, b, c))
+        cb.assign(res, cb.invokeCode(add, cb._this, b, c))
       }, {
         cb.if_(a.ceq(1),
-          cb.assign(res, sub.invoke(cb, cb._this, b, c)),
-          cb.assign(res, mul.invoke(cb, cb._this, b, c))
+          cb.assign(res, cb.invoke(sub, cb._this, b, c)),
+          cb.assign(res, cb.invoke(mul, cb._this, b, c))
         )
       })
       res
@@ -342,7 +342,7 @@ class ASM4SSuite extends HailSuite {
     )
 
     fb.emitWithBuilder { cb =>
-      add.invoke(cb, cb._this, fb.getArg[Int](1), fb.getArg[Int](2))
+      cb.invoke(add, cb._this, fb.getArg[Int](1), fb.getArg[Int](2))
     }
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f(1, 1) == 2)
@@ -392,7 +392,7 @@ class ASM4SSuite extends HailSuite {
         case BooleanInfo => mb.emit(Code(c, booleanField.load()))
       }
       fb.emitWithBuilder { cb =>
-        mb.invoke(cb, cb._this, fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3))
+        cb.invoke(mb, cb._this, fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3))
       }
       val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
       f(arg1, arg2, arg3)
@@ -466,15 +466,13 @@ class ASM4SSuite extends HailSuite {
     val a = Main.newLocal("a")(Counter.cb.ti)
     val b = Main.newLocal("b")(Counter.cb.ti)
     val ignore = Main.newLocal[Int]("ignore")
-    Main.emit {
-      Code(
-        a := Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()),
-        b := Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()),
-        ignore := Counter.mb.invokeCode[Int](a),
-        ignore := Counter.mb.invokeCode[Int](a),
-        ignore := Counter.mb.invokeCode[Int](b),
-        Counter.mb.invokeCode[Int](a) * Counter.mb.invokeCode[Int](b)
-      )
+    Main.emitWithBuilder[Int] { cb =>
+      val a = cb.newLocal("a", Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()))
+      val b = cb.newLocal("b", Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()))
+      cb.invoke[Int](Counter.mb, a)
+      cb.invoke[Int](Counter.mb, a)
+      cb.invoke[Int](Counter.mb, b)
+      cb.invoke[Int](Counter.mb, a) * cb.invoke[Int](Counter.mb, b)
     }
 
     Counter.result(ctx.shouldWriteIRFiles())(theHailClassLoader)

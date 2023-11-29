@@ -10,7 +10,7 @@ import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SIndexablePointerSettable, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
 import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
@@ -1463,9 +1463,7 @@ object EmitStream {
             val rProd = rStream.getProducer(mb)
 
             val rElemSTy = rProd.element.st.asInstanceOf[SBaseStruct]
-
-            val intrvlSTy: SType =
-              rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName))
+            val intrvlSTy = rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName))
 
             val loadInterval: EmitMethodBuilder[_] =
               mb.ecb.defineEmitMethod(genName("m", "LoadInterval"),
@@ -1503,6 +1501,12 @@ object EmitStream {
             val lElement: SBaseStructSettable =
               mb.newPField("LeftElement", lProd.element.st).asInstanceOf[SBaseStructSettable]
 
+            val rElement: SSettable =
+              mb.newPField("RightElement", minHeap.arraySType)
+
+            var jElement: EmitSettable =
+              null
+
             val eltRegion =
               mb.genFieldThisRef[Region]("IntervalJoinRegion")
 
@@ -1536,16 +1540,21 @@ object EmitStream {
 
                 override val LproduceElement: CodeLabel =
                   mb.defineAndImplementLabel { cb =>
+                    if (lProd.requiresMemoryManagementPerElement) {
+                      cb += lProd.elementRegion.clearRegion()
+                    }
+
                     cb.goto(lProd.LproduceElement)
                     cb.define(lProd.LproduceElementDone)
+
                     cb.assign(lElement, lProd.element.toI(cb).get(cb).asBaseStruct)
                     val key = lElement.subset(lKeyNames: _*)
 
                     cb.loop { Lrecur =>
                       cb.if_(minHeap.nonEmpty(cb), {
                         val interval = cb.invokeSCode(loadInterval, cb._this, minHeap.peek(cb)).asInterval
-                        val endpoint = interval.loadEnd(cb).get(cb)
-                        cb.if_(pointGTIntervalEndpoint(cb, key, endpoint, interval.includesEnd), {
+                        val end = interval.loadEnd(cb).get(cb)
+                        cb.if_(pointGTIntervalEndpoint(cb, key, end, interval.includesEnd), {
                           minHeap.pop(cb)
                           cb.goto(Lrecur)
                         })
@@ -1559,22 +1568,26 @@ object EmitStream {
                     cb.if_(!rPulled, cb.goto(rProd.LproduceElement))
 
                     cb.loop { LproduceR =>
-                      val rElem: SValue = rProd.element.toI(cb).get(cb)
-                      val rInterval = cb.invokeSCode(loadInterval, cb._this, rElem).asInterval
+                      val rElem = rProd.element.toI(cb).get(cb)
+                      val interval = cb.invokeSCode(loadInterval, cb._this, rElem).asInterval
 
                       // Drop intervals whose right endpoint is before the key
-                      val end = rInterval.loadEnd(cb).get(cb)
-                      cb.if_(pointGTIntervalEndpoint(cb, key, end, rInterval.includesEnd),
+                      val end = interval.loadEnd(cb).get(cb)
+                      cb.if_(pointGTIntervalEndpoint(cb, key, end, interval.includesEnd),
                         cb.goto(rProd.LproduceElement)
                       )
 
                       // Stop consuming intervals if the left endpoint is after the key
-                      val start = rInterval.loadStart(cb).get(cb)
-                      cb.if_(pointLTIntervalEndpoint(cb, key, start, rInterval.includesStart),
+                      val start = interval.loadStart(cb).get(cb)
+                      cb.if_(pointLTIntervalEndpoint(cb, key, start, leansRight = !interval.includesStart),
                         cb.goto(LallIntervalsFound)
                       )
 
                       minHeap.push(cb, rElem)
+
+                      if (rProd.requiresMemoryManagementPerElement) {
+                        cb += rProd.elementRegion.clearRegion()
+                      }
 
                       cb.goto(rProd.LproduceElement)
                       cb.define(rProd.LproduceElementDone)
@@ -1586,6 +1599,17 @@ object EmitStream {
                     cb.assign(rEOS, true)
 
                     cb.define(LallIntervalsFound)
+                    cb.assign(rElement, minHeap.toArray(cb, eltRegion))
+                    val result = emit(body, cb, region = eltRegion, env = env.bind(
+                      lName -> EmitValue.present(lElement),
+                      rName -> EmitValue.present(rElement)
+                    ))
+
+                    jElement = mb.newEmitField("IntervalJoinResult", result.emitType)
+                    result.consume(cb,
+                      cb.assign(jElement, EmitValue.missing(result.st)),
+                      svalue => cb.assign(jElement, EmitValue.present(svalue))
+                    )
                     cb.goto(LproduceElementDone)
 
                     cb.define(lProd.LendOfStream)
@@ -1593,12 +1617,7 @@ object EmitStream {
                   }
 
                 override val element: EmitCode =
-                  EmitCode.fromI(mb) { cb =>
-                    emit(body, cb, region = eltRegion, env = env.bind(
-                      lName -> EmitValue.present(lElement),
-                      rName -> EmitValue.present(minHeap.toArray(cb, eltRegion))
-                    ))
-                  }
+                  jElement
 
                 override def close(cb: EmitCodeBuilder): Unit = {
                   minHeap.close(cb)

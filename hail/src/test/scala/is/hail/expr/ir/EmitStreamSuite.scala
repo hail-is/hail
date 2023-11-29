@@ -1011,44 +1011,56 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testStreamIntervalJoin(): Unit = {
+    val keyStream = mapIR(rangeIR(0, 9))(i => MakeStruct(FastSeq("i" -> i)))
+    val kType = TIterable.elementType(keyStream.typ).asInstanceOf[TStruct]
+    val rightElemType = TStruct("interval" -> TInterval(kType))
 
-    val keyStream: IR =
-      mapIR(rangeIR(0, 5))(i => MakeStruct(FastSeq("i" -> i)))
-
-    val kType: TStruct =
-      TIterable.elementType(keyStream.typ).asInstanceOf[TStruct]
-
-    val intervalStream: IR =
-      ToStream(
-        Literal(
-          TArray(TStruct("interval" -> TInterval(kType))),
-          for {(start, end) <- IndexedSeq(1 -> 4, 3 -> 5)}
-            yield Row(Interval(IntervalEndpoint(Row(start), -1), IntervalEndpoint(Row(end), -1)))
+    val intervals: IndexedSeq[Interval] =
+      for {
+        (start, end, includesStart, includesEnd) <- FastSeq(
+          (1, 6, true, false),
+          (2, 2, false, false),
+          (3, 5, true, true),
+          (4, 6, true, true),
+          (6, 7, false, true)
         )
+      } yield Interval(
+        IntervalEndpoint(Row(start), if (includesStart) -1 else 1),
+        IntervalEndpoint(Row(end), if (includesEnd) 1 else -1)
       )
 
     val join =
-      StreamLeftIntervalJoin(
-        keyStream,
-        intervalStream,
-        kType.fieldNames,
-        "interval",
-        "lname",
-        "rname",
-        InsertFields(
-          Ref("lname", kType),
-          FastSeq("intervals" ->
-            ToArray(
-              mapIR(ToStream(Ref("rname", TArray(elementType(intervalStream.typ))))) { elt =>
-                GetField(elt, "interval")
-              }
+      ToArray(
+        StreamLeftIntervalJoin(
+          keyStream,
+          ToStream(Literal(TArray(rightElemType), intervals.map(Row(_)))),
+          kType.fieldNames,
+          "interval",
+          "lname",
+          "rname",
+          InsertFields(
+            Ref("lname", kType),
+            FastSeq("intervals" ->
+              ToArray(
+                mapIR(ToStream(Ref("rname", TArray(rightElemType)))) { elt =>
+                  GetField(elt, "interval")
+                }
+              )
             )
           )
         )
       )
 
-    val res = eval(ToArray(join))
-
-    assert(2 == 4)
+    assertEvalsTo(join, FastSeq(
+      Row(0, FastSeq()),
+      Row(1, FastSeq(intervals(0))),
+      Row(2, FastSeq(intervals(0))),
+      Row(3, FastSeq(intervals(2), intervals(0))),
+      Row(4, FastSeq(intervals(2), intervals(0), intervals(3))),
+      Row(5, FastSeq(intervals(2), intervals(0), intervals(3))),
+      Row(6, FastSeq(intervals(3))),
+      Row(7, FastSeq(intervals(4))),
+      Row(8, FastSeq())
+    ))
   }
 }

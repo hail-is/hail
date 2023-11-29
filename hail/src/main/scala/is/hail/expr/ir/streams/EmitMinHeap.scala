@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.utils.FastSeq
 
 sealed trait StagedMinHeap {
+  def arraySType: SType
   
   def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit
   def realloc(cb: EmitCodeBuilder): Unit
@@ -199,13 +200,13 @@ object EmitMinHeap {
         }
       }
 
-    val arrayTy = PCanonicalArray(elemType.storageType().setRequired(true), required = true)
+    val arrPTyp = PCanonicalArray(elemType.storageType().setRequired(true), required = true)
 
     val toArray_ : EmitMethodBuilder[_] =
-      classBuilder.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), arrayTy.sType.paramType) { mb =>
+      classBuilder.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), arrPTyp.sType.paramType) { mb =>
         val region = mb.getCodeParam[Region](1)
         mb.emitSCode { cb =>
-          arrayTy.constructFromElements(cb, region, heap.size, true) {
+          arrPTyp.constructFromElements(cb, region, heap.size, true) {
             case (cb, idx) => heap.loadElement(cb, idx).toI(cb)
           }
         }
@@ -214,6 +215,9 @@ object EmitMinHeap {
     ecb => new StagedMinHeap {
       private[this] val this_ : ThisFieldRef[_] =
         ecb.genFieldThisRef("minheap")(classBuilder.cb.ti)
+
+      override def arraySType: SType =
+        arrPTyp.sType
 
       override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit =
         cb.assignAny(this_,

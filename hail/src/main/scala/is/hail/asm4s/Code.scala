@@ -1267,7 +1267,7 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
 
   override def get: Code[T] =
     CodeBuilder.scopedCode(null) { cb =>
-      cb.if_(!present, cb += setm.invoke(cb, cb._this) )
+      cb.if_(!present, cb += cb.invoke(setm, this.cb._this))
       value
     }
 }

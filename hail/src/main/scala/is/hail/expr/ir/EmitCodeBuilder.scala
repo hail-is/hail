@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s.{coerce => _, _}
+import is.hail.asm4s._
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
@@ -238,7 +238,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       }
     }
 
-    callee.mb.invoke[T](this, codeArgs: _*)
+    val (code, res) = CodeBuilder.scoped(mb) { cb =>
+      cb.invoke[T](callee.mb, codeArgs: _*)
+    }
+
+    append(code)
+    res
   }
 
   def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {

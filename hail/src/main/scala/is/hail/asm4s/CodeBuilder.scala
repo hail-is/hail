@@ -1,6 +1,8 @@
 package is.hail.asm4s
 
 import is.hail.lir
+import is.hail.utils.toRichIterable
+import org.objectweb.asm.Opcodes.{INVOKESTATIC, INVOKEVIRTUAL}
 
 abstract class SettableBuilder {
   def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T]
@@ -257,5 +259,26 @@ class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBu
     val tmp = code
     code = Code._empty
     tmp
+  }
+
+  def invoke[T](m: MethodBuilder[_], args: Value[_]*): Value[T] =
+    if (m.returnTypeInfo eq UnitInfo) {
+      append(invokeCode[Unit](m, args: _*))
+      coerce[T](Code._empty)
+    } else {
+      val result = invokeCode[T](m, args: _*)
+      memoize[T](result)(m.returnTypeInfo.asInstanceOf[TypeInfo[T]], implicitly[T =!= Unit])
+    }
+
+  def invokeCode[T](m: MethodBuilder[_], args: Value[_]*): Code[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastSeq.map(_.get))
+    val op = if (m.isStatic) INVOKESTATIC else INVOKEVIRTUAL
+    if (m.returnTypeInfo eq UnitInfo) {
+      end.append(lir.methodStmt(op, m.lmethod, argvs))
+      new VCode(start, end, null)
+    } else {
+      val value = lir.methodInsn(op, m.lmethod, argvs)
+      new VCode(start, end, value)
+    }
   }
 }
