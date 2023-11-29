@@ -199,7 +199,7 @@ object EmitMinHeap {
         }
       }
 
-    val arrayTy = PCanonicalArray(elemType.storageType(), required = true)
+    val arrayTy = PCanonicalArray(elemType.storageType().setRequired(true), required = true)
 
     val toArray_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), arrayTy.sType.paramType) { mb =>

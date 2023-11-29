@@ -10,7 +10,7 @@ import is.hail.expr.ir.streams.EmitMinHeap
 import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32Required}
 import is.hail.utils.{FastSeq, Interval, using}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
@@ -149,7 +149,7 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
       pool.scopedRegion { r =>
         xs.foreach(heap.push)
         val ptr = heap.toArray(r)
-        SafeIndexedSeq(PCanonicalArray(PInt32()), ptr).asInstanceOf[IndexedSeq[Int]]
+        SafeIndexedSeq(PCanonicalArray(PInt32Required), ptr).asInstanceOf[IndexedSeq[Int]]
       }
     }
 
@@ -161,8 +161,8 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
     val Main = emodb.genEmitClass[H](name)(H)
 
     val MinHeap = EmitMinHeap(Main.emodb, A.sType) { classBuilder =>
-      (cb: EmitCodeBuilder, a: SValue, b: SValue) =>
-        classBuilder.getOrdering(A.sType, A.sType).compareNonnull(cb, a, b)
+      (cb: EmitCodeBuilder, x: SValue, y: SValue) =>
+        classBuilder.getOrdering(A.sType, A.sType).compareNonnull(cb, x, y)
     }(Main)
 
     Main.defineEmitMethod("push", FastSeq(A.ti), UnitInfo) { mb =>

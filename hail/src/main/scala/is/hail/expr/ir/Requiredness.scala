@@ -269,8 +269,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addElementBinding(l, left, makeOptional = (joinType == "outer" || joinType == "right"))
         addElementBinding(r, right, makeOptional = (joinType == "outer" || joinType == "left"))
       case StreamLeftIntervalJoin(left, right, _, _, lname, rname, _) =>
-        addElementBinding(lname, left, makeRequired = true)
-        addBinding(rname, right)
+        addElementBinding(lname, left)
+        val uses = refMap(rname)
+        val rtypes = Array(lookup(right))
+        uses.foreach { u => defs.bind(u, rtypes) }
+        dependents.getOrElseUpdate(right, mutable.Set[RefEquality[BaseIR]]()) ++= uses
       case StreamAgg(a, name, query) =>
         addElementBinding(name, a)
       case StreamAggScan(a, name, query) =>
