@@ -596,7 +596,7 @@ object BGENFunctions extends RegistryFunctions {
               "()V",
               false,
               UnitInfo,
-              FastSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+              FastSeq(lir.load(ctor.mb.this_.asInstanceOf[LocalRef[_]].l))))
           cb += new VCode(L, L, null)
 
           val path = cb.memoize(ctor.getCodeParam[String](1))

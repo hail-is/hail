@@ -179,7 +179,7 @@ object EmitStream {
             "()V",
             false,
             UnitInfo,
-            FastSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+            FastSeq(lir.load(ctor.mb.this_.asInstanceOf[LocalRef[_]].l))))
         cb += new VCode(L, L, null)
 
         val newEnv = restoreEnv(cb, 3)

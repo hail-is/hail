@@ -470,7 +470,7 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
   def runMethodWithHailExceptionHandler(mname: String): Code[(String, java.lang.Integer)] = {
     Code.invokeScalaObject2[AnyRef, String, (String, java.lang.Integer)](CodeExceptionHandler.getClass,
       "handleUserException",
-      cb._this.get.asInstanceOf[Code[AnyRef]], mname)
+      cb.this_.get.asInstanceOf[Code[AnyRef]], mname)
   }
 
   def backend(): Code[BackendUtils] = {

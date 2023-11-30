@@ -33,8 +33,8 @@ object CodeBuilder {
 trait CodeBuilderLike {
   def mb: MethodBuilder[_]
 
-  def this_: Value[_] =
-    mb._this
+  def this_ : Value[_] =
+    mb.this_
 
   def isOpenEnded: Boolean
 

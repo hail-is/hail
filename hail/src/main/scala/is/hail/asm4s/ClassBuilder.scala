@@ -142,10 +142,10 @@ class ModuleBuilder() {
             "()V",
             false,
             UnitInfo,
-            FastSeq(lir.load(ctor._this.asInstanceOf[LocalRef[_]].l))))
+            FastSeq(lir.load(ctor.this_.asInstanceOf[LocalRef[_]].l))))
         cb += new VCode(L, L, null)
         fields.zipWithIndex.foreach { case (f, i) =>
-          cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
+          cb += f.putAny(ctor.this_, ctor.getArg(i + 1)(f.ti).get)
         }
         Code._empty
       }
@@ -303,7 +303,7 @@ class ClassBuilder[C](
     Invokeable(classOf[Object], classOf[Object].getConstructor())
 
   private[this] var initBody: Code[Unit] =
-    super_.invoke(coerce[Object](_this), Array())
+    super_.invoke(coerce[Object](this_), Array())
 
   private[this] var lClinit: lir.Method = _
 
@@ -380,7 +380,7 @@ class ClassBuilder[C](
       val generic = newMethod(name, maybeGenericParameterTypeInfo.map(_.generic), maybeGenericReturnTypeInfo.generic)
       generic.emitWithBuilder { cb =>
         maybeGenericReturnTypeInfo.castToGeneric(cb,
-          cb.invoke(m, cb.mb.cb._this +: maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+          cb.invoke(m, cb.mb.cb.this_ +: maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
             ti.castFromGeneric(cb, generic.getArg(i + 1)(ti.generic))
           }: _*))
       }
@@ -481,7 +481,8 @@ class ClassBuilder[C](
     }
   }
 
-  def _this: Value[C] = new LocalRef[C](new lir.Parameter(null, 0, ti))
+  def this_ : Value[C] =
+    new LocalRef[C](new lir.Parameter(null, 0, ti))
 
   val fieldBuilder: SettableBuilder = new SettableBuilder {
     def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = genFieldThisRef[T](name)
@@ -605,8 +606,8 @@ class MethodBuilder[C](
     def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = newLocal[T](name)
   }
 
-  def _this: Value[C] =
-    if (!isStatic) cb._this
+  def this_ : Value[C] =
+    if (!isStatic) cb.this_
     else throw new IllegalAccessException(s"Cannot access 'this' from static context '${cb.className}.$methodName'.")
 
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] =
