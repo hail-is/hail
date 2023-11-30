@@ -251,8 +251,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         tree.init(cb)
         tree.bulkLoad(cb, ib) { (cb, ib, destCode) =>
           val dest = cb.newLocal("dss_deser_dest", destCode)
-          cb.invokeCode(binDec, cb.this_, region, cb.memoize(key.storageType.fieldOffset(dest, "bin")), ib)
-          cb.invokeCode(pointDec, cb.this_, region, cb.memoize(key.storageType.fieldOffset(dest, "point")), ib)
+          cb.invokeVoid(binDec, cb.this_, region, cb.memoize(key.storageType.fieldOffset(dest, "bin")), ib)
+          cb.invokeVoid(pointDec, cb.this_, region, cb.memoize(key.storageType.fieldOffset(dest, "point")), ib)
           cb += Region.storeBoolean(key.storageType.fieldOffset(dest, "empty"), false)
         }
         buffer.initialize(cb)
