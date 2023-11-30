@@ -74,21 +74,19 @@ object EmitNDArray {
   ): IEmitCode = {
 
     def emitNDInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
+
       assert(!emitter.ctx.inLoopCriticalPath.contains(ir))
+      val mb = cb.emb.genEmitMethod(context, FastSeq[ParamType](), UnitInfo)
       val r = cb.newField[Region]("emitInSeparate_region", region)
+
       var ev: EmitSettable = null
+      mb.voidWithBuilder { cb =>
+        emitter.ctx.tryingToSplit.update(ir, ())
+        val result: IEmitCode = deforest(ir, cb, r, env, container, loopEnv).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), r))
 
-      val mb: EmitMethodBuilder[_] =
-        cb.emb.ecb.getOrDefineEmitMethod(context, FastSeq(), UnitInfo) { mb =>
-          mb.voidWithBuilder { cb =>
-            emitter.ctx.tryingToSplit.update(ir, ())
-            val result: IEmitCode = deforest(ir, cb, r, env, container, loopEnv).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.setRequired(true), ndap.nDims), r))
-
-            ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
-            cb.assign(ev, result)
-          }
-        }
-
+        ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
+        cb.assign(ev, result)
+      }
       cb.invokeVoid(mb, cb.this_)
       ev.toI(cb)
     }
