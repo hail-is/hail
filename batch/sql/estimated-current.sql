@@ -241,35 +241,38 @@ CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start
 
 CREATE TABLE IF NOT EXISTS `job_groups_n_jobs_in_complete_states` (
   `id` BIGINT NOT NULL,
-  `job_group_id` INT NOT NULL DEFAULT 0,
+  `job_group_id` INT NOT NULL,
   `n_completed` INT NOT NULL DEFAULT 0,
   `n_succeeded` INT NOT NULL DEFAULT 0,
   `n_failed` INT NOT NULL DEFAULT 0,
   `n_cancelled` INT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`),
-  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
+  PRIMARY KEY (`id`, `job_group_id`),
+  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `job_groups_cancelled` (
   `id` BIGINT NOT NULL,
-  `job_group_id` INT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`id`),
-  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
+  `job_group_id` INT NOT NULL,
+  PRIMARY KEY (`id`, `job_group_id`),
+  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `job_groups_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
-  `job_group_id` INT NOT NULL DEFAULT 0,
+  `job_group_id` INT NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
   `ready_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `update_id`, `inst_coll`, `token`),
+  PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates (`batch_id`, `update_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
+  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX job_groups_inst_coll_staging_inst_coll ON job_groups_inst_coll_staging (`inst_coll`);
 CREATE INDEX job_groups_inst_coll_staging_batch_id_jg_id ON job_groups_inst_coll_staging (`batch_id`, `job_group_id`);
@@ -277,7 +280,7 @@ CREATE INDEX job_groups_inst_coll_staging_batch_id_jg_id ON job_groups_inst_coll
 CREATE TABLE `job_group_inst_coll_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
-  `job_group_id` INT NOT NULL DEFAULT 0,
+  `job_group_id` INT NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   # neither run_always nor cancelled
@@ -286,10 +289,11 @@ CREATE TABLE `job_group_inst_coll_cancellable_resources` (
   `n_creating_cancellable_jobs` INT NOT NULL DEFAULT 0,
   `n_running_cancellable_jobs` INT NOT NULL DEFAULT 0,
   `running_cancellable_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `update_id`, `inst_coll`, `token`),
+  PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates (`batch_id`, `update_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
+  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `job_group_inst_coll_cancellable_resources_inst_coll` ON `job_group_inst_coll_cancellable_resources` (`inst_coll`);
 CREATE INDEX job_group_inst_coll_cancellable_resources_jg_id ON `job_group_inst_coll_cancellable_resources` (`batch_id`, `job_group_id`);
@@ -310,11 +314,12 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `inst_coll` VARCHAR(255),
   `n_regions` INT DEFAULT NULL,
   `regions_bits_rep` BIGINT DEFAULT NULL,
-  `job_group_id` INT NOT NULL DEFAULT 0,
+  `job_group_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
+  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups(batch_id, job_group_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_batch_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
 CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `cancelled`);
@@ -395,11 +400,12 @@ CREATE TABLE IF NOT EXISTS `regions` (
 
 CREATE TABLE IF NOT EXISTS `job_group_attributes` (
   `batch_id` BIGINT NOT NULL,
-  `job_group_id` INT NOT NULL DEFAULT 0,
+  `job_group_id` INT NOT NULL,
   `key` VARCHAR(100) NOT NULL,
   `value` TEXT,
-  PRIMARY KEY (`batch_id`, `key`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE
+  PRIMARY KEY (`batch_id`, `job_group_id`, `key`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX job_group_attributes_key_value ON `job_group_attributes` (`key`, `value`(256));
 CREATE INDEX job_group_attributes_value ON `job_group_attributes` (`value`(256));
@@ -438,14 +444,15 @@ CREATE INDEX aggregated_billing_project_user_resources_by_date_v2_user ON `aggre
 DROP TABLE IF EXISTS `aggregated_job_group_resources_v2`;
 CREATE TABLE IF NOT EXISTS `aggregated_job_group_resources_v2` (
   `batch_id` BIGINT NOT NULL,
-  `job_group_id` INT NOT NULL DEFAULT 0,
+  `job_group_id` INT NOT NULL,
   `resource_id` INT NOT NULL,
   `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
   `migrated` BOOLEAN DEFAULT FALSE,
-  PRIMARY KEY (`batch_id`, `resource_id`, `token`),
+  PRIMARY KEY (`batch_id`, `job_group_id`, `resource_id`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 DROP TABLE IF EXISTS `aggregated_job_resources_v2`;
@@ -490,13 +497,14 @@ CREATE INDEX aggregated_billing_project_user_resources_by_date_v3_token ON `aggr
 
 CREATE TABLE IF NOT EXISTS `aggregated_job_group_resources_v3` (
   `batch_id` BIGINT NOT NULL,
-  `job_group_id` INT NOT NULL DEFAULT 0,
+  `job_group_id` INT NOT NULL,
   `resource_id` INT NOT NULL,
   `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `resource_id`, `token`),
+  PRIMARY KEY (`batch_id`, `job_group_id`, `resource_id`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `aggregated_job_resources_v3` (
