@@ -341,7 +341,11 @@ BEGIN
       job_group_self_and_ancestors.ancestor_id = in_job_group_id AND
       batch_updates.committed;
 
-    INSERT INTO job_groups_cancelled (id, job_group_id) VALUES (in_batch_id, in_job_group_id);
+    INSERT INTO job_groups_cancelled
+    SELECT batch_id, job_group_id
+    FROM job_group_self_and_ancestors
+    WHERE batch_id = in_batch_id AND ancestor_id = in_job_group_id
+    ON DUPLICATE KEY UPDATE job_group_id = job_groups_cancelled.job_group_id;
   END IF;
 
   COMMIT;
