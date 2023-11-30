@@ -25,7 +25,7 @@ import scala.language.existentials
 class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def newEmitClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
-    new EmitClassBuilder[C](this, modb.newClass[C](name, sourceFile)) {}
+    new EmitClassBuilder[C](this, modb.newClass[C](name, sourceFile))
 
   def genEmitClass[C](baseName: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName), sourceFile)
@@ -254,7 +254,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
       getFS.invoke[String, OutputStream]("create", path))
 }
 
-abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuilder[C])
+final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuilder[C])
   extends WrappedEmitModuleBuilder { self =>
   // wrapped ClassBuilder methods
   def className: String = cb.className
