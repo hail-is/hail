@@ -1,21 +1,5 @@
 DELIMITER $$
 
-DROP TRIGGER IF EXISTS jobs_before_insert $$
-CREATE TRIGGER jobs_before_insert BEFORE INSERT ON jobs
-FOR EACH ROW
-BEGIN
-  DECLARE job_group_cancelled BOOLEAN;
-
-  SET job_group_cancelled = EXISTS (SELECT TRUE
-                                    FROM job_groups_cancelled
-                                    WHERE id = NEW.batch_id AND job_group_id = NEW.job_group_id
-                                    LOCK IN SHARE MODE);
-
-  IF job_group_cancelled THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = "job group has already been cancelled";
-  END IF;
-END $$
-
 DROP TRIGGER IF EXISTS attempts_after_update $$
 CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
 FOR EACH ROW
@@ -404,121 +388,6 @@ BEGIN
   END IF;
 END $$
 
-DROP PROCEDURE IF EXISTS commit_batch_update $$
-CREATE PROCEDURE commit_batch_update(
-  IN in_batch_id BIGINT,
-  IN in_update_id INT,
-  IN in_timestamp BIGINT
-)
-BEGIN
-  DECLARE cur_update_committed BOOLEAN;
-  DECLARE expected_n_jobs INT;
-  DECLARE staging_n_jobs INT;
-  DECLARE cur_update_start_job_id INT;
-
-  START TRANSACTION;
-
-  SELECT committed, n_jobs INTO cur_update_committed, expected_n_jobs
-  FROM batch_updates
-  WHERE batch_id = in_batch_id AND update_id = in_update_id
-  FOR UPDATE;
-
-  IF cur_update_committed THEN
-    COMMIT;
-    SELECT 0 as rc;
-  ELSE
-    SELECT COALESCE(SUM(n_jobs), 0) INTO staging_n_jobs
-    FROM job_groups_inst_coll_staging
-    WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
-    FOR UPDATE;
-
-    # we can only check staged equals expected for the root job group
-    IF staging_n_jobs = expected_n_jobs THEN
-      UPDATE batch_updates
-      SET committed = 1, time_committed = in_timestamp
-      WHERE batch_id = in_batch_id AND update_id = in_update_id;
-
-      UPDATE batches SET
-        `state` = 'running',
-        time_completed = NULL,
-        n_jobs = n_jobs + expected_n_jobs
-      WHERE id = in_batch_id;
-
-      UPDATE job_groups
-      INNER JOIN (
-        SELECT batch_id, job_group_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
-        FROM job_groups_inst_coll_staging
-        WHERE batch_id = in_batch_id AND update_id = in_update_id
-        GROUP BY batch_id, job_group_id
-      ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
-      SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
-
-      # compute global number of new ready jobs from root job group
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
-      SELECT user, inst_coll, 0, @n_ready_jobs := COALESCE(SUM(n_ready_jobs), 0), @ready_cores_mcpu := COALESCE(SUM(ready_cores_mcpu), 0)
-      FROM job_groups_inst_coll_staging
-      JOIN batches ON batches.id = job_groups_inst_coll_staging.batch_id
-      WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
-      GROUP BY `user`, inst_coll
-      ON DUPLICATE KEY UPDATE
-        n_ready_jobs = n_ready_jobs + @n_ready_jobs,
-        ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
-
-      DELETE FROM job_groups_inst_coll_staging WHERE batch_id = in_batch_id AND update_id = in_update_id;
-
-      IF in_update_id != 1 THEN
-        SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
-
-        UPDATE jobs
-          LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
-          LEFT JOIN (
-            SELECT `job_parents`.batch_id, `job_parents`.job_id,
-              COALESCE(SUM(1), 0) AS n_parents,
-              COALESCE(SUM(state IN ('Pending', 'Ready', 'Creating', 'Running')), 0) AS n_pending_parents,
-              COALESCE(SUM(state = 'Success'), 0) AS n_succeeded
-            FROM `job_parents`
-            LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
-            WHERE job_parents.batch_id = in_batch_id AND
-              `job_parents`.job_id >= cur_update_start_job_id AND
-              `job_parents`.job_id < cur_update_start_job_id + staging_n_jobs
-            GROUP BY `job_parents`.batch_id, `job_parents`.job_id
-            FOR UPDATE
-          ) AS t
-            ON jobs.batch_id = t.batch_id AND
-               jobs.job_id = t.job_id
-          SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
-              jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
-              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
-              jobs_telemetry.time_ready = IF(COALESCE(t.n_pending_parents, 0) = 0 AND jobs_telemetry.time_ready IS NULL, in_timestamp, jobs_telemetry.time_ready)
-          WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
-              jobs.job_id < cur_update_start_job_id + staging_n_jobs;
-      END IF;
-
-      INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
-      SELECT new_ancestors.batch_id, new_ancestors.job_group_id, new_ancestors.ancestor_id, new_ancestors.level
-      FROM (
-        SELECT batch_id, job_group_id, MIN(ancestor_id) AS last_known_ancestor, MAX(level) AS last_known_level
-        FROM job_group_self_and_ancestors
-        WHERE batch_id = in_batch_id
-        GROUP BY batch_id, job_group_id
-        HAVING last_known_ancestor != 0
-      ) AS last_known_ancestors
-      LEFT JOIN LATERAL (
-        SELECT last_known_ancestors.batch_id, last_known_ancestors.job_group_id, ancestor_id, (last_known_ancestors.last_known_level + 1) AS level
-        FROM job_group_self_and_ancestors
-        WHERE last_known_ancestors.batch_id = job_group_self_and_ancestors.batch_id AND
-          last_known_ancestors.last_known_ancestor = job_group_self_and_ancestors.job_group_id
-      ) AS new_ancestors ON TRUE;
-
-      COMMIT;
-      SELECT 0 as rc;
-    ELSE
-      ROLLBACK;
-      SELECT 1 as rc, expected_n_jobs, staging_n_jobs as actual_n_jobs, 'wrong number of jobs' as message;
-    END IF;
-  END IF;
-END $$
-
 DROP PROCEDURE IF EXISTS cancel_job_group $$
 CREATE PROCEDURE cancel_job_group(
   IN in_batch_id VARCHAR(100),
@@ -597,9 +466,6 @@ END $$
 DELIMITER ;
 
 SET foreign_key_checks = 0;
-
-ALTER TABLE batch_updates ADD COLUMN start_job_group_id INT NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
-ALTER TABLE batch_updates ADD COLUMN n_job_groups INT NOT NULL DEFAULT 1, ALGORITHM=INSTANT;
 
 ALTER TABLE jobs MODIFY COLUMN `job_group_id` INT NOT NULL;
 ALTER TABLE jobs ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
