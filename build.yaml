@@ -2347,6 +2347,9 @@ steps:
       - name: populate-job-groups
         script: /io/sql/populate_job_groups.py
         online: true
+      - name: rename-job-groups-tables
+        script: /io/sql/rename-job-groups-tables.sql
+        online: false  # this must be offline
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
