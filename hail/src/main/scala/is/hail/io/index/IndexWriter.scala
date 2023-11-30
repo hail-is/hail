@@ -311,7 +311,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
         cb.if_(utils.size.ceq(next),
           parentBuilder.create(cb), {
             cb.if_(utils.getLength(next).ceq(branchingFactor),
-              cb.invokeVoid(m, cb._this, CodeParam(next), CodeParam(false))
+              cb.invokeVoid(m, cb.this_, CodeParam(next), CodeParam(false))
             )
             parentBuilder.loadFrom(cb, utils, next)
           })
@@ -337,7 +337,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
         cb += ob.flush()
 
         cb.if_(utils.getLength(0).ceq(branchingFactor),
-          cb.invokeVoid(writeInternalNode, cb._this, CodeParam(0), CodeParam(false))
+          cb.invokeVoid(writeInternalNode, cb.this_, CodeParam(0), CodeParam(false))
         )
         parentBuilder.loadFrom(cb, utils, 0)
 
@@ -353,28 +353,28 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       m.emitWithBuilder { cb =>
         val idxOff = cb.newLocal[Long]("indexOff")
         val level = m.newLocal[Int]("level")
-        cb.if_(leafBuilder.ab.length > 0, cb.invokeVoid(writeLeafNode, cb._this))
+        cb.if_(leafBuilder.ab.length > 0, cb.invokeVoid(writeLeafNode, cb.this_))
         cb.assign(level, 0)
         cb.while_(level < utils.size - 1, {
           cb.if_(utils.getLength(level) > 0,
-            cb.invokeVoid(writeInternalNode, cb._this, CodeParam(level), CodeParam(false))
+            cb.invokeVoid(writeInternalNode, cb.this_, CodeParam(level), CodeParam(false))
           )
           cb.assign(level, level + 1)
         })
         cb.assign(idxOff, utils.bytesWritten)
-        cb.invokeVoid(writeInternalNode, cb._this, CodeParam(level), CodeParam(true))
+        cb.invokeVoid(writeInternalNode, cb.this_, CodeParam(level), CodeParam(true))
         idxOff.load()
       }
     }
 
   def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode) {
-    cb.if_(leafBuilder.ab.length.ceq(branchingFactor), cb.invokeVoid(writeLeafNode, cb._this))
+    cb.if_(leafBuilder.ab.length.ceq(branchingFactor), cb.invokeVoid(writeLeafNode, cb.this_))
     leafBuilder.add(cb, key, offset, annotation)
     cb.assign(elementIdx, elementIdx + 1L)
   }
 
   def close(cb: EmitCodeBuilder): Unit = {
-    val off = cb.invokeCode[Long](flush, cb._this)
+    val off = cb.invokeCode[Long](flush, cb.this_)
     leafBuilder.close(cb)
     utils.close(cb)
     utils.writeMetadata(cb, utils.size + 1, off, elementIdx)

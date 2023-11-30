@@ -385,7 +385,7 @@ object StagedBGENReader {
               .concat(nExpectedBytesProbs.toS)
               .concat("'.")))
 
-          cb.invokeVoid(memoMB, cb._this)
+          cb.invokeVoid(memoMB, cb.this_)
 
           val (pushElement, finish) = entriesArrayType.constructFromFunctions(cb, region, nSamples, deepCopy = false)
 
@@ -424,7 +424,7 @@ object StagedBGENReader {
 
       cb.define(Lfinish)
     }
-    cb.invokeVoid(emb, cb._this, region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding)
+    cb.invokeVoid(emb, cb.this_, region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding)
     out
   }
 

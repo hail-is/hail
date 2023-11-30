@@ -89,7 +89,7 @@ object EmitNDArray {
           }
         }
 
-      cb.invokeVoid(mb, cb._this)
+      cb.invokeVoid(mb, cb.this_)
       ev.toI(cb)
     }
 

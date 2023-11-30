@@ -325,5 +325,5 @@ class BinarySearch[C](mb: EmitMethodBuilder[C],
 
   // check missingness of v before calling
   def search(cb: EmitCodeBuilder, array: SValue, v: EmitCode): Value[Int] =
-    cb.memoize(cb.invokeCode[Int](findElt, cb._this, array, v))
+    cb.memoize(cb.invokeCode[Int](findElt, cb.this_, array, v))
 }

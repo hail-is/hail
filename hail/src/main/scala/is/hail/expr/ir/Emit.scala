@@ -593,7 +593,7 @@ class Emit[C](
       ctx.tryingToSplit.bind(ir, ())
       emitVoid(cb, ir, r, env, container, loopEnv)
     }
-    cb.invokeVoid(mb, cb._this)
+    cb.invokeVoid(mb, cb.this_)
   }
 
   def emitSplitMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): (EmitSettable, EmitMethodBuilder[_]) = {
@@ -619,7 +619,7 @@ class Emit[C](
 
     assert(!ctx.inLoopCriticalPath.contains(ir))
     val (ev, mb) = emitSplitMethod(context, cb, ir, region, env, container, loopEnv)
-    cb.invokeVoid(mb, cb._this)
+    cb.invokeVoid(mb, cb.this_)
     ev.toI(cb)
   }
 
@@ -658,7 +658,7 @@ class Emit[C](
             mb.voidWithBuilder { cb =>
               group.foreach(x => emitVoid(x, cb, mb.getCodeParam[Region](1), env, container, loopEnv))
             }
-            cb.invokeVoid(mb, cb._this, region)
+            cb.invokeVoid(mb, cb.this_, region)
           }
         } else
           xs.foreach(x => emitVoid(x))
@@ -1075,7 +1075,7 @@ class Emit[C](
               }
             }
 
-            cb.invokeVoid(bcMb, cb._this, index, len, const(errorID))
+            cb.invokeVoid(bcMb, cb.this_, index, len, const(errorID))
         }
 
         emitI(a).flatMap(cb) { case av: SIndexableValue =>
@@ -2775,7 +2775,7 @@ class Emit[C](
         EmitCode.fromI(mb) { cb =>
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
-            cb.invokeSCode(meth, FastSeq[Param](cb._this, CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
+            cb.invokeSCode(meth, FastSeq[Param](cb.this_, CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
           }
         }
 
@@ -2847,7 +2847,7 @@ class Emit[C](
       iec.get(cb, "Result of sorting function cannot be missing").asBoolean.value
     }
     (cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]) =>
-      cb.memoize(cb.invokeCode[Boolean](sort, cb._this, region, l, r))
+      cb.memoize(cb.invokeCode[Boolean](sort, cb.this_, region, l, r))
   }
 }
 

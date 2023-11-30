@@ -165,7 +165,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         pushF.getCodeParam[Region](1),
         pushF.getEmitParam(cb, 2))
     }
-    cb.invokeVoid(pushF, cb._this, region, elt)
+    cb.invokeVoid(pushF, cb.this_, region, elt)
   }
 
   def append(cb: EmitCodeBuilder, region: Value[Region], bll: StagedBlockLinkedList): Unit = {
@@ -181,7 +181,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         pushImpl(cb, appF.getCodeParam[Region](1), elt)
       }
     }
-    cb.invokeVoid(appF, cb._this, region)
+    cb.invokeVoid(appF, cb.this_, region)
   }
 
   def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerValue = {
@@ -207,7 +207,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       }
       cb += ob.writeBoolean(false)
     }
-    cb.invokeVoid(serF, cb._this, region, outputBuffer)
+    cb.invokeVoid(serF, cb.this_, region, outputBuffer)
   }
 
   def deserialize(cb: EmitCodeBuilder, region: Value[Region], inputBuffer: Value[InputBuffer]): Unit = {
@@ -223,7 +223,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         appendShallow(cb, r, dec(cb, r, ib))
       })
     }
-    cb.invokeVoid(desF, cb._this, region, inputBuffer)
+    cb.invokeVoid(desF, cb.this_, region, inputBuffer)
   }
 
   private def appendShallow(cb: EmitCodeBuilder, r: Value[Region], aCode: SValue): Unit = {
@@ -261,6 +261,6 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       }
       cb.assign(totalCount, other.totalCount)
     }
-    cb.invokeVoid(initF, cb._this, region)
+    cb.invokeVoid(initF, cb.this_, region)
   }
 }

@@ -311,11 +311,11 @@ class ASM4SSuite extends HailSuite {
       val c = fb.getArg[Int](3)
       val res = cb.newLocal[Int]("res")
       cb.if_(a.ceq(0), {
-        cb.assign(res, cb.invokeCode(add, cb._this, b, c))
+        cb.assign(res, cb.invokeCode(add, cb.this_, b, c))
       }, {
         cb.if_(a.ceq(1),
-          cb.assign(res, cb.invoke(sub, cb._this, b, c)),
-          cb.assign(res, cb.invoke(mul, cb._this, b, c))
+          cb.assign(res, cb.invoke(sub, cb.this_, b, c)),
+          cb.assign(res, cb.invoke(mul, cb.this_, b, c))
         )
       })
       res
@@ -342,7 +342,7 @@ class ASM4SSuite extends HailSuite {
     )
 
     fb.emitWithBuilder { cb =>
-      cb.invoke(add, cb._this, fb.getArg[Int](1), fb.getArg[Int](2))
+      cb.invoke(add, cb.this_, fb.getArg[Int](1), fb.getArg[Int](2))
     }
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f(1, 1) == 2)
@@ -392,7 +392,7 @@ class ASM4SSuite extends HailSuite {
         case BooleanInfo => mb.emit(Code(c, booleanField.load()))
       }
       fb.emitWithBuilder { cb =>
-        cb.invoke(mb, cb._this, fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3))
+        cb.invoke(mb, cb.this_, fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3))
       }
       val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
       f(arg1, arg2, arg3)

@@ -47,7 +47,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildEncoder(st: SType, kb: EmitClassBuilder[_]): StagedEncoder = {
     val mb = buildEncoderMethod(st, kb);
-    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, cb._this, sv, ob) }
+    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, cb.this_, sv, ob) }
   }
 
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] =
@@ -65,7 +65,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildDecoder(t: Type, kb: EmitClassBuilder[_]): StagedDecoder = {
     val mb = buildDecoderMethod(t: Type, kb);
     { (cb: EmitCodeBuilder, r: Value[Region], ib: Value[InputBuffer]) =>
-      cb.invokeSCode(mb, cb._this, r, ib)
+      cb.invokeSCode(mb, cb.this_, r, ib)
     }
   }
 
@@ -89,7 +89,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildInplaceDecoder(pt: PType, kb: EmitClassBuilder[_]): StagedInplaceDecoder = {
     val mb = buildInplaceDecoderMethod(pt, kb);
     { (cb: EmitCodeBuilder, r: Value[Region], addr: Value[Long], ib: Value[InputBuffer]) =>
-      cb.invokeVoid(mb, cb._this, r, addr, ib)
+      cb.invokeVoid(mb, cb.this_, r, addr, ib)
     }
   }
 
@@ -118,7 +118,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       }
     }
 
-    { (cb, r, in) => cb.invokeVoid(mb, cb._this, r, in) }
+    { (cb, r, in) => cb.invokeVoid(mb, cb.this_, r, in) }
   }
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit

@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode, ParamType, SortOrder}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
@@ -207,81 +207,89 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   private def loadKey(cb: EmitCodeBuilder, offset: Value[Long]): EmitValue =
     cb.memoize(IEmitCode(cb, keyIsMissing(cb, offset), loadKeyValue(cb, offset)))
 
-  private val compareElt: EmitMethodBuilder[_] =
-    kb.defineEmitMethod(genName("m", "i_gt_j"), FastSeq(LongInfo, LongInfo), IntInfo) { mb =>
-      val i = mb.getCodeParam[Long](1)
-      val j = mb.getCodeParam[Long](2)
+  private val compareElt: (EmitCodeBuilder, Value[Long], Value[Long]) => Value[Int] = {
+    val mb = kb.genEmitMethod("i_gt_j", FastSeq[ParamType](LongInfo, LongInfo), IntInfo)
+    val i = mb.getCodeParam[Long](1)
+    val j = mb.getCodeParam[Long](2)
 
-      mb.emitWithBuilder { cb =>
-        compareIndexedKey(cb,
-          indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(i, 0)),
-          indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(j, 0))
-        )
-      }
-    }
+    mb.emitWithBuilder(cb => compareIndexedKey(cb,
+      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(i, 0)),
+      indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(j, 0))))
 
-  private val swap: EmitMethodBuilder[_] =
-    kb.defineEmitMethod(genName("m", "swap"), FastSeq(LongInfo, LongInfo), UnitInfo) { mb =>
-      val i = mb.getCodeParam[Long](1)
-      val j = mb.getCodeParam[Long](2)
+    (cb: EmitCodeBuilder, i: Value[Long], j: Value[Long]) =>
+      cb.invokeCode(mb, cb.this_, i, j)
+  }
 
-      mb.voidWithBuilder { cb =>
-        cb += Region.copyFrom(i, staging, eltTuple.byteSize)
-        cb += Region.copyFrom(j, i, eltTuple.byteSize)
-        cb += Region.copyFrom(staging, j, eltTuple.byteSize)
-      }
-    }
+  private val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Unit = {
+    val mb = kb.genEmitMethod("swap", FastSeq[ParamType](LongInfo, LongInfo), UnitInfo)
+    val i = mb.getCodeParam[Long](1)
+    val j = mb.getCodeParam[Long](2)
 
-  private val rebalanceUp: EmitMethodBuilder[_] =
-    kb.defineEmitMethod(genName("m", "rebalance_up"), FastSeq(IntInfo), UnitInfo) { mb =>
-      val idx = mb.getCodeParam[Int](1)
+    mb.voidWithBuilder({ cb =>
+      cb += Region.copyFrom(i, staging, eltTuple.byteSize)
+      cb += Region.copyFrom(j, i, eltTuple.byteSize)
+      cb += Region.copyFrom(staging, j, eltTuple.byteSize)
+    })
 
-      mb.voidWithBuilder { cb =>
-        cb.if_(idx > 0, {
+    (cb: EmitCodeBuilder, x: Value[Long], y: Value[Long]) => cb.invokeVoid(mb, cb.this_, x, y)
+  }
+
+
+  private val rebalanceUp: (EmitCodeBuilder, Value[Int]) => Unit = {
+    val mb = kb.genEmitMethod("rebalance_up", FastSeq[ParamType](IntInfo), UnitInfo)
+    val idx = mb.getCodeParam[Int](1)
+
+    mb.voidWithBuilder { cb =>
+      cb.if_(idx > 0,
+        {
           val parent = cb.memoize((idx + 1) / 2 - 1)
           val ii = elementOffset(cb, idx)
           val jj = elementOffset(cb, parent)
-          cb.if_(cb.invokeCode[Int](compareElt, cb._this, ii, jj) > 0, {
-            cb.invokeVoid(swap, cb._this, ii, jj)
-            cb.invokeVoid(mb, cb._this, parent)
+          cb.if_(compareElt(cb, ii, jj) > 0, {
+            swap(cb, ii, jj)
+            cb.invokeVoid(mb, cb.this_, parent)
           })
         })
-      }
     }
 
-  private val rebalanceDown: EmitMethodBuilder[_] =
-    kb.defineEmitMethod(genName("m", "rebalance_down"), FastSeq(IntInfo), UnitInfo) { mb =>
-      val idx = mb.getCodeParam[Int](1)
+    (cb: EmitCodeBuilder, x: Value[Int]) => cb.invokeVoid(mb, cb.this_, x)
+  }
 
-      mb.voidWithBuilder { cb =>
-        val child1 = cb.newLocal[Int]("child_1")
-        val child2 = cb.newLocal[Int]("child_2")
-        val minChild = cb.newLocal[Int]("min_child")
-        val ii = cb.newLocal[Long]("ii")
-        val jj = cb.newLocal[Long]("jj")
+  private val rebalanceDown: (EmitCodeBuilder, Value[Int]) => Unit = {
+    val mb = kb.genEmitMethod("rebalance_down", FastSeq[ParamType](IntInfo), UnitInfo)
+    val idx = mb.getCodeParam[Int](1)
 
+    val child1 = mb.newLocal[Int]("child_1")
+    val child2 = mb.newLocal[Int]("child_2")
+    val minChild = mb.newLocal[Int]("min_child")
+    val ii = mb.newLocal[Long]("ii")
+    val jj = mb.newLocal[Long]("jj")
 
-        cb.assign(child1, (idx + 1) * 2 - 1)
-        cb.assign(child2, child1 + 1)
-        cb.if_(child1 < ab.size, {
-          cb.if_(child2 >= ab.size, cb.assign(minChild, child1), {
-              val o1 = elementOffset(cb, child1)
-              val o2 = elementOffset(cb, child2)
-              cb.if_(cb.invokeCode[Int](compareElt, cb._this, o1, o2) > 0,
-                cb.assign(minChild, child1),
-                cb.assign(minChild, child2)
-              )
-            }
-          )
+    mb.voidWithBuilder { cb =>
+      cb.assign(child1, (idx + 1) * 2 - 1)
+      cb.assign(child2, child1 + 1)
+      cb.if_(child1 < ab.size,
+        {
+          cb.if_(child2 >= ab.size, {
+            cb.assign(minChild, child1)
+          }, {
+            cb.if_(compareElt(cb, elementOffset(cb, child1), elementOffset(cb, child2)) > 0, {
+              cb.assign(minChild, child1)
+            }, {
+              cb.assign(minChild, child2)
+            })
+          })
           cb.assign(ii, elementOffset(cb, minChild))
           cb.assign(jj, elementOffset(cb, idx))
-          cb.if_(cb.invokeCode[Int](compareElt, cb._this, ii, jj) > 0, {
-            cb.invokeVoid(swap, cb._this, ii, jj)
-            cb.invokeVoid(mb, cb._this, minChild)
-          })
+          cb.if_(compareElt(cb, ii, jj) > 0,
+            {
+              swap(cb, ii, jj)
+              cb.invokeVoid(mb, cb.this_, minChild)
+            })
         })
-      }
     }
+    (cb: EmitCodeBuilder, x: Value[Int]) => cb.invokeVoid(mb, cb.this_, x)
+  }
 
   private lazy val gc: EmitCodeBuilder => Unit = {
     if (canHaveGarbage) {
@@ -299,7 +307,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
             cb += oldRegion.invoke[Unit]("invalidate")
           })
       }
-      (cb: EmitCodeBuilder) => cb.invokeVoid(mb, cb._this)
+      (cb: EmitCodeBuilder) => cb.invokeVoid(mb, cb.this_)
     } else
       (_: EmitCodeBuilder) => ()
   }
@@ -342,19 +350,18 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   private def swapStaging(cb: EmitCodeBuilder): Unit = {
     eltTuple.storeAtAddress(cb, ab.elementOffset(cb, 0), region, eltTuple.loadCheapSCode(cb, staging), true)
-    cb.invokeVoid(rebalanceDown, cb._this, const(0))
+    rebalanceDown(cb, 0)
   }
 
   private def enqueueStaging(cb: EmitCodeBuilder): Unit = {
     ab.append(cb, eltTuple.loadCheapSCode(cb, staging))
-    cb.invokeVoid(rebalanceUp, cb._this, cb.memoize(ab.size - 1))
+    rebalanceUp(cb, cb.memoize(ab.size - 1))
   }
 
   def seqOp(cb: EmitCodeBuilder, v: EmitCode, k: EmitCode): Unit = {
-    val mb = cb.emb.ecb.genEmitMethod("take_by_seqop",
-      FastSeq(v.emitParamType, k.emitParamType),
-      UnitInfo
-    )
+    val mb = kb.genEmitMethod("take_by_seqop",
+      FastSeq[ParamType](v.emitParamType, k.emitParamType),
+      UnitInfo)
 
     mb.voidWithBuilder { cb =>
       val value = mb.getEmitParam(cb, 1)
@@ -377,7 +384,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       })
     }
 
-    cb.invokeVoid(mb, cb._this, v, k)
+    cb.invokeVoid(mb, cb.this_, v, k)
   }
 
   // for tests
@@ -388,7 +395,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   def combine(cb: EmitCodeBuilder, other: TakeByRVAS): Unit = {
-    val mb = cb.emb.ecb.genEmitMethod("take_by_combop", FastSeq(), UnitInfo)
+    val mb = kb.genEmitMethod("take_by_combop", FastSeq[ParamType](), UnitInfo)
+
 
     mb.voidWithBuilder { cb =>
       val i = cb.newLocal[Int]("combine_i")
@@ -404,84 +412,90 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
             },
             {
               cb.assign(tempPtr, elementOffset(cb, 0))
-              cb.if_(cb.invokeCode[Int](compareElt, cb._this, offset, tempPtr) < 0, {
-                copyElementToStaging(cb, offset)
-                swapStaging(cb)
-                gc(cb)
-              })
+              cb.if_(compareElt(cb, offset, tempPtr) < 0,
+                {
+                  copyElementToStaging(cb, offset)
+                  swapStaging(cb)
+                  gc(cb)
+                })
             }
           ))
       })
-
       cb.assign(maxIndex, maxIndex + other.maxIndex)
     }
 
-    cb.invokeVoid(mb, cb._this)
+    cb.invokeVoid(mb, cb.this_)
   }
 
   def result(cb: EmitCodeBuilder, _r: Value[Region], resultType: PCanonicalArray): SIndexablePointerValue = {
+    val mb = kb.genEmitMethod("take_by_result", FastSeq[ParamType](classInfo[Region]), LongInfo)
 
-    val swap: EmitMethodBuilder[_] =
-      cb.emb.ecb.defineEmitMethod(genName("m", "quicksort_swap"),
-        FastSeq(LongInfo, LongInfo),
-        UnitInfo
-      ) { mb =>
+    val quickSort: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Unit] = {
+      val mb = kb.genEmitMethod("result_quicksort", FastSeq[ParamType](LongInfo, IntInfo, IntInfo), UnitInfo)
+      val indices = mb.getCodeParam[Long](1)
+      val low = mb.getCodeParam[Int](2)
+      val high = mb.getCodeParam[Int](3)
 
+      val pivotIndex = mb.newLocal[Int]("pivotIdx")
+
+      val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Value[Unit] = {
+        val mb = kb.genEmitMethod("quicksort_swap", FastSeq[ParamType](LongInfo, LongInfo), UnitInfo)
         val i = mb.getCodeParam[Long](1)
         val j = mb.getCodeParam[Long](2)
 
-        mb.voidWithBuilder { cb =>
-          val tmp = mb.newLocal[Int]("swap_tmp")
-          cb.assign(tmp, Region.loadInt(i))
-          cb += Region.storeInt(i, Region.loadInt(j))
-          cb += Region.storeInt(j, tmp)
-        }
+        val tmp = mb.newLocal[Int]("swap_tmp")
+
+        mb.emit(
+          Code(
+            tmp := Region.loadInt(i),
+            Region.storeInt(i, Region.loadInt(j)),
+            Region.storeInt(j, tmp)
+          )
+        )
+        (cb, i, j) => cb.invokeCode(mb, cb.this_, i, j)
       }
 
-    val partition: EmitMethodBuilder[_] =
-      cb.emb.ecb.defineEmitMethod(genName("m", "quicksort_partition"),
-        FastSeq(LongInfo, IntInfo, IntInfo),
-        IntInfo
-      ) { mb =>
+      val partition: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Int] = {
+        val mb = kb.genEmitMethod("quicksort_partition", FastSeq[ParamType](LongInfo, IntInfo, IntInfo), IntInfo)
 
         val indices = mb.getCodeParam[Long](1)
         val low = mb.getCodeParam[Int](2)
         val high = mb.getCodeParam[Int](3)
 
-        mb.emitWithBuilder[Int] { cb =>
-          val pivotIndex = cb.newLocal[Int]("pivotIndex")
-          val pivotOffset = cb.newLocal[Long]("pivot")
-          val tmpOffset = cb.newLocal[Long]("tmpOffset")
+        val pivotIndex = mb.newLocal[Int]("pivotIndex")
+        val pivotOffset = mb.newLocal[Long]("pivot")
+        val tmpOffset = mb.newLocal[Long]("tmpOffset")
 
-          def indexOffset(idx: Value[Int]): Value[Long] =
-            cb.memoize(indices + idx.toL * 4L)
+        def indexOffset(cb: EmitCodeBuilder, idx: Value[Int]): Value[Long] =
+          cb.memoize(indices + idx.toL * 4L)
 
-          def indexAt(idx: Value[Int]): Value[Int] =
-            cb.memoize(Region.loadInt(indexOffset(idx)))
+        def indexAt(cb: EmitCodeBuilder, idx: Value[Int]): Value[Int] =
+          cb.memoize(Region.loadInt(indexOffset(cb, idx)))
 
+        mb.emitWithBuilder { cb =>
           cb.if_(low.ceq(high), cb.append(Code._return(low)))
           cb.assign(pivotIndex, (low + high) / 2)
-          cb.assign(pivotOffset, elementOffset(cb, indexAt(pivotIndex)))
+          cb.assign(pivotOffset, elementOffset(cb, indexAt(cb, pivotIndex)))
 
           cb.loop { Lrecur =>
             cb.loop { Linner =>
-              cb.assign(tmpOffset, elementOffset(cb, indexAt(low)))
-              cb.if_(cb.invokeCode[Int](compareElt, cb._this, tmpOffset, pivotOffset) < 0, {
+              cb.assign(tmpOffset, elementOffset(cb, indexAt(cb, low)))
+              cb.if_(compareElt(cb, tmpOffset, pivotOffset) < 0, {
                 cb.assign(low, low + 1)
                 cb.goto(Linner)
               })
             }
 
             cb.loop { Linner =>
-              cb.assign(tmpOffset, elementOffset(cb, indexAt(high)))
-              cb.if_(cb.invokeCode[Int](compareElt, cb._this, tmpOffset, pivotOffset) > 0, {
+              cb.assign(tmpOffset, elementOffset(cb, indexAt(cb, high)))
+              cb.if_(compareElt(cb, tmpOffset, pivotOffset) > 0, {
                 cb.assign(high, high - 1)
                 cb.goto(Linner)
               })
             }
 
             cb.if_(high > low, {
-              cb.invokeVoid(swap, cb._this, indexOffset(low), indexOffset(high))
+              swap(cb, indexOffset(cb, low), indexOffset(cb, high))
               cb.assign(low, low + 1)
               cb.assign(high, high - 1)
               cb.goto(Lrecur)
@@ -490,65 +504,46 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
           high
         }
+        (cb, indices, lo, hi) => cb.invokeCode(mb, cb.this_, indices, lo, hi)
       }
 
-    val quickSort: EmitMethodBuilder[_] =
-      cb.emb.ecb.defineEmitMethod(genName("m", "result_quicksort"),
-        FastSeq(LongInfo, IntInfo, IntInfo),
-        UnitInfo
-      ) { mb =>
-
-        val indices = mb.getCodeParam[Long](1)
-        val low = mb.getCodeParam[Int](2)
-        val high = mb.getCodeParam[Int](3)
-
-        mb.voidWithBuilder { cb =>
-          val pivotIndex = cb.newLocal[Int]("pivotIdx")
-
-          cb.if_(low < high, {
-            cb.assign(pivotIndex, cb.invokeCode[Int](partition, cb._this, indices, low, high))
-            cb.invokeVoid(mb, cb._this, indices, low, pivotIndex)
-            cb.invokeVoid(mb, cb._this, indices, cb.memoize(pivotIndex + 1), high)
-          })
-        }
+      mb.voidWithBuilder { cb =>
+        cb.if_(low < high, {
+          cb.assign(pivotIndex, partition(cb, indices, low, high))
+          cb.invokeVoid(mb, indices, low, pivotIndex)
+          cb.invokeVoid(mb, indices, cb.memoize(pivotIndex + 1), high)
+        })
       }
 
-    val result: EmitMethodBuilder[_] =
-      cb.emb.ecb.defineEmitMethod(genName("m", "take_by_result"),
-        FastSeq(classInfo[Region]),
-        LongInfo
-      ) { mb =>
+      (cb, indices, lo, hi) => cb.invokeCode(mb, cb.this_, indices, lo, hi)
+    }
 
-        val r = mb.getCodeParam[Region](1)
+    mb.emitWithBuilder[Long] { cb =>
+      val r = mb.getCodeParam[Region](1)
 
-        mb.emitWithBuilder[Long] { cb =>
-          val indicesToSort = cb.newLocal[Long]("indices_to_sort",
-            r.load().allocate(4L, ab.size.toL * 4L)
-          )
+      val indicesToSort = cb.newLocal[Long]("indices_to_sort",
+        r.load().allocate(4L, ab.size.toL * 4L))
 
-          val i = cb.newLocal[Int]("i", 0)
+      val i = cb.newLocal[Int]("i", 0)
 
-          def indexOffset(idx: Code[Int]): Code[Long] =
-            indicesToSort + idx.toL * 4L
+      def indexOffset(idx: Code[Int]): Code[Long] = indicesToSort + idx.toL * 4L
 
-          cb.while_(i < ab.size, {
-            cb += Region.storeInt(indexOffset(i), i)
-            cb.assign(i, i + 1)
-          })
+      cb.while_(i < ab.size, {
+        cb += Region.storeInt(indexOffset(i), i)
+        cb.assign(i, i + 1)
+      })
 
-          cb.invokeVoid(quickSort, cb._this, indicesToSort, const(0), cb.memoize(ab.size - 1))
+      quickSort(cb, indicesToSort, 0, cb.memoize(ab.size - 1))
 
-          resultType.constructFromElements(cb, r, ab.size, deepCopy = true) { case (cb, idx) =>
-            val sortedIdx = cb.newLocal[Int]("tba_result_sortedidx", Region.loadInt(indexOffset(idx)))
-            ab.loadElement(cb, sortedIdx).toI(cb)
-              .flatMap(cb) { case pct: SBaseStructPointerValue =>
-                pct.loadField(cb, 1)
-              }
-          }.a
-        }
-      }
-
-    resultType.loadCheapSCode(cb, cb.invokeCode[Long](result, cb._this, _r))
+      resultType.constructFromElements(cb, r, ab.size, deepCopy = true) { case (cb, idx) =>
+        val sortedIdx = cb.newLocal[Int]("tba_result_sortedidx", Region.loadInt(indexOffset(idx)))
+        ab.loadElement(cb, sortedIdx).toI(cb)
+          .flatMap(cb) { case pct: SBaseStructPointerValue =>
+            pct.loadField(cb, 1)
+          }
+      }.a
+    }
+    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, cb.this_, _r))
   }
 }
 

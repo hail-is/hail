@@ -29,7 +29,7 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
     initMethod.voidWithBuilder(cb =>
       state.storeMissing(cb)
     )
-    cb.invokeVoid(initMethod, cb._this)
+    cb.invokeVoid(initMethod, cb.this_)
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -62,7 +62,7 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
         })
       })
     }
-    cb.invokeVoid(seqOpMethod, cb._this, nextNDArrayACode, nextNDArrayBCode)
+    cb.invokeVoid(seqOpMethod, cb.this_, nextNDArrayACode, nextNDArrayBCode)
   }
 
   override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: State, other: State): Unit = {
@@ -83,7 +83,7 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
         }
       )
     }
-    cb.invokeVoid(combOpMethod, cb._this)
+    cb.invokeVoid(combOpMethod, cb.this_)
   }
 
   override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {

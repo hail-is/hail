@@ -98,7 +98,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
           })
         }
       },
-      cb._this
+      cb.this_
     )
 
   def seqOp(cb: EmitCodeBuilder, elt: EmitCode): Unit = {

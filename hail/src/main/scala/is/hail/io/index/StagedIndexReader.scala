@@ -209,7 +209,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
           cb.assign(queryResultStartLeaf, startLeaf)
           Code._empty
         }
-      }, cb._this, endpoint, leansRight, rootLevel, rootOffset, rootSuccessorIndex, rootSuccessorLeaf)
+      }, cb.this_, endpoint, leansRight, rootLevel, rootOffset, rootSuccessorIndex, rootSuccessorLeaf)
   }
 
   // Supports both point and interval queries. If `isPointQuery`, end key
@@ -373,7 +373,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
               internalNode
             }
           },
-          cb._this,
+          cb.this_,
           offset
         ))
     })
@@ -405,7 +405,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
             leafPType.loadCheapSCode(cb, leafNodeAddr)
           }
         },
-        cb._this,
+        cb.this_,
         offset
       ))
     })
@@ -451,7 +451,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
           leafChildType.coerceOrCopy(cb, region, result, false)
         }
       },
-      cb._this,
+      cb.this_,
       region,
       absIndex
     ).asBaseStruct

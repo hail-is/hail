@@ -51,7 +51,7 @@ object EmitMinHeap {
         val poolRef = mb.getCodeParam[RegionPool](2)
 
         mb.voidWithBuilder { cb =>
-          cb += classBuilder.cb.super_.invoke(coerce[Object](cb._this), Array())
+          cb += classBuilder.cb.super_.invoke(coerce[Object](cb.this_), Array())
           cb.assign(pool, poolRef)
           cb.assign(region, Region.stagedCreate(Region.REGULAR, poolRef))
           cb.assign(garbage, cb.memoize(0L))
@@ -71,8 +71,8 @@ object EmitMinHeap {
     val compareAtIndex: EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("compareAtIndex", FastSeq(IntInfo, IntInfo), IntInfo) { mb =>
         mb.emitWithBuilder[Int] { cb =>
-          val l = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](1))
-          val r = cb.invokeSCode(load, cb._this, mb.getCodeParam[Int](2))
+          val l = cb.invokeSCode(load, cb.this_, mb.getCodeParam[Int](1))
+          val r = cb.invokeSCode(load, cb.this_, mb.getCodeParam[Int](2))
           compare(cb, l, r)
         }
       }
@@ -105,7 +105,7 @@ object EmitMinHeap {
       classBuilder.defineEmitMethod("peek", FastSeq(), SCodeParamType(elemType)) { mb =>
         mb.emitSCode { cb =>
           cb._assert(thisNonEmpty, s"${classBuilder.className}: peek empty")
-          cb.invokeSCode(load, cb._this, cb.memoize(0))
+          cb.invokeSCode(load, cb.this_, cb.memoize(0))
         }
       }
 
@@ -133,7 +133,7 @@ object EmitMinHeap {
             cb.assign(child, index * 2 + 1)
             cb.if_(child < heap.size,
               cb.if_(
-                cb.invokeCode[Int](compareAtIndex, cb._this, child, index) < 0,
+                cb.invokeCode[Int](compareAtIndex, cb.this_, child, index) < 0,
                 cb.assign(smallest, child)
               )
             )
@@ -142,14 +142,14 @@ object EmitMinHeap {
             cb.assign(child, index * 2 + 2)
             cb.if_(child < heap.size,
               cb.if_(
-                cb.invokeCode[Int](compareAtIndex, cb._this, child, smallest) < 0,
+                cb.invokeCode[Int](compareAtIndex, cb.this_, child, smallest) < 0,
                 cb.assign(smallest, child)
               )
             )
 
             cb.if_(smallest ceq index, cb.goto(Ldone))
 
-            cb.invokeVoid(swap, cb._this, index, smallest)
+            cb.invokeVoid(swap, cb.this_, index, smallest)
             cb.assign(index, smallest)
             cb.goto(Lrecur)
           }
@@ -164,10 +164,10 @@ object EmitMinHeap {
           cb._assert(thisNonEmpty, s"${classBuilder.className}: poll empty")
 
           val newSize = cb.memoize(heap.size - 1)
-          cb.invokeVoid(swap, cb._this, const(0), newSize)
+          cb.invokeVoid(swap, cb.this_, const(0), newSize)
           cb.assign(heap.size, newSize)
           cb.assign(garbage, garbage + 1L)
-          cb.invokeVoid(heapify, cb._this)
+          cb.invokeVoid(heapify, cb.this_)
         }
       }
 
@@ -181,7 +181,7 @@ object EmitMinHeap {
     val push_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("push", FastSeq(SCodeParamType(elemType)), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
-          cb.invokeVoid(append, cb._this, mb.getSCodeParam(1))
+          cb.invokeVoid(append, cb.this_, mb.getSCodeParam(1))
 
           val Ldone = CodeLabel()
           val current = cb.newLocal[Int]("index", heap.size - 1)
@@ -189,10 +189,10 @@ object EmitMinHeap {
 
           cb.while_(current > 0, {
             cb.assign(parent, (current - 1) / 2)
-            val cmp = cb.invokeCode[Int](compareAtIndex, cb._this, parent, current)
+            val cmp = cb.invokeCode[Int](compareAtIndex, cb.this_, parent, current)
             cb.if_(cmp <= 0, cb.goto(Ldone))
 
-            cb.invokeVoid(swap, cb._this, parent, current)
+            cb.invokeVoid(swap, cb.this_, parent, current)
             cb.assign(current, parent)
           })
 
@@ -222,7 +222,7 @@ object EmitMinHeap {
       override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit =
         cb.assignAny(this_,
           Code.newInstance(classBuilder.cb, ctor.mb, FastSeq(
-            cb.memoize(Code.checkcast[AnyRef](cb._this)), // `this` of the parent class
+            cb.memoize(Code.checkcast[AnyRef](cb.this_)), // `this` of the parent class
             pool
           ))
         )

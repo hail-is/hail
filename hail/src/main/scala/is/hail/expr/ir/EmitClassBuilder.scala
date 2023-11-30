@@ -433,7 +433,7 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
     }
 
     getF.emitWithBuilder { cb =>
-      cb.invokeVoid(storeF, cb._this)
+      cb.invokeVoid(storeF, cb.this_)
       _aggOff
     }
 

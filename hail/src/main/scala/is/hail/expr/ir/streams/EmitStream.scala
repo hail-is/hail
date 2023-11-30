@@ -1552,7 +1552,7 @@ object EmitStream {
 
                     cb.loop { Lrecur =>
                       cb.if_(minHeap.nonEmpty(cb), {
-                        val interval = cb.invokeSCode(loadInterval, cb._this, minHeap.peek(cb)).asInterval
+                        val interval = cb.invokeSCode(loadInterval, cb.this_, minHeap.peek(cb)).asInterval
                         val end = interval.loadEnd(cb).get(cb)
                         cb.if_(pointGTIntervalEndpoint(cb, key, end, interval.includesEnd), {
                           minHeap.pop(cb)
@@ -1569,7 +1569,7 @@ object EmitStream {
 
                     cb.loop { LproduceR =>
                       val rElem = rProd.element.toI(cb).get(cb)
-                      val interval = cb.invokeSCode(loadInterval, cb._this, rElem).asInterval
+                      val interval = cb.invokeSCode(loadInterval, cb.this_, rElem).asInterval
 
                       // Drop intervals whose right endpoint is before the key
                       val end = interval.loadEnd(cb).get(cb)

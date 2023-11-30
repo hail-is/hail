@@ -104,8 +104,8 @@ class FunctionSuite extends HailSuite {
     }
     fb.emitWithBuilder { cb =>
       cb.assign(i, 0)
-      cb.invokeVoid(mb1, cb._this)
-      cb.invokeVoid(mb2, cb._this)
+      cb.invokeVoid(mb1, cb.this_)
+      cb.invokeVoid(mb2, cb.this_)
       i
     }
     pool.scopedRegion { r =>
