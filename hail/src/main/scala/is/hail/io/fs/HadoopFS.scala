@@ -76,8 +76,9 @@ object HadoopFS {
 
 
 case class HadoopFSURL(path: String, conf: SerializableHadoopConfiguration) extends FSURL {
-  val hadoopPath = new hadoop.fs.Path(path)
-  val hadoopFs = hadoopPath.getFileSystem(conf.value)
+  private[this] val unqualifiedHadoopPath = new hadoop.fs.Path(path)
+  val hadoopFs = unqualifiedHadoopPath.getFileSystem(conf.value)
+  val hadoopPath = hadoopFs.makeQualified(unqualifiedHadoopPath)
 
   def addPathComponent(c: String): HadoopFSURL = HadoopFSURL(s"${hadoopPath.toString}/$c", conf)
   def getPath: String = hadoopPath.toString
