@@ -192,8 +192,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     rootSuccessorLeaf: SValue
   ): Unit = {
     cb.invokeVoid(
-      cb.emb.ecb.getOrGenEmitMethod("queryBound",
-        ("queryBound", this),
+      cb.emb.ecb.getOrDefineEmitMethod("queryBound",
         FastSeq(endpoint.st.paramType, typeInfo[Boolean], typeInfo[Int], typeInfo[Long], typeInfo[Long], leafChildLocalType.paramType),
         UnitInfo
       ) { emb =>
@@ -361,7 +360,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
     }, {
       cb.assign(ret,
         cb.invokeSCode(
-          cb.emb.ecb.getOrGenEmitMethod("readInternalNode", ("readInternalNode", this), FastSeq(LongInfo), ret.st.paramType) { emb =>
+          cb.emb.ecb.getOrDefineEmitMethod("readInternalNode", FastSeq(LongInfo), ret.st.paramType) { emb =>
             emb.emitSCode { cb =>
               val offset = emb.getCodeParam[Long](1)
               cb += is.invoke[Long, Unit]("seek", offset)
@@ -393,7 +392,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
       cb.assign(ret, leafPType.loadCheapSCode(cb, cached))
     }, {
       cb.assign(ret, cb.invokeSCode(
-        cb.emb.ecb.getOrGenEmitMethod("readLeafNode", ("readLeafNode", this), FastSeq(LongInfo), ret.st.paramType) { emb =>
+        cb.emb.ecb.getOrDefineEmitMethod("readLeafNode", FastSeq(LongInfo), ret.st.paramType) { emb =>
           emb.emitSCode { cb =>
             val offset = emb.getCodeParam[Long](1)
             cb += is.invoke[Long, Unit]("seek", offset)
@@ -415,8 +414,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], leafCodec: AbstractTypedCodec
 
   def queryIndex(cb: EmitCodeBuilder, region: Value[Region], absIndex: Value[Long]): SBaseStructValue = {
     cb.invokeSCode(
-      cb.emb.ecb.getOrGenEmitMethod("queryIndex",
-        ("queryIndex", this),
+      cb.emb.ecb.getOrDefineEmitMethod("queryIndex",
         FastSeq(classInfo[Region], typeInfo[Long]),
         leafChildType.paramType
       ) { emb =>

@@ -96,10 +96,10 @@ class FunctionSuite extends HailSuite {
   def testFunctionBuilderGetOrDefine() {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
-    val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastSeq(), UnitInfo) { mb =>
+    val mb1 = fb.ecb.getOrDefineEmitMethod("foo", FastSeq(), UnitInfo) { mb =>
       mb.emit(i := i + 1)
     }
-    val mb2 = fb.getOrGenEmitMethod("foo", "foo", FastSeq(), UnitInfo) { mb =>
+    val mb2 = fb.ecb.getOrDefineEmitMethod("foo", FastSeq(), UnitInfo) { mb =>
       mb.emit(i := i - 100)
     }
     fb.emitWithBuilder { cb =>

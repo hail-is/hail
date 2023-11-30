@@ -92,17 +92,17 @@ abstract class CodeOrdering {
     if (arg2.st != type2)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
-    val cacheKey = ("ordering", reversed, type1, type2, context)
-    val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
-      FastSeq(arg1.st.paramType, arg2.st.paramType), ti) { mb =>
-
+    val mb = cb.emb.ecb.getOrDefineEmitMethod(s"ord_${context}_${if (reversed) "reverse" else ""}",
+      FastSeq(arg1.st.paramType, arg2.st.paramType),
+      ti
+    ) { mb =>
       mb.emitWithBuilder[T] { cb =>
         val arg1 = mb.getSCodeParam(1)
         val arg2 = mb.getSCodeParam(2)
         f(cb, arg1, arg2)
       }
     }
-    cb.memoize(cb.invokeCode[T](mb, cb._this, arg1, arg2))
+    cb.invokeCode[T](mb, cb._this, arg1, arg2)
   }
 
   final def checkedEmitCode[T](cb: EmitCodeBuilder, arg1: EmitValue, arg2: EmitValue, missingEqual: Boolean, context: String,
@@ -112,17 +112,18 @@ abstract class CodeOrdering {
     if (arg2.st != type2)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
-    val cacheKey = ("ordering", reversed, arg1.emitType, arg2.emitType, context, missingEqual)
-    val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
-      FastSeq(arg1.emitParamType, arg2.emitParamType), ti) { mb =>
-
+    val mb = cb.emb.ecb.getOrDefineEmitMethod(
+      s"ord_${context}_${if (reversed) "reversed" else ""}_${if (missingEqual) "missingEqual" else ""}",
+      FastSeq(arg1.emitParamType, arg2.emitParamType),
+      ti
+    ) { mb =>
       mb.emitWithBuilder[T] { cb =>
         val arg1 = mb.getEmitParam(cb, 1)
         val arg2 = mb.getEmitParam(cb, 2)
         f(cb, arg1, arg2, missingEqual)
       }
     }
-    cb.memoize(cb.invokeCode[T](mb, cb._this, arg1, arg2))
+    cb.invokeCode[T](mb, cb._this, arg1, arg2)
   }
 
 

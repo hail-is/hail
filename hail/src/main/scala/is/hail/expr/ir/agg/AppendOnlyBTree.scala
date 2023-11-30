@@ -103,8 +103,10 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   private def insert(cb: EmitCodeBuilder, nodec: Value[Long], insertIdxc: Value[Int], kc: EmitCode, childC: Value[Long]): Value[Long] = {
     val kt = key.compType.sType
     val castKCode = EmitCode.fromI(cb.emb)(cb => kc.toI(cb).map(cb)(k => kt.coerceOrCopy(cb, region, k, false)))
-    val insertAt = kb.getOrGenEmitMethod("btree_insert", (this, "insert", kt),
-      FastSeq(typeInfo[Long], typeInfo[Int], castKCode.emitParamType, typeInfo[Long]), typeInfo[Long]) { insertAt =>
+    val insertAt = kb.getOrDefineEmitMethod("btree_insert",
+      FastSeq(typeInfo[Long], typeInfo[Int], castKCode.emitParamType, typeInfo[Long]),
+      typeInfo[Long]
+    ) { insertAt =>
       val node: Value[Long] = insertAt.getCodeParam[Long](1)
       val insertIdx: Value[Int] = insertAt.getCodeParam[Int](2)
       val k: EmitValue = insertAt.getEmitParam(cb, 3)
@@ -237,50 +239,52 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     cb.invokeCode[Long](insertAt, cb._this, nodec, insertIdxc, castKCode, childC)
   }
 
-  private def getF(cb: EmitCodeBuilder, root: Value[Long], kc: EmitCode): Value[Long] = {
-    val get = cb.emb.ecb.getEmitMethod("btree_get", FastSeq[ParamType](typeInfo[Long], kc.emitParamType), typeInfo[Long])
-    get.emitWithBuilder { cb =>
-      val node = get.getCodeParam[Long](1)
-      val k = get.getEmitParam(cb, 2)
+  private def getF(kc: ParamType): EmitMethodBuilder[_] =
+    kb.getOrDefineEmitMethod("btree_get",
+      FastSeq[ParamType](typeInfo[Long], kc),
+      typeInfo[Long]
+    ) { mb =>
+      mb.emitWithBuilder { cb =>
+        val node = mb.getCodeParam[Long](1)
+        val k = mb.getEmitParam(cb, 2)
 
-      val cmp = cb.newLocal("btree_get_cmp", -1)
-      val keyV = cb.newLocal("btree_get_keyV", 0L)
+        val cmp = cb.newLocal("btree_get_cmp", -1)
+        val keyV = cb.newLocal("btree_get_keyV", 0L)
 
-      def insertOrGetAt(i: Int) = {
-        cb.if_(isLeaf(cb, node), {
-          cb.assign(keyV, insert(cb, node, const(i), k, const(0L)))
-          cb.assign(cmp, 0)
-        }, {
-          cb.assign(node, loadChild(cb, node, i - 1))
-        })
-      }
+        def insertOrGetAt(i: Int): Unit = {
+          cb.if_(isLeaf(cb, node), {
+            cb.assign(keyV, insert(cb, node, const(i), k, const(0L)))
+            cb.assign(cmp, 0)
+          }, {
+            cb.assign(node, loadChild(cb, node, i - 1))
+          })
+        }
 
-      cb.while_(cmp.cne(0), { (Lcont: CodeLabel)  =>
-        (0 until maxElements).foreach { i =>
-          cb.if_(hasKey(cb, node, i), {
-            cb.assign(keyV, loadKey(cb, node, i))
-            cb.assign(cmp, key.compWithKey(cb, keyV, k))
-            cb.if_(cmp.ceq(0), cb.goto(Lcont))
-            cb.if_(cmp > 0, {
+        cb.while_(cmp.cne(0), { (Lcont: CodeLabel) =>
+          (0 until maxElements).foreach { i =>
+            cb.if_(hasKey(cb, node, i), {
+              cb.assign(keyV, loadKey(cb, node, i))
+              cb.assign(cmp, key.compWithKey(cb, keyV, k))
+              cb.if_(cmp.ceq(0), cb.goto(Lcont))
+              cb.if_(cmp > 0, {
+                insertOrGetAt(i)
+                cb.goto(Lcont)
+              })
+            }, {
               insertOrGetAt(i)
               cb.goto(Lcont)
             })
-          }, {
-            insertOrGetAt(i)
-            cb.goto(Lcont)
-          })
-        }
-        insertOrGetAt(maxElements)
-      })
-      keyV.get
+          }
+          insertOrGetAt(maxElements)
+        })
+        keyV.get
+      }
     }
-
-    cb.invokeCode(get, cb._this, root, kc)
-  }
 
   def init(cb: EmitCodeBuilder): Unit = createNode(cb, root)
 
-  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] = getF(cb, root, k)
+  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] =
+    cb.invokeCode[Long](getF(k.emitParamType), cb._this, root, k)
 
   def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Value[Long]) => Unit): Unit = {
     val stackI = cb.newLocal[Int]("btree_foreach_stack_i", -1)

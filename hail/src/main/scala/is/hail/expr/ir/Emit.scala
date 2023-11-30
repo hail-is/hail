@@ -1057,8 +1057,10 @@ class Emit[C](
 
       case ArrayRef(a, i, errorID) =>
         def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
-            val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", "arrayref_bounds_check",
-              IndexedSeq[ParamType](IntInfo, IntInfo, IntInfo), UnitInfo)({ mb =>
+            val bcMb = mb.ecb.getOrDefineEmitMethod("arrayref_bounds_check",
+              FastSeq(IntInfo, IntInfo, IntInfo),
+              UnitInfo
+            ) { mb =>
               mb.voidWithBuilder { cb =>
                 val index = mb.getCodeParam[Int](1)
                 val len = mb.getCodeParam[Int](2)
@@ -1071,7 +1073,8 @@ class Emit[C](
                 })
 
               }
-            })
+            }
+
             cb.invokeVoid(bcMb, cb._this, index, len, const(errorID))
         }
 

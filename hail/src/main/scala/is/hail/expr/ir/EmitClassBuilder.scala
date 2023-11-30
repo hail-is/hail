@@ -221,10 +221,6 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   : (HailClassLoader, FS, HailTaskContext, Region) => C =
     ecb.resultWithIndex(print)
 
-  def getOrGenEmitMethod(
-    baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
-  )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = ecb.getOrGenEmitMethod(baseName, key, argsInfo, returnInfo)(body)
-
   def genEmitMethod[R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[R](baseName)
 
@@ -815,21 +811,6 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
     }
   }
 
-  private[this] val methodMemo: mutable.Map[Any, EmitMethodBuilder[C]] = mutable.Map()
-
-  def getOrGenEmitMethod(baseName: String,
-                         key: Any,
-                         argsInfo: IndexedSeq[ParamType],
-                         returnInfo: ParamType
-                        )(body: EmitMethodBuilder[C] => Unit)
-  : EmitMethodBuilder[C] =
-    methodMemo.getOrElse(key, {
-      val mb = genEmitMethod(baseName, argsInfo, returnInfo)
-      methodMemo(key) = mb
-      body(mb)
-      mb
-    })
-
   def defineEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
                       (body: EmitMethodBuilder[C] => Unit)
   : EmitMethodBuilder[C] = {
@@ -849,6 +830,15 @@ abstract class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBu
         }
 
     new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple)
+  }
+
+  def getOrDefineEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
+                           (body: EmitMethodBuilder[C] => Unit)
+  : EmitMethodBuilder[C] = {
+    val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
+    cb.lookupMethod(name, codeArgsInfo, codeReturnInfo, isStatic = false)
+      .map(mb => new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple))
+      .getOrElse { defineEmitMethod(name, paramTys, retTy)(body) }
   }
 
   def genEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
