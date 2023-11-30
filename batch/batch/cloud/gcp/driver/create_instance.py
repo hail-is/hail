@@ -240,6 +240,7 @@ logging:
         labels.instance_id:
           static_value: $INSTANCE_ID
   service:
+    log_level: error
     pipelines:
       default_pipeline:
         processors: [labels]
@@ -250,7 +251,9 @@ metrics:
     metrics_filter:
       type: exclude_metrics
       metrics_pattern:
-      - agent.googleapis.com/processes/*
+      - agent.googleapis.com/*/*
+  service:
+    log_level: error
 EOF
 
 sudo systemctl restart google-cloud-ops-agent

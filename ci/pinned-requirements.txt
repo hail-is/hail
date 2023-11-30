@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=hail/ci/pinned-requirements.txt hail/ci/requirements.txt
 #
-certifi==2023.7.22
+certifi==2023.11.17
     # via
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
@@ -20,15 +20,13 @@ charset-normalizer==3.3.2
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
-    #   -c hail/ci/../web_common/pinned-requirements.txt
     #   requests
 click==8.1.7
     # via
-    #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   zulip
-cryptography==41.0.5
+cryptography==41.0.7
     # via
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   pyjwt
@@ -36,15 +34,13 @@ distro==1.8.0
     # via zulip
 gidgethub==5.3.0
     # via -r hail/ci/requirements.txt
-idna==3.4
+idna==3.6
     # via
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   -c hail/ci/../web_common/pinned-requirements.txt
     #   requests
-matrix-client==0.4.0
-    # via zulip
 pycparser==2.21
     # via
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
@@ -59,11 +55,9 @@ requests[security]==2.31.0
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
-    #   matrix-client
     #   zulip
 typing-extensions==4.8.0
     # via
-    #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   zulip
@@ -76,7 +70,6 @@ urllib3==1.26.18
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
     #   -c hail/ci/../hail/python/pinned-requirements.txt
-    #   matrix-client
     #   requests
-zulip==0.8.2
+zulip==0.9.0
     # via -r hail/ci/requirements.txt
