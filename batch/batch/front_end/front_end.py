@@ -966,6 +966,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                     )
 
         if spec.get('mount_tokens', False):
+            # Clients stopped using `mount_tokens` prior to the introduction of terra deployments
             assert not os.environ.get('HAIL_TERRA', False)
             secrets.append(
                 {
