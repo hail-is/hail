@@ -229,8 +229,6 @@ CREATE TABLE IF NOT EXISTS `batch_updates` (
   `token` VARCHAR(100) DEFAULT NULL,
   `start_job_id` INT NOT NULL,
   `n_jobs` INT NOT NULL,
-  `start_job_group_id` INT NOT NULL DEFAULT 0,
-  `n_job_groups` INT NOT NULL DEFAULT 1,
   `committed` BOOLEAN NOT NULL DEFAULT FALSE,
   `time_created` BIGINT NOT NULL,
   `time_committed` BIGINT,
@@ -655,22 +653,6 @@ BEGIN
 
     INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, `level`)
     VALUES (NEW.id, 0, 0, 0);
-  END IF;
-END $$
-
-DROP TRIGGER IF EXISTS jobs_before_insert $$
-CREATE TRIGGER jobs_before_insert BEFORE INSERT ON jobs
-FOR EACH ROW
-BEGIN
-  DECLARE job_group_cancelled BOOLEAN;
-
-  SET job_group_cancelled = EXISTS (SELECT TRUE
-                                    FROM job_groups_cancelled
-                                    WHERE id = NEW.batch_id AND job_group_id = NEW.job_group_id
-                                    LOCK IN SHARE MODE);
-
-  IF job_group_cancelled THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = "job group has already been cancelled";
   END IF;
 END $$
 
@@ -1149,22 +1131,6 @@ BEGIN
           WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
               jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
-
-      INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
-      SELECT new_ancestors.batch_id, new_ancestors.job_group_id, new_ancestors.ancestor_id, new_ancestors.level
-      FROM (
-        SELECT batch_id, job_group_id, MIN(ancestor_id) AS last_known_ancestor, MAX(level) AS last_known_level
-        FROM job_group_self_and_ancestors
-        WHERE batch_id = in_batch_id
-        GROUP BY batch_id, job_group_id
-        HAVING last_known_ancestor != 0
-      ) AS last_known_ancestors
-      LEFT JOIN LATERAL (
-        SELECT last_known_ancestors.batch_id, last_known_ancestors.job_group_id, ancestor_id, (last_known_ancestors.last_known_level + 1) AS level
-        FROM job_group_self_and_ancestors
-        WHERE last_known_ancestors.batch_id = job_group_self_and_ancestors.batch_id AND
-          last_known_ancestors.last_known_ancestor = job_group_self_and_ancestors.job_group_id
-      ) AS new_ancestors ON TRUE;
 
       COMMIT;
       SELECT 0 as rc;
