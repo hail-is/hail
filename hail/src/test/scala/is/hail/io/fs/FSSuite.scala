@@ -597,7 +597,7 @@ trait FSSuite extends TestNGSuite {
     val fle = fs.fileListEntry(s"$d/x")
     assert(!fle.isDirectory)
     assert(fle.isFile)
-    assert(fle.getPath == fle.parseUrl(s"$d/x").toString)
+    assert(fle.getPath == fs.parseUrl(s"$d/x").toString)
   }
 }
 
