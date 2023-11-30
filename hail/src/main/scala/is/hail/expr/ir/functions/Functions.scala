@@ -45,7 +45,6 @@ object IRFunctionRegistry {
 
   def addJVMFunction(f: JVMFunction): Unit = {
     requireJavaIdentifier(f.name)
-    assert(jvmRegistry.get(f.name).map(_.exists(_.typeParameters == f.typeParameters)).isEmpty, f.name)
     jvmRegistry.addBinding(f.name, f)
   }
 
@@ -133,9 +132,9 @@ object IRFunctionRegistry {
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type]
   ): Option[JVMFunction] = {
-    jvmRegistry.get(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq }.getOrElse(FastSeq()) match {
-      case Seq() => None
-      case Seq(f) => Some(f)
+    jvmRegistry.get(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq } match {
+      case None => None
+      case Some(Seq(f)) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ valueParameterTypes.mkString(",") }).")
     }
   }
@@ -744,8 +743,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
   }
 
   def getAsMethod[C](cb: EmitClassBuilder[C], rpt: SType, typeParameters: Seq[Type], args: SType*): EmitMethodBuilder[C] = {
-    val unified = unify(typeParameters, args.map(_.virtualType), rpt.virtualType)
-    assert(unified, name)
+    assert(unify(typeParameters, args.map(_.virtualType), rpt.virtualType), name)
     cb.getOrDefineEmitMethod(name,
       FastSeq[ParamType](typeInfo[Region], typeInfo[Int]) ++ args.map(_.paramType),
       rpt.paramType
