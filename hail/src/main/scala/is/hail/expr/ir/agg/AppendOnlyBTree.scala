@@ -239,16 +239,19 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     cb.invokeCode[Long](insertAt, cb.this_, nodec, insertIdxc, castKCode, childC)
   }
 
-  private def getF(cb: EmitCodeBuilder, root: Value[Long], kc: EmitCode): Value[Long] = {
-    val get = kb.genEmitMethod("btree_get", FastSeq[ParamType](typeInfo[Long], kc.emitParamType), typeInfo[Long])
-    get.emitWithBuilder { cb =>
-      val node = get.getCodeParam[Long](1)
-      val k = get.getEmitParam(cb, 2)
+  private def getF(param: EmitParamType): EmitMethodBuilder[_] =
+    kb.getOrDefineEmitMethod(s"btree_get_${key.storageType.asIdent}",
+      FastSeq[ParamType](typeInfo[Long], param),
+      typeInfo[Long]
+    ) { get =>
+      get.emitWithBuilder { cb =>
+        val node = get.getCodeParam[Long](1)
+        val k = get.getEmitParam(cb, 2)
 
         val cmp = cb.newLocal("btree_get_cmp", -1)
         val keyV = cb.newLocal("btree_get_keyV", 0L)
 
-      def insertOrGetAt(i: Int) = {
+        def insertOrGetAt(i: Int) = {
           cb.if_(isLeaf(cb, node), {
             cb.assign(keyV, insert(cb, node, const(i), k, const(0L)))
             cb.assign(cmp, 0)
@@ -276,12 +279,12 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         })
         keyV.get
       }
-    cb.invokeCode(get, cb.this_, root, kc)
     }
 
   def init(cb: EmitCodeBuilder): Unit = createNode(cb, root)
 
-  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] = getF(cb, root, k)
+  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] =
+    cb.invokeCode(getF(k.emitParamType), cb.this_, root, k)
 
   def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Value[Long]) => Unit): Unit = {
     val stackI = cb.newLocal[Int]("btree_foreach_stack_i", -1)
@@ -344,40 +347,44 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   }
 
   val deepCopy: (EmitCodeBuilder, Value[Long]) => Unit = {
-    val f = kb.genEmitMethod("btree_deepCopy", FastSeq[ParamType](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
-    f.voidWithBuilder { cb =>
-      val destNode = f.getCodeParam[Long](1)
-      val srcNode = f.getCodeParam[Long](2)
+    val f = kb.getOrDefineEmitMethod(s"btree_deepCopy_${key.storageType.asIdent}",
+      FastSeq[ParamType](typeInfo[Long], typeInfo[Long]),
+      UnitInfo
+    ) { f =>
+      f.voidWithBuilder { cb =>
+        val destNode = f.getCodeParam[Long](1)
+        val srcNode = f.getCodeParam[Long](2)
 
-      val er = EmitRegion(cb.emb, region)
-      val newNode = cb.newLocal[Long]("new_node")
+        val er = EmitRegion(cb.emb, region)
+        val newNode = cb.newLocal[Long]("new_node")
 
-      def copyChild(i: Int): Unit = {
-        createNode(cb, newNode)
-        cb.invokeVoid(cb.emb, cb.this_, newNode, loadChild(cb, srcNode, i))
-      }
+        def copyChild(i: Int): Unit = {
+          createNode(cb, newNode)
+          cb.invokeVoid(cb.emb, cb.this_, newNode, loadChild(cb, srcNode, i))
+        }
 
-      cb.if_(!isLeaf(cb, srcNode), {
-        copyChild(-1)
-        setChild(cb, destNode, -1, newNode, "deepcopy1")
-      })
-
-      (0 until maxElements).foreach { i =>
-        cb.if_(hasKey(cb, srcNode, i), {
-          key.deepCopy(cb, er, destNode, srcNode)
-          cb.if_(!isLeaf(cb, srcNode), {
-            copyChild(i)
-            setChild(cb, destNode, i, newNode, "deepcopy2")
-          })
+        cb.if_(!isLeaf(cb, srcNode), {
+          copyChild(-1)
+          setChild(cb, destNode, -1, newNode, "deepcopy1")
         })
+
+        (0 until maxElements).foreach { i =>
+          cb.if_(hasKey(cb, srcNode, i), {
+            key.deepCopy(cb, er, destNode, srcNode)
+            cb.if_(!isLeaf(cb, srcNode), {
+              copyChild(i)
+              setChild(cb, destNode, i, newNode, "deepcopy2")
+            })
+          })
+        }
       }
     }
 
     { (cb: EmitCodeBuilder, srcRoot: Value[Long]) => cb.invokeVoid(f, cb.this_, root, srcRoot) }
   }
 
-  def bulkStore(cb: EmitCodeBuilder, obCode: Value[OutputBuffer]
-  )(keyStore: (EmitCodeBuilder, Value[OutputBuffer], Code[Long]) => Unit): Unit = {
+  def bulkStore(cb: EmitCodeBuilder, obCode: Value[OutputBuffer])
+               (keyStore: (EmitCodeBuilder, Value[OutputBuffer], Code[Long]) => Unit): Unit = {
     val f = kb.genEmitMethod("btree_bulkStore",
       FastSeq(typeInfo[Long], typeInfo[OutputBuffer]),
       typeInfo[Unit]
@@ -408,8 +415,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     cb.invokeVoid(f, cb.this_, root, obCode)
   }
 
-  def bulkLoad(cb: EmitCodeBuilder, ibCode: Value[InputBuffer]
-  )(keyLoad: (EmitCodeBuilder, Value[InputBuffer], Code[Long]) => Unit): Unit = {
+  def bulkLoad(cb: EmitCodeBuilder, ibCode: Value[InputBuffer])
+              (keyLoad: (EmitCodeBuilder, Value[InputBuffer], Code[Long]) => Unit): Unit = {
     val f = kb.genEmitMethod("btree_bulkLoad", FastSeq[ParamType](typeInfo[Long], typeInfo[InputBuffer]),
       typeInfo[Unit])
     val node = f.getCodeParam[Long](1)
