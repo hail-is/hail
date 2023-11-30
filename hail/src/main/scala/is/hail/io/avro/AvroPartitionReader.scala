@@ -19,6 +19,7 @@ import org.json4s.{Extraction, JValue}
 import java.io.InputStream
 import scala.collection.JavaConverters._
 
+
 case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends PartitionReader {
   def contextType: Type = TStruct("partitionPath" -> TString, "partitionIndex" -> TInt64)
 

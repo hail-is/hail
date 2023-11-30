@@ -1,13 +1,15 @@
 package is.hail.io
 
-import com.github.luben.zstd.{Zstd, ZstdCompressCtx}
+import java.io._
+import java.util
+import java.util.function.Supplier
+
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 
-import java.io._
-import java.util.function.Supplier
+import com.github.luben.zstd.{Zstd, ZstdCompressCtx}
 
 trait OutputBuffer extends Closeable {
   def flush(): Unit

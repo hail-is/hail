@@ -160,7 +160,7 @@ object EmitStream {
       val (envParamTypes, envParams, restoreEnv) = env.asParams(fv)
 
       val isMissing = ecb.genFieldThisRef[Boolean]("isMissing")
-      val eosField = ecb.genFieldThisRef[Boolean]("rEOS")
+      val eosField = ecb.genFieldThisRef[Boolean]("eos")
       val outerRegionField = ecb.genFieldThisRef[Region]("outer")
 
       ecb.makeAddPartitionRegion()
@@ -169,13 +169,13 @@ object EmitStream {
       var producerRequired: Boolean = false
 
       val next = ecb.newEmitMethod("next", FastSeq[ParamType](), LongInfo)
-      val ctor = ecb.newEmitMethod("<rPulled>", FastSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
+      val ctor = ecb.newEmitMethod("<init>", FastSeq[ParamType](typeInfo[Region], arrayInfo[Long]) ++ envParamTypes, UnitInfo)
       ctor.voidWithBuilder { cb =>
         val L = new lir.Block()
         L.append(
           lir.methodStmt(INVOKESPECIAL,
             "java/lang/Object",
-            "<rPulled>",
+            "<init>",
             "()V",
             false,
             UnitInfo,
@@ -219,7 +219,7 @@ object EmitStream {
         ret
       }
 
-      val init = ecb.newEmitMethod("rPulled", FastSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
+      val init = ecb.newEmitMethod("init", FastSeq[ParamType](typeInfo[Region], typeInfo[Region]), UnitInfo)
       init.voidWithBuilder { cb =>
         val outerRegion = init.getCodeParam[Region](1)
         val eltRegion = init.getCodeParam[Region](2)
@@ -231,7 +231,7 @@ object EmitStream {
       }
 
 
-      val isEOS = ecb.newEmitMethod("rEOS", FastSeq[ParamType](), BooleanInfo)
+      val isEOS = ecb.newEmitMethod("eos", FastSeq[ParamType](), BooleanInfo)
       isEOS.emitWithBuilder[Boolean](cb => eosField)
 
       val isMissingMethod = ecb.newEmitMethod("isMissing", FastSeq[ParamType](), BooleanInfo)
@@ -2657,7 +2657,7 @@ object EmitStream {
 
                     cb.if_(nEOS.ceq(const(producers.length)), cb.goto(LendOfStream))
 
-                    // this stream has ended before each other, so we set the rEOS flag and the element EmitSettable
+                    // this stream has ended before each other, so we set the eos flag and the element EmitSettable
                     cb.assign(eosPerStream(i), true)
                     cb.assign(vars(i), EmitCode.missing(mb, vars(i).st))
 
@@ -3013,7 +3013,7 @@ object EmitStream {
                   cb.updateArray(regionArray, i, r)
                   r
                 } else outerRegion
-                cb += iterArray(i).invoke[Region, Region, Unit]("rPulled", outerRegion, eltRegion)
+                cb += iterArray(i).invoke[Region, Region, Unit]("init", outerRegion, eltRegion)
               })
               cb.assign(result, Code._null)
               cb.assign(i, 0)
@@ -3128,7 +3128,7 @@ object EmitStream {
               cb.if_(winner >= nStreams, cb.goto(LendOfStream)) // can only happen if k=0
               val winnerIter = cb.memoize(iterArray(winner))
               val winnerNextElt = cb.memoize(winnerIter.invoke[Long]("next"))
-              cb.if_(winnerIter.invoke[Boolean]("rEOS"), {
+              cb.if_(winnerIter.invoke[Boolean]("eos"), {
                 cb.assign(matchIdx, (winner + k) >>> 1)
                 cb.assign(winner, k)
               }, {

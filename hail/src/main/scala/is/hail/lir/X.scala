@@ -271,11 +271,12 @@ class Method private[lir] (
           if (!verifyMethodAssignment || l.method == null)
             l.method = this
           else {
+            /*
             if (l.method ne this) {
-              println(s"$l ${l.method} ${this}\n  ${l.stack.mkString("  \n")}")
+              // println(s"$l ${l.method} ${this}\n  ${l.stack.mkString("  \n")}")
               println(s"$l ${l.method} ${this}")
             }
-
+             */
             assert(l.method eq this)
           }
 
@@ -329,7 +330,7 @@ class MethodLit(
 
 class Local(var method: Method, val name: String, val ti: TypeInfo[_]) {
   override def toString: String = f"t${ System.identityHashCode(this) }%08x/$name ${ ti.desc }"
-  val stack = Thread.currentThread().getStackTrace
+  // val stack = Thread.currentThread().getStackTrace
 }
 
 class Parameter(method: Method, val i: Int, ti: TypeInfo[_]) extends Local(method, null, ti) {
