@@ -824,10 +824,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   : EmitMethodBuilder[C] = {
     val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
     cb.lookupMethod(name, codeArgsInfo, codeReturnInfo, isStatic = false)
-      .map { mb =>
-        //println(s"Found method $name.")
-        new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple)
-      }
+      .map { mb => new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple) }
       .getOrElse { defineEmitMethod(name, paramTys, retTy)(body) }
   }
 
