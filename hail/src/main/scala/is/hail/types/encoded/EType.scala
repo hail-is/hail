@@ -51,7 +51,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] =
-    kb.getOrDefineEmitMethod(s"ENCODE_${ st.asIdent }_TO_$asIdent",
+    kb.getOrDefineEmitMethod(s"ENCODE_${ st.storageType().asIdent }_TO_$asIdent",
       FastSeq[ParamType](st.paramType, classInfo[OutputBuffer]),
       UnitInfo
     ) { mb =>
@@ -71,7 +71,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildDecoderMethod[T](t: Type, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     val st = decodedSType(t)
-    kb.getOrDefineEmitMethod(s"DECODE_${asIdent}_TO_${ st.asIdent }",
+    kb.getOrDefineEmitMethod(s"DECODE_${asIdent}_TO_${ st.storageType().asIdent }",
       FastSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
       st.paramType
     ) { mb =>
