@@ -183,6 +183,9 @@ class Batch:
     def _submission_info(self):
         return self._async_batch._submission_info
 
+    def get_job_group(self, job_group_id: int) -> JobGroup:
+        return JobGroup(self._async_batch.get_job_group(job_group_id))
+
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
