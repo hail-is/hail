@@ -146,20 +146,11 @@ class JobGroup:
     def status(self) -> Dict[str, Any]:
         return async_to_blocking(self._async_job_group.status())
 
-    def last_known_status(self) -> Dict[str, Any]:
-        return async_to_blocking(self._async_job_group.status())
-
-    # FIXME Error if this is called while in a job within the same job group
-    def wait(self, *args, **kwargs) -> Dict[str, Any]:
+    def wait(self, *args, **kwargs):
         return async_to_blocking(self._async_job_group.wait(*args, **kwargs))
 
-    def debug_info(self, *args, **kwargs):
-        return async_to_blocking(self._async_job_group.debug_info(*args, **kwargs))
-
-
-class BatchSubmissionInfo:
-    def __init__(self, used_fast_path: Optional[bool] = None):
-        self.used_fast_path = used_fast_path
+    def last_known_status(self) -> Dict[str, Any]:
+        return async_to_blocking(self._async_job_group.last_known_status())
 
 
 class Batch:

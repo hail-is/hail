@@ -13,6 +13,7 @@ from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
 from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
 from hailtop.batch_client.client import Batch, BatchClient
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.config import get_deploy_config
 from hailtop.test_utils import skip_in_azure
 from hailtop.utils import delay_ms_for_try, external_requests_client_session, retry_response_returning_functions
@@ -1744,3 +1745,15 @@ def test_region(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert status['status']['region'] == region, str((status, b.debug_info()))
     assert region in j.log()['main'], str((status, b.debug_info()))
+
+
+def test_get_job_group_status(client: BatchClient):
+    b = create_batch(client)
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b.submit()
+
+    jg = b.get_job_group(ROOT_JOB_GROUP_ID)
+    status = jg.wait()
+    last_known_status = jg.last_known_status()
+    assert status['batch_id'] == b.id, str(status)
+    assert last_known_status['batch_id'] == b.id, str(last_known_status)
