@@ -430,7 +430,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   def result(cb: EmitCodeBuilder, _r: Value[Region], resultType: PCanonicalArray): SIndexablePointerValue = {
     val mb = kb.genEmitMethod("take_by_result", FastSeq[ParamType](classInfo[Region]), LongInfo)
 
-    val quickSort: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Unit] = {
+    val quickSort: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Unit = {
       val mb = kb.genEmitMethod("result_quicksort", FastSeq[ParamType](LongInfo, IntInfo, IntInfo), UnitInfo)
       val indices = mb.getCodeParam[Long](1)
       val low = mb.getCodeParam[Int](2)
@@ -438,7 +438,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
       val pivotIndex = mb.newLocal[Int]("pivotIdx")
 
-      val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Value[Unit] = {
+      val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Unit = {
         val mb = kb.genEmitMethod("quicksort_swap", FastSeq[ParamType](LongInfo, LongInfo), UnitInfo)
         val i = mb.getCodeParam[Long](1)
         val j = mb.getCodeParam[Long](2)
@@ -452,7 +452,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
             Region.storeInt(j, tmp)
           )
         )
-        (cb, i, j) => cb.invokeCode(mb, cb.this_, i, j)
+        (cb, i, j) => cb.invokeVoid(mb, cb.this_, i, j)
       }
 
       val partition: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Int] = {
@@ -510,12 +510,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       mb.voidWithBuilder { cb =>
         cb.if_(low < high, {
           cb.assign(pivotIndex, partition(cb, indices, low, high))
-          cb.invokeVoid(mb, indices, low, pivotIndex)
-          cb.invokeVoid(mb, indices, cb.memoize(pivotIndex + 1), high)
+          cb.invokeVoid(mb, cb.this_, indices, low, pivotIndex)
+          cb.invokeVoid(mb, cb.this_, indices, cb.memoize(pivotIndex + 1), high)
         })
       }
 
-      (cb, indices, lo, hi) => cb.invokeCode(mb, cb.this_, indices, lo, hi)
+      (cb, indices, lo, hi) => cb.invokeVoid(mb, cb.this_, indices, lo, hi)
     }
 
     mb.emitWithBuilder[Long] { cb =>

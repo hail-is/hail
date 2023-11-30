@@ -1056,8 +1056,8 @@ class Emit[C](
         }
 
       case ArrayRef(a, i, errorID) =>
-        def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
-            val bcMb = mb.ecb.getOrDefineEmitMethod("arrayref_bounds_check",
+        val boundsCheck: EmitMethodBuilder[_] =
+            mb.ecb.getOrDefineEmitMethod("arrayref_bounds_check",
               FastSeq(IntInfo, IntInfo, IntInfo),
               UnitInfo
             ) { mb =>
@@ -1075,16 +1075,14 @@ class Emit[C](
               }
             }
 
-            cb.invokeVoid(bcMb, cb.this_, index, len, const(errorID))
-        }
-
         emitI(a).flatMap(cb) { case av: SIndexableValue =>
           emitI(i).flatMap(cb) { case ic: SInt32Value =>
             val iv = ic.value
-            boundsCheck(cb, iv, av.loadLength())
+            cb.invokeVoid(boundsCheck, cb.this_, iv, av.loadLength(), const(errorID))
             av.loadElement(cb, iv)
           }
         }
+
       case ArraySlice(a, start, stop, step, errorID) =>
         emitI(a).flatMap(cb) { case arrayValue: SIndexableValue =>
           emitI(start).flatMap(cb) { startCode =>

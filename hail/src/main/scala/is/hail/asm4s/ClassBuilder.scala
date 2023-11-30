@@ -251,11 +251,6 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
   def newStaticMethod(name: String, parameterTypeInfo: IndexedSeq[TypeInfo[_]], returnTypeInfo: TypeInfo[_]): MethodBuilder[C] =
     cb.newStaticMethod(name, parameterTypeInfo, returnTypeInfo)
 
-  def getOrGenMethod(
-    baseName: String, key: Any, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]
-  )(body: MethodBuilder[C] => Unit): MethodBuilder[C] =
-    cb.getOrGenMethod(baseName, key, argsInfo, returnInfo)(body)
-
   def result(writeIRs: Boolean, print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(writeIRs, print)
 
   def genMethod(baseName: String, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_]): MethodBuilder[C] =
@@ -422,21 +417,6 @@ class ClassBuilder[C](
       case Right(field) if field.ti == ti => Some(field.asInstanceOf[Field[T]])
       case _ => None
     }.getOrElse { throw new NoSuchFieldError(s"No field matching '$name: $ti' in '$className'.") }
-
-  private[this] val methodMemo: mutable.Map[Any, MethodBuilder[C]] =
-    mutable.HashMap.empty
-
-  def getOrGenMethod(baseName: String, key: Any, argsInfo: IndexedSeq[TypeInfo[_]], returnInfo: TypeInfo[_])
-    (f: MethodBuilder[C] => Unit): MethodBuilder[C] = {
-    methodMemo.get(key) match {
-      case Some(mb) => mb
-      case None =>
-        val mb = newMethod(genName("M", baseName), argsInfo, returnInfo)
-        f(mb)
-        methodMemo(key) = mb
-        mb
-    }
-  }
 
   def classBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): Array[(String, Array[Byte])] = {
     assert(initBody.start != null)

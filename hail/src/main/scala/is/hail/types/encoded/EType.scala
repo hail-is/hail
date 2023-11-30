@@ -96,8 +96,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] =
     kb.getOrDefineEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       FastSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
-      UnitInfo)
-    { mb =>
+      UnitInfo
+    ) { mb =>
       mb.voidWithBuilder { cb =>
         val region: Value[Region] = mb.getCodeParam[Region](1)
         val addr: Value[Long] = mb.getCodeParam[Long](2)

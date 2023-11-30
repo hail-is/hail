@@ -819,25 +819,15 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     mb
   }
 
-  def getEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType): EmitMethodBuilder[C] = {
-    val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
-
-    val mb: MethodBuilder[C] =
-      cb.lookupMethod(name, codeArgsInfo, codeReturnInfo, isStatic = false)
-        .getOrElse {
-          val signature = s"${codeArgsInfo.mkString("(", ",", ")")} => $codeReturnInfo"
-          throw new NoSuchMethodError(s"No method found in '$className' matching '$name: $signature.")
-        }
-
-    new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple)
-  }
-
   def getOrDefineEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
                            (body: EmitMethodBuilder[C] => Unit)
   : EmitMethodBuilder[C] = {
     val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
     cb.lookupMethod(name, codeArgsInfo, codeReturnInfo, isStatic = false)
-      .map(mb => new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple))
+      .map { mb =>
+        //println(s"Found method $name.")
+        new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple)
+      }
       .getOrElse { defineEmitMethod(name, paramTys, retTy)(body) }
   }
 
