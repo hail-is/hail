@@ -351,15 +351,6 @@ package object utils extends Logging
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
-  def removeFileProtocol(uriString: String): String = {
-    val uri = new URI(uriString)
-    if (uri.getScheme == "file") {
-      uri.getPath
-    } else {
-      uri.toString
-    }
-  }
-
   // NB: can't use Nothing here because it is not a super type of Null
   private object flattenOrNullInstance extends FlattenOrNull[Array]
 
