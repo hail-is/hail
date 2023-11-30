@@ -10,6 +10,7 @@ import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFi
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types._
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
+import is.hail.types.virtual.TIterable.elementType
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -1554,34 +1555,39 @@ object LowerTableIR {
           })
 
       case TableIntervalJoin(left, right, root, product) =>
-        assert(!product)
         val loweredLeft = lower(left)
         val loweredRight = lower(right)
-
-        def partitionJoiner(lPart: IR, rPart: IR): IR = {
-          val lEltType = lPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-          val rEltType = rPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-
-          val lKey = left.typ.key
-          val rKey = right.typ.key
-
-          val lEltRef = Ref(genUID(), lEltType)
-          val rEltRef = Ref(genUID(), rEltType)
-
-          StreamJoinRightDistinct(
-            lPart, rPart,
-            lKey, rKey,
-            lEltRef.name, rEltRef.name,
-            InsertFields(lEltRef, FastSeq(
-              root -> SelectFields(rEltRef, right.typ.valueType.fieldNames))),
-            "left")
-        }
 
         loweredLeft.intervalAlignAndZipPartitions(ctx,
           loweredRight,
           analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
           (lGlobals, _) => lGlobals,
-          partitionJoiner)
+          { (lstream, rstream) =>
+            val lref = Ref(genUID(), elementType(left.typ))
+            if (product) {
+              val rref = Ref(genUID(), TArray(elementType(right.typ)))
+              StreamLeftIntervalJoin(
+                lstream, rstream,
+                left.typ.key,
+                right.typ.keyType.fields.find(_.typ.isInstanceOf[TInterval]).map(_.name).getOrElse {
+                  val msg = s"Right table key fields does not contain an interval type '${right.typ.keyType}'."
+                  throw new UnsupportedOperationException(msg)
+                },
+                lref.name, rref.name,
+                InsertFields(lref, FastSeq(root -> rref))
+              )
+            } else {
+              val rref = Ref(genUID(), elementType(right.typ))
+              StreamJoinRightDistinct(
+                lstream, rstream,
+                loweredLeft.key, loweredRight.key,
+                lref.name, rref.name,
+                InsertFields(lref, FastSeq(root -> SelectFields(rref, right.typ.valueType.fieldNames))),
+                "left"
+              )
+            }
+          }
+        )
 
       case tj@TableJoin(left, right, joinType, joinKey) =>
         val loweredLeft = lower(left)
