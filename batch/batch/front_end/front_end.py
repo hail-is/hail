@@ -814,7 +814,7 @@ async def _create_job_groups(db: Database, batch_id: int, user: str, specs: List
         return None
 
     job_group_ids = [spec['job_group_id'] for spec in specs]
-    if job_group_ids != list(range(job_group_ids[0], job_group_ids[0] + len(job_group_ids) + 1)):
+    if job_group_ids != list(range(job_group_ids[0], job_group_ids[0] + len(job_group_ids))):
         raise web.HTTPBadRequest(reason='job group ids are not contiguous')
 
     @transaction(db)
