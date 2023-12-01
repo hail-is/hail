@@ -1018,7 +1018,7 @@ class Batch:
                            byte_job_group_specs: List[bytes],
                            n_job_groups: int,
                            job_progress_task: BatchProgressBarTask,
-                           job_group_progress_task: BatchProgressBarTask) -> Tuple[int, int]:
+                           job_group_progress_task: BatchProgressBarTask) -> Tuple[int, Optional[int]]:
         self._raise_if_not_created()
         assert n_jobs == len(self._job_specs)
         assert n_job_groups == len(self._job_group_specs)
@@ -1048,7 +1048,11 @@ class Batch:
         job_group_progress_task.update(n_job_groups)
         job_progress_task.update(n_jobs)
         self._submission_info = BatchSubmissionInfo(used_fast_path=True)
-        return (int(update_json['start_job_id']), int(update_json['start_job_group_id']))
+
+        start_job_group_id = update_json['start_job_group_id']
+        if start_job_group_id is not None:
+            start_job_group_id = int(start_job_group_id)
+        return (int(update_json['start_job_id']), start_job_group_id)
 
     def _create_bunches(self,
                         specs: List[dict],
@@ -1084,7 +1088,7 @@ class Batch:
 
         return (byte_specs_bunches, bunch_sizes)
 
-    async def _submit_job_groups(self, byte_job_group_specs: List[bytes], n_job_groups: int, progress_task: BatchProgressBarTask) -> int:
+    async def _submit_job_groups(self, byte_job_group_specs: List[bytes], n_job_groups: int, progress_task: BatchProgressBarTask) -> Optional[int]:
         self._raise_if_not_created()
         assert len(byte_job_group_specs) > 0, byte_job_group_specs
 
@@ -1108,7 +1112,10 @@ class Batch:
         progress_task.update(n_job_groups)
 
         json_resp = await resp.json()
-        return int(json_resp['start_job_group_id'])
+        start_job_group_id = json_resp['start_job_group_id']
+        if start_job_group_id is not None:
+            start_job_group_id = int(start_job_group_id)
+        return start_job_group_id
 
     async def _submit_jobs(self, update_id: int, byte_job_specs: List[bytes], n_jobs: int, progress_task: BatchProgressBarTask):
         self._raise_if_not_created()
@@ -1192,7 +1199,9 @@ class Batch:
         for bunch, size in zip(byte_job_group_specs_bunches, bunch_sizes):
             start_job_group_id = await self._submit_job_groups(bunch, size, progress_task)
             for jg in self._job_groups[job_group_offset:job_group_offset + size]:
+                assert start_job_group_id is not None
                 jg._submit(start_job_group_id)
+                job_group_offset += size
 
     async def _submit(self,
                       max_bunch_bytesize: int,

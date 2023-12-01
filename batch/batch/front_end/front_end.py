@@ -809,8 +809,13 @@ def assert_is_sha_1_hex_string(revision: str):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
 
 
-async def _create_job_groups(db: Database, batch_id: int, user: str, specs: List[dict]) -> int:
-    assert len(specs) > 0
+async def _create_job_groups(db: Database, batch_id: int, user: str, specs: List[dict]) -> Optional[int]:
+    if len(specs) == 0:
+        return None
+
+    job_group_ids = [spec['job_group_id'] for spec in specs]
+    if job_group_ids != list(range(job_group_ids[0], job_group_ids[0] + len(job_group_ids) + 1)):
+        raise web.HTTPBadRequest(reason='job group ids are not contiguous')
 
     @transaction(db)
     async def insert(tx):
