@@ -132,9 +132,9 @@ object IRFunctionRegistry {
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type]
   ): Option[JVMFunction] = {
-    jvmRegistry.get(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq } match {
-      case None => None
-      case Some(Seq(f)) => Some(f)
+    jvmRegistry.get(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq }.getOrElse(FastSeq()) match {
+      case Seq() => None
+      case Seq(f) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ valueParameterTypes.mkString(",") }).")
     }
   }
