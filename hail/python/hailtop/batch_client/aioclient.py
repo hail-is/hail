@@ -1227,10 +1227,9 @@ class Batch:
                         log.info(f'created batch {self.id}')
                         return (None, None)
                     if ((n_job_bunches <= 1 and n_job_group_bunches <= 1) and
-                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and
-                            (len(byte_job_specs_bunches[0]) + len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
-                                (n_job_bunches == 1 and len(byte_job_specs_bunches[0]) <= max_bunch_bytesize) or
-                                (n_job_group_bunches == 1 and len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize))):
+                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and (len(byte_job_specs_bunches[0]) + len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
+                            (n_job_bunches == 1 and n_job_group_bunches == 0) or
+                            (n_job_bunches == 0 and n_job_group_bunches == 1))):
                         await self._create_fast(byte_job_specs_bunches[0] if n_job_bunches == 1 else [],
                                                 job_bunch_sizes[0] if n_job_bunches == 1 else 0,
                                                 byte_job_group_specs_bunches[0] if n_job_group_bunches == 1 else [],
@@ -1259,10 +1258,9 @@ class Batch:
                         log.warning('Tried to submit an update with 0 jobs and 0 job groups. Doing nothing.')
                         return (None, None)
                     if ((n_job_bunches <= 1 and n_job_group_bunches <= 1) and
-                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and
-                            (len(byte_job_specs_bunches[0]) + len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
-                                (n_job_bunches == 1 and len(byte_job_specs_bunches[0]) <= max_bunch_bytesize) or
-                                (n_job_group_bunches == 1 and len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize))):
+                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and (len(byte_job_specs_bunches[0]) + len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
+                            (n_job_bunches == 1 and n_job_group_bunches == 0) or
+                            (n_job_bunches == 0 and n_job_group_bunches == 1))):
                         start_job_id, start_job_group_id = await self._update_fast(byte_job_specs_bunches[0] if n_job_bunches == 1 else [],
                                                                                    job_bunch_sizes[0] if n_job_bunches == 1 else 0,
                                                                                    byte_job_group_specs_bunches[0] if n_job_group_bunches == 1 else [],
