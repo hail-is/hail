@@ -825,10 +825,30 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     val (paramsInfo, retInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
     cb.lookupMethod(name, paramsInfo)
       .map { mb =>
-        assert(!mb.isStatic && mb.returnTypeInfo == retInfo)
+        assert(!mb.isStatic && mb.returnTypeInfo == retInfo, name)
         new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple)
       }
       .getOrElse { defineEmitMethod(name, paramTys, retTy)(body) }
+  }
+
+  def getOrDefineEmitMethodOverload(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
+                                   (body: EmitMethodBuilder[C] => Unit)
+  : EmitMethodBuilder[C] = {
+
+    def ident(p: ParamType): String =
+      p match {
+        case CodeParamType(ti) => ti.desc
+        case SCodeParamType(st) => st.storageType().asIdent
+        case ep: EmitParamType => "ep_" + (ep match {
+          case SCodeEmitParamType(st) => st.storageType.asIdent
+          case SingleCodeEmitParamType(r, t) => (if (r) "_r_" else "_o_") + t.ti.desc
+        })
+      }
+
+    def mangle(name: String, params: IndexedSeq[ParamType]): String =
+      s"${name}_${params.map(ident).mkString("_")}"
+
+    getOrDefineEmitMethod(mangle(name, paramTys), paramTys, retTy)(body)
   }
 
   def genEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
