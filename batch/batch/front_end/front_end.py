@@ -1357,7 +1357,7 @@ VALUES (%s, %s, %s);
                 (
                     batch_id,
                     update_id,
-                    ROOT_JOB_GROUP_ID,
+                    job_group_id,
                     inst_coll,
                     rand_token,
                     resources['n_jobs'],
@@ -1383,7 +1383,7 @@ ON DUPLICATE KEY UPDATE
                 (
                     batch_id,
                     update_id,
-                    ROOT_JOB_GROUP_ID,
+                    job_group_id,
                     inst_coll,
                     rand_token,
                     resources['n_ready_cancellable_jobs'],
