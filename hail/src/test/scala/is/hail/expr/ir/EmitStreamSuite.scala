@@ -1040,12 +1040,8 @@ class EmitStreamSuite extends HailSuite {
           "rname",
           InsertFields(
             Ref("lname", kType),
-            FastSeq("intervals" ->
-              ToArray(
-                mapIR(ToStream(Ref("rname", TArray(rightElemType)))) { elt =>
-                  GetField(elt, "interval")
-                }
-              )
+            FastSeq(
+              "intervals" -> mapArray(Ref("rname", TArray(rightElemType))) { GetField(_, "interval") }
             )
           )
         )

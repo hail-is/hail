@@ -17,6 +17,7 @@ import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
+import is.hail.types.virtual.TIterable.elementType
 import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.utils.{FastSeq, _}
@@ -2800,6 +2801,18 @@ class IRSuite extends HailSuite {
         StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         FastSeq("x"), FastSeq("x"), "l", "r", I32(1), "left"),
+      {
+        val left = StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32))))
+        val right = ToStream(Literal(
+          TArray(TStruct("a" -> TInterval(TStruct("x" -> TInt32)))),
+          FastSeq(Row(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(1), 1))))
+        ))
+        val lref = Ref("lname", elementType(left.typ))
+        val rref = Ref("rname", TArray(elementType(right.typ)))
+        StreamLeftIntervalJoin(left, right, FastSeq("x"), "a", lref.name, rref.name,
+          InsertFields(lref, FastSeq("join" -> rref))
+        )
+      },
       StreamFor(st, "v", Void()) -> Array(st),
       StreamAgg(st, "x", ApplyAggOp(FastSeq.empty, FastSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)) -> Array(st),
       StreamAggScan(st, "x", ApplyScanOp(FastSeq.empty, FastSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)) -> Array(st),
