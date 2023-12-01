@@ -759,6 +759,9 @@ steps:
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export GRADLE_CACHE_URI={{ global.test_storage_uri }}/gradlebuildcache
 
+      # copy the already compiled gcsbuildcache from the image
+      cp -r /gcsbuildcache /io/repo/hail/gcsbuildcache
+
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
