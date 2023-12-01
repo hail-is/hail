@@ -528,7 +528,7 @@ class JobGroup:
 
     @property
     def is_submitted(self):
-        return self._batch.is_created
+        return isinstance(self._job_group_id, AbsoluteJobGroupId)
 
     @property
     def batch_id(self) -> int:

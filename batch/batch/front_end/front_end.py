@@ -1029,13 +1029,15 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         in_update_parent_ids = spec.pop('in_update_parent_ids', [])
         parent_ids = absolute_parent_ids + [update_start_job_id + parent_id - 1 for parent_id in in_update_parent_ids]
 
-        absolute_job_group_id = spec.pop('absolute_job_group_id')
-        in_update_job_group_id = spec.pop('in_update_job_group_id')
+        absolute_job_group_id = spec.pop('absolute_job_group_id', None)
+        in_update_job_group_id = spec.pop('in_update_job_group_id', None)
         if absolute_job_group_id is not None:
             job_group_id = absolute_job_group_id
         else:
             assert start_job_group_id is not None
             job_group_id = start_job_group_id + in_update_job_group_id - 1
+
+        spec['job_group_id'] = job_group_id
 
         always_run = spec.pop('always_run', False)
 
