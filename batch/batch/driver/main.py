@@ -205,8 +205,8 @@ async def get_check_invariants(request: web.Request, _) -> web.Response:
     )
     return json_response(
         {
-            'check_incremental_error': str(incremental_result),
-            'check_resource_aggregation_error': str(resource_agg_result),
+            'check_incremental_error': str(incremental_result) if incremental_result else None,
+            'check_resource_aggregation_error': str(resource_agg_result) if resource_agg_result else None,
         }
     )
 
@@ -1028,8 +1028,8 @@ FROM
     SELECT job_groups.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
       (jobs.always_run OR NOT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS runnable,
       (NOT jobs.always_run AND (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS cancelled
-    FROM jobs
-    INNER JOIN job_groups ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
+    FROM job_groups
+    LEFT JOIN jobs ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
     LEFT JOIN job_groups_cancelled ON jobs.batch_id = job_groups_cancelled.id AND jobs.job_group_id = job_groups_cancelled.job_group_id
     WHERE job_groups.`state` = 'running'
   ) as v

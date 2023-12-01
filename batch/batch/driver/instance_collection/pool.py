@@ -624,7 +624,7 @@ SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
-ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
+ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
 ''',
                     (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
@@ -637,13 +637,13 @@ LIMIT 300;
                     record['format_version'] = job_group['format_version']
                     yield record
                 if not job_group['cancelled']:
-                    async for record in self.db.select_and_fetchall(  # FIXME: Do we need a different index?
+                    async for record in self.db.select_and_fetchall(
                         '''
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
-ORDER BY jobs.batch_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
+ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
 ''',
                         (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
