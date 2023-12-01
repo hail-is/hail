@@ -855,7 +855,7 @@ FOR UPDATE;
         now = time_msecs()
 
         for spec in specs:
-            job_group_id = start_job_group_id + spec['job_group_id']
+            job_group_id = start_job_group_id + spec['job_group_id'] - 1
 
             if 'absolute_parent_id' in spec:
                 parent_job_group_id = spec['absolute_parent_id']
