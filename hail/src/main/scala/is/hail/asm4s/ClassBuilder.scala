@@ -329,21 +329,11 @@ class ClassBuilder[C](
   def addInterface(name: String): Unit =
     lclass.addInterface(name)
 
-  def lookupMethod(name: String,
-                   paramsTyInfo: IndexedSeq[TypeInfo[_]],
-                   retTyInfo: TypeInfo[_],
-                   isStatic: Boolean
-                  ):
-  Option[MethodBuilder[C]] =
-    methods.find { m =>
-      m.methodName == name &&
-        m.parameterTypeInfo == paramsTyInfo &&
-        m.returnTypeInfo == retTyInfo &&
-        m.isStatic == isStatic
-    }
+  def lookupMethod(name: String, paramsTyInfo: IndexedSeq[TypeInfo[_]]): Option[MethodBuilder[C]] =
+    methods.find { m => m.methodName == name && m.parameterTypeInfo == paramsTyInfo }
 
   def newMethod(name: String, parameterTypeInfo: IndexedSeq[TypeInfo[_]], returnTypeInfo: TypeInfo[_]): MethodBuilder[C] = {
-    if (lookupMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = false).isDefined) {
+    if (lookupMethod(name, parameterTypeInfo).isDefined) {
       val signature = s"${parameterTypeInfo.mkString("(", ",", ")")} => $returnTypeInfo"
       throw new DuplicateMemberException(s"Method '$name: $signature' already defined in class '$className'.")
     }
@@ -354,7 +344,7 @@ class ClassBuilder[C](
   }
 
   def newStaticMethod(name: String, parameterTypeInfo: IndexedSeq[TypeInfo[_]], returnTypeInfo: TypeInfo[_]): MethodBuilder[C] = {
-    if (lookupMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = true).isDefined) {
+    if (lookupMethod(name, parameterTypeInfo).isDefined) {
       val signature = s"${parameterTypeInfo.mkString("(", ",", ")")} => $returnTypeInfo"
       throw new DuplicateMemberException(s"Static method '$name: $signature' already defined in class '$className'.")
     }

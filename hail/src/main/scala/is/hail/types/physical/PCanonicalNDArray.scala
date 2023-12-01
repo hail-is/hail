@@ -15,7 +15,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   assert(elementType.required, "elementType must be required")
   assert(!elementType.containsPointers, "ndarrays do not currently support elements which contain arrays, ndarrays, or strings")
 
-  def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
+  override def _asIdent: String =
+    s"${nDims}darray_of_${elementType.asIdent}"
 
   override def containsPointers: Boolean = true
 

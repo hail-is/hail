@@ -822,9 +822,12 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   def getOrDefineEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
                            (body: EmitMethodBuilder[C] => Unit)
   : EmitMethodBuilder[C] = {
-    val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
-    cb.lookupMethod(name, codeArgsInfo, codeReturnInfo, isStatic = false)
-      .map { mb => new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple) }
+    val (paramsInfo, retInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
+    cb.lookupMethod(name, paramsInfo)
+      .map { mb =>
+        assert(!mb.isStatic && mb.returnTypeInfo == retInfo)
+        new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple)
+      }
       .getOrElse { defineEmitMethod(name, paramTys, retTy)(body) }
   }
 
