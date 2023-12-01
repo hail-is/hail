@@ -1218,10 +1218,10 @@ class Batch:
                         log.info(f'created batch {self.id}')
                         return (None, None)
                     if ((n_job_bunches <= 1 and n_job_group_bunches <= 1) and
-                        ((len(byte_job_specs_bunches) == 1 and len(byte_job_specs_bunches) == 1 and
+                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and
                             (len(byte_job_specs_bunches[0]) + len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
-                                (len(byte_job_specs_bunches) == 1 and len(byte_job_specs_bunches[0]) <= max_bunch_bytesize) or
-                                (len(byte_job_group_specs_bunches) == 1 and len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize))):
+                                (n_job_bunches == 1 and len(byte_job_specs_bunches[0]) <= max_bunch_bytesize) or
+                                (n_job_group_bunches == 1 and len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize))):
                         await self._create_fast(byte_job_specs_bunches[0] if n_job_bunches == 1 else [],
                                                 job_bunch_sizes[0] if n_job_bunches == 1 else 0,
                                                 byte_job_group_specs_bunches[0] if n_job_group_bunches == 1 else [],
@@ -1231,9 +1231,9 @@ class Batch:
                         start_job_id = 1
                         start_job_group_id = 1
                     else:
+                        start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-                            start_job_group_id = None
 
                             # we need to recompute the specs now that the job group ID is absolute
                             job_specs = [spec.to_dict() for spec in self._job_specs]
@@ -1251,10 +1251,10 @@ class Batch:
                         log.warning('Tried to submit an update with 0 jobs and 0 job groups. Doing nothing.')
                         return (None, None)
                     if ((n_job_bunches <= 1 and n_job_group_bunches <= 1) and
-                        ((len(byte_job_specs_bunches) == 1 and len(byte_job_specs_bunches) == 1 and
+                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and
                             (len(byte_job_specs_bunches[0]) + len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
-                                (len(byte_job_specs_bunches) == 1 and len(byte_job_specs_bunches[0]) <= max_bunch_bytesize) or
-                                (len(byte_job_group_specs_bunches) == 1 and len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize))):
+                                (n_job_bunches == 1 and len(byte_job_specs_bunches[0]) <= max_bunch_bytesize) or
+                                (n_job_group_bunches == 1 and len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize))):
                         start_job_id, start_job_group_id = await self._update_fast(byte_job_specs_bunches[0] if n_job_bunches == 1 else [],
                                                                                    job_bunch_sizes[0] if n_job_bunches == 1 else 0,
                                                                                    byte_job_group_specs_bunches[0] if n_job_group_bunches == 1 else [],
@@ -1262,9 +1262,9 @@ class Batch:
                                                                                    job_progress_task,
                                                                                    job_group_progress_task)
                     else:
+                        start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-                            start_job_group_id = None
 
                             # we need to recompute the specs now that the job group ID is absolute
                             job_specs = [spec.to_dict() for spec in self._job_specs]
