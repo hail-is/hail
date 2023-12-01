@@ -15,6 +15,7 @@ import aiohttp.client_exceptions
 import gidgethub
 import prometheus_client as pc  # type: ignore
 import zulip
+from gidgethub import aiohttp as gh_aiohttp
 
 from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch, BatchClient
@@ -692,12 +693,19 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 
 
 class WatchedBranch(Code):
-    def __init__(self, index, branch, deployable, mergeable, developers):
-        self.index: int = index
-        self.branch: FQBranch = branch
-        self.deployable: bool = deployable
-        self.mergeable: bool = mergeable
-        self.developers: List[dict] = developers
+    def __init__(
+        self,
+        index: int,
+        branch: FQBranch,
+        deployable: bool,
+        mergeable: bool,
+        developers: List[UserData],
+    ):
+        self.index = index
+        self.branch = branch
+        self.deployable = deployable
+        self.mergeable = mergeable
+        self.developers = developers
 
         self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
@@ -743,22 +751,26 @@ class WatchedBranch(Code):
             'developers': self.developers,
         }
 
-    async def notify_github_changed(self, app):
+    async def notify_github_changed(
+        self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool
+    ):
         self.github_changed = True
-        await self._update(app)
+        await self._update(db, batch_client, gh, frozen)
 
-    async def notify_batch_changed(self, app):
+    async def notify_batch_changed(
+        self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool
+    ):
         self.batch_changed = True
-        await self._update(app)
+        await self._update(db, batch_client, gh, frozen)
 
-    async def update(self, app):
+    async def update(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         # update everything
         self.github_changed = True
         self.batch_changed = True
         self.state_changed = True
-        await self._update(app)
+        await self._update(db, batch_client, gh, frozen)
 
-    async def _update(self, app):
+    async def _update(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         if self.updating:
             log.info(f'already updating {self.short_str()}')
             return
@@ -766,9 +778,6 @@ class WatchedBranch(Code):
         try:
             log.info(f'start update {self.short_str()}')
             self.updating = True
-            gh = app['github_client']
-            batch_client = app['batch_client']
-            db: Database = app['db']
 
             while self.github_changed or self.batch_changed or self.state_changed:
                 if self.github_changed:
@@ -781,12 +790,8 @@ class WatchedBranch(Code):
 
                 if self.state_changed:
                     self.state_changed = False
-                    await self._heal(app, batch_client, gh)
-                    if (
-                        (self.deploy_batch is None or self.deploy_state is not None)
-                        and not app['frozen_merge_deploy']
-                        and self.mergeable
-                    ):
+                    await self._heal(db, batch_client, gh, frozen)
+                    if (self.deploy_batch is None or self.deploy_state is not None) and not frozen and self.mergeable:
                         await self.try_to_merge(gh)
         finally:
             log.info(f'update done {self.short_str()}')
@@ -884,17 +889,17 @@ url: {url}
                     await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 self.state_changed = True
 
-    async def _heal_deploy(self, app, batch_client):
+    async def _heal_deploy(self, db: Database, batch_client: BatchClient, frozen: bool):
         assert self.deployable
 
         if not self.sha:
             return
 
-        if not app['frozen_merge_deploy'] and (
+        if not frozen and (
             self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)
         ):
             async with repos_lock:
-                await self._start_deploy(app['db'], batch_client)
+                await self._start_deploy(db, batch_client)
 
     async def _update_batch(self, batch_client: BatchClient, db: Database):
         log.info(f'update batch {self.short_str()}')
@@ -905,12 +910,11 @@ url: {url}
         for pr in self.prs.values():
             await pr._update_batch(batch_client, db)
 
-    async def _heal(self, app, batch_client, gh):
+    async def _heal(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         log.info(f'heal {self.short_str()}')
-        db: Database = app['db']
 
         if self.deployable:
-            await self._heal_deploy(app, batch_client)
+            await self._heal_deploy(db, batch_client, frozen)
 
         merge_candidate = None
         merge_candidate_pri = None
