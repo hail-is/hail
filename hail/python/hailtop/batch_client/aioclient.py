@@ -1234,7 +1234,6 @@ class Batch:
                         start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-
                             # we need to recompute the specs now that the job group ID is absolute
                             job_specs = [spec.to_dict() for spec in self._job_specs]
                             byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
@@ -1265,7 +1264,6 @@ class Batch:
                         start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-
                             # we need to recompute the specs now that the job group ID is absolute
                             job_specs = [spec.to_dict() for spec in self._job_specs]
                             byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
