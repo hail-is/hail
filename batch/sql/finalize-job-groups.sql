@@ -473,6 +473,7 @@ SET foreign_key_checks = 0;
 
 ALTER TABLE jobs MODIFY COLUMN `job_group_id` INT NOT NULL;
 ALTER TABLE jobs ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id` ON `jobs` (`batch_id`, `job_group_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 
 ALTER TABLE job_group_attributes MODIFY COLUMN `job_group_id` INT NOT NULL;
 ALTER TABLE job_group_attributes ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
