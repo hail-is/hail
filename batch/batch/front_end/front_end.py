@@ -845,7 +845,7 @@ FOR UPDATE;
 ''',
             (batch_id,),
         )
-        assert record
+        assert record is not None
         start_job_group_id = int(record['job_group_id']) + 1
 
         validate_job_groups(specs)
