@@ -326,6 +326,7 @@ CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `
 CREATE INDEX `jobs_batch_id_update_id` ON `jobs` (`batch_id`, `update_id`);
 CREATE INDEX `jobs_batch_id_always_run_n_regions_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id` ON `jobs` (`batch_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
+CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id` ON `jobs` (`batch_id`, `job_group_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
 CREATE INDEX `jobs_batch_id_job_group_id` ON `jobs` (`batch_id`, `job_group_id`);
 
 CREATE TABLE IF NOT EXISTS `jobs_telemetry` (
