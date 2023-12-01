@@ -1574,7 +1574,9 @@ object LowerTableIR {
                   throw new UnsupportedOperationException(msg)
                 },
                 lref.name, rref.name,
-                InsertFields(lref, FastSeq(root -> rref))
+                InsertFields(lref, FastSeq(
+                  root -> mapArray(rref) { SelectFields(_, right.typ.valueType.fieldNames) }
+                ))
               )
             } else {
               val rref = Ref(genUID(), elementType(right.typ))

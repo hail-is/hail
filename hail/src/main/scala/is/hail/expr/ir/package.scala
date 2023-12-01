@@ -124,6 +124,9 @@ package object ir {
     StreamMap(stream, ref.name, f(ref))
   }
 
+  def mapArray(array: IR)(f: Ref => IR): IR =
+    ToArray(mapIR(ToStream(array))(f))
+
   def flatMapIR(stream: IR)(f: Ref => IR): IR = {
     val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
     StreamFlatMap(stream, ref.name, f(ref))
