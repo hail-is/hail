@@ -845,10 +845,8 @@ FOR UPDATE;
 ''',
             (batch_id,),
         )
-        if record:
-            start_job_group_id = int(record['job_group_id']) + 1
-        else:
-            start_job_group_id = 1
+        assert record
+        start_job_group_id = int(record['job_group_id']) + 1
 
         validate_job_groups(specs)
 
