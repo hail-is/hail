@@ -941,6 +941,8 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0', 401),
         (session.delete, '/api/v1alpha/batches/0', 401),
         (session.patch, '/api/v1alpha/batches/0/close', 401),
+        (session.get, '/api/v1alpha/batches/0/job-groups/0/job-groups', 401),
+        (session.post, '/api/v1alpha/batches/{batch_id}/job-groups/create', 401),
         # redirect to auth/login
         (session.get, '/batches', 302),
         (session.get, '/batches/0', 302),
