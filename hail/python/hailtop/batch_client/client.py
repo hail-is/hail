@@ -242,7 +242,9 @@ class Batch:
                          attributes: Optional[dict] = None,
                          callback: Optional[str] = None,
                          cancel_after_n_failures: Optional[int] = None) -> JobGroup:
-        raise NotImplementedError
+        return JobGroup(self._async_batch.create_job_group(
+            attributes=attributes, callback=callback, cancel_after_n_failures=cancel_after_n_failures
+        ))
 
     def create_job(self,
                    image,
