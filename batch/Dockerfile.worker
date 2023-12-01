@@ -6,7 +6,7 @@ RUN hail-apt-get-install \
     iproute2 \
     iptables \
     ca-certificates-java \
-    openjdk-8-jre-headless \
+    openjdk-11-jre-headless \
     liblapack3 \
     xfsprogs \
     libyajl-dev
