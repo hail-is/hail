@@ -166,9 +166,9 @@ class JobSpec:
             job_spec['regions'] = self.regions
 
         if self.job._job_group.is_submitted:
-            job_spec['absolute_job_group_id'] = self.job._job_group.job_group_id
+            job_spec['absolute_job_group_id'] = self.job._job_group._job_group_id
         else:
-            job_spec['in_update_job_group_id'] = self.job._job_group.job_group_id
+            job_spec['in_update_job_group_id'] = self.job._job_group._job_group_id
 
         return job_spec
 
@@ -1228,16 +1228,17 @@ class Batch:
                         start_job_id = 1
                         start_job_group_id = 1
                     else:
-                        await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-                        start_job_group_id = None
+                        if len(self._job_groups) > 0:
+                            await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
+                            start_job_group_id = None
 
-                        # we need to recompute the specs now that the job group ID is absolute
-                        job_specs = [spec.to_dict() for spec in self._job_specs]
-                        new_byte_job_specs_bunches, new_job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
+                            # we need to recompute the specs now that the job group ID is absolute
+                            job_specs = [spec.to_dict() for spec in self._job_specs]
+                            byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
 
                         update_id = await self._open_batch()
                         assert update_id is not None
-                        await self._submit_job_bunches(update_id, new_byte_job_specs_bunches, new_job_bunch_sizes, job_progress_task)
+                        await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                         start_job_id = await self._commit_update(update_id)
                         self._submission_info = BatchSubmissionInfo(used_fast_path=False)
                         assert start_job_id == 1
@@ -1255,15 +1256,16 @@ class Batch:
                                                                                    job_progress_task,
                                                                                    job_group_progress_task)
                     else:
-                        await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-                        start_job_group_id = None
+                        if len(self._job_groups) > 0:
+                            await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
+                            start_job_group_id = None
 
-                        # we need to recompute the specs now that the job group ID is absolute
-                        job_specs = [spec.to_dict() for spec in self._job_specs]
-                        new_byte_job_specs_bunches, new_job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
+                            # we need to recompute the specs now that the job group ID is absolute
+                            job_specs = [spec.to_dict() for spec in self._job_specs]
+                            byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
 
                         update_id = await self._create_update()
-                        await self._submit_job_bunches(update_id, new_byte_job_specs_bunches, new_job_bunch_sizes, job_progress_task)
+                        await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                         start_job_id = await self._commit_update(update_id)
                         self._submission_info = BatchSubmissionInfo(used_fast_path=False)
                     log.info(f'updated batch {self.id}')
