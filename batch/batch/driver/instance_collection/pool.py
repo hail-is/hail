@@ -683,9 +683,9 @@ LIMIT 300;
                     await mark_job_errored(
                         self.app,
                         record['batch_id'],
+                        record['job_group_id'],
                         record['job_id'],
                         attempt_id,
-                        record['job_group_id'],
                         record['user'],
                         BatchFormatVersion(record['format_version']),
                         f'no regions given in {regions} are supported. choose from a region in {supported_regions}',

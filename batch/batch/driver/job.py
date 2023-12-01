@@ -335,13 +335,15 @@ async def unschedule_job(app, record):
     log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')
 
 
-async def job_config(app, record, attempt_id, job_group_id):
+async def job_config(app, record):
     k8s_cache: K8sCache = app['k8s_cache']
     db: Database = app['db']
 
     format_version = BatchFormatVersion(record['format_version'])
     batch_id = record['batch_id']
+    job_group_id = record['job_group_id']
     job_id = record['job_id']
+    attempt_id = record['attempt_id']
 
     db_spec = json.loads(record['spec'])
 
@@ -450,7 +452,7 @@ users:
     }
 
 
-async def mark_job_errored(app, batch_id, job_id, attempt_id, job_group_id, user, format_version, error_msg):
+async def mark_job_errored(app, batch_id, job_group_id, job_id, attempt_id, user, format_version, error_msg):
     file_store: FileStore = app['file_store']
 
     status = {
@@ -489,12 +491,12 @@ async def schedule_job(app, record, instance):
     id = (batch_id, job_id)
 
     try:
-        body = await job_config(app, record, attempt_id, job_group_id)
+        body = await job_config(app, record)
     except Exception:
         log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
 
         await mark_job_errored(
-            app, batch_id, job_id, attempt_id, job_group_id, record['user'], format_version, traceback.format_exc()
+            app, job_group_id, batch_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
         )
         raise
 
