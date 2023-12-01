@@ -1239,6 +1239,9 @@ class Batch:
                         start_job_id = 1
                         start_job_group_id = 1
                     else:
+                        update_id = await self._open_batch()
+                        assert update_id is not None
+
                         start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
@@ -1246,8 +1249,6 @@ class Batch:
                             job_specs = [spec.to_dict() for spec in self._job_specs]
                             byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
 
-                        update_id = await self._open_batch()
-                        assert update_id is not None
                         await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                         start_job_id = await self._commit_update(update_id)
                         self._submission_info = BatchSubmissionInfo(used_fast_path=False)
@@ -1268,6 +1269,9 @@ class Batch:
                                                                                    job_progress_task,
                                                                                    job_group_progress_task)
                     else:
+                        update_id = await self._create_update()
+                        assert update_id is not None
+                        
                         start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
@@ -1275,7 +1279,6 @@ class Batch:
                             job_specs = [spec.to_dict() for spec in self._job_specs]
                             byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
 
-                        update_id = await self._create_update()
                         await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                         start_job_id = await self._commit_update(update_id)
                         self._submission_info = BatchSubmissionInfo(used_fast_path=False)
