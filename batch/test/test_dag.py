@@ -192,6 +192,7 @@ def test_no_parents_allowed_in_other_batches(client):
     head = b1.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     try:
         b2.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
+        b2.submit()
     except ValueError as err:
         assert re.search('parents from another batch', str(err))
         return

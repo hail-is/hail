@@ -859,7 +859,7 @@ FOR UPDATE;
                 parent_job_group_id = spec['absolute_parent_id']
             else:
                 assert 'in_update_parent_id' in spec
-                parent_job_group_id = start_job_group_id + spec['in_update_parent_id']
+                parent_job_group_id = start_job_group_id + spec['in_update_parent_id'] - 1
 
             await _create_job_group(
                 tx,
@@ -953,7 +953,7 @@ INSERT INTO job_groups_n_jobs_in_complete_states (id, job_group_id) VALUES (%s, 
 INSERT INTO `job_group_attributes` (batch_id, job_group_id, `key`, `value`)
 VALUES (%s, %s, %s, %s)
 ''',
-            [(batch_id, ROOT_JOB_GROUP_ID, k, v) for k, v in attributes.items()],
+            [(batch_id, job_group_id, k, v) for k, v in attributes.items()],
             query_name='insert_job_group_attributes',
         )
 

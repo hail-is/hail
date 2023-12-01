@@ -172,6 +172,7 @@ class JobSpec:
 
         return job_spec
 
+
 class Job:
     @staticmethod
     def _get_error(job_status, task):
@@ -1271,7 +1272,7 @@ class Batch:
                     else:
                         update_id = await self._create_update()
                         assert update_id is not None
-                        
+
                         start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
