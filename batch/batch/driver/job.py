@@ -356,7 +356,6 @@ async def job_config(app, record):
         job_spec = db_spec
 
     job_spec['attempt_id'] = attempt_id
-    job_spec['job_group_id'] = job_group_id
 
     userdata = json.loads(record['userdata'])
 
@@ -441,7 +440,6 @@ users:
     return {
         'batch_id': batch_id,
         'job_id': job_id,
-        'job_group_id': job_group_id,
         'format_version': format_version.format_version,
         'token': spec_token,
         'start_job_id': start_job_id,
