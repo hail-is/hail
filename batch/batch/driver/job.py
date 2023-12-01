@@ -341,7 +341,6 @@ async def job_config(app, record):
 
     format_version = BatchFormatVersion(record['format_version'])
     batch_id = record['batch_id']
-    job_group_id = record['job_group_id']
     job_id = record['job_id']
     attempt_id = record['attempt_id']
 
