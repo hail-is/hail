@@ -103,10 +103,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   private def insert(cb: EmitCodeBuilder, nodec: Value[Long], insertIdxc: Value[Int], kc: EmitCode, childC: Value[Long]): Value[Long] = {
     val kt = key.compType.sType
     val castKCode = EmitCode.fromI(cb.emb)(cb => kc.toI(cb).map(cb)(k => kt.coerceOrCopy(cb, region, k, false)))
-    val insertAt = kb.getOrDefineEmitMethod(s"btree_insert_${key.storageType.asIdent}",
-      FastSeq(typeInfo[Long], typeInfo[Int], castKCode.emitParamType, typeInfo[Long]),
-      typeInfo[Long]
-    ) { insertAt =>
+    val insertAt = kb.getOrGenEmitMethod("btree_insert", (this, "insert", kt),
+      FastSeq[ParamType](typeInfo[Long], typeInfo[Int], castKCode.emitParamType, typeInfo[Long]), typeInfo[Long]) { insertAt =>
       val node: Value[Long] = insertAt.getCodeParam[Long](1)
       val insertIdx: Value[Int] = insertAt.getCodeParam[Int](2)
       val k: EmitValue = insertAt.getEmitParam(cb, 3)
@@ -240,7 +238,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   }
 
   private def getF(param: EmitParamType): EmitMethodBuilder[_] =
-    kb.getOrDefineEmitMethod(s"btree_get_${key.storageType.asIdent}",
+    kb.getOrGenEmitMethod("btree_get", ("btree_get", key),
       FastSeq[ParamType](typeInfo[Long], param),
       typeInfo[Long]
     ) { get =>
@@ -347,7 +345,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   }
 
   val deepCopy: (EmitCodeBuilder, Value[Long]) => Unit = {
-    val f = kb.getOrDefineEmitMethod(s"btree_deepCopy_${key.storageType.asIdent}",
+    val f = kb.getOrGenEmitMethod("btree_deepCopy", ("btree_deepCopy", key),
       FastSeq[ParamType](typeInfo[Long], typeInfo[Long]),
       UnitInfo
     ) { f =>

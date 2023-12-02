@@ -1057,7 +1057,7 @@ class Emit[C](
 
       case ArrayRef(a, i, errorID) =>
         val boundsCheck: EmitMethodBuilder[_] =
-            mb.ecb.getOrDefineEmitMethod("arrayref_bounds_check",
+            mb.ecb.getOrGenEmitMethod("arrayref_bounds_check", "arrayref_bounds_check",
               FastSeq(IntInfo, IntInfo, IntInfo),
               UnitInfo
             ) { mb =>
@@ -1071,7 +1071,6 @@ class Emit[C](
                     .concat(", length=")
                     .concat(len.toS))
                 })
-
               }
             }
 

@@ -22,11 +22,12 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   override val compType: PType = kt
 
   override def compWithKey(cb: EmitCodeBuilder, off: Value[Long], k: EmitValue): Value[Int] = {
-    val mb = cb.emb.ecb.getOrDefineEmitMethodOverload("compWithKey",
+    val mb = kb.getOrGenEmitMethod("compWithKey",
+      ("compWithKey_grouped_btree", kt, k.emitType),
       FastSeq[ParamType](typeInfo[Long], k.emitParamType),
       typeInfo[Int]
     ) { mb =>
-      val comp = mb.ecb.getOrderingFunction(compType.sType, k.st, CodeOrdering.Compare())
+      val comp = kb.getOrderingFunction(compType.sType, k.st, CodeOrdering.Compare())
       mb.emitWithBuilder { cb =>
         val off = mb.getCodeParam[Long](1)
         val ev1 = cb.memoize(loadCompKey(cb, off))

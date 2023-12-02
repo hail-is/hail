@@ -221,6 +221,10 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   : (HailClassLoader, FS, HailTaskContext, Region) => C =
     ecb.resultWithIndex(print)
 
+  def getOrGenEmitMethod(baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType)
+                        (body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] =
+    ecb.getOrGenEmitMethod(baseName, key, argsInfo, returnInfo)(body)
+
   def genEmitMethod[R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[R](baseName)
 
@@ -811,41 +815,23 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     }
   }
 
+  private[this] val methodMemo: mutable.Map[Any, EmitMethodBuilder[C]] = mutable.Map()
+
+  def getOrGenEmitMethod(baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType)
+                        (body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] =
+    methodMemo.getOrElse(key, {
+      val mb = genEmitMethod(baseName, argsInfo, returnInfo)
+      methodMemo(key) = mb
+      body(mb)
+      mb
+    })
+
   def defineEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
                       (body: EmitMethodBuilder[C] => Unit)
   : EmitMethodBuilder[C] = {
     val mb = newEmitMethod(name, paramTys, retTy)
     body(mb)
     mb
-  }
-
-  def getOrDefineEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
-                           (body: EmitMethodBuilder[C] => Unit)
-  : EmitMethodBuilder[C] = {
-    val (paramsInfo, retInfo, asmTuple) = getCodeArgsInfo(paramTys, retTy)
-    cb.lookupMethod(name, paramsInfo, retInfo, isStatic = false)
-      .map { mb => new EmitMethodBuilder[C](paramTys, retTy, this, mb, asmTuple) }
-      .getOrElse { defineEmitMethod(name, paramTys, retTy)(body) }
-  }
-
-  def getOrDefineEmitMethodOverload(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
-                                   (body: EmitMethodBuilder[C] => Unit)
-  : EmitMethodBuilder[C] = {
-
-    def ident(p: ParamType): String =
-      p match {
-        case CodeParamType(ti) => ti.desc
-        case SCodeParamType(st) => st.storageType().asIdent
-        case ep: EmitParamType => "ep_" + (ep match {
-          case SCodeEmitParamType(st) => st.storageType.asIdent
-          case SingleCodeEmitParamType(r, t) => (if (r) "_r_" else "_o_") + t.ti.desc
-        })
-      }
-
-    def mangle(name: String, params: IndexedSeq[ParamType]): String =
-      s"${name}_${params.map(ident).mkString("_")}"
-
-    getOrDefineEmitMethod(mangle(name, paramTys), paramTys, retTy)(body)
   }
 
   def genEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =

@@ -16,7 +16,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 
-class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitClassBuilder[_], region: Code[Region]) extends BTreeKey {
+class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitClassBuilder[_]) extends BTreeKey {
   override val storageType: PCanonicalStruct = PCanonicalStruct(required = true,
     "bin" -> binType,
     "point" -> pointType,
@@ -72,7 +72,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
   private val root: Settable[Long] = kb.genFieldThisRef[Long]("root")
   private val oldRoot: Settable[Long] = kb.genFieldThisRef[Long]("old_root")
 
-  val key = new DownsampleBTreeKey(binType, pointType, kb, region)
+  val key = new DownsampleBTreeKey(binType, pointType, kb)
   val tree = new AppendOnlyBTree(kb, key, region, root)
   val buffer = new StagedArrayBuilder(pointType, kb, region, initialCapacity = maxBufferSize)
   val oldRootBTree = new AppendOnlyBTree(kb, key, region, oldRoot)
@@ -281,8 +281,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
   }
 
   def insertIntoTree(cb: EmitCodeBuilder, binX: Value[Int], binY: Value[Int], point: Value[Long], deepCopy: Boolean): Unit = {
-    val name = s"downsample_insert_into_tree${ if (deepCopy) "_deep_copy" else "" }"
-    val mb = kb.getOrDefineEmitMethod(name, FastSeq[ParamType](IntInfo, IntInfo, LongInfo), UnitInfo) { mb =>
+    val name = s"downsample_insert_into_tree_${ deepCopy.toString }"
+    val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastSeq[ParamType](IntInfo, IntInfo, LongInfo), UnitInfo) { mb =>
       val binX = mb.getCodeParam[Int](1)
       val binY = mb.getCodeParam[Int](2)
       val point = mb.getCodeParam[Long](3)
@@ -345,7 +345,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
   def dumpBuffer(cb: EmitCodeBuilder): Unit = {
     val name = "downsample_dump_buffer"
-    val mb = kb.getOrDefineEmitMethod(name, FastSeq(), UnitInfo) { mb =>
+    val mb = kb.getOrGenEmitMethod(name, (this, name), FastSeq[ParamType](), UnitInfo) { mb =>
       val i = mb.newLocal[Int]("i")
       mb.voidWithBuilder { cb =>
         cb.if_(buffer.size.ceq(0), cb += Code._return[Unit](Code._empty))
@@ -380,8 +380,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
   }
 
   def insertPointIntoBuffer(cb: EmitCodeBuilder, x: Value[Double], y: Value[Double], point: Value[Long], deepCopy: Boolean): Unit = {
-    val name = s"downsample_insert_into_buffer${if (deepCopy) "_deep_copy" else ""}"
-    val mb = kb.getOrDefineEmitMethod(name, FastSeq[ParamType](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
+    val name = "downsample_insert_into_buffer"
+    val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastSeq[ParamType](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
       val x = mb.getCodeParam[Double](1)
       val y = mb.getCodeParam[Double](2)
       val point = mb.getCodeParam[Long](3)
@@ -401,7 +401,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
   def checkBounds(cb: EmitCodeBuilder, xBin: Value[Int], yBin: Value[Int]): Value[Boolean] = {
     val name = "downsample_check_bounds"
-    val mb = kb.getOrDefineEmitMethod(name, FastSeq[ParamType](IntInfo, IntInfo), BooleanInfo) { mb =>
+    val mb = kb.getOrGenEmitMethod(name, (this, name), FastSeq[ParamType](IntInfo, IntInfo), BooleanInfo) { mb =>
       val xBin = mb.getCodeParam[Int](1)
       val yBin = mb.getCodeParam[Int](2)
       val factor = mb.newLocal[Int]("factor")
@@ -418,8 +418,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
   }
 
   def binAndInsert(cb: EmitCodeBuilder, x: Value[Double], y: Value[Double], point: Value[Long], deepCopy: Boolean): Unit = {
-    val name = s"downsample_bin_and_insert${if (deepCopy) "_deep_copy" else ""}"
-    val mb = kb.getOrDefineEmitMethod(name, FastSeq[ParamType](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
+    val name = "downsample_bin_and_insert"
+    val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastSeq[ParamType](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
       val x = mb.getCodeParam[Double](1)
       val y = mb.getCodeParam[Double](2)
       val point = mb.getCodeParam[Long](3)
@@ -441,7 +441,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
   def insert(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, l: EmitCode): Unit = {
     val name = "downsample_insert"
-    val mb = kb.getOrDefineEmitMethod(name, FastSeq[ParamType](x.st.paramType, y.st.paramType, l.emitParamType), UnitInfo) { mb =>
+    val mb = kb.getOrGenEmitMethod(name, (this, name), FastSeq[ParamType](x.st.paramType, y.st.paramType, l.emitParamType), UnitInfo) { mb =>
 
       val pointStaging = mb.newLocal[Long]("pointStaging")
       mb.voidWithBuilder { cb =>
@@ -487,7 +487,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
   def deepCopyAndInsertPoint(cb: EmitCodeBuilder, point: Value[Long]): Unit = {
     val name = "downsample_deep_copy_insert_point"
-    val mb = kb.getOrDefineEmitMethod(name, IndexedSeq[ParamType](LongInfo), UnitInfo) { mb =>
+    val mb = kb.getOrGenEmitMethod(name, (this, name), IndexedSeq[ParamType](LongInfo), UnitInfo) { mb =>
       val point = mb.getCodeParam[Long](1)
 
       val x = mb.newLocal[Double]("x")

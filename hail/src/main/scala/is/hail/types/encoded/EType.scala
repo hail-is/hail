@@ -51,7 +51,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] =
-    kb.getOrDefineEmitMethod(s"ENCODE_${ st.storageType().asIdent }_TO_$asIdent",
+    kb.getOrGenEmitMethod(s"ENCODE_${ st.asIdent }_TO_${ asIdent }",
+      (st, this, "ENCODE"),
       FastSeq[ParamType](st.paramType, classInfo[OutputBuffer]),
       UnitInfo
     ) { mb =>
@@ -71,7 +72,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildDecoderMethod[T](t: Type, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     val st = decodedSType(t)
-    kb.getOrDefineEmitMethod(s"DECODE_${asIdent}_TO_${ st.storageType().asIdent }",
+    kb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ st.asIdent }",
+      (t, this, "DECODE"),
       FastSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
       st.paramType
     ) { mb =>
@@ -94,7 +96,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] =
-    kb.getOrDefineEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
+    kb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
+      (pt, this, "INPLACE_DECODE"),
       FastSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo
     ) { mb =>
@@ -107,7 +110,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
 
   final def buildSkip(kb: EmitClassBuilder[_]): (EmitCodeBuilder, Value[Region], Value[InputBuffer]) => Unit = {
-    val mb = kb.getOrDefineEmitMethod(s"SKIP_$asIdent",
+    val mb = kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
+      (this, "SKIP"),
       FastSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo
     ) { mb =>

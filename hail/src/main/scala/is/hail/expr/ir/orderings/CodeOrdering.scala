@@ -92,7 +92,8 @@ abstract class CodeOrdering {
     if (arg2.st != type2)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
-    val mb = cb.emb.ecb.getOrDefineEmitMethodOverload(s"ord_$context${if (reversed) "_reversed" else ""}",
+    val cacheKey = ("ordering", reversed, type1, type2, context)
+    val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
       FastSeq(arg1.st.paramType, arg2.st.paramType),
       ti
     ) { mb =>
@@ -112,8 +113,8 @@ abstract class CodeOrdering {
     if (arg2.st != type2)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
-    val mb = cb.emb.ecb.getOrDefineEmitMethodOverload(
-      s"ord_$context${if (reversed) "_reversed" else ""}${if (missingEqual) "_missingEqual" else ""}",
+    val cacheKey = ("ordering", reversed, arg1.emitType, arg2.emitType, context, missingEqual)
+    val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
       FastSeq(arg1.emitParamType, arg2.emitParamType),
       ti
     ) { mb =>

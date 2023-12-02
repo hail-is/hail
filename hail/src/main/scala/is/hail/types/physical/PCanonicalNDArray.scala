@@ -188,7 +188,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     assert(shape.length == nDims, s"nDims = ${ nDims }, nShapeElts=${ shape.length }")
     assert(strides.length == nDims, s"nDims = ${ nDims }, nShapeElts=${ strides.length }")
 
-    val mb = cb.emb.ecb.getOrDefineEmitMethod("pcndarray_construct_by_copying_array",
+    val cacheKey = ("constructByCopyingArray", this, dataCode.st)
+    val mb = cb.emb.ecb.getOrGenEmitMethod("pcndarray_construct_by_copying_array", cacheKey,
       FastSeq[ParamType](classInfo[Region], dataCode.st.paramType) ++ (0 until 2 * nDims).map(_ => CodeParamType(LongInfo)),
       sType.paramType
     ) { mb =>
