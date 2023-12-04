@@ -779,8 +779,6 @@ class Tests(unittest.TestCase):
                                  .when(rows.row_idx % 10 < 5, rows.interval_matches.idx == rows.row_idx // 10)
                                  .default(hl.is_missing(rows.interval_matches))))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
         intervals = hl.utils.range_table(25)
