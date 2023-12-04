@@ -481,8 +481,6 @@ class Tests(unittest.TestCase):
                                   )
         assert ht4.count() == 5
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_table(50, n_partitions=8)
         intervals = hl.utils.range_table(25)
@@ -494,8 +492,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_product_join_long_key(self):
         left = hl.utils.range_table(50, n_partitions=8)
         intervals = hl.utils.range_table(25)
