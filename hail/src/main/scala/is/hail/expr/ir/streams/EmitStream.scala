@@ -1479,7 +1479,7 @@ object EmitStream {
                 }
               }
 
-            val minHeap: StagedMinHeap =
+            val q: StagedMinHeap =
               StagedMinHeap(mb.emodb, rElemSTy) { heapClassBuilder =>
                 new StagedMinHeap.StagedComparator {
                   val parent: ThisFieldRef[_] =
@@ -1503,7 +1503,7 @@ object EmitStream {
               mb.newPField("LeftElement", lProd.element.st).asInstanceOf[SBaseStructSettable]
 
             val rElement: SSettable =
-              mb.newPField("RightElement", minHeap.arraySType)
+              mb.newPField("RightElement", q.arraySType)
 
             var jElement: EmitSettable =
               null
@@ -1537,7 +1537,7 @@ object EmitStream {
                     )
                   }
 
-                  minHeap.init(cb, mb.ecb.pool())
+                  q.init(cb, mb.ecb.pool())
                 }
 
                 override val elementRegion: Settable[Region] =
@@ -1559,17 +1559,17 @@ object EmitStream {
                     val point = lElement.loadField(cb, lKeyField).get(cb)
 
                     cb.loop { Lrecur =>
-                      cb.if_(minHeap.nonEmpty(cb), {
-                        val interval = cb.invokeSCode(loadInterval, cb.this_, minHeap.peek(cb)).asInterval
+                      cb.if_(q.nonEmpty(cb), {
+                        val interval = cb.invokeSCode(loadInterval, cb.this_, q.peek(cb)).asInterval
                         val end = interval.loadEnd(cb).get(cb)
                         cb.if_(pointGTIntervalEndpoint(cb, point, end, interval.includesEnd), {
-                          minHeap.pop(cb)
+                          q.pop(cb)
                           cb.goto(Lrecur)
                         })
                       })
                     }
 
-                    minHeap.realloc(cb)
+                    q.realloc(cb)
 
                     val LallIntervalsFound = CodeLabel()
                     cb.if_(rEOS, cb.goto(LallIntervalsFound))
@@ -1591,7 +1591,7 @@ object EmitStream {
                         cb.goto(LallIntervalsFound)
                       )
 
-                      minHeap.push(cb, rElem)
+                      q.push(cb, rElem)
 
                       if (rProd.requiresMemoryManagementPerElement) {
                         cb += rProd.elementRegion.clearRegion()
@@ -1607,7 +1607,7 @@ object EmitStream {
                     cb.assign(rEOS, true)
 
                     cb.define(LallIntervalsFound)
-                    cb.assign(rElement, minHeap.toArray(cb, eltRegion))
+                    cb.assign(rElement, q.toArray(cb, eltRegion))
                     val result = emit(body, cb, region = eltRegion, env = env.bind(
                       lName -> EmitValue.present(lElement),
                       rName -> EmitValue.present(rElement)
@@ -1628,7 +1628,7 @@ object EmitStream {
                   jElement
 
                 override def close(cb: EmitCodeBuilder): Unit = {
-                  minHeap.close(cb)
+                  q.close(cb)
                   for (p <- FastSeq(rProd, lProd)) {
                     p.close(cb)
                     if (p.requiresMemoryManagementPerElement) {
