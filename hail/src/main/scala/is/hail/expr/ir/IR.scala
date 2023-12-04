@@ -919,6 +919,11 @@ final case class RunAggScan(
   signature: IndexedSeq[AggStateSig],
 ) extends IR
 
+object Begin {
+  def apply(xs: IndexedSeq[IR]): IR = {
+    Let(xs.init.map(x => ("__void", x)), xs.last)
+  }
+}
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: IndexedSeq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: IndexedSeq[String]) extends IR
