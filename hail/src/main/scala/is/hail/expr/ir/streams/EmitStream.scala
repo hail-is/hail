@@ -1576,8 +1576,8 @@ object EmitStream {
                     cb.if_(!rPulled, cb.goto(rProd.LproduceElement))
 
                     cb.loop { LproduceR =>
-                      val rElem = rProd.element.toI(cb).get(cb)
-                      val interval = cb.invokeSCode(loadInterval, cb.this_, rElem).asInterval
+                      val rElement = rProd.element.toI(cb).get(cb)
+                      val interval = cb.invokeSCode(loadInterval, cb.this_, rElement).asInterval
 
                       // Drop intervals whose right endpoint is before the key
                       val end = interval.loadEnd(cb).get(cb)
@@ -1591,7 +1591,7 @@ object EmitStream {
                         cb.goto(LallIntervalsFound)
                       )
 
-                      q.push(cb, rElem)
+                      q.push(cb, rElement)
 
                       if (rProd.requiresMemoryManagementPerElement) {
                         cb += rProd.elementRegion.clearRegion()
