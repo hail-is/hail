@@ -1,5 +1,6 @@
 package is.hail.expr.ir.streams
 
+import is.hail.annotations.Region.REGULAR
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir._
@@ -10,10 +11,10 @@ import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SIndexablePointerSettable, SStackStruct, SUnreachable}
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
-import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SSettable, SValue}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
@@ -1454,7 +1455,7 @@ object EmitStream {
           SStreamValue(producer)
         }
 
-      case x@StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lName, rName, body) =>
+      case x@StreamLeftIntervalJoin(left, right, lKeyField, rIntrvlName, lName, rName, body) =>
         produce(left, cb).flatMap(cb) { case lStream: SStreamValue =>
           produce(right, cb).map(cb) { case rStream: SStreamValue =>
 
@@ -1527,8 +1528,15 @@ object EmitStream {
                 override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   cb.assign(rEOS, false)
                   cb.assign(rPulled, false)
-                  lProd.initialize(cb, outerRegion)
-                  rProd.initialize(cb, outerRegion)
+
+                  for (p <- FastSeq(lProd, rProd)) {
+                    p.initialize(cb, outerRegion)
+                    cb.assign(p.elementRegion,
+                      if (p.requiresMemoryManagementPerElement) Region.stagedCreate(REGULAR, mb.ecb.pool())
+                      else outerRegion.get
+                    )
+                  }
+
                   minHeap.init(cb, mb.ecb.pool())
                 }
 
@@ -1548,13 +1556,13 @@ object EmitStream {
                     cb.define(lProd.LproduceElementDone)
 
                     cb.assign(lElement, lProd.element.toI(cb).get(cb).asBaseStruct)
-                    val key = lElement.subset(lKeyNames: _*)
+                    val point = lElement.loadField(cb, lKeyField).get(cb)
 
                     cb.loop { Lrecur =>
                       cb.if_(minHeap.nonEmpty(cb), {
                         val interval = cb.invokeSCode(loadInterval, cb.this_, minHeap.peek(cb)).asInterval
                         val end = interval.loadEnd(cb).get(cb)
-                        cb.if_(pointGTIntervalEndpoint(cb, key, end, interval.includesEnd), {
+                        cb.if_(pointGTIntervalEndpoint(cb, point, end, interval.includesEnd), {
                           minHeap.pop(cb)
                           cb.goto(Lrecur)
                         })
@@ -1573,13 +1581,13 @@ object EmitStream {
 
                       // Drop intervals whose right endpoint is before the key
                       val end = interval.loadEnd(cb).get(cb)
-                      cb.if_(pointGTIntervalEndpoint(cb, key, end, interval.includesEnd),
+                      cb.if_(pointGTIntervalEndpoint(cb, point, end, interval.includesEnd),
                         cb.goto(rProd.LproduceElement)
                       )
 
                       // Stop consuming intervals if the left endpoint is after the key
                       val start = interval.loadStart(cb).get(cb)
-                      cb.if_(pointLTIntervalEndpoint(cb, key, start, leansRight = !interval.includesStart),
+                      cb.if_(pointLTIntervalEndpoint(cb, point, start, leansRight = !interval.includesStart),
                         cb.goto(LallIntervalsFound)
                       )
 
@@ -1621,8 +1629,12 @@ object EmitStream {
 
                 override def close(cb: EmitCodeBuilder): Unit = {
                   minHeap.close(cb)
-                  rProd.close(cb)
-                  lProd.close(cb)
+                  for (p <- FastSeq(rProd, lProd)) {
+                    p.close(cb)
+                    if (p.requiresMemoryManagementPerElement) {
+                      cb += p.elementRegion.invalidate()
+                    }
+                  }
                 }
               }
             }

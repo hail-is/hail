@@ -48,30 +48,6 @@ sealed trait StagedCoercionInstances {
       override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Locus] =
         sa.asLocus.getLocusObj(cb)
     }
-
-//  def intervalCoercions(pt: PCanonicalInterval): Coercions[Interval] =
-//    new Coercions[Interval] {
-//      override def ti: TypeInfo[Interval] =
-//        implicitly
-//
-//      override def sType: SType =
-//        pt.sType
-//
-//      override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Interval]): SValue = {
-//          val cpt = cb.emb.getPType(pt)
-//          val sm = cb.emb.getObject(cb.emb.ctx.stateManager)
-//          val ptr = cpt.invoke[HailStateManager, Annotation, Region, Long](
-//            "unstagedStoreJavaObject", sm, a, region
-//          )
-//          pt.loadCheapSCode(cb, ptr)
-//      }
-//
-//      override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Interval] = {
-//        val cpt = cb.emb.getPType(pt)
-//        val any = Code.invokeScalaObject[]()
-//      }
-//
-//    }
 }
 
 class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
@@ -116,22 +92,6 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
         sortedLoci == loci.sorted(rg.locusOrdering)
       }
     }.check()
-
-//  val intervals: Gen[(PCanonicalInterval, IndexedSeq[Interval])] =
-//    for {
-//      point <- PType.genArb.map(PCanonicalInterval(_))
-//      sm = ctx.stateManager
-//      intervals <- Gen.buildableOf(Interval.gen(point.virtualType.ordering(sm), point.genValue(sm)))
-//    } yield (point, intervals)
-//
-//  @Test def testIntervals(): Unit =
-//    forAll(intervals) { case (pointType, intervals: IndexedSeq[Interval]) =>
-//      gen("Intervals", intervalCoercions(pointType)) { (heap: IntervalHeap) =>
-//        intervals.foreach(heap.push)
-//        val sorted = IndexedSeq.fill(intervals.size)(heap.pop())
-//        sorted == intervals.sortWith(pointType.virtualType.ordering(ctx.stateManager).lt)
-//      }
-//    }
 
   def withReferenceGenome[A](rg: ReferenceGenome)(f: => A): A = {
     ctx.backend.addReference(rg)
@@ -224,11 +184,6 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
 
   trait IntHeap extends Heap[Int] {
     def push(x: Int): Unit
-    def pop(): Int
-  }
-
-  trait IntervalHeap extends Heap[Interval] {
-    def push(x: Interval): Unit
     def pop(): Int
   }
 

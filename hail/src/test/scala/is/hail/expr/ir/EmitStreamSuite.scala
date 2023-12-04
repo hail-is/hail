@@ -1011,9 +1011,11 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testStreamIntervalJoin(): Unit = {
-    val keyStream = mapIR(rangeIR(0, 9))(i => MakeStruct(FastSeq("i" -> i)))
+    val keyStream = mapIR(StreamRange(0, 9, 1, requiresMemoryManagementPerElement = true)) { i =>
+      MakeStruct(FastSeq("i" -> i))
+    }
     val kType = TIterable.elementType(keyStream.typ).asInstanceOf[TStruct]
-    val rightElemType = TStruct("interval" -> TInterval(kType))
+    val rightElemType = TStruct("interval" -> TInterval(TInt32))
 
     val intervals: IndexedSeq[Interval] =
       for {
@@ -1025,16 +1027,16 @@ class EmitStreamSuite extends HailSuite {
           (6, 7, false, true)
         )
       } yield Interval(
-        IntervalEndpoint(Row(start), if (includesStart) -1 else 1),
-        IntervalEndpoint(Row(end), if (includesEnd) 1 else -1)
+        IntervalEndpoint(start, if (includesStart) -1 else 1),
+        IntervalEndpoint(end, if (includesEnd) 1 else -1)
       )
 
     val join =
       ToArray(
         StreamLeftIntervalJoin(
           keyStream,
-          ToStream(Literal(TArray(rightElemType), intervals.map(Row(_)))),
-          kType.fieldNames,
+          ToStream(Literal(TArray(rightElemType), intervals.map(Row(_))), requiresMemoryManagementPerElement = true),
+          kType.fieldNames.head,
           "interval",
           "lname",
           "rname",

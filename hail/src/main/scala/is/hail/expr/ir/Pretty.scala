@@ -239,9 +239,9 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), joinType)
     else
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), prettyIdentifier(l), prettyIdentifier(r), joinType)
-    case StreamLeftIntervalJoin(_, _, lKeyNames, rIntrvlName, lEltName, rEltName, _) =>
+    case StreamLeftIntervalJoin(_, _, lKeyFieldName, rIntrvlName, lEltName, rEltName, _) =>
       val builder = new BoxedArrayBuilder[Doc](if (elideBindings) 2 else 4)
-      builder += prettyIdentifiers(lKeyNames)
+      builder += prettyIdentifier(lKeyFieldName)
       builder += prettyIdentifier(rIntrvlName)
 
       if (!elideBindings) {

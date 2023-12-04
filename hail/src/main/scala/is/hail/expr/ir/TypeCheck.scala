@@ -402,22 +402,21 @@ object TypeCheck {
             lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
           })
         }
-      case StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, _, _, body) =>
+      case StreamLeftIntervalJoin(left, right, lKeyFieldName, rIntrvlName, _, _, body) =>
         assert(left.typ.isInstanceOf[TStream])
         assert(right.typ.isInstanceOf[TStream])
 
         val lEltTy =
           TIterable.elementType(left.typ).asInstanceOf[TStruct]
 
-        val rPointTys =
+        val rPointTy =
           TIterable.elementType(right.typ)
             .asInstanceOf[TStruct]
             .fieldType(rIntrvlName)
             .asInstanceOf[TInterval]
             .pointType
-            .children
 
-        assert((lKeyNames, rPointTys).zipped.forall((name, ty) => lEltTy.fieldType(name) == ty))
+        assert(lEltTy.fieldType(lKeyFieldName) == rPointTy)
         assert(body.typ.isInstanceOf[TStruct])
       case x@StreamFor(a, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])

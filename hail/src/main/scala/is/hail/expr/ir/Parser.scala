@@ -1195,7 +1195,7 @@ object IRParser {
           join <- ir_value_expr(env)(it)
         } yield StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType)
       case "StreamLeftIntervalJoin" =>
-        val lKeyNames = identifiers(it)
+        val lKeyFieldName = identifier(it)
         val rIntervalName = identifier(it)
         val lname = identifier(it)
         val rname = identifier(it)
@@ -1203,7 +1203,7 @@ object IRParser {
           left <- ir_value_expr(env)(it)
           right <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield StreamLeftIntervalJoin(left, right, lKeyNames, rIntervalName, lname, rname, body)
+        } yield StreamLeftIntervalJoin(left, right, lKeyFieldName, rIntervalName, lname, rname, body)
 
       case "StreamFor" =>
         val name = identifier(it)

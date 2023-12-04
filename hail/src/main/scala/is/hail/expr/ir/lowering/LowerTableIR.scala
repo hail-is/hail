@@ -10,7 +10,6 @@ import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFi
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types._
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
-import is.hail.types.virtual.TIterable.elementType
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -1555,20 +1554,17 @@ object LowerTableIR {
           })
 
       case TableIntervalJoin(left, right, root, product) =>
-        val loweredLeft = lower(left)
-        val loweredRight = lower(right)
-
-        loweredLeft.intervalAlignAndZipPartitions(ctx,
-          loweredRight,
+        lower(left).intervalAlignAndZipPartitions(ctx,
+          lower(right),
           analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
           (lGlobals, _) => lGlobals,
           { (lstream, rstream) =>
-            val lref = Ref(genUID(), elementType(left.typ))
+            val lref = Ref(genUID(), left.typ.rowType)
             if (product) {
-              val rref = Ref(genUID(), TArray(elementType(right.typ)))
+              val rref = Ref(genUID(), TArray(right.typ.rowType))
               StreamLeftIntervalJoin(
                 lstream, rstream,
-                left.typ.key,
+                left.typ.key.head,
                 right.typ.keyType.fields.find(_.typ.isInstanceOf[TInterval]).map(_.name).getOrElse {
                   val msg = s"Right table key fields does not contain an interval type '${right.typ.keyType}'."
                   throw new UnsupportedOperationException(msg)
@@ -1579,10 +1575,10 @@ object LowerTableIR {
                 ))
               )
             } else {
-              val rref = Ref(genUID(), elementType(right.typ))
+              val rref = Ref(genUID(), right.typ.rowType)
               StreamJoinRightDistinct(
                 lstream, rstream,
-                loweredLeft.key, loweredRight.key,
+                left.typ.key, right.typ.key,
                 lref.name, rref.name,
                 InsertFields(lref, FastSeq(root -> SelectFields(rref, right.typ.valueType.fieldNames))),
                 "left"

@@ -2804,12 +2804,12 @@ class IRSuite extends HailSuite {
       {
         val left = StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32))))
         val right = ToStream(Literal(
-          TArray(TStruct("a" -> TInterval(TStruct("x" -> TInt32)))),
-          FastSeq(Row(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(1), 1))))
+          TArray(TStruct("a" -> TInterval(TInt32))),
+          FastSeq(Row(Interval(IntervalEndpoint(0, -1), IntervalEndpoint(1, 1))))
         ))
         val lref = Ref("lname", elementType(left.typ))
         val rref = Ref("rname", TArray(elementType(right.typ)))
-        StreamLeftIntervalJoin(left, right, FastSeq("x"), "a", lref.name, rref.name,
+        StreamLeftIntervalJoin(left, right, "x", "a", lref.name, rref.name,
           InsertFields(lref, FastSeq("join" -> rref))
         )
       },

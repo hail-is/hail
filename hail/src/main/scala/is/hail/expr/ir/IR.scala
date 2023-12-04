@@ -481,7 +481,7 @@ final case class StreamLeftIntervalJoin(
                                          right: IR,
 
                                          // names for joiner
-                                         lKeyNames: IndexedSeq[String],
+                                         lKeyName: String,
                                          rIntrvlName: String,
 
                                          // how to combine records
