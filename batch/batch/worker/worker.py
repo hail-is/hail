@@ -3222,7 +3222,7 @@ class Worker:
 
         app_runner = web.AppRunner(app, access_log_class=BatchWorkerAccessLogger)
         await app_runner.setup()
-        site = web.TCPSite(app_runner, '0.0.0.0', 5000)
+        site = web.TCPSite(app_runner, IP_ADDRESS, 5000)
         await site.start()
 
         try:
