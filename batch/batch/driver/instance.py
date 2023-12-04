@@ -200,9 +200,6 @@ VALUES (%s, %s);
                 await self.client_session.post(
                     f'http://{self.ip_address}:5000/api/v1alpha/kill', timeout=aiohttp.ClientTimeout(total=30)
                 )
-            except ConnectionRefusedError:
-                await self.deactivate('killed')
-                return
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
                     log.info(f'cannot kill {self} -- does not exist at {self.ip_address}')
