@@ -55,10 +55,11 @@ async def _curl(
     from hailtop.auth import hail_credentials  # pylint: disable=import-outside-toplevel
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
-    async with hail_credentials(namespace=namespace) as credentials:
+    deploy_config = get_deploy_config().with_default_namespace(namespace)
+    async with hail_credentials(deploy_config=deploy_config) as credentials:
         headers_dict = await credentials.auth_headers()
     headers = [x for k, v in headers_dict.items() for x in ['-H', f'{k}: {v}']]
-    path = get_deploy_config().url(service, path)
+    path = deploy_config.url(service, path)
     os.execvp('curl', ['curl', *headers, *ctx.args, path])
 
 
