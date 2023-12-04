@@ -4,21 +4,21 @@
 #
 #    pip-compile --output-file=hail/benchmark/python/pinned-requirements.txt hail/benchmark/python/requirements.txt
 #
-contourpy==1.1.1
+contourpy==1.2.0
     # via
     #   -c hail/benchmark/python/../../hail/python/pinned-requirements.txt
     #   matplotlib
 cycler==0.12.1
     # via matplotlib
-fonttools==4.43.1
+fonttools==4.45.1
     # via matplotlib
-importlib-resources==6.1.0
+importlib-resources==6.1.1
     # via matplotlib
 kiwisolver==1.4.5
     # via matplotlib
-matplotlib==3.8.0
+matplotlib==3.8.2
     # via -r hail/benchmark/python/requirements.txt
-numpy==1.26.1
+numpy==1.26.2
     # via
     #   -c hail/benchmark/python/../../hail/python/pinned-requirements.txt
     #   contourpy

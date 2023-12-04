@@ -8,7 +8,7 @@ SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
-SPECIAL_IMAGES := hail-ubuntu batch-worker
+SPECIAL_IMAGES := hail-ubuntu batch-worker letsencrypt
 
 HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
 CI_IMAGES = ci-utils ci-buildkit base hail-run
@@ -118,7 +118,7 @@ hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt
 hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
 	./generate-linux-pip-lockfile.sh hail/python/dev
 
-benchmark/python/pinned-requirements.txt: benchmark/python/requirements.txt
+benchmark/python/pinned-requirements.txt: benchmark/python/requirements.txt hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt
 	./generate-linux-pip-lockfile.sh benchmark/python
 
 gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
@@ -215,6 +215,10 @@ hailgenetics-vep-grch37-85-image: hail-ubuntu-image
 hailgenetics-vep-grch38-95-image: hail-ubuntu-image
 	./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
+
+letsencrypt-image:
+	./docker-build.sh letsencrypt Dockerfile $(IMAGE_NAME)
 	echo $(IMAGE_NAME) > $@
 
 $(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image

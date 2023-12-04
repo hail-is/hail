@@ -464,7 +464,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   @transient lazy val broadcast: BroadcastValue[ReferenceGenome] = HailContext.backend.broadcast(this)
 
   override def hashCode: Int = {
-    import org.apache.commons.lang.builder.HashCodeBuilder
+    import org.apache.commons.lang3.builder.HashCodeBuilder
 
     val b = new HashCodeBuilder()
       .append(name)

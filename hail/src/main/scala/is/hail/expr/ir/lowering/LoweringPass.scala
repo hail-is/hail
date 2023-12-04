@@ -8,11 +8,16 @@ import is.hail.utils._
 
 final case class IrMetadata(semhash: Option[SemanticHash.Type]) {
   private[this] var hashCounter: Int = 0
+  private[this] var markCounter: Int = 0
   def nextHash: Option[SemanticHash.Type] = {
     hashCounter += 1
     semhash.map(SemanticHash.extend(_, SemanticHash.Bytes.fromInt(hashCounter)))
   }
 
+  def nextFlag: Int = {
+    markCounter += 1
+    markCounter
+  }
 }
 
 trait LoweringPass {
@@ -102,7 +107,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val context: String = "LowerArrayAggsToRunAggs"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    val x = ir.noSharing
+    val x = ir.noSharing(ctx)
     val r = Requiredness(x, ctx)
     RewriteBottomUp(x, {
       case x@StreamAgg(a, name, query) =>
@@ -111,22 +116,23 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
 
         val newNode = aggs.rewriteFromInitBindingRoot { root =>
           Let(
-            res,
-            RunAgg(
-              Begin(FastSeq(
-                aggs.init,
-                StreamFor(
-                  a,
-                  name,
-                  aggs.seqPerElt))),
-              aggs.results,
-              aggs.states),
-            root)
+            FastSeq(
+              res -> RunAgg(
+                Begin(FastSeq(
+                  aggs.init,
+                  StreamFor(a, name, aggs.seqPerElt)
+                )),
+                aggs.results,
+                aggs.states
+              )
+            ),
+            root
+          )
         }
 
         if (newNode.typ != x.typ)
           throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-        Some(newNode.noSharing)
+        Some(newNode.noSharing(ctx))
       case x@StreamAggScan(a, name, query) =>
         val res = genUID()
         val aggs = Extract(query, res, r, isScan=true)
@@ -136,13 +142,13 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
             name,
             aggs.init,
             aggs.seqPerElt,
-            Let(res, aggs.results, root),
+            Let(FastSeq(res -> aggs.results), root),
             aggs.states
           )
         }
         if (newNode.typ != x.typ)
           throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
-        Some(newNode.noSharing)
+        Some(newNode.noSharing(ctx))
       case _ => None
     })
   }

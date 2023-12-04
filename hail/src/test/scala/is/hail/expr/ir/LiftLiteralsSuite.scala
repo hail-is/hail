@@ -15,9 +15,7 @@ class LiftLiteralsSuite extends HailSuite {
     val ir = TableGetGlobals(
       TableMapGlobals(
         tab,
-        Let(
-          "global",
-          I64(1),
+        Let(FastSeq("global" ->  I64(1)),
           MakeStruct(
             FastSeq(
               "x" -> ApplyBinaryPrimOp(

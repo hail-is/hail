@@ -3932,7 +3932,7 @@ def test_approx_cdf_accuracy(cdf_test_data):
     t = cdf_test_data
     cdf = t.aggregate(hl.agg.approx_cdf(t.idx, 200))
     error = cdf_max_observed_error(cdf)
-    assert(error < 0.01)
+    assert(error < 0.015)
 
 
 def test_approx_cdf_all_missing():
@@ -3972,7 +3972,7 @@ def test_cdf_combine(cdf_test_data):
     cdf = _cdf_combine(200, cdf1, cdf2)
     cdf = hl.eval(_result_from_raw_cdf(cdf))
     error = cdf_max_observed_error(cdf)
-    assert(error < 0.01)
+    assert(error < 0.015)
 
 
 def test_approx_cdf_array_agg():

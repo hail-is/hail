@@ -30,7 +30,7 @@ object EmitContext {
   def analyze(ctx: ExecuteContext, ir: IR, pTypeEnv: Env[PType] = Env.empty): EmitContext = {
     ctx.timer.time("EmitContext.analyze") {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-      val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv)
+      val requiredness = Requiredness(ir, usesAndDefs, ctx, pTypeEnv)
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
       val methodSplits = ComputeMethodSplits(ctx, ir, inLoopCriticalPath)
       new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
@@ -635,7 +635,7 @@ class Emit[C](
     def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
 
-    def emitStream(ir: IR, outerRegion: Value[Region], mb: EmitMethodBuilder[C] = mb): EmitCode =
+    def emitStream(ir: IR, outerRegion: Value[Region], mb: EmitMethodBuilder[C] = mb, env: EmitEnv = env): EmitCode =
       EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container))
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
@@ -668,11 +668,21 @@ class Emit[C](
 
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
-      case Let(name, value, body) =>
-        val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
-        cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
-          emitVoid(body, env = env.bind(name, ev))
+      case Let(bindings, body) =>
+        def go(env: EmitEnv): IndexedSeq[(String, IR)] => Unit = {
+          case (name, value) +: rest =>
+            val xVal =
+              if (value.typ.isInstanceOf[TStream]) emitStream(value, region, env = env)
+              else emit(value, env = env)
+
+            cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
+              go(env.bind(name, ev))(rest)
+            }
+          case Seq() =>
+            emitVoid(body, env = env)
         }
+
+        go(env)(bindings)
 
       case StreamFor(a, valueName, body) =>
         emitStream(a, region).toI(cb).consume(cb,
@@ -2368,7 +2378,7 @@ class Emit[C](
           }
         }
 
-      case x@TailLoop(name, args, body) =>
+      case x@TailLoop(name, args, _, body) =>
         val loopStartLabel = CodeLabel()
 
         val accTypes = ctx.req.lookupState(x).zip(args.map(_._2.typ))
@@ -2703,7 +2713,7 @@ class Emit[C](
       }
     }
 
-    def emitStream(ir: IR, outerRegion: Value[Region]): EmitCode =
+    def emitStream(ir: IR, outerRegion: Value[Region], env: EmitEnv = env): EmitCode =
       EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container))
 
     // ideally, emit would not be called with void values, but initOp args can be void
@@ -2716,12 +2726,22 @@ class Emit[C](
 
     val result: EmitCode = (ir: @unchecked) match {
 
-      case Let(name, value, body) =>
+      case Let(bindings, body) =>
         EmitCode.fromI(mb) { cb =>
-          val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
-          cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
-            emitI(body, cb, env = env.bind(name, ev))
+          def go(env: EmitEnv): IndexedSeq[(String, IR)] => IEmitCode = {
+            case (name, value) +: rest =>
+              val xVal =
+                if (value.typ.isInstanceOf[TStream]) emitStream(value, region, env = env)
+                else emit(value, env = env)
+
+              cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
+                go(env.bind(name, ev))(rest)
+              }
+            case Seq() =>
+              emitI(body, cb, env = env)
           }
+
+          go(env)(bindings)
         }
 
       case Ref(name, t) =>

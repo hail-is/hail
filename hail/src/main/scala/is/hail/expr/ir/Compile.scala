@@ -32,9 +32,9 @@ object Compile {
     print: Option[PrintWriter] = None
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F) = {
 
-    val normalizeNames = new NormalizeNames(_.toString)
-    val normalizedBody = normalizeNames(body,
-      Env(params.map { case (n, _) => n -> n }: _*))
+    val normalizedBody = new NormalizeNames(_.toString)(ctx, body,
+      Env(params.map { case (n, _) => n -> n }: _*)
+    )
     val k = CodeCacheKey(FastSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
     (ctx.backend.lookupOrCompileCachedFunction[F](k) {
 
@@ -42,7 +42,7 @@ object Compile {
       ir = Subst(ir, BindingEnv(params
         .zipWithIndex
         .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }))
-      ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
+      ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing(ctx)
 
       TypeCheck(ctx, ir, BindingEnv.empty)
 
@@ -85,9 +85,9 @@ object CompileWithAggregators {
     body: IR,
     optimize: Boolean = true
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => (F with FunctionWithAggRegion)) = {
-    val normalizeNames = new NormalizeNames(_.toString)
-    val normalizedBody = normalizeNames(body,
-      Env(params.map { case (n, _) => n -> n }: _*))
+    val normalizedBody = new NormalizeNames(_.toString)(ctx, body,
+      Env(params.map { case (n, _) => n -> n }: _*)
+    )
     val k = CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody)
     (ctx.backend.lookupOrCompileCachedFunction[F with FunctionWithAggRegion](k) {
 
@@ -95,7 +95,7 @@ object CompileWithAggregators {
       ir = Subst(ir, BindingEnv(params
         .zipWithIndex
         .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }))
-      ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
+      ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing(ctx)
 
       TypeCheck(ctx, ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 
@@ -184,7 +184,7 @@ object CompileIterator {
 
     val outerRegion = outerRegionField
 
-    val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
+    val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing(ctx)
     TypeCheck(ctx, ir)
 
     var elementAddress: Settable[Long] = null

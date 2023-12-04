@@ -29,13 +29,13 @@ from hailtop.httpx import ClientResponseError
 from configparser import ConfigParser
 from hailtop.config import get_user_config, user_config
 from hailtop.config.variables import ConfigVariable
-from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from _pytest.monkeypatch import MonkeyPatch
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
+REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
 
 class LocalTests(unittest.TestCase):
@@ -528,12 +528,7 @@ class ServiceTests(unittest.TestCase):
         self.cloud_output_path = f'/batch-tests/{token}'
         self.cloud_output_dir = f'{self.remote_tmpdir}{self.cloud_output_path}'
 
-        in_cluster_key_file = '/test-gsa-key/key.json'
-        if not os.path.exists(in_cluster_key_file):
-            in_cluster_key_file = None
-
-        self.router_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': 'hail-vdc', 'credentials_file': in_cluster_key_file},
-                                       azure_kwargs={'credential_file': in_cluster_key_file})
+        self.router_fs = RouterAsyncFS()
 
         if not self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt'):
             self.sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello.txt', b'hello world')
@@ -784,7 +779,8 @@ class ServiceTests(unittest.TestCase):
 
     @skip_in_azure
     def test_fuse_requester_pays(self):
-        b = self.batch(requester_pays_project='hail-vdc')
+        assert REQUESTER_PAYS_PROJECT
+        b = self.batch(requester_pays_project=REQUESTER_PAYS_PROJECT)
         j = b.new_job()
         j.cloudfuse('hail-test-requester-pays-fds32', '/fuse-bucket')
         j.command('cat /fuse-bucket/hello')
@@ -794,8 +790,9 @@ class ServiceTests(unittest.TestCase):
 
     @skip_in_azure
     def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(self):
+        assert REQUESTER_PAYS_PROJECT
         assert self.bucket
-        b = self.batch(requester_pays_project='hail-vdc')
+        b = self.batch(requester_pays_project=REQUESTER_PAYS_PROJECT)
         j = b.new_job()
         j.command(f'ls /fuse-bucket')
         j.cloudfuse(self.bucket, f'/fuse-bucket', read_only=True)
@@ -806,7 +803,8 @@ class ServiceTests(unittest.TestCase):
 
     @skip_in_azure
     def test_requester_pays(self):
-        b = self.batch(requester_pays_project='hail-vdc')
+        assert REQUESTER_PAYS_PROJECT
+        b = self.batch(requester_pays_project=REQUESTER_PAYS_PROJECT)
         input = b.read_input('gs://hail-test-requester-pays-fds32/hello')
         j = b.new_job()
         j.command(f'cat {input}')

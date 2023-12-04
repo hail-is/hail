@@ -6,10 +6,16 @@ import is.hail.utils.{FastSeq, Interval}
 import is.hail.variant.Locus
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
+import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
+import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class SimplifySuite extends HailSuite {
   implicit val execStrats = ExecStrategy.interpretOnly
+
+  @BeforeMethod
+  def resetUidCounter(): Unit = {
+    is.hail.expr.ir.uidCounter = 0
+  }
 
   @Test def testTableMultiWayZipJoinGlobalsRewrite() {
     hc
@@ -95,53 +101,132 @@ class SimplifySuite extends HailSuite {
     assertEvalsTo(TableCount(ir), 1L)
   }
 
-  @Test def testNestedInsertsSimplify() {
-    val r = Ref("row", TStruct(("x", TInt32)))
-    val r2 = Ref("row2", TStruct(("x", TInt32), ("y", TFloat64)))
+  @DataProvider(name = "NestedInserts")
+  def nestedInserts: Array[Array[Any]] = {
+    val r = Ref("row", TStruct("x" -> TInt32))
+    val r2 = Ref("row2", TStruct("x" -> TInt32, "y" -> TFloat64))
+    val r3 = Ref("row3", TStruct("x" -> TInt32, "y" -> TFloat64, "w" -> TInt32))
 
-    val ir1 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD))))
-    val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD + GetField(r2, "y")))))
-    val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", GetField(r2, "y").toI))))
-
-    assert(Simplify(ctx, ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastSeq("x", "y", "z"))))
-    assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD)), Some(FastSeq("x", "y", "z"))))
-
-    assert(Optimize[IR](ir3, "direct", ctx) == InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", I32(0)))))
-
-    val shouldNotRewrite = Let("row2", InsertFields(r, FastSeq(("y", Ref("other", TFloat64)))), InsertFields(r2, FastSeq(("z", invoke("str", TString, r2)))))
-
-    assert(Simplify(ctx, shouldNotRewrite) == shouldNotRewrite)
-  }
-
-  @Test def testNestedInsertsSimplifyAcrossLets() {
-    val l = Let("a",
-      Let("b",
-        I32(1) + Ref("OTHER_1", TInt32),
-        InsertFields(
-          Ref("TOP", TStruct("foo" -> TInt32)),
+    Array(
+      Array(
+        Let(FastSeq(r2.name -> InsertFields(r, FastSeq("y" -> F64(0)))),
+          InsertFields(r2, FastSeq("z" -> GetField(r2, "x").toD))
+        ),
+        Let(FastSeq(iruid(0L) -> F64(0), r2.name -> r),
+          InsertFields(Ref(r2.name, r.typ),
+            FastSeq(
+              "y" -> Ref(iruid(0L), TFloat64),
+              "z" -> GetField(Ref(r2.name, r.typ), "x").toD
+            ),
+            Some(FastSeq("x", "y", "z"))
+          )
+        )
+      ),
+      Array(
+        Let(FastSeq(r2.name -> InsertFields(r, FastSeq("y" -> F64(0)))),
+          InsertFields(r2, FastSeq("z" -> (GetField(r2, "x").toD + GetField(r2, "y"))))
+        ),
+        Let(FastSeq(iruid(0) -> F64(0), r2.name -> r),
+          InsertFields(Ref(r2.name, r.typ),
+            FastSeq(
+              "y" -> Ref(iruid(0), TFloat64),
+              "z" -> (GetField(Ref(r2.name, r.typ), "x").toD + Ref(iruid(0), TFloat64))
+            ),
+            Some(FastSeq("x", "y", "z"))
+          )
+        )
+      ),
+      Array(
+        Let(FastSeq(r2.name -> InsertFields(r, FastSeq("y" -> F64(0)))),
+          InsertFields(Ref("something_else", TStruct.empty), FastSeq("z" -> GetField(r2, "y").toI))
+        ),
+        Let(FastSeq(iruid(0) -> F64(0), r2.name -> r),
+          InsertFields(Ref("something_else", TStruct.empty), FastSeq("z" -> Ref(iruid(0), TFloat64).toI))
+        )
+      ),
+      Array.fill(2) { // unrewriteable
+        Let(FastSeq(r2.name -> InsertFields(r, FastSeq("y" -> Ref("other", TFloat64)))),
+          InsertFields(r2, FastSeq(("z", invoke("str", TString, r2))))
+        )
+      },
+      Array(
+        Let(
           FastSeq(
-            ("field0", Ref("b", TInt32)),
-            ("field1", I32(1) + Ref("b", TInt32))))),
-      InsertFields(
-        Ref("a", TStruct("foo" -> TInt32, "field0" -> TInt32, "field1" -> TInt32)),
-        FastSeq(
-          ("field2", I32(1) + GetField(Ref("a", TStruct("foo" -> TInt32, "field0" -> TInt32, "field1" -> TInt32)), "field1"))
+            "a" -> I32(32),
+            r2.name -> InsertFields(r, FastSeq("y" -> F64(0))),
+            r3.name -> InsertFields(r2, FastSeq("w" -> Ref("a", TInt32)))
+          ),
+          InsertFields(r3, FastSeq("z" -> (GetField(r3, "x").toD + GetField(r3, "y"))))
+        ),
+        Let(
+          FastSeq(
+            "a" -> I32(32),
+            iruid(0) -> F64(0),
+            r2.name -> r,
+            iruid(1) -> Ref(iruid(0), TFloat64),
+            iruid(2) -> Ref("a", TInt32),
+            r3.name -> Ref(r2.name, r.typ)
+          ),
+          InsertFields(
+            Ref(r3.name, r.typ),
+            FastSeq(
+              "y" -> Ref(iruid(1), TFloat64),
+              "w" -> Ref(iruid(2), TInt32),
+              "z" -> (GetField(Ref(r3.name, r.typ), "x").toD + Ref(iruid(1), TFloat64))
+            ),
+            Some(FastSeq("x", "y", "w", "z"))
+          )
+        )
+      ),
+      Array(
+        Let(
+          FastSeq(
+            "a" -> Let(FastSeq("b" -> (I32(1) + Ref("OTHER_1", TInt32))),
+              InsertFields(
+                Ref("TOP", TStruct("foo" -> TInt32)),
+                FastSeq(
+                  "field0" -> Ref("b", TInt32),
+                  "field1" -> (I32(1) + Ref("b", TInt32))
+                )
+              )
+            )
+          ),
+          InsertFields(
+            Ref("a", TStruct("foo" -> TInt32, "field0" -> TInt32, "field1" -> TInt32)),
+            FastSeq(
+              "field2" ->
+                (I32(1) + GetField(
+                  Ref("a", TStruct("foo" -> TInt32, "field0" -> TInt32, "field1" -> TInt32)),
+                  "field1"
+                ))
+            )
+          )
+        ),
+        Let(
+          FastSeq(
+            "b" -> (I32(1) + Ref("OTHER_1", TInt32)),
+            iruid(0) -> Ref("b", TInt32),
+            iruid(1) -> (I32(1) + Ref("b", TInt32)),
+            "a" -> Ref("TOP", TStruct("foo" -> TInt32))
+          ),
+          InsertFields(
+            Ref("a", TStruct("foo" -> TInt32)),
+            FastSeq(
+              "field0" -> Ref(iruid(0), TInt32),
+              "field1" -> Ref(iruid(1), TInt32),
+              "field2" -> (I32(1) + Ref(iruid(1), TInt32))
+            ),
+            Some(FastSeq("foo", "field0", "field1", "field2"))
+          )
         )
       )
     )
-    val simplified = new NormalizeNames(_.toString, true).apply(Simplify(ctx, l))
-    val expected = Let("1",
-      I32(1) + Ref("OTHER_1", TInt32),
-      Let("2", I32(1) + Ref("1", TInt32),
-        InsertFields(Ref("TOP", TStruct("foo" -> TInt32)),
-          FastSeq(
-            ("field0", Ref("1", TInt32)),
-            ("field1", Ref("2", TInt32)),
-            ("field2", I32(1) + Ref("2", TInt32))
-          ),
-          Some(FastSeq("foo", "field0", "field1", "field2")))))
+  }
 
-    assert(simplified == expected)
+  @Test(dataProvider = "NestedInserts")
+  def testNestedInsertsSimplify(input: IR, expected: IR): Unit =  {
+    val actual = Simplify(ctx, input)
+    actual should be(expected)
   }
 
   @Test def testArrayAggNoAggRewrites(): Unit = {
@@ -232,7 +317,7 @@ class SimplifySuite extends HailSuite {
 
     assert(Simplify(ctx, StreamLen(rangeIR)) == Simplify(ctx, StreamLen(mapOfRange)))
     assert(Simplify(ctx, StreamLen(mapBlockedByLet)) match {
-      case Let(name, value, body) => body == Simplify(ctx, StreamLen(mapOfRange))
+      case Let(_, body) => body == Simplify(ctx, StreamLen(mapOfRange))
     })
   }
 

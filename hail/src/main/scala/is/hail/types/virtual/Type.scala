@@ -1,12 +1,11 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.asm4s._
 import is.hail.backend.HailStateManager
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir._
-import is.hail.types._
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
+import is.hail.types._
 import is.hail.utils
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -125,15 +124,6 @@ abstract class Type extends BaseType with Serializable {
 
   def subst(): Type = this
 
-  def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
-
-  def insert(signature: Type, path: List[String]): (Type, Inserter) = {
-    if (path.nonEmpty)
-      TStruct.empty.insert(signature, path)
-    else
-      (signature, (a, toIns) => toIns)
-  }
-
   def query(fields: String*): Querier = query(fields.toList)
 
   def query(path: List[String]): Querier = {
@@ -159,11 +149,6 @@ abstract class Type extends BaseType with Serializable {
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append(_toPretty)
   }
-
-  def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
-
-  def fieldOption(path: List[String]): Option[Field] =
-    None
 
   def schema: DataType = SparkAnnotationImpex.exportType(this)
 

@@ -36,7 +36,6 @@ import aiodocker  # type: ignore
 import aiodocker.images
 import aiohttp
 import aiohttp.client_exceptions
-import aiomonitor
 import aiorwlock
 import async_timeout
 import orjson
@@ -1193,9 +1192,10 @@ class Container:
                 'resources': {
                     "devices": [{"allow": False, "access": "rwm"}],
                     'cpu': {'shares': weight},
-                    'memory': {
-                        'limit': self.memory_in_bytes,
-                        'reservation': self.memory_in_bytes,
+                    'unified': {  # https://github.com/opencontainers/runtime-spec/blob/main/config-linux.md
+                        'memory.max': str(int(0.99 * self.memory_in_bytes)),
+                        'memory.high': str(int(0.95 * self.memory_in_bytes)),
+                        'memory.swap.max': '0',
                     },
                     # 'blockIO': {'weight': min(weight, 1000)}, FIXME blkio.weight not supported
                 },
@@ -3486,25 +3486,24 @@ async def async_main():
     await network_allocator.reserve()
 
     worker = Worker(httpx.client_session())
-    with aiomonitor.start_monitor(asyncio.get_event_loop(), locals=locals()):
-        try:
-            async with AsyncExitStack() as cleanup:
-                cleanup.push_async_callback(docker.close)
-                cleanup.push_async_callback(network_allocator_task_manager.shutdown_and_wait)
-                cleanup.push_async_callback(CLOUD_WORKER_API.close)
-                cleanup.push_async_callback(worker.shutdown)
-                await worker.run()
-        finally:
-            asyncio.get_event_loop().set_debug(True)
-            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-            if other_tasks:
-                log.warning('Tasks immediately after docker close')
-                dump_all_stacktraces()
-                _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                for t in pending:
-                    log.warning('Dangling task:')
-                    t.print_stack()
-                    t.cancel()
+    try:
+        async with AsyncExitStack() as cleanup:
+            cleanup.push_async_callback(docker.close)
+            cleanup.push_async_callback(network_allocator_task_manager.shutdown_and_wait)
+            cleanup.push_async_callback(CLOUD_WORKER_API.close)
+            cleanup.push_async_callback(worker.shutdown)
+            await worker.run()
+    finally:
+        asyncio.get_event_loop().set_debug(True)
+        other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+        if other_tasks:
+            log.warning('Tasks immediately after docker close')
+            dump_all_stacktraces()
+            _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+            for t in pending:
+                log.warning('Dangling task:')
+                t.print_stack()
+                t.cancel()
 
 
 loop = asyncio.get_event_loop()

@@ -35,27 +35,27 @@ async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSe
 SELECT batches.*,
   cost_t.cost,
   cost_t.cost_breakdown,
-  batches_cancelled.id IS NOT NULL AS cancelled,
-  batches_n_jobs_in_complete_states.n_completed,
-  batches_n_jobs_in_complete_states.n_succeeded,
-  batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled
+  job_groups_cancelled.id IS NOT NULL AS cancelled,
+  job_groups_n_jobs_in_complete_states.n_completed,
+  job_groups_n_jobs_in_complete_states.n_succeeded,
+  job_groups_n_jobs_in_complete_states.n_failed,
+  job_groups_n_jobs_in_complete_states.n_cancelled
 FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN job_groups_n_jobs_in_complete_states
+  ON batches.id = job_groups_n_jobs_in_complete_states.id
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
     SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-    FROM aggregated_batch_resources_v3
-    WHERE batches.id = aggregated_batch_resources_v3.batch_id
+    FROM aggregated_job_group_resources_v3
+    WHERE batches.id = aggregated_job_group_resources_v3.batch_id
     GROUP BY batch_id, resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY batch_id
 ) AS cost_t ON TRUE
-LEFT JOIN batches_cancelled
-  ON batches.id = batches_cancelled.id
+LEFT JOIN job_groups_cancelled
+  ON batches.id = job_groups_cancelled.id
 WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete';
 ''',

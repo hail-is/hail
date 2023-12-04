@@ -26,9 +26,9 @@ object AggSignature {
 
 case class AggSignature(
   op: AggOp,
-  initOpArgs: Seq[Type],
-  seqOpArgs: Seq[Type]) {
-
+  var initOpArgs: Seq[Type],
+  var seqOpArgs: Seq[Type]
+) {
   // only to be used with virtual non-nested signatures on ApplyAggOp and ApplyScanOp
   lazy val returnType: Type = Extract.getResultType(this)
 }

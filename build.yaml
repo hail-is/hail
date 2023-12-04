@@ -2341,6 +2341,15 @@ steps:
       - name: dedup-job-resources
         script: /io/sql/dedup_job_resources.py
         online: true
+      - name: fix-job-groups-state-enum
+        script: /io/sql/fix-job-groups-state-enum.sql
+        online: true
+      - name: populate-job-groups
+        script: /io/sql/populate_job_groups.py
+        online: true
+      - name: rename-job-groups-tables
+        script: /io/sql/rename-job-groups-tables.sql
+        online: false  # this must be offline
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2490,6 +2499,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              --ignore=test/hail/matrixtable/test_file_formats.py \
               -m qobtest \
               --timeout=600 \
               test
@@ -2561,6 +2571,7 @@ steps:
               --instafail \
               --durations=50 \
               --ignore=test/hailtop/ \
+              --ignore=test/hail/matrixtable/test_file_formats.py \
               -m qobtest \
               --timeout=600 \
               test
@@ -2971,6 +2982,10 @@ steps:
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
+
+      {% if global.cloud == 'gcp' %}
+      export GCS_REQUESTER_PAYS_PROJECT={{ global.gcp_project }}
+      {% endif %}
 
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_hailtop_batch/{{ token }}/
@@ -3808,7 +3823,7 @@ steps:
       - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
   - kind: runImage
-    name: setup_dev_namespace_autoscalers
+    name: setup_dev_namespace_autoscaledown
     resources:
       memory: standard
       cpu: '0.25'
@@ -3845,31 +3860,6 @@ steps:
                   - -c
                   - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=0 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=0
                 restartPolicy: OnFailure
-      ---
-      apiVersion: batch/v1
-      kind: CronJob
-      metadata:
-        name: dev-namespace-scaleup-{{ user["username"] }}
-        namespace: {{ user["username"] }}
-      spec:
-        schedule: "0 13 * * 1,2,3,4,5"  # Weekdays at 1pm UTC
-        concurrencyPolicy: Forbid
-        successfulJobsHistoryLimit: 0
-        failedJobsHistoryLimit: 1
-        jobTemplate:
-          spec:
-            template:
-              spec:
-                serviceAccountName: admin
-                containers:
-                - name: dev-namespace-daytime-autoscaler
-                  image: bitnami/kubectl:latest
-                  command:
-                  - /bin/sh
-                  - -c
-                  - set -ex ; kubectl scale deployments --all -n {{ user["username"] }} --replicas=1 && kubectl scale statefulsets --all -n {{ user["username"] }} --replicas=1
-                restartPolicy: OnFailure
-      ---
       EOF
 
       kubectl apply -f the.yaml

@@ -448,11 +448,17 @@ FROM user_inst_coll_resources;
         'pools': inst_coll_manager.pools.values(),
         'jpim': jpim,
         'instance_id': app['instance_id'],
-        'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
+        'global_total_n_instances': inst_coll_manager.global_total_n_instances,
+        'global_total_cores_mcpu': inst_coll_manager.global_total_cores_mcpu,
+        'global_live_n_instances': inst_coll_manager.global_live_n_instances,
+        'global_live_cores_mcpu': inst_coll_manager.global_live_cores_mcpu,
+        'global_n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
+        'global_cores_mcpu_by_state': inst_coll_manager.global_cores_mcpu_by_state,
+        'global_schedulable_n_instances': inst_coll_manager.global_schedulable_n_instances,
+        'global_schedulable_cores_mcpu': inst_coll_manager.global_schedulable_cores_mcpu,
+        'global_schedulable_free_cores_mcpu': inst_coll_manager.global_schedulable_free_cores_mcpu,
         'instances': inst_coll_manager.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'total_provisioned_cores_mcpu': inst_coll_manager.global_total_provisioned_cores_mcpu,
-        'live_schedulable_free_cores_mcpu': inst_coll_manager.global_current_version_live_schedulable_free_cores_mcpu,
         'frozen': app['frozen'],
         'feature_flags': app['feature_flags'],
     }
@@ -1019,11 +1025,11 @@ FROM
   FROM
   (
     SELECT batches.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
-      (jobs.always_run OR NOT (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS cancelled
+      (jobs.always_run OR NOT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS cancelled
     FROM batches
     INNER JOIN jobs ON batches.id = jobs.batch_id
-    LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+    LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
     WHERE batches.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
@@ -1138,7 +1144,7 @@ LOCK IN SHARE MODE;
 SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_batch_resources_v3
+  FROM aggregated_job_group_resources_v3
   GROUP BY batch_id, resource_id) AS t
 LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
@@ -1245,10 +1251,10 @@ async def cancel_fast_failing_batches(app):
 
     records = db.select_and_fetchall(
         '''
-SELECT batches.id, batches_n_jobs_in_complete_states.n_failed
+SELECT batches.id, job_groups_n_jobs_in_complete_states.n_failed
 FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN job_groups_n_jobs_in_complete_states
+  ON batches.id = job_groups_n_jobs_in_complete_states.id
 WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
 '''
     )

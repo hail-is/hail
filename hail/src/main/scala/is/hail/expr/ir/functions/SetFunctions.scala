@@ -10,8 +10,7 @@ object SetFunctions extends RegistryFunctions {
 
     If(IsNA(set),
       NA(TBoolean),
-      Let(i.name,
-        LowerBoundOnOrderedCollection(set, elem, onKey = false),
+      Let(FastSeq(i.name -> LowerBoundOnOrderedCollection(set, elem, onKey = false)),
         If(i.ceq(ArrayLen(CastToArray(set))),
           False(),
           ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(CastToArray(set), i), elem))))
@@ -93,11 +92,10 @@ object SetFunctions extends RegistryFunctions {
       val len: IR = ArrayLen(a)
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(a.name, CastToArray(s),
+      Let(FastSeq(a.name -> CastToArray(s)),
         If(IsNA(a),
           NA(t),
-          Let(size.name,
-            If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len)),
+          Let(FastSeq(size.name -> If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len))),
             If(size.ceq(0),
               NA(t),
               If(invoke("mod", TInt32, size, 2).cne(0),

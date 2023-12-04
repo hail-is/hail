@@ -3,7 +3,6 @@ www
 batch
 batch-driver
 blog
-memory
 monitoring
 auth
 ukbb-rg
