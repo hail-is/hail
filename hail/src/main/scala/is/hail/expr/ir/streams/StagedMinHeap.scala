@@ -24,8 +24,7 @@ sealed trait StagedMinHeap {
   def toArray(cb: EmitCodeBuilder, region: Value[Region]): SIndexableValue
 }
 
-object EmitMinHeap {
-
+object StagedMinHeap {
   def apply(modb: EmitModuleBuilder, elemSType: SType)
            (mkComparator: EmitClassBuilder[_] => StagedComparator)
   : EmitClassBuilder[_] => StagedMinHeap = {

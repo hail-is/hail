@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr.ir.functions.LocusFunctions
-import is.hail.expr.ir.streams.EmitMinHeap
+import is.hail.expr.ir.streams.StagedMinHeap
 import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.physical.stypes.{SType, SValue}
@@ -120,7 +120,7 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
     val emodb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val Main = emodb.genEmitClass[H](name)(H)
 
-    val MinHeap = EmitMinHeap(Main.emodb, A.sType) { classBuilder =>
+    val MinHeap = StagedMinHeap(Main.emodb, A.sType) { classBuilder =>
       (cb: EmitCodeBuilder, x: SValue, y: SValue) =>
         classBuilder.getOrdering(A.sType, A.sType).compareNonnull(cb, x, y)
     }(Main)
