@@ -26,7 +26,7 @@ def login():
 def copy_paste_login(copy_paste_token: str):
     '''Obtain Hail credentials with a copy paste token.'''
     from hailtop.auth import copy_paste_login  # pylint: disable=import-outside-toplevel
-    from hailtop.config import get_deploy_config
+    from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
     username = copy_paste_login(copy_paste_token)
     print(f'Logged into {get_deploy_config().base_url("auth")} as {username}.')
