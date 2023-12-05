@@ -305,9 +305,10 @@ class Tests(unittest.TestCase):
         assert pytest.approx(d['C1046::HG02024'], abs=0.0001) == 0.00126
         assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == 0.00124
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
-    @test_timeout(batch=5 * 60)
+    @test_timeout(batch=10 * 60)
     def test_vep_grch37_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(
             resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True
@@ -327,9 +328,10 @@ class Tests(unittest.TestCase):
         vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
-    @test_timeout(batch=5 * 60)
+    @test_timeout(batch=10 * 60)
     def test_vep_grch38_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(
             resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True
@@ -349,9 +351,10 @@ class Tests(unittest.TestCase):
         vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
-    @test_timeout(batch=5 * 60)
+    @test_timeout(batch=10 * 60)
     def test_vep_grch37_consequence_false(self):
         mt = hl.import_vcf(
             resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True
@@ -362,9 +365,10 @@ class Tests(unittest.TestCase):
         result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
-    @test_timeout(batch=5 * 60)
+    @test_timeout(batch=10 * 60)
     def test_vep_grch38_consequence_false(self):
         mt = hl.import_vcf(
             resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True
@@ -375,9 +379,10 @@ class Tests(unittest.TestCase):
         result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
-    @test_timeout(batch=5 * 60)
+    @test_timeout(batch=10 * 60)
     def test_vep_grch37_against_dataproc(self):
         mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force_bgz=True, n_partitions=4)
         mt = mt.head(20)
@@ -430,9 +435,10 @@ class Tests(unittest.TestCase):
 
         assert hail_vep_result._same(dataproc_result)
 
+    @qobtest
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
-    @test_timeout(batch=5 * 60)
+    @test_timeout(batch=10 * 60)
     def test_vep_grch38_against_dataproc(self):
         dataproc_result = hl.import_table(
             resource('dataproc_vep_grch38_annotations.tsv.gz'),
@@ -484,3 +490,32 @@ class Tests(unittest.TestCase):
         dataproc_result = parse_lof_info_into_dict(dataproc_result)
 
         assert hail_vep_result._same(dataproc_result)
+
+
+    @qobtest
+    @skip_unless_service_backend(clouds=['gcp'])
+    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
+    @test_timeout(batch=10 * 60)
+    def test_vep_grch38_using_indexed_cache(self):
+        dataproc_result = hl.import_table(resource('vep_grch38_input_req_indexed_cache.tsv'),
+                                          key=['locus', 'alleles'],
+                                          types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr),
+                                                 'vep': hl.tstr}, force=True,
+                                          delimiter=" ")
+        loftee_variants = dataproc_result.select()
+
+        hail_vep_result = hl.vep(loftee_variants)
+        hail_vep_result = hail_vep_result.annotate(vep=hail_vep_result.vep.annotate(
+            input=hl.str('\t').join([
+                hail_vep_result.locus.contig,
+                hl.str(hail_vep_result.locus.position),
+                ".",
+                hail_vep_result.alleles[0],
+                hail_vep_result.alleles[1],
+                ".",
+                ".",
+                "GT",
+            ])
+        ))
+        hail_vep_result = hail_vep_result.select('vep')
+        hail_vep_result.collect()

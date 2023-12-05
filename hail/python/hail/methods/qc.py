@@ -907,10 +907,11 @@ class VEPConfigGRCh38Version95(VEPConfig):
 --offline \
 --minimal \
 --assembly GRCh38 \
---fasta {self.data_mount}/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+--fasta {self.data_mount}homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
 --plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:{self.data_mount}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{self.data_mount}/human_ancestor.fa.gz,conservation_file:{self.data_mount}/loftee.sql" \
 --dir_plugins /vep/ensembl-vep/Plugins/ \
 --dir_cache {self.data_mount} \
+--merged \
 -o STDOUT
 '''
 
@@ -960,7 +961,7 @@ def _service_vep(
     temp_output_directory: str,
 ) -> hl.Table:
     reference_genome = ht.locus.dtype.reference_genome.name
-    cloud = backend.bc.cloud()
+    cloud = async_to_blocking(backend._batch_client.cloud())
     regions = backend.regions
 
     if config is not None:
