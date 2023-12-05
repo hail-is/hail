@@ -369,7 +369,7 @@ class Aggs(
 
       for (i <- 0 until nAggs) {
         val rvAgg = agg.Extract.getAgg(aggs(i))
-        rvAgg.combOp(ctx, cb, leftAggState.states(i), rightAggState.states(i))
+        rvAgg.combOp(ctx, cb, leftAggRegion, leftAggState.states(i), rightAggState.states(i))
       }
 
       leftAggState.store(cb)

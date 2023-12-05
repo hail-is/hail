@@ -921,7 +921,10 @@ final case class RunAggScan(
 
 object Begin {
   def apply(xs: IndexedSeq[IR]): IR = {
-    Let(xs.init.map(x => ("__void", x)), xs.last)
+    if (xs.isEmpty || xs.size == 0)
+      new Begin(xs)
+    else
+      Let(xs.init.map(x => ("__void", x)), xs.last)
   }
 }
 final case class Begin(xs: IndexedSeq[IR]) extends IR
