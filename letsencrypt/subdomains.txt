@@ -6,6 +6,7 @@ blog
 monitoring
 auth
 ukbb-rg
+guide-analysis
 grafana
 prometheus
 hello
