@@ -11,11 +11,11 @@ import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
 import is.hail.types.physical.stypes.{EmitType, SSettable, SValue}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
@@ -1463,7 +1463,7 @@ object EmitStream {
             val lProd = lStream.getProducer(mb)
             val rProd = rStream.getProducer(mb)
 
-            val rElemSTy = rProd.element.st.asInstanceOf[SBaseStruct]
+            val rElemSTy = SBaseStructPointer(rProd.element.st.storageType().asInstanceOf[PBaseStruct])
             val intrvlSTy = rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName))
 
             val loadInterval: EmitMethodBuilder[_] =
@@ -1502,8 +1502,8 @@ object EmitStream {
             val lElement: SBaseStructSettable =
               mb.newPField("LeftElement", lProd.element.st).asInstanceOf[SBaseStructSettable]
 
-            val rElement: SSettable =
-              mb.newPField("RightElement", q.arraySType)
+            val rElements: SSettable =
+              mb.newPField("RightElements", q.arraySType)
 
             var jElement: EmitSettable =
               null
@@ -1576,7 +1576,7 @@ object EmitStream {
                     cb.if_(!rPulled, cb.goto(rProd.LproduceElement))
 
                     cb.loop { LproduceR =>
-                      val rElement = rProd.element.toI(cb).get(cb)
+                      val rElement = rElemSTy.coerceOrCopy(cb, elementRegion, rProd.element.toI(cb).get(cb), deepCopy = false)
                       val interval = cb.invokeSCode(loadInterval, cb.this_, rElement).asInterval
 
                       // Drop intervals whose right endpoint is before the key
@@ -1607,10 +1607,10 @@ object EmitStream {
                     cb.assign(rEOS, true)
 
                     cb.define(LallIntervalsFound)
-                    cb.assign(rElement, q.toArray(cb, eltRegion))
+                    cb.assign(rElements, q.toArray(cb, eltRegion))
                     val result = emit(body, cb, region = eltRegion, env = env.bind(
                       lName -> EmitValue.present(lElement),
-                      rName -> EmitValue.present(rElement)
+                      rName -> EmitValue.present(rElements)
                     ))
 
                     jElement = mb.newEmitField("IntervalJoinResult", result.emitType)

@@ -133,17 +133,7 @@ class ModuleBuilder() {
       }
       val ctor = kb.newMethod("<init>", fieldTypes, UnitInfo)
       ctor.emitWithBuilder { cb =>
-        // FIXME, maybe a more elegant way to do this?
-        val L = new lir.Block()
-        L.append(
-          lir.methodStmt(INVOKESPECIAL,
-            "java/lang/Object",
-            "<init>",
-            "()V",
-            false,
-            UnitInfo,
-            FastSeq(lir.load(ctor.this_.asInstanceOf[LocalRef[_]].l))))
-        cb += new VCode(L, L, null)
+        cb += kb.super_.invoke(coerce[Object](cb.this_), Array())
         fields.zipWithIndex.foreach { case (f, i) =>
           cb += f.putAny(ctor.this_, ctor.getArg(i + 1)(f.ti).get)
         }
