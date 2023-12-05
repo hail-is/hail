@@ -338,10 +338,10 @@ class Tests(unittest.TestCase):
         )
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
 
-        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])).rows()
+        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('\|')[:8])).rows()
 
         actual = (
-            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8]))
+            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('\|')[:8]))
             .rows()
             .drop('vep_csq_header')
         )
@@ -501,7 +501,7 @@ class Tests(unittest.TestCase):
                                           key=['locus', 'alleles'],
                                           types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr),
                                                  'vep': hl.tstr}, force=True,
-                                          delimiter=" ")
+                                          delimiter=' ')
         loftee_variants = dataproc_result.select()
 
         hail_vep_result = hl.vep(loftee_variants)
