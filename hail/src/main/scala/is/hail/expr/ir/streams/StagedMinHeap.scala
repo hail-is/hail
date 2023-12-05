@@ -3,9 +3,8 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir.agg.StagedArrayBuilder
-import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder, SCodeParamType}
-import is.hail.types.physical.stypes.concrete.SBaseStructPointer
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder}
+import is.hail.types.physical.PCanonicalArray
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.utils.FastSeq
@@ -31,7 +30,7 @@ object StagedMinHeap {
   : EmitClassBuilder[_] => StagedMinHeap = {
 
     val elemPType = elemSType.storageType().setRequired(true)
-    val elemParamType = elemSType.paramType
+    val elemParamType = elemPType.sType.paramType
 
     val classBuilder: EmitClassBuilder[Unit] =
       modb.genEmitClass[Unit](s"MinHeap${elemPType.asIdent}")

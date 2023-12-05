@@ -15,7 +15,7 @@ import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBinaryPointe
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
 import is.hail.types.physical.stypes.{EmitType, SSettable, SValue}
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
+import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
