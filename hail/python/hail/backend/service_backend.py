@@ -372,6 +372,7 @@ class ServiceBackend(Backend):
         progress: Optional[BatchProgressBar] = None,
         driver_cores: Optional[Union[int, str]] = None,
         driver_memory: Optional[str] = None,
+        preemptible: bool = False,
     ) -> Tuple[bytes, str]:
         timings = Timings()
         async with TemporaryDirectory(ensure_exists=False) as iodir:
@@ -384,7 +385,7 @@ class ServiceBackend(Backend):
                     }))
 
             with timings.step("submit batch"):
-                resources: Dict[str, Union[str, bool]] = {'preemptible': False}
+                resources: Dict[str, Union[str, bool]] = {'preemptible': preemptible}
                 if driver_cores is not None:
                     resources['cpu'] = str(driver_cores)
                 elif self.driver_cores is not None:
@@ -486,8 +487,12 @@ class ServiceBackend(Backend):
         return self._cancel_on_ctrl_c(self._async_rpc(action, payload))
 
     async def _async_rpc(self, action: ActionTag, payload: ActionPayload):
+        preemptible = True
+        driver_cores = '500m'
         if isinstance(payload, ExecutePayload):
             payload = ServiceBackendExecutePayload([f.to_dataclass() for f in self.functions], self._batch.token, payload)
+            preemptible = False
+            driver_cores = None
 
         storage_requirement_bytes = 0
         readonly_fuse_buckets: Set[str] = set()
@@ -517,7 +522,7 @@ class ServiceBackend(Backend):
             liftovers={rg.name: rg._liftovers for rg in self._references.values() if len(rg._liftovers) > 0},
             sequences=sequence_file_mounts,
         )
-        return await self._run_on_batch(f'{action.name.lower()}(...)', qob_config, action, payload)
+        return await self._run_on_batch(f'{action.name.lower()}(...)', qob_config, action, payload, driver_cores=driver_cores, preemptible=preemptible)
 
     # Sequence and liftover information is stored on the ReferenceGenome
     # and there is no persistent backend to keep in sync.
