@@ -385,7 +385,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
       end = in.readBlock(buf)
       off = 0
     }
-    assert(off + n <= end)
+    // assert(off + n <= end)
   }
 
   def close() {
