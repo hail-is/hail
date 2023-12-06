@@ -911,7 +911,6 @@ class VEPConfigGRCh38Version95(VEPConfig):
 --plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:{self.data_mount}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{self.data_mount}/human_ancestor.fa.gz,conservation_file:{self.data_mount}/loftee.sql" \
 --dir_plugins /vep/ensembl-vep/Plugins/ \
 --dir_cache {self.data_mount} \
---merged \
 -o STDOUT
 '''
 
