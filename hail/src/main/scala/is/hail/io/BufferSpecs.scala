@@ -13,19 +13,19 @@ import org.json4s.{Extraction, JValue}
 
 object BufferSpec {
   val zstdCompressionLEB: BufferSpec = LEB128BufferSpec(
-    BlockingBufferSpec(64 * 1024,
-      ZstdBlockBufferSpec(64 * 1024,
+    BlockingBufferSpec(4 * 1024 * 1024,
+      ZstdBlockBufferSpec(4 * 1024 * 1024,
         new StreamBlockBufferSpec)))
 
   val default: BufferSpec = zstdCompressionLEB
 
-  val blockedUncompressed: BufferSpec = BlockingBufferSpec(32 * 1024,
+  val blockedUncompressed: BufferSpec = BlockingBufferSpec(8 * 1024 * 1024,
     new StreamBlockBufferSpec)
   val unblockedUncompressed: BufferSpec = new StreamBufferSpec
 
   val wireSpec: BufferSpec = LEB128BufferSpec(
-    BlockingBufferSpec(64 * 1024,
-      ZstdSizedBasedBlockBufferSpec(64 * 1024,
+    BlockingBufferSpec(4 * 1024 * 1024,
+      ZstdSizedBasedBlockBufferSpec(4 * 1024 * 1024,
         /*minCompressionSize=*/256,
         new StreamBlockBufferSpec)))
   val memorySpec: BufferSpec = wireSpec
@@ -37,7 +37,7 @@ object BufferSpec {
         new StreamBlockBufferSpec)))
 
   val blockSpecs: Array[BufferSpec] = Array(
-    BlockingBufferSpec(64 * 1024,
+    BlockingBufferSpec(8 * 1024 * 1024,
       new StreamBlockBufferSpec),
     BlockingBufferSpec(32 * 1024,
       LZ4HCBlockBufferSpec(32 * 1024,
@@ -45,8 +45,8 @@ object BufferSpec {
     BlockingBufferSpec(32 * 1024,
       LZ4FastBlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec)),
-    BlockingBufferSpec(64 * 1024,
-      ZstdBlockBufferSpec(64 * 1024,
+    BlockingBufferSpec(4 * 1024 * 1024,
+      ZstdBlockBufferSpec(4 * 1024 * 1024,
         new StreamBlockBufferSpec)),
     new StreamBufferSpec)
 
@@ -102,8 +102,6 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 }
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
-  require(blockSize <= (1 << 16))
-
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
@@ -185,8 +183,6 @@ final case class LZ4SizeBasedBlockBufferSpec(compressorType: String, blockSize: 
 }
 
 final case class ZstdBlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
-  require(blockSize <= (1 << 16))
-
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new ZstdInputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new ZstdOutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
@@ -199,8 +195,6 @@ final case class ZstdBlockBufferSpec(blockSize: Int, child: BlockBufferSpec) ext
 }
 
 final case class ZstdSizedBasedBlockBufferSpec(blockSize: Int, minCompressionSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
-  require(blockSize <= (1 << 16))
-
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new ZstdSizedBasedInputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new ZstdSizedBasedOutputBlockBuffer(blockSize, minCompressionSize, child.buildOutputBuffer(out))
