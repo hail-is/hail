@@ -193,6 +193,18 @@ def test_out_of_storage(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+def test_big_logs_that_dont_fit_in_memory(client: BatchClient):
+    b = create_batch(client)
+    resources = {'cpu': '0.25'}
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'head -c 3G </dev/urandom'], resources=resources)
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    # Log reading is consistent
+    job_log = j.log()
+    assert job_log == j.log()
+
+
 @skip_if_terra
 def test_quota_applies_to_volume(client: BatchClient):
     b = create_batch(client)
