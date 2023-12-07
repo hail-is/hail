@@ -252,7 +252,7 @@ object GenericLines {
 
   def read(
     fs: FS,
-    fileListEntries0: IndexedSeq[_ <: FileStatus],
+    fileStatuses0: IndexedSeq[_ <: FileStatus],
     nPartitions: Option[Int],
     blockSizeInMB: Option[Int],
     minPartitions: Option[Int],

@@ -475,7 +475,7 @@ trait FS extends Serializable {
         dirFle = fle
       }
 
-      continue = it.hasNext && (fle.getActualUrl <= withSlash)
+      continue = it.hasNext && (fle.getActualUrl <= withSlash)  // cloud storage APIs return blobs in alphabetical order, so we need not keep searching after withSlash
     }
 
     if (fileFle != null) {

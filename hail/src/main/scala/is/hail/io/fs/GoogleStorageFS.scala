@@ -65,7 +65,7 @@ object GoogleStorageFileListEntry {
     val isDir = blob.isDirectory
 
     new BlobStorageFileListEntry(
-      s"gs://${ blob.getBucket }/${blob.getName}",
+      s"gs://${ blob.getBucket }/${ blob.getName }",
       if (isDir)
         null
       else
