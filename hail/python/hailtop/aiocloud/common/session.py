@@ -116,9 +116,8 @@ class Session(BaseSession):
                 if err.status != 401:
                     raise
                 if expiration is None or time.time() <= expiration:
-                    log.exception(f'The server at {url} rejected credentials valid until {expiration}', err)
                     raise err
-                log.info(f'Credentials expired while waiting for request to {url}. We will retry.', err)
+                log.info(f'Credentials expired while waiting for request to {url}. We will retry. {err}.')
 
     async def close(self) -> None:
         async with AsyncExitStack() as stack:
