@@ -9,7 +9,7 @@ echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers
 curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | sudo apt-key add -
 
 sudo apt update
-sudo apt install -y docker.io python3-pip openjdk-8-jdk-headless jq skopeo
+sudo apt install -y docker.io python3-pip openjdk-11-jdk-headless jq skopeo
 sudo snap install --classic kubectl
 sudo usermod -a -G docker $USER
 
