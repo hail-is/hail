@@ -14,7 +14,6 @@ from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
-from hailtop.auth.tokens import Tokens
 from hailtop.utils import bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx

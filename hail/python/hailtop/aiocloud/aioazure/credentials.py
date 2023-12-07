@@ -4,8 +4,8 @@ import json
 import time
 import logging
 
-from types import TracebackType, Tuple
-from typing import Any, List, Optional, Type, Union
+from types import TracebackType
+from typing import Any, List, Optional, Type, Union, Tuple, Dict
 from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 from azure.core.credentials import AccessToken
 from azure.core.credentials_async import AsyncTokenCredential

@@ -1,5 +1,5 @@
 from contextlib import AsyncExitStack
-from types import TracebackType, Dict, Any
+from types import TracebackType
 from typing import Optional, Type, TypeVar, Mapping, Union
 import time
 import aiohttp
