@@ -1,13 +1,17 @@
 from contextlib import AsyncExitStack
-from types import TracebackType
+from types import TracebackType, Dict, Any
 from typing import Optional, Type, TypeVar, Mapping, Union
+import time
 import aiohttp
 import abc
+import logging
 from hailtop import httpx
 from hailtop.utils import retry_transient_errors, RateLimit, RateLimiter
 from .credentials import CloudCredentials, AnonymousCloudCredentials
 
+
 SessionType = TypeVar('SessionType', bound='BaseSession')
+log = logging.getLogger('hailtop.aiocloud.common.session')
 
 
 class BaseSession(abc.ABC):
@@ -82,13 +86,6 @@ class Session(BaseSession):
         self._credentials = credentials
 
     async def request(self, method: str, url: str, **kwargs) -> aiohttp.ClientResponse:
-        auth_headers = await self._credentials.auth_headers()
-        if auth_headers:
-            if 'headers' in kwargs:
-                kwargs['headers'].update(auth_headers)
-            else:
-                kwargs['headers'] = auth_headers
-
         if self._params:
             if 'params' in kwargs:
                 request_params = kwargs['params']
@@ -102,8 +99,26 @@ class Session(BaseSession):
         # retry by default
         retry = kwargs.pop('retry', True)
         if retry:
-            return await retry_transient_errors(self._http_session.request, method, url, **kwargs)
-        return await self._http_session.request(method, url, **kwargs)
+            return await retry_transient_errors(self._request_with_valid_authn, method, url, **kwargs)
+        return await self._request_with_valid_authn(method, url, **kwargs)
+
+    async def _request_with_valid_authn(self, method, url, **kwargs):
+        while True:
+            auth_headers, expiration = await self._credentials.auth_headers_with_expiration()
+            if auth_headers:
+                if 'headers' in kwargs:
+                    kwargs['headers'].update(auth_headers)
+                else:
+                    kwargs['headers'] = auth_headers
+            try:
+                return await self._http_session.request(method, url, **kwargs)
+            except httpx.ClientResponseError as err:
+                if err.status != 401:
+                    raise
+                if expiration is None or time.time() <= expiration:
+                    log.exception(f'The server at {url} rejected credentials valid until {expiration}', err)
+                    raise err
+                log.info(f'Credentials expired while waiting for request to {url}. We will retry.', err)
 
     async def close(self) -> None:
         async with AsyncExitStack() as stack:
