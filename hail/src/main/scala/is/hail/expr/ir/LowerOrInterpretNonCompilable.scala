@@ -17,6 +17,7 @@ object LowerOrInterpretNonCompilable {
         case Some(failReason) =>
           log.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
           log.info(s"interpreting non-compilable result: ${value.getClass.getSimpleName}")
+          println(s"interpreting subtree:\n${Pretty.sexprStyle(value)}\n============\n")
           val v = Interpret.alreadyLowered(ctx, value)
           if (value.typ == TVoid) {
             Begin(FastSeq())
@@ -24,6 +25,7 @@ object LowerOrInterpretNonCompilable {
         case None =>
           log.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")
           log.info(s"lowering result: ${value.getClass.getSimpleName}")
+          println(s"lowering and executing subtree:\n${Pretty.sexprStyle(ir)}\n============\n")
           val fullyLowered = LowerToDistributedArrayPass(DArrayLowering.All).transform(ctx, value)
             .asInstanceOf[IR]
           log.info(s"compiling and evaluating result: ${value.getClass.getSimpleName}")
@@ -61,6 +63,12 @@ object LowerOrInterpretNonCompilable {
       }
     }
 
-    rewrite(ir.noSharing(ctx), mutable.HashMap.empty)
+    println(s"LowerOrInterpretNonCompilable:\n${Pretty.sexprStyle(ir)}\n============\n")
+
+    val res = rewrite(ir.noSharing(ctx), mutable.HashMap.empty)
+
+    println("LowerOrInterpretNonCompilable done")
+
+    res
   }
 }

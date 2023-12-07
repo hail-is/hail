@@ -7,7 +7,7 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
+import is.hail.utils.{log, FastSeq}
 
 import org.apache.spark.sql.Row
 
@@ -57,7 +57,13 @@ object CompileAndEvaluate {
 
       ctx.scopedExecution { (hcl, fs, htc, r) =>
         val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(hcl, fs, htc, r))
-        ctx.timer.time("RunCompiledVoidFunction")(fRunnable(r))
+        try
+          ctx.timer.time("RunCompiledVoidFunction")(fRunnable(r))
+        catch {
+          case e: Exception =>
+            log.info(s"Error while executing void IR:\n${Pretty(ctx, ir)}")
+            throw e
+        }
       }
       return Left(())
     }

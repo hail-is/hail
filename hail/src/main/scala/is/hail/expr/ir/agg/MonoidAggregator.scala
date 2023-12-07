@@ -3,11 +3,11 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir._
+import is.hail.expr.ir.functions.UtilFunctions
+import is.hail.types.physical.{typeToTypeInfo, PType}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PType, typeToTypeInfo}
 import is.hail.types.virtual._
 
 import scala.language.existentials
@@ -34,11 +34,11 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     val stateRequired = state.vtypes.head.r.required
     val ev = state.fields(0)
     if (!ev.required) {
-        assert(!stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
-        cb.assign(ev, EmitCode.missing(cb.emb, ev.st))
+      assert(!stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
+      cb.assign(ev, EmitCode.missing(cb.emb, ev.st))
     } else {
-        assert(stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
-        cb.assign(ev, EmitCode.present(cb.emb, primitive(ev.st.virtualType, monoid.neutral.get)))
+      assert(stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
+      cb.assign(ev, EmitCode.present(cb.emb, primitive(ev.st.virtualType, monoid.neutral.get)))
     }
   }
 
@@ -49,26 +49,35 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     combine(cb, ev, update)
   }
 
-  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, region: Value[Region], state: PrimitiveRVAState, other: PrimitiveRVAState): Unit = {
+  protected def _combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    state: PrimitiveRVAState,
+    other: PrimitiveRVAState,
+  ): Unit = {
     val ev1 = state.fields(0)
     val ev2 = other.fields(0)
     combine(cb, ev1, ev2)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =
     state.fields(0).toI(cb)
-  }
 
   private def combine(
     cb: EmitCodeBuilder,
     ev1: EmitSettable,
-    ev2: EmitValue
+    ev2: EmitValue,
   ): Unit = {
-    val combined = primitive(monoid.typ, monoid(cb, ev1.pv.asPrimitive.primitiveValue, ev2.pv.asPrimitive.primitiveValue))
-    cb.if_(ev1.m,
+    val combined = primitive(
+      monoid.typ,
+      monoid(cb, ev1.pv.asPrimitive.primitiveValue, ev2.pv.asPrimitive.primitiveValue),
+    )
+    cb.if_(
+      ev1.m,
       cb.if_(!ev2.m, cb.assign(ev1, ev2)),
-      cb.if_(!ev2.m,
-        cb.assign(ev1, EmitCode.present(cb.emb, combined))))
+      cb.if_(!ev2.m, cb.assign(ev1, EmitCode.present(cb.emb, combined))),
+    )
   }
 }
 

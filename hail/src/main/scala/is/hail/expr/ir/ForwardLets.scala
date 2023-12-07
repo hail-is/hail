@@ -32,7 +32,13 @@ object ForwardLets {
           val refs = uses(ir)
           val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
             val rewriteValue = rewrite(value, env).asInstanceOf[IR]
-            if (rewriteValue.typ != TVoid && shouldForward(rewriteValue, refs.filter(_.t.name == name), l))
+            if (
+              rewriteValue.typ != TVoid && shouldForward(
+                rewriteValue,
+                refs.filter(_.t.name == name),
+                l,
+              )
+            )
               env.bindEval(name -> rewriteValue)
             else { keep += (name -> rewriteValue); env }
           }

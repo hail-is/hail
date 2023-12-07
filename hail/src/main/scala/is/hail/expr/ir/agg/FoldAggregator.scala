@@ -1,15 +1,24 @@
 package is.hail.expr.ir.agg
+
 import is.hail.annotations.Region
 import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction2, LongInfo, Value}
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{Compile, Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env, IEmitCode, IR, SCodeEmitParamType}
+import is.hail.expr.ir.{
+  Compile, Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv,
+  EmitMethodBuilder, Env, IEmitCode, IR, SCodeEmitParamType,
+}
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual.Type
 
 // (IR => T), seq op (IR T => T), and comb op (IR (T,T) => T)
 
-class FoldAggregator(val resultEmitType: EmitType, accumName: String, otherAccumName: String, combOpIR: IR) extends StagedAggregator {
+class FoldAggregator(
+  val resultEmitType: EmitType,
+  accumName: String,
+  otherAccumName: String,
+  combOpIR: IR,
+) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
   override val initOpTypes: Seq[Type] = IndexedSeq(resultEmitType.virtualType)
@@ -26,11 +35,20 @@ class FoldAggregator(val resultEmitType: EmitType, accumName: String, otherAccum
     elt.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv))
   }
 
-  override protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, region: Value[Region], state: TypedRegionBackedAggState, other: TypedRegionBackedAggState): Unit = {
+  override protected def _combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    state: TypedRegionBackedAggState,
+    other: TypedRegionBackedAggState,
+  ): Unit = {
     val stateEV = state.get(cb).memoizeField(cb, "fold_agg_comb_op_state")
     val otherEV = other.get(cb).memoizeField(cb, "fold_agg_comb_op_other")
     val env = EmitEnv(Env.apply((accumName, stateEV), (otherAccumName, otherEV)), IndexedSeq())
-    val pEnv = Env.apply((accumName, resultEmitType.storageType), (otherAccumName, resultEmitType.storageType))
+    val pEnv = Env.apply(
+      (accumName, resultEmitType.storageType),
+      (otherAccumName, resultEmitType.storageType),
+    )
 
     val emitCtx = EmitContext.analyze(ctx, combOpIR, pEnv)
     val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]])
@@ -38,7 +56,7 @@ class FoldAggregator(val resultEmitType: EmitType, accumName: String, otherAccum
     ec.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv))
   }
 
-  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
-    state.get(cb).map(cb){ sv => sv.copyToRegion(cb, region, sv.st)}
-  }
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
+    : IEmitCode =
+    state.get(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))
 }

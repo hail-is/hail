@@ -26,7 +26,8 @@ object Pretty {
     maxLen: Int = -1,
     allowUnboundRefs: Boolean = false,
   ): String = {
-    val useSSA = ctx != null && ctx.getFlag("use_ssa_logs") != null
+//    val useSSA = ctx != null && ctx.getFlag("use_ssa_logs") != null
+    val useSSA = false
     val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA)
     pretty(ir)
   }

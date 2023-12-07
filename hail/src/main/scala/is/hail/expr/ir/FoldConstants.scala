@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
-import is.hail.types.virtual.TStream
+import is.hail.types.virtual.{TStream, TVoid}
 import is.hail.utils.HailException
 
 object FoldConstants {
@@ -37,7 +37,7 @@ object FoldConstants {
             _: Trap |
             _: Die |
             _: RNGStateLiteral => None
-        case ir: IR if ir.typ.isInstanceOf[TStream] => None
+        case ir: IR if ir.typ.isInstanceOf[TStream] || ir.typ == TVoid => None
         case ir: IR
             if !IsConstant(ir) &&
               Interpretable(ir) &&

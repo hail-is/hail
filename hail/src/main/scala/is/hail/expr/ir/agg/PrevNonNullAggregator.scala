@@ -23,21 +23,27 @@ class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(elt: EmitCode) = seq
     elt.toI(cb)
-      .consume(cb,
+      .consume(
+        cb,
         { /* do nothing if missing */ },
-        sc => state.storeNonmissing(cb, sc)
+        sc => state.storeNonmissing(cb, sc),
       )
   }
 
-  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, region: Value[Region], state: TypedRegionBackedAggState, other: TypedRegionBackedAggState): Unit = {
+  protected def _combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    state: TypedRegionBackedAggState,
+    other: TypedRegionBackedAggState,
+  ): Unit =
     other.get(cb)
-      .consume(cb,
+      .consume(
+        cb,
         { /* do nothing if missing */ },
-        sc => state.storeNonmissing(cb, sc)
+        sc => state.storeNonmissing(cb, sc),
       )
-  }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =
     state.get(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))
-  }
 }

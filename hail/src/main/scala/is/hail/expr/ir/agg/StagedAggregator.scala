@@ -19,15 +19,31 @@ abstract class StagedAggregator {
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])
 
-  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, region: Value[Region], state: State, other: State): Unit
+  protected def _combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    state: State,
+    other: State,
+  ): Unit
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode
 
-  def initOp(cb: EmitCodeBuilder, state: AggregatorState, init: Array[EmitCode]) = _initOp(cb, state.asInstanceOf[State], init)
-  def seqOp(cb: EmitCodeBuilder, state: AggregatorState, seq: Array[EmitCode]) = _seqOp(cb, state.asInstanceOf[State], seq)
+  def initOp(cb: EmitCodeBuilder, state: AggregatorState, init: Array[EmitCode]) =
+    _initOp(cb, state.asInstanceOf[State], init)
 
-  def combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, region: Value[Region], state: AggregatorState, other: AggregatorState): Unit =
+  def seqOp(cb: EmitCodeBuilder, state: AggregatorState, seq: Array[EmitCode]) =
+    _seqOp(cb, state.asInstanceOf[State], seq)
+
+  def combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    state: AggregatorState,
+    other: AggregatorState,
+  ): Unit =
     _combOp(ctx, cb, region, state.asInstanceOf[State], other.asInstanceOf[State])
+
   def result(cb: EmitCodeBuilder, state: AggregatorState, region: Value[Region]): IEmitCode =
     _result(cb, state.asInstanceOf[State], region)
 }

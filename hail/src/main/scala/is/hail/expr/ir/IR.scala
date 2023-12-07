@@ -921,12 +921,15 @@ final case class RunAggScan(
 
 object Begin {
   def apply(xs: IndexedSeq[IR]): IR = {
-    if (xs.isEmpty || xs.size == 0)
+    if (xs.isEmpty)
+      Void()
+    else if (xs.size == 0 || false)
       new Begin(xs)
     else
       Let(xs.init.map(x => ("__void", x)), xs.last)
   }
 }
+
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: IndexedSeq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: IndexedSeq[String]) extends IR
