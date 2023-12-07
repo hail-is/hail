@@ -202,7 +202,7 @@ dependencies {
 
     implementation 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
-    implementation 'com.github.luben:zstd-jni:1.5.5-2'
+    implementation 'com.github.luben:zstd-jni:1.5.5-11'
 
     implementation project(path: ':shadedazure', configuration: 'shadow')
 }
