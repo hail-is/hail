@@ -24,6 +24,17 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
 
   def getModule(id: String): (HailClassLoader, FS, HailTaskContext, Region) => F = loadedModules(id)
 
+  private[this] def lookupSemanticHashResults(
+    backendContext: BackendContext,
+    stageName: String,
+    semanticHash: Option[SemanticHash.Type],
+  ): Option[IndexedSeq[(Array[Byte], Int)]] = semanticHash.map { s =>
+    log.info(s"[collectDArray|$stageName]: querying cache for $s")
+    val cachedResults = backendContext.executionCache.lookup(s)
+    log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $s.")
+    cachedResults
+  }
+
   def collectDArray(
     backendContext: BackendContext,
     theDriverHailClassLoader: HailClassLoader,
@@ -34,7 +45,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
     stageName: String,
     semhash: Option[SemanticHash.Type],
     tsd: Option[TableStageDependency]
-  ): Array[Array[Byte]] = semhash match {
+  ): Array[Array[Byte]] = lookupSemanticHashResults(backendContext, stageName, semhash) match {
     case None =>
       val backend = HailContext.backend
       val f = getModule(modID)
@@ -76,10 +87,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
       )
 
       results
-    case Some(s) =>
-      log.info(s"[collectDArray|$stageName]: querying cache for $s")
-      val cachedResults = backendContext.executionCache.lookup(s)
-      log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $s.")
+    case Some(cachedResults) =>
       val remainingContexts =
         for {
           c@(_, k) <- contexts.zipWithIndex

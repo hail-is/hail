@@ -180,12 +180,10 @@ class ServiceBackend(
       retryTransientErrors {
         fs.writePDOS(s"$root/contexts") { os =>
           var o = 12L * n
-          var i = 0
-          while (i < n) {
-            val len = collection(i).length
+          collection.foreach { context =>
+            val len = context.length
             os.writeLong(o)
             os.writeInt(len)
-            i += 1
             o += len
           }
           collection.foreach { context =>
@@ -203,13 +201,13 @@ class ServiceBackend(
     while (i < n) {
       var resources = JObject("preemptible" -> JBool(true))
       if (backendContext.workerCores != "None") {
-        resources = resources.merge(JObject(("cpu" -> JString(backendContext.workerCores))))
+        resources = resources.merge(JObject("cpu" -> JString(backendContext.workerCores)))
       }
       if (backendContext.workerMemory != "None") {
-        resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
+        resources = resources.merge(JObject("memory" -> JString(backendContext.workerMemory)))
       }
       if (backendContext.storageRequirement != "0Gi") {
-        resources = resources.merge(JObject(("storage" -> JString(backendContext.storageRequirement))))
+        resources = resources.merge(JObject("storage" -> JString(backendContext.storageRequirement)))
       }
       jobs(i) = JObject(
         "always_run" -> JBool(false),
