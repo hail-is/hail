@@ -196,9 +196,7 @@ class ServiceBackend(
     uploadFunction.get()
     uploadContexts.get()
 
-    val jobs = new Array[JObject](n)
-    var i = 0
-    while (i < n) {
+    val jobs = collection.zipWithIndex.map { case (_, i) =>
       var resources = JObject("preemptible" -> JBool(true))
       if (backendContext.workerCores != "None") {
         resources = resources.merge(JObject("cpu" -> JString(backendContext.workerCores)))
@@ -240,7 +238,6 @@ class ServiceBackend(
           )
         }.toList)
       )
-      i += 1
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
