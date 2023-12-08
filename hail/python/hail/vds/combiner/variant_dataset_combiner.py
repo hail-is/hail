@@ -223,8 +223,6 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcf_info_to_keep: Optional[Collection[str]] = None,
                  gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
                  ):
-        if not (vdses or gvcfs):
-            raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
         if gvcf_import_intervals:
             interval = gvcf_import_intervals[0]
             if not isinstance(interval.point_type, hl.tlocus):
@@ -654,8 +652,9 @@ def new_combiner(*,
                 combiner._target_records = target_records
                 combiner._gvcf_batch_size = gvcf_batch_size
                 return combiner
-            except (ValueError, TypeError, OSError, KeyError):
-                warning(f'file exists at {save_path}, but it is not a valid combiner plan, overwriting')
+            except (ValueError, TypeError, OSError, KeyError) as e:
+                warning(f'file exists at {save_path}, but it is not a valid combiner plan, overwriting\n'
+                        f'    caused by: {e}')
         return None
 
     # We do the first save_path check now after validating the arguments
