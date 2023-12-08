@@ -36,16 +36,25 @@ def get_chrome_path():
     if system == 'Darwin':
         return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
-    if system == 'Linux':
-        for c in ['chromium', 'chromium-browser']:
+    release = platform.uname().release
+    is_wsl = 'Microsoft' in release or 'microsoft' in release
+
+    if system == 'Linux' and not is_wsl:
+        for c in ['chromium', 'chromium-browser', 'chrome.exe']:
             chrome = shutil.which(c)
             if chrome:
                 return chrome
 
-        raise EnvironmentError("cannot find 'chromium' or 'chromium-browser' on path")
+        raise EnvironmentError("cannot find 'chromium', 'chromium-browser', or 'chrome.exe' on path")
 
-    if system == 'Windows':
-        return '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+    if system == 'Windows' or (system == 'Linux' and is_wsl):
+        fnames = [
+            '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'
+            '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+        ]
+        for fname in fnames:
+            if os.path.exists(fname):
+                return fname
 
     raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
 
@@ -109,18 +118,15 @@ def connect(
         gcloud.run(cmd)
 
         chrome = os.environ.get('HAILCTL_CHROME') or get_chrome_path()
+        data_dir = os.path.join(tempfile.gettempdir(), 'hailctl-dataproc-connect-' + secret_alnum_string(6))
 
         # open Chrome with SOCKS proxy configuration
         with subprocess.Popen(
             [  # pylint: disable=consider-using-with
                 chrome,
-                'http://localhost:{}'.format(connect_port_and_path),
-                '--proxy-server=socks5://localhost:{}'.format(port),
-                '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
-                '--proxy-bypass-list=<-loopback>',  # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
-                '--user-data-dir={}'.format(
-                    os.path.join(tempfile.gettempdir(), 'hailctl-dataproc-connect-' + secret_alnum_string(6))
-                ),
+                f'http://{name}-m:{connect_port_and_path}',
+                f'--proxy-server=socks5://localhost:{port}'
+                f'--user-data-dir={data_dir}',
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
