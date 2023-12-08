@@ -47,6 +47,9 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
     tsd: Option[TableStageDependency]
   ): Array[Array[Byte]] = lookupSemanticHashResults(backendContext, stageName, semhash) match {
     case None =>
+      if (contexts.isEmpty)
+        return Array()
+
       val backend = HailContext.backend
       val f = getModule(modID)
 
