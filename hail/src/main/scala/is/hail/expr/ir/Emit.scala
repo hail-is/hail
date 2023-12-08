@@ -839,15 +839,12 @@ class Emit[C](
 
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
-      case x @ Let(bindings, body) =>
-        val (voidBindings, valueBindings) = bindings.partition(_._2.typ == TVoid)
-        val voidOps = voidBindings.map(_._2) :+ body
-
+      case Let(bindings, body) =>
         def go(env: EmitEnv): IndexedSeq[(String, IR)] => Unit = {
           case (name, value) +: rest =>
             if (value.typ == TVoid) {
-              assert(false)
               emitVoid(value, env = env)
+              go(env)(rest)
             } else {
               val xVal =
                 if (value.typ.isInstanceOf[TStream]) emitStream(value, region, env = env)
@@ -858,31 +855,10 @@ class Emit[C](
               }
             }
           case Seq() =>
-            if (
-              !ctx.inLoopCriticalPath.contains(x) && voidOps.forall(x =>
-                !ctx.inLoopCriticalPath.contains(x)
-              )
-            ) {
-              voidOps.grouped(16).zipWithIndex.foreach { case (group, idx) =>
-                val mb = cb.emb.genEmitMethod(
-                  s"begin_group_$idx",
-                  FastSeq[ParamType](classInfo[Region]),
-                  UnitInfo,
-                )
-                mb.voidWithBuilder { cb =>
-                  group.foreach(x =>
-                    emitVoid(x, cb, mb.getCodeParam[Region](1), env, container, loopEnv)
-                  )
-                }
-                cb.invokeVoid(mb, region)
-              }
-            } else
-              voidOps.foreach(x => emitVoid(x))
             emitVoid(body, env = env)
         }
 
-        go(env)(valueBindings)
-//        go(env)(bindings)
+        go(env)(bindings)
 
       case StreamFor(a, valueName, body) =>
         emitStream(a, region).toI(cb).consume(
