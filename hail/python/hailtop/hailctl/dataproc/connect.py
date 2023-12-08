@@ -125,7 +125,7 @@ def connect(
             [  # pylint: disable=consider-using-with
                 chrome,
                 f'http://{name}-m:{connect_port_and_path}',
-                f'--proxy-server=socks5://localhost:{port}'
+                f'--proxy-server=socks5://localhost:{port}',
                 f'--user-data-dir={data_dir}',
             ],
             stdout=subprocess.DEVNULL,

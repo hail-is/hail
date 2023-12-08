@@ -59,7 +59,7 @@ def test_connect(gcloud_run, subprocess):
     assert popen_args[0] == "chromium"
     assert popen_args[1].startswith("http://test-cluster-m")
 
-    assert "--proxy-server=socks5://test-cluster-m:10000" in popen_args
+    assert "--proxy-server=socks5://localhost:10000" in popen_args
     assert any(arg.startswith("--user-data-dir=") for arg in popen_args)
 
 
