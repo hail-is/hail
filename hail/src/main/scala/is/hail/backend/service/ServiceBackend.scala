@@ -207,7 +207,7 @@ class ServiceBackend(
       if (backendContext.storageRequirement != "0Gi") {
         resources = resources.merge(JObject("storage" -> JString(backendContext.storageRequirement)))
       }
-      jobs(i) = JObject(
+      JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
         "in_update_parent_ids" -> JArray(List()),
