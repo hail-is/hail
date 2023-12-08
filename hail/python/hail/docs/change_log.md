@@ -52,6 +52,24 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+
+## Version 0.2.127
+
+Released 2023-12-08
+
+### Bug Fixes
+
+- (hail#14048) Fix #13979, affecting Query-on-Batch and manifesting most frequently as "com.github.luben.zstd.ZstdException: Corrupted block detected".
+- (hail#14066) Since 0.2.110, `hailctl dataproc` set the heap size of the driver JVM dangerously high. It is now set to an appropriate level. This issue manifests in a variety of inscrutable ways including RemoteDisconnectedError and socket closed. See issue (hail#13960) for details.
+- (hail#14057) Fix #13998 which appeared in 0.2.58 and prevented reading from a networked filesystem mounted within the filesystem of the worker node for certain pipelines (those that did not trigger "lowering").
+- (hail#14006) Fix #14000. Hail now supports identity_by_descent on Apple M1 and M2 chips; however, your Java installation must be an arm64 installation. Using x86_64 Java with Hail on Apple M1 or M2 will cause SIGILL errors. If you have an Apple M1 or Apple M2 and `/usr/libexec/java_home -V` does not include `(arm64)`, you must switch to an arm64 version of the JVM.
+- (hail#14022) Fix #13937 caused by faulty library code in the Google Cloud Storage API Java client library.
+
+
+### Deprecations
+
+- (hail#13987) Deprecate `default_reference` parameter to `hl.init`, users should use `hl.default_reference` with an argument to set new default references usually shortly after `hl.init`.
+
 ## Version 0.2.126
 
 Released 2023-10-30
