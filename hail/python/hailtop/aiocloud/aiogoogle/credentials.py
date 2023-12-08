@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union, List, Literal, ClassVar, overload
+from typing import Dict, Optional, Union, List, Literal, ClassVar, overload, Tuple
 import os
 import json
 import time
@@ -102,13 +102,14 @@ class GoogleCredentials(CloudCredentials):
                     'run `gcloud auth application-default login` first to log in.')
         return AnonymousCloudCredentials()
 
-    async def auth_headers(self) -> Dict[str, str]:
-        return {'Authorization': f'Bearer {await self.access_token()}'}
+    async def auth_headers_with_expiration(self) -> Tuple[Dict[str, str], Optional[float]]:
+        token, expiration = await self.access_token_with_expiration()
+        return {'Authorization': f'Bearer {token}'}, expiration
 
-    async def access_token(self) -> str:
+    async def access_token_with_expiration(self) -> Tuple[str, Optional[float]]:
         if self._access_token is None or self._access_token.expired():
             self._access_token = await self._get_access_token()
-        return self._access_token.token
+        return self._access_token.token, self._access_token._expiry_time
 
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         raise NotImplementedError
