@@ -216,9 +216,9 @@ async def logout_oauth2_credentials(identity_spec: IdentityProviderSpec):
 
 
 @asynccontextmanager
-async def hail_session():
+async def hail_session(**session_kwargs):
     async with hail_credentials() as credentials:
-        async with Session(credentials=credentials) as session:
+        async with Session(credentials=credentials, **session_kwargs) as session:
             yield session
 
 def get_user(username: str) -> dict:
@@ -226,7 +226,7 @@ def get_user(username: str) -> dict:
 
 
 async def async_get_user(username: str) -> dict:
-    async with hail_session() as session:
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=30)) as session:
         url = get_deploy_config().url('auth', f'/api/v1alpha/users/{username}')
         async with await session.get(url) as resp:
             return await resp.json()
@@ -249,7 +249,7 @@ async def async_create_user(
     }
 
     url = get_deploy_config().url('auth', f'/api/v1alpha/users/{username}/create')
-    async with hail_session() as session:
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=30)) as session:
         await session.post(url, json=body)
 
 
