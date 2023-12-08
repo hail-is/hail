@@ -1,4 +1,4 @@
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, Tuple, List
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
@@ -41,32 +41,38 @@ class HailCredentials(CloudCredentials):
         self._deploy_config = deploy_config
         self._authorize_target = authorize_target
 
-    async def auth_headers(self) -> Dict[str, str]:
+    async def auth_headers_with_expiration(self) -> Tuple[Dict[str, str], Optional[float]]:
         headers = {}
+        expiration = None
         if self._authorize_target:
-            token = await self._get_idp_access_token_or_hail_token(self._deploy_config.default_namespace())
+            token, expiration = await self._get_idp_access_token_or_hail_token(self._deploy_config.default_namespace())
             headers['Authorization'] = f'Bearer {token}'
         if get_deploy_config().location() == 'external' and self._deploy_config.default_namespace() != 'default':
             # We prefer an extant hail token to an access token for the internal auth token
             # during development of the idp access token feature because the production auth
             # is not yet configured to accept access tokens. This can be changed to always prefer
             # an idp access token when this change is in production.
-            token = await self._get_hail_token_or_idp_access_token('default')
+            token, internal_expiration = await self._get_hail_token_or_idp_access_token('default')
+            if internal_expiration:
+                if not expiration:
+                    expiration = internal_expiration
+                else:
+                    expiration = min(expiration, internal_expiration)
             headers['X-Hail-Internal-Authorization'] = f'Bearer {token}'
-        return headers
+        return headers, expiration
 
-    async def access_token(self) -> str:
+    async def access_token_with_expiration(self) -> Tuple[str, Optional[float]]:
         return await self._get_idp_access_token_or_hail_token(self._deploy_config.default_namespace())
 
-    async def _get_idp_access_token_or_hail_token(self, namespace: str) -> str:
+    async def _get_idp_access_token_or_hail_token(self, namespace: str) -> Tuple[str, Optional[float]]:
         if self._cloud_credentials is not None:
-            return await self._cloud_credentials.access_token()
-        return self._tokens.namespace_token_or_error(namespace)
+            return await self._cloud_credentials.access_token_with_expiration()
+        return self._tokens.namespace_token_with_expiration_or_error(namespace)
 
-    async def _get_hail_token_or_idp_access_token(self, namespace: str) -> str:
+    async def _get_hail_token_or_idp_access_token(self, namespace: str) -> Tuple[str, Optional[float]]:
         if self._cloud_credentials is None:
-            return self._tokens.namespace_token_or_error(namespace)
-        return self._tokens.namespace_token(namespace) or await self._cloud_credentials.access_token()
+            return self._tokens.namespace_token_with_expiration_or_error(namespace)
+        return self._tokens.namespace_token_with_expiration(namespace) or await self._cloud_credentials.access_token_with_expiration()
 
     async def close(self):
         if self._cloud_credentials:

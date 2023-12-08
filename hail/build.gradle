@@ -168,7 +168,7 @@ dependencies {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.29.1') {
+    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.30.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -202,7 +202,7 @@ dependencies {
 
     implementation 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
-    implementation 'com.github.luben:zstd-jni:1.5.5-2'
+    implementation 'com.github.luben:zstd-jni:1.5.5-11'
 
     implementation project(path: ':shadedazure', configuration: 'shadow')
 }
