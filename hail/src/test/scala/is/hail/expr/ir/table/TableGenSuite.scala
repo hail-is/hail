@@ -116,11 +116,11 @@ class TableGenSuite extends HailSuite {
       errorId = Some(errorId)
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
-    val ex = intercept[HailException] {
+    val ex = intercept[SparkException] {
       ExecuteContext.scoped() { ctx =>
         loweredExecute(ctx, lowered, Env.empty, FastSeq(), None)
       }
-    }
+    }.getCause.asInstanceOf[HailException]
 
     ex.errorId shouldBe errorId
     ex.getMessage should include("TableGen: Unexpected key in partition")
