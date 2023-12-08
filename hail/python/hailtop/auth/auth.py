@@ -259,5 +259,5 @@ def delete_user(username: str):
 
 async def async_delete_user(username: str):
     url = get_deploy_config().url('auth', f'/api/v1alpha/users/{username}')
-    async with hail_session() as session:
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=300)) as session:
         await session.delete(url)
