@@ -10,8 +10,9 @@ from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 from hail.expr import HailType, tmatrix
-from hail.utils import Interval
+from hail.utils import FatalError, Interval
 from hail.utils.java import info, warning
+from hail.vds import VariantDataset
 from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields, make_variant_stream, \
     make_reference_stream, combine_r, calculate_even_genome_partitioning, \
     calculate_new_intervals, combine
@@ -343,11 +344,20 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         fs = hl.current_backend().fs
         with fs.open(path) as stream:
             combiner = json.load(stream, cls=Decoder)
+            combiner._raise_if_output_exists()
             if combiner._save_path != path:
                 warning('path/save_path mismatch in loaded VariantDatasetCombiner, using '
                         f'{path} as the new save_path for this combiner')
                 combiner._save_path = path
             return combiner
+
+    def _raise_if_output_exists(self):
+        fs = hl.current_backend().fs
+        ref_success_path = os.path.join(VariantDataset._reference_path(self._output_path), '_SUCCESS')
+        var_success_path = os.path.join(VariantDataset._variants_path(self._output_path), '_SUCCESS')
+        if fs.exists(ref_success_path) and fs.exists(var_success_path):
+            raise FatalError(f'combiner output already exists at {self._output_path}\n'
+                             'move or delete it before continuing')
 
     def to_dict(self) -> dict:
         """A serializable representation of this combiner."""
@@ -397,14 +407,14 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             self._job_id += 1
 
     def _write_final(self, vds):
-        fd = hl.vds.VariantDataset.ref_block_max_length_field
+        fd = VariantDataset.ref_block_max_length_field
 
         if fd not in vds.reference_data.globals:
             info("VDS combiner: computing reference block max length...")
             max_len = vds.reference_data.aggregate_entries(
                 hl.agg.max(vds.reference_data.END + 1 - vds.reference_data.locus.position))
             info(f"VDS combiner: max reference block length is {max_len}")
-            vds = hl.vds.VariantDataset(reference_data=vds.reference_data.annotate_globals(**{fd: max_len}),
+            vds = VariantDataset(reference_data=vds.reference_data.annotate_globals(**{fd: max_len}),
                                         variant_data=vds.variant_data)
 
         vds.write(self._output_path)
@@ -546,7 +556,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                                             globals=hl.struct(
                                                 g=hl.literal(ids).map(lambda s: hl.struct(__cols=[hl.struct(s=s)]))))
             variant_ht = combine(variant_ht)
-            vds = hl.vds.VariantDataset(reference_ht._unlocalize_entries('__entries', '__cols', ['s']),
+            vds = VariantDataset(reference_ht._unlocalize_entries('__entries', '__cols', ['s']),
                                         variant_ht._unlocalize_entries('__entries', '__cols',
                                                                        ['s'])._key_rows_by_assert_sorted('locus',
                                                                                                          'alleles'))
@@ -791,23 +801,25 @@ def new_combiner(*,
 
     vdses.sort(key=lambda x: x.n_samples, reverse=True)
 
-    return VariantDatasetCombiner(save_path=save_path,
-                                  output_path=output_path,
-                                  temp_path=temp_path,
-                                  reference_genome=reference_genome,
-                                  dataset_type=dataset_type,
-                                  branch_factor=branch_factor,
-                                  target_records=target_records,
-                                  gvcf_batch_size=gvcf_batch_size,
-                                  contig_recoding=contig_recoding,
-                                  call_fields=call_fields,
-                                  vdses=vdses,
-                                  gvcfs=gvcf_paths,
-                                  gvcf_import_intervals=intervals,
-                                  gvcf_external_header=gvcf_external_header,
-                                  gvcf_sample_names=gvcf_sample_names,
-                                  gvcf_info_to_keep=gvcf_info_to_keep,
-                                  gvcf_reference_entry_fields_to_keep=gvcf_reference_entry_fields_to_keep)
+    combiner = VariantDatasetCombiner(save_path=save_path,
+                                      output_path=output_path,
+                                      temp_path=temp_path,
+                                      reference_genome=reference_genome,
+                                      dataset_type=dataset_type,
+                                      branch_factor=branch_factor,
+                                      target_records=target_records,
+                                      gvcf_batch_size=gvcf_batch_size,
+                                      contig_recoding=contig_recoding,
+                                      call_fields=call_fields,
+                                      vdses=vdses,
+                                      gvcfs=gvcf_paths,
+                                      gvcf_import_intervals=intervals,
+                                      gvcf_external_header=gvcf_external_header,
+                                      gvcf_sample_names=gvcf_sample_names,
+                                      gvcf_info_to_keep=gvcf_info_to_keep,
+                                      gvcf_reference_entry_fields_to_keep=gvcf_reference_entry_fields_to_keep)
+    combiner._raise_if_output_exists()
+    return combiner
 
 
 def load_combiner(path: str) -> VariantDatasetCombiner:
