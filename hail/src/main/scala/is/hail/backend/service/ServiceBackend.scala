@@ -35,6 +35,7 @@ import scala.annotation.switch
 import scala.collection.mutable
 import scala.language.higherKinds
 import scala.reflect.ClassTag
+import scala.collection.JavaConverters._
 
 class ServiceBackendContext(
   val billingProject: String,
@@ -151,14 +152,14 @@ class ServiceBackend(
     new String(bytes, StandardCharsets.UTF_8)
   }
 
-  override def parallelizeAndComputeWithIndex(
+  private[this] def submitAndWaitForBatch(
     _backendContext: BackendContext,
     fs: FS,
-    collection: IndexedSeq[(Array[Byte], Int)],
+    collection: Array[Array[Byte]],
     stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None
-  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+    dependency: Option[TableStageDependency] = None,
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): (String, String, Int) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
     val token = tokenUrlSafe(32)
@@ -179,17 +180,15 @@ class ServiceBackend(
       retryTransientErrors {
         fs.writePDOS(s"$root/contexts") { os =>
           var o = 12L * n
-
-          // write header of context offsets and lengths
-          for ((context, _) <- collection) {
-            val len = context.length
+          var i = 0
+          while (i < n) {
+            val len = collection(i).length
             os.writeLong(o)
             os.writeInt(len)
+            i += 1
             o += len
           }
-
-          // write context arrays themselves
-          for ((context, _) <- collection) {
+          collection.foreach { context =>
             os.write(context)
           }
         }
@@ -199,19 +198,20 @@ class ServiceBackend(
     uploadFunction.get()
     uploadContexts.get()
 
-    val jobs = collection.map { case (_, i) =>
+    val jobs = new Array[JObject](n)
+    var i = 0
+    while (i < n) {
       var resources = JObject("preemptible" -> JBool(true))
       if (backendContext.workerCores != "None") {
-        resources = resources.merge(JObject("cpu" -> JString(backendContext.workerCores)))
+        resources = resources.merge(JObject(("cpu" -> JString(backendContext.workerCores))))
       }
       if (backendContext.workerMemory != "None") {
-        resources = resources.merge(JObject("memory" -> JString(backendContext.workerMemory)))
+        resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
       }
       if (backendContext.storageRequirement != "0Gi") {
-        resources = resources.merge(JObject("storage" -> JString(backendContext.storageRequirement)))
+        resources = resources.merge(JObject(("storage" -> JString(backendContext.storageRequirement))))
       }
-
-      JObject(
+      jobs(i) = JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
         "in_update_parent_ids" -> JArray(List()),
@@ -224,8 +224,7 @@ class ServiceBackend(
             JString(Main.WORKER),
             JString(root),
             JString(s"$i"),
-            JString(s"$n")
-          )),
+            JString(s"$n"))),
           "type" -> JString("jvm"),
           "profile" -> JBool(backendContext.profile),
         ),
@@ -243,6 +242,7 @@ class ServiceBackend(
           )
         }.toList)
       )
+      i += 1
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
@@ -250,17 +250,14 @@ class ServiceBackend(
     val (batchId, updateId) = curBatchId match {
       case Some(id) =>
         (id, batchClient.update(id, token, jobs))
-
       case None =>
         val batchId = batchClient.create(
           JObject(
             "billing_project" -> JString(backendContext.billingProject),
             "n_jobs" -> JInt(n),
             "token" -> JString(token),
-            "attributes" -> JObject("name" -> JString(name + "_" + stageCount))
-          ),
-          jobs
-        )
+            "attributes" -> JObject("name" -> JString(name + "_" + stageCount))),
+          jobs)
         (batchId, 1L)
     }
 
@@ -273,31 +270,68 @@ class ServiceBackend(
       throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
     }
 
+    (token, root, n)
+  }
+
+  private[this] def readResult(root: String, i: Int): Array[Byte] = {
+    val bytes = fs.readNoCompression(s"$root/result.$i")
+    if (bytes(0) != 0) {
+      bytes.slice(1, bytes.length)
+    } else {
+      val errorInformationBytes = bytes.slice(1, bytes.length)
+      val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+      val shortMessage = readString(is)
+      val expandedMessage = readString(is)
+      val errorId = is.readInt()
+      throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
+    }
+  }
+
+  override def parallelizeAndComputeWithIndex(
+    _backendContext: BackendContext,
+    fs: FS,
+    collection: Array[Array[Byte]],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
+    val (token, root, n) = submitAndWaitForBatch(_backendContext, fs, collection, stageIdentifier, dependency, f)
+
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
-
     val startTime = System.nanoTime()
+    val results = try {
+      executor.invokeAll[Array[Byte]](
+        IndexedSeq.range(0, n).map { i =>
+          (() => readResult(root, i)): Callable[Array[Byte]]
+        }.asJavaCollection
+      ).asScala.map(_.get).toArray
+    } catch {
+      case exc: ExecutionException if exc.getCause() != null => throw exc.getCause()
+    }
+    val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
+    val rate = results.length / resultsReadingSeconds
+    val byterate = results.map(_.length).sum / resultsReadingSeconds / 1024 / 1024
+    log.info(s"all results read. $resultsReadingSeconds s. $rate result/s. $byterate MiB/s.")
+    results
+  }
 
+  override def parallelizeAndComputeWithIndexReturnAllErrors(
+    _backendContext: BackendContext,
+    fs: FS,
+    collection: IndexedSeq[(Array[Byte], Int)],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None
+  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+    val (token, root, n) = submitAndWaitForBatch(_backendContext, fs, collection.map(_._1).toArray, stageIdentifier, dependency, f)
+    log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
+    val startTime = System.nanoTime()
     val r@(_, results) = runAllKeepFirstError(executor) {
-      collection.map { case (_, i) =>
-        (
-          () => {
-            val bytes = fs.readNoCompression(s"$root/result.$i")
-            if (bytes(0) != 0) {
-              bytes.slice(1, bytes.length)
-            } else {
-              val errorInformationBytes = bytes.slice(1, bytes.length)
-              val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-              val shortMessage = readString(is)
-              val expandedMessage = readString(is)
-              val errorId = is.readInt()
-              throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
-            }
-          },
-          i
-        )
+      collection.zipWithIndex.map { case ((_, i), jobIndex) =>
+        (() => readResult(root, jobIndex), i)
       }
     }
-
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
     val byterate = results.map(_._1.length).sum / resultsReadingSeconds / 1024 / 1024
