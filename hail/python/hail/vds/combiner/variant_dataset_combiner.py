@@ -12,10 +12,10 @@ import hail as hl
 from hail.expr import HailType, tmatrix
 from hail.utils import FatalError, Interval
 from hail.utils.java import info, warning
-from hail.vds import VariantDataset
 from .combine import combine_variant_datasets, transform_gvcf, defined_entry_fields, make_variant_stream, \
     make_reference_stream, combine_r, calculate_even_genome_partitioning, \
     calculate_new_intervals, combine
+from ..variant_dataset import VariantDataset
 
 
 class VDSMetadata(NamedTuple):
