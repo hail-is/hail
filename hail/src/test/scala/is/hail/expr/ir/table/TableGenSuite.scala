@@ -9,6 +9,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, HailException, Interval}
 import is.hail.{ExecStrategy, HailSuite}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.scalatest.Matchers._
 import org.testng.annotations.Test
