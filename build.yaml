@@ -751,7 +751,7 @@ steps:
       valueFrom: base_image.image
     resources:
       memory: standard
-      cpu: '2'
+      cpu: '4'
     script: |
       set -ex
 
@@ -799,7 +799,7 @@ steps:
       valueFrom: base_image.image
     resources:
       memory: standard
-      cpu: '2'
+      cpu: '4'
     script: |
       set -ex
 
@@ -840,7 +840,7 @@ steps:
       valueFrom: base_image.image
     resources:
       memory: standard
-      cpu: '2'
+      cpu: '4'
     script: |
       set -ex
 
@@ -891,7 +891,7 @@ steps:
       valueFrom: base_image.image
     resources:
       memory: standard
-      cpu: '2'
+      cpu: '4'
     script: |
       set -ex
 
