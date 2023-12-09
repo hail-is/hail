@@ -44,11 +44,15 @@ PYTHON_VERSION_INFO += python/hail/hail_version
 PYTHON_VERSION_INFO += python/hail/hail_pip_version
 PYTHON_VERSION_INFO += python/hailtop/hail_version
 PYTHON_VERSION_INFO += python/hail/docs/_static/hail_version.js
-SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
-SHADOW_JAR := build/libs/hail-all-spark.jar
-NON_SHADOW_JAR := build/libs/hail.jar
-SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
+GRADLE_SHADOW_JAR := build/libs/hail-all-spark.jar
+GRADLE_NON_SHADOW_JAR := build/libs/hail.jar
+GRADLE_SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
+
+SHADOW_JAR := build/jars/hail-all-spark.jar
+NON_SHADOW_JAR := build/jars/hail.jar
+SHADOW_TEST_JAR := build/jars/hail-all-spark-test.jar
+
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 FAST_PYTHON_JAR := python/hail/backend/hail.jar
 FAST_PYTHON_JAR_EXTRA_CLASSPATH := python/hail/backend/extra_classpath
@@ -68,60 +72,81 @@ CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-ifdef HAIL_COMPILE_NATIVES
-$(SHADOW_JAR): native-lib-prebuilt
-endif
-ifdef HAIL_DEBUG_MODE
-$(SHADOW_JAR): $(JAR_DEBUG_CLASSES)
-endif
-$(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
-	./gradlew shadowJar $(GRADLE_ARGS)
-ifdef HAIL_DEBUG_MODE
-	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
-endif
+$(SHADOW_JAR): $(GRADLE_SHADOW_JAR) build-info.properties
+	mkdir -p $(dir $(SHADOW_JAR))
+	cp $(GRADLE_SHADOW_JAR) $(SHADOW_JAR)
+	$(JAR) -uf $(SHADOW_JAR) build-info.properties
 
 ifdef HAIL_COMPILE_NATIVES
-$(NON_SHADOW_JAR): native-lib-prebuilt
+$(GRADLE_SHADOW_JAR): native-lib-prebuilt
 endif
 ifdef HAIL_DEBUG_MODE
-$(NON_SHADOW_JAR): $(JAR_DEBUG_CLASSES)
+$(GRADLE_SHADOW_JAR): $(JAR_DEBUG_CLASSES)
 endif
-$(NON_SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
-	./gradlew jar $(GRADLE_ARGS)
+$(GRADLE_SHADOW_JAR): $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
+	./gradlew shadowJar $(GRADLE_ARGS)
 ifdef HAIL_DEBUG_MODE
-	$(JAR) -uf $(NON_SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+	$(JAR) -uf $(GRADLE_SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
 endif
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
+$(SHADOW_TEST_JAR): $(GRADLE_SHADOW_TEST_JAR) build-info.properties
+	mkdir -p $(dir $(SHADOW_TEST_JAR))
+	cp $(GRADLE_SHADOW_TEST_JAR) $(SHADOW_TEST_JAR)
+	$(JAR) -uf $(SHADOW_TEST_JAR) build-info.properties
+
 ifdef HAIL_COMPILE_NATIVES
-$(SHADOW_TEST_JAR): native-lib-prebuilt
+$(GRADLE_SHADOW_TEST_JAR): native-lib-prebuilt
 endif
-$(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+ifdef HAIL_DEBUG_MODE
+$(GRADLE_SHADOW_TEST_JAR): $(JAR_DEBUG_CLASSES)
+endif
+$(GRADLE_SHADOW_TEST_JAR): $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
 	./gradlew shadowTestJar $(GRADLE_ARGS)
+ifdef HAIL_DEBUG_MODE
+	$(JAR) -uf $(GRADLE_SHADOW_TEST_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+endif
 
 jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
+
+$(NON_SHADOW_JAR): $(GRADLE_NON_SHADOW_JAR) build-info.properties
+	mkdir -p $(dir $(NON_SHADOW_JAR))
+	cp $(GRADLE_NON_SHADOW_JAR) $(NON_SHADOW_JAR)
+	$(JAR) -uf $(NON_SHADOW_JAR) build-info.properties
+
+ifdef HAIL_COMPILE_NATIVES
+$(GRADLE_NON_SHADOW_JAR): native-lib-prebuilt
+endif
+ifdef HAIL_DEBUG_MODE
+$(GRADLE_NON_SHADOW_JAR): $(JAR_DEBUG_CLASSES)
+endif
+$(GRADLE_NON_SHADOW_JAR): $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
+	./gradlew jar $(GRADLE_ARGS)
+ifdef HAIL_DEBUG_MODE
+	$(JAR) -uf $(GRADLE_NON_SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
+endif
 
 .PHONY: jvm-test
 ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+jvm-test: build-info.properties $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	+./pgradle test $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
-services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+services-jvm-test: build-info.properties $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	./gradlew testServices $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
 
 .PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
-fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-qob-test-resources
+fs-jvm-test: build-info.properties $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-qob-test-resources
 	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
@@ -135,9 +160,9 @@ $(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
 	@mkdir -p $(BUILD_DEBUG_PREFIX)
 	$(JAVAC) -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl -XDignore.symbol.file $<
 
-src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH
-src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
-src/main/resources/build-info.properties: Makefile
+build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH
+build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
+build-info.properties: Makefile
 	echo '[Build Metadata]' > $@
 	echo 'user=$(USER)' >> $@
 	echo 'revision=$(REVISION)' >> $@
@@ -510,7 +535,7 @@ clean: clean-env clean-libs native-lib-clean
 	rm -rf $(FAST_PYTHON_JAR)
 	rm -rf $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	rm -rf python/README.md
-	rm -rf $(SCALA_BUILD_INFO)
+	rm -rf build-info.properties
 	rm -rf $(PYTHON_VERSION_INFO)
 	rm -rf python/hail/docs/change_log.rst
 

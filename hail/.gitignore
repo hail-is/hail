@@ -69,7 +69,7 @@ src/main/c/.cxx.vsn
 src/main/c/headers
 src/main/c/lib
 src/main/c/libsimdpp-2*
-src/main/resources/build-info.properties
 src/main/resources/include/catch.hpp
 env/
 www/docs
+build-info.properties
