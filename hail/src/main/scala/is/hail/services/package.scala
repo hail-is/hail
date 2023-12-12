@@ -83,6 +83,10 @@ package object services {
 	//   at sun.nio.ch.IOUtil.read(IOUtil.java:192) ~[?:1.8.0_362]
 	//   at sun.nio.ch.SocketChannelImpl.read(SocketChannelImpl.java:379) ~[?:1.8.0_362]
         true
+      case e: SSLException
+          if e.getMessage != null && e.getMessage.contains("Tag mismatch!") =>
+        // https://github.com/googleapis/java-storage/issues/2337
+        true
       case e =>
         val cause = e.getCause
         cause != null && isLimitedRetriesError(cause)
