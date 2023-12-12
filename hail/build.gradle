@@ -42,12 +42,12 @@ tasks.withType(JavaCompile) {
 project.ext {
     breezeVersion = "1.1"
 
-    sparkVersion = System.getProperty("spark.version", "3.3.0")
+    sparkVersion = System.getProperty("spark.version", "3.3.2")
 
-    if (sparkVersion != "3.3.0") {
-        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.3.0, use other versions at your own risk.")
+    if (sparkVersion != "3.3.2") {
+        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.3.2, use other versions at your own risk.")
     }
-    scalaVersion = System.getProperty("scala.version", "2.12.15")
+    scalaVersion = System.getProperty("scala.version", "2.12.18")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
     assert(scalaMajorVersion == "2.12")
 }
