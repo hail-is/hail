@@ -121,4 +121,14 @@ class DeployConfig(
   def baseUrl(service: String, baseScheme: String = "http"): String = {
     s"${ scheme(baseScheme) }://${ domain(service) }${ basePath(service) }"
   }
+
+  def externalUrl(service: String, path: String, baseScheme: String = "http"): String = {
+    val ns = getServiceNamespace(service)
+    val prefix = s"${baseScheme}s://"
+    (ns, service) match {
+      case ("default", "www") => s"$prefix$domain$path"
+      case ("default", _) => s"$prefix$service$domain$path"
+      case _ => s"${prefix}internal.$domain/$ns/$service$path"
+    }
+  }
 }

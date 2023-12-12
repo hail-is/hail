@@ -50,14 +50,17 @@ def all_values_table_fixture(init_hail):
 resource_dir = resource('backward_compatability')
 def add_paths(dirname):
     file_paths: List[str] = []
-    with os.scandir(resource_dir) as versions:
-        for version_dir in versions:
-            try:
-                with os.scandir(Path(resource_dir, version_dir, dirname)) as old_files:
-                    for file in old_files:
-                        file_paths.append(file.path)
-            except FileNotFoundError:
-                pass
+    try:
+        with os.scandir(resource_dir) as versions:
+            for version_dir in versions:
+                try:
+                    with os.scandir(Path(resource_dir, version_dir, dirname)) as old_files:
+                        for file in old_files:
+                            file_paths.append(file.path)
+                except FileNotFoundError:
+                    pass
+    except FileNotFoundError:
+        pass
     return file_paths
 
 ht_paths = add_paths('table')

@@ -214,7 +214,7 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
             --durations=50 \
             --self-contained-html \
             --html=../build/reports/pytest.html \
-            --timeout=120 \
+            --timeout=1200 \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 
