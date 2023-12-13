@@ -30,6 +30,18 @@ class DataprocConnectService(str, Enum):
         return self
 
 
+def get_datadir_path():
+    from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
+
+    system = platform.system()
+    release = platform.uname().release
+    is_wsl = system == 'Linux' and ('Microsoft' in release or 'microsoft' in release)
+
+    if not is_wsl:
+        return os.path.join(tempfile.mkdtemp('hailctl-dataproc-connect-'))
+    return 'C:\\Temp\\hailctl-' + secret_alnum_string(5)
+
+
 def get_chrome_path():
     system = platform.system()
 
@@ -48,10 +60,14 @@ def get_chrome_path():
         raise EnvironmentError("cannot find 'chromium', 'chromium-browser', or 'chrome.exe' on path")
 
     if system == 'Windows' or (system == 'Linux' and is_wsl):
+        # https://stackoverflow.com/questions/40674914/google-chrome-path-in-windows-10
         fnames = [
-            '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe'
-            '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+            '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
+            '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+            '/mnt/c/Program Files(x86)/Google/Chrome/Application/chrome.exe',
+            '/mnt/c/ProgramFiles(x86)/Google/Chrome/Application/chrome.exe',
         ]
+
         for fname in fnames:
             if os.path.exists(fname):
                 return fname
@@ -68,8 +84,6 @@ def connect(
     dry_run: bool,
     pass_through_args: List[str],
 ):
-    from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
-
     service = service.shortcut()
 
     # Dataproc port mapping
@@ -118,7 +132,7 @@ def connect(
         gcloud.run(cmd)
 
         chrome = os.environ.get('HAILCTL_CHROME') or get_chrome_path()
-        data_dir = os.path.join(tempfile.gettempdir(), 'hailctl-dataproc-connect-' + secret_alnum_string(6))
+        data_dir = os.environ.get('HAILCTL_CHROME_DATA_DIR') or get_datadir_path()
 
         # open Chrome with SOCKS proxy configuration
         with subprocess.Popen(
