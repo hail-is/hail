@@ -4,7 +4,8 @@ aiohttp-devtools>=1.1,<2
 pylint>=2.13.5,<3
 pre-commit>=3.3.3,<4
 black>=22.8.0,<23
-ruff>=0.0.264,<1
+# https://github.com/astral-sh/ruff/issues/9133
+ruff>=0.0.264,<0.1.8
 curlylint>=0.13.1,<1
 click>=8.1.2,<9
 pytest>=7.1.3,<8
