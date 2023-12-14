@@ -4,7 +4,6 @@ import platform
 import shutil
 import subprocess
 import tempfile
-from hailtop.utils import secret_alnum_string
 
 from typing import Optional, List
 
@@ -32,6 +31,8 @@ class DataprocConnectService(str, Enum):
 
 
 def get_datadir_path():
+    from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
+
     system = platform.system()
     release = platform.uname().release
     is_wsl = system == 'Linux' and ('Microsoft' in release or 'microsoft' in release)
@@ -83,8 +84,6 @@ def connect(
     dry_run: bool,
     pass_through_args: List[str],
 ):
-    from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
-
     service = service.shortcut()
 
     # Dataproc port mapping
