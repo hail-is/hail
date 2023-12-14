@@ -1,6 +1,7 @@
+import asyncio
 import pytest
 import os
-from typing import List
+from typing import List, Tuple
 from pathlib import Path
 
 import hail as hl
@@ -47,21 +48,36 @@ def all_values_table_fixture(init_hail):
     return create_all_values_table()
 
 
-resource_dir = resource('backward_compatability')
-def add_paths(dirname):
-    file_paths: List[str] = []
-    with os.scandir(resource_dir) as versions:
-        for version_dir in versions:
-            try:
-                with os.scandir(Path(resource_dir, version_dir, dirname)) as old_files:
-                    for file in old_files:
-                        file_paths.append(file.path)
-            except FileNotFoundError:
-                pass
-    return file_paths
+async def collect_paths() -> Tuple[List[str], List[str]]:
+    resource_dir = resource('backward_compatability/')
+    from hailtop.aiotools.router_fs import RouterAsyncFS
+    fs = RouterAsyncFS()
 
-ht_paths = add_paths('table')
-mt_paths = add_paths('matrix_table')
+    async def contents_if_present(url: str):
+        try:
+            return await fs.listfiles(url)
+        except FileNotFoundError:
+            async def empty():
+                if False:
+                    yield
+            return empty()
+
+    try:
+        versions = [await x.url() async for x in await fs.listfiles(resource_dir)]
+        ht_paths = [await x.url()
+                    for version in versions
+                    async for x in await contents_if_present(version + 'table/')]
+        mt_paths = [await x.url()
+                    for version in versions
+                    async for x in await contents_if_present(version + 'matrix_table/')]
+        return ht_paths, mt_paths
+    finally:
+        await fs.close()
+
+
+# pytest sometimes uses background threads, named "Dummy-1", to collect tests. Asyncio dislikes
+# automatically creating event loops in these threads, so we just explicitly create one.
+ht_paths, mt_paths = asyncio.new_event_loop().run_until_complete(collect_paths())
 
 
 @pytest.mark.parametrize("path", mt_paths)
