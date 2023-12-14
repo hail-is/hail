@@ -1,11 +1,12 @@
 import tabulate
 import typer
-import hailtop.fs
 
 from datetime import datetime
 from typing import List, Optional, Annotated as Ann
 
 from typer import Option as Opt, Argument as Arg
+
+import hailtop.fs
 
 app = typer.Typer(
     name='fs',
@@ -27,6 +28,7 @@ def ls(ctx: typer.Context,
         paths = ['.']
     for path in paths:
         listing = hailtop.fs.ls(path)
+        listing.sort(key=lambda item: item.path)
         if long:
             listing = [(item.typ,
                         item.size if item.size > 0 else None,
