@@ -493,11 +493,12 @@ async def schedule_job(app, record, instance):
         raise
 
     try:
-        await client_session.post(
+        async with client_session.post(
             f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
             json=body,
             timeout=aiohttp.ClientTimeout(total=2),
-        )
+        ) as resp:
+            job_status = await resp.json()
         await instance.mark_healthy()
     except aiohttp.ClientResponseError as e:
         await instance.mark_healthy()
@@ -528,5 +529,13 @@ CALL schedule_job(%s, %s, %s, %s);
     if rv['rc'] != 0:
         log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance} in the db, {rv}')
         return
+
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
+    start_time = job_status['start_time']
+    resources = job_status.get('resources')
+
+    await mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time, resources)
 
     log.info(f'success scheduling job {id} on {instance}')

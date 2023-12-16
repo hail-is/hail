@@ -63,7 +63,6 @@ from hailtop.utils import (
     periodically_call,
     retry_transient_errors,
     retry_transient_errors_with_debug_string,
-    retry_transient_errors_with_delayed_warnings,
     time_msecs,
     time_msecs_str,
 )
@@ -1550,10 +1549,9 @@ class Job(abc.ABC):
         self.state = 'pending'
         self.error: Optional[str] = None
 
-        self.start_time: Optional[int] = None
+        self.start_time: int = time_msecs()
         self.end_time: Optional[int] = None
 
-        self.marked_job_started = False
         self.last_logged_mjs_attempt_failure = None
         self.last_logged_mjc_attempt_failure = None
 
@@ -1638,10 +1636,7 @@ class Job(abc.ABC):
         log.info(f'deleting {self}')
         self.deleted_event.set()
 
-    def mark_started(self) -> asyncio.Task:
-        return asyncio.create_task(self.worker.post_job_started(self))
-
-    async def mark_complete(self, mjs_fut: asyncio.Task):
+    async def mark_complete(self):
         self.end_time = time_msecs()
 
         full_status = self.status()
@@ -1663,7 +1658,7 @@ class Job(abc.ABC):
                 log.exception(f'Encountered error while writing status file for job {self.id}')
 
         if not self.deleted:
-            self.task_manager.ensure_future(self.worker.post_job_complete(self, mjs_fut, full_status))
+            self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
 
     # {
     #   version: int,
@@ -1677,7 +1672,7 @@ class Job(abc.ABC):
     #   error: str, (optional)
     #   container_statuses: [Container.status],
     #   start_time: int,
-    #   end_time: int,
+    #   end_time: int, (optional)
     #   resources: list of dict, {name: str, quantity: int}
     #   region: str  # type: ignore
     # }
@@ -1894,9 +1889,6 @@ class DockerJob(Job):
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
-            self.start_time = time_msecs()
-
-            mjs_fut = self.mark_started()
             try:
                 self.state = 'initializing'
 
@@ -1992,16 +1984,8 @@ class DockerJob(Job):
                         await self.cleanup()
                     finally:
                         _, exc, _ = sys.exc_info()
-                        # mark_complete moves ownership of `mjs_fut` into another task
-                        # but if it either is not run or is cancelled then we need
-                        # to cancel MJS
                         if not isinstance(exc, asyncio.CancelledError):
-                            try:
-                                await self.mark_complete(mjs_fut)
-                            except asyncio.CancelledError:
-                                mjs_fut.cancel()
-                        else:
-                            mjs_fut.cancel()
+                            await self.mark_complete()
 
     async def cleanup(self):
         if self.disk:
@@ -2216,7 +2200,6 @@ class JVMJob(Job):
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
-            self.start_time = time_msecs()
             os.makedirs(f'{self.scratch}/')
 
             # We use a configuration file (instead of environment variables) to pass job-specific
@@ -2227,7 +2210,6 @@ class JVMJob(Job):
             # file with explicit versioning to make sure we maintain backwards compatibility.
             self.write_batch_config()
 
-            mjs_fut = self.mark_started()
             try:
                 with self.step('connecting_to_jvm'):
                     self.jvm = await self.worker.borrow_jvm(self.cpu_in_mcpu // 1000)
@@ -2311,16 +2293,8 @@ class JVMJob(Job):
                 await self.cleanup()
             finally:
                 _, exc, _ = sys.exc_info()
-                # mark_complete moves ownership of `mjs_fut` into another task
-                # but if it either is not run or is cancelled then we need
-                # to cancel MJS
                 if not isinstance(exc, asyncio.CancelledError):
-                    try:
-                        await self.mark_complete(mjs_fut)
-                    except asyncio.CancelledError:
-                        mjs_fut.cancel()
-                else:
-                    mjs_fut.cancel()
+                    await self.mark_complete()
 
     async def cleanup(self):
         assert self.worker
@@ -3126,7 +3100,7 @@ class Worker:
 
         self.task_manager.ensure_future(self.run_job(job))
 
-        return web.Response()
+        return web.json_response(job.status())
 
     async def create_job(self, request):
         if not self.active:
@@ -3294,7 +3268,6 @@ class Worker:
 
         body = {
             'status': status,
-            'marked_job_started': job.marked_job_started,
         }
 
         start_time = time_msecs()
@@ -3329,8 +3302,7 @@ class Worker:
             # exponentially back off, up to (expected) max of 2m
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
-    async def post_job_complete(self, job, mjs_fut: asyncio.Task, full_status):
-        await mjs_fut
+    async def post_job_complete(self, job, full_status):
         try:
             await self.post_job_complete_1(job, full_status)
         except asyncio.CancelledError:
@@ -3352,45 +3324,6 @@ class Worker:
             if job.id in self.jobs:
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
-
-    async def post_job_started_1(self, job):
-        full_status = job.status()
-
-        status = {
-            'version': full_status['version'],
-            'batch_id': full_status['batch_id'],
-            'job_id': full_status['job_id'],
-            'attempt_id': full_status['attempt_id'],
-            'start_time': full_status['start_time'],
-            'resources': full_status['resources'],
-        }
-
-        body = {'status': status}
-
-        async def post_started_if_job_still_running():
-            # If the job is already complete, just send MJC. No need for MJS
-            if not job.done():
-                url = deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started')
-                await self.client_session.post(url, json=body, headers=self.headers)
-
-        await retry_transient_errors_with_delayed_warnings(300 * 1000, post_started_if_job_still_running)
-
-    async def post_job_started(self, job):
-        try:
-            await self.post_job_started_1(job)
-            job.marked_job_started = True
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            if job.last_logged_mjs_attempt_failure is None:
-                job.last_logged_mjs_attempt_failure = time_msecs()
-
-            if time_msecs() - job.last_logged_mjs_attempt_failure >= 300 * 1000:
-                log.exception(
-                    f'error while posting {job} started since {time_msecs_str(job.last_logged_mjs_attempt_failure)}',
-                    stack_info=True,
-                )
-                job.last_logged_mjs_attempt_failure = time_msecs()
 
     async def activate(self):
         log.info('activating')
@@ -3431,7 +3364,7 @@ class Worker:
             update_timestamp = time_msecs()
             running_attempts = []
             for (batch_id, job_id), job in self.jobs.items():
-                if not job.marked_job_started or job.end_time is not None:
+                if job.end_time is not None:
                     continue
                 running_attempts.append(
                     {

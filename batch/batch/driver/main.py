@@ -76,7 +76,7 @@ from .canceller import Canceller
 from .driver import CloudDriver
 from .instance import Instance
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
-from .job import mark_job_complete, mark_job_started
+from .job import mark_job_complete
 
 uvloop.install()
 
@@ -360,33 +360,6 @@ async def job_complete_1(request, instance):
 @add_metadata_to_request
 async def job_complete(request, instance):
     return await asyncio.shield(job_complete_1(request, instance))
-
-
-async def job_started_1(request, instance):
-    body = await json_request(request)
-    job_status = body['status']
-
-    batch_id = job_status['batch_id']
-    job_id = job_status['job_id']
-    attempt_id = job_status['attempt_id']
-    start_time = job_status['start_time']
-    resources = job_status.get('resources')
-
-    request['batch_telemetry']['batch_id'] = str(batch_id)
-    request['batch_telemetry']['job_id'] = str(job_id)
-
-    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time, resources)
-
-    await instance.mark_healthy()
-
-    return web.Response()
-
-
-@routes.post('/api/v1alpha/instances/job_started')
-@active_instances_only
-@add_metadata_to_request
-async def job_started(request, instance):
-    return await asyncio.shield(job_started_1(request, instance))
 
 
 async def billing_update_1(request, instance):

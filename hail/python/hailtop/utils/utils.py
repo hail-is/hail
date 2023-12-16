@@ -767,10 +767,6 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
     return await retry_transient_errors_with_debug_string('', 0, f, *args, **kwargs)
 
 
-async def retry_transient_errors_with_delayed_warnings(warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    return await retry_transient_errors_with_debug_string('', warning_delay_msecs, f, *args, **kwargs)
-
-
 async def retry_transient_errors_with_debug_string(debug_string: str, warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     start_time = time_msecs()
     tries = 0
