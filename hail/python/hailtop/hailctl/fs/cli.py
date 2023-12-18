@@ -1,3 +1,5 @@
+import asyncio
+
 from datetime import datetime
 from typing import List, Optional, Annotated as Ann
 
@@ -9,6 +11,9 @@ from typer import Option as Opt, Argument as Arg
 
 import hailtop.fs
 
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.utils import async_to_blocking
+
 app = typer.Typer(
     name='fs',
     no_args_is_help=True,
@@ -17,24 +22,48 @@ app = typer.Typer(
 )
 
 
+async def async_du(fs: RouterAsyncFS, path: str, human_readable: bool, summarize: bool) -> int:
+    total_size = 0
+    async for item in await fs.listfiles(path):
+        url, is_dir = await asyncio.gather(item.url(), item.is_dir())
+        if is_dir:
+            size = await async_du(fs, url, human_readable, summarize)
+        else:
+            stat = await item.status()
+            size = await stat.size()
+        total_size += size
+
+        if not summarize:
+            if human_readable:
+                size = humanize.naturalsize(size, gnu=True)
+            print(f'{size:>15}\t{url}')
+    return total_size
+
+
 @app.command()
 def du(ctx: typer.Context,
        paths: Ann[Optional[List[str]], Arg()] = None,
-       human_readable: Ann[bool, Opt('-h', '--human-readable', help='print sizes in human readable format')] = False,
+       human_readable: Ann[bool, Opt('-h', '--human-readable', help='print sizes in human readable format (base 10)')] = False,
+       summarize: Ann[bool, Opt('-s', '--summarize', help='display only a total for each argument')] = False,
        ):
     '''
     Display storage resourse usage
     '''
     if not paths:
         paths = ['.']
-    print(paths, human_readable)
+    fs = RouterAsyncFS()
+    for path in paths:
+        size = async_to_blocking(async_du(fs, path, human_readable, summarize))
+        if human_readable:
+            size = humanize.naturalsize(size, gnu=True)
+        print(f'{size:>15}\t{path}')
 
 
 @app.command()
 def ls(ctx: typer.Context,
        paths: Ann[Optional[List[str]], Arg()] = None,
        long: Ann[bool, Opt('-l', '--long', help='use long listing format')] = False,
-       human_readable: Ann[bool, Opt('-h', '--human-readable', help='print human readable (base 10) file sizes')] = False,
+       human_readable: Ann[bool, Opt('-h', '--human-readable', help='print human readable file sizes (base 10)')] = False,
        ):
     '''
     List objects
