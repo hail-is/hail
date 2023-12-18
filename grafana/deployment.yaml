@@ -155,6 +155,9 @@ spec:
         - name: grafana-envoy-sidecar-config
           configMap:
             name: grafana-envoy-sidecar-config
+        - name: grafana-gsa-key
+          secret:
+            secretName: grafana-gsa-key
       initContainers:
        - name: setup-tokens
          image: {{ hail_ubuntu_image.image }}
@@ -163,6 +166,15 @@ spec:
          volumeMounts:
            - mountPath: /grafana-tokens
              name: grafana-tokens
+           - mountPath: /grafana-shared
+             name: grafana-shared
+       - name: setup-grafana-gsa-key
+         image: {{ hail_ubuntu_image.image }}
+         command: ["/bin/bash"]
+         args: ["-c", "jq -r '.password' /grafana-gsa-key/key.json > /grafana-shared/client-secret"]
+         volumeMounts:
+           - mountPath: /grafana-gsa-key
+             name: grafana-gsa-key
            - mountPath: /grafana-shared
              name: grafana-shared
       containers:
@@ -284,6 +296,19 @@ data:
           authenticationType: gce
           defaultProject: $GCP_PROJECT
         editable: true
+{% elif global.cloud == "azure" %}
+      - name: Azure Monitor
+        type: grafana-azure-monitor-datasource
+        access: proxy
+        jsonData:
+          azureAuthType: clientsecret
+          cloudName: azuremonitor
+          tenantId: d6c9f2ea-d3bb-4ca9-8b14-231bac999aa6
+          clientId: 130c8cb9-4175-430e-919d-9d74282f2ffa
+          subscriptionId: 22cd45fe-f996-4c51-af67-ef329d977519
+        secureJsonData:
+          clientSecret: $__file{/grafana-shared/client-secret}
+        version: 1
 {% endif %}
       - name: Prometheus
         type: prometheus
