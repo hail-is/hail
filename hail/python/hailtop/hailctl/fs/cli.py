@@ -9,7 +9,7 @@ import typer
 
 from typer import Option as Opt, Argument as Arg
 
-import hailtop.fs
+import hailtop.fs.fs_utils
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import async_to_blocking
@@ -52,11 +52,14 @@ def du(ctx: typer.Context,
     if not paths:
         paths = ['.']
     fs = RouterAsyncFS()
-    for path in paths:
-        size = async_to_blocking(async_du(fs, path, human_readable, summarize))
-        if human_readable:
-            size = humanize.naturalsize(size, gnu=True)
-        print(f'{size:>15}\t{path}')
+    try:
+        for path in paths:
+            size = async_to_blocking(async_du(fs, path, human_readable, summarize))
+            if human_readable:
+                size = humanize.naturalsize(size, gnu=True)
+            print(f'{size:>15}\t{path}')
+    finally:
+        async_to_blocking(fs.close())
 
 
 @app.command()
@@ -74,18 +77,22 @@ def ls(ctx: typer.Context,
         if human_readable:
             return humanize.naturalsize(size, gnu=True)
         return size
-    if not paths:
-        paths = ['.']
-    for path in paths:
-        listing = hailtop.fs.ls(path)
-        listing.sort(key=lambda item: item.path)
-        if long:
-            listing = [(item.typ,
-                        display_bytes(item.size),
-                        datetime.utcfromtimestamp(item.modification_time)
-                        if item.modification_time is not None else None,
-                        item.path) for item in listing]
-            print(tabulate.tabulate(listing, tablefmt='plain',
-                                    colalign=('global', 'right', 'global', 'global')))
-        else:
-            print(*(item.path for item in listing), sep='\n')
+    try:
+        if not paths:
+            paths = ['.']
+        for path in paths:
+            listing = hailtop.fs.fs_utils.ls(path)
+            listing.sort(key=lambda item: item.path)
+            if long:
+                listing = [(item.typ,
+                            display_bytes(item.size),
+                            datetime.utcfromtimestamp(item.modification_time)
+                            if item.modification_time is not None else None,
+                            item.path) for item in listing]
+                print(tabulate.tabulate(listing, tablefmt='plain',
+                                        colalign=('global', 'right', 'global', 'global')))
+            else:
+                print(*(item.path for item in listing), sep='\n')
+    finally:
+        afs = hailtop.fs.fs_utils._fs().afs
+        async_to_blocking(afs.close())
