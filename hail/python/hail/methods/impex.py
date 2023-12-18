@@ -2694,6 +2694,40 @@ def import_vcf(path,
 
     >>> ds = hl.import_vcf('data/samplepart*.vcf.gz', force_bgz=True)
 
+    Import a VCF which has missing values (".") inside INFO or FORMAT array fields:
+
+    >>> print(open('data/missing-values-in-array-fields.vcf').read())
+    ##fileformat=VCFv4.1
+    ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+    ##FORMAT=<ID=X,Number=.,Type=Integer,Description="">
+    ##FORMAT=<ID=Y,Number=.,Type=Integer,Description="">
+    ##FORMAT=<ID=Z,Number=.,Type=Integer,Description="">
+    ##INFO=<ID=A,Number=A,Type=Integer,Description="">
+    ##INFO=<ID=B,Number=R,Type=Float,Description="">
+    ##INFO=<ID=C,Number=3,Type=Float,Description="">
+    ##INFO=<ID=D,Number=.,Type=Float,Description="">
+    #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE1
+    1	123456	.	A	C	.	.	A=1,.;B=.,2,.;C=.	GT:X:Y:Z	0/0:1,.,1:.:
+
+    >>> ds = hl.import_vcf('data/missing-values-in-array-fields.vcf', array_elements_required=False)
+    >>> ds.show(n_rows=1, n_cols=1, include_row_fields=True)
+    +---------------+------------+------+-----------+----------+--------------+------------------+----------------+
+    | locus         | alleles    | rsid |      qual | filters  | info.A       | info.B           | info.C         |
+    +---------------+------------+------+-----------+----------+--------------+------------------+----------------+
+    | locus<GRCh37> | array<str> | str  |   float64 | set<str> | array<int32> | array<float64>   | array<float64> |
+    +---------------+------------+------+-----------+----------+--------------+------------------+----------------+
+    | 1:123456      | ["A","C"]  | NA   | -1.00e+01 | NA       | [1,NA]       | [2.00e+00,NA,NA] | NA             |
+    +---------------+------------+------+-----------+----------+--------------+------------------+----------------+
+
+    +----------------+--------------+--------------+--------------+--------------+
+    | info.D         | 'SAMPLE1'.GT | 'SAMPLE1'.X  | 'SAMPLE1'.Y  | 'SAMPLE1'.Z  |
+    +----------------+--------------+--------------+--------------+--------------+
+    | array<float64> | call         | array<int32> | array<int32> | array<int32> |
+    +----------------+--------------+--------------+--------------+--------------+
+    | NA             | 0/0          | [1,NA,1]     | NA           | NA           |
+    +----------------+--------------+--------------+--------------+--------------+
+
+
     Notes
     -----
 

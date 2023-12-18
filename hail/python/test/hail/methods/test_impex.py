@@ -183,17 +183,44 @@ class VCFTests(unittest.TestCase):
                                              hl.agg.all(mt.negative_int_array == [-1, -2]) &
                                              hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
 
-    def test_import_vcf_missing_info_field_elements(self):
+    def test_import_vcf_has_good_error_message_when_info_fields_have_missing_elements(self):
+        mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37')
+        with pytest.raises(FatalError, match=".*Missing value in INFO array. Use 'hl.import_vcf[(][.][.][.], array_elements_required=False[)]'[.].*"):
+            mt._force_count_rows()
+
+    def test_import_vcf_array_elements_required_is_false_parses_info_fields_with_missing_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
-        mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
-        expected = hl.Table.parallelize([{'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'],
-                                          'FOO': [1, None], 'BAR': [2, None, None]},
-                                         {'locus': hl.Locus('X', 16061250), 'alleles': ['T', 'A', 'C'],
-                                          'FOO': [None, 2, None], 'BAR': [None, 1.0, None]}],
-                                        hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr),
-                                                   FOO=hl.tarray(hl.tint), BAR=hl.tarray(hl.tfloat64)),
-                                        key=['locus', 'alleles'])
-        self.assertTrue(mt.rows()._same(expected))
+        mt = mt.select_rows(**mt.info)
+        expected = hl.Table.parallelize(
+            [
+                {
+                    'locus': hl.Locus('X', 16050036),
+                    'alleles': ['A', 'C'],
+                    'FOO': [1, None],
+                    'BAR': [2, None, None],
+                    'JUST_A_DOT': None,
+                    'NOT_EVEN_PRESENT': None,
+                },
+                {
+                    'locus': hl.Locus('X', 16061250),
+                    'alleles': ['T', 'A', 'C'],
+                    'FOO': [None, 2, None],
+                    'BAR': [None, 1.0, None],
+                    'JUST_A_DOT': None,
+                    'NOT_EVEN_PRESENT': None,
+                }
+            ],
+            hl.tstruct(
+                locus=hl.tlocus('GRCh37'),
+                alleles=hl.tarray(hl.tstr),
+                FOO=hl.tarray(hl.tint),
+                BAR=hl.tarray(hl.tfloat64),
+                JUST_A_DOT=hl.tarray(hl.tfloat64),
+                NOT_EVEN_PRESENT=hl.tarray(hl.tfloat64),
+            ),
+            key=['locus', 'alleles']
+        )
+        assert mt.rows()._same(expected)
 
     def test_import_vcf_missing_format_field_elements(self):
         mt = hl.import_vcf(resource('missingFormatArray.vcf'), reference_genome='GRCh37', array_elements_required=False)

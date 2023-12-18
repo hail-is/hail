@@ -700,7 +700,7 @@ final class VCFLine(
   def parseArrayElement[T](ab: MissingArrayBuilder[T], eltParser: () => T) {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
+        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
       ab.addMissing()
       pos += 1
     } else {
@@ -708,10 +708,10 @@ final class VCFLine(
     }
   }
 
-  def parseIntArrayElement() {
+  def parseArrayIntElement() {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
+        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
       abi.addMissing()
       pos += 1
     } else {
@@ -722,7 +722,7 @@ final class VCFLine(
   def parseFloatArrayElement() {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
+        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
       abf.addMissing()
       pos += 1
     } else {
@@ -730,10 +730,10 @@ final class VCFLine(
     }
   }
 
-  def parseDoubleArrayElement() {
+  def parseArrayDoubleElement() {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
+        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
       abd.addMissing()
       pos += 1
     } else {
@@ -741,10 +741,10 @@ final class VCFLine(
     }
   }
 
-  def parseStringArrayElement() {
+  def parseArrayStringElement() {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
+        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
       abs.addMissing()
       pos += 1
     } else {
@@ -759,11 +759,11 @@ final class VCFLine(
     } else {
       assert(abi.length == 0)
 
-      parseIntArrayElement()
+      parseArrayIntElement()
 
       while (!endFormatField()) {
         pos += 1 // comma
-        parseIntArrayElement()
+        parseArrayIntElement()
       }
 
       rvb.startArray(abi.length)
@@ -788,10 +788,10 @@ final class VCFLine(
     } else {
       assert(abs.length == 0)
 
-      parseStringArrayElement()
+      parseArrayStringElement()
       while (!endFormatField()) {
         pos += 1 // comma
-        parseStringArrayElement()
+        parseArrayStringElement()
       }
 
       rvb.startArray(abs.length)
@@ -841,10 +841,10 @@ final class VCFLine(
     } else {
       assert(abd.length == 0)
 
-      parseDoubleArrayElement()
+      parseArrayDoubleElement()
       while (!endFormatField()) {
         pos += 1 // comma
-        parseDoubleArrayElement()
+        parseArrayDoubleElement()
       }
 
       rvb.startArray(abd.length)
@@ -944,24 +944,30 @@ final class VCFLine(
 
   def parseDoubleInInfoArray(): Double = VCFUtils.parseVcfDouble(parseStringInInfoArray())
 
-  def parseIntInfoArrayElement() {
+  def parseInfoArrayIntElement() {
     if (infoArrayElementMissing()) {
+      if (arrayElementsRequired)
+        parseError("Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
       abi.addMissing()
       pos += 1  // dot
     } else
       abi += parseIntInInfoArray()
   }
 
-  def parseStringInfoArrayElement() {
+  def parseInfoArrayStringElement() {
     if (infoArrayElementMissing()) {
+      if (arrayElementsRequired)
+        parseError("Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
       abs.addMissing()
       pos += 1  // dot
     } else
       abs += parseStringInInfoArray()
   }
 
-  def parseDoubleInfoArrayElement() {
+  def parseInfoArrayDoubleElement() {
     if (infoArrayElementMissing()) {
+      if (arrayElementsRequired)
+        parseError("Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
       abd.addMissing()
       pos += 1
     } else {
@@ -973,10 +979,10 @@ final class VCFLine(
     if (!infoFieldMissing()) {
       rvb.setPresent()
       assert(abi.length == 0)
-      parseIntInfoArrayElement()
+      parseInfoArrayIntElement()
       while (!endInfoField()) {
         pos += 1  // comma
-        parseIntInfoArrayElement()
+        parseInfoArrayIntElement()
       }
 
       rvb.startArray(abi.length)
@@ -997,10 +1003,10 @@ final class VCFLine(
     if (!infoFieldMissing()) {
       rvb.setPresent()
       assert(abs.length == 0)
-      parseStringInfoArrayElement()
+      parseInfoArrayStringElement()
       while (!endInfoField()) {
         pos += 1  // comma
-        parseStringInfoArrayElement()
+        parseInfoArrayStringElement()
       }
 
       rvb.startArray(abs.length)
@@ -1021,10 +1027,10 @@ final class VCFLine(
     if (!infoFieldMissing()) {
       rvb.setPresent()
       assert(abd.length == 0)
-      parseDoubleInfoArrayElement()
+      parseInfoArrayDoubleElement()
       while (!endInfoField()) {
         pos += 1  // comma
-        parseDoubleInfoArrayElement()
+        parseInfoArrayDoubleElement()
       }
 
       rvb.startArray(abd.length)
