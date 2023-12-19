@@ -132,7 +132,24 @@ class LocalBackend(
     current
   }
 
-  override def parallelizeAndComputeWithIndex(
+  def parallelizeAndComputeWithIndex(
+    backendContext: BackendContext,
+    fs: FS,
+    collection: Array[Array[Byte]],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
+    val stageId = nextStageId()
+    collection.zipWithIndex.map { case (c, i) =>
+      using(new LocalTaskContext(i, stageId)) { htc =>
+        f(c, htc, theHailClassLoader, fs)
+      }
+    }
+  }
+
+  override def parallelizeAndComputeWithIndexReturnAllErrors(
     backendContext: BackendContext,
     fs: FS,
     collection: IndexedSeq[(Array[Byte], Int)],
