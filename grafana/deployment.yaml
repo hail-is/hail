@@ -171,7 +171,12 @@ spec:
        - name: setup-grafana-gsa-key
          image: {{ hail_ubuntu_image.image }}
          command: ["/bin/bash"]
-         args: ["-c", "jq -r '.password' /grafana-gsa-key/key.json > /grafana-shared/client-secret"]
+         args:
+           - "-c"
+           - |
+             jq -r '.tenant' /grafana-gsa-key/key.json > /grafana-shared/tenant-id
+             jq -r '.appId' /grafana-gsa-key/key.json > /grafana-shared/app-id
+             jq -r '.password' /grafana-gsa-key/key.json > /grafana-shared/client-secret
          volumeMounts:
            - mountPath: /grafana-gsa-key
              name: grafana-gsa-key
@@ -303,9 +308,9 @@ data:
         jsonData:
           azureAuthType: clientsecret
           cloudName: azuremonitor
-          tenantId: d6c9f2ea-d3bb-4ca9-8b14-231bac999aa6
-          clientId: 130c8cb9-4175-430e-919d-9d74282f2ffa
-          subscriptionId: 22cd45fe-f996-4c51-af67-ef329d977519
+          tenantId: $__file{/grafana-shared/tenant-id}
+          clientId: $__file{/grafana-shared/app-id}
+          subscriptionId: {{ global.azure_subscription_id }}
         secureJsonData:
           clientSecret: $__file{/grafana-shared/client-secret}
         version: 1
