@@ -11,7 +11,7 @@ import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32Required}
-import is.hail.utils.{FastSeq, Interval, using}
+import is.hail.utils.{FastSeq, using}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test
@@ -120,9 +120,9 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
     val emodb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val Main = emodb.genEmitClass[H](name)(H)
 
-    val MinHeap = StagedMinHeap(Main.emodb, A.sType) { classBuilder =>
+    val MinHeap = StagedMinHeap(Main.emodb, A.sType) {
       (cb: EmitCodeBuilder, x: SValue, y: SValue) =>
-        classBuilder.getOrdering(A.sType, A.sType).compareNonnull(cb, x, y)
+        cb.emb.ecb.getOrdering(A.sType, A.sType).compareNonnull(cb, x, y)
     }(Main)
 
     Main.defineEmitMethod("push", FastSeq(A.ti), UnitInfo) { mb =>

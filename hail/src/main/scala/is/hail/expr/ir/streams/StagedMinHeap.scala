@@ -26,7 +26,7 @@ sealed trait StagedMinHeap {
 
 object StagedMinHeap {
   def apply(modb: EmitModuleBuilder, elemSType: SType)
-           (mkComparator: EmitClassBuilder[_] => StagedComparator)
+           (comparator: (EmitCodeBuilder, SValue, SValue) => Value[Int])
   : EmitClassBuilder[_] => StagedMinHeap = {
 
     val elemPType = elemSType.storageType().setRequired(true)
@@ -45,19 +45,15 @@ object StagedMinHeap {
       classBuilder.genFieldThisRef[Long]("n_garbage_points")
 
     val heap = new StagedArrayBuilder(elemPType, classBuilder, region)
-    val compare = mkComparator(classBuilder)
-
     val ctor: EmitMethodBuilder[Unit] =
-      classBuilder.defineEmitMethod("<init>", FastSeq(typeInfo[AnyRef], typeInfo[RegionPool]), UnitInfo) { mb =>
-        val outerRef = mb.getCodeParam[AnyRef](1)
-        val poolRef = mb.getCodeParam[RegionPool](2)
+      classBuilder.defineEmitMethod("<init>", FastSeq(typeInfo[RegionPool]), UnitInfo) { mb =>
+        val poolRef = mb.getCodeParam[RegionPool](1)
 
         mb.voidWithBuilder { cb =>
           cb += classBuilder.cb.super_.invoke(coerce[Object](cb.this_), Array())
           cb.assign(pool, poolRef)
           cb.assign(region, Region.stagedCreate(Region.REGULAR, poolRef))
           cb.assign(garbage, 0L)
-          compare.init(cb, outerRef)
           heap.initialize(cb)
         }
       }
@@ -75,7 +71,7 @@ object StagedMinHeap {
         mb.emitWithBuilder[Int] { cb =>
           val l = cb.invokeSCode(load, cb.this_, mb.getCodeParam[Int](1))
           val r = cb.invokeSCode(load, cb.this_, mb.getCodeParam[Int](2))
-          compare(cb, l, r)
+          comparator(cb, l, r)
         }
       }
 
@@ -83,7 +79,7 @@ object StagedMinHeap {
       classBuilder.defineEmitMethod("realloc", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
           cb.if_(garbage > heap.size.toL * 2L + 1024L, {
-            val oldRegion = cb.newLocal[Region]("tmp", region)
+            val oldRegion = cb.memoize(region, "tmp")
             cb.assign(region, Region.stagedCreate(Region.REGULAR, pool))
             heap.reallocateData(cb)
             cb.assign(garbage, 0L)
@@ -94,9 +90,8 @@ object StagedMinHeap {
 
     val close_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
-        mb.voidWithBuilder { cb =>
-          compare.close(cb)
-          cb += region.invoke[Unit]("invalidate")
+        mb.emit {
+          region.invoke[Unit]("invalidate")
         }
       }
 
@@ -223,12 +218,7 @@ object StagedMinHeap {
         arrayPType.sType
 
       override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit =
-        cb.assignAny(this_,
-          Code.newInstance(classBuilder.cb, ctor.mb, FastSeq(
-            cb.memoize(Code.checkcast[AnyRef](cb.this_)), // `this` of the parent class
-            pool
-          ))
-        )
+        cb.assignAny(this_, Code.newInstance(classBuilder.cb, ctor.mb, FastSeq(pool)))
 
       override def realloc(cb: EmitCodeBuilder): Unit =
         cb.invokeVoid(realloc_, this_)
@@ -252,13 +242,6 @@ object StagedMinHeap {
         cb.invokeSCode(toArray_, this_, region).asIndexable
     }
   }
-
-  trait StagedComparator {
-    def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit = ()
-    def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int]
-    def close(cb: EmitCodeBuilder): Unit = ()
-  }
-
 }
 
 

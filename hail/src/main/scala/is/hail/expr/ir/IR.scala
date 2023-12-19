@@ -489,12 +489,8 @@ final case class StreamLeftIntervalJoin(
                                          rname: String,
                                          body: IR
                                        ) extends IR {
-
   override protected lazy val childrenSeq: IndexedSeq[BaseIR] =
     FastSeq(left, right, body)
-
-  override lazy val size: Int =
-    3
 }
 
 final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR {

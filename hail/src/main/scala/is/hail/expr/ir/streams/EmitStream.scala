@@ -1464,39 +1464,19 @@ object EmitStream {
             val rProd = rStream.getProducer(mb)
 
             val rElemSTy = SBaseStructPointer(rProd.element.st.storageType().asInstanceOf[PBaseStruct])
-            val intrvlSTy = rElemSTy.fieldTypes(rElemSTy.fieldIdx(rIntrvlName))
 
-            val loadInterval: EmitMethodBuilder[_] =
-              mb.ecb.defineEmitMethod(genName("m", "LoadInterval"),
-                FastSeq(rElemSTy.paramType),
-                intrvlSTy.paramType
-              ) { mb =>
-                mb.emitSCode { cb =>
-                  mb.getSCodeParam(1)
-                    .asBaseStruct
-                    .loadField(cb, rIntrvlName)
-                    .get(cb)
-                }
-              }
+            def loadInterval(cb: EmitCodeBuilder, rElem: SValue): SIntervalValue =
+              rElem.asBaseStruct.loadField(cb, rIntrvlName).get(cb).asInterval
 
             val q: StagedMinHeap =
-              StagedMinHeap(mb.emodb, rElemSTy) { heapClassBuilder =>
-                new StagedMinHeap.StagedComparator {
-                  val parent: ThisFieldRef[_] =
-                    heapClassBuilder.genFieldThisRef("ParentRef")(mb.cb.ti)
-
-                  override def init(cb: EmitCodeBuilder, enclosingRef: Value[AnyRef]): Unit =
-                    cb.assignAny(parent, Code.checkcast(enclosingRef)(mb.cb.ti))
-
-                  override def apply(cb: EmitCodeBuilder, a: SValue, b: SValue): Value[Int] = {
-                    val l = cb.invokeSCode(loadInterval, parent, a).asInterval
-                    val r = cb.invokeSCode(loadInterval, parent, b).asInterval
-                    IntervalFunctions.intervalEndpointCompare(cb,
-                      l.loadEnd(cb).get(cb), l.includesEnd,
-                      r.loadEnd(cb).get(cb), r.includesEnd
-                    )
-                  }
-                }
+              StagedMinHeap(mb.emodb, rElemSTy) {
+                (cb: EmitCodeBuilder, a: SValue, b: SValue) =>
+                  val l = loadInterval(cb, a)
+                  val r = loadInterval(cb, b)
+                  IntervalFunctions.intervalEndpointCompare(cb,
+                    l.loadEnd(cb).get(cb), l.includesEnd,
+                    r.loadEnd(cb).get(cb), r.includesEnd
+                  )
               }(mb.ecb)
 
             val lElement: SBaseStructSettable =
@@ -1507,9 +1487,6 @@ object EmitStream {
 
             var jElement: EmitSettable =
               null
-
-            val eltRegion =
-              mb.genFieldThisRef[Region]("IntervalJoinRegion")
 
             val rEOS: ThisFieldRef[Boolean] =
               mb.genFieldThisRef[Boolean]("RightEOS")
@@ -1541,7 +1518,7 @@ object EmitStream {
                 }
 
                 override val elementRegion: Settable[Region] =
-                  eltRegion
+                  mb.genFieldThisRef[Region]("IntervalJoinRegion")
 
                 override val requiresMemoryManagementPerElement: Boolean =
                   lProd.requiresMemoryManagementPerElement || rProd.requiresMemoryManagementPerElement
@@ -1558,9 +1535,12 @@ object EmitStream {
                     cb.assign(lElement, lProd.element.toI(cb).get(cb).asBaseStruct)
                     val point = lElement.loadField(cb, lKeyField).get(cb)
 
+                    /* Drop rows from the priority queue if their interval's right endpoint is
+                     * before the current key.
+                     */
                     cb.loop { Lrecur =>
                       cb.if_(q.nonEmpty(cb), {
-                        val interval = cb.invokeSCode(loadInterval, cb.this_, q.peek(cb)).asInterval
+                        val interval = loadInterval(cb, q.peek(cb))
                         val end = interval.loadEnd(cb).get(cb)
                         cb.if_(pointGTIntervalEndpoint(cb, point, end, interval.includesEnd), {
                           q.pop(cb)
@@ -1577,7 +1557,7 @@ object EmitStream {
 
                     cb.loop { LproduceR =>
                       val rElement = rElemSTy.coerceOrCopy(cb, elementRegion, rProd.element.toI(cb).get(cb), deepCopy = false)
-                      val interval = cb.invokeSCode(loadInterval, cb.this_, rElement).asInterval
+                      val interval = loadInterval(cb, rElement)
 
                       // Drop intervals whose right endpoint is before the key
                       val end = interval.loadEnd(cb).get(cb)
@@ -1607,17 +1587,14 @@ object EmitStream {
                     cb.assign(rEOS, true)
 
                     cb.define(LallIntervalsFound)
-                    cb.assign(rElements, q.toArray(cb, eltRegion))
-                    val result = emit(body, cb, region = eltRegion, env = env.bind(
+                    cb.assign(rElements, q.toArray(cb, elementRegion))
+                    val result = emit(body, cb, region = elementRegion, env = env.bind(
                       lName -> EmitValue.present(lElement),
                       rName -> EmitValue.present(rElements)
                     ))
 
                     jElement = mb.newEmitField("IntervalJoinResult", result.emitType)
-                    result.consume(cb,
-                      cb.assign(jElement, EmitValue.missing(result.st)),
-                      svalue => cb.assign(jElement, EmitValue.present(svalue))
-                    )
+                    cb.assign(jElement, result)
                     cb.goto(LproduceElementDone)
 
                     cb.define(lProd.LendOfStream)

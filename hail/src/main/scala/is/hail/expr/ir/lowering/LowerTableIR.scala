@@ -1565,10 +1565,7 @@ object LowerTableIR {
               StreamLeftIntervalJoin(
                 lstream, rstream,
                 left.typ.key.head,
-                right.typ.keyType.fields.find(_.typ.isInstanceOf[TInterval]).map(_.name).getOrElse {
-                  val msg = s"Right table key fields does not contain an interval type '${right.typ.keyType}'."
-                  throw new UnsupportedOperationException(msg)
-                },
+                right.typ.keyType.fields(0).name,
                 lref.name, rref.name,
                 InsertFields(lref, FastSeq(
                   root -> mapArray(rref) { SelectFields(_, right.typ.valueType.fieldNames) }

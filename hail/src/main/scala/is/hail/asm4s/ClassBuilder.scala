@@ -19,7 +19,7 @@ object Field {
     new Field[T](cb.lclass.newField(name, ti))
 }
 
-case class Field[T] private(lf: lir.Field) extends AnyVal {
+class Field[T] private(private val lf: lir.Field) extends AnyVal {
 
   def ti: TypeInfo[T] =
     lf.ti.asInstanceOf[TypeInfo[T]]

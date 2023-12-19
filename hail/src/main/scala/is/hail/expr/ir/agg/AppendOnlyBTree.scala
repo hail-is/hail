@@ -237,9 +237,9 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     cb.invokeCode[Long](insertAt, cb.this_, nodec, insertIdxc, castKCode, childC)
   }
 
-  private def getF(param: EmitParamType): EmitMethodBuilder[_] =
-    kb.getOrGenEmitMethod("btree_get", ("btree_get", key),
-      FastSeq[ParamType](typeInfo[Long], param),
+  private def getF(cb: EmitCodeBuilder, root: Value[Long], kc: EmitCode): Value[Long] = {
+    val get = kb.getOrGenEmitMethod("btree_get", ("btree_get", key),
+      FastSeq[ParamType](typeInfo[Long], kc.emitParamType),
       typeInfo[Long]
     ) { get =>
       get.emitWithBuilder { cb =>
@@ -279,10 +279,12 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
       }
     }
 
+    cb.invokeCode(get,  cb.this_, root, kc)
+  }
+
   def init(cb: EmitCodeBuilder): Unit = createNode(cb, root)
 
-  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] =
-    cb.invokeCode(getF(k.emitParamType), cb.this_, root, k)
+  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] = getF(cb, root, k)
 
   def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Value[Long]) => Unit): Unit = {
     val stackI = cb.newLocal[Int]("btree_foreach_stack_i", -1)
