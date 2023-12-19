@@ -61,20 +61,18 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
+    (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       cb += ob.writeInt(maxSize)
       cb += ob.writeLong(seenSoFar)
       builder.serialize(codec)(cb, ob)
-    }
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
+    (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       cb.assign(maxSize, ib.readInt())
       cb.assign(seenSoFar, ib.readLong())
       cb.assign(garbage, 0L)
       builder.deserialize(codec)(cb, ib)
-    }
   }
 
   def init(cb: EmitCodeBuilder, _maxSize: Code[Int]): Unit = {
