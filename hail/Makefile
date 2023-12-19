@@ -28,6 +28,7 @@ JAR ?= jar
 endif
 
 PYTEST_TARGET ?= test/hail
+PYTEST_DOCS_TARGET ?= hail
 
 # not perfect, not robust to simdpp changes, but probably fine
 BUILD_DEBUG_PREFIX := build/classes/scala/debug
@@ -243,7 +244,7 @@ doctest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
             --ignore=hail/docs/doctest_write_data.py \
             --ignore=hail/docs/getting_started_developing.rst \
             --ignore=hail/docs/getting_started.rst \
-            $(PYTEST_TARGET) \
+            $(PYTEST_DOCS_TARGET) \
             $(PYTEST_ARGS)
 
 
