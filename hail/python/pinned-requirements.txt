@@ -241,8 +241,10 @@ pyjwt[crypto]==2.8.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   msal
-pyspark==3.3.3
-    # via -r hail/hail/python/requirements.txt
+pyspark==3.3.2
+    # via
+    #   -c hail/hail/python/dataproc-pre-installed-requirements.txt
+    #   -r hail/hail/python/requirements.txt
 python-dateutil==2.8.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
