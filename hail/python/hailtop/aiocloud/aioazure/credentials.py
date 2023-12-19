@@ -5,7 +5,7 @@ import time
 import logging
 
 from types import TracebackType
-from typing import Any, List, Optional, Type, Union
+from typing import Any, List, Optional, Type, Union, Tuple, Dict
 from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
 from azure.core.credentials import AccessToken
 from azure.core.credentials_async import AsyncTokenCredential
@@ -110,17 +110,17 @@ class AzureCredentials(CloudCredentials):
             scopes = ['https://management.azure.com/.default']
         self.scopes = scopes
 
-    async def auth_headers(self):
-        access_token = await self.access_token()
-        return {'Authorization': f'Bearer {access_token}'}
+    async def auth_headers_with_expiration(self) -> Tuple[Dict[str, str], Optional[float]]:
+        access_token, expiration = await self.access_token_with_expiration()
+        return {'Authorization': f'Bearer {access_token}'}, expiration
 
-    async def access_token(self) -> str:
+    async def access_token_with_expiration(self) -> Tuple[str, Optional[float]]:
         now = time.time()
         if self._access_token is None or (self._expires_at is not None and now > self._expires_at):
             self._access_token = await self.get_access_token()
             self._expires_at = now + (self._access_token.expires_on - now) // 2   # type: ignore
         assert self._access_token
-        return self._access_token.token
+        return self._access_token.token, self._expires_at
 
     async def get_access_token(self):
         return await self.credential.get_token(*self.scopes)

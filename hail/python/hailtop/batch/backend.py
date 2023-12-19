@@ -801,7 +801,6 @@ class ServiceBackend(Backend[bc.Batch]):
                 cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
                 env=env,
                 requester_pays_project=batch.requester_pays_project,
-                mount_tokens=True,
                 user_code=user_code,
                 regions=job._regions,
                 always_copy_output=job._always_copy_output

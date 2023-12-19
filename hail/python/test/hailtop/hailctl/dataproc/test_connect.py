@@ -57,11 +57,9 @@ def test_connect(gcloud_run, subprocess):
 
     popen_args = subprocess.Popen.call_args[0][0]
     assert popen_args[0] == "chromium"
-    assert popen_args[1].startswith("http://localhost")
+    assert popen_args[1].startswith("http://test-cluster-m")
 
     assert "--proxy-server=socks5://localhost:10000" in popen_args
-    assert "--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost" in popen_args
-    assert "--proxy-bypass-list=<-loopback>" in popen_args
     assert any(arg.startswith("--user-data-dir=") for arg in popen_args)
 
 
@@ -77,7 +75,7 @@ def test_service_port_and_path(subprocess, service, expected_port_and_path):
     runner.invoke(cli.app, ['connect', 'test-cluster', service])
 
     popen_args = subprocess.Popen.call_args[0][0]
-    assert popen_args[1] == f"http://localhost:{expected_port_and_path}"
+    assert popen_args[1] == f"http://test-cluster-m:{expected_port_and_path}"
 
 
 def test_hailctl_chrome(subprocess, monkeypatch):

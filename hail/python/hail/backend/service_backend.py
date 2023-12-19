@@ -406,7 +406,6 @@ class ServiceBackend(Backend):
                         iodir + '/in',
                         iodir + '/out',
                     ],
-                    mount_tokens=True,
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,

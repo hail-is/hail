@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 import base64
 import collections.abc
 import os
@@ -71,6 +71,11 @@ class Tokens(collections.abc.MutableMapping):
     def namespace_token(self, ns: str) -> Optional[str]:
         return self._tokens.get(ns)
 
+    def namespace_token_with_expiration(self, ns: str) -> Optional[Tuple[str, Optional[float]]]:
+        if token := self._tokens.get(ns):
+            return token, None
+        return None
+
     def namespace_token_or_error(self, ns: str) -> str:
         if ns in self._tokens:
             return self._tokens[ns]
@@ -79,6 +84,9 @@ class Tokens(collections.abc.MutableMapping):
         default_ns = deploy_config.default_namespace()
         ns_arg = '' if ns == default_ns else f'-n {ns}'
         raise NotLoggedInError(ns_arg)
+
+    def namespace_token_with_expiration_or_error(self, ns: str) -> Tuple[str, Optional[float]]:
+        return self.namespace_token_or_error(ns), None
 
     def __delitem__(self, key: str):
         del self._tokens[key]

@@ -307,12 +307,18 @@ def start(
             size = max(size, 200)
         return str(size) + 'GB'
 
+    def jvm_heap_size_gib(machine_type: str, memory_fraction: float) -> int:
+        advertised_memory_gib = MACHINE_MEM[machine_type]
+        # 1. GCE only provides 51 GiB for an n1-highmem-8 (advertised as 52 GiB)
+        # 2. System daemons use ~10 GiB based on syslog "earlyoom" log statements during VM startup
+        actual_available_memory_gib = advertised_memory_gib - 11
+        jvm_heap_size = actual_available_memory_gib * memory_fraction
+        return int(jvm_heap_size)
+
     conf.extend_flag(
         'properties',
         {
-            "spark:spark.driver.memory": "{driver_memory}g".format(
-                driver_memory=str(int(MACHINE_MEM[master_machine_type] * master_memory_fraction))
-            )
+            "spark:spark.driver.memory": f"{jvm_heap_size_gib(master_machine_type, master_memory_fraction)}g"
         },
     )
     conf.flags['master-machine-type'] = master_machine_type
