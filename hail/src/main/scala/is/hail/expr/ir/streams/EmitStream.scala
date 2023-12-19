@@ -1553,16 +1553,18 @@ object EmitStream {
 
                     val LallIntervalsFound = CodeLabel()
                     cb.if_(rEOS, cb.goto(LallIntervalsFound))
-                    cb.if_(!rPulled, cb.goto(rProd.LproduceElement))
 
-                    cb.loop { LproduceR =>
+                    val LproduceRightElement = CodeLabel()
+                    cb.if_(!rPulled, cb.goto(LproduceRightElement))
+
+                    cb.loop { Lrecur =>
                       val rElement = rElemSTy.coerceOrCopy(cb, elementRegion, rProd.element.toI(cb).get(cb), deepCopy = false)
                       val interval = loadInterval(cb, rElement)
 
                       // Drop intervals whose right endpoint is before the key
                       val end = interval.loadEnd(cb).get(cb)
                       cb.if_(pointGTIntervalEndpoint(cb, point, end, interval.includesEnd),
-                        cb.goto(rProd.LproduceElement)
+                        cb.goto(LproduceRightElement)
                       )
 
                       // Stop consuming intervals if the left endpoint is after the key
@@ -1573,6 +1575,7 @@ object EmitStream {
 
                       q.push(cb, rElement)
 
+                      cb.define(LproduceRightElement)
                       if (rProd.requiresMemoryManagementPerElement) {
                         cb += rProd.elementRegion.clearRegion()
                       }
@@ -1580,7 +1583,7 @@ object EmitStream {
                       cb.goto(rProd.LproduceElement)
                       cb.define(rProd.LproduceElementDone)
                       cb.assign(rPulled, true)
-                      cb.goto(LproduceR)
+                      cb.goto(Lrecur)
                     }
 
                     cb.define(rProd.LendOfStream)
