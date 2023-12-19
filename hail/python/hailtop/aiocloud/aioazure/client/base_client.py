@@ -8,8 +8,6 @@ from ..session import AzureSession
 
 
 class AzureBaseClient(CloudBaseClient):
-    _session: AzureSession
-
     def __init__(self, base_url: str, *, session: Optional[AzureSession] = None,
                  rate_limit: Optional[RateLimit] = None, **kwargs):
         if session is None:

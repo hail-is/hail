@@ -50,8 +50,8 @@ class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def readable(self):
         return True
 
-    def seek(self, offset: int, whence: int = os.SEEK_SET):
-        async_to_blocking(self.ars.seek(offset, whence))
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        return async_to_blocking(self.ars.seek(offset, whence))
 
     def seekable(self) -> bool:
         return self.ars.seekable()
@@ -59,7 +59,7 @@ class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def tell(self) -> int:
         return self.ars.tell()
 
-    def truncate(self):
+    def truncate(self, size: Optional[int] = None):
         raise io.UnsupportedOperation
 
     def writable(self):
@@ -117,7 +117,7 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def readable(self):
         return False
 
-    def readline(self, size=-1):
+    def readline(self, size: Optional[int] = -1):
         raise OSError
 
     def readlines(self, hint=-1):
@@ -132,7 +132,7 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def tell(self):
         raise io.UnsupportedOperation
 
-    def truncate(self):
+    def truncate(self, size: Optional[int] = None):
         raise io.UnsupportedOperation
 
     def writable(self):

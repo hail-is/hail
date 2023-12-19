@@ -1,5 +1,5 @@
 from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable, TypeVar,
-                    Generic, List, Awaitable, Union, Tuple)
+                    Generic, List, Awaitable, Union, Tuple, ClassVar)
 from typing_extensions import ParamSpec
 from types import TracebackType
 import abc
@@ -133,10 +133,7 @@ class AsyncFS(abc.ABC):
     FILE = 'file'
     DIR = 'dir'
 
-    @property
-    @abc.abstractmethod
-    def schemes(self) -> Set[str]:
-        pass
+    schemes: ClassVar[Set[str]]
 
     @staticmethod
     @abc.abstractmethod

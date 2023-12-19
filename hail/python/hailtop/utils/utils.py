@@ -854,7 +854,8 @@ class TimeoutHTTPAdapter(HTTPAdapter):
         self.timeout = timeout
         super().__init__(max_retries=max_retries)
 
-    def init_poolmanager(self, connections, maxsize, block=False):
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        assert len(pool_kwargs) == 0
         self.poolmanager = PoolManager(
             num_pools=connections,
             maxsize=maxsize,

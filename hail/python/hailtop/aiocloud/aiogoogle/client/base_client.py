@@ -7,8 +7,6 @@ from ..session import GoogleSession
 
 
 class GoogleBaseClient(CloudBaseClient):
-    _session: GoogleSession
-
     def __init__(self, base_url: str, *, session: Optional[GoogleSession] = None,
                  rate_limit: Optional[RateLimit] = None, **kwargs):
         if session is None:

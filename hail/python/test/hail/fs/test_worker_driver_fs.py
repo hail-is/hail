@@ -1,5 +1,6 @@
 import asyncio
 import os
+import pytest
 
 import hail as hl
 from hailtop.utils import secret_alnum_string
@@ -135,9 +136,14 @@ def test_can_access_public_blobs():
 
 @run_if_azure
 @fails_local_backend
-def test_qob_can_use_sas_tokens():
+@pytest.mark.asyncio
+async def test_qob_can_use_sas_tokens():
     vcf = resource('sample.vcf')
-    account = AzureAsyncFS.parse_url(vcf).account
+    fs = AzureAsyncFS()
+    try:
+        account = fs.parse_url(vcf).account
+    finally:
+        await fs.close()
 
     sub_id = os.environ['HAIL_AZURE_SUBSCRIPTION_ID']
     rg = os.environ['HAIL_AZURE_RESOURCE_GROUP']

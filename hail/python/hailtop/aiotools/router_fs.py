@@ -1,4 +1,5 @@
-from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable
+from typing import (Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable,
+                    ClassVar)
 import asyncio
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
@@ -10,6 +11,12 @@ from hailtop.config import ConfigVariable, configuration_of
 
 
 class RouterAsyncFS(AsyncFS):
+    schemes: ClassVar[Set[str]] = {
+        scheme
+        for fs in (LocalAsyncFS, aiogoogle.GoogleStorageAsyncFS, aioazure.AzureAsyncFS, aioaws.S3AsyncFS)
+        for scheme in fs.schemes
+    }
+
     def __init__(self,
                  *,
                  filesystems: Optional[List[AsyncFS]] = None,
@@ -31,10 +38,6 @@ class RouterAsyncFS(AsyncFS):
 
     def parse_url(self, url: str) -> AsyncFSURL:
         return self._get_fs(url).parse_url(url)
-
-    @property
-    def schemes(self) -> Set[str]:
-        return set().union(*(fs.schemes for fs in self._filesystems))
 
     @staticmethod
     def valid_url(url) -> bool:
@@ -79,7 +82,7 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.open_from(url, start, length=length)
 
-    async def create(self, url: str, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
+    async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
         fs = self._get_fs(url)
         return await fs.create(url, retry_writes=retry_writes)
 

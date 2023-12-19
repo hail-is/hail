@@ -400,8 +400,7 @@ class AzureAsyncFS(AsyncFS):
             expiry=datetime.utcnow() + valid_interval)
         return token
 
-    @staticmethod
-    def parse_url(url: str) -> AzureAsyncFSURL:
+    def parse_url(self, url: str) -> AzureAsyncFSURL:
         colon_index = url.find(':')
         if colon_index == -1:
             raise ValueError(f'invalid URL: {url}')

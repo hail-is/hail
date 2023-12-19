@@ -19,9 +19,9 @@ from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, Writ
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
 from .base_client import GoogleBaseClient
-from ..session import GoogleSession
 from ..credentials import GoogleCredentials
 from ..user_config import get_gcs_requester_pays_configuration, GCSRequesterPaysConfiguration
+from ...common.session import BaseSession
 
 log = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class _TaskManager:
 
 
 class ResumableInsertObjectStream(WritableStream):
-    def __init__(self, session: GoogleSession, session_url: str, chunk_size: int):
+    def __init__(self, session: BaseSession, session_url: str, chunk_size: int):
         super().__init__()
         self._session = session
         self._session_url = session_url

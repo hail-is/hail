@@ -28,10 +28,10 @@ class ReadableStream(abc.ABC):
     async def readexactly(self, n: int) -> bytes:
         raise NotImplementedError
 
-    async def seek(self, offset, whence):
+    async def seek(self, offset, whence) -> int:
         raise OSError
 
-    def seekable(self):
+    def seekable(self) -> bool:
         return False
 
     def tell(self) -> int:
@@ -136,8 +136,8 @@ class _ReadableStreamFromBlocking(ReadableStream):
             return await blocking_to_async(self._thread_pool, self._f.read)
         return await blocking_to_async(self._thread_pool, self._f.read, n)
 
-    async def seek(self, offset, whence):
-        self._f.seek(offset, whence)
+    async def seek(self, offset, whence) -> int:
+        return self._f.seek(offset, whence)
 
     def seekable(self):
         return True

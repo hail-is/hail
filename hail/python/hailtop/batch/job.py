@@ -603,11 +603,12 @@ class Job:
                 raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
                                      f"Hint: resources must be from the same batch as the current job.")
 
-            if r._source != self:
+            source = r.source()
+            if source != self:
                 self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
+                if source is not None:
+                    if r not in source._valid:
+                        name = source._resources_inverse[r]
                         raise BatchException(f"undefined resource '{name}'\n"
                                              f"Hint: resources must be defined within "
                                              f"the job methods 'command' or 'declare_resource_group'")
@@ -616,8 +617,8 @@ class Job:
                         warnings.warn('A job marked as always run has a resource file dependency on another job. If the dependent job fails, '
                                       f'the always run job with the following command may not succeed:\n{command}')
 
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
+                    self._dependencies.add(source)
+                    source._add_internal_outputs(r)
             else:
                 _add_resource_to_set(self._valid, r)
 
