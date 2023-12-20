@@ -35,7 +35,12 @@ sourceSets {
 }
 
 compileJava {
-    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl" << "-XDignore.symbol.file"
+    options.compilerArgs +=
+        [ "-Xlint:all"
+        , "-Werror"
+        , "-XDenableSunApiLintControl"
+        , "-XDignore.symbol.file"
+        ]
 }
 tasks.withType(JavaCompile) {
     options.fork = true // necessary to make -XDenableSunApiLintControl work
@@ -54,38 +59,34 @@ project.ext {
     assert(scalaMajorVersion == "2.12")
 }
 
-compileScala {
-    options.compilerArgs <<
-        "-Xlint:all" <<
-        "-Werror" <<
-        "-XDenableSunApiLintControl" <<
-        "-XDignore.symbol.file" <<
-        "-Xlint:-path" // Apparently we try to find some libraries that aren't always installed
+tasks.withType(ScalaCompile) {
+    options.compilerArgs +=
+        [ "-Xlint:all,-path"
+        , "-XDenableSunApiLintControl"
+        , "-XDignore.symbol.file"
+        , '-Werror'
+        ]
 
-    scalaCompileOptions.additionalParameters = [
-        "-target:jvm-1.8",
-        "-feature",
-        "-Xno-patmat-analysis",
-        "-Xfatal-warnings",
-        "-Xlint:_",
-        "-deprecation",
-        "-unchecked",
-        "-Xlint:-infer-any",
-        "-Xlint:-unsound-match"
-    ]
-
-    if (scalaMajorVersion == "2.12") {
-        scalaCompileOptions.additionalParameters +=
-            [ "-Xlint:-unused"
-            , "-Ypartial-unification"
-            ]
-    }
+    scalaCompileOptions.additionalParameters =
+        [ "-target:jvm-1.8"
+        , "-feature"
+        , "-deprecation"
+        , "-unchecked"
+        , "-Xno-patmat-analysis"
+        , "-Xlint:_,-infer-any,-unsound-match"
+        , "-Xfatal-warnings"
+        , "-Ywarn-unused:_,-explicits,-implicits"
+        , "-Wconf:cat=unused-imports:info"
+        , "-Ypartial-unification"
+        ]
 
     scalaCompileOptions.forkOptions.with {
-        jvmArgs = ["-Xms512M",
-                   "-Xmx4096M",
-                   "-Xss4M",
-                   "-XX:MaxMetaspaceSize=1024M"]
+        jvmArgs =
+            [ "-Xms512M"
+            , "-Xmx4096M"
+            , "-Xss4M"
+            , "-XX:MaxMetaspaceSize=1024M"
+            ]
     }
 }
 
