@@ -474,7 +474,7 @@ class Table(ExprContainer):
         >>> ht2.n_partitions()
         1
 
-        The `min_partitions` argument to :meth:`.import_table` forces more partitions, but it can
+        The `min_partitions` argument to :func:`.import_table` forces more partitions, but it can
         produce empty partitions. Empty partitions do not affect correctness but introduce
         unnecessary extra bookkeeping that slows down the pipeline.
 
@@ -598,10 +598,10 @@ class Table(ExprContainer):
         contains empty arrays (the element type is unspecified), so we specify the type of labels
         explicitly.
 
-        >>> dicts = [{"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794}, "milestone":None,"labels":[]},\
-                     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},\
-                     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},\
-                     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},\
+        >>> dicts = [{"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794}, "milestone":None,"labels":[]},
+                     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},
+                     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},
+                     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
                      {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]}]
         >>> t = hl.Table.parallelize(
         ...     dicts,
