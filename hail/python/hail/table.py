@@ -1335,7 +1335,7 @@ class Table(ExprContainer):
         :func:`.read_table` and a :meth:`.filter`. For example, a `key_by` and `group_by`, both
         force reading all the data.
 
-        Suppose we previously :meth:`.wrote` a Hail Table with one million rows keyed by a field
+        Suppose we previously :meth:`.write` a Hail Table with one million rows keyed by a field
         called `idx`. If we filter this table to one value of `idx`, the pipeline will be fast
         because we read only the rows that have that value of `idx`:
 
