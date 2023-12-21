@@ -238,17 +238,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       }
     }
 
-    val (code, res) = CodeBuilder.scoped(mb) { cb =>
-      cb.invoke[T](callee.mb, codeArgs: _*)
-    }
-
-    append(code)
-    res
+    super.invoke[T](callee.mb, codeArgs: _*)
   }
 
   def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {
     assert(callee.emitReturnType == CodeParamType(UnitInfo))
-    append(_invoke[Unit](callee, args: _*))
+    _invoke[Unit](callee, args: _*)
   }
 
   def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Value[T] = {

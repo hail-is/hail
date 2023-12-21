@@ -219,6 +219,21 @@ trait CodeBuilderLike {
   def goto(L: CodeLabel): Unit =
     append(L.goto)
 
+  def invoke[T](m: MethodBuilder[_], args: Value[_]*): Value[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastSeq.map(_.get))
+    val op = if (m.isStatic) INVOKESTATIC else INVOKEVIRTUAL
+
+    if (m.returnTypeInfo eq UnitInfo) {
+      end.append(lir.methodStmt(op, m.lmethod, argvs))
+      append(new VCode(start, end, null))
+      coerce[T](Code._empty)
+    } else {
+      val value = lir.methodInsn(op, m.lmethod, argvs)
+      val result = new VCode(start, end, value)
+      memoize[T](result)(m.returnTypeInfo.asInstanceOf[TypeInfo[T]], implicitly[T =!= Unit])
+    }
+  }
+
   def _fatal(msgs: Code[String]*): Unit =
     append(Code._fatal[Unit](msgs.reduce(_.concat(_))))
 
@@ -233,10 +248,8 @@ trait CodeBuilderLike {
 }
 
 class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
-  def isOpenEnded: Boolean = {
-    val last = code.end.last
-    (last == null) || !last.isInstanceOf[lir.ControlX] || last.isInstanceOf[lir.ThrowX]
-  }
+  def isOpenEnded: Boolean =
+    code.isOpenEnded
 
   override def append(c: Code[Unit]): Unit = {
     assert(isOpenEnded)
@@ -259,26 +272,5 @@ class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBu
     val tmp = code
     code = Code._empty
     tmp
-  }
-
-  def invoke[T](m: MethodBuilder[_], args: Value[_]*): Value[T] =
-    if (m.returnTypeInfo eq UnitInfo) {
-      append(invokeCode[Unit](m, args: _*))
-      coerce[T](Code._empty)
-    } else {
-      val result = invokeCode[T](m, args: _*)
-      memoize[T](result)(m.returnTypeInfo.asInstanceOf[TypeInfo[T]], implicitly[T =!= Unit])
-    }
-
-  def invokeCode[T](m: MethodBuilder[_], args: Value[_]*): Code[T] = {
-    val (start, end, argvs) = Code.sequenceValues(args.toFastSeq.map(_.get))
-    val op = if (m.isStatic) INVOKESTATIC else INVOKEVIRTUAL
-    if (m.returnTypeInfo eq UnitInfo) {
-      end.append(lir.methodStmt(op, m.lmethod, argvs))
-      new VCode(start, end, null)
-    } else {
-      val value = lir.methodInsn(op, m.lmethod, argvs)
-      new VCode(start, end, value)
-    }
   }
 }

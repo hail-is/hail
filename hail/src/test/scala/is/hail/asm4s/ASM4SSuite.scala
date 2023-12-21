@@ -309,17 +309,15 @@ class ASM4SSuite extends HailSuite {
       val a = fb.getArg[Int](1)
       val b = fb.getArg[Int](2)
       val c = fb.getArg[Int](3)
-      val res = cb.newLocal[Int]("res")
-      cb.if_(a.ceq(0), {
-        cb.assign(res, cb.invokeCode(add, cb.this_, b, c))
-      }, {
-        cb.if_(a.ceq(1),
-          cb.assign(res, cb.invoke(sub, cb.this_, b, c)),
-          cb.assign(res, cb.invoke(mul, cb.this_, b, c))
-        )
-      })
+      val res = cb.newLocal[Int]("result")
+      cb.switch(a, cb._fatal("invalid choice"), FastSeq(
+        { () => cb.assign(res, cb.invoke(add, cb.this_, b, c)) },
+        { () => cb.assign(res, cb.invoke(sub, cb.this_, b, c)) },
+        { () => cb.assign(res, cb.invoke(mul, cb.this_, b, c)) }
+      ))
       res
     }
+
     val f = fb.result(ctx.shouldWriteIRFiles(), Some(new PrintWriter(System.out)))(theHailClassLoader)
     assert(f(0, 1, 1) == 2)
     assert(f(1, 5, 1) == 4)
@@ -463,9 +461,6 @@ class ASM4SSuite extends HailSuite {
     }
 
     val Main = FunctionBuilder[Int]("Main")
-    val a = Main.newLocal("a")(Counter.cb.ti)
-    val b = Main.newLocal("b")(Counter.cb.ti)
-    val ignore = Main.newLocal[Int]("ignore")
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.newLocal("a", Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()))
       val b = cb.newLocal("b", Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()))
