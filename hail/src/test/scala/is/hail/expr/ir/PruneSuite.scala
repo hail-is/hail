@@ -70,10 +70,10 @@ class PruneSuite extends HailSuite {
     }
   }
 
-  def checkRebuild[T <: BaseIR](
-    ir: T,
-    requestedType: BaseType,
-    f: (T, T) => Boolean = (left: T, right: T) => left == right) {
+  def checkRebuild[T <: BaseIR](ir: T,
+                                requestedType: BaseType,
+                                f: (T, T) => Boolean = (left: T, right: T) => left == right
+                               ): Unit = {
     val irCopy = ir.deepCopy()
     val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
     val rebuilt = (irCopy match {
@@ -718,6 +718,43 @@ class PruneSuite extends HailSuite {
         TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
         TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
         TStruct("b" -> TInt32, "d" -> TInt32)))
+  }
+
+  @Test def testStreamLeftIntervalJoin(): Unit = {
+    val leftElemType = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
+    val rightElemType = TStruct("interval" -> TInterval(TInt32), "ignored" -> TVoid)
+
+    val join =
+      StreamLeftIntervalJoin(
+        MakeStream(FastSeq(), TStream(leftElemType)),
+        MakeStream(FastSeq(), TStream(rightElemType)),
+        leftElemType.fieldNames.head,
+        "interval",
+        "lname",
+        "rname",
+        InsertFields(
+          Ref("lname", leftElemType),
+          FastSeq("intervals" -> Ref("rname", TArray(rightElemType)))
+        )
+      )
+
+    val prunedLElemType = leftElemType.deleteKey("b")
+    val prunedRElemType = rightElemType.deleteKey("ignored")
+    val requestedElemType = prunedLElemType.insertFields(
+      FastSeq("intervals" -> TArray(prunedRElemType))
+    )
+
+    checkMemo(join, TStream(requestedElemType), Array(
+      TStream(prunedLElemType),
+      TStream(prunedRElemType),
+      requestedElemType
+    ))
+
+    checkRebuild[StreamLeftIntervalJoin](join, TStream(requestedElemType), { (_, pruned) =>
+      pruned.left.typ == TStream(prunedLElemType) &&
+        pruned.right.typ == TStream(prunedRElemType) &&
+        pruned.body.typ == requestedElemType
+    })
   }
 
   @Test def testStreamForMemo() {
