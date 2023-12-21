@@ -51,6 +51,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
+	cd hail && sh ./gradlew spotlessCheck
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
