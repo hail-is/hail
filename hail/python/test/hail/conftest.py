@@ -34,13 +34,12 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_this)
 
 
-@pytest.fixture(scope="session", autouse=True)
-def ensure_event_loop_is_initialized_in_test_thread():
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError as err:
-        assert err.args[0] == "no running event loop"
-        asyncio.set_event_loop(asyncio.new_event_loop())
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
 
 
 @pytest.fixture(scope="session", autouse=True)

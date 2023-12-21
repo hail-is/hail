@@ -1,7 +1,15 @@
+import asyncio
 import hashlib
 import os
-
 import pytest
+
+
+@pytest.fixture(scope="session")
+def event_loop():  # a session scoped event loop ensures very fixture and test use the same event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.close()
 
 
 def pytest_collection_modifyitems(config, items):
