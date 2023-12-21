@@ -570,7 +570,7 @@ class Table(ExprContainer):
 
         >>> t = hl.Table.parallelize(
         ...     [{'a': 5, 'b': 10}, {'a': 0, 'b': 200}],
-        ...     schema=hl.tstruct(a=hl.tint, b=hl.tint)),
+        ...     schema=hl.tstruct(a=hl.tint, b=hl.tint),
         ...     key='a'
         ... )
         >>> t.show()
@@ -582,13 +582,14 @@ class Table(ExprContainer):
         |     0 |   200 |
         |     5 |    10 |
         +-------+-------+
+        <BLANKLINE>
 
         You may also elide schema entirely and let Hail guess the type. The list elements must
         either be Hail :class:`.Struct` or :class:`.dict` s.
 
         >>> t = hl.Table.parallelize(
         ...     [{'a': 5, 'b': 10}, {'a': 0, 'b': 200}],
-        ...     schema=hl.tarray(hl.tstruct(a=hl.tint, b=hl.tint))),
+        ...     schema=hl.tarray(hl.tstruct(a=hl.tint, b=hl.tint)),
         ...     key='a'
         ... )
         >>> t.show()
@@ -598,38 +599,30 @@ class Table(ExprContainer):
         contains empty arrays (the element type is unspecified), so we specify the type of labels
         explicitly.
 
-        >>> dicts = [{"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794}, "milestone":None,"labels":[]},
-                     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},
-                     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},
-                     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
-                     {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]}]
+        >>> dictionaries = [
+        ...     {"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794}, "milestone":None,"labels":[]},
+        ...     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},
+        ...     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},
+        ...     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
+        ...     {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
+        ... ]
         >>> t = hl.Table.parallelize(
-        ...     dicts,
-        ...     partial_type={"milestone":hl.tstr, "labels":hl.tarray(hl.tstr)}
+        ...     dictionaries,
+        ...     partial_type={"milestone": hl.tstr, "labels": hl.tarray(hl.tstr)}
         ... )
         >>> t.show()
-        +--------+--------+--------------------+-----------------+----------+
-        | number | state  | user.login         | user.site_admin |  user.id |
-        +--------+--------+--------------------+-----------------+----------+
-        |  int32 | str    | str                |            bool |    int32 |
-        +--------+--------+--------------------+-----------------+----------+
-        |  10038 | "open" | "tpoterba"         |           False | 10562794 |
-        |  10037 | "open" | "daniel-goldstein" |           False | 24440116 |
-        |  10036 | "open" | "jigold"           |           False |  1693348 |
-        |  10035 | "open" | "tpoterba"         |           False | 10562794 |
-        |  10033 | "open" | "tpoterba"         |           False | 10562794 |
-        +--------+--------+--------------------+-----------------+----------+
-        +-----------+------------+
-        | milestone | labels     |
-        +-----------+------------+
-        | str       | array<str> |
-        +-----------+------------+
-        | NA        | []         |
-        | NA        | []         |
-        | NA        | []         |
-        | NA        | []         |
-        | NA        | []         |
-        +-----------+------------+
+        +--------+--------+--------------------+-----------------+----------+-----------+------------+
+        | number | state  | user.login         | user.site_admin |  user.id | milestone | labels     |
+        +--------+--------+--------------------+-----------------+----------+-----------+------------+
+        |  int32 | str    | str                |            bool |    int32 | str       | array<str> |
+        +--------+--------+--------------------+-----------------+----------+-----------+------------+
+        |  10038 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
+        |  10037 | "open" | "daniel-goldstein" |           False | 24440116 | NA        | []         |
+        |  10036 | "open" | "jigold"           |           False |  1693348 | NA        | []         |
+        |  10035 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
+        |  10033 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
+        +--------+--------+--------------------+-----------------+----------+-----------+------------+
+        <BLANKLINE>
 
         Parallelizing with a specified number of partitions:
 
@@ -1279,8 +1272,8 @@ class Table(ExprContainer):
 
         >>> ht = ht.key_by('ID')
         >>> ht = ht.annotate(
-        ...    A=ht2[ht.key].A
-        ...    B=ht2[ht.key].B
+        ...    A=ht2[ht.key].A,
+        ...    B=ht2[ht.key].B,
         ... )
         >>> ht.show()
         +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
@@ -1293,11 +1286,13 @@ class Table(ExprContainer):
         |     3 |    70 | "F" |     7 |     3 | 4.90e+01 |    70 | "mouse"  | "seventy"      |
         |     4 |    60 | "F" |     8 |     2 | 6.40e+01 |    60 | "rabbit" | "sixty"        |
         +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
+        <BLANKLINE>
 
         Instead of repeating all the fields from the other table, we may use Python's splat operator
         to indicate we want to copy all the non-key fields from the other table:
 
         >>> ht = ht.annotate(**ht2[ht.key])
+        >>> ht.show()
         +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
         |    ID |    HT | SEX |     X |     Z |        Y |     A | B        | HT_DESCRIPTION |
         +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
@@ -1395,10 +1390,10 @@ class Table(ExprContainer):
         |     4 |    60 | "F" |     8 |     2 |
         +-------+-------+-----+-------+-------+
 
-        Keep rows where X is less than 8 and Z is greater than 2:
+        Keep rows where X is less than 7 and Z is greater than 2:
 
         >>> filtered_ht = ht.filter(hl.all(
-        ...     ht.X < 8,
+        ...     ht.X < 7,
         ...     ht.Z > 2
         ... ))
         >>> filtered_ht.show()
@@ -1407,14 +1402,15 @@ class Table(ExprContainer):
         +-------+-------+-----+-------+-------+
         | int32 | int32 | str | int32 | int32 |
         +-------+-------+-----+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |
         |     2 |    72 | "M" |     6 |     3 |
-        |     3 |    70 | "F" |     7 |     3 |
         +-------+-------+-----+-------+-------+
+        <BLANKLINE>
 
-        Keep rows where X is less than 8 or Z is greater than 2:
+        Keep rows where X is less than 7 or Z is greater than 2:
 
         >>> filtered_ht = ht.filter(hl.any(
-        ...     ht.X < 8,
+        ...     ht.X < 7,
         ...     ht.Z > 2
         ... ))
         >>> filtered_ht.show()
