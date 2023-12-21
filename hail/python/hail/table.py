@@ -553,7 +553,7 @@ class Table(ExprContainer):
 
         >>> t = hl.Table.parallelize(
         ...     [{'a': 5, 'b': 10}, {'a': 0, 'b': 200}],
-        ...     schema=hl.tstruct(a=hl.tint, b=hl.tint))
+        ...     schema=hl.tstruct(a=hl.tint, b=hl.tint)
         ... )
         >>> t.show()
         +-------+-------+
@@ -790,16 +790,17 @@ class Table(ExprContainer):
         >>> combined_ht = combined_ht.key_by('ID')
         >>> combined_ht = combined_ht.annotate(favorite_pet = ht2[combined_ht.key].B)
         >>> combined_ht.show()
-        +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------------+
-        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |    C4 | favorite_pet |
-        +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------------+
-        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 | str          |
-        +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------------+
-        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |     9 | "cat"        |
-        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |     9 | "dog"        |
-        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |    10 | "mouse"      |
-        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |    10 | "rabbit"     |
-        +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------------+
+        +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | favorite_pet |
+        +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | str          |
+        +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 | "cat"        |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 | "dog"        |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 | "mouse"      |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 | "rabbit"     |
+        +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
+        <BLANKLINE>
 
         Hail supports compound keys which enforce a dictionary ordering on the rows of the Table.
 
@@ -1055,22 +1056,25 @@ class Table(ExprContainer):
 
         >>> ht = ht.transmute_globals(density=ht.population / ht.area)
         >>> ht.globals.show()
-        +----------+------+
-        | density  | year |
-        +----------+------+
-        | 2000.0   | 2020 |
-        +----------+------+
+        +-------------+----------------+
+        | <expr>.year | <expr>.density |
+        +-------------+----------------+
+        |       int32 |        float64 |
+        +-------------+----------------+
+        |        2020 |       2.00e+03 |
+        +-------------+----------------+
 
         Introduce a new global field `next_year` based on `year`:
 
         >>> ht = ht.transmute_globals(next_year=ht.year + 1)
         >>> ht.globals.show()
-        +---------+-----------+
-        | density | next_year |
-        +---------+-----------+
-        | 2000.0  | 2021      |
-        +---------+-----------+
-
+        +----------------+------------------+
+        | <expr>.density | <expr>.next_year |
+        +----------------+------------------+
+        |        float64 |            int32 |
+        +----------------+------------------+
+        |       2.00e+03 |             2021 |
+        +----------------+------------------+
 
         See Also
         --------
@@ -1204,7 +1208,6 @@ class Table(ExprContainer):
 
         Consider this table:
 
-        >>> ht = table1
         >>> ht = ht.drop('C1', 'C2', 'C3')
         >>> ht.show()
         +-------+-------+-----+-------+-------+
@@ -1220,7 +1223,7 @@ class Table(ExprContainer):
 
         Add field Y containing the square of field X
 
-        >>> ht = ht.annotate(Y = table1.X ** 2)
+        >>> ht = ht.annotate(Y = ht.X ** 2)
         >>> ht.show()
         +-------+-------+-----+-------+-------+----------+
         |    ID |    HT | SEX |     X |     Z |        Y |
@@ -1340,19 +1343,18 @@ class Table(ExprContainer):
         because we read only the rows that have that value of `idx`:
 
         >>> ht = hl.read_table('large-table.ht')  # doctest: +SKIP
-        >>> ht = ht.filter(ht.idx == 5)
+        >>> ht = ht.filter(ht.idx == 5)  # doctest: +SKIP
 
         This also works with inequality conditions:
 
         >>> ht = hl.read_table('large-table.ht')  # doctest: +SKIP
-        >>> ht = ht.filter(ht.idx <= 5)
+        >>> ht = ht.filter(ht.idx <= 5)  # doctest: +SKIP
 
         Examples
         --------
 
         Consider this table:
 
-        >>> ht = table1
         >>> ht = ht.drop('C1', 'C2', 'C3')
         >>> ht.show()
         +-------+-------+-----+-------+-------+
@@ -1907,7 +1909,7 @@ class Table(ExprContainer):
 
         Examples
         --------
-        >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
+        >>> table1 = table1.checkpoint('output/table_checkpoint.ht', overwrite=True)
 
         """
         hl.current_backend().validate_file(output)
@@ -1934,7 +1936,7 @@ class Table(ExprContainer):
         Examples
         --------
 
-        >>> table1.write('output/table1.ht')
+        >>> table1.write('output/table1.ht', overwrite=True)
 
         .. include:: _templates/write_warning.rst
 
@@ -1976,8 +1978,8 @@ class Table(ExprContainer):
 
         >>> t = hl.utils.range_table(10)
         >>> t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
-        >>> t.write_many('output', fields=('a', 'b', 'c'))
-        >>> hl.read_table('output/a').describe()
+        >>> t.write_many('output-many', fields=('a', 'b', 'c'), overwrite=True)
+        >>> hl.read_table('output-many/a').describe()
         ----------------------------------------
         Global fields:
             None
@@ -1988,7 +1990,7 @@ class Table(ExprContainer):
         ----------------------------------------
         Key: ['idx']
         ----------------------------------------
-        >>> hl.read_table('output/a').show()
+        >>> hl.read_table('output-many/a').show()
         +-------+-------+
         |     a |   idx |
         +-------+-------+
@@ -2005,7 +2007,7 @@ class Table(ExprContainer):
         |     8 |     8 |
         |     9 |     9 |
         +-------+-------+
-        >>> hl.read_table('output/b').describe()
+        >>> hl.read_table('output-many/b').describe()
         ----------------------------------------
         Global fields:
             None
@@ -2016,7 +2018,7 @@ class Table(ExprContainer):
         ----------------------------------------
         Key: ['idx']
         ----------------------------------------
-        >>> hl.read_table('output/b').show()
+        >>> hl.read_table('output-many/b').show()
         +-------+-------+
         |     b |   idx |
         +-------+-------+
@@ -2033,7 +2035,7 @@ class Table(ExprContainer):
         |    64 |     8 |
         |    81 |     9 |
         +-------+-------+
-        >>> hl.read_table('output/c').describe()
+        >>> hl.read_table('output-many/c').describe()
         ----------------------------------------
         Global fields:
             None
@@ -2044,7 +2046,7 @@ class Table(ExprContainer):
         ----------------------------------------
         Key: ['idx']
         ----------------------------------------
-        >>> hl.read_table('output/c').show()
+        >>> hl.read_table('output-many/c').show()
         +-----+-------+
         | c   |   idx |
         +-----+-------+
