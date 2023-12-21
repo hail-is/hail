@@ -589,7 +589,7 @@ class Table(ExprContainer):
 
         >>> t = hl.Table.parallelize(
         ...     [{'a': 5, 'b': 10}, {'a': 0, 'b': 200}],
-        ...     schema=hl.tarray(hl.tstruct(a=hl.tint, b=hl.tint)),
+        ...     schema=hl.tstruct(a=hl.tint, b=hl.tint),
         ...     key='a'
         ... )
         >>> t.show()
@@ -671,6 +671,8 @@ class Table(ExprContainer):
 
         dtype = schema
         if schema is not None:
+            if not isinstance(schema, hl.tstruct):
+                raise ValueError(f"parallelize expectes the 'schema' argument to be an hl.tstruct, see docs for details.")
             dtype = hl.tarray(schema)
         elif partial_type is not None:
             partial_type = hl.tarray(hl.tstruct(**partial_type))
