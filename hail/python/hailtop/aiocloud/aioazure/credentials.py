@@ -70,7 +70,7 @@ class AzureCredentials(CloudCredentials):
                 return AzureCredentials.from_file(credentials_file, scopes=scopes)
             else:
                 return AzureCredentials.default_credentials(scopes=scopes)
-        elif credentials_file is not None:
+        if credentials_file is not None:
             raise ValueError('Do not provide credentials_file and credentials.')
         return credentials
 

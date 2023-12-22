@@ -62,7 +62,7 @@ class GoogleCredentials(CloudCredentials):
                 return GoogleCredentials.from_file(credentials_file)
             else:
                 return GoogleCredentials.default_credentials()
-        elif credentials_file is not None:
+        if credentials_file is not None:
             raise ValueError('Do not provide credentials_file and credentials.')
         return credentials
 
