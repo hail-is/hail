@@ -43,13 +43,6 @@ class AzureBaseClient(CloudBaseClient):
                 yield v
             next_link = page.get('nextLink')
 
-    async def delete(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
-        if url is None:
-            assert path
-            url = f'{self._base_url}{path}'
-        async with await self._session.delete(url, **kwargs) as resp:
-            return resp
-
     async def delete_and_wait(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
         tries = 1
         while True:
