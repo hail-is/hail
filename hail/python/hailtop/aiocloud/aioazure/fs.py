@@ -1,4 +1,5 @@
-from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union, ClassVar
+from typing import (Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type,
+                    Union)
 from types import TracebackType
 
 import abc
@@ -352,7 +353,6 @@ def handle_public_access_error(fun):
 
 
 class AzureAsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'hail-az', 'https'}
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
     def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
@@ -367,6 +367,10 @@ class AzureAsyncFS(AsyncFS):
 
         self._credential = credentials.credential
         self._blob_service_clients: Dict[Tuple[str, str, Union[AzureCredentials, str, None]], BlobServiceClient] = {}
+
+    @staticmethod
+    def schemes() -> Set[str]:
+        return {'hail-az', 'https'}
 
     @staticmethod
     def valid_url(url: str) -> bool:
@@ -400,13 +404,14 @@ class AzureAsyncFS(AsyncFS):
             expiry=datetime.utcnow() + valid_interval)
         return token
 
-    def parse_url(self, url: str) -> AzureAsyncFSURL:
+    @staticmethod
+    def parse_url(url: str) -> AzureAsyncFSURL:
         colon_index = url.find(':')
         if colon_index == -1:
             raise ValueError(f'invalid URL: {url}')
 
         scheme = url[:colon_index]
-        if scheme not in AzureAsyncFS.schemes:
+        if scheme not in AzureAsyncFS.schemes():
             raise ValueError(f'invalid scheme, expected hail-az or https: {scheme}')
 
         rest = url[(colon_index + 1):]

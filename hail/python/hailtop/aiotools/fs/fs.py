@@ -1,5 +1,5 @@
 from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable, TypeVar,
-                    Generic, List, Awaitable, Union, Tuple, ClassVar)
+                    Generic, List, Awaitable, Union, Tuple)
 from typing_extensions import ParamSpec
 from types import TracebackType
 import abc
@@ -133,15 +133,19 @@ class AsyncFS(abc.ABC):
     FILE = 'file'
     DIR = 'dir'
 
-    schemes: ClassVar[Set[str]]
+    @staticmethod
+    @abc.abstractmethod
+    def schemes() -> Set[str]:
+        pass
 
     @staticmethod
     @abc.abstractmethod
     def valid_url(url: str) -> bool:
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def parse_url(self, url: str) -> AsyncFSURL:
+    def parse_url(url: str) -> AsyncFSURL:
         pass
 
     @abc.abstractmethod

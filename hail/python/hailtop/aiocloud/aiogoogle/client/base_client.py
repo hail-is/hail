@@ -1,14 +1,30 @@
-from typing import Optional
+from typing import Optional, Union, Mapping
 
 from hailtop.utils import RateLimit
 
+from ..credentials import GoogleCredentials
 from ...common import CloudBaseClient
-from ..session import GoogleSession
+from ...common.session import BaseSession, Session
+from ...common.credentials import AnonymousCloudCredentials
 
 
 class GoogleBaseClient(CloudBaseClient):
-    def __init__(self, base_url: str, *, session: Optional[GoogleSession] = None,
-                 rate_limit: Optional[RateLimit] = None, **kwargs):
+    def __init__(self,
+                 base_url: str,
+                 *,
+                 session: Optional[BaseSession] = None,
+                 rate_limit: Optional[RateLimit] = None,
+                 credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None,
+                 credentials_file: Optional[str] = None,
+                 params: Optional[Mapping[str, str]] = None,
+                 **kwargs):
         if session is None:
-            session = GoogleSession(**kwargs)
-        super().__init__(base_url, session, rate_limit=rate_limit)
+            session = Session(
+                credentials=GoogleCredentials.from_args(credentials, credentials_file),
+                params=params,
+                **kwargs
+            )
+        elif credentials_file is not None or credentials is not None:
+            raise ValueError('Do not provide credentials_file or credentials when session is None')
+
+        super().__init__(base_url=base_url, session=session, rate_limit=rate_limit)

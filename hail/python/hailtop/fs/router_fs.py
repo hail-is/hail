@@ -412,7 +412,7 @@ class RouterFS(FS):
         return self.afs.rmtree(None, path)
 
     def supports_scheme(self, scheme: str) -> bool:
-        return scheme in self.afs.schemes
+        return scheme in self.afs.schemes()
 
     def canonicalize_path(self, path: str) -> str:
         if isinstance(self.afs._get_fs(path), LocalAsyncFS):

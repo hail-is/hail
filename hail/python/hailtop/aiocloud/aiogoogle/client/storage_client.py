@@ -1,6 +1,6 @@
 import os
 from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
-                    List, Coroutine, ClassVar)
+                    List, Coroutine)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -23,11 +23,12 @@ from ..credentials import GoogleCredentials
 from ..user_config import get_gcs_requester_pays_configuration, GCSRequesterPaysConfiguration
 from ...common.session import BaseSession
 
+
 log = logging.getLogger(__name__)
 
 
 class PageIterator:
-    def __init__(self, client: 'GoogleBaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
+    def __init__(self, client: GoogleBaseClient, path: str, request_kwargs: MutableMapping[str, Any]):
         if 'params' in request_kwargs:
             request_params = request_kwargs['params']
             del request_kwargs['params']
@@ -598,8 +599,6 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'gs'}
-
     def __init__(self, *,
                  storage_client: Optional[GoogleStorageClient] = None,
                  bucket_allow_list: Optional[List[str]] = None,
@@ -610,6 +609,10 @@ class GoogleStorageAsyncFS(AsyncFS):
         if bucket_allow_list is None:
             bucket_allow_list = []
         self.allowed_storage_locations = bucket_allow_list
+
+    @staticmethod
+    def schemes() -> Set[str]:
+        return {'gs'}
 
     def storage_location(self, uri: str) -> str:
         return self.get_bucket_and_name(uri)[0]
@@ -635,8 +638,9 @@ class GoogleStorageAsyncFS(AsyncFS):
     def valid_url(url: str) -> bool:
         return url.startswith('gs://')
 
-    def parse_url(self, url: str) -> GoogleStorageAsyncFSURL:
-        return GoogleStorageAsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> GoogleStorageAsyncFSURL:
+        return GoogleStorageAsyncFSURL(*GoogleStorageAsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:

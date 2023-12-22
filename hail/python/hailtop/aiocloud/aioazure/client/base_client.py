@@ -1,17 +1,34 @@
-from typing import Optional, AsyncGenerator, Any
+from typing import Optional, AsyncGenerator, Any, List, Mapping, Union
 
 import aiohttp
 from hailtop.utils import RateLimit, sleep_before_try, url_and_params
 
+from ..credentials import AzureCredentials
 from ...common import CloudBaseClient
-from ..session import AzureSession
+from ...common.session import BaseSession, Session
+from ...common.credentials import AnonymousCloudCredentials
 
 
 class AzureBaseClient(CloudBaseClient):
-    def __init__(self, base_url: str, *, session: Optional[AzureSession] = None,
-                 rate_limit: Optional[RateLimit] = None, **kwargs):
+    def __init__(self,
+                 base_url: str,
+                 *,
+                 session: Optional[BaseSession] = None,
+                 rate_limit: Optional[RateLimit] = None,
+                 credentials: Optional[Union['AzureCredentials', AnonymousCloudCredentials]] = None,
+                 credentials_file: Optional[str] = None,
+                 scopes: Optional[List[str]] = None,
+                 params: Optional[Mapping[str, str]] = None,
+                 **kwargs):
         if session is None:
-            session = AzureSession(**kwargs)
+            session = Session(
+                credentials=AzureCredentials.from_args(credentials, credentials_file, scopes),
+                params=params,
+                **kwargs
+            )
+        elif credentials_file is not None or credentials is not None:
+            raise ValueError('Do not provide credentials_file or credentials when session is None')
+
         super().__init__(base_url, session, rate_limit=rate_limit)
 
     async def _paged_get(self, path, **kwargs) -> AsyncGenerator[Any, None]:

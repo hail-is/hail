@@ -8,41 +8,36 @@ ClientType = TypeVar('ClientType', bound='CloudBaseClient')
 
 
 class CloudBaseClient:
-    _session: BaseSession
-
     def __init__(self, base_url: str, session: BaseSession, *, rate_limit: Optional[RateLimit] = None):
         self._base_url = base_url
         if rate_limit is not None:
             session = RateLimitedSession(session=session, rate_limit=rate_limit)
         self._session = session
 
-    async def get(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
+    async def request(self, method: str, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
         if url is None:
             assert path
             url = f'{self._base_url}{path}'
-        async with await self._session.get(url, **kwargs) as resp:
+        async with await self._session.request(method, url, **kwargs) as resp:
             return await resp.json()
 
-    async def post(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
-        if url is None:
-            assert path
-            url = f'{self._base_url}{path}'
-        async with await self._session.post(url, **kwargs) as resp:
-            return await resp.json()
+    async def get(self, **kwargs) -> Any:
+        return await self.request('GET', **kwargs)
 
-    async def delete(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
-        if url is None:
-            assert path
-            url = f'{self._base_url}{path}'
-        async with await self._session.delete(url, **kwargs) as resp:
-            return await resp.json()
+    async def post(self, **kwargs) -> Any:
+        return await self.request('POST', **kwargs)
 
-    async def put(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> Any:
-        if url is None:
-            assert path
-            url = f'{self._base_url}{path}'
-        async with await self._session.put(url, **kwargs) as resp:
-            return await resp.json()
+    async def put(self, **kwargs) -> Any:
+        return await self.request('PUT', **kwargs)
+
+    async def patch(self, **kwargs) -> Any:
+        return await self.request('PATCH', **kwargs)
+
+    async def delete(self, **kwargs) -> Any:
+        return await self.request('DELETE', **kwargs)
+
+    async def head(self, **kwargs) -> Any:
+        return await self.request('HEAD', **kwargs)
 
     async def close(self) -> None:
         if hasattr(self, '_session'):

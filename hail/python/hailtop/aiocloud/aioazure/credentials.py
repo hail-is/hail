@@ -14,7 +14,7 @@ import msal
 
 from hailtop.utils import first_extant_file, blocking_to_async
 
-from ..common.credentials import CloudCredentials
+from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +59,21 @@ class RefreshTokenCredential(AsyncTokenCredential):
 
 
 class AzureCredentials(CloudCredentials):
+    @staticmethod
+    def from_args(
+        credentials: Optional[Union['AzureCredentials', AnonymousCloudCredentials]] = None,
+        credentials_file: Optional[str] = None,
+        scopes: Optional[List[str]] = None,
+    ) -> Union['AzureCredentials', AnonymousCloudCredentials]:
+        if credentials is None:
+            if credentials_file:
+                return AzureCredentials.from_file(credentials_file, scopes=scopes)
+            else:
+                return AzureCredentials.default_credentials(scopes=scopes)
+        elif credentials_file is not None:
+            raise ValueError('Do not provide credentials_file and credentials.')
+        return credentials
+
     @staticmethod
     def from_credentials_data(credentials: dict, scopes: Optional[List[str]] = None):
         if 'refreshToken' in credentials:

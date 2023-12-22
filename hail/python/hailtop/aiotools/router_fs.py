@@ -1,6 +1,7 @@
 from typing import (Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable,
                     ClassVar)
 import asyncio
+from contextlib import AsyncExitStack
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
 from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
@@ -11,21 +12,26 @@ from hailtop.config import ConfigVariable, configuration_of
 
 
 class RouterAsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {
-        scheme
-        for fs in (LocalAsyncFS, aiogoogle.GoogleStorageAsyncFS, aioazure.AzureAsyncFS, aioaws.S3AsyncFS)
-        for scheme in fs.schemes
-    }
+    FS_CLASSES: ClassVar[List[type[AsyncFS]]] = [
+        LocalAsyncFS,
+        aiogoogle.GoogleStorageAsyncFS,
+        aioazure.AzureAsyncFS,
+        aioaws.S3AsyncFS
+    ]
 
     def __init__(self,
                  *,
-                 filesystems: Optional[List[AsyncFS]] = None,
                  local_kwargs: Optional[Dict[str, Any]] = None,
                  gcs_kwargs: Optional[Dict[str, Any]] = None,
                  azure_kwargs: Optional[Dict[str, Any]] = None,
                  s3_kwargs: Optional[Dict[str, Any]] = None,
                  gcs_bucket_allow_list: Optional[List[str]] = None):
-        self._filesystems = [] if filesystems is None else filesystems
+        self._local_fs: Optional[LocalAsyncFS] = None
+        self._google_fs: Optional[aiogoogle.GoogleStorageAsyncFS] = None
+        self._azure_fs: Optional[aioazure.AzureAsyncFS] = None
+        self._s3_fs: Optional[aioaws.S3AsyncFS] = None
+        self._exit_stack = AsyncExitStack()
+
         self._local_kwargs = local_kwargs or {}
         self._gcs_kwargs = gcs_kwargs or {}
         self._azure_kwargs = azure_kwargs or {}
@@ -36,8 +42,16 @@ class RouterAsyncFS(AsyncFS):
             else configuration_of(ConfigVariable.GCS_BUCKET_ALLOW_LIST, None, fallback="").split(",")
         )
 
-    def parse_url(self, url: str) -> AsyncFSURL:
-        return self._get_fs(url).parse_url(url)
+    @staticmethod
+    def schemes() -> Set[str]:
+        return {scheme for fs_class in RouterAsyncFS.FS_CLASSES for scheme in fs_class.schemes()}
+
+    @staticmethod
+    def parse_url(url: str) -> AsyncFSURL:
+        for fs_class in RouterAsyncFS.FS_CLASSES:
+            if fs_class.valid_url(url):
+                return fs_class.parse_url(url)
+        raise ValueError(f'no file system found for url {url}')
 
     @staticmethod
     def valid_url(url) -> bool:
@@ -48,31 +62,31 @@ class RouterAsyncFS(AsyncFS):
             or aioaws.S3AsyncFS.valid_url(url)
         )
 
-    def _load_fs(self, uri: str):
-        fs: AsyncFS
-
-        if LocalAsyncFS.valid_url(uri):
-            fs = LocalAsyncFS(**self._local_kwargs)
-        elif aiogoogle.GoogleStorageAsyncFS.valid_url(uri):
-            fs = aiogoogle.GoogleStorageAsyncFS(
-                **self._gcs_kwargs,
-                bucket_allow_list = self._gcs_bucket_allow_list.copy()
-            )
-        elif aioazure.AzureAsyncFS.valid_url(uri):
-            fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
-        elif aioaws.S3AsyncFS.valid_url(uri):
-            fs = aioaws.S3AsyncFS(**self._s3_kwargs)
-        else:
-            raise ValueError(f'no file system found for url {uri}')
-
-        self._filesystems.append(fs)
-        return fs
-
-    def _get_fs(self, uri: str) -> AsyncFS:
-        for fs in self._filesystems:
-            if fs.valid_url(uri):
-                return fs
-        return self._load_fs(uri)
+    def _get_fs(self, url: str):
+        if LocalAsyncFS.valid_url(url):
+            if self._local_fs is None:
+                self._local_fs = LocalAsyncFS(**self._local_kwargs)
+                self._exit_stack.push_async_callback(self._local_fs.close)
+            return self._local_fs
+        elif aiogoogle.GoogleStorageAsyncFS.valid_url(url):
+            if self._google_fs is None:
+                self._google_fs = aiogoogle.GoogleStorageAsyncFS(
+                    **self._gcs_kwargs,
+                    bucket_allow_list = self._gcs_bucket_allow_list.copy()
+                )
+                self._exit_stack.push_async_callback(self._google_fs.close)
+            return self._google_fs
+        elif aioazure.AzureAsyncFS.valid_url(url):
+            if self._azure_fs is None:
+                self._azure_fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
+                self._exit_stack.push_async_callback(self._azure_fs.close)
+            return self._azure_fs
+        elif aioaws.S3AsyncFS.valid_url(url):
+            if self._s3_fs is None:
+                self._s3_fs = aioaws.S3AsyncFS(**self._s3_kwargs)
+                self._exit_stack.push_async_callback(self._s3_fs.close)
+            return self._s3_fs
+        raise ValueError(f'no file system found for url {url}')
 
     async def open(self, url: str) -> ReadableStream:
         fs = self._get_fs(url)
@@ -138,9 +152,11 @@ class RouterAsyncFS(AsyncFS):
         return await fs.rmtree(sema, url, listener)
 
     async def close(self) -> None:
-        for fs in self._filesystems:
-            await fs.close()
+        await self._exit_stack.aclose()
 
     def copy_part_size(self, url: str) -> int:
         fs = self._get_fs(url)
         return fs.copy_part_size(url)
+
+
+print(RouterAsyncFS().schemes)

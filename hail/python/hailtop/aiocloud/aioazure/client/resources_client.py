@@ -1,13 +1,11 @@
 from typing import Optional, Any, AsyncGenerator
 
-from ..session import AzureSession
 from .base_client import AzureBaseClient
 
 
 class AzureResourcesClient(AzureBaseClient):
-    def __init__(self, subscription_id, session: Optional[AzureSession] = None, **kwargs):
-        session = session or AzureSession(**kwargs)
-        super().__init__(f'https://management.azure.com/subscriptions/{subscription_id}', session=session)
+    def __init__(self, subscription_id: str, **kwargs):
+        super().__init__(f'https://management.azure.com/subscriptions/{subscription_id}', **kwargs)
 
     async def _list_resources(self, filter: Optional[str] = None) -> AsyncGenerator[Any, None]:
         # https://docs.microsoft.com/en-us/rest/api/resources/resources/list

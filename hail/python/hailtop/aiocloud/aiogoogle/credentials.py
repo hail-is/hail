@@ -53,6 +53,20 @@ class GoogleCredentials(CloudCredentials):
             self._http_session = httpx.ClientSession(**kwargs)
 
     @staticmethod
+    def from_args(
+        credentials: Optional[Union['GoogleCredentials', AnonymousCloudCredentials]] = None,
+        credentials_file: Optional[str] = None,
+    ) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
+        if credentials is None:
+            if credentials_file:
+                return GoogleCredentials.from_file(credentials_file)
+            else:
+                return GoogleCredentials.default_credentials()
+        elif credentials_file is not None:
+            raise ValueError('Do not provide credentials_file and credentials.')
+        return credentials
+
+    @staticmethod
     def from_file(credentials_file: str, *, scopes: Optional[List[str]] = None) -> 'GoogleCredentials':
         with open(credentials_file, encoding='utf-8') as f:
             credentials = json.load(f)

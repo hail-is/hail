@@ -1,5 +1,5 @@
 from typing import (Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional,
-                    Set, Tuple, Type, ClassVar)
+                    Set, Tuple, Type)
 from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -297,8 +297,6 @@ class S3AsyncFSURL(AsyncFSURL):
 
 
 class S3AsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'s3'}
-
     def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None, *, max_pool_connections: int = 10):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
@@ -309,11 +307,16 @@ class S3AsyncFS(AsyncFS):
         self._s3 = boto3.client('s3', config=config)
 
     @staticmethod
+    def schemes() -> Set[str]:
+        return {'s3'}
+
+    @staticmethod
     def valid_url(url: str) -> bool:
         return url.startswith('s3://')
 
-    def parse_url(self, url: str) -> S3AsyncFSURL:
-        return S3AsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> S3AsyncFSURL:
+        return S3AsyncFSURL(*S3AsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
