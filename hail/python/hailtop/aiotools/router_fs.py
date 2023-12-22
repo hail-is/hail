@@ -68,7 +68,7 @@ class RouterAsyncFS(AsyncFS):
                 self._local_fs = LocalAsyncFS(**self._local_kwargs)
                 self._exit_stack.push_async_callback(self._local_fs.close)
             return self._local_fs
-        elif aiogoogle.GoogleStorageAsyncFS.valid_url(url):
+        if aiogoogle.GoogleStorageAsyncFS.valid_url(url):
             if self._google_fs is None:
                 self._google_fs = aiogoogle.GoogleStorageAsyncFS(
                     **self._gcs_kwargs,
@@ -76,12 +76,12 @@ class RouterAsyncFS(AsyncFS):
                 )
                 self._exit_stack.push_async_callback(self._google_fs.close)
             return self._google_fs
-        elif aioazure.AzureAsyncFS.valid_url(url):
+        if aioazure.AzureAsyncFS.valid_url(url):
             if self._azure_fs is None:
                 self._azure_fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
                 self._exit_stack.push_async_callback(self._azure_fs.close)
             return self._azure_fs
-        elif aioaws.S3AsyncFS.valid_url(url):
+        if aioaws.S3AsyncFS.valid_url(url):
             if self._s3_fs is None:
                 self._s3_fs = aioaws.S3AsyncFS(**self._s3_kwargs)
                 self._exit_stack.push_async_callback(self._s3_fs.close)
