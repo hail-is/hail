@@ -23,12 +23,10 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
     with ThreadPoolExecutor() as thread_pool:
         fs: AsyncFS
         if request.param.startswith('router/'):
-            fs = RouterAsyncFS(filesystems=[
-                LocalAsyncFS(thread_pool),
-                GoogleStorageAsyncFS(),
-                S3AsyncFS(thread_pool),
-                AzureAsyncFS()
-            ])
+            fs = RouterAsyncFS(
+                local_kwargs={'thread_pool': thread_pool},
+                s3_kwargs={'thread_pool': thread_pool},
+            )
         elif request.param == 'file':
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):

@@ -121,7 +121,7 @@ async def copy_test_specs():
     test_specs = []
 
     with ThreadPoolExecutor() as thread_pool:
-        async with RouterAsyncFS(filesystems=[LocalAsyncFS(thread_pool)]) as fs:
+        async with RouterAsyncFS(local_kwargs={'thread_pool': thread_pool}) as fs:
             for config in copy_test_configurations():
                 token = secrets.token_hex(16)
 

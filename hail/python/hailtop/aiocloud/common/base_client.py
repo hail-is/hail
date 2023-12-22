@@ -21,23 +21,23 @@ class CloudBaseClient:
         async with await self._session.request(method, url, **kwargs) as resp:
             return await resp.json()
 
-    async def get(self, **kwargs) -> Any:
-        return await self.request('GET', **kwargs)
+    async def get(self, *args, **kwargs) -> Any:
+        return await self.request('GET', *args, **kwargs)
 
-    async def post(self, **kwargs) -> Any:
-        return await self.request('POST', **kwargs)
+    async def post(self, *args, **kwargs) -> Any:
+        return await self.request('POST', *args, **kwargs)
 
-    async def put(self, **kwargs) -> Any:
-        return await self.request('PUT', **kwargs)
+    async def put(self, *args, **kwargs) -> Any:
+        return await self.request('PUT', *args, **kwargs)
 
-    async def patch(self, **kwargs) -> Any:
-        return await self.request('PATCH', **kwargs)
+    async def patch(self, *args, **kwargs) -> Any:
+        return await self.request('PATCH', *args, **kwargs)
 
-    async def delete(self, **kwargs) -> Any:
-        return await self.request('DELETE', **kwargs)
+    async def delete(self, *args, **kwargs) -> Any:
+        return await self.request('DELETE', *args, **kwargs)
 
-    async def head(self, **kwargs) -> Any:
-        return await self.request('HEAD', **kwargs)
+    async def head(self, *args, **kwargs) -> Any:
+        return await self.request('HEAD', *args, **kwargs)
 
     async def close(self) -> None:
         if hasattr(self, '_session'):
