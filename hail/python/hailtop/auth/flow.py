@@ -152,8 +152,8 @@ class GoogleFlow(Flow):
             if not (is_human_with_hail_audience or is_service_account):
                 return None
 
-            domain = userinfo.get('hd')
-            if domain == 'iam.gserviceaccount.com':
+            email = userinfo['email']
+            if email.endswith('iam.gserviceaccount.com'):
                 return userinfo['sub']
             # We don't currently track user's unique GCP IAM ID (sub) in the database, just their email,
             # but we should eventually use the sub as that is guaranteed to be unique to the user.
