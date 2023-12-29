@@ -4,6 +4,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 import json
 import logging
+import os
 import urllib.parse
 from typing import Any, Dict, List, Mapping, Optional, TypedDict, ClassVar
 
@@ -21,13 +22,26 @@ log = logging.getLogger('auth')
 
 
 class FlowResult:
-    def __init__(self, login_id: str, email: str, token: Mapping[Any, Any]):
+    def __init__(self,
+                 login_id: str,
+                 unverified_email: str,
+                 organization_id: Optional[str],
+                 token: Mapping[Any, Any]):
         self.login_id = login_id
-        self.email = email
+        self.unverified_email = unverified_email
+        self.organization_id = organization_id  # In Azure, a Tenant ID. In Google, a domain name.
         self.token = token
 
 
 class Flow(abc.ABC):
+    @abc.abstractmethod
+    async def organization_id(self) -> str:
+        """
+        The unique identifier of the organization (e.g. Azure Tenant, Google Organization) in
+        which this Hail Batch instance lives.
+        """
+        raise NotImplementedError
+
     @abc.abstractmethod
     def initiate_flow(self, redirect_uri: str) -> dict:
         """
@@ -64,7 +78,6 @@ class Flow(abc.ABC):
         """
         raise NotImplementedError
 
-
 class GoogleFlow(Flow):
     scopes: ClassVar[List[str]] = [
         'https://www.googleapis.com/auth/userinfo.profile',
@@ -74,6 +87,11 @@ class GoogleFlow(Flow):
 
     def __init__(self, credentials_file: str):
         self._credentials_file = credentials_file
+
+    def organization_id(self) -> str:
+        if organization_id := os.environ.get('HAIL_ORGANIZATION_DOMAIN'):
+            return organization_id
+        raise ValueError('Only available in the auth pod')
 
     def initiate_flow(self, redirect_uri: str) -> dict:
         flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
@@ -98,7 +116,7 @@ class GoogleFlow(Flow):
             flow.credentials.id_token, google.auth.transport.requests.Request()  # type: ignore
         )
         email = token['email']
-        return FlowResult(email, email, token)
+        return FlowResult(email, email, token.get('hd'), token)
 
     @staticmethod
     def perform_installed_app_login_flow(oauth2_client: Dict[str, Any]) -> Dict[str, Any]:
@@ -139,7 +157,7 @@ class GoogleFlow(Flow):
                 return userinfo['sub']
             # We don't currently track user's unique GCP IAM ID (sub) in the database, just their email,
             # but we should eventually use the sub as that is guaranteed to be unique to the user.
-            return email
+            return userinfo['email']
         except httpx.ClientResponseError as e:
             if e.status in (400, 401):
                 return None
@@ -163,8 +181,16 @@ class AzureFlow(Flow):
         self._client = msal.ConfidentialClientApplication(data['appId'], data['password'], authority)
         self._tenant_id = tenant_id
 
+    def organization_id(self) -> str:
+        return self._tenant_id
+
     def initiate_flow(self, redirect_uri: str) -> dict:
-        flow = self._client.initiate_auth_code_flow(scopes=[], redirect_uri=redirect_uri)
+        flow = self._client.initiate_auth_code_flow(
+            scopes=[],  # confusingly, scopes=[] is the only way to get the openid, profile, and
+                        # offline_access scopes
+                        # https://github.com/AzureAD/microsoft-authentication-library-for-python/blob/dev/msal/application.py#L568-L580
+            redirect_uri=redirect_uri
+        )
         return {
             'flow': flow,
             'authorization_url': flow['auth_uri'],
@@ -184,7 +210,12 @@ class AzureFlow(Flow):
         if tid != self._tenant_id:
             raise ValueError('invalid tenant id')
 
-        return FlowResult(token['id_token_claims']['oid'], token['id_token_claims']['preferred_username'], token)
+        return FlowResult(
+            token['id_token_claims']['oid'],
+            token['id_token_claims']['preferred_username'],
+            token['id_token_claims']['tid'],
+            token
+        )
 
     @staticmethod
     def perform_installed_app_login_flow(oauth2_client: Dict[str, Any]) -> Dict[str, Any]:

@@ -59,7 +59,6 @@ log = logging.getLogger('auth')
 uvloop.install()
 
 CLOUD = get_global_config()['cloud']
-ORGANIZATION_DOMAIN = os.environ['HAIL_ORGANIZATION_DOMAIN']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
@@ -333,7 +332,8 @@ async def callback(request) -> web.Response:
     cleanup_session(session)
 
     try:
-        flow_result = request.app['flow_client'].receive_callback(request, flow_dict)
+        flow_client = request.app[AppKeys.FLOW_CLIENT]
+        flow_result = flow_client.receive_callback(request, flow_dict)
         login_id = flow_result.login_id
     except asyncio.CancelledError:
         raise
@@ -352,10 +352,11 @@ async def callback(request) -> web.Response:
 
         assert caller == 'signup'
 
-        username, domain = flow_result.email.split('@')
+        username, _ = flow_result.unverified_email.split('@')
         username = ''.join(c for c in username if c.isalnum())
 
-        if domain != ORGANIZATION_DOMAIN:
+        assert flow_client.organization_id() is not None
+        if flow_result.organization_id != flow_client.organization_id():
             raise web.HTTPUnauthorized()
 
         try:
