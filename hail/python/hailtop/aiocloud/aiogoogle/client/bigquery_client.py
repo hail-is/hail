@@ -1,8 +1,9 @@
 from typing import Any, Dict, Mapping, Optional, Union
+
+from .base_client import GoogleBaseClient
 from ..credentials import GoogleCredentials
 from ...common.credentials import AnonymousCloudCredentials
 from ...common.session import Session
-from ...common.base_client import CloudBaseClient
 
 
 def or_none(f, x):
