@@ -1028,12 +1028,11 @@ class Expression(object):
         >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        sample_idx      pop
-        0       0
-        1       0
-        2       2
-        3       0
-        <BLANKLINE>
+        sample_idx	pop
+        0	1
+        1	2
+        2	2
+        3	2
 
         >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
         >>> with open('output/ancestral_af.tsv', 'r') as f:
@@ -1044,7 +1043,6 @@ class Expression(object):
         1:2     ["A","C"]       7.0588e-01
         1:3     ["A","C"]       4.9991e-01
         1:4     ["A","C"]       3.9616e-01
-        <BLANKLINE>
 
         >>> small_mt.bn.export('output/bn.tsv')
         >>> with open('output/bn.tsv', 'r') as f:
@@ -1052,7 +1050,6 @@ class Expression(object):
         ...         print(line, end='')
         bn
         {"n_populations":3,"n_samples":4,"n_variants":4,"n_partitions":4,"pop_dist":[1,1,1],"fst":[0.1,0.1,0.1],"mixture":false}
-        <BLANKLINE>
 
 
         Notes
