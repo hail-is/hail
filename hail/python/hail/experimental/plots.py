@@ -45,6 +45,7 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
     if colors is None:
         # Get a palette automatically
         from bokeh.palettes import d3
+
         palette = d3['Category10'][max(3, len(scores))]
         colors = {score: palette[i] for i, score in enumerate(scores)}
 
@@ -58,12 +59,21 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
     aucs = []
     for score in scores:
         ordered_ht = ht.key_by(_score=-ht[score])
-        ordered_ht = ordered_ht.select(
-            score_name=score, score=ordered_ht[score],
-            tpr=hl.scan.count_where(ordered_ht[tp_label]) / total_tp,
-            fpr=hl.scan.count_where(ordered_ht[fp_label]) / total_fp,
-        ).key_by().drop('_score')
-        last_row = hl.utils.range_table(1).key_by().select(score_name=score, score=hl.float64(float('-inf')), tpr=hl.float64(1.0), fpr=hl.float64(1.0))
+        ordered_ht = (
+            ordered_ht.select(
+                score_name=score,
+                score=ordered_ht[score],
+                tpr=hl.scan.count_where(ordered_ht[tp_label]) / total_tp,
+                fpr=hl.scan.count_where(ordered_ht[fp_label]) / total_fp,
+            )
+            .key_by()
+            .drop('_score')
+        )
+        last_row = (
+            hl.utils.range_table(1)
+            .key_by()
+            .select(score_name=score, score=hl.float64(float('-inf')), tpr=hl.float64(1.0), fpr=hl.float64(1.0))
+        )
         ordered_ht = ordered_ht.union(last_row)
         ordered_ht = ordered_ht.annotate(
             auc_contrib=hl.or_else((ordered_ht.fpr - hl.scan.max(ordered_ht.fpr)) * ordered_ht.tpr, 0.0)
@@ -71,7 +81,9 @@ def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title=
         auc = ordered_ht.aggregate(hl.agg.sum(ordered_ht.auc_contrib))
         aucs.append(auc)
         df = ordered_ht.annotate(score_name=ordered_ht.score_name + f' (AUC = {auc:.4f})').to_pandas()
-        p.line(x='fpr', y='tpr', legend_field='score_name', source=ColumnDataSource(df), color=colors[score], line_width=3)
+        p.line(
+            x='fpr', y='tpr', legend_field='score_name', source=ColumnDataSource(df), color=colors[score], line_width=3
+        )
 
     p.legend.location = 'bottom_right'
     p.legend.click_policy = 'hide'
@@ -93,6 +105,7 @@ def hail_metadata(t_path):
     -------
     :class:`bokeh.plotting.figure` or :class:`bokeh.models.layouts.Column`
     """
+
     def get_rows_data(rows_files):
         file_sizes = []
         partition_bounds = []
@@ -112,9 +125,14 @@ def hail_metadata(t_path):
                 rows_meta = json.load(f)
                 try:
                     partition_bounds = [
-                        (x['start']['locus']['contig'], x['start']['locus']['position'],
-                         x['end']['locus']['contig'], x['end']['locus']['position'])
-                        for x in rows_meta['jRangeBounds']]
+                        (
+                            x['start']['locus']['contig'],
+                            x['start']['locus']['position'],
+                            x['end']['locus']['contig'],
+                            x['end']['locus']['position'],
+                        )
+                        for x in rows_meta['jRangeBounds']
+                    ]
                 except KeyError:
                     pass
         return partition_bounds, file_sizes
@@ -122,13 +140,7 @@ def hail_metadata(t_path):
     def scale_file_sizes(file_sizes):
         min_file_size = min(file_sizes) * 1.1
         total_file_size = sum(file_sizes)
-        all_scales = [
-            ('T', 1e12),
-            ('G', 1e9),
-            ('M', 1e6),
-            ('K', 1e3),
-            ('', 1e0)
-        ]
+        all_scales = [('T', 1e12), ('G', 1e9), ('M', 1e6), ('K', 1e3), ('', 1e0)]
         for overall_scale, overall_factor in all_scales:
             if total_file_size > overall_factor:
                 total_file_size /= overall_factor
@@ -174,19 +186,27 @@ def hail_metadata(t_path):
         warning('Table is not partitioned. Only plotting file sizes')
         row_file_sizes_hist, row_file_sizes_edges = np.histogram(row_file_sizes, bins=50)
         p_file_size = figure(width=panel_size, height=panel_size)
-        p_file_size.quad(right=row_file_sizes_hist, left=0, bottom=row_file_sizes_edges[:-1],
-                         top=row_file_sizes_edges[1:], fill_color="#036564", line_color="#033649")
+        p_file_size.quad(
+            right=row_file_sizes_hist,
+            left=0,
+            bottom=row_file_sizes_edges[:-1],
+            top=row_file_sizes_edges[1:],
+            fill_color="#036564",
+            line_color="#033649",
+        )
         p_file_size.yaxis.axis_label = f'File size ({row_scale}B)'
         return p_file_size
 
     all_data = {
         'partition_widths': [-1 if x[0] != x[2] else x[3] - x[1] for x in row_partition_bounds],
         'partition_bounds': [f'{x[0]}:{x[1]}-{x[2]}:{x[3]}' for x in row_partition_bounds],
-        'spans_chromosome': ['Spans chromosomes' if x[0] != x[2] else 'Within chromosome' for x in row_partition_bounds],
+        'spans_chromosome': [
+            'Spans chromosomes' if x[0] != x[2] else 'Within chromosome' for x in row_partition_bounds
+        ],
         'row_file_sizes': row_file_sizes,
         'row_file_sizes_human': [f'{x:.1f} {row_scale}B' for x in row_file_sizes],
         'rows_per_partition': rows_per_partition,
-        'index': list(range(len(rows_per_partition)))
+        'index': list(range(len(rows_per_partition))),
     }
 
     if entries_file:
@@ -212,24 +232,35 @@ def hail_metadata(t_path):
     p.title.text = title
     p.xaxis.axis_label = 'Number of rows'
     p.yaxis.axis_label = f'File size ({row_scale}B)'
-    color_map = factor_cmap('spans_chromosome', palette=Spectral8,
-                            factors=list(set(all_data['spans_chromosome'])))
+    color_map = factor_cmap('spans_chromosome', palette=Spectral8, factors=list(set(all_data['spans_chromosome'])))
     p.scatter('rows_per_partition', 'row_file_sizes', color=color_map, legend='spans_chromosome', source=source)
     p.legend.location = 'bottom_right'
-    p.select_one(HoverTool).tooltips = [(x, f'@{x}') for x in
-                                        ('rows_per_partition', 'row_file_sizes_human', 'partition_bounds', 'index')]
+    p.select_one(HoverTool).tooltips = [
+        (x, f'@{x}') for x in ('rows_per_partition', 'row_file_sizes_human', 'partition_bounds', 'index')
+    ]
 
     p_stats = Div(text=msg)
     p_rows_per_partition = figure(x_range=p.x_range, width=panel_size, height=subpanel_size)
     p_file_size = figure(y_range=p.y_range, width=subpanel_size, height=panel_size)
 
     rows_per_partition_hist, rows_per_partition_edges = np.histogram(all_data['rows_per_partition'], bins=50)
-    p_rows_per_partition.quad(top=rows_per_partition_hist, bottom=0, left=rows_per_partition_edges[:-1],
-                              right=rows_per_partition_edges[1:],
-                              fill_color="#036564", line_color="#033649")
+    p_rows_per_partition.quad(
+        top=rows_per_partition_hist,
+        bottom=0,
+        left=rows_per_partition_edges[:-1],
+        right=rows_per_partition_edges[1:],
+        fill_color="#036564",
+        line_color="#033649",
+    )
     row_file_sizes_hist, row_file_sizes_edges = np.histogram(all_data['row_file_sizes'], bins=50)
-    p_file_size.quad(right=row_file_sizes_hist, left=0, bottom=row_file_sizes_edges[:-1],
-                     top=row_file_sizes_edges[1:], fill_color="#036564", line_color="#033649")
+    p_file_size.quad(
+        right=row_file_sizes_hist,
+        left=0,
+        bottom=row_file_sizes_edges[:-1],
+        top=row_file_sizes_edges[1:],
+        fill_color="#036564",
+        line_color="#033649",
+    )
 
     rows_grid = gridplot([[p_rows_per_partition, p_stats], [p, p_file_size]])
 
@@ -248,18 +279,31 @@ def hail_metadata(t_path):
         color_map = factor_cmap('spans_chromosome', palette=Spectral8, factors=list(set(all_data['spans_chromosome'])))
         p.scatter('rows_per_partition', 'entry_file_sizes', color=color_map, legend='spans_chromosome', source=source)
         p.legend.location = 'bottom_right'
-        p.select_one(HoverTool).tooltips = [(x, f'@{x}') for x in ('rows_per_partition', 'entry_file_sizes_human', 'partition_bounds', 'index')]
+        p.select_one(HoverTool).tooltips = [
+            (x, f'@{x}') for x in ('rows_per_partition', 'entry_file_sizes_human', 'partition_bounds', 'index')
+        ]
 
         p_stats = Div(text=msg)
         p_rows_per_partition = figure(x_range=p.x_range, width=panel_size, height=subpanel_size)
-        p_rows_per_partition.quad(top=rows_per_partition_hist, bottom=0, left=rows_per_partition_edges[:-1],
-                                  right=rows_per_partition_edges[1:],
-                                  fill_color="#036564", line_color="#033649")
+        p_rows_per_partition.quad(
+            top=rows_per_partition_hist,
+            bottom=0,
+            left=rows_per_partition_edges[:-1],
+            right=rows_per_partition_edges[1:],
+            fill_color="#036564",
+            line_color="#033649",
+        )
         p_file_size = figure(y_range=p.y_range, width=subpanel_size, height=panel_size)
 
         row_file_sizes_hist, row_file_sizes_edges = np.histogram(all_data['entry_file_sizes'], bins=50)
-        p_file_size.quad(right=row_file_sizes_hist, left=0, bottom=row_file_sizes_edges[:-1],
-                         top=row_file_sizes_edges[1:], fill_color="#036564", line_color="#033649")
+        p_file_size.quad(
+            right=row_file_sizes_hist,
+            left=0,
+            bottom=row_file_sizes_edges[:-1],
+            top=row_file_sizes_edges[1:],
+            fill_color="#036564",
+            line_color="#033649",
+        )
         entries_grid = gridplot([[p_rows_per_partition, p_stats], [p, p_file_size]])
 
         return Tabs(tabs=[TabPanel(child=entries_grid, title='Entries'), TabPanel(child=rows_grid, title='Rows')])

@@ -42,11 +42,9 @@ def internal_server_ssl_context() -> ssl.SSLContext:
     if _server_ssl_context is None:
         ssl_config = _get_ssl_config()
         _server_ssl_context = ssl.create_default_context(
-            purpose=Purpose.CLIENT_AUTH,
-            cafile=ssl_config['incoming_trust'])
-        _server_ssl_context.load_cert_chain(ssl_config['cert'],
-                                            keyfile=ssl_config['key'],
-                                            password=None)
+            purpose=Purpose.CLIENT_AUTH, cafile=ssl_config['incoming_trust']
+        )
+        _server_ssl_context.load_cert_chain(ssl_config['cert'], keyfile=ssl_config['key'], password=None)
         _server_ssl_context.verify_mode = ssl.CERT_OPTIONAL
         # FIXME: mTLS
         # _server_ssl_context.verify_mode = ssl.CERT_REQURIED
@@ -59,15 +57,13 @@ def internal_client_ssl_context() -> ssl.SSLContext:
     if _client_ssl_context is None:
         ssl_config = _get_ssl_config()
         _client_ssl_context = ssl.create_default_context(
-            purpose=Purpose.SERVER_AUTH,
-            cafile=ssl_config['outgoing_trust'])
+            purpose=Purpose.SERVER_AUTH, cafile=ssl_config['outgoing_trust']
+        )
         # setting cafile in `create_default_context` ignores the system default
         # certificates. We must explicitly request them again with
         # load_default_certs.
         _client_ssl_context.load_default_certs()
-        _client_ssl_context.load_cert_chain(ssl_config['cert'],
-                                            keyfile=ssl_config['key'],
-                                            password=None)
+        _client_ssl_context.load_cert_chain(ssl_config['cert'], keyfile=ssl_config['key'], password=None)
         _client_ssl_context.verify_mode = ssl.CERT_REQUIRED
         _client_ssl_context.check_hostname = True
     return _client_ssl_context

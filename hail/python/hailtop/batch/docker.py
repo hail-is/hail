@@ -6,12 +6,14 @@ from typing import Optional, List
 from ..utils import secret_alnum_string, sync_check_exec
 
 
-def build_python_image(fullname: str,
-                       requirements: Optional[List[str]] = None,
-                       python_version: Optional[str] = None,
-                       _tmp_dir: str = '/tmp',
-                       *,
-                       show_docker_output: bool = False) -> str:
+def build_python_image(
+    fullname: str,
+    requirements: Optional[List[str]] = None,
+    python_version: Optional[str] = None,
+    _tmp_dir: str = '/tmp',
+    *,
+    show_docker_output: bool = False,
+) -> str:
     """
     Build a new Python image with dill and the specified pip packages installed.
 
@@ -56,7 +58,8 @@ def build_python_image(fullname: str,
 
     if major_version != 3 or minor_version < 9:
         raise ValueError(
-            f'Python versions older than 3.9 (you are using {major_version}.{minor_version}) are not supported')
+            f'Python versions older than 3.9 (you are using {major_version}.{minor_version}) are not supported'
+        )
 
     base_image = f'hailgenetics/python-dill:{major_version}.{minor_version}-slim'
 
@@ -73,14 +76,16 @@ def build_python_image(fullname: str,
                 f.write('\n'.join(requirements) + '\n')
 
             with open(f'{docker_path}/Dockerfile', 'w', encoding='utf-8') as f:
-                f.write(f'''
+                f.write(
+                    f'''
 FROM {base_image}
 
 COPY requirements.txt .
 
 RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
-''')
+'''
+                )
 
             sync_check_exec('docker', 'build', '-t', fullname, docker_path, capture_output=not show_docker_output)
             print(f'finished building image {fullname}')

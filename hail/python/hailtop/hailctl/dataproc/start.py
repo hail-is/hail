@@ -317,9 +317,7 @@ def start(
 
     conf.extend_flag(
         'properties',
-        {
-            "spark:spark.driver.memory": f"{jvm_heap_size_gib(master_machine_type, master_memory_fraction)}g"
-        },
+        {"spark:spark.driver.memory": f"{jvm_heap_size_gib(master_machine_type, master_memory_fraction)}g"},
     )
     conf.flags['master-machine-type'] = master_machine_type
     conf.flags['master-boot-disk-size'] = '{}GB'.format(master_boot_disk_size)

@@ -6,12 +6,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 
-def validate_file(
-    uri: str,
-    router_async_fs: RouterAsyncFS,
-    *,
-    validate_scheme: Optional[bool] = False
-) -> None:
+def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: Optional[bool] = False) -> None:
     """
     Validates a URI's scheme if a file scheme cache was provided, and its cloud location's default storage policy if
     the URI points to a cloud with an ``AsyncFS`` implementation that supports checking that policy.

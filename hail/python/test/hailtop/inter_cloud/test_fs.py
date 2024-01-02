@@ -16,19 +16,28 @@ from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 
-@pytest.fixture(params=['file', 'gs', 's3', 'azure-https', 'router/file', 'router/gs', 'router/s3', 'router/azure-https', 'sas/azure-https'])
+@pytest.fixture(
+    params=[
+        'file',
+        'gs',
+        's3',
+        'azure-https',
+        'router/file',
+        'router/gs',
+        'router/s3',
+        'router/azure-https',
+        'sas/azure-https',
+    ]
+)
 async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]]:
     token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
         fs: AsyncFS
         if request.param.startswith('router/'):
-            fs = RouterAsyncFS(filesystems=[
-                LocalAsyncFS(thread_pool),
-                GoogleStorageAsyncFS(),
-                S3AsyncFS(thread_pool),
-                AzureAsyncFS()
-            ])
+            fs = RouterAsyncFS(
+                filesystems=[LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(), S3AsyncFS(thread_pool), AzureAsyncFS()]
+            )
         elif request.param == 'file':
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):
@@ -97,7 +106,11 @@ def file_data(request):
 
 @pytest.mark.asyncio
 async def test_write_read(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL], file_data):
-    _, fs, base, = filesystem
+    (
+        _,
+        fs,
+        base,
+    ) = filesystem
 
     file = str(base.with_new_path_component('foo'))
 
@@ -224,7 +237,7 @@ async def test_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSU
     except UnexpectedEOFError:
         pass
     else:
-       assert False
+        assert False
 
 
 @pytest.mark.asyncio
@@ -237,8 +250,11 @@ async def test_read_range_end_exclusive_empty_file(filesystem: Tuple[asyncio.Sem
 
     assert await fs.read_range(file, 0, 0, end_inclusive=False) == b''
 
+
 @pytest.mark.asyncio
-async def test_read_range_end_inclusive_empty_file_should_error(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
+async def test_read_range_end_inclusive_empty_file_should_error(
+    filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]
+):
     _, fs, base = filesystem
 
     file = str(base.with_new_path_component('foo'))
@@ -279,7 +295,7 @@ async def test_write_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, As
     start = min(pt1, pt2)
     end = max(pt1, pt2)
 
-    expected = b''.join(file_data)[start:end+1]
+    expected = b''.join(file_data)[start : end + 1]
     actual = await fs.read_range(file, start, end)  # end is inclusive
 
     assert expected == actual
@@ -383,10 +399,14 @@ async def test_rmtree(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL])
     await fs.mkdir(str(subdir4_empty))
 
     sema = asyncio.Semaphore(100)
-    await bounded_gather2(sema, *[
-        functools.partial(fs.touch, str(subdir.with_new_path_component(f'a{i:02}')))
-        for subdir in [dir, subdir1, subdir2, subdir3, subdir1subdir1, subdir1subdir2, subdir1subdir3]
-        for i in range(30)])
+    await bounded_gather2(
+        sema,
+        *[
+            functools.partial(fs.touch, str(subdir.with_new_path_component(f'a{i:02}')))
+            for subdir in [dir, subdir1, subdir2, subdir3, subdir1subdir1, subdir1subdir2, subdir1subdir3]
+            for i in range(30)
+        ],
+    )
 
     assert await fs.isdir(str(dir))
     assert await fs.isdir(str(subdir1))
@@ -499,7 +519,6 @@ async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Sem
     else:
         is_local = isinstance(fs, LocalAsyncFS)
 
-
     if is_local:
         try:
             status.time_created()
@@ -574,14 +593,9 @@ async def test_listfiles(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSUR
             stat = await entry.status()
             assert await stat.size() == 0
 
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("permutation", [
-    None,
-    [0, 1, 2],
-    [0, 2, 1],
-    [1, 2, 0],
-    [2, 1, 0]
-])
+@pytest.mark.parametrize("permutation", [None, [0, 1, 2], [0, 2, 1], [1, 2, 0], [2, 1, 0]])
 async def test_multi_part_create(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL], permutation):
     sema, fs, base = filesystem
 
@@ -601,6 +615,7 @@ async def test_multi_part_create(filesystem: Tuple[asyncio.Semaphore, AsyncFS, A
 
     path = str(base.with_new_path_component('a'))
     async with await fs.multi_part_create(sema, path, len(part_data)) as c:
+
         async def create_part(i):
             async with await c.create_part(i, part_start[i]) as f:
                 await f.write(part_data[i])
@@ -611,9 +626,7 @@ async def test_multi_part_create(filesystem: Tuple[asyncio.Semaphore, AsyncFS, A
                 await retry_transient_errors(create_part, i)
         else:
             # do in parallel
-            await asyncio.gather(*[
-                retry_transient_errors(create_part, i)
-                for i in range(len(part_data))])
+            await asyncio.gather(*[retry_transient_errors(create_part, i) for i in range(len(part_data))])
 
     expected = b''.join(part_data)
     async with await fs.open(path) as f:

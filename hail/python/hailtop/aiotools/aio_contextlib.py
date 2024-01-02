@@ -15,6 +15,7 @@ class closing:
             await f.close()
 
     """
+
     def __init__(self, thing):
         self.thing = thing
 

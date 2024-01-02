@@ -3,11 +3,10 @@ from typing import List, Tuple
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import construct_expr
-from hail.expr import (expr_float64, expr_call, raise_unless_entry_indexed,
-                       matrix_table_source)
+from hail.expr import expr_float64, expr_call, raise_unless_entry_indexed, matrix_table_source
 from hail import ir
 from hail.table import Table
-from hail.typecheck import (typecheck, oneof, nullable)
+from hail.typecheck import typecheck, oneof, nullable
 from hail.utils import FatalError
 from hail.utils.java import Env, info
 from hail.experimental import mt_to_table_of_ndarray
@@ -16,8 +15,7 @@ from hail.experimental import mt_to_table_of_ndarray
 def hwe_normalize(call_expr):
     mt = matrix_table_source('hwe_normalize/call_expr', call_expr)
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
-    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
-                          __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.annotate_rows(__AC=agg.sum(mt.__gt), __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
     n_variants = mt.count_rows()
@@ -26,17 +24,14 @@ def hwe_normalize(call_expr):
     info(f"hwe_normalize: found {n_variants} variants after filtering out monomorphic sites.")
 
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
-    mt = mt.annotate_rows(
-        __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+    mt = mt.annotate_rows(__hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
     mt = mt.unfilter_entries()
 
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
     return normalized_gt
 
 
-@typecheck(call_expr=expr_call,
-           k=int,
-           compute_loadings=bool)
+@typecheck(call_expr=expr_call, k=int, compute_loadings=bool)
 def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on the Hardy-Weinberg-normalized
     genotype call matrix.
@@ -98,14 +93,10 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     if isinstance(hl.current_backend(), ServiceBackend):
         return _hwe_normalized_blanczos(call_expr, k, compute_loadings)
 
-    return pca(hwe_normalize(call_expr),
-               k,
-               compute_loadings)
+    return pca(hwe_normalize(call_expr), k, compute_loadings)
 
 
-@typecheck(entry_expr=expr_float64,
-           k=int,
-           compute_loadings=bool)
+@typecheck(entry_expr=expr_float64, k=int, compute_loadings=bool)
 def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, Table]:
     r"""Run principal component analysis (PCA) on numeric columns derived from a
     matrix table.
@@ -203,12 +194,11 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    t = (Table(ir.MatrixToTableApply(mt._mir, {
-        'name': 'PCA',
-        'entryField': field,
-        'k': k,
-        'computeLoadings': compute_loadings
-    })).persist())
+    t = Table(
+        ir.MatrixToTableApply(
+            mt._mir, {'name': 'PCA', 'entryField': field, 'k': k, 'computeLoadings': compute_loadings}
+        )
+    ).persist()
 
     g = t.index_globals()
     scores = hl.Table.parallelize(g.scores, key=list(mt.col_key))
@@ -227,7 +217,15 @@ class TallSkinnyMatrix:
         self.source_table = source_table
 
 
-def _make_tsm(entry_expr, block_size, *, partition_size=None, whiten_window_size=None, whiten_block_size=64, normalize_after_whiten=False):
+def _make_tsm(
+    entry_expr,
+    block_size,
+    *,
+    partition_size=None,
+    whiten_window_size=None,
+    whiten_block_size=64,
+    normalize_after_whiten=False,
+):
     mt = matrix_table_source('_make_tsm/entry_expr', entry_expr)
 
     if whiten_window_size is None:
@@ -236,10 +234,12 @@ def _make_tsm(entry_expr, block_size, *, partition_size=None, whiten_window_size
     else:
         # FIXME: don't whiten across chromosome boundaries
         A, trailing_blocks_ht, ht = mt_to_table_of_ndarray(
-            entry_expr, block_size,
+            entry_expr,
+            block_size,
             return_checkpointed_table_also=True,
             partition_size=partition_size,
-            window_size=whiten_window_size)
+            window_size=whiten_window_size,
+        )
 
         A = A.annotate(ndarray=A.ndarray.T)
         vec_size = hl.eval(ht.take(1, _localize=False)[0].xs.length())
@@ -256,20 +256,31 @@ def _make_tsm(entry_expr, block_size, *, partition_size=None, whiten_window_size
                 whiten_window_size,
                 block_size,
                 whiten_block_size,
-                normalize_after_whiten)
+                normalize_after_whiten,
+            )
             return construct_expr(stream_ir, part_stream.dtype)
+
         whitened = joined._map_partitions(whiten_map_body)
         whitened = whitened.annotate(ndarray=whitened.ndarray.T).persist()
 
         return TallSkinnyMatrix(whitened, whitened.ndarray, ht, list(mt.col_key))
 
 
-def _make_tsm_from_call(call_expr, block_size, *, mean_center=False, hwe_normalize=False, partition_size=None, whiten_window_size=None, whiten_block_size=64, normalize_after_whiten=False):
+def _make_tsm_from_call(
+    call_expr,
+    block_size,
+    *,
+    mean_center=False,
+    hwe_normalize=False,
+    partition_size=None,
+    whiten_window_size=None,
+    whiten_block_size=64,
+    normalize_after_whiten=False,
+):
     mt = matrix_table_source('_make_tsm/entry_expr', call_expr)
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
     if mean_center or hwe_normalize:
-        mt = mt.annotate_rows(__AC=agg.sum(mt.__gt),
-                              __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+        mt = mt.annotate_rows(__AC=agg.sum(mt.__gt), __n_called=agg.count_where(hl.is_defined(mt.__gt)))
         mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
         n_variants = mt.count_rows()
@@ -283,17 +294,19 @@ def _make_tsm_from_call(call_expr, block_size, *, mean_center=False, hwe_normali
         mt = mt.select_entries(__x=hl.or_else(mt.__gt - mt.__mean_gt, 0.0))
 
         if hwe_normalize:
-            mt = mt.annotate_rows(
-                __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) / 2))
+            mt = mt.annotate_rows(__hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) / 2))
             mt = mt.select_entries(__x=mt.__x / mt.__hwe_scaled_std_dev)
     else:
         mt = mt.select_entries(__x=mt.__gt)
 
-    return _make_tsm(mt.__x, block_size,
-                     partition_size=partition_size,
-                     whiten_window_size=whiten_window_size,
-                     whiten_block_size=whiten_block_size,
-                     normalize_after_whiten=normalize_after_whiten)
+    return _make_tsm(
+        mt.__x,
+        block_size,
+        partition_size=partition_size,
+        whiten_window_size=whiten_window_size,
+        whiten_block_size=whiten_block_size,
+        normalize_after_whiten=normalize_after_whiten,
+    )
 
 
 class KrylovFactorization:
@@ -321,8 +334,8 @@ class KrylovFactorization:
         return U, S, V
 
     def spectral_moments(self, num_moments, R):
-        eigval_powers = hl.nd.vstack([self.S.map(lambda x: x**(2 * i)) for i in range(1, num_moments + 1)])
-        moments = eigval_powers @ (self.V1t[:, :self.k] @ R).map(lambda x: x**2)
+        eigval_powers = hl.nd.vstack([self.S.map(lambda x: x ** (2 * i)) for i in range(1, num_moments + 1)])
+        moments = eigval_powers @ (self.V1t[:, : self.k] @ R).map(lambda x: x**2)
         means = moments.sum(1) / self.k
         variances = (moments - means.reshape(-1, 1)).map(lambda x: x**2).sum(1) / (self.k - 1)
         stdevs = variances.map(lambda x: hl.sqrt(x))
@@ -395,7 +408,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
         L = k + 2
     else:
         L = iteration_size
-    assert((q + 1) * L >= k)
+    assert (q + 1) * L >= k
     n = A.ncols
 
     # Generate random matrix G
@@ -407,11 +420,9 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
     return fact.reduced_svd(k)
 
 
-@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
-           num_moments=int,
-           p=nullable(int),
-           moment_samples=int,
-           block_size=int)
+@typecheck(
+    A=oneof(expr_float64, TallSkinnyMatrix), num_moments=int, p=nullable(int), moment_samples=int, block_size=int
+)
 def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128):
     if not isinstance(A, TallSkinnyMatrix):
         raise_unless_entry_indexed('_spectral_moments/entry_expr', A)
@@ -434,15 +445,26 @@ def _spectral_moments(A, num_moments, p=None, moment_samples=500, block_size=128
     return moments, stdevs
 
 
-@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
-           k=int,
-           num_moments=int,
-           compute_loadings=bool,
-           q_iterations=int,
-           oversampling_param=nullable(int),
-           block_size=int,
-           moment_samples=int)
-def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128, moment_samples=100):
+@typecheck(
+    A=oneof(expr_float64, TallSkinnyMatrix),
+    k=int,
+    num_moments=int,
+    compute_loadings=bool,
+    q_iterations=int,
+    oversampling_param=nullable(int),
+    block_size=int,
+    moment_samples=int,
+)
+def _pca_and_moments(
+    A,
+    k=10,
+    num_moments=5,
+    compute_loadings=False,
+    q_iterations=10,
+    oversampling_param=None,
+    block_size=128,
+    moment_samples=100,
+):
     if not isinstance(A, TallSkinnyMatrix):
         raise_unless_entry_indexed('_spectral_moments/entry_expr', A)
         A = _make_tsm(A, block_size)
@@ -473,7 +495,9 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     fact2 = _krylov_factorization(A, Q1, p, compute_U=False)
     moments_and_stdevs = fact2.spectral_moments(num_moments, R1)
     # Add back exact moments
-    moments = moments_and_stdevs.moments + hl.nd.array([fact.S.map(lambda x: x**(2 * i)).sum() for i in range(1, num_moments + 1)])
+    moments = moments_and_stdevs.moments + hl.nd.array(
+        [fact.S.map(lambda x: x ** (2 * i)).sum() for i in range(1, num_moments + 1)]
+    )
     moments_and_stdevs = hl.eval(hl.struct(moments=moments, stdevs=moments_and_stdevs.stdevs))
     moments = moments_and_stdevs.moments
     stdevs = moments_and_stdevs.stdevs
@@ -483,7 +507,9 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
 
     hail_array_scores = scores._data_array()
-    cols_and_scores = hl.zip(A.source_table.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
+    cols_and_scores = hl.zip(A.source_table.index_globals().cols, hail_array_scores).map(
+        lambda tup: tup[0].annotate(scores=tup[1])
+    )
     st = hl.Table.parallelize(cols_and_scores, key=A.col_key)
 
     if compute_loadings:
@@ -499,15 +525,26 @@ def _pca_and_moments(A, k=10, num_moments=5, compute_loadings=False, q_iteration
     return eigens, st, lt, moments, stdevs
 
 
-@typecheck(A=oneof(expr_float64, TallSkinnyMatrix),
-           k=int,
-           compute_loadings=bool,
-           q_iterations=int,
-           oversampling_param=nullable(int),
-           block_size=int,
-           compute_scores=bool,
-           transpose=bool)
-def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128, compute_scores=True, transpose=False):
+@typecheck(
+    A=oneof(expr_float64, TallSkinnyMatrix),
+    k=int,
+    compute_loadings=bool,
+    q_iterations=int,
+    oversampling_param=nullable(int),
+    block_size=int,
+    compute_scores=bool,
+    transpose=bool,
+)
+def _blanczos_pca(
+    A,
+    k=10,
+    compute_loadings=False,
+    q_iterations=10,
+    oversampling_param=None,
+    block_size=128,
+    compute_scores=True,
+    transpose=False,
+):
     r"""Run randomized principal component analysis approximation (PCA)
     on numeric columns derived from a matrix table.
 
@@ -616,7 +653,9 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling
 
     def numpy_to_cols_table(X, field_name):
         hail_array = X._data_array()
-        cols_and_X = hl.zip(A.source_table.index_globals().cols, hail_array).map(lambda tup: tup[0].annotate(**{field_name: tup[1]}))
+        cols_and_X = hl.zip(A.source_table.index_globals().cols, hail_array).map(
+            lambda tup: tup[0].annotate(**{field_name: tup[1]})
+        )
         t = hl.Table.parallelize(cols_and_X, key=A.col_key)
         return t
 
@@ -637,13 +676,17 @@ def _blanczos_pca(A, k=10, compute_loadings=False, q_iterations=10, oversampling
     return eigens, st, lt
 
 
-@typecheck(call_expr=expr_call,
-           k=int,
-           compute_loadings=bool,
-           q_iterations=int,
-           oversampling_param=nullable(int),
-           block_size=int)
-def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128):
+@typecheck(
+    call_expr=expr_call,
+    k=int,
+    compute_loadings=bool,
+    q_iterations=int,
+    oversampling_param=nullable(int),
+    block_size=int,
+)
+def _hwe_normalized_blanczos(
+    call_expr, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128
+):
     r"""Run randomized principal component analysis approximation (PCA) on the
     Hardy-Weinberg-normalized genotype call matrix.
 
@@ -679,5 +722,11 @@ def _hwe_normalized_blanczos(call_expr, k=10, compute_loadings=False, q_iteratio
     raise_unless_entry_indexed('_blanczos_pca/entry_expr', call_expr)
     A = _make_tsm_from_call(call_expr, block_size, hwe_normalize=True)
 
-    return _blanczos_pca(A, k, compute_loadings=compute_loadings, q_iterations=q_iterations,
-                         oversampling_param=oversampling_param, block_size=block_size)
+    return _blanczos_pca(
+        A,
+        k,
+        compute_loadings=compute_loadings,
+        q_iterations=q_iterations,
+        oversampling_param=oversampling_param,
+        block_size=block_size,
+    )

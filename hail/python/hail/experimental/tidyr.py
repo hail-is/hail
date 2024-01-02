@@ -4,10 +4,7 @@ from hail.typecheck import typecheck, nullable, oneof, sequenceof
 from hail.utils import wrap_to_list, new_temp_file
 
 
-@typecheck(ht=Table,
-           key=str,
-           value=str,
-           fields=str)
+@typecheck(ht=Table, key=str, value=str, fields=str)
 def gather(ht, key, value, *fields) -> Table:
     """Collapse fields into key-value pairs.
 
@@ -31,12 +28,10 @@ def gather(ht, key, value, *fields) -> Table:
     :class:`.Table`
         Table with original ``fields`` gathered into ``key`` and ``value`` fields."""
 
-    ht = ht.annotate(_col_val=hl.array([
-        hl.struct(field_name=field, value=ht[field]) for field in fields]))
+    ht = ht.annotate(_col_val=hl.array([hl.struct(field_name=field, value=ht[field]) for field in fields]))
     ht = ht.drop(*fields)
     ht = ht.explode(ht['_col_val'])
-    ht = ht.annotate(**{key: ht['_col_val'][0],
-                        value: ht['_col_val'][1]})
+    ht = ht.annotate(**{key: ht['_col_val'][0], value: ht['_col_val'][1]})
     ht = ht.drop('_col_val')
 
     ht_tmp = new_temp_file()
@@ -45,11 +40,7 @@ def gather(ht, key, value, *fields) -> Table:
     return hl.read_table(ht_tmp)
 
 
-@typecheck(ht=Table,
-           field=str,
-           value=str,
-           key=nullable(oneof(str,
-                              sequenceof(str))))
+@typecheck(ht=Table, field=str, value=str, key=nullable(oneof(str, sequenceof(str))))
 def spread(ht, field, value, key=None) -> Table:
     """Spread a key-value pair of fields across multiple fields.
 
@@ -90,14 +81,16 @@ def spread(ht, field, value, key=None) -> Table:
         key = list(ht.key) + key
 
     field_vals = list(ht.aggregate(hl.agg.collect_as_set(ht[field])))
-    ht = (ht.group_by(*key)
-            .aggregate(**{rv: hl.agg.take(ht[rv], 1)[0] for rv in ht.row_value if rv not in set(key + [field, value])},
-                       **{fv: hl.agg.filter(ht[field] == fv,
-                                            hl.rbind(
-                                                hl.agg.take(ht[value], 1),
-                                                lambda take: hl.if_else(hl.len(take) > 0,
-                                                                        take[0],
-                                                                        'NA'))) for fv in field_vals}))
+    ht = ht.group_by(*key).aggregate(
+        **{rv: hl.agg.take(ht[rv], 1)[0] for rv in ht.row_value if rv not in set(key + [field, value])},
+        **{
+            fv: hl.agg.filter(
+                ht[field] == fv,
+                hl.rbind(hl.agg.take(ht[value], 1), lambda take: hl.if_else(hl.len(take) > 0, take[0], 'NA')),
+            )
+            for fv in field_vals
+        }
+    )
 
     ht_tmp = new_temp_file()
     ht.write(ht_tmp)
@@ -105,10 +98,7 @@ def spread(ht, field, value, key=None) -> Table:
     return ht
 
 
-@typecheck(ht=Table,
-           field=str,
-           into=sequenceof(str),
-           delim=oneof(str, int))
+@typecheck(ht=Table, field=str, into=sequenceof(str), delim=oneof(str, int))
 def separate(ht, field, into, delim) -> Table:
     """Separate a field into multiple fields by splitting on a delimiter
     character or position.
@@ -145,8 +135,7 @@ def separate(ht, field, into, delim) -> Table:
         by `into`."""
 
     if isinstance(delim, int):
-        ht = ht.annotate(**{into[0]: ht[field][:delim],
-                            into[1]: ht[field][delim:]})
+        ht = ht.annotate(**{into[0]: ht[field][:delim], into[1]: ht[field][delim:]})
     else:
         split = ht[field].split(delim)
         ht = ht.annotate(**{into[i]: split[i] for i in range(len(into))})
