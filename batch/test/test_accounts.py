@@ -16,7 +16,6 @@ from hailtop.utils.rich_progress_bar import BatchProgressBar
 from .billing_projects import get_billing_project_prefix
 from .utils import DOCKER_ROOT_IMAGE, create_batch
 
-pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture

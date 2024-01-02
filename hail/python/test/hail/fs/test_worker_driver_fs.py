@@ -136,7 +136,6 @@ def test_can_access_public_blobs():
 
 @run_if_azure
 @fails_local_backend
-@pytest.mark.asyncio
 async def test_qob_can_use_sas_tokens():
     vcf = resource('sample.vcf')
     fs = AzureAsyncFS()

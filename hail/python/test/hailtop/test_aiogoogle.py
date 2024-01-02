@@ -49,7 +49,6 @@ def test_bucket_path_parsing():
     assert bucket == 'foo' and prefix == 'bar/baz'
 
 
-@pytest.mark.asyncio
 async def test_get_object_metadata(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
 
@@ -65,7 +64,6 @@ async def test_get_object_metadata(bucket_and_temporary_file):
         assert int(metadata['size']) == 3
 
 
-@pytest.mark.asyncio
 async def test_get_object_headers(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
 
@@ -81,7 +79,6 @@ async def test_get_object_headers(bucket_and_temporary_file):
             assert await f.read() == b'foo'
 
 
-@pytest.mark.asyncio
 async def test_compose(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
 
@@ -101,7 +98,6 @@ async def test_compose(bucket_and_temporary_file):
         assert actual == expected
 
 
-@pytest.mark.asyncio
 async def test_multi_part_create_many_two_level_merge(gs_filesystem):
     # This is a white-box test.  compose has a maximum of 32 inputs,
     # so if we're composing more than 32 parts, the
@@ -135,7 +131,6 @@ async def test_multi_part_create_many_two_level_merge(gs_filesystem):
     except (concurrent.futures._base.CancelledError, asyncio.CancelledError) as err:
         raise AssertionError('uncaught cancelled error') from err
 
-@pytest.mark.asyncio
 async def test_weird_urls(gs_filesystem):
     _, fs, base = gs_filesystem
 

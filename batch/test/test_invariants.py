@@ -8,7 +8,6 @@ from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
 from hailtop.utils import retry_transient_errors
 
-pytestmark = pytest.mark.asyncio
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
