@@ -111,7 +111,7 @@ class PagedQueriesIterator:
                 raise StopAsyncIteration
 
 
-class GoogleBigQueryClient(CloudBaseClient):
+class GoogleBigQueryClient(GoogleBaseClient):
     def __init__(self,
                  project: str,
                  credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None,
