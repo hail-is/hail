@@ -27,7 +27,7 @@ class AzureBaseClient(CloudBaseClient):
                 **kwargs
             )
         elif credentials_file is not None or credentials is not None:
-            raise ValueError('Do not provide credentials_file or credentials when session is None')
+            raise ValueError('Do not provide credentials_file or credentials when session is not None')
 
         super().__init__(base_url, session, rate_limit=rate_limit)
 
