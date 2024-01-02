@@ -62,9 +62,8 @@ class Aggregators2Suite extends HailSuite {
           Array(aggSig.state),
           FastSeq((argRef.name, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argT)))),
           FastSeq(classInfo[Region], LongInfo), UnitInfo,
-          args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
-            Let(name, GetField(argRef, name), op)
-          })._2
+          Let(args.map { case (n, _) => n -> GetField(argRef, n) }, foo)
+         )._2
       }
 
       val serialize = SerializeAggs(0, 0, spec, Array(aggSig.state))
@@ -414,13 +413,15 @@ class Aggregators2Suite extends HailSuite {
 
   def seqOpOverArray(aggIdx: Int, a: IR, seqOps: IR => IR, alstate: ArrayLenAggSig): IR = {
     val idx = Ref(genUID(), TInt32)
-    val elt = Ref(genUID(), tcoerce[TArray](a.typ).elementType)
 
     Begin(FastSeq(
       SeqOp(aggIdx, FastSeq(ArrayLen(a)), alstate),
       StreamFor(StreamRange(0, ArrayLen(a), 1), idx.name,
-        Let(elt.name, ArrayRef(a, idx),
-          SeqOp(aggIdx, FastSeq(idx, seqOps(elt)), AggElementsAggSig(alstate.nested))))))
+        bindIR(ArrayRef(a, idx)) { elt =>
+          SeqOp(aggIdx, FastSeq(idx, seqOps(elt)), AggElementsAggSig(alstate.nested))
+        }
+      )
+    ))
   }
 
   @Test def testMin() {
@@ -679,8 +680,7 @@ class Aggregators2Suite extends HailSuite {
     val ir = TableCollect(MatrixColsTable(MatrixMapCols(
       MatrixRead(t, false, false, MatrixRangeReader(10, 10, None)),
       InsertFields(Ref("sa", t.colType), FastSeq(("foo",
-        Let("bar",
-          GetField(Ref("sa", t.colType), "col_idx") + I32(1),
+        Let(FastSeq("bar" -> (GetField(Ref("sa", t.colType), "col_idx") + I32(1))),
           AggFilter(
             GetField(Ref("va", t.rowType), "row_idx") < I32(5),
             Ref("bar", TInt32).toL + Ref("bar", TInt32).toL + ApplyAggOp(
@@ -769,16 +769,17 @@ class Aggregators2Suite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val takeSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(PInt64(true))))
     val x = Let(
-      "x",
-      RunAgg(
+      FastSeq("x" -> RunAgg(
         Begin(FastSeq(
           InitOp(0, FastSeq(I32(10)), takeSig),
           SeqOp(0, FastSeq(NA(TInt64)), takeSig),
           SeqOp(0, FastSeq(I64(-1l)), takeSig),
           SeqOp(0, FastSeq(I64(2l)), takeSig)
-        )),
+        )
+        ),
         AggStateValue(0, takeSig.state),
-        FastSeq(takeSig.state)),
+        FastSeq(takeSig.state)
+      )),
       RunAgg(
         Begin(FastSeq(
           InitOp(0, FastSeq(I32(10)), takeSig),

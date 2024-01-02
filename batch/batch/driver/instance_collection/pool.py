@@ -340,8 +340,8 @@ WHERE removed = 0 AND inst_coll = %s;
         SELECT jobs.batch_id, jobs.job_id, cores_mcpu, always_run, n_regions, regions_bits_rep
         FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
         LEFT JOIN batches ON jobs.batch_id = batches.id
-        LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
-        WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND batches_cancelled.id IS NULL AND inst_coll = %s
+        LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
+        WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND job_groups_cancelled.id IS NULL AND inst_coll = %s
         ORDER BY jobs.batch_id ASC, jobs.job_id ASC
         LIMIT {share * self.job_queue_scheduling_window_secs}
       )
@@ -607,10 +607,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         async def user_runnable_jobs(user):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
+SELECT batches.id, job_groups_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
 FROM batches
-LEFT JOIN batches_cancelled
-       ON batches.id = batches_cancelled.id
+LEFT JOIN job_groups_cancelled
+       ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),

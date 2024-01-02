@@ -10,15 +10,15 @@ contourpy==1.2.0
     #   matplotlib
 cycler==0.12.1
     # via matplotlib
-fonttools==4.44.0
+fonttools==4.45.1
     # via matplotlib
 importlib-resources==6.1.1
     # via matplotlib
 kiwisolver==1.4.5
     # via matplotlib
-matplotlib==3.8.1
+matplotlib==3.8.2
     # via -r hail/benchmark/python/requirements.txt
-numpy==1.26.1
+numpy==1.26.2
     # via
     #   -c hail/benchmark/python/../../hail/python/pinned-requirements.txt
     #   contourpy

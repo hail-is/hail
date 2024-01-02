@@ -854,11 +854,11 @@ class HailExplicitTokenCredentials(CloudCredentials):
     def __init__(self, token: str):
         self._token = token
 
-    async def auth_headers(self) -> Dict[str, str]:
-        return {'Authorization': f'Bearer {self._token}'}
+    async def auth_headers_with_expiration(self) -> Tuple[Dict[str, str], Optional[float]]:
+        return {'Authorization': f'Bearer {self._token}'}, None
 
-    async def access_token(self) -> str:
-        return self._token
+    async def access_token_with_expiration(self) -> Tuple[str, Optional[float]]:
+        return self._token, None
 
     async def close(self):
         pass

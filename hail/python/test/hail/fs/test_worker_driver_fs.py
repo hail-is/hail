@@ -141,8 +141,7 @@ def test_qob_can_use_sas_tokens():
 
     sub_id = os.environ['HAIL_AZURE_SUBSCRIPTION_ID']
     rg = os.environ['HAIL_AZURE_RESOURCE_GROUP']
-    creds_file = os.environ['AZURE_APPLICATION_CREDENTIALS']
-    sas_token = asyncio.run(AzureAsyncFS(credential_file=creds_file).generate_sas_token(sub_id, rg, account, "rl"))
+    sas_token = asyncio.run(AzureAsyncFS().generate_sas_token(sub_id, rg, account, "rl"))
 
     mt = hl.import_vcf(f'{vcf}?{sas_token}', min_partitions=4)
     mt._force_count_rows()

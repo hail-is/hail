@@ -36,31 +36,36 @@ class SemanticHashSuite extends HailSuite {
       Array(NA(TInt32), NA(TFloat64), false, "Refl")
     )
 
+  def mkRelationalLet(bindings: IndexedSeq[(String, IR)], body: IR): IR =
+    bindings.foldRight(body) { case ((name, value), body) =>
+      RelationalLet(name, value, body)
+    }
+
   def isLetSemanticallyEquivalent: Array[Array[Any]] =
-    Array((Let, Ref), (RelationalLet, RelationalRef)).flatMap { case (let, ref) =>
+    Array((Let(_, _), Ref), (mkRelationalLet _, RelationalRef)).flatMap { case (let, ref) =>
       Array(
         Array(
-          let("x", Void(), ref("x", TVoid)),
-          let("y", Void(), ref("y", TVoid)),
+          let(FastSeq("x" -> Void()), ref("x", TVoid)),
+          let(FastSeq("y" -> Void()), ref("y", TVoid)),
           true,
           "names used in let-bindings do not change semantics"
         ),
 
         Array(
-          let("x", Void(), let("y", Void(), ref("x", TVoid))),
-          let("y", Void(), let("x", Void(), ref("y", TVoid))),
+          let(FastSeq("x" -> Void(), "y" -> Void()), ref("x", TVoid)),
+          let(FastSeq("y" -> Void(), "x" -> Void()), ref("y", TVoid)),
           true,
           "names of let-bindings do not change semantics"
         ),
         Array(
-          let("a", I32(0), ref("a", TInt32)),
-          let("a", Void(), ref("a", TVoid)),
+          let(FastSeq("a" -> I32(0)), ref("a", TInt32)),
+          let(FastSeq("a" -> Void()), ref("a", TVoid)),
           false,
           "different IRs"
         ),
         Array(
-          let("x", Void(), let("y", Void(), ref("x", TVoid))),
-          let("y", Void(), let("x", Void(), ref("x", TVoid))),
+          let(FastSeq("x" -> Void(), "y" -> Void()), ref("x", TVoid)),
+          let(FastSeq("y" -> Void(), "x" -> Void()), ref("x", TVoid)),
           false,
           "Different binding being referenced"
         ),
@@ -68,14 +73,14 @@ class SemanticHashSuite extends HailSuite {
          * The following examples demonstrate some of its limitations as a consequence.
          */
         Array(
-          let("A", Void(), ref("A", TVoid)),
-          let("A", let(genUID(), I32(0), Void()), ref("A", TVoid)),
+          let(FastSeq("A" -> Void()), ref("A", TVoid)),
+          let(FastSeq("A" -> let(FastSeq(genUID() -> I32(0)), Void())), ref("A", TVoid)),
           false,
           "SemanticHash does not simplify"
         ),
         Array(
-          let("A", Void(), ref("A", TVoid)),
-          let("A", Void(), let("B", I32(0), ref("A", TVoid))),
+          let(FastSeq("A" -> Void()), ref("A", TVoid)),
+          let(FastSeq("A" -> Void(), "B" -> I32(0)), ref("A", TVoid)),
           false,
           "SemanticHash does not simplify"
         )
