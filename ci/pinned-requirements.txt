@@ -30,7 +30,7 @@ cryptography==41.0.7
     # via
     #   -c hail/ci/../hail/python/pinned-requirements.txt
     #   pyjwt
-distro==1.8.0
+distro==1.9.0
     # via zulip
 gidgethub==5.3.0
     # via -r hail/ci/requirements.txt
