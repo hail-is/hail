@@ -236,6 +236,7 @@ doctest-query: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASS
             --html=../build/reports/pytest-doctest.html \
             --doctest-modules \
             --doctest-glob='*.rst' \
+            --doctest-continue-on-failure \
             --ignore=setup.py \
             --ignore=setup-hailtop.py \
             --ignore=hail/docs/conf.py \
