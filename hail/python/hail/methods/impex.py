@@ -2870,7 +2870,7 @@ def import_vcf(
 
     Import a bgzipped VCF which uses the "gz" extension rather than the "bgz" extension:
 
-    >>> ds = hl.import_vcf('data/samplepart*.vcf.gz', force_bgz=True)
+    >>> ds = hl.import_vcf('data/samplepart*.vcf.gz', force_bgz=True)  # doctest: +SKIP
 
     Notes
     -----

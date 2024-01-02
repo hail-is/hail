@@ -582,7 +582,6 @@ class Table(ExprContainer):
         |     0 |   200 |
         |     5 |    10 |
         +-------+-------+
-        <BLANKLINE>
 
         You may also elide schema entirely and let Hail guess the type. The list elements must
         either be Hail :class:`.Struct` or :class:`.dict` s.
@@ -611,18 +610,28 @@ class Table(ExprContainer):
         ...     partial_type={"milestone": hl.tstr, "labels": hl.tarray(hl.tstr)}
         ... )
         >>> t.show()
-        +--------+--------+--------------------+-----------------+----------+-----------+------------+
-        | number | state  | user.login         | user.site_admin |  user.id | milestone | labels     |
-        +--------+--------+--------------------+-----------------+----------+-----------+------------+
-        |  int32 | str    | str                |            bool |    int32 | str       | array<str> |
-        +--------+--------+--------------------+-----------------+----------+-----------+------------+
-        |  10038 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
-        |  10037 | "open" | "daniel-goldstein" |           False | 24440116 | NA        | []         |
-        |  10036 | "open" | "jigold"           |           False |  1693348 | NA        | []         |
-        |  10035 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
-        |  10033 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
-        +--------+--------+--------------------+-----------------+----------+-----------+------------+
-        <BLANKLINE>
+        +--------+--------+--------------------+-----------------+----------+
+        | number | state  | user.login         | user.site_admin |  user.id |
+        +--------+--------+--------------------+-----------------+----------+
+        |  int32 | str    | str                |            bool |    int32 |
+        +--------+--------+--------------------+-----------------+----------+
+        |  10038 | "open" | "tpoterba"         |           False | 10562794 |
+        |  10037 | "open" | "daniel-goldstein" |           False | 24440116 |
+        |  10036 | "open" | "jigold"           |           False |  1693348 |
+        |  10035 | "open" | "tpoterba"         |           False | 10562794 |
+        |  10033 | "open" | "tpoterba"         |           False | 10562794 |
+        +--------+--------+--------------------+-----------------+----------+
+        +-----------+------------+
+        | milestone | labels     |
+        +-----------+------------+
+        | str       | array<str> |
+        +-----------+------------+
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        +-----------+------------+
 
         Parallelizing with a specified number of partitions:
 
@@ -672,7 +681,7 @@ class Table(ExprContainer):
         dtype = schema
         if schema is not None:
             if not isinstance(schema, hl.tstruct):
-                raise ValueError(f"parallelize expectes the 'schema' argument to be an hl.tstruct, see docs for details.")
+                raise ValueError("parallelize expectes the 'schema' argument to be an hl.tstruct, see docs for details.")
             dtype = hl.tarray(schema)
         elif partial_type is not None:
             partial_type = hl.tarray(hl.tstruct(**partial_type))
@@ -795,7 +804,6 @@ class Table(ExprContainer):
         |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 | "mouse"      |
         |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 | "rabbit"     |
         +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
-        <BLANKLINE>
 
         Hail supports compound keys which enforce a dictionary ordering on the rows of the Table.
 
@@ -970,11 +978,11 @@ class Table(ExprContainer):
         >>> ht.describe()
         ----------------------------------------
         Global fields:
-            'pops': array<str> 
-            'study_name': str 
+            'pops': array<str>
+            'study_name': str
         ----------------------------------------
         Row fields:
-            'idx': int32 
+            'idx': int32
         ----------------------------------------
         Key: ['idx']
         ----------------------------------------
@@ -982,11 +990,11 @@ class Table(ExprContainer):
         >>> ht.describe()
         ----------------------------------------
         Global fields:
-            'pops': array<str> 
-            'target_date': str 
+            'pops': array<str>
+            'target_date': str
         ----------------------------------------
         Row fields:
-            'idx': int32 
+            'idx': int32
         ----------------------------------------
         Key: ['idx']
         ----------------------------------------
@@ -1120,16 +1128,26 @@ class Table(ExprContainer):
 
         >>> ht = ht.transmute(new_field=hl.struct(x=3, y=4))
         >>> ht.show()
-        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+-------------+
-        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | new_field.x | new_field.y |
-        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+-------------+
-        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |       int32 |       int32 |
-        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+-------------+
-        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |           3 |           4 |
-        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |           3 |           4 |
-        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |           3 |           4 |
-        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |           3 |           4 |
-        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+-------------+
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | new_field.x |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |       int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |           3 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |           3 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |           3 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |           3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+
+        +-------------+
+        | new_field.y |
+        +-------------+
+        |       int32 |
+        +-------------+
+        |           4 |
+        |           4 |
+        |           4 |
+        |           4 |
+        +-------------+
 
         Transmuting a field while referencing other fields drops those other fields. Notice how the
         compound field, `new_field` is dropped entirely even though we only used one of its
@@ -1278,33 +1296,52 @@ class Table(ExprContainer):
         ...    B=ht2[ht.key].B,
         ... )
         >>> ht.show()
-        +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
-        |    ID |    HT | SEX |     X |     Z |        Y |     A | B        | HT_DESCRIPTION |
-        +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
-        | int32 | int32 | str | int32 | int32 |  float64 | int32 | str      | str            |
-        +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
-        |     1 |    65 | "M" |     5 |     4 | 2.50e+01 |    65 | "cat"    | "sixty-five"   |
-        |     2 |    72 | "M" |     6 |     3 | 3.60e+01 |    72 | "dog"    | "seventy-two"  |
-        |     3 |    70 | "F" |     7 |     3 | 4.90e+01 |    70 | "mouse"  | "seventy"      |
-        |     4 |    60 | "F" |     8 |     2 | 6.40e+01 |    60 | "rabbit" | "sixty"        |
-        +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
-        <BLANKLINE>
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        |    ID |    HT | SEX |     X |     Z |        Y |     A | B        |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        | int32 | int32 | str | int32 | int32 |  float64 | int32 | str      |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        |     1 |    65 | "M" |     5 |     4 | 2.50e+01 |    65 | "cat"    |
+        |     2 |    72 | "M" |     6 |     3 | 3.60e+01 |    72 | "dog"    |
+        |     3 |    70 | "F" |     7 |     3 | 4.90e+01 |    70 | "mouse"  |
+        |     4 |    60 | "F" |     8 |     2 | 6.40e+01 |    60 | "rabbit" |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        +----------------+
+        | HT_DESCRIPTION |
+        +----------------+
+        | str            |
+        +----------------+
+        | "sixty-five"   |
+        | "seventy-two"  |
+        | "seventy"      |
+        | "sixty"        |
+        +----------------+
 
         Instead of repeating all the fields from the other table, we may use Python's splat operator
         to indicate we want to copy all the non-key fields from the other table:
 
         >>> ht = ht.annotate(**ht2[ht.key])
         >>> ht.show()
-        +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
-        |    ID |    HT | SEX |     X |     Z |        Y |     A | B        | HT_DESCRIPTION |
-        +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
-        | int32 | int32 | str | int32 | int32 |  float64 | int32 | str      | str            |
-        +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
-        |     1 |    65 | "M" |     5 |     4 | 2.50e+01 |    65 | "cat"    | "sixty-five"   |
-        |     2 |    72 | "M" |     6 |     3 | 3.60e+01 |    72 | "dog"    | "seventy-two"  |
-        |     3 |    70 | "F" |     7 |     3 | 4.90e+01 |    70 | "mouse"  | "seventy"      |
-        |     4 |    60 | "F" |     8 |     2 | 6.40e+01 |    60 | "rabbit" | "sixty"        |
-        +-------+-------+-----+-------+-------+----------+-------+----------+----------------+
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        |    ID |    HT | SEX |     X |     Z |        Y |     A | B        |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        | int32 | int32 | str | int32 | int32 |  float64 | int32 | str      |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        |     1 |    65 | "M" |     5 |     4 | 2.50e+01 |    65 | "cat"    |
+        |     2 |    72 | "M" |     6 |     3 | 3.60e+01 |    72 | "dog"    |
+        |     3 |    70 | "F" |     7 |     3 | 4.90e+01 |    70 | "mouse"  |
+        |     4 |    60 | "F" |     8 |     2 | 6.40e+01 |    60 | "rabbit" |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        +----------------+
+        | HT_DESCRIPTION |
+        +----------------+
+        | str            |
+        +----------------+
+        | "sixty-five"   |
+        | "seventy-two"  |
+        | "seventy"      |
+        | "sixty"        |
+        +----------------+
 
         Parameters
         ----------
@@ -1407,7 +1444,6 @@ class Table(ExprContainer):
         |     1 |    65 | "M" |     5 |     4 |
         |     2 |    72 | "M" |     6 |     3 |
         +-------+-------+-----+-------+-------+
-        <BLANKLINE>
 
         Keep rows where X is less than 7 or Z is greater than 2:
 

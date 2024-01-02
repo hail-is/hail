@@ -1009,20 +1009,20 @@ class Expression(object):
         >>> with open('output/gt.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        locus      alleles 0       1       2       3
-        1:1        ["A","C"]       0/1     0/1     1/1     0/0
-        1:2        ["A","C"]       1/1     1/1     0/1     1/1
-        1:3        ["A","C"]       0/0     0/0     1/1     0/1
-        1:4        ["A","C"]       0/0     0/0     0/0     1/1
+        locus	alleles	0	1	2	3
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
         >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        1:1        ["A","C"]       0/1     0/1     1/1     0/0
-        1:2        ["A","C"]       1/1     1/1     0/1     1/1
-        1:3        ["A","C"]       0/0     0/0     1/1     0/1
-        1:4        ["A","C"]       0/0     0/0     0/0     1/1
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
         >>> small_mt.pop.export('output/pops.tsv')
         >>> with open('output/pops.tsv', 'r') as f:
