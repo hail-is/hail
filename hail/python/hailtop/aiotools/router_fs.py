@@ -157,6 +157,3 @@ class RouterAsyncFS(AsyncFS):
     def copy_part_size(self, url: str) -> int:
         fs = self._get_fs(url)
         return fs.copy_part_size(url)
-
-
-print(RouterAsyncFS().schemes)
