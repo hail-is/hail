@@ -22,7 +22,7 @@ class AzureBaseClient(CloudBaseClient):
                  **kwargs):
         if session is None:
             session = Session(
-                credentials=AzureCredentials.from_args(credentials, credentials_file, scopes),
+                credentials=credentials or AzureCredentials.from_file_or_default(credentials_file, scopes),
                 params=params,
                 **kwargs
             )

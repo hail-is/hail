@@ -20,7 +20,7 @@ class GoogleBaseClient(CloudBaseClient):
                  **kwargs):
         if session is None:
             session = Session(
-                credentials=GoogleCredentials.from_args(credentials, credentials_file),
+                credentials=credentials or GoogleCredentials.from_file_or_default(credentials_file),
                 params=params,
                 **kwargs
             )

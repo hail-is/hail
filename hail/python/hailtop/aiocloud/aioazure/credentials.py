@@ -60,18 +60,13 @@ class RefreshTokenCredential(AsyncTokenCredential):
 
 class AzureCredentials(CloudCredentials):
     @staticmethod
-    def from_args(
-        credentials: Optional[Union['AzureCredentials', AnonymousCloudCredentials]] = None,
+    def from_file_or_default(
         credentials_file: Optional[str] = None,
         scopes: Optional[List[str]] = None,
     ) -> Union['AzureCredentials', AnonymousCloudCredentials]:
-        if credentials is None:
-            if credentials_file:
-                return AzureCredentials.from_file(credentials_file, scopes=scopes)
-            return AzureCredentials.default_credentials(scopes=scopes)
-        if credentials_file is not None:
-            raise ValueError('Do not provide credentials_file and credentials.')
-        return credentials
+        if credentials_file:
+            return AzureCredentials.from_file(credentials_file, scopes=scopes)
+        return AzureCredentials.default_credentials(scopes=scopes)
 
     @staticmethod
     def from_credentials_data(credentials: dict, scopes: Optional[List[str]] = None):

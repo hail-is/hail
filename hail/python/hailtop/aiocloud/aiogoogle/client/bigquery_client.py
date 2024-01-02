@@ -121,7 +121,7 @@ class GoogleBigQueryClient(CloudBaseClient):
         super().__init__(
             base_url=f'https://bigquery.googleapis.com/bigquery/v2/projects/{project}',
             session=Session(
-                credentials=GoogleCredentials.from_args(credentials, credentials_file),
+                credentials=credentials or GoogleCredentials.from_file_or_default(credentials_file),
                 params=params,
                 **kwargs
             )
