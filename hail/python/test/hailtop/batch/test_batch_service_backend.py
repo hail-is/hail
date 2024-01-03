@@ -377,7 +377,7 @@ async def test_cloudfuse_submount_in_io_doesnt_rm_bucket(
     assert res
     res_status = res.status()
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
-    assert fs.read(should_still_exist_url) == b'should-still-exist'
+    assert await fs.read(should_still_exist_url) == b'should-still-exist'
 
 
 @skip_in_azure
@@ -746,7 +746,7 @@ def test_query_on_batch_in_batch(backend: ServiceBackend, output_tmpdir: str):
 
     tmp_ht_path = os.path.join(output_tmpdir, secrets.token_urlsafe(32))
 
-    def qob_in_batch(backend):
+    def qob_in_batch():
         import hail as hl
 
         hl.utils.range_table(10).write(tmp_ht_path, overwrite=True)
