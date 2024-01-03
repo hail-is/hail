@@ -496,12 +496,12 @@ class Tests(unittest.TestCase):
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=10 * 60)
-    def test_vep_grch38_using_indexed_cache(self):
+    def test_vep_grch38_with_large_positions(self):
         bad_variants = hl.import_table(resource('vep_grch38_input_req_indexed_cache.tsv'),
-                                          key=['locus', 'alleles'],
-                                          types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr),
-                                                 'vep': hl.tstr}, force=True,
-                                          delimiter=' ')
+                                       key=['locus', 'alleles'],
+                                       types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr)},
+                                       force=True,
+                                       delimiter=' ')
         loftee_variants = bad_variants.select()
 
         hail_vep_result = hl.vep(loftee_variants)
@@ -519,17 +519,3 @@ class Tests(unittest.TestCase):
         ))
         hail_vep_result = hail_vep_result.select('vep')
         hail_vep_result.collect()
-
-
-    @skip_unless_service_backend(clouds=['gcp'])
-    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
-    @test_timeout(batch=10 * 60)
-    def test_vep_grch38_using_indexed_cache_full_data(self):
-        # dataproc_result = hl.import_table(resource('vep_grch38_input_req_indexed_cache.tsv'),
-                                          # key=['locus', 'alleles'],
-                                          # types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr),
-                                          #        'vep': hl.tstr}, force=True,
-                                          # delimiter=' ')
-        mt = hl.import_vcf(resource('de_novo_downsampled_sites.vcf.bgz'), reference_genome='GRCh38')
-        hail_vep_result = hl.vep(mt)
-        hl.export_vcf(hail_vep_result, 'gs://hail-jigold/de_novo_downsampled_sites_vep_annotated.vcf.bgz')
