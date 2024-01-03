@@ -35,24 +35,24 @@ class FS(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def mkdir(self, path: str):
+    def mkdir(self, path: str) -> None:
         raise NotImplementedError
 
-    async def amkdir(self, path: str):
+    async def amkdir(self, path: str) -> None:
         return self.mkdir(path)
 
     @abc.abstractmethod
-    def remove(self, path: str):
+    def remove(self, path: str) -> None:
         raise NotImplementedError
 
-    async def aremove(self, path: str):
+    async def aremove(self, path: str) -> None:
         return self.remove(path)
 
     @abc.abstractmethod
-    def rmtree(self, path: str):
+    def rmtree(self, path: str) -> None:
         raise NotImplementedError
 
-    async def armtree(self, path: str):
+    async def armtree(self, path: str) -> None:
         return self.rmtree(path)
 
     @abc.abstractmethod

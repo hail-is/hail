@@ -1017,8 +1017,9 @@ package object utils extends Logging
     (err, buffer)
   }
 
-  def runAllKeepFirstError[A](executor: ExecutorService)
-  : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
+  def runAllKeepFirstError[A](
+    executor: ExecutorService
+  ): IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
     runAll[Option, A](executor) { case (opt, (e, _)) => opt.orElse(Some(e)) } (None)
 }
 

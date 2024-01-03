@@ -185,6 +185,10 @@ class RouterFS(FS):
             s3_kwargs=s3_kwargs
         )
 
+    @property
+    def _gcs_kwargs(self) -> Optional[Dict[str, Any]]:
+        return self.afs._gcs_kwargs
+
     def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
         del buffer_size
 
@@ -393,23 +397,23 @@ class RouterFS(FS):
             raise FileNotFoundError(path)
         return maybe_contents
 
-    def mkdir(self, path: str):
+    def mkdir(self, path: str) -> None:
         return async_to_blocking(self.afs.mkdir(path))
 
-    async def amkdir(self, path: str):
-        return self.afs.mkdir(path)
+    async def amkdir(self, path: str) -> None:
+        return await self.afs.mkdir(path)
 
-    def remove(self, path: str):
+    def remove(self, path: str) -> None:
         return async_to_blocking(self.afs.remove(path))
 
-    async def aremove(self, path: str):
+    async def aremove(self, path: str) -> None:
         return await self.afs.remove(path)
 
-    def rmtree(self, path: str):
+    def rmtree(self, path: str) -> None:
         return async_to_blocking(self.afs.rmtree(None, path))
 
-    async def armtree(self, path: str):
-        return self.afs.rmtree(None, path)
+    async def armtree(self, path: str) -> None:
+        return await self.afs.rmtree(None, path)
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme in self.afs.schemes()

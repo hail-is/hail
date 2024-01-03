@@ -1,7 +1,7 @@
 import asyncio
 import sys
 import typer
-from typer import Option as Opt, Argument as Arg
+from typer import Argument as Arg
 import json
 
 from typing import Optional, Annotated as Ann
@@ -15,29 +15,21 @@ app = typer.Typer(
 )
 
 
-NamespaceOption = Ann[
-    Optional[str],
-    Opt('--namespace', '-n', help='Namespace for the auth server (default: from deploy configuration).'),
-]
-
-
 @app.command()
-def login(namespace: NamespaceOption = None):
+def login():
     '''Obtain Hail credentials.'''
     from .login import async_login  # pylint: disable=import-outside-toplevel
-    asyncio.run(async_login(namespace))
+    asyncio.run(async_login())
 
 
 @app.command()
-def copy_paste_login(copy_paste_token: str, namespace: NamespaceOption = None):
+def copy_paste_login(copy_paste_token: str):
     '''Obtain Hail credentials with a copy paste token.'''
     from hailtop.auth import copy_paste_login  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
-    auth_ns, username = copy_paste_login(copy_paste_token, namespace)
-    if auth_ns == 'default':
-        print(f'Logged in as {username}.')
-    else:
-        print(f'Logged into namespace {auth_ns} as {username}.')
+    username = copy_paste_login(copy_paste_token)
+    print(f'Logged into {get_deploy_config().base_url("auth")} as {username}.')
 
 
 @app.command()
@@ -92,7 +84,6 @@ def create_user(
     service_account: bool = False,
     hail_identity: Optional[str] = None,
     hail_credentials_secret_name: Optional[str] = None,
-    namespace: NamespaceOption = None,
     wait: bool = False,
 ):
     '''
@@ -100,13 +91,12 @@ def create_user(
     '''
     from .create_user import polling_create_user  # pylint: disable=import-outside-toplevel
 
-    asyncio.run(polling_create_user(username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name, namespace=namespace, wait=wait))
+    asyncio.run(polling_create_user(username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name, wait=wait))
 
 
 @app.command()
 def delete_user(
     username: str,
-    namespace: NamespaceOption = None,
     wait: bool = False,
 ):
     '''
@@ -114,4 +104,4 @@ def delete_user(
     '''
     from .delete_user import polling_delete_user  # pylint: disable=import-outside-toplevel
 
-    asyncio.run(polling_delete_user(username, namespace, wait))
+    asyncio.run(polling_delete_user(username, wait))
