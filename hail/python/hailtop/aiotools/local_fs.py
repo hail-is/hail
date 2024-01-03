@@ -230,8 +230,9 @@ class LocalAsyncFS(AsyncFS):
     def valid_url(url: str) -> bool:
         return url.startswith('file://') or '://' not in url
 
-    def parse_url(self, url: str) -> LocalAsyncFSURL:
-        return LocalAsyncFSURL(self._get_path(url))
+    @staticmethod
+    def parse_url(url: str) -> LocalAsyncFSURL:
+        return LocalAsyncFSURL(LocalAsyncFS._get_path(url))
 
     @staticmethod
     def _get_path(url):
