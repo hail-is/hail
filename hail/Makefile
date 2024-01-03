@@ -322,8 +322,8 @@ upload-artifacts: $(WHEEL)
 upload-qob-test-resources: $(shell git ls-files src/test/resources)
 upload-qob-test-resources: $(shell git ls-files python/hail/docs/data)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
-	gcloud storage cp src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
-	gcloud storage cp python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
+	gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
+	gcloud storage cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
 	# # In Azure, use the following instead of gcloud storage cp
 	# python3 -m hailtop.aiotools.copy -vvv 'null' '[\
         #      {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\

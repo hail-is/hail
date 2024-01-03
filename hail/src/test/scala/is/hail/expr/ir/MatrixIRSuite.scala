@@ -265,7 +265,7 @@ class MatrixIRSuite extends HailSuite {
 
     // The entry field must be an array
     interceptFatal("") {
-      CastTableToMatrix(rowTab, "animal", "__cols", Array("col_idx"))
+      TypeCheck(ctx, CastTableToMatrix(rowTab, "animal", "__cols", Array("col_idx")))
     }
 
     val rdata2 = Array(
@@ -322,8 +322,8 @@ class MatrixIRSuite extends HailSuite {
     val range = rangeMatrix(10, 2, None)
     val path1 = ctx.createTmpPath("test1")
     val path2 = ctx.createTmpPath("test2")
-    intercept[java.lang.IllegalArgumentException] {
-      val ir = MatrixMultiWrite(FastSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2)))
+    intercept[HailException] {
+      TypeCheck(ctx, MatrixMultiWrite(FastSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2))))
     }
   }
 }

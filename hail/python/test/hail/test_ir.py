@@ -22,8 +22,9 @@ class ValueIRTests(unittest.TestCase):
             'mat': hl.tndarray(hl.tfloat64, 2),
             'aa': hl.tarray(hl.tarray(hl.tint32)),
             'sta': hl.tstream(hl.tarray(hl.tint32)),
-            'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
-            'nd': hl.tndarray(hl.tfloat64, 1),
+            'sts': hl.tstream(hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64)),
+            'da': hl.tstream(hl.ttuple(hl.tint32, hl.tstr)),
+            'nd': hl.tndarray(hl.tfloat64, 2),
             'v': hl.tint32,
             's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
             't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
@@ -42,6 +43,7 @@ class ValueIRTests(unittest.TestCase):
         mat = ir.Ref('mat')
         aa = ir.Ref('aa', env['aa'])
         sta = ir.Ref('sta', env['sta'])
+        sts = ir.Ref('sts', env['sts'])
         da = ir.Ref('da', env['da'])
         nd = ir.Ref('nd', env['nd'])
         v = ir.Ref('v', env['v'])
@@ -77,7 +79,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayRef(a, i),
             ir.ArrayLen(a),
             ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l', hl.tint32), ir.Ref('r', hl.tint32))),
-            ir.ToSet(a),
+            ir.ToSet(st),
             ir.ToDict(da),
             ir.ToArray(st),
             ir.CastToArray(ir.NA(hl.tset(hl.tint32))),
@@ -89,17 +91,17 @@ class ValueIRTests(unittest.TestCase):
             ir.NDArrayRef(nd, [ir.I64(1), ir.I64(2)]),
             ir.NDArrayMap(nd, 'v', v),
             ir.NDArrayMatMul(nd, nd),
-            ir.LowerBoundOnOrderedCollection(a, i, True),
+            ir.LowerBoundOnOrderedCollection(a, i, False),
             ir.GroupByKey(da),
-            ir.RNGSplit(rngState, ir.MakeTuple([ir.I64(1), ir.MakeTuple([ir.I64(2), ir.I64(3)])])),
+            ir.RNGSplit(rngState, ir.MakeTuple([ir.I64(1), ir.I64(2), ir.I64(3)])),
             ir.StreamMap(st, 'v', v),
             ir.StreamZip([st, st], ['a', 'b'], ir.TrueIR(), 'ExtendNA'),
-            ir.StreamFilter(st, 'v', v),
+            ir.StreamFilter(st, 'v', c),
             ir.StreamFlatMap(sta, 'v', ir.ToStream(v)),
             ir.StreamFold(st, ir.I32(0), 'x', 'v', v),
             ir.StreamScan(st, ir.I32(0), 'x', 'v', v),
-            ir.StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, False),
-            ir.StreamJoinRightDistinct(st, st, ['k'], ['k'], 'l', 'r', ir.I32(1), "left"),
+            ir.StreamWhiten(whitenStream, "newChunk", "prevWindow", 1, 1, 1, 1, False),
+            ir.StreamJoinRightDistinct(sts, sts, ['x'], ['x'], 'l', 'r', ir.I32(1), "left"),
             ir.StreamFor(st, 'v', ir.Void()),
             aggregate(ir.AggFilter(ir.TrueIR(), ir.I32(0), False)),
             aggregate(ir.AggExplode(ir.StreamRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False)),

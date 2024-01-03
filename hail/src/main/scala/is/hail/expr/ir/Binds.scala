@@ -11,11 +11,16 @@ object Binds {
 object Bindings {
   private val empty: Array[(String, Type)] = Array()
 
+  // A call to Bindings(x, i) may only query the types of children with
+  // index < i
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
-    case Let(name, value, _) => if (i == 1) Array(name -> value.typ) else empty
-    case TailLoop(name, args, body) => if (i == args.length)
+    case Let(bindings, _) =>
+      val result = Array.ofDim[(String, Type)](i)
+      for (k <- 0 until i) result(k) = bindings(k)._1 -> bindings(k)._2.typ
+      result
+    case TailLoop(name, args, resultType, _) => if (i == args.length)
       args.map { case (name, ir) => name -> ir.typ } :+
-        name -> TTuple(TTuple(args.map(_._2.typ): _*), body.typ) else empty
+        name -> TTuple(TTuple(args.map(_._2.typ): _*), resultType) else empty
     case StreamMap(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamZip(as, names, _, _, _) => if (i == as.length) names.zip(as.map(a => tcoerce[TStream](a.typ).elementType)) else empty
     case StreamZipJoin(as, key, curKey, curVals, _) =>
@@ -26,14 +31,14 @@ object Bindings {
       else
         empty
     case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, _) =>
-      val contextType = TIterable.elementType(contexts.typ)
-      val eltType = tcoerce[TStruct](tcoerce[TStream](makeProducer.typ).elementType)
-      if (i == 1)
+      if (i == 1) {
+        val contextType = TIterable.elementType(contexts.typ)
         Array(ctxName -> contextType)
-      else if (i == 2)
+      } else if (i == 2) {
+        val eltType = tcoerce[TStruct](tcoerce[TStream](makeProducer.typ).elementType)
         Array(curKey -> eltType.typeAfterSelectNames(key),
           curVals -> TArray(eltType))
-      else
+      } else
         empty
     case StreamFor(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamFlatMap(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty

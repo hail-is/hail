@@ -1,4 +1,3 @@
-from typing import Optional
 import os
 import json
 
@@ -7,7 +6,7 @@ from hailtop.auth import hail_credentials, IdentityProvider, AzureFlow, GoogleFl
 from hailtop.httpx import client_session, ClientSession
 
 
-async def auth_flow(deploy_config: DeployConfig, default_ns: str, session: ClientSession):
+async def auth_flow(deploy_config: DeployConfig, session: ClientSession):
     resp = await session.get_read_json(deploy_config.url('auth', '/api/v1alpha/oauth2-client'))
     idp = IdentityProvider(resp['idp'])
     client_secret_config = resp['oauth2_client']
@@ -22,22 +21,18 @@ async def auth_flow(deploy_config: DeployConfig, default_ns: str, session: Clien
         f.write(json.dumps({'idp': idp.value, 'credentials': credentials}))
 
     # Confirm that the logged in user is registered with the hail service
-    async with hail_credentials(namespace=default_ns) as c:
+    async with hail_credentials(deploy_config=deploy_config) as c:
         headers_with_auth = await c.auth_headers()
     async with client_session(headers=headers_with_auth) as auth_session:
         userinfo = await auth_session.get_read_json(deploy_config.url('auth', '/api/v1alpha/userinfo'))
 
     username = userinfo['username']
-    if default_ns == 'default':
-        print(f'Logged in as {username}.')
-    else:
-        print(f'Logged into namespace {default_ns} as {username}.')
+    print(f'Logged into {deploy_config.base_url("auth")} as {username}.')
 
 
-async def async_login(namespace: Optional[str]):
+async def async_login():
     deploy_config = get_deploy_config()
-    namespace = namespace or deploy_config.default_namespace()
-    async with hail_credentials(namespace=namespace, authorize_target=False) as credentials:
+    async with hail_credentials(deploy_config=deploy_config, authorize_target=False) as credentials:
         headers = await credentials.auth_headers()
     async with client_session(headers=headers) as session:
-        await auth_flow(deploy_config, namespace, session)
+        await auth_flow(deploy_config, session)

@@ -91,7 +91,7 @@ case class BgenSettings(
   require(PruneDeadFields.isSupertype(requestedType, MatrixBGENReader.fullMatrixType(rg).canonicalTableType))
 
   val entryType: Option[TStruct] = requestedType.rowType
-    .fieldOption(MatrixType.entriesIdentifier)
+    .selfField(MatrixType.entriesIdentifier)
     .map(f => f.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
   val rowPType: PCanonicalStruct = PCanonicalStruct(required = true,

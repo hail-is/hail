@@ -211,7 +211,7 @@ async def get_index(request: web.Request, userdata: Optional[UserData]) -> web.R
 @routes.get('/creating')
 @auth.maybe_authenticated_user
 async def creating_account(request: web.Request, userdata: Optional[UserData]) -> web.Response:
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     session = await aiohttp_session.get_session(request)
     if 'pending' in session:
         login_id = session['login_id']
@@ -256,7 +256,7 @@ async def creating_account_wait(request):
 
 async def _wait_websocket(request, login_id):
     app = request.app
-    db = app['db']
+    db = app[AppKeys.DB]
 
     user = await user_from_login_id(db, login_id)
     if not user:
@@ -290,7 +290,7 @@ async def _wait_websocket(request, login_id):
 async def signup(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
-    flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
+    flow_data = request.app[AppKeys.FLOW_CLIENT].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
@@ -305,7 +305,7 @@ async def signup(request) -> NoReturn:
 async def login(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
-    flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
+    flow_data = request.app[AppKeys.FLOW_CLIENT].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
@@ -341,7 +341,7 @@ async def callback(request) -> web.Response:
         log.exception('oauth2 callback: could not fetch and verify token')
         raise web.HTTPUnauthorized() from e
 
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
 
     user = await user_from_login_id(db, login_id)
 
@@ -394,7 +394,7 @@ async def callback(request) -> web.Response:
 @routes.post('/api/v1alpha/users/{user}/create')
 @auth.authenticated_developers_only()
 async def create_user(request: web.Request, _) -> web.Response:
-    db: Database = request.app['db']
+    db = request.app[AppKeys.DB]
     username = request.match_info['user']
 
     body = await json_request(request)
@@ -443,7 +443,7 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
 async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
     session_id = session['session_id']
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     copy_paste_token = await create_copy_paste_token(db, session_id)
     page_context = {'copy_paste_token': copy_paste_token}
     return await render_template('auth', request, userdata, 'copy-paste-token.html', page_context)
@@ -453,7 +453,7 @@ async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.
 @auth.authenticated_users_only()
 async def get_copy_paste_token_api(request: web.Request, _) -> web.Response:
     session_id = await get_session_id(request)
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     copy_paste_token = await create_copy_paste_token(db, session_id)
     return web.Response(body=copy_paste_token)
 
@@ -464,7 +464,7 @@ async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn
     if not userdata:
         raise web.HTTPFound(deploy_config.external_url('auth', ''))
 
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     session_id = await get_session_id(request)
     await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
@@ -478,7 +478,7 @@ async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn
 async def rest_login(request: web.Request) -> web.Response:
     callback_port = request.query['callback_port']
     callback_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
-    flow_data = request.app['flow_client'].initiate_flow(callback_uri)
+    flow_data = request.app[AppKeys.FLOW_CLIENT].initiate_flow(callback_uri)
     flow_data['callback_uri'] = callback_uri
 
     # keeping authorization_url and state for backwards compatibility
@@ -490,13 +490,13 @@ async def rest_login(request: web.Request) -> web.Response:
 @routes.get('/api/v1alpha/oauth2-client')
 async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
     idp = IdentityProvider.GOOGLE if CLOUD == 'gcp' else IdentityProvider.MICROSOFT
-    return json_response({'idp': idp.value, 'oauth2_client': request.app['hailctl_client_config']})
+    return json_response({'idp': idp.value, 'oauth2_client': request.app[AppKeys.HAILCTL_CLIENT_CONFIG]})
 
 
 @routes.get('/roles')
 @auth.authenticated_developers_only()
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     roles = [x async for x in db.select_and_fetchall('SELECT * FROM roles;')]
     page_context = {'roles': roles}
     return await render_template('auth', request, userdata, 'roles.html', page_context)
@@ -506,7 +506,7 @@ async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
 @auth.authenticated_developers_only()
 async def post_create_role(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     post = await request.post()
     name = str(post['name'])
 
@@ -526,7 +526,7 @@ VALUES (%s);
 @routes.get('/users')
 @auth.authenticated_developers_only()
 async def get_users(request: web.Request, userdata: UserData) -> web.Response:
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     users = [x async for x in db.select_and_fetchall('SELECT * FROM users;')]
     page_context = {'users': users}
     return await render_template('auth', request, userdata, 'users.html', page_context)
@@ -536,7 +536,7 @@ async def get_users(request: web.Request, userdata: UserData) -> web.Response:
 @auth.authenticated_developers_only()
 async def post_create_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     post = await request.post()
     username = str(post['username'])
     login_id = str(post['login_id']) if 'login_id' in post else None
@@ -563,7 +563,7 @@ async def rest_get_users(request: web.Request, userdata: UserData) -> web.Respon
     if userdata['is_developer'] != 1 and userdata['username'] != 'ci':
         raise web.HTTPUnauthorized()
 
-    db: Database = request.app['db']
+    db = request.app[AppKeys.DB]
     _query = '''
 SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity
 FROM users;
@@ -575,7 +575,7 @@ FROM users;
 @routes.get('/api/v1alpha/users/{user}')
 @auth.authenticated_developers_only()
 async def rest_get_user(request: web.Request, _) -> web.Response:
-    db: Database = request.app['db']
+    db = request.app[AppKeys.DB]
     username = request.match_info['user']
 
     user = await db.select_and_fetchone(
@@ -615,7 +615,7 @@ WHERE {' AND '.join(where_conditions)};
 @auth.authenticated_developers_only()
 async def delete_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     post = await request.post()
     id = str(post['id'])
     username = str(post['username'])
@@ -632,7 +632,7 @@ async def delete_user(request: web.Request, _) -> NoReturn:
 @routes.delete('/api/v1alpha/users/{user}')
 @auth.authenticated_developers_only()
 async def rest_delete_user(request: web.Request, _) -> web.Response:
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     username = request.match_info['user']
 
     try:
@@ -657,14 +657,14 @@ async def rest_callback(request):
         flow_dict = json.loads(request.query['flow'])
 
     try:
-        flow_result = request.app['flow_client'].receive_callback(request, flow_dict)
+        flow_result = request.app[AppKeys.FLOW_CLIENT].receive_callback(request, flow_dict)
     except asyncio.CancelledError:
         raise
     except Exception as e:
         log.exception('fetching and decoding token')
         raise web.HTTPUnauthorized() from e
 
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     users = [
         x
         async for x in db.select_and_fetchall(
@@ -684,7 +684,7 @@ async def rest_callback(request):
 @routes.post('/api/v1alpha/copy-paste-login')
 async def rest_copy_paste_login(request):
     copy_paste_token = request.query['copy_paste_token']
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
 
     @transaction(db)
     async def maybe_pop_token(tx):
@@ -711,21 +711,21 @@ WHERE copy_paste_tokens.id = %s
 @auth.authenticated_users_only()
 async def rest_logout(request: web.Request, _) -> web.Response:
     session_id = await get_session_id(request)
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     await db.just_execute('DELETE FROM sessions WHERE session_id = %s;', session_id)
 
     return web.Response(status=200)
 
 
 async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
-    flow_client: Flow = request.app['flow_client']
-    client_session = request.app['client_session']
+    flow_client = request.app[AppKeys.FLOW_CLIENT]
+    client_session = request.app[AppKeys.CLIENT_SESSION]
 
     userdata = await get_userinfo_from_hail_session_id(request, auth_token)
     if userdata:
         return userdata
 
-    hailctl_oauth_client = request.app['hailctl_client_config']
+    hailctl_oauth_client = request.app[AppKeys.HAILCTL_CLIENT_CONFIG]
     uid = await flow_client.get_identity_uid_from_access_token(
         client_session, auth_token, oauth2_client=hailctl_oauth_client
     )
@@ -738,7 +738,7 @@ async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
 async def get_userinfo_from_login_id_or_hail_identity_id(
     request: web.Request, login_id_or_hail_idenity_uid: str
 ) -> UserData:
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
 
     users = [
         x
@@ -755,7 +755,7 @@ WHERE (users.login_id = %s OR users.hail_identity_uid = %s) AND users.state = 'a
     if len(users) != 1:
         log.info('Unknown login id')
         raise web.HTTPUnauthorized()
-    return users[0]
+    return typing.cast(UserData, users[0])
 
 
 async def get_userinfo_from_hail_session_id(request: web.Request, session_id: str) -> Optional[UserData]:
@@ -763,7 +763,7 @@ async def get_userinfo_from_hail_session_id(request: web.Request, session_id: st
     if len(session_id) != 44:
         return None
 
-    db = request.app['db']
+    db = request.app[AppKeys.DB]
     users = [
         x
         async for x in db.select_and_fetchall(
@@ -780,7 +780,7 @@ WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.m
 
     if len(users) != 1:
         return None
-    return users[0]
+    return typing.cast(UserData, users[0])
 
 
 @routes.get('/api/v1alpha/userinfo')
@@ -805,32 +805,41 @@ async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
     return web.Response(status=200)
 
 
+class AppKeys:
+    DB = web.AppKey('db', Database)
+    CLIENT_SESSION = web.AppKey('client_session', httpx.ClientSession)
+    FLOW_CLIENT = web.AppKey('flow_client', Flow)
+    HAILCTL_CLIENT_CONFIG = web.AppKey('hailctl_client_config', dict)
+    K8S_CLIENT = web.AppKey('k8s_client', kubernetes_asyncio.client.CoreV1Api)
+    K8S_CACHE = web.AppKey('k8s_cache', K8sCache)
+
+
 async def on_startup(app):
     db = Database()
     await db.async_init(maxsize=50)
-    app['db'] = db
-    app['client_session'] = httpx.client_session()
+    app[AppKeys.DB] = db
+    app[AppKeys.CLIENT_SESSION] = httpx.client_session()
 
     credentials_file = '/auth-oauth2-client-secret/client_secret.json'
     if CLOUD == 'gcp':
-        app['flow_client'] = GoogleFlow(credentials_file)
+        app[AppKeys.FLOW_CLIENT] = GoogleFlow(credentials_file)
     else:
         assert CLOUD == 'azure'
-        app['flow_client'] = AzureFlow(credentials_file)
+        app[AppKeys.FLOW_CLIENT] = AzureFlow(credentials_file)
 
     with open('/auth-oauth2-client-secret/hailctl_client_secret.json', 'r', encoding='utf-8') as f:
-        app['hailctl_client_config'] = json.loads(f.read())
+        app[AppKeys.HAILCTL_CLIENT_CONFIG] = json.loads(f.read())
 
     kubernetes_asyncio.config.load_incluster_config()
-    app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
-    app['k8s_cache'] = K8sCache(app['k8s_client'])
+    app[AppKeys.K8S_CLIENT] = kubernetes_asyncio.client.CoreV1Api()
+    app[AppKeys.K8S_CACHE] = K8sCache(app[AppKeys.K8S_CLIENT])
 
 
 async def on_cleanup(app):
     async with AsyncExitStack() as cleanup:
-        cleanup.push_async_callback(app['k8s_client'].api_client.rest_client.pool_manager.close)
-        cleanup.push_async_callback(app['db'].async_close)
-        cleanup.push_async_callback(app['client_session'].close)
+        cleanup.push_async_callback(app[AppKeys.K8S_CLIENT].api_client.rest_client.pool_manager.close)
+        cleanup.push_async_callback(app[AppKeys.DB].async_close)
+        cleanup.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
 
 
 class AuthAccessLogger(AccessLogger):

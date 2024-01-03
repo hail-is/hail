@@ -77,7 +77,10 @@ compileScala {
     ]
 
     if (scalaMajorVersion == "2.12") {
-        scalaCompileOptions.additionalParameters += "-Xlint:-unused"
+        scalaCompileOptions.additionalParameters +=
+            [ "-Xlint:-unused"
+            , "-Ypartial-unification"
+            ]
     }
 
     scalaCompileOptions.forkOptions.with {
@@ -112,6 +115,7 @@ configurations {
 }
 
 dependencies {
+    scalaCompilerPlugins 'com.olegpy:better-monadic-for_2.12:0.3.1'
     justSpark('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude group: 'org.scalanlp'
     }
@@ -147,8 +151,6 @@ dependencies {
         transitive = false
     }
 
-    implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
-
     def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
     if (elasticMajorVersion != "7" && elasticMajorVersion != "8") {
         throw new UnsupportedOperationException("elasticsearch.major-version must be 7 or 8")
@@ -170,7 +172,7 @@ dependencies {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.27.1') {
+    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.30.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -204,7 +206,7 @@ dependencies {
 
     implementation 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
-    implementation 'com.github.luben:zstd-jni:1.5.5-2'
+    implementation 'com.github.luben:zstd-jni:1.5.5-11'
 
     implementation project(path: ':shadedazure', configuration: 'shadow')
 }

@@ -164,11 +164,12 @@ object ArrayFunctions extends RegistryFunctions {
       def ref(i: IR) = ArrayRef(a, i, errorID)
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(a.name, ArraySort(StreamFilter(ToStream(array), v.name, !IsNA(v))),
+      Let(
+        FastSeq(a.name -> ArraySort(StreamFilter(ToStream(array), v.name, !IsNA(v)))),
         If(IsNA(a),
           NA(t),
-          Let(size.name,
-            ArrayLen(a),
+          Let(
+            FastSeq(size.name -> ArrayLen(a)),
             If(size.ceq(0),
               NA(t),
               If(invoke("mod", TInt32, size, 2).cne(0),
@@ -187,22 +188,23 @@ object ArrayFunctions extends RegistryFunctions {
       def updateAccum(min: IR, midx: IR): IR =
         MakeStruct(FastSeq("m" -> min, "midx" -> midx))
 
-      val body =
-        Let(value, ArrayRef(a, Ref(idx, TInt32), errorID),
-          Let(m, GetField(Ref(accum, tAccum), "m"),
-            If(IsNA(Ref(value, t)),
-              Ref(accum, tAccum),
-              If(IsNA(Ref(m, t)),
-                updateAccum(Ref(value, t), Ref(idx, TInt32)),
-                If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
-                  updateAccum(Ref(value, t), Ref(idx, TInt32)),
-                  Ref(accum, tAccum))))))
       GetField(StreamFold(
         StreamRange(I32(0), ArrayLen(a), I32(1)),
         NA(tAccum),
         accum,
         idx,
-        body
+        Let(
+          FastSeq(
+            value -> ArrayRef(a, Ref(idx, TInt32), errorID),
+            m -> GetField(Ref(accum, tAccum), "m"),
+          ),
+          If(IsNA(Ref(value, t)),
+            Ref(accum, tAccum),
+            If(IsNA(Ref(m, t)),
+              updateAccum(Ref(value, t), Ref(idx, TInt32)),
+              If(ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
+                updateAccum(Ref(value, t), Ref(idx, TInt32)),
+                Ref(accum, tAccum)))))
       ), "midx")
     }
 
@@ -222,9 +224,17 @@ object ArrayFunctions extends RegistryFunctions {
       def updateAccum(m: IR, midx: IR, count: IR): IR =
         MakeStruct(FastSeq("m" -> m, "midx" -> midx, "count" -> count))
 
-      val body =
-        Let(value, ArrayRef(a, Ref(idx, TInt32), errorID),
-          Let(m, GetField(Ref(accum, tAccum), "m"),
+      val fold =
+        StreamFold(
+          StreamRange(I32(0), ArrayLen(a), I32(1)),
+          NA(tAccum),
+          accum,
+          idx,
+          Let(
+            FastSeq(
+              value -> ArrayRef(a, Ref(idx, TInt32), errorID),
+              m -> GetField(Ref(accum, tAccum), "m")
+            ),
             If(IsNA(Ref(value, t)),
               Ref(accum, tAccum),
               If(IsNA(Ref(m, t)),
@@ -236,17 +246,13 @@ object ArrayFunctions extends RegistryFunctions {
                       Ref(value, t),
                       Ref(idx, TInt32),
                       ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
-                    Ref(accum, tAccum)))))))
+                    Ref(accum, tAccum))))))
+        )
 
-      Let(result, StreamFold(
-        StreamRange(I32(0), ArrayLen(a), I32(1)),
-        NA(tAccum),
-        accum,
-        idx,
-        body
-      ), If(ApplyComparisonOp(EQ(TInt32), GetField(Ref(result, tAccum), "count"), I32(1)),
-        GetField(Ref(result, tAccum), "midx"),
-        NA(TInt32)))
+      Let(FastSeq(result -> fold),
+        If(ApplyComparisonOp(EQ(TInt32), GetField(Ref(result, tAccum), "count"), I32(1)),
+          GetField(Ref(result, tAccum), "midx"),
+          NA(TInt32)))
     }
 
     registerIR1("uniqueMinIndex", TArray(tv("T")), TInt32)((_, a, errorID) => uniqueIndex(a, LT(_), errorID))

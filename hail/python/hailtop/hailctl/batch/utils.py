@@ -25,7 +25,7 @@ async def already_logged_into_service() -> bool:
 
 async def login_to_service():
     from hailtop.hailctl.auth.login import async_login  # pylint: disable=import-outside-toplevel
-    await async_login('default')
+    await async_login()
 
 
 async def check_for_gcloud() -> bool:

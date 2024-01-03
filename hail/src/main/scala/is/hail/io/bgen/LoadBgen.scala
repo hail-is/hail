@@ -479,7 +479,7 @@ class MatrixBGENReader(
     VirtualTypeWithReq(PType.canonical(requestedType.globalType, required = true))
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalType: TStruct): IR = {
-    requestedGlobalType.fieldOption(LowerMatrixIR.colsFieldName) match {
+    requestedGlobalType.selfField(LowerMatrixIR.colsFieldName) match {
       case Some(f) =>
         val ta = f.typ.asInstanceOf[TArray]
         MakeStruct(FastSeq((LowerMatrixIR.colsFieldName, {
@@ -677,7 +677,9 @@ case class BgenPartitionReaderWithVariantFilter(fileMetadata: Array[BgenFileMeta
               val bound = SStackStruct.constructFromArgs(cb, vs.elementRegion, TTuple(nextVariant.st.virtualType, TInt32),
                 EmitValue.present(if (nextVariant.st.size == 1)
                   nextVariant.insert(cb, elementRegion,
-                    nextVariant.st.virtualType.insert(TArray(TString), "alleles")._1.asInstanceOf[TStruct], ("alleles", EmitValue.missing(SJavaArrayString(true))))
+                    nextVariant.st.virtualType.asInstanceOf[TStruct].structInsert(TArray(TString), FastSeq("alleles")),
+                    ("alleles", EmitValue.missing(SJavaArrayString(true)))
+                  )
                 else
                   nextVariant),
                 EmitValue.present(primitive(const(nextVariant.st.size)))

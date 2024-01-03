@@ -369,18 +369,32 @@ class SparkBackend(
     }
   }
 
-
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
   override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
+    collection: Array[Array[Byte]],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
+    val sparkDeps = dependency.toIndexedSeq
+      .flatMap(dep => dep.deps.map(rvdDep => new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)))
+
+    new SparkBackendComputeRDD(sc, collection, f, sparkDeps).collect()
+  }
+
+  override def parallelizeAndComputeWithIndexReturnAllErrors(
+    backendContext: BackendContext,
+    fs: FS,
     contexts: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
-  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
-  : (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
-
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
     val sparkDeps =
       for {rvdDep <- dependency.toIndexedSeq; dep <- rvdDep.deps}
         yield new AnonymousDependency(dep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
@@ -409,6 +423,7 @@ class SparkBackend(
         override def compute(partition: Partition, context: TaskContext): Iterator[(Try[Array[Byte]], Int)] = {
           val sp = partition.asInstanceOf[TaggedRDDPartition]
           val fs = new HadoopFS(null)
+          // FIXME: this is broken: the partitionId of SparkTaskContext will be incorrect
           val result = Try(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
           Iterator.single((result, sp.tag))
         }
@@ -670,7 +685,7 @@ class SparkBackend(
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR = {
     ExecutionTimer.logTime("SparkBackend.parse_value_ir") { timer =>
       withExecuteContext(timer) { ctx =>
-        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*), irMap = persistedIR.toMap))
+        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap), BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*))
       }
     }
   }
@@ -749,5 +764,25 @@ class SparkBackend(
       case None =>
         LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
     }
+  }
+}
+
+case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition
+
+class SparkBackendComputeRDD(
+  sc: SparkContext,
+  @transient private val collection: Array[Array[Byte]],
+  f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
+  deps: Seq[Dependency[_]]
+) extends RDD[Array[Byte]](sc, deps) {
+
+  override def getPartitions: Array[Partition] = {
+    Array.tabulate(collection.length)(i => SparkBackendComputeRDDPartition(collection(i), i))
+  }
+
+  override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
+    val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
+    val fs = new HadoopFS(null)
+    Iterator.single(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
   }
 }

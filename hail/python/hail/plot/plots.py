@@ -1594,7 +1594,7 @@ def manhattan(pvals: 'Float64Expression',
     assert legend is not None
     legend.visible = False
     p.xaxis.ticker = contig_ticks
-    p.xaxis.major_label_overrides = dict(zip(contig_ticks, observed_contigs))
+    p.xaxis.major_label_overrides = dict(zip(contig_ticks, [contig.replace("chr", "") for contig in observed_contigs]))
 
     if significance_line is not None:
         p.renderers.append(Span(location=-math.log10(significance_line),

@@ -11,8 +11,7 @@ object DictFunctions extends RegistryFunctions {
 
     If(IsNA(dict),
       NA(TBoolean),
-      Let(i.name,
-        LowerBoundOnOrderedCollection(dict, key, onKey = true),
+      Let(FastSeq(i.name -> LowerBoundOnOrderedCollection(dict, key, onKey = true)),
         If(i.ceq(ArrayLen(CastToArray(dict))),
           False(),
           ApplyComparisonOp(
@@ -26,8 +25,7 @@ object DictFunctions extends RegistryFunctions {
 
     If(IsNA(dict),
       NA(default.typ),
-      Let(i.name,
-        LowerBoundOnOrderedCollection(dict, key, onKey=true),
+      Let(FastSeq(i.name -> LowerBoundOnOrderedCollection(dict, key, onKey=true)),
         If(i.ceq(ArrayLen(CastToArray(dict))),
           default,
           If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(CastToArray(dict), i), "key"), key),

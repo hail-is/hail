@@ -1128,7 +1128,6 @@ backend.close()
     j = b.create_job(
         HAIL_GENETICS_HAILTOP_IMAGE,
         ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
-        mount_tokens=True,
     )
     b.submit()
     status = j.wait()
@@ -1158,7 +1157,6 @@ backend.close()
 python3 -c \'{script}\'''',
         ],
         env={'HAIL_DOMAIN': DOMAIN, 'HAIL_DEFAULT_NAMESPACE': 'default', 'HAIL_LOCATION': 'external'},
-        mount_tokens=True,
     )
     b.submit()
     status = j.wait()
