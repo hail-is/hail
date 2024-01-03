@@ -429,10 +429,8 @@ class SparkBackend(
             Success(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
           } catch {
             case NonFatal(exc) =>
-              val nowhereStream = new PrintStream(new OutputStream() {
-                def write(b: Int): Unit = {}
-              })
-              exc.printStackTrace(nowhereStream) // Not sure why but this ensures the exception has a stack trace
+              exc.getStackTrace()
+              Failure(exc)
               Failure(exc)
           }
           Iterator.single((result, sp.tag))
