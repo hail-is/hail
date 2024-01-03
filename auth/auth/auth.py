@@ -332,7 +332,7 @@ async def callback(request) -> web.Response:
     cleanup_session(session)
 
     try:
-        flow_client = request.app[AppKeys.FLOW_CLIENT]
+        flow_client = request.app['flow_client']
         flow_result = flow_client.receive_callback(request, flow_dict)
         login_id = flow_result.login_id
     except asyncio.CancelledError:
