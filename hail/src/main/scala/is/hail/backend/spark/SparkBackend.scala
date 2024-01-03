@@ -33,12 +33,13 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats}
 
 import com.sun.net.httpserver.{HttpExchange}
-import java.io.{Closeable, PrintWriter, OutputStream}
+import java.io.{Closeable, PrintWriter, PrintStream, OutputStream}
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
+import scala.util.control.NonFatal
 
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
@@ -424,7 +425,16 @@ class SparkBackend(
           val sp = partition.asInstanceOf[TaggedRDDPartition]
           val fs = new HadoopFS(null)
           // FIXME: this is broken: the partitionId of SparkTaskContext will be incorrect
-          val result = Try(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
+          val result = try {
+            Success(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
+          } catch {
+            case NonFatal(exc) =>
+              val nowhereStream = new PrintStream(new OutputStream() {
+                def write(b: Int): Unit = {}
+              })
+              exc.printStackTrace(nowhereStream) // Not sure why but this ensures the exception has a stack trace
+              Failure(exc)
+          }
           Iterator.single((result, sp.tag))
         }
       }
