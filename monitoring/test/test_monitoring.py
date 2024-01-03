@@ -1,8 +1,6 @@
 import asyncio
 import logging
 
-import pytest
-
 from hailtop.auth import hail_credentials
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session

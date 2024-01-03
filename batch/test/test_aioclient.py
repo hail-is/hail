@@ -5,7 +5,6 @@ from hailtop.batch_client.aioclient import BatchClient
 from .utils import DOCKER_ROOT_IMAGE, create_batch
 
 
-
 @pytest.fixture
 async def client():
     bc = await BatchClient.create('test')

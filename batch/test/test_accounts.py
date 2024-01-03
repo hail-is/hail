@@ -17,7 +17,6 @@ from .billing_projects import get_billing_project_prefix
 from .utils import DOCKER_ROOT_IMAGE, create_batch
 
 
-
 @pytest.fixture
 async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]], Any]:
     _bcs = []
