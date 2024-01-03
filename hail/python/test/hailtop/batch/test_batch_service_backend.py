@@ -1103,7 +1103,7 @@ def test_local_file_paths_error(backend: ServiceBackend):
 
 
 @skip_in_azure
-def test_validate_cloud_storage_policy(monkeypatch):
+def test_validate_cloud_storage_policy(backend, monkeypatch):
     # buckets do not exist (bucket names can't contain the string "google" per
     # https://cloud.google.com/storage/docs/buckets)
     fake_bucket1 = "google"
