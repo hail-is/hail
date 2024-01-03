@@ -429,8 +429,8 @@ class SparkBackend(
             Success(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
           } catch {
             case NonFatal(exc) =>
-              exc.getStackTrace()
-              Failure(exc)
+              exc.getStackTrace()  // Calling getStackTrace appears to ensure the exception is
+                                   // serialized with its stack trace.
               Failure(exc)
           }
           Iterator.single((result, sp.tag))
