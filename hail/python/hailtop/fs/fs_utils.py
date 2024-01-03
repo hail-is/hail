@@ -97,12 +97,7 @@ def open(
     return _fses[requester_pays_config].open(path, mode, buffer_size)
 
 
-def copy(
-    src: str,
-    dest: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-):
+def copy(src: str, dest: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None):
     """Copy a file between filesystems. Filesystems can be local filesystem
     or the blob storage providers GCS, S3 and ABS.
 
@@ -135,11 +130,7 @@ def copy(
     _fses[requester_pays_config].copy(src, dest)
 
 
-def exists(
-    path: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-) -> bool:
+def exists(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> bool:
     """Returns ``True`` if `path` exists.
 
     Parameters
@@ -153,11 +144,7 @@ def exists(
     return _fses[requester_pays_config].exists(path)
 
 
-def is_file(
-    path: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-) -> bool:
+def is_file(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> bool:
     """Returns ``True`` if `path` both exists and is a file.
 
     Parameters
@@ -171,11 +158,7 @@ def is_file(
     return _fses[requester_pays_config].is_file(path)
 
 
-def is_dir(
-    path: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-) -> bool:
+def is_dir(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> bool:
     """Returns ``True`` if `path` both exists and is a directory.
 
     Parameters
@@ -189,11 +172,7 @@ def is_dir(
     return _fses[requester_pays_config].is_dir(path)
 
 
-def stat(
-    path: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-) -> FileListEntry:
+def stat(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> FileListEntry:
     """Returns information about the file or directory at a given path.
 
     Notes
@@ -220,11 +199,7 @@ def stat(
     return _fses[requester_pays_config].stat(path)
 
 
-def ls(
-    path: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-) -> List[FileListEntry]:
+def ls(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> List[FileListEntry]:
     """Returns information about files at `path`.
 
     Notes
@@ -255,11 +230,7 @@ def ls(
     return _fses[requester_pays_config].ls(path)
 
 
-def mkdir(
-    path: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-):
+def mkdir(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None):
     """Ensure files can be created whose dirname is `path`.
 
     Warning
@@ -272,11 +243,7 @@ def mkdir(
     _fses[requester_pays_config].mkdir(path)
 
 
-def remove(
-    path: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-):
+def remove(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None):
     """Removes the file at `path`. If the file does not exist, this function does
     nothing. `path` must be a URI (uniform resource identifier) or a path on the
     local filesystem.
@@ -288,11 +255,7 @@ def remove(
     _fses[requester_pays_config].remove(path)
 
 
-def rmtree(
-    path: str,
-    *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
-):
+def rmtree(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None):
     """Recursively remove all files under the given `path`. On a local filesystem,
     this removes the directory tree at `path`. On blob storage providers such as
     GCS, S3 and ABS, this removes all files whose name starts with `path`. As such,

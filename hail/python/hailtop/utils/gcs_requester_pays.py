@@ -18,5 +18,15 @@ class GCSRequesterPaysFSCache(DefaultDict[GCSRequesterPaysKey, FS]):
         return super().__getitem__((key[0], frozenset(key[1])) if isinstance(key, tuple) else key)
 
     def __missing__(self, key: GCSRequesterPaysKey) -> FS:
-        self[key] = value = self._fs_constructor(**(self._default_kwargs if key is None else {"gcs_kwargs": {"gcs_requester_pays_configuration": (key[0], list(key[1])) if isinstance(key, tuple) else key}}))
+        self[key] = value = self._fs_constructor(
+            **(
+                self._default_kwargs
+                if key is None
+                else {
+                    "gcs_kwargs": {
+                        "gcs_requester_pays_configuration": (key[0], list(key[1])) if isinstance(key, tuple) else key
+                    }
+                }
+            )
+        )
         return value

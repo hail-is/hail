@@ -541,7 +541,7 @@ class ServiceBackend(Backend[bc.Batch]):
         super().__init__(
             GCSRequesterPaysFSCache(
                 fs_constructor=RouterAsyncFS,
-                default_kwargs={"gcs_kwargs": gcs_kwargs, "gcs_bucket_allow_list": gcs_bucket_allow_list}
+                default_kwargs={"gcs_kwargs": gcs_kwargs, "gcs_bucket_allow_list": gcs_bucket_allow_list},
             )
         )
 
