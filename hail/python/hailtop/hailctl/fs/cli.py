@@ -41,8 +41,7 @@ async def async_du(fs: RouterAsyncFS, path: str, human_readable: bool, summarize
 
 
 @app.command()
-def du(ctx: typer.Context,
-       paths: Ann[Optional[List[str]], Arg()] = None,
+def du(paths: Ann[Optional[List[str]], Arg()] = None,
        human_readable: Ann[bool, Opt('-h', '--human-readable', help='print sizes in human readable format (base 10)')] = False,
        summarize: Ann[bool, Opt('-s', '--summarize', help='display only a total for each argument')] = False,
        ):
@@ -63,8 +62,7 @@ def du(ctx: typer.Context,
 
 
 @app.command()
-def ls(ctx: typer.Context,
-       paths: Ann[Optional[List[str]], Arg()] = None,
+def ls(paths: Ann[Optional[List[str]], Arg()] = None,
        long: Ann[bool, Opt('-l', '--long', help='use long listing format')] = False,
        human_readable: Ann[bool, Opt('-h', '--human-readable', help='print human readable file sizes (base 10)')] = False,
        ):
