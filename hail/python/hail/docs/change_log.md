@@ -59,6 +59,8 @@ Released 2023-12-08
 
 ### Bug Fixes
 
+- (hail#14110) Fix `hailctl hdinsight start`, which has been broken since 0.2.118.
+- (hail#14098)(hail#14090) Fix #14089, which makes `hailctl dataproc connect` work in Windows Subsystem for Linux.
 - (hail#14048) Fix #13979, affecting Query-on-Batch and manifesting most frequently as "com.github.luben.zstd.ZstdException: Corrupted block detected".
 - (hail#14066) Since 0.2.110, `hailctl dataproc` set the heap size of the driver JVM dangerously high. It is now set to an appropriate level. This issue manifests in a variety of inscrutable ways including RemoteDisconnectedError and socket closed. See issue (hail#13960) for details.
 - (hail#14057) Fix #13998 which appeared in 0.2.58 and prevented reading from a networked filesystem mounted within the filesystem of the worker node for certain pipelines (those that did not trigger "lowering").
