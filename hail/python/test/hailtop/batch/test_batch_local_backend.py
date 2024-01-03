@@ -26,7 +26,7 @@ async def backend() -> AsyncIterator[LocalBackend]:
 
 
 @pytest.fixture
-def batch(self, backend, requester_pays_project=None):
+def batch(backend, requester_pays_project=None):
     return Batch(
         backend=backend,
         requester_pays_project=requester_pays_project

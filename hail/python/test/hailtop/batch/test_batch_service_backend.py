@@ -341,7 +341,7 @@ def test_cloudfuse_implicit_dirs(backend: ServiceBackend, output_bucket_path):
 
     b = batch(backend)
     j = b.new_job()
-    j.command(f'cat /cloudfuse/{path}')
+    j.command(f'cat /cloudfuse{path}')
     j.cloudfuse(bucket, f'/cloudfuse', read_only=True)
 
     res = b.run()
