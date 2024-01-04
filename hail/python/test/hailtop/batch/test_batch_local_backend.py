@@ -92,7 +92,7 @@ def test_single_job(batch):
 
         b = batch
         j = b.new_job()
-        j.command(f'echo "{msg}" > {j.ofile}')
+        j.command(f'printf "{msg}" > {j.ofile}')
         b.write_output(j.ofile, output_file.name)
         b.run()
 
@@ -105,7 +105,7 @@ def test_single_job_with_shell(batch):
 
         b = batch
         j = b.new_job(shell='/bin/bash')
-        j.command(f'echo "{msg}" > {j.ofile}')
+        j.command(f'printf "{msg}" > {j.ofile}')
 
         b.write_output(j.ofile, output_file.name)
         b.run()
@@ -117,13 +117,13 @@ def test_single_job_with_nonsense_shell(batch):
     b = batch
     j = b.new_job(shell='/bin/ajdsfoijasidojf')
     j.image(DOCKER_ROOT_IMAGE)
-    j.command(f'echo "hello"')
+    j.command(f'printf "hello"')
     with pytest.raises(Exception):
         b.run()
 
     b = batch
     j = b.new_job(shell='/bin/nonexistent')
-    j.command(f'echo "hello"')
+    j.command(f'printf "hello"')
     with pytest.raises(Exception):
         b.run()
 
@@ -195,7 +195,7 @@ def test_declare_resource_group(batch):
         j = b.new_job()
         j.declare_resource_group(ofile={'log': "{root}.txt"})
         assert isinstance(j.ofile, ResourceGroup)
-        j.command(f'echo "{msg}" > {j.ofile.log}')
+        j.command(f'printf "{msg}" > {j.ofile.log}')
         b.write_output(j.ofile.log, output_file.name)
         b.run()
 
@@ -263,7 +263,7 @@ def test_multiple_isolated_jobs(batch):
         for i, ofile in enumerate(output_files):
             msg = f'hello world {i}'
             j = b.new_job()
-            j.command(f'echo "{msg}" > {j.ofile}')
+            j.command(f'printf "{msg}" > {j.ofile}')
             b.write_output(j.ofile, ofile.name)
         b.run()
 
@@ -289,7 +289,7 @@ def test_multiple_dependent_jobs(batch):
         b.write_output(j.ofile, output_file.name)
         b.run()
 
-        assert open(output_file.name).read() == "0\n1\n2"
+        assert open(output_file.name).read() == "0\n1\n2\n"
 
 
 def test_select_jobs(batch):
@@ -316,7 +316,7 @@ def test_scatter_gather(batch):
         b.write_output(merger.ofile, output_file.name)
         b.run()
 
-        assert open(output_file.name).read() == '2\n1\n0'
+        assert open(output_file.name).read() == '2\n1\n0\n'
 
 
 def test_add_extension_job_resource_file(batch):
@@ -371,7 +371,7 @@ def test_envvar(batch):
         b = batch
         j = b.new_job()
         j.env('SOME_VARIABLE', '123abcdef')
-        j.command(f'echo $SOME_VARIABLE > {j.ofile}')
+        j.command(f'printf $SOME_VARIABLE > {j.ofile}')
         b.write_output(j.ofile, output_file.name)
         b.run()
         assert open(output_file.name).read() == '123abcdef'
@@ -421,7 +421,7 @@ def test_python_job(batch):
 
         b.write_output(tail.ofile, output_file.name)
         b.run()
-        assert open(output_file.name).read() == '3\n5\n30\n{\"x\": 3, \"y\": 5}'
+        assert open(output_file.name).read() == '3\n5\n30\n{\"x\": 3, \"y\": 5}\n'
 
 
 def test_backend_context_manager():
@@ -435,7 +435,7 @@ def test_failed_jobs_dont_stop_non_dependent_jobs(batch):
         b = batch
 
         head = b.new_job()
-        head.command(f'echo 1 > {head.ofile}')
+        head.command(f'printf 1 > {head.ofile}')
 
         head2 = b.new_job()
         head2.command('false')
@@ -453,11 +453,11 @@ def test_failed_jobs_stop_child_jobs(batch):
         b = batch
 
         head = b.new_job()
-        head.command(f'echo 1 > {head.ofile}')
+        head.command(f'printf 1 > {head.ofile}')
         head.command('false')
 
         head2 = b.new_job()
-        head2.command(f'echo 2 > {head2.ofile}')
+        head2.command(f'printf 2 > {head2.ofile}')
 
         tail = b.new_job()
         tail.command(f'cat {head.ofile} > {tail.ofile}')
@@ -474,18 +474,18 @@ def test_failed_jobs_stop_grandchild_jobs(batch):
         b = batch
 
         head = b.new_job()
-        head.command(f'echo 1 > {head.ofile}')
+        head.command(f'printf 1 > {head.ofile}')
         head.command('false')
 
         head2 = b.new_job()
-        head2.command(f'echo 2 > {head2.ofile}')
+        head2.command(f'printf 2 > {head2.ofile}')
 
         tail = b.new_job()
         tail.command(f'cat {head.ofile} > {tail.ofile}')
 
         tail2 = b.new_job()
         tail2.depends_on(tail)
-        tail2.command(f'echo foo > {tail2.ofile}')
+        tail2.command(f'printf foo > {tail2.ofile}')
 
         b.write_output(head2.ofile, output_file.name)
         b.write_output(tail2.ofile, output_file.name)
@@ -499,7 +499,7 @@ def test_failed_jobs_dont_stop_always_run_jobs(batch):
         b = batch
 
         head = b.new_job()
-        head.command(f'echo 1 > {head.ofile}')
+        head.command(f'printf 1 > {head.ofile}')
         head.command('false')
 
         tail = b.new_job()
