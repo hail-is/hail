@@ -9,7 +9,7 @@ from .coord_cartesian import coord_cartesian
 from .ggplot import ggplot, GGPlot  # noqa F401
 from .aes import aes, Aesthetic  # noqa F401
 from .geoms import (
-    FigureAttribute,
+    FigureAttribute,  # noqa F401
     geom_line,
     geom_point,
     geom_text,
@@ -23,7 +23,7 @@ from .geoms import (
     geom_col,
     geom_area,
     geom_ribbon,
-)  # noqa F401
+)
 from .labels import ggtitle, xlab, ylab, labs
 from .scale import (
     scale_x_continuous,

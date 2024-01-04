@@ -7,15 +7,15 @@ from hailtop import pip_version
 async def submit(name, image_name, files, output, script, arguments):
     import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
     from hailtop.aiotools.copy import copy_from_dict  # pylint: disable=import-outside-toplevel
-    from hailtop.config import (
+    from hailtop.config import (  # pylint: disable=import-outside-toplevel
         get_remote_tmpdir,
         get_user_config_path,
         get_deploy_config,
-    )  # pylint: disable=import-outside-toplevel
-    from hailtop.utils import (
+    )
+    from hailtop.utils import (  # pylint: disable=import-outside-toplevel
         secret_alnum_string,
         unpack_comma_delimited_inputs,
-    )  # pylint: disable=import-outside-toplevel
+    )
 
     files = unpack_comma_delimited_inputs(files)
     user_config = get_user_config_path()

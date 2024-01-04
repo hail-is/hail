@@ -10,11 +10,11 @@ from hailtop.config import ConfigVariable
 async def setup_existing_remote_tmpdir(service_account: str, verbose: bool) -> Tuple[Optional[str], str, bool]:
     from hailtop.aiogoogle import GoogleStorageAsyncFS  # pylint: disable=import-outside-toplevel
 
-    from .utils import (
+    from .utils import (  # pylint: disable=import-outside-toplevel
         InsufficientPermissions,
         get_gcp_bucket_information,
         grant_service_account_bucket_access_with_role,
-    )  # pylint: disable=import-outside-toplevel
+    )
 
     warnings = False
 
@@ -75,14 +75,14 @@ async def setup_new_remote_tmpdir(
 ) -> Tuple[Optional[str], str, bool]:
     from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
 
-    from .utils import (
+    from .utils import (  # pylint: disable=import-outside-toplevel
         BucketAlreadyExistsError,
         InsufficientPermissions,
         create_gcp_bucket,
         get_gcp_default_project,
         grant_service_account_bucket_access_with_role,
         update_gcp_bucket,
-    )  # pylint: disable=import-outside-toplevel
+    )
 
     token = secret_alnum_string(5).lower()
     maybe_bucket_name = f'hail-batch-{username}-{token}'
@@ -227,10 +227,10 @@ async def async_basic_initialize(verbose: bool = False):
     from hailtop.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
     from hailtop.batch_client.aioclient import BatchClient  # pylint: disable=import-outside-toplevel
     from hailtop.config.deploy_config import get_deploy_config  # pylint: disable=import-outside-toplevel
-    from hailtop.hailctl.config.cli import (
+    from hailtop.hailctl.config.cli import (  # pylint: disable=import-outside-toplevel
         set as set_config,
         list as list_config,
-    )  # pylint: disable=import-outside-toplevel
+    )
 
     from .utils import already_logged_into_service, login_to_service  # pylint: disable=import-outside-toplevel
 

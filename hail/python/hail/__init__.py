@@ -33,12 +33,12 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 # E402 module level import not at top of file
 from .expr import *  # noqa: E402, F403
 from .expr import aggregators  # noqa: E402
-from hail.utils import (
+from hail.utils import (  # noqa: E402
     Struct,
     Interval,
     hadoop_copy,
     hadoop_open,
-    hadoop_ls,  # noqa: E402
+    hadoop_ls,
     hadoop_stat,
     hadoop_exists,
     hadoop_is_file,
@@ -65,13 +65,13 @@ from . import nd  # noqa: E402
 from . import utils  # noqa: E402
 from . import vds  # noqa: E402
 
-from .context import (
+from .context import (  # noqa: E402
     init,
     init_local,
     init_batch,
     stop,
     spark_context,
-    tmp_dir,  # noqa: E402
+    tmp_dir,
     default_reference,
     get_reference,
     set_global_seed,
