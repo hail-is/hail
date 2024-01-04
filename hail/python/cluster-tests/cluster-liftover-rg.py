@@ -1,4 +1,5 @@
 import hail as hl
+
 hl.init()
 
 mt = hl.balding_nichols_model(3, 10, 10)

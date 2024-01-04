@@ -40,10 +40,9 @@ class GoogleCredentials(CloudCredentials):
         'https://www.googleapis.com/auth/compute',
     ]
 
-    def __init__(self,
-                 http_session: Optional[httpx.ClientSession] = None,
-                 scopes: Optional[List[str]] = None,
-                 **kwargs):
+    def __init__(
+        self, http_session: Optional[httpx.ClientSession] = None, scopes: Optional[List[str]] = None, **kwargs
+    ):
         self._access_token: Optional[GoogleExpiringAccessToken] = None
         self._scopes = scopes or GoogleCredentials.default_scopes
         if http_session is not None:
@@ -71,17 +70,27 @@ class GoogleCredentials(CloudCredentials):
 
     @overload
     @staticmethod
-    def default_credentials(scopes: Optional[List[str]] = ..., *, anonymous_ok: Literal[False] = ...) -> 'GoogleCredentials': ...
+    def default_credentials(
+        scopes: Optional[List[str]] = ..., *, anonymous_ok: Literal[False] = ...
+    ) -> 'GoogleCredentials':
+        ...
 
     @overload
     @staticmethod
-    def default_credentials(scopes: Optional[List[str]] = ..., *, anonymous_ok: Literal[True] = ...) -> Union['GoogleCredentials', AnonymousCloudCredentials]: ...
+    def default_credentials(
+        scopes: Optional[List[str]] = ..., *, anonymous_ok: Literal[True] = ...
+    ) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
+        ...
 
     @staticmethod
-    def default_credentials(scopes: Optional[List[str]] = None, *, anonymous_ok: bool = True) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
+    def default_credentials(
+        scopes: Optional[List[str]] = None, *, anonymous_ok: bool = True
+    ) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
         credentials_file = first_extant_file(
             os.environ.get('GOOGLE_APPLICATION_CREDENTIALS'),
-            f'{os.environ["HOME"]}/.config/gcloud/application_default_credentials.json' if 'HOME' in os.environ else None,
+            f'{os.environ["HOME"]}/.config/gcloud/application_default_credentials.json'
+            if 'HOME' in os.environ
+            else None,
         )
 
         if credentials_file:
@@ -98,8 +107,10 @@ class GoogleCredentials(CloudCredentials):
             raise ValueError(
                 'No valid Google Cloud credentials found. Run `gcloud auth application-default login` or set `GOOGLE_APPLICATION_CREDENTIALS`.'
             )
-        log.warning('Using anonymous credentials. If accessing private data, '
-                    'run `gcloud auth application-default login` first to log in.')
+        log.warning(
+            'Using anonymous credentials. If accessing private data, '
+            'run `gcloud auth application-default login` first to log in.'
+        )
         return AnonymousCloudCredentials()
 
     async def auth_headers_with_expiration(self) -> Tuple[Dict[str, str], Optional[float]]:
@@ -133,15 +144,15 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
         token_dict = await retry_transient_errors(
             self._http_session.post_read_json,
             'https://www.googleapis.com/oauth2/v4/token',
-            headers={
-                'content-type': 'application/x-www-form-urlencoded'
-            },
-            data=urlencode({
-                'grant_type': 'refresh_token',
-                'client_id': self.credentials['client_id'],
-                'client_secret': self.credentials['client_secret'],
-                'refresh_token': self.credentials['refresh_token']
-            })
+            headers={'content-type': 'application/x-www-form-urlencoded'},
+            data=urlencode(
+                {
+                    'grant_type': 'refresh_token',
+                    'client_id': self.credentials['client_id'],
+                    'client_secret': self.credentials['client_secret'],
+                    'refresh_token': self.credentials['refresh_token'],
+                }
+            ),
         )
         return GoogleExpiringAccessToken.from_dict(token_dict)
 
@@ -165,19 +176,16 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
             "iat": now,
             "scope": scope,
             "exp": now + 300,  # 5m
-            "iss": self.key['client_email']
+            "iss": self.key['client_email'],
         }
         encoded_assertion = jwt.encode(assertion, self.key['private_key'], algorithm='RS256')
         token_dict = await retry_transient_errors(
             self._http_session.post_read_json,
             'https://www.googleapis.com/oauth2/v4/token',
-            headers={
-                'content-type': 'application/x-www-form-urlencoded'
-            },
-            data=urlencode({
-                'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                'assertion': encoded_assertion
-            })
+            headers={'content-type': 'application/x-www-form-urlencoded'},
+            data=urlencode(
+                {'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion': encoded_assertion}
+            ),
         )
         return GoogleExpiringAccessToken.from_dict(token_dict)
 
@@ -188,7 +196,7 @@ class GoogleInstanceMetadataCredentials(GoogleCredentials):
         token_dict = await retry_transient_errors(
             self._http_session.get_read_json,
             'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
-            headers={'Metadata-Flavor': 'Google'}
+            headers={'Metadata-Flavor': 'Google'},
         )
         return GoogleExpiringAccessToken.from_dict(token_dict)
 

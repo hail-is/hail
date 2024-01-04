@@ -60,9 +60,11 @@ class ReadableStream(abc.ABC):
         return self
 
     async def __aexit__(
-            self, exc_type: Optional[Type[BaseException]] = None,
-            exc_value: Optional[BaseException] = None,
-            exc_traceback: Optional[TracebackType] = None) -> None:
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        exc_traceback: Optional[TracebackType] = None,
+    ) -> None:
         await self.wait_closed()
 
 
@@ -113,9 +115,11 @@ class WritableStream(abc.ABC):
         return self
 
     async def __aexit__(
-            self, exc_type: Optional[Type[BaseException]] = None,
-            exc_value: Optional[BaseException] = None,
-            exc_traceback: Optional[TracebackType] = None) -> None:
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        exc_traceback: Optional[TracebackType] = None,
+    ) -> None:
         await self.wait_closed()
 
 
@@ -238,7 +242,7 @@ class BlockingQueueReadableStream(io.RawIOBase, _Closable):
                 self._unread = memoryview(self._unread)
 
             n = min(len(self._unread) - self._off, len(b) - total)
-            b[total:total + n] = self._unread[self._off:self._off + n]
+            b[total : total + n] = self._unread[self._off : self._off + n]
             self._off += n
             total += n
             assert total == len(b) or self._off == len(self._unread)
@@ -320,7 +324,7 @@ class BlockingCollect(_Closable):
                 n = new_n
             assert k <= n - off
 
-            buf[off:off + k] = b
+            buf[off : off + k] = b
             off += k
 
 

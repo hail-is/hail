@@ -1,4 +1,3 @@
-
 from numpy import linspace
 from typing import Optional
 
@@ -9,10 +8,7 @@ from ..typecheck import typecheck, nullable
 
 
 @typecheck(n=int, n_partitions=nullable(int), reference_genome=nullable(reference_genome_type))
-def genomic_range_table(n: int,
-                        n_partitions: Optional[int] = None,
-                        reference_genome='default'
-                        ) -> 'hl.Table':
+def genomic_range_table(n: int, n_partitions: Optional[int] = None, reference_genome='default') -> 'hl.Table':
     """Construct a table with a locus and no other fields.
 
     Examples
@@ -56,16 +52,15 @@ def genomic_range_table(n: int,
     return hl.Table._generate(
         contexts=idx_bounds,
         partitions=[
-            hl.Interval(**{
-                endpoint: hl.Struct(
-                    locus=reference_genome.locus_from_global_position(idx)
-                ) for endpoint, idx in [('start', lo), ('end', hi)]
-            })
+            hl.Interval(
+                **{
+                    endpoint: hl.Struct(locus=reference_genome.locus_from_global_position(idx))
+                    for endpoint, idx in [('start', lo), ('end', hi)]
+                }
+            )
             for (lo, hi) in idx_bounds
         ],
         rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(
-            lambda idx: hl.struct(
-                locus=hl.locus_from_global_position(idx, reference_genome)
-            )
-        )
+            lambda idx: hl.struct(locus=hl.locus_from_global_position(idx, reference_genome))
+        ),
     )

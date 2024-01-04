@@ -37,11 +37,14 @@ class Tokens(collections.abc.MutableMapping):
     @staticmethod
     def get_tokens_file() -> str:
         default_enduser_token_file = os.path.expanduser('~/.hail/tokens.json')
-        return first_extant_file(
-            os.environ.get('HAIL_TOKENS_FILE'),
-            default_enduser_token_file,
-            '/user-tokens/tokens.json',
-        ) or default_enduser_token_file
+        return (
+            first_extant_file(
+                os.environ.get('HAIL_TOKENS_FILE'),
+                default_enduser_token_file,
+                '/user-tokens/tokens.json',
+            )
+            or default_enduser_token_file
+        )
 
     @staticmethod
     def default_tokens() -> 'Tokens':
@@ -100,13 +103,7 @@ class Tokens(collections.abc.MutableMapping):
     def write(self) -> None:
         # restrict permissions to user
         with os.fdopen(
-                os.open(
-                    self.get_tokens_file(),
-                    os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
-                    0o600
-                ),
-                'w',
-                encoding='utf-8'
+            os.open(self.get_tokens_file(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'w', encoding='utf-8'
         ) as f:
             json.dump(self._tokens, f)
 

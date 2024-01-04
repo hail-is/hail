@@ -2,18 +2,22 @@ from typing import List, Optional
 
 from hail import MatrixTable
 from hail.linalg import BlockMatrix
-from hail.ir import MatrixMultiWrite, MatrixNativeMultiWriter, BlockMatrixMultiWrite, BlockMatrixBinaryMultiWriter, BlockMatrixTextMultiWriter, BlockMatrixNativeMultiWriter
+from hail.ir import (
+    MatrixMultiWrite,
+    MatrixNativeMultiWriter,
+    BlockMatrixMultiWrite,
+    BlockMatrixBinaryMultiWriter,
+    BlockMatrixTextMultiWriter,
+    BlockMatrixNativeMultiWriter,
+)
 from hail.typecheck import nullable, sequenceof, typecheck, enumeration
 from hail.utils.java import Env
 
 
-@typecheck(mts=sequenceof(MatrixTable),
-           prefix=str,
-           overwrite=bool,
-           stage_locally=bool,
-           codec_spec=nullable(str))
-def write_matrix_tables(mts: List[MatrixTable], prefix: str, overwrite: bool = False,
-                        stage_locally: bool = False, codec_spec=None):
+@typecheck(mts=sequenceof(MatrixTable), prefix=str, overwrite=bool, stage_locally=bool, codec_spec=nullable(str))
+def write_matrix_tables(
+    mts: List[MatrixTable], prefix: str, overwrite: bool = False, stage_locally: bool = False, codec_spec=None
+):
     length = len(str(len(mts) - 1))
     paths = [f"{prefix}{str(i).rjust(length, '0')}.mt" for i in range(len(mts))]
     writer = MatrixNativeMultiWriter(paths, overwrite, stage_locally, codec_spec)
@@ -22,36 +26,50 @@ def write_matrix_tables(mts: List[MatrixTable], prefix: str, overwrite: bool = F
     return paths
 
 
-@typecheck(bms=sequenceof(BlockMatrix),
-           prefix=str,
-           overwrite=bool)
+@typecheck(bms=sequenceof(BlockMatrix), prefix=str, overwrite=bool)
 def block_matrices_tofiles(bms: List[BlockMatrix], prefix: str, overwrite: bool = False):
     writer = BlockMatrixBinaryMultiWriter(prefix, overwrite)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
 
 
-@typecheck(bms=sequenceof(BlockMatrix),
-           prefix=str,
-           overwrite=bool,
-           delimiter=str,
-           header=nullable(str),
-           add_index=bool,
-           compression=nullable(enumeration('gz', 'bgz')),
-           custom_filenames=nullable(sequenceof(str)))
-def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool = False,
-                          delimiter: str = '\t', header: Optional[str] = None, add_index: bool = False,
-                          compression: Optional[str] = None, custom_filenames=None):
+@typecheck(
+    bms=sequenceof(BlockMatrix),
+    prefix=str,
+    overwrite=bool,
+    delimiter=str,
+    header=nullable(str),
+    add_index=bool,
+    compression=nullable(enumeration('gz', 'bgz')),
+    custom_filenames=nullable(sequenceof(str)),
+)
+def export_block_matrices(
+    bms: List[BlockMatrix],
+    prefix: str,
+    overwrite: bool = False,
+    delimiter: str = '\t',
+    header: Optional[str] = None,
+    add_index: bool = False,
+    compression: Optional[str] = None,
+    custom_filenames=None,
+):
 
     if custom_filenames:
-        assert len(custom_filenames) == len(bms), "Number of block matrices and number of custom filenames must be equal"
+        assert len(custom_filenames) == len(
+            bms
+        ), "Number of block matrices and number of custom filenames must be equal"
 
     writer = BlockMatrixTextMultiWriter(prefix, overwrite, delimiter, header, add_index, compression, custom_filenames)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
 
 
 @typecheck(bms=sequenceof(BlockMatrix), path_prefix=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
-def write_block_matrices(bms: List[BlockMatrix], path_prefix: str, overwrite: bool = False,
-                         force_row_major: bool = False, stage_locally: bool = False):
+def write_block_matrices(
+    bms: List[BlockMatrix],
+    path_prefix: str,
+    overwrite: bool = False,
+    force_row_major: bool = False,
+    stage_locally: bool = False,
+):
     """Writes a sequence of block matrices to disk in the same format as BlockMatrix.write.
 
     :param bms: :obj:`list` of :class:`BlockMatrix`

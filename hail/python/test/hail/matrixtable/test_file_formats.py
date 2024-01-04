@@ -28,8 +28,9 @@ def create_backward_compatibility_files():
     i = 0
     for codec in supported_codecs:
         all_values_table.write(os.path.join(table_dir, f'{i}.ht'), overwrite=True, _codec_spec=codec.toString())
-        all_values_matrix_table.write(os.path.join(matrix_table_dir, f'{i}.hmt'), overwrite=True,
-                                      _codec_spec=codec.toString())
+        all_values_matrix_table.write(
+            os.path.join(matrix_table_dir, f'{i}.hmt'), overwrite=True, _codec_spec=codec.toString()
+        )
         i += 1
 
 
@@ -51,25 +52,26 @@ def all_values_table_fixture(init_hail):
 async def collect_paths() -> Tuple[List[str], List[str]]:
     resource_dir = resource('backward_compatability/')
     from hailtop.aiotools.router_fs import RouterAsyncFS
+
     fs = RouterAsyncFS()
 
     async def contents_if_present(url: str):
         try:
             return await fs.listfiles(url)
         except FileNotFoundError:
+
             async def empty():
                 if False:
                     yield
+
             return empty()
 
     try:
         versions = [await x.url() async for x in await fs.listfiles(resource_dir)]
-        ht_paths = [await x.url()
-                    for version in versions
-                    async for x in await contents_if_present(version + 'table/')]
-        mt_paths = [await x.url()
-                    for version in versions
-                    async for x in await contents_if_present(version + 'matrix_table/')]
+        ht_paths = [await x.url() for version in versions async for x in await contents_if_present(version + 'table/')]
+        mt_paths = [
+            await x.url() for version in versions async for x in await contents_if_present(version + 'matrix_table/')
+        ]
         return ht_paths, mt_paths
     finally:
         await fs.close()

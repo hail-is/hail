@@ -16,10 +16,12 @@ def patch_doctest_check_output(monkeypatch):
     base_check_output = doctest.OutputChecker.check_output
 
     def patched_check_output(self, want, got, optionflags):
-        return ((not want)
-                or (want.strip() == 'None')
-                or (SKIP_OUTPUT_CHECK & optionflags)
-                or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
+        return (
+            (not want)
+            or (want.strip() == 'None')
+            or (SKIP_OUTPUT_CHECK & optionflags)
+            or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE)
+        )
 
     monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)
     yield
@@ -32,8 +34,7 @@ def init(doctest_namespace):
     print("setting up doctest...")
 
     olddir = os.getcwd()
-    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                          "docs"))
+    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)), "docs"))
 
     hl.init(global_seed=0, master=f'local[{HAIL_QUERY_N_CORES}]')
     hl.reset_global_randomness()
@@ -170,8 +171,7 @@ def generate_datasets(doctest_namespace):
     doctest_namespace['gnomad_data'] = gnomad_data.select(gnomad_data.info.AF)
 
     # BGEN
-    bgen = hl.import_bgen('data/example.8bits.bgen',
-                          entry_fields=['GT', 'GP', 'dosage'])
+    bgen = hl.import_bgen('data/example.8bits.bgen', entry_fields=['GT', 'GP', 'dosage'])
     doctest_namespace['variants_table'] = bgen.rows()
 
     # burden_ds = hl.import_vcf('data/example_burden.vcf')
@@ -213,6 +213,8 @@ def generate_datasets(doctest_namespace):
     # mt = mt.transmute_entries(chi_squared=hl.float64(mt.x[0]), n=hl.int32(mt.x[1]))
     # mt = mt.annotate_rows(ld_score=hl.float64(mt.ld_score))
     # mt.write('data/ld_score_regression.all_phenos.sumstats.mt')
-    doctest_namespace['ld_score_all_phenos_sumstats'] = hl.read_matrix_table('data/ld_score_regression.all_phenos.sumstats.mt')
+    doctest_namespace['ld_score_all_phenos_sumstats'] = hl.read_matrix_table(
+        'data/ld_score_regression.all_phenos.sumstats.mt'
+    )
 
     print("finished setting up doctest...")

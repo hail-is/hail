@@ -33,7 +33,8 @@ type_grammar = Grammar(
     nat_literal = ~"[0-9]+"
     nat_variable = "?nat"
     _ = ~r"\s*"
-    """)
+    """
+)
 
 
 class TypeConstructor(NodeVisitor):
@@ -173,7 +174,8 @@ vcf_type_grammar = Grammar(
     simple_identifier = ~r"\w+"
     escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
     _ = ~r"\s*"
-    """)
+    """
+)
 
 
 class VCFTypeConstructor(NodeVisitor):

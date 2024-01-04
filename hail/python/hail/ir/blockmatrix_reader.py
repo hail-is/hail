@@ -21,13 +21,11 @@ class BlockMatrixNativeReader(BlockMatrixReader):
         self.path = path
 
     def render(self):
-        reader = {'name': 'BlockMatrixNativeReader',
-                  'path': self.path}
+        reader = {'name': 'BlockMatrixNativeReader', 'path': self.path}
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixNativeReader) and \
-            self.path == other.path
+        return isinstance(other, BlockMatrixNativeReader) and self.path == other.path
 
 
 class BlockMatrixBinaryReader(BlockMatrixReader):
@@ -38,17 +36,21 @@ class BlockMatrixBinaryReader(BlockMatrixReader):
         self.block_size = block_size
 
     def render(self):
-        reader = {'name': 'BlockMatrixBinaryReader',
-                  'path': self.path,
-                  'shape': self.shape,
-                  'blockSize': self.block_size}
+        reader = {
+            'name': 'BlockMatrixBinaryReader',
+            'path': self.path,
+            'shape': self.shape,
+            'blockSize': self.block_size,
+        }
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixBinaryReader) and \
-            self.path == other.path and \
-            self.shape == other.shape and \
-            self.block_size == other.block_size
+        return (
+            isinstance(other, BlockMatrixBinaryReader)
+            and self.path == other.path
+            and self.shape == other.shape
+            and self.block_size == other.block_size
+        )
 
 
 class BlockMatrixPersistReader(BlockMatrixReader):
@@ -57,13 +59,11 @@ class BlockMatrixPersistReader(BlockMatrixReader):
         self.original = original
 
     def render(self):
-        reader = {'name': 'BlockMatrixPersistReader',
-                  'id': self.id}
+        reader = {'name': 'BlockMatrixPersistReader', 'id': self.id}
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixPersistReader) and \
-            self.id == other.id
+        return isinstance(other, BlockMatrixPersistReader) and self.id == other.id
 
     def unpersisted(self):
         return self.original

@@ -3,8 +3,9 @@ import pkg_resources
 import sys
 
 if sys.version_info < (3, 9):
-    raise EnvironmentError('Hail requires Python 3.9 or later, found {}.{}'.format(
-        sys.version_info.major, sys.version_info.minor))
+    raise EnvironmentError(
+        'Hail requires Python 3.9 or later, found {}.{}'.format(sys.version_info.major, sys.version_info.minor)
+    )
 
 
 __pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
@@ -32,9 +33,20 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 # E402 module level import not at top of file
 from .expr import *  # noqa: E402, F403
 from .expr import aggregators  # noqa: E402
-from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
-                        hadoop_stat, hadoop_exists, hadoop_is_file,
-                        hadoop_is_dir, hadoop_scheme_supported, copy_log, ANY_REGION)
+from hail.utils import (
+    Struct,
+    Interval,
+    hadoop_copy,
+    hadoop_open,
+    hadoop_ls,  # noqa: E402
+    hadoop_stat,
+    hadoop_exists,
+    hadoop_is_file,
+    hadoop_is_dir,
+    hadoop_scheme_supported,
+    copy_log,
+    ANY_REGION,
+)
 from .table import Table, GroupedTable, asc, desc  # noqa: E402
 from .matrixtable import MatrixTable, GroupedMatrixTable  # noqa: E402
 from .genetics import *  # noqa: F403, E402
@@ -53,11 +65,30 @@ from . import nd  # noqa: E402
 from . import utils  # noqa: E402
 from . import vds  # noqa: E402
 
-from .context import (init, init_local, init_batch, stop, spark_context, tmp_dir,  # noqa: E402
-                      default_reference, get_reference, set_global_seed, reset_global_randomness,
-                      _set_flags, _get_flags, _with_flags, _async_current_backend,
-                      current_backend, debug_info, citation, cite_hail, cite_hail_bibtex,
-                      version, TemporaryFilename, TemporaryDirectory)
+from .context import (
+    init,
+    init_local,
+    init_batch,
+    stop,
+    spark_context,
+    tmp_dir,  # noqa: E402
+    default_reference,
+    get_reference,
+    set_global_seed,
+    reset_global_randomness,
+    _set_flags,
+    _get_flags,
+    _with_flags,
+    _async_current_backend,
+    current_backend,
+    debug_info,
+    citation,
+    cite_hail,
+    cite_hail_bibtex,
+    version,
+    TemporaryFilename,
+    TemporaryDirectory,
+)
 
 agg = aggregators
 scan = aggregators.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
