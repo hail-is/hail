@@ -153,10 +153,7 @@ class HailTypeContext(object):
 
     def _to_json_context(self):
         if self._json is None:
-            self._json = {
-                'reference_genomes':
-                    {r: hl.get_reference(r)._config for r in self.references}
-            }
+            self._json = {'reference_genomes': {r: hl.get_reference(r)._config for r in self.references}}
         return self._json
 
     @classmethod
@@ -237,9 +234,11 @@ class HailType(object):
         ------
         :obj:`TypeError`
         """
+
         def check(t, obj):
             t._typecheck_one_level(obj)
             return True
+
         self._traverse(value, check)
 
     @abc.abstractmethod
@@ -375,8 +374,10 @@ class _tint32(HailType):
             if not is_int32(annotation):
                 raise TypeError("type 'tint32' expected Python 'int', but found type '%s'" % type(annotation))
             elif not self.min_value <= annotation <= self.max_value:
-                raise TypeError(f"Value out of range for 32-bit integer: "
-                                f"expected [{self.min_value}, {self.max_value}], found {annotation}")
+                raise TypeError(
+                    f"Value out of range for 32-bit integer: "
+                    f"expected [{self.min_value}, {self.max_value}], found {annotation}"
+                )
 
     def __str__(self):
         return "int32"
@@ -433,8 +434,10 @@ class _tint64(HailType):
             if not is_int64(annotation):
                 raise TypeError("type 'int64' expected Python 'int', but found type '%s'" % type(annotation))
             if not self.min_value <= annotation <= self.max_value:
-                raise TypeError(f"Value out of range for 64-bit integer: "
-                                f"expected [{self.min_value}, {self.max_value}], found {annotation}")
+                raise TypeError(
+                    f"Value out of range for 64-bit integer: "
+                    f"expected [{self.min_value}, {self.max_value}], found {annotation}"
+                )
 
     def __str__(self):
         return "int64"
@@ -667,8 +670,8 @@ class _tbool(HailType):
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
         byte_writer.write_bool(value)
 
-class _trngstate(HailType):
 
+class _trngstate(HailType):
     def __init__(self):
         super(_trngstate, self).__init__()
 
@@ -758,9 +761,7 @@ class tndarray(HailType):
         return "ndarray<{}, {}>".format(self.element_type, self.ndim)
 
     def _eq(self, other):
-        return (isinstance(other, tndarray)
-                and self.element_type == other.element_type
-                and self.ndim == other.ndim)
+        return isinstance(other, tndarray) and self.element_type == other.element_type and self.ndim == other.ndim
 
     def _pretty(self, b, indent, increment):
         b.append('ndarray<')
@@ -786,12 +787,9 @@ class tndarray(HailType):
         axis_one_step_byte_size = x.itemsize
         for dimension_size in x.shape:
             strides.append(axis_one_step_byte_size)
-            axis_one_step_byte_size *= (dimension_size if dimension_size > 0 else 1)
+            axis_one_step_byte_size *= dimension_size if dimension_size > 0 else 1
 
-        json_dict = {
-            "shape": x.shape,
-            "data": data
-        }
+        json_dict = {"shape": x.shape, "data": data}
         return json_dict
 
     def clear(self):
@@ -799,9 +797,7 @@ class tndarray(HailType):
         self._ndim.clear()
 
     def unify(self, t):
-        return isinstance(t, tndarray) and \
-            self._element_type.unify(t._element_type) and \
-            self._ndim.unify(t._ndim)
+        return isinstance(t, tndarray) and self._element_type.unify(t._element_type) and self._ndim.unify(t._ndim)
 
     def subst(self):
         return tndarray(self._element_type.subst(), self._ndim.subst())
@@ -819,7 +815,9 @@ class tndarray(HailType):
             buffer = byte_reader.read_bytes_view(bytes_to_read)
             return np.frombuffer(buffer, self.element_type.to_numpy, count=total_num_elements).reshape(shape)
         else:
-            elements = [self.element_type._convert_from_encoding(byte_reader, _should_freeze) for i in range(total_num_elements)]
+            elements = [
+                self.element_type._convert_from_encoding(byte_reader, _should_freeze) for i in range(total_num_elements)
+            ]
             np_type = self.element_type.to_numpy()
             return np.ndarray(shape=shape, buffer=np.array(elements, dtype=np_type), dtype=np_type, order="F")
 
@@ -943,7 +941,6 @@ class tarray(HailType):
         if _should_freeze:
             return frozenlist(decoded)
         return decoded
-
 
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
         length = len(value)
@@ -1216,15 +1213,21 @@ class tdict(HailType):
         return "Dict[{},{}]".format(self.key_type._parsable_string(), self.value_type._parsable_string())
 
     def _convert_from_json(self, x, _should_freeze: bool = False) -> Union[dict, frozendict]:
-        d = {self.key_type._convert_from_json_na(elt['key'], _should_freeze=True):
-             self.value_type._convert_from_json_na(elt['value'], _should_freeze=_should_freeze) for elt in x}
+        d = {
+            self.key_type._convert_from_json_na(elt['key'], _should_freeze=True): self.value_type._convert_from_json_na(
+                elt['value'], _should_freeze=_should_freeze
+            )
+            for elt in x
+        }
         if _should_freeze:
             return frozendict(d)
         return d
 
     def _convert_to_json(self, x):
-        return [{'key': self.key_type._convert_to_json(k),
-                 'value': self.value_type._convert_to_json(v)} for k, v in x.items()]
+        return [
+            {'key': self.key_type._convert_to_json(k), 'value': self.value_type._convert_to_json(v)}
+            for k, v in x.items()
+        ]
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Union[dict, frozendict]:
         # NB: We ensure the key is always frozen with a wrapper on the key_type in the _array_repr.
@@ -1249,9 +1252,7 @@ class tdict(HailType):
         self._value_type._add_jtype(jtype.valueType())
 
     def unify(self, t):
-        return (isinstance(t, tdict)
-                and self.key_type.unify(t.key_type)
-                and self.value_type.unify(t.value_type))
+        return isinstance(t, tdict) and self.key_type.unify(t.key_type) and self.value_type.unify(t.value_type)
 
     def subst(self):
         return tdict(self._key_type.subst(), self._value_type.subst())
@@ -1344,11 +1345,15 @@ class tstruct(HailType, Mapping):
                 s = set(self)
                 for f in annotation:
                     if f not in s:
-                        raise TypeError("type '%s' expected fields '%s', but found fields '%s'" %
-                                        (self, list(self), list(annotation)))
+                        raise TypeError(
+                            "type '%s' expected fields '%s', but found fields '%s'"
+                            % (self, list(self), list(annotation))
+                        )
             else:
-                raise TypeError("type 'struct' expected type Mapping (e.g. dict or hail.utils.Struct), but found '%s'" %
-                                type(annotation))
+                raise TypeError(
+                    "type 'struct' expected type Mapping (e.g. dict or hail.utils.Struct), but found '%s'"
+                    % type(annotation)
+                )
 
     @typecheck_method(item=oneof(int, str))
     def __getitem__(self, item):
@@ -1363,16 +1368,17 @@ class tstruct(HailType, Mapping):
         return len(self._fields)
 
     def __str__(self):
-        return "struct{{{}}}".format(
-            ', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
+        return "struct{{{}}}".format(', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
 
     def items(self):
         return self._field_types.items()
 
     def _eq(self, other):
-        return (isinstance(other, tstruct)
-                and self._fields == other._fields
-                and all(self[f] == other[f] for f in self._fields))
+        return (
+            isinstance(other, tstruct)
+            and self._fields == other._fields
+            and all(self[f] == other[f] for f in self._fields)
+        )
 
     def _pretty(self, b, indent, increment):
         if not self._fields:
@@ -1395,7 +1401,8 @@ class tstruct(HailType, Mapping):
 
     def _parsable_string(self):
         return "Struct{{{}}}".format(
-            ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
+            ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items())
+        )
 
     def _convert_from_json(self, x, _should_freeze: bool = False) -> Struct:
         return Struct(**{f: t._convert_from_json_na(x.get(f), _should_freeze) for f, t in self._field_types.items()})
@@ -1440,9 +1447,11 @@ class tstruct(HailType, Mapping):
                 t._convert_to_encoding(byte_writer, value[f])
 
     def _is_prefix_of(self, other):
-        return (isinstance(other, tstruct)
-                and len(self._fields) <= len(other._fields)
-                and all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
+        return (
+            isinstance(other, tstruct)
+            and len(self._fields) <= len(other._fields)
+            and all(x == y for x, y in zip(self._field_types.values(), other._field_types.values()))
+        )
 
     def _concat(self, other):
         new_field_types = {}
@@ -1490,7 +1499,9 @@ class tstruct(HailType, Mapping):
             if f in seen:
                 raise ValueError(
                     "Cannot rename two fields to the same name: attempted to rename {} and {} both to {}".format(
-                        repr(seen[f]), repr(f0), repr(f)))
+                        repr(seen[f]), repr(f0), repr(f)
+                    )
+                )
             else:
                 seen[f] = f0
                 new_field_types[f] = t
@@ -1558,13 +1569,12 @@ class tunion(HailType, Mapping):
         return len(self._cases)
 
     def __str__(self):
-        return "union{{{}}}".format(
-            ', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
+        return "union{{{}}}".format(', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
 
     def _eq(self, other):
-        return (isinstance(other, tunion)
-                and self._cases == other._cases
-                and all(self[c] == other[c] for c in self._cases))
+        return (
+            isinstance(other, tunion) and self._cases == other._cases and all(self[c] == other[c] for c in self._cases)
+        )
 
     def _pretty(self, b, indent, increment):
         if not self._cases:
@@ -1587,7 +1597,8 @@ class tunion(HailType, Mapping):
 
     def _parsable_string(self):
         return "Union{{{}}}".format(
-            ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
+            ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items())
+        )
 
     def unify(self, t):
         if not (isinstance(t, tunion) and len(self) == len(t)):
@@ -1646,11 +1657,9 @@ class ttuple(HailType, Sequence):
     def _typecheck_one_level(self, annotation):
         if annotation:
             if not isinstance(annotation, tuple):
-                raise TypeError("type 'tuple' expected Python tuple, but found '%s'" %
-                                type(annotation))
+                raise TypeError("type 'tuple' expected Python tuple, but found '%s'" % type(annotation))
             if len(annotation) != len(self.types):
-                raise TypeError("%s expected tuple of size '%i', but found '%s'" %
-                                (self, len(self.types), annotation))
+                raise TypeError("%s expected tuple of size '%i', but found '%s'" % (self, len(self.types), annotation))
 
     @typecheck_method(item=int)
     def __getitem__(self, item):
@@ -1668,8 +1677,10 @@ class ttuple(HailType, Sequence):
 
     def _eq(self, other):
         from operator import eq
-        return isinstance(other, ttuple) and len(self.types) == len(other.types) and all(
-            map(eq, self.types, other.types))
+
+        return (
+            isinstance(other, ttuple) and len(self.types) == len(other.types) and all(map(eq, self.types, other.types))
+        )
 
     def _pretty(self, b, indent, increment):
         pre_indent = indent
@@ -1747,13 +1758,13 @@ class ttuple(HailType, Sequence):
 
 
 def allele_pair(j: int, k: int):
-    assert j >= 0 and j <= 0xffff
-    assert k >= 0 and k <= 0xffff
+    assert j >= 0 and j <= 0xFFFF
+    assert k >= 0 and k <= 0xFFFF
     return j | (k << 16)
 
 
 def allele_pair_sqrt(i):
-    k = int(math.sqrt(8 * float(i) + 1) / 2 - .5)
+    k = int(math.sqrt(8 * float(i) + 1) / 2 - 0.5)
     assert k * (k + 1) // 2 <= i
     j = i - k * (k + 1) // 2
     # TODO another assert
@@ -1761,13 +1772,42 @@ def allele_pair_sqrt(i):
 
 
 small_allele_pair = [
-    allele_pair(0, 0), allele_pair(0, 1), allele_pair(1, 1),
-    allele_pair(0, 2), allele_pair(1, 2), allele_pair(2, 2),
-    allele_pair(0, 3), allele_pair(1, 3), allele_pair(2, 3), allele_pair(3, 3),
-    allele_pair(0, 4), allele_pair(1, 4), allele_pair(2, 4), allele_pair(3, 4), allele_pair(4, 4),
-    allele_pair(0, 5), allele_pair(1, 5), allele_pair(2, 5), allele_pair(3, 5), allele_pair(4, 5), allele_pair(5, 5),
-    allele_pair(0, 6), allele_pair(1, 6), allele_pair(2, 6), allele_pair(3, 6), allele_pair(4, 6), allele_pair(5, 6), allele_pair(6, 6),
-    allele_pair(0, 7), allele_pair(1, 7), allele_pair(2, 7), allele_pair(3, 7), allele_pair(4, 7), allele_pair(5, 7), allele_pair(6, 7), allele_pair(7, 7)
+    allele_pair(0, 0),
+    allele_pair(0, 1),
+    allele_pair(1, 1),
+    allele_pair(0, 2),
+    allele_pair(1, 2),
+    allele_pair(2, 2),
+    allele_pair(0, 3),
+    allele_pair(1, 3),
+    allele_pair(2, 3),
+    allele_pair(3, 3),
+    allele_pair(0, 4),
+    allele_pair(1, 4),
+    allele_pair(2, 4),
+    allele_pair(3, 4),
+    allele_pair(4, 4),
+    allele_pair(0, 5),
+    allele_pair(1, 5),
+    allele_pair(2, 5),
+    allele_pair(3, 5),
+    allele_pair(4, 5),
+    allele_pair(5, 5),
+    allele_pair(0, 6),
+    allele_pair(1, 6),
+    allele_pair(2, 6),
+    allele_pair(3, 6),
+    allele_pair(4, 6),
+    allele_pair(5, 6),
+    allele_pair(6, 6),
+    allele_pair(0, 7),
+    allele_pair(1, 7),
+    allele_pair(2, 7),
+    allele_pair(3, 7),
+    allele_pair(4, 7),
+    allele_pair(5, 7),
+    allele_pair(6, 7),
+    allele_pair(7, 7),
 ]
 
 
@@ -1782,8 +1822,7 @@ class _tcall(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, genetics.Call):
-            raise TypeError("type 'call' expected Python hail.genetics.Call, but found %s'" %
-                            type(annotation))
+            raise TypeError("type 'call' expected Python hail.genetics.Call, but found %s'" % type(annotation))
 
     def __str__(self):
         return "call"
@@ -1813,7 +1852,7 @@ class _tcall(HailType):
         if i == n:
             return genetics.Call([int(x)])
 
-        return genetics.Call([int(x[0:i]), int(x[i + 1:])], phased=(c == '|'))
+        return genetics.Call([int(x[0:i]), int(x[i + 1 :])], phased=(c == '|'))
 
     def _convert_to_json(self, x):
         return str(x)
@@ -1828,10 +1867,10 @@ class _tcall(HailType):
             return c >> 3
 
         def ap_j(p):
-            return p & 0xffff
+            return p & 0xFFFF
 
         def ap_k(p):
-            return (p >> 16) & 0xffff
+            return (p >> 16) & 0xFFFF
 
         def gt_allele_pair(i):
             if i < len(small_allele_pair):
@@ -1931,11 +1970,15 @@ class tlocus(HailType):
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, genetics.Locus):
-                raise TypeError("type '{}' expected Python hail.genetics.Locus, but found '{}'"
-                                .format(self, type(annotation)))
+                raise TypeError(
+                    "type '{}' expected Python hail.genetics.Locus, but found '{}'".format(self, type(annotation))
+                )
             if not self.reference_genome == annotation.reference_genome:
-                raise TypeError("type '{}' encountered Locus with reference genome {}"
-                                .format(self, repr(annotation.reference_genome)))
+                raise TypeError(
+                    "type '{}' encountered Locus with reference genome {}".format(
+                        self, repr(annotation.reference_genome)
+                    )
+                )
 
     def __str__(self):
         return "locus<{}>".format(escape_parsable(str(self.reference_genome)))
@@ -2028,13 +2071,16 @@ class tinterval(HailType):
 
     def _typecheck_one_level(self, annotation):
         from hail.utils import Interval
+
         if annotation is not None:
             if not isinstance(annotation, Interval):
-                raise TypeError("type '{}' expected Python hail.utils.Interval, but found {}"
-                                .format(self, type(annotation)))
+                raise TypeError(
+                    "type '{}' expected Python hail.utils.Interval, but found {}".format(self, type(annotation))
+                )
             if annotation.point_type != self.point_type:
-                raise TypeError("type '{}' encountered Interval with point type {}"
-                                .format(self, repr(annotation.point_type)))
+                raise TypeError(
+                    "type '{}' encountered Interval with point type {}".format(self, repr(annotation.point_type))
+                )
 
     def __str__(self):
         return "interval<{}>".format(str(self.point_type))
@@ -2052,25 +2098,32 @@ class tinterval(HailType):
 
     def _convert_from_json(self, x, _should_freeze: bool = False):
         from hail.utils import Interval
-        return Interval(self.point_type._convert_from_json_na(x['start'], _should_freeze),
-                        self.point_type._convert_from_json_na(x['end'], _should_freeze),
-                        x['includeStart'],
-                        x['includeEnd'],
-                        point_type=self.point_type)
+
+        return Interval(
+            self.point_type._convert_from_json_na(x['start'], _should_freeze),
+            self.point_type._convert_from_json_na(x['end'], _should_freeze),
+            x['includeStart'],
+            x['includeEnd'],
+            point_type=self.point_type,
+        )
 
     def _convert_to_json(self, x):
-        return {'start': self.point_type._convert_to_json_na(x.start),
-                'end': self.point_type._convert_to_json_na(x.end),
-                'includeStart': x.includes_start,
-                'includeEnd': x.includes_end}
+        return {
+            'start': self.point_type._convert_to_json_na(x.start),
+            'end': self.point_type._convert_to_json_na(x.end),
+            'includeStart': x.includes_start,
+            'includeEnd': x.includes_end,
+        }
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False):
         interval_as_struct = self._struct_repr._convert_from_encoding(byte_reader, _should_freeze)
-        return hl.Interval(interval_as_struct.start,
-                           interval_as_struct.end,
-                           interval_as_struct.includes_start,
-                           interval_as_struct.includes_end,
-                           point_type=self.point_type)
+        return hl.Interval(
+            interval_as_struct.start,
+            interval_as_struct.end,
+            interval_as_struct.includes_start,
+            interval_as_struct.includes_end,
+            point_type=self.point_type,
+        )
 
     def _convert_to_encoding(self, byte_writer, value):
         interval_dict = {
@@ -2230,23 +2283,22 @@ def is_primitive(t) -> bool:
 
 @typecheck(t=HailType)
 def is_container(t) -> bool:
-    return (isinstance(t, tarray)
-            or isinstance(t, tset)
-            or isinstance(t, tdict))
+    return isinstance(t, tarray) or isinstance(t, tset) or isinstance(t, tdict)
 
 
 @typecheck(t=HailType)
 def is_compound(t) -> bool:
-    return (is_container(t)
-            or isinstance(t, tstruct)
-            or isinstance(t, tunion)
-            or isinstance(t, ttuple)
-            or isinstance(t, tndarray))
+    return (
+        is_container(t)
+        or isinstance(t, tstruct)
+        or isinstance(t, tunion)
+        or isinstance(t, ttuple)
+        or isinstance(t, tndarray)
+    )
 
 
 def types_match(left, right) -> bool:
-    return (len(left) == len(right)
-            and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
+    return len(left) == len(right) and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right)))
 
 
 def is_int32(x):
@@ -2311,7 +2363,7 @@ class tvariable(HailType):
         'locus': lambda x: isinstance(x, tlocus),
         'struct': lambda x: isinstance(x, tstruct),
         'union': lambda x: isinstance(x, tunion),
-        'tuple': lambda x: isinstance(x, ttuple)
+        'tuple': lambda x: isinstance(x, ttuple),
     }
 
     def __init__(self, name, cond):

@@ -103,39 +103,57 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
     new_id = hl.utils.java.Env.get_uid()
 
     def struct_from_min_rep(i):
-        return hl.bind(lambda mr:
-                       (hl.case()
-                        .when(ds.locus == mr.locus,
-                              hl.struct(
-                                  locus=ds.locus,
-                                  alleles=[mr.alleles[0], mr.alleles[1]],
-                                  a_index=i,
-                                  was_split=True))
-                        .when(filter_changed_loci,
-                              hl.missing(hl.tstruct(locus=ds.locus.dtype, alleles=hl.tarray(hl.tstr),
-                                                    a_index=hl.tint, was_split=hl.tbool)))
-                        .or_error(
-                            "Found non-left-aligned variant in sparse_split_multi\n"
-                            + "old locus: " + hl.str(ds.locus) + "\n"
-                            + "old ref  : " + ds.alleles[0] + "\n"
-                            + "old alt  : " + ds.alleles[i] + "\n"
-                            + "mr locus : " + hl.str(mr.locus) + "\n"
-                            + "mr ref   : " + mr.alleles[0] + "\n"
-                            + "mr alt   : " + mr.alleles[1])),
-                       hl.min_rep(ds.locus, [ds.alleles[0], ds.alleles[i]]))
+        return hl.bind(
+            lambda mr: (
+                hl.case()
+                .when(
+                    ds.locus == mr.locus,
+                    hl.struct(locus=ds.locus, alleles=[mr.alleles[0], mr.alleles[1]], a_index=i, was_split=True),
+                )
+                .when(
+                    filter_changed_loci,
+                    hl.missing(
+                        hl.tstruct(
+                            locus=ds.locus.dtype, alleles=hl.tarray(hl.tstr), a_index=hl.tint, was_split=hl.tbool
+                        )
+                    ),
+                )
+                .or_error(
+                    "Found non-left-aligned variant in sparse_split_multi\n"
+                    + "old locus: "
+                    + hl.str(ds.locus)
+                    + "\n"
+                    + "old ref  : "
+                    + ds.alleles[0]
+                    + "\n"
+                    + "old alt  : "
+                    + ds.alleles[i]
+                    + "\n"
+                    + "mr locus : "
+                    + hl.str(mr.locus)
+                    + "\n"
+                    + "mr ref   : "
+                    + mr.alleles[0]
+                    + "\n"
+                    + "mr alt   : "
+                    + mr.alleles[1]
+                )
+            ),
+            hl.min_rep(ds.locus, [ds.alleles[0], ds.alleles[i]]),
+        )
 
-    explode_structs = hl.if_else(hl.len(ds.alleles) < 3,
-                                 [hl.struct(
-                                     locus=ds.locus,
-                                     alleles=ds.alleles,
-                                     a_index=1,
-                                     was_split=False)],
-                                 hl._sort_by(
-                                     hl.if_else(
-                                         filter_changed_loci,
-                                         hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep).filter(hl.is_defined),
-                                         hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep)),
-                                     lambda l, r: hl._compare(l.alleles, r.alleles) < 0))
+    explode_structs = hl.if_else(
+        hl.len(ds.alleles) < 3,
+        [hl.struct(locus=ds.locus, alleles=ds.alleles, a_index=1, was_split=False)],
+        hl._sort_by(
+            hl.if_else(
+                filter_changed_loci,
+                hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep).filter(hl.is_defined),
+                hl.range(1, hl.len(ds.alleles)).map(struct_from_min_rep),
+            ),
+            lambda l, r: hl._compare(l.alleles, r.alleles) < 0,
+        ),
+    )
 
     ds = ds.annotate(**{new_id: explode_structs}).explode(new_id)
 
@@ -149,20 +167,24 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                 if 'LGT' in fields:
                     new_exprs['GT'] = hl.rbind(
                         old_entry.LGT,
-                        lambda lgt: hl.if_else(lgt.is_non_ref(), hl.downcode(lgt, hl.or_else(
-                            local_a_index, hl.len(old_entry.LA))), lgt))
+                        lambda lgt: hl.if_else(
+                            lgt.is_non_ref(), hl.downcode(lgt, hl.or_else(local_a_index, hl.len(old_entry.LA))), lgt
+                        ),
+                    )
                     dropped_fields.append('LGT')
                 if 'LPGT' in fields:
                     new_exprs['PGT'] = hl.rbind(
                         old_entry.LPGT,
-                        lambda lpgt: hl.if_else(lpgt.is_non_ref(), hl.downcode(lpgt, hl.or_else(
-                            local_a_index, hl.len(old_entry.LA))), lpgt))
+                        lambda lpgt: hl.if_else(
+                            lpgt.is_non_ref(), hl.downcode(lpgt, hl.or_else(local_a_index, hl.len(old_entry.LA))), lpgt
+                        ),
+                    )
                     dropped_fields.append('LPGT')
                 if 'LAD' in fields:
                     non_ref_ad = hl.or_else(old_entry.LAD[local_a_index], 0)  # zeroed if not in LAD
                     new_exprs['AD'] = hl.or_missing(
-                        hl.is_defined(old_entry.LAD),
-                        [hl.sum(old_entry.LAD) - non_ref_ad, non_ref_ad])
+                        hl.is_defined(old_entry.LAD), [hl.sum(old_entry.LAD) - non_ref_ad, non_ref_ad]
+                    )
                     dropped_fields.append('LAD')
                 if 'LPL' in fields:
                     new_exprs['PL'] = pl
@@ -171,46 +193,64 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
 
                     dropped_fields.append('LPL')
 
-                return (hl.case()
-                        .when(hl.len(ds.alleles) == 1,
-                              old_entry.annotate(**{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields))
-                        .when(hl.or_else(old_entry.LGT.is_hom_ref(), False),
-                              old_entry.annotate(**{f: old_entry[f'L{f}'] if f in ['GT', 'PGT'] else e for f, e in new_exprs.items()}).drop(*dropped_fields))
-                        .default(old_entry.annotate(**new_exprs).drop(*dropped_fields)))
+                return (
+                    hl.case()
+                    .when(
+                        hl.len(ds.alleles) == 1,
+                        old_entry.annotate(
+                            **{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}
+                        ).drop(*dropped_fields),
+                    )
+                    .when(
+                        hl.or_else(old_entry.LGT.is_hom_ref(), False),
+                        old_entry.annotate(
+                            **{f: old_entry[f'L{f}'] if f in ['GT', 'PGT'] else e for f, e in new_exprs.items()}
+                        ).drop(*dropped_fields),
+                    )
+                    .default(old_entry.annotate(**new_exprs).drop(*dropped_fields))
+                )
 
             if 'LPL' in fields:
                 new_pl = hl.or_missing(
                     hl.is_defined(old_entry.LPL),
                     hl.or_missing(
                         hl.is_defined(local_a_index),
-                        hl.range(0, 3).map(lambda i: hl.min(
-                            hl.range(0, hl.triangle(hl.len(old_entry.LA)))
-                            .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index) == hl.unphased_diploid_gt_index_call(i))
-                            .map(lambda idx: old_entry.LPL[idx])))))
+                        hl.range(0, 3).map(
+                            lambda i: hl.min(
+                                hl.range(0, hl.triangle(hl.len(old_entry.LA)))
+                                .filter(
+                                    lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index)
+                                    == hl.unphased_diploid_gt_index_call(i)
+                                )
+                                .map(lambda idx: old_entry.LPL[idx])
+                            )
+                        ),
+                    ),
+                )
                 return hl.bind(with_pl, new_pl)
             else:
                 return with_pl(None)
 
-        lai = hl.fold(lambda accum, elt:
-                      hl.if_else(old_entry.LA[elt] == ds[new_id].a_index,
-                                 elt, accum),
-                      hl.missing(hl.tint32),
-                      hl.range(0, hl.len(old_entry.LA)))
+        lai = hl.fold(
+            lambda accum, elt: hl.if_else(old_entry.LA[elt] == ds[new_id].a_index, elt, accum),
+            hl.missing(hl.tint32),
+            hl.range(0, hl.len(old_entry.LA)),
+        )
         return hl.bind(with_local_a_index, lai)
 
-    new_row = ds.row.annotate(**{
-        'locus': ds[new_id].locus,
-        'alleles': ds[new_id].alleles,
-        'a_index': ds[new_id].a_index,
-        'was_split': ds[new_id].was_split,
-        entries: ds[entries].map(transform_entries)
-    }).drop(new_id)
+    new_row = ds.row.annotate(
+        **{
+            'locus': ds[new_id].locus,
+            'alleles': ds[new_id].alleles,
+            'a_index': ds[new_id].a_index,
+            'was_split': ds[new_id].was_split,
+            entries: ds[entries].map(transform_entries),
+        }
+    ).drop(new_id)
 
     ds = hl.Table(
         hl.ir.TableKeyBy(
-            hl.ir.TableMapRows(
-                hl.ir.TableKeyBy(ds._tir, ['locus']),
-                new_row._ir),
-            ['locus', 'alleles'],
-            is_sorted=True))
+            hl.ir.TableMapRows(hl.ir.TableKeyBy(ds._tir, ['locus']), new_row._ir), ['locus', 'alleles'], is_sorted=True
+        )
+    )
     return ds._unlocalize_entries(entries, cols, list(sparse_mt.col_key.keys()))

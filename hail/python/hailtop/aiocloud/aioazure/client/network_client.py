@@ -14,8 +14,10 @@ class AzureNetworkClient(AzureBaseClient):
         if 'api-version' not in params:
             params['api-version'] = '2021-03-01'
         session = session or AzureSession(**kwargs)
-        super().__init__(f'https://management.azure.com/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Network',
-                         session=session)
+        super().__init__(
+            f'https://management.azure.com/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Network',
+            session=session,
+        )
 
     async def delete_nic(self, nic_name: str, ignore_not_found: bool = False):
         try:

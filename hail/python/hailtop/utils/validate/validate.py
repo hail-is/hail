@@ -118,8 +118,7 @@ class SwitchValidator(TypedValidator):
         super().__init__(dict)
         self.key = key
         self.valid_key = oneof(*checkers.keys())
-        self.checkers = {k: keyed({required(key): self.valid_key, **fields})
-                         for k, fields in checkers.items()}
+        self.checkers = {k: keyed({required(key): self.valid_key, **fields}) for k, fields in checkers.items()}
 
     def __getitem__(self, key):
         return self.checkers[key]

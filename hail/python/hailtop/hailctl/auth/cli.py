@@ -19,6 +19,7 @@ app = typer.Typer(
 def login():
     '''Obtain Hail credentials.'''
     from .login import async_login  # pylint: disable=import-outside-toplevel
+
     asyncio.run(async_login())
 
 
@@ -91,7 +92,11 @@ def create_user(
     '''
     from .create_user import polling_create_user  # pylint: disable=import-outside-toplevel
 
-    asyncio.run(polling_create_user(username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name, wait=wait))
+    asyncio.run(
+        polling_create_user(
+            username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name, wait=wait
+        )
+    )
 
 
 @app.command()

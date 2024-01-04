@@ -25,7 +25,7 @@ async def polling_delete_user(
                     return
                 assert user['state'] == 'deleting'
                 tries += 1
-                await sleep_before_try(tries, base_delay_ms = 5_000)
+                await sleep_before_try(tries, base_delay_ms=5_000)
 
         await _poll()
     except Exception as e:

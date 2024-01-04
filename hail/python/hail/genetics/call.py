@@ -70,9 +70,11 @@ class Call(object):
         return 'Call(alleles=%s, phased=%s)' % (self._alleles, self._phased)
 
     def __eq__(self, other):
-        return ( self._phased == other._phased and
-                 self._alleles == other._alleles
-               ) if isinstance(other, Call) else NotImplemented
+        return (
+            (self._phased == other._phased and self._alleles == other._alleles)
+            if isinstance(other, Call)
+            else NotImplemented
+        )
 
     def __hash__(self):
         return hash(self._phased) ^ hash(tuple(self._alleles))
@@ -264,7 +266,8 @@ class Call(object):
 
         if self.ploidy != 2 or self.phased:
             raise FatalError(
-                "'unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self)))
+                "'unphased_diploid_gt_index' is only valid for unphased, diploid calls. Found {}.".format(repr(self))
+            )
         a0 = self._alleles[0]
         a1 = self._alleles[1]
         assert a0 <= a1

@@ -40,6 +40,7 @@ def continuous_nums_to_colors(min_color, max_color, continuous_color_scale):
 
     def transform_color(input_color):
         return plotly.colors.sample_colorscale(continuous_color_scale, adjust_color(input_color))[0]
+
     return transform_color
 
 
@@ -49,11 +50,5 @@ def bar_position_plotly_to_gg(plotly_pos):
 
 
 def linetype_plotly_to_gg(plotly_linetype):
-    linetype_dict = {
-        "solid": "solid",
-        "dashed": "dash",
-        "dotted": "dot",
-        "longdash": "longdash",
-        "dotdash": "dashdot"
-    }
+    linetype_dict = {"solid": "solid", "dashed": "dash", "dotted": "dot", "longdash": "longdash", "dotdash": "dashdot"}
     return linetype_dict[plotly_linetype]

@@ -48,9 +48,7 @@ class LinkedList(Iterable):
         return f'''List({', '.join(repr(x) for x in self)})'''
 
     def __eq__(self, other):
-        return list(self) == list(other) \
-            if isinstance(other, LinkedList) \
-            else NotImplemented
+        return list(self) == list(other) if isinstance(other, LinkedList) else NotImplemented
 
     def __ne__(self, other):
         return not self.__eq__(other)
