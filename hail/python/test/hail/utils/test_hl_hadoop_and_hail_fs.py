@@ -22,7 +22,7 @@ def touch(fs, filename: str):
 def tmpdir(request) -> Generator[str, None, None]:
     if request.param == 'local':
         tmpdir = _get_local_tmpdir(None)
-        tmpdir = tmpdir[len('file://'):]
+        tmpdir = tmpdir[len('file://') :]
     else:
         tmpdir = os.environ['HAIL_TEST_STORAGE_URI']
     tmpdir = os.path.join(tmpdir, secret_alnum_string(5))
@@ -74,8 +74,7 @@ def test_hadoop_methods_3(tmpdir: str):
             f.write(d)
             f.write('\n')
 
-    hadoop_copy(f'{tmpdir}/test_out.txt.gz',
-                f'{tmpdir}/test_out.copy.txt.gz')
+    hadoop_copy(f'{tmpdir}/test_out.txt.gz', f'{tmpdir}/test_out.copy.txt.gz')
 
     with hadoop_open(f'{tmpdir}/test_out.copy.txt.gz') as f:
         data4 = [line.strip() for line in f]
@@ -136,8 +135,7 @@ def test_hadoop_stat(tmpdir: str):
     stat1 = hl.hadoop_stat(f'{tmpdir}')
     assert stat1['is_dir'] == True
 
-    hadoop_copy(f'{tmpdir}/test_hadoop_stat.txt.gz',
-                f'{tmpdir}/test_hadoop_stat.copy.txt.gz')
+    hadoop_copy(f'{tmpdir}/test_hadoop_stat.txt.gz', f'{tmpdir}/test_hadoop_stat.copy.txt.gz')
 
     stat2 = hl.hadoop_stat(f'{tmpdir}/test_hadoop_stat.copy.txt.gz')
     # The gzip format permits metadata which makes the compressed file's size unpredictable. In

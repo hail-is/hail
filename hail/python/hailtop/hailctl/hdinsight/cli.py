@@ -153,7 +153,9 @@ def submit(
     storage_account: Ann[str, Arg(help="Storage account in which the cluster's container exists.")],
     http_password: Ann[str, Arg(help='Web password for the cluster')],
     script: Ann[str, Arg(help='Path to script.')],
-    arguments: Ann[Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')] = None,
+    arguments: Ann[
+        Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
+    ] = None,
 ):
     '''
     Submit a job to an HDInsight cluster configured for Hail.

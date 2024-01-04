@@ -48,7 +48,10 @@ def deploy(
 
 async def _deploy(branch: str, steps: List[str], excluded_steps: List[str], extra_config: List[str], open: bool):
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
-    from hailtop.utils import unpack_comma_delimited_inputs, unpack_key_value_inputs  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import (  # pylint: disable=import-outside-toplevel
+        unpack_comma_delimited_inputs,
+        unpack_key_value_inputs,
+    )
     from .ci_client import CIClient  # pylint: disable=import-outside-toplevel
 
     deploy_config = get_deploy_config()

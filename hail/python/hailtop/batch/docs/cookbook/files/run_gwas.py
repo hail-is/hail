@@ -12,9 +12,11 @@ def run_gwas(vcf_file, phenotypes_file, output_file):
     mt = hl.sample_qc(mt)
     mt = mt.filter_cols((mt.sample_qc.dp_stats.mean >= 4) & (mt.sample_qc.call_rate >= 0.97))
     ab = mt.AD[1] / hl.sum(mt.AD)
-    filter_condition_ab = ((mt.GT.is_hom_ref() & (ab <= 0.1))
-                           | (mt.GT.is_het() & (ab >= 0.25) & (ab <= 0.75))
-                           | (mt.GT.is_hom_var() & (ab >= 0.9)))
+    filter_condition_ab = (
+        (mt.GT.is_hom_ref() & (ab <= 0.1))
+        | (mt.GT.is_het() & (ab >= 0.25) & (ab <= 0.75))
+        | (mt.GT.is_hom_var() & (ab >= 0.9))
+    )
     mt = mt.filter_entries(filter_condition_ab)
     mt = hl.variant_qc(mt)
     mt = mt.filter_rows(mt.variant_qc.AF[1] > 0.01)
@@ -26,7 +28,8 @@ def run_gwas(vcf_file, phenotypes_file, output_file):
     gwas = hl.linear_regression_rows(
         y=mt.pheno.CaffeineConsumption,
         x=mt.GT.n_alt_alleles(),
-        covariates=[1.0, mt.pheno.isFemale, mt.scores[0], mt.scores[1], mt.scores[2]])
+        covariates=[1.0, mt.pheno.isFemale, mt.scores[0], mt.scores[1], mt.scores[2]],
+    )
 
     gwas = gwas.select(SNP=hl.variant_str(gwas.locus, gwas.alleles), P=gwas.p_value)
     gwas = gwas.key_by(gwas.SNP)

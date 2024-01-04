@@ -116,7 +116,9 @@ class Tests(unittest.TestCase):
     def test_variant_qc_alleles_field(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.key_rows_by().drop('alleles')
-        with pytest.raises(ValueError, match="Method 'variant_qc' requires a field 'alleles' \\(type 'array<str>'\\).*"):
+        with pytest.raises(
+            ValueError, match="Method 'variant_qc' requires a field 'alleles' \\(type 'array<str>'\\).*"
+        ):
             hl.variant_qc(mt).variant_qc.collect()
 
         mt = hl.balding_nichols_model(1, 1, 1)
@@ -130,13 +132,14 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(sum([sum(glob_conc[i]) for i in range(5)]), dataset.count_rows() * dataset.count_cols())
 
-        counts = dataset.aggregate_entries(hl.Struct(n_het=agg.filter(dataset.GT.is_het(), agg.count()),
-                                                     n_hom_ref=agg.filter(dataset.GT.is_hom_ref(),
-                                                                          agg.count()),
-                                                     n_hom_var=agg.filter(dataset.GT.is_hom_var(),
-                                                                          agg.count()),
-                                                     nNoCall=agg.filter(hl.is_missing(dataset.GT),
-                                                                        agg.count())))
+        counts = dataset.aggregate_entries(
+            hl.Struct(
+                n_het=agg.filter(dataset.GT.is_het(), agg.count()),
+                n_hom_ref=agg.filter(dataset.GT.is_hom_ref(), agg.count()),
+                n_hom_var=agg.filter(dataset.GT.is_hom_var(), agg.count()),
+                nNoCall=agg.filter(hl.is_missing(dataset.GT), agg.count()),
+            )
+        )
 
         self.assertEqual(glob_conc[0][0], 0)
         self.assertEqual(glob_conc[1][1], counts.nNoCall)
@@ -167,7 +170,7 @@ class Tests(unittest.TestCase):
             hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '4', 'GT': hl.Call([1, 1])}),
             hl.Struct(**{'locus': hl.Locus('1', 101), 'alleles': ['A', 'T'], 's': '1', 'GT': hl.Call([1, 1])}),
         ]
-        rows2=[
+        rows2 = [
             hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '1', 'GT': None}),
             hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '2', 'GT': hl.Call([0, 1])}),
             hl.Struct(**{'locus': hl.Locus('1', 100), 'alleles': ['A', 'T'], 's': '3', 'GT': hl.Call([0, 1])}),
@@ -180,56 +183,42 @@ class Tests(unittest.TestCase):
 
         global_conc_2, cols_conc_2, rows_conc_2 = hl.concordance(make_mt(rows1), make_mt(rows2))
         assert cols_conc_2.collect() == [
-            hl.Struct(s='1',
-                      concordance=[[0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 1, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [1, 0, 0, 0, 0]],
-                      n_discordant=0),
-            hl.Struct(s='2',
-                      concordance=[[1, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 1, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0]],
-                      n_discordant=1),
-            hl.Struct(s='3',
-                      concordance=[[1, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 1, 0]],
-                      n_discordant=1),
-            hl.Struct(s='4',
-                      concordance=[[1, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 1]],
-                      n_discordant=0),
+            hl.Struct(
+                s='1',
+                concordance=[[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 1, 0, 0, 0], [0, 0, 0, 0, 0], [1, 0, 0, 0, 0]],
+                n_discordant=0,
+            ),
+            hl.Struct(
+                s='2',
+                concordance=[[1, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 1, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]],
+                n_discordant=1,
+            ),
+            hl.Struct(
+                s='3',
+                concordance=[[1, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 1, 0]],
+                n_discordant=1,
+            ),
+            hl.Struct(
+                s='4',
+                concordance=[[1, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 1]],
+                n_discordant=0,
+            ),
         ]
 
-        assert global_conc_2 == [[3, 0, 0, 0, 0],
-                                 [0, 0, 0, 0, 0],
-                                 [0, 1, 0, 1, 0],
-                                 [0, 0, 0, 0, 0],
-                                 [1, 0, 0, 1, 1]]
+        assert global_conc_2 == [[3, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 1, 0, 1, 0], [0, 0, 0, 0, 0], [1, 0, 0, 1, 1]]
         assert rows_conc_2.collect() == [
-            hl.Struct(locus=hl.Locus('1', 100), alleles=['A', 'T'],
-                      concordance=[[0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 1, 0, 1, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 1, 1]],
-                      n_discordant=2),
-            hl.Struct(locus=hl.Locus('1', 101), alleles=['A', 'T'],
-                      concordance=[[3, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0],
-                                   [1, 0, 0, 0, 0]],
-                      n_discordant=0),
+            hl.Struct(
+                locus=hl.Locus('1', 100),
+                alleles=['A', 'T'],
+                concordance=[[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 1, 0, 1, 0], [0, 0, 0, 0, 0], [0, 0, 0, 1, 1]],
+                n_discordant=2,
+            ),
+            hl.Struct(
+                locus=hl.Locus('1', 101),
+                alleles=['A', 'T'],
+                concordance=[[3, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [1, 0, 0, 0, 0]],
+                n_discordant=0,
+            ),
         ]
 
     def test_concordance_no_values_doesnt_error(self):
@@ -240,13 +229,10 @@ class Tests(unittest.TestCase):
 
     def test_filter_alleles(self):
         # poor man's Gen
-        paths = [resource('sample.vcf'),
-                 resource('multipleChromosomes.vcf'),
-                 resource('sample2.vcf')]
+        paths = [resource('sample.vcf'), resource('multipleChromosomes.vcf'), resource('sample2.vcf')]
         for path in paths:
             ds = hl.import_vcf(path)
-            self.assertEqual(
-                hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
+            self.assertEqual(hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
     def test_filter_alleles_hts_1(self):
@@ -255,8 +241,9 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'T', subset=True)
-                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
-                ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_subset.vcf'))))
+            .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
+            ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_subset.vcf')))
+        )
 
     def test_filter_alleles_hts_2(self):
         # 1 variant: A:T,G
@@ -264,8 +251,8 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=True)
-                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
-                ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_subset.vcf')))
+            .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
+            ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_subset.vcf')))
         )
 
     def test_filter_alleles_hts_3(self):
@@ -274,8 +261,8 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a != 'G', subset=False)
-                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
-                ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf')))
+            .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
+            ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf')))
         )
 
     def test_filter_alleles_hts_4(self):
@@ -284,8 +271,8 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)
-                .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
-                ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf')))
+            .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
+            ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf')))
         )
 
     def test_sample_and_variant_qc_call_rate(self):
@@ -315,23 +302,25 @@ class Tests(unittest.TestCase):
         charr = hl.compute_charr(mt, ref_AF=0.9)
         d = charr.aggregate(hl.dict(hl.agg.collect((charr.s, charr.charr))))
 
-        assert pytest.approx(d['C1046::HG02024'], abs=0.0001) == .00126
-        assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == .00124
+        assert pytest.approx(d['C1046::HG02024'], abs=0.0001) == 0.00126
+        assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == 0.00124
 
     @skip_unless_service_backend(clouds=['gcp'])
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_true(self):
-        gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
+        gnomad_vep_result = hl.import_vcf(
+            resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True
+        )
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
 
-        expected = gnomad_vep_result.select_rows(
-            vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])
-        ).rows()
+        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])).rows()
 
-        actual = hail_vep_result.select_rows(
-            vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8])
-        ).rows().drop('vep_csq_header')
+        actual = (
+            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8]))
+            .rows()
+            .drop('vep_csq_header')
+        )
 
         assert expected._same(actual)
 
@@ -342,16 +331,18 @@ class Tests(unittest.TestCase):
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_true(self):
-        gnomad_vep_result = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
+        gnomad_vep_result = hl.import_vcf(
+            resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True
+        )
         hail_vep_result = hl.vep(gnomad_vep_result, csq=True)
 
-        expected = gnomad_vep_result.select_rows(
-            vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])
-        ).rows()
+        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])).rows()
 
-        actual = hail_vep_result.select_rows(
-            vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8])
-        ).rows().drop('vep_csq_header')
+        actual = (
+            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('|')[:8]))
+            .rows()
+            .drop('vep_csq_header')
+        )
 
         assert expected._same(actual)
 
@@ -362,7 +353,9 @@ class Tests(unittest.TestCase):
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_false(self):
-        mt = hl.import_vcf(resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True)
+        mt = hl.import_vcf(
+            resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True
+        )
         hail_vep_result = hl.vep(mt, csq=False)
         ht = hail_vep_result.rows()
         ht = ht.select(variant_class=ht.vep.variant_class)
@@ -373,7 +366,9 @@ class Tests(unittest.TestCase):
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_false(self):
-        mt = hl.import_vcf(resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True)
+        mt = hl.import_vcf(
+            resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True
+        )
         hail_vep_result = hl.vep(mt, csq=False)
         ht = hail_vep_result.rows()
         ht = ht.select(variant_class=ht.vep.variant_class)
@@ -388,36 +383,49 @@ class Tests(unittest.TestCase):
         mt = mt.head(20)
         hail_vep_result = hl.vep(mt)
         initial_vep_dtype = hail_vep_result.vep.dtype
-        hail_vep_result = hail_vep_result.annotate_rows(vep=hail_vep_result.vep.annotate(
-            input=hl.str('\t').join([
-                hail_vep_result.locus.contig,
-                hl.str(hail_vep_result.locus.position),
-                ".",
-                hail_vep_result.alleles[0],
-                hail_vep_result.alleles[1],
-                ".",
-                ".",
-                "GT",
-            ])
-        ))
+        hail_vep_result = hail_vep_result.annotate_rows(
+            vep=hail_vep_result.vep.annotate(
+                input=hl.str('\t').join(
+                    [
+                        hail_vep_result.locus.contig,
+                        hl.str(hail_vep_result.locus.position),
+                        ".",
+                        hail_vep_result.alleles[0],
+                        hail_vep_result.alleles[1],
+                        ".",
+                        ".",
+                        "GT",
+                    ]
+                )
+            )
+        )
         hail_vep_result = hail_vep_result.rows().select('vep')
 
         def parse_lof_info_into_dict(ht):
             def tuple2(arr):
                 return hl.tuple([arr[0], arr[1]])
 
-            return ht.annotate(vep=ht.vep.annotate(
-                transcript_consequences=ht.vep.transcript_consequences.map(
-                    lambda csq: csq.annotate(
-                        lof_info=hl.or_missing(csq.lof_info != 'null',
-                                               hl.dict(csq.lof_info.split(',').map(lambda kv: tuple2(kv.split(':')))))))))
+            return ht.annotate(
+                vep=ht.vep.annotate(
+                    transcript_consequences=ht.vep.transcript_consequences.map(
+                        lambda csq: csq.annotate(
+                            lof_info=hl.or_missing(
+                                csq.lof_info != 'null',
+                                hl.dict(csq.lof_info.split(',').map(lambda kv: tuple2(kv.split(':')))),
+                            )
+                        )
+                    )
+                )
+            )
 
         hail_vep_result = parse_lof_info_into_dict(hail_vep_result)
 
-        dataproc_result = hl.import_table(resource('dataproc_vep_grch37_annotations.tsv.gz'),
-                                          key=['locus', 'alleles'],
-                                          types={'locus': hl.tlocus('GRCh37'), 'alleles': hl.tarray(hl.tstr),
-                                                 'vep': initial_vep_dtype}, force=True)
+        dataproc_result = hl.import_table(
+            resource('dataproc_vep_grch37_annotations.tsv.gz'),
+            key=['locus', 'alleles'],
+            types={'locus': hl.tlocus('GRCh37'), 'alleles': hl.tarray(hl.tstr), 'vep': initial_vep_dtype},
+            force=True,
+        )
         dataproc_result = parse_lof_info_into_dict(dataproc_result)
 
         assert hail_vep_result._same(dataproc_result)
@@ -426,36 +434,49 @@ class Tests(unittest.TestCase):
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_against_dataproc(self):
-        dataproc_result = hl.import_table(resource('dataproc_vep_grch38_annotations.tsv.gz'),
-                                          key=['locus', 'alleles'],
-                                          types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr),
-                                                 'vep': hl.tstr}, force=True)
+        dataproc_result = hl.import_table(
+            resource('dataproc_vep_grch38_annotations.tsv.gz'),
+            key=['locus', 'alleles'],
+            types={'locus': hl.tlocus('GRCh38'), 'alleles': hl.tarray(hl.tstr), 'vep': hl.tstr},
+            force=True,
+        )
         loftee_variants = dataproc_result.select()
 
         hail_vep_result = hl.vep(loftee_variants)
-        hail_vep_result = hail_vep_result.annotate(vep=hail_vep_result.vep.annotate(
-            input=hl.str('\t').join([
-                hail_vep_result.locus.contig,
-                hl.str(hail_vep_result.locus.position),
-                ".",
-                hail_vep_result.alleles[0],
-                hail_vep_result.alleles[1],
-                ".",
-                ".",
-                "GT",
-            ])
-        ))
+        hail_vep_result = hail_vep_result.annotate(
+            vep=hail_vep_result.vep.annotate(
+                input=hl.str('\t').join(
+                    [
+                        hail_vep_result.locus.contig,
+                        hl.str(hail_vep_result.locus.position),
+                        ".",
+                        hail_vep_result.alleles[0],
+                        hail_vep_result.alleles[1],
+                        ".",
+                        ".",
+                        "GT",
+                    ]
+                )
+            )
+        )
         hail_vep_result = hail_vep_result.select('vep')
 
         def parse_lof_info_into_dict(ht):
             def tuple2(arr):
                 return hl.tuple([arr[0], arr[1]])
 
-            return ht.annotate(vep=ht.vep.annotate(
-                transcript_consequences=ht.vep.transcript_consequences.map(
-                    lambda csq: csq.annotate(
-                        lof_info=hl.or_missing(csq.lof_info != 'null',
-                                               hl.dict(csq.lof_info.split(',').map(lambda kv: tuple2(kv.split(':')))))))))
+            return ht.annotate(
+                vep=ht.vep.annotate(
+                    transcript_consequences=ht.vep.transcript_consequences.map(
+                        lambda csq: csq.annotate(
+                            lof_info=hl.or_missing(
+                                csq.lof_info != 'null',
+                                hl.dict(csq.lof_info.split(',').map(lambda kv: tuple2(kv.split(':')))),
+                            )
+                        )
+                    )
+                )
+            )
 
         dataproc_result = dataproc_result.annotate(vep=hl.parse_json(dataproc_result.vep, hail_vep_result.vep.dtype))
 

@@ -8,7 +8,7 @@ from .client import (
     GoogleStorageClient,
     GCSRequesterPaysConfiguration,
     GoogleStorageAsyncFS,
-    GoogleStorageAsyncFSFactory
+    GoogleStorageAsyncFSFactory,
 )
 from .credentials import GoogleCredentials, GoogleApplicationDefaultCredentials, GoogleServiceAccountCredentials
 from .session import GoogleSession

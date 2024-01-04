@@ -17,13 +17,20 @@ from hailtop.aiotools.validators import validate_file
 
 
 class LocalBackend(Py4JBackend):
-    def __init__(self, tmpdir, log, quiet, append, branching_factor,
-                 skip_logging_configuration, optimizer_iterations,
-                 jvm_heap_size,
-                 *,
-                 gcs_requester_pays_project: Optional[str] = None,
-                 gcs_requester_pays_buckets: Optional[str] = None
-                 ):
+    def __init__(
+        self,
+        tmpdir,
+        log,
+        quiet,
+        append,
+        branching_factor,
+        skip_logging_configuration,
+        optimizer_iterations,
+        jvm_heap_size,
+        *,
+        gcs_requester_pays_project: Optional[str] = None,
+        gcs_requester_pays_buckets: Optional[str] = None,
+    ):
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         spark_home = find_spark_home()
@@ -49,9 +56,9 @@ class LocalBackend(Py4JBackend):
             javaopts=jvm_opts,
             jarpath=f'{spark_home}/jars/py4j-0.10.9.5.jar',
             classpath=extra_classpath,
-            die_on_exit=True)
-        self._gateway = JavaGateway(
-            gateway_parameters=GatewayParameters(port=port, auto_convert=True))
+            die_on_exit=True,
+        )
+        self._gateway = JavaGateway(gateway_parameters=GatewayParameters(port=port, auto_convert=True))
 
         hail_package = getattr(self._gateway.jvm, 'is').hail
 
@@ -62,13 +69,9 @@ class LocalBackend(Py4JBackend):
             log,
             True,
             append,
-            skip_logging_configuration
+            skip_logging_configuration,
         )
-        jhc = hail_package.HailContext.apply(
-            jbackend,
-            branching_factor,
-            optimizer_iterations
-        )
+        jhc = hail_package.HailContext.apply(jbackend, branching_factor, optimizer_iterations)
 
         super(LocalBackend, self).__init__(self._gateway.jvm, jbackend, jhc)
 
@@ -80,13 +83,15 @@ class LocalBackend(Py4JBackend):
     def validate_file(self, uri: str) -> None:
         validate_file(uri, self._fs.afs)
 
-    def register_ir_function(self,
-                             name: str,
-                             type_parameters: Union[Tuple[HailType, ...], List[HailType]],
-                             value_parameter_names: Union[Tuple[str, ...], List[str]],
-                             value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
-                             return_type: HailType,
-                             body: Expression):
+    def register_ir_function(
+        self,
+        name: str,
+        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+        value_parameter_names: Union[Tuple[str, ...], List[str]],
+        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+        return_type: HailType,
+        body: Expression,
+    ):
         r = CSERenderer()
         code = r(finalize_randomness(body._ir))
         jbody = self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)))
@@ -98,7 +103,8 @@ class LocalBackend(Py4JBackend):
             value_parameter_names,
             [pt._parsable_string() for pt in value_parameter_types],
             return_type._parsable_string(),
-            jbody)
+            jbody,
+        )
 
     def stop(self):
         super().stop()

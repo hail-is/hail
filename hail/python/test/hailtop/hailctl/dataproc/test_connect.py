@@ -18,10 +18,7 @@ def subprocess():
 def patch_subprocess(monkeypatch, subprocess):
     """Automatically mock subprocess module."""
     monkeypatch.setattr("hailtop.hailctl.dataproc.connect.subprocess", subprocess)
-    monkeypatch.setattr(
-        "hailtop.hailctl.dataproc.connect.get_chrome_path",
-        Mock(return_value="chromium")
-    )
+    monkeypatch.setattr("hailtop.hailctl.dataproc.connect.get_chrome_path", Mock(return_value="chromium"))
     yield
     monkeypatch.undo()
 
@@ -48,7 +45,7 @@ def test_connect(gcloud_run, subprocess):
 
     gcloud_args = gcloud_run.call_args[0][0]
     assert gcloud_args[:2] == ["compute", "ssh"]
-    assert gcloud_args[2][(gcloud_args[2].find("@") + 1):] == "test-cluster-m"
+    assert gcloud_args[2][(gcloud_args[2].find("@") + 1) :] == "test-cluster-m"
 
     assert "--ssh-flag=-D 10000" in gcloud_args
     assert "--ssh-flag=-N" in gcloud_args
@@ -63,14 +60,17 @@ def test_connect(gcloud_run, subprocess):
     assert any(arg.startswith("--user-data-dir=") for arg in popen_args)
 
 
-@pytest.mark.parametrize("service,expected_port_and_path", [
-    ("spark-ui", "18080/?showIncomplete=true"),
-    ("ui", "18080/?showIncomplete=true"),
-    ("spark-history", "18080"),
-    ("hist", "18080"),
-    ("notebook", "8123"),
-    ("nb", "8123"),
-])
+@pytest.mark.parametrize(
+    "service,expected_port_and_path",
+    [
+        ("spark-ui", "18080/?showIncomplete=true"),
+        ("ui", "18080/?showIncomplete=true"),
+        ("spark-history", "18080"),
+        ("hist", "18080"),
+        ("notebook", "8123"),
+        ("nb", "8123"),
+    ],
+)
 def test_service_port_and_path(subprocess, service, expected_port_and_path):
     runner.invoke(cli.app, ['connect', 'test-cluster', service])
 
@@ -80,8 +80,7 @@ def test_service_port_and_path(subprocess, service, expected_port_and_path):
 
 def test_hailctl_chrome(subprocess, monkeypatch):
     monkeypatch.setattr(
-        "hailtop.hailctl.dataproc.connect.get_chrome_path",
-        Mock(side_effect=Exception("Unable to find chrome"))
+        "hailtop.hailctl.dataproc.connect.get_chrome_path", Mock(side_effect=Exception("Unable to find chrome"))
     )
     monkeypatch.setenv("HAILCTL_CHROME", "/path/to/chrome.exe")
 

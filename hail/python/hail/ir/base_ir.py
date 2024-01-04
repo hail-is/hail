@@ -211,6 +211,7 @@ class BaseIR(Renderable):
         self._error_id = get_next_int()
 
         import traceback
+
         stack = traceback.format_stack()
         i = len(stack)
         while i > 0:
@@ -226,11 +227,10 @@ class BaseIR(Renderable):
             'typecheck/check',
             'interactiveshell.py',
             'expressions.construct_variable',
-            'traceback.format_stack()'
+            'traceback.format_stack()',
         ]
         filt_stack = [
-            candidate for candidate in stack[i:]
-            if not any(phrase in candidate for phrase in forbidden_phrases)
+            candidate for candidate in stack[i:] if not any(phrase in candidate for phrase in forbidden_phrases)
         ]
 
         self._stack_trace = '\n'.join(filt_stack)
@@ -274,7 +274,11 @@ class IR(BaseIR):
 
     @property
     def uses_randomness(self) -> bool:
-        return '__rng_state' in self.free_vars or '__rng_state' in self.free_agg_vars or '__rng_state' in self.free_scan_vars
+        return (
+            '__rng_state' in self.free_vars
+            or '__rng_state' in self.free_agg_vars
+            or '__rng_state' in self.free_scan_vars
+        )
 
     @property
     def uses_value_randomness(self):
@@ -302,7 +306,7 @@ class IR(BaseIR):
     def compute_type(self, env, agg_env, deep_typecheck):
         if deep_typecheck or self._type is None:
             computed = self._compute_type(env, agg_env, deep_typecheck)
-            assert(computed is not None)
+            assert computed is not None
             if self._type is not None:
                 assert self._type == computed
             self._type = computed
@@ -341,7 +345,7 @@ class IR(BaseIR):
         The uid may be an int64, or arbitrary tuple of int64s. The only
         requirement is that all stream elements contain distinct uid values.
         """
-        assert(self.is_stream)
+        assert self.is_stream
         if (create_uids == self.has_uids) and not self.needs_randomness_handling:
             return self
         new = self._handle_randomness(create_uids)
@@ -353,17 +357,15 @@ class IR(BaseIR):
     def free_vars(self):
         def vars_from_child(i):
             if self.uses_agg_context(i):
-                assert(len(self.children[i].free_agg_vars) == 0)
+                assert len(self.children[i].free_agg_vars) == 0
                 return set()
             if self.uses_scan_context(i):
-                assert(len(self.children[i].free_scan_vars) == 0)
+                assert len(self.children[i].free_scan_vars) == 0
                 return set()
             return self.children[i].free_vars.difference(self.bindings(i, 0).keys())
 
         if self._free_vars is None:
-            self._free_vars = {
-                var for i in range(len(self.children))
-                for var in vars_from_child(i)}
+            self._free_vars = {var for i in range(len(self.children)) for var in vars_from_child(i)}
             if self.uses_agg_capability():
                 self._free_vars.add(BaseIR.agg_capability)
         return self._free_vars
@@ -376,9 +378,7 @@ class IR(BaseIR):
             return self.children[i].free_agg_vars.difference(self.agg_bindings(i, 0).keys())
 
         if self._free_agg_vars is None:
-            self._free_agg_vars = {
-                var for i in range(len(self.children))
-                for var in vars_from_child(i)}
+            self._free_agg_vars = {var for i in range(len(self.children)) for var in vars_from_child(i)}
         return self._free_agg_vars
 
     @property
@@ -389,9 +389,7 @@ class IR(BaseIR):
             return self.children[i].free_scan_vars.difference(self.scan_bindings(i, 0).keys())
 
         if self._free_scan_vars is None:
-            self._free_scan_vars = {
-                var for i in range(len(self.children))
-                for var in vars_from_child(i)}
+            self._free_scan_vars = {var for i in range(len(self.children)) for var in vars_from_child(i)}
         return self._free_scan_vars
 
 

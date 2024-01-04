@@ -39,15 +39,20 @@ def test_reference_genome():
     with hl.TemporaryFilename() as filename:
         gr2.write(filename)
 
+
 @qobtest
 def test_reference_genome_sequence():
     gr3 = ReferenceGenome.read(resource("fake_ref_genome.json"))
     assert gr3.name == "my_reference_genome"
     assert not gr3.has_sequence()
 
-    gr4 = ReferenceGenome.from_fasta_file("test_rg", resource("fake_reference.fasta"),
-                                          resource("fake_reference.fasta.fai"),
-                                          mt_contigs=["b", "c"], x_contigs=["a"])
+    gr4 = ReferenceGenome.from_fasta_file(
+        "test_rg",
+        resource("fake_reference.fasta"),
+        resource("fake_reference.fasta.fai"),
+        mt_contigs=["b", "c"],
+        x_contigs=["a"],
+    )
     assert gr4.has_sequence()
     assert gr4._sequence_files == (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"))
     assert gr4.x_contigs == ["a"]
@@ -61,8 +66,7 @@ def test_reference_genome_sequence():
     gr4.remove_sequence()
     assert not gr4.has_sequence()
 
-    gr4.add_sequence(resource("fake_reference.fasta"),
-                     resource("fake_reference.fasta.fai"))
+    gr4.add_sequence(resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"))
     assert gr4.has_sequence()
     assert gr4._sequence_files == (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai"))
 
@@ -99,13 +103,15 @@ def test_reference_genome_liftover():
         {'l37': hl.locus('20', 278691, 'GRCh37'), 'l38': hl.locus('chr20', 298047, 'GRCh38')},
         {'l37': hl.locus('20', 37007586, 'GRCh37'), 'l38': hl.locus('chr12', 32563117, 'GRCh38')},
         {'l37': hl.locus('20', 62965520, 'GRCh37'), 'l38': hl.locus('chr20', 64334167, 'GRCh38')},
-        {'l37': hl.locus('20', 62965521, 'GRCh37'), 'l38': null_locus}
+        {'l37': hl.locus('20', 62965521, 'GRCh37'), 'l38': null_locus},
     ]
     schema = hl.tstruct(l37=hl.tlocus(grch37), l38=hl.tlocus(grch38))
     t = hl.Table.parallelize(rows, schema)
-    assert t.all(hl.if_else(hl.is_defined(t.l38),
-                            hl.liftover(t.l37, 'GRCh38') == t.l38,
-                            hl.is_missing(hl.liftover(t.l37, 'GRCh38'))))
+    assert t.all(
+        hl.if_else(
+            hl.is_defined(t.l38), hl.liftover(t.l37, 'GRCh38') == t.l38, hl.is_missing(hl.liftover(t.l37, 'GRCh38'))
+        )
+    )
 
     t = t.filter(hl.is_defined(t.l38))
     assert t.count() == 6
@@ -117,8 +123,10 @@ def test_reference_genome_liftover():
     null_locus_interval = hl.missing(hl.tinterval(hl.tlocus('GRCh38')))
     rows = [
         {'i37': hl.locus_interval('20', 1, 60000, True, False, 'GRCh37'), 'i38': null_locus_interval},
-        {'i37': hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'),
-         'i38': hl.locus_interval('chr20', 79360, 101815, True, True, 'GRCh38')}
+        {
+            'i37': hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'),
+            'i38': hl.locus_interval('chr20', 79360, 101815, True, True, 'GRCh38'),
+        },
     ]
     schema = hl.tstruct(i37=hl.tinterval(hl.tlocus(grch37)), i38=hl.tinterval(hl.tlocus(grch38)))
     t = hl.Table.parallelize(rows, schema)
@@ -138,13 +146,20 @@ def test_liftover_strand():
         expected = hl.Struct(result=hl.Locus('chr20', 79360, 'GRCh38'), is_negative_strand=False)
         assert actual == expected
 
-        actual = hl.eval(hl.liftover(hl.locus_interval('20', 37007582, 37007586, True, True, 'GRCh37'),
-                                     'GRCh38', include_strand=True))
-        expected = hl.Struct(result=hl.Interval(hl.Locus('chr12', 32563117, 'GRCh38'),
-                                                hl.Locus('chr12', 32563121, 'GRCh38'),
-                                                includes_start=True,
-                                                includes_end=True),
-                             is_negative_strand=True)
+        actual = hl.eval(
+            hl.liftover(
+                hl.locus_interval('20', 37007582, 37007586, True, True, 'GRCh37'), 'GRCh38', include_strand=True
+            )
+        )
+        expected = hl.Struct(
+            result=hl.Interval(
+                hl.Locus('chr12', 32563117, 'GRCh38'),
+                hl.Locus('chr12', 32563121, 'GRCh38'),
+                includes_start=True,
+                includes_end=True,
+            ),
+            is_negative_strand=True,
+        )
         assert actual == expected
 
         with pytest.raises(FatalError):
@@ -170,7 +185,6 @@ def test_read_custom_reference_genome():
         assert rg.mt_contigs == ["MT"]
         assert rg.par == [hl.Interval(start=hl.Locus("X", 2, name), end=hl.Locus("X", 4, name))]
 
-
     assert hl.read_table(resource('custom_references.t')).count() == 14
     assert_rg_loaded_correctly('test_rg_0')
     assert_rg_loaded_correctly('test_rg_1')
@@ -189,7 +203,7 @@ def test_read_custom_reference_genome():
 def test_custom_reference_read_write():
     hl.ReferenceGenome("dk", ['hello'], {"hello": 123})
     ht = hl.utils.range_table(5)
-    ht = ht.key_by(locus=hl.locus('hello', ht.idx+1, 'dk'))
+    ht = ht.key_by(locus=hl.locus('hello', ht.idx + 1, 'dk'))
     with hl.TemporaryDirectory(ensure_exists=False) as foo:
         ht.write(foo)
         expected = ht
@@ -208,6 +222,7 @@ def test_locus_from_global_position():
 
     assert python == scala
 
+
 def test_locus_from_global_position_negative_pos():
     with pytest.raises(ValueError):
         hl.get_reference('GRCh37').locus_from_global_position(-1)
@@ -215,4 +230,4 @@ def test_locus_from_global_position_negative_pos():
 
 def test_locus_from_global_position_too_long():
     with pytest.raises(ValueError):
-        hl.get_reference('GRCh37').locus_from_global_position(2**64-1)
+        hl.get_reference('GRCh37').locus_from_global_position(2**64 - 1)

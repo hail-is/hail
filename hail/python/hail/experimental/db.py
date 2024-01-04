@@ -5,7 +5,7 @@ from typing import Iterable, List, Optional, Set, Tuple, Union
 
 import hail as hl
 import pkg_resources
-from hailtop.utils import (external_requests_client_session, retry_response_returning_functions)
+from hailtop.utils import external_requests_client_session, retry_response_returning_functions
 
 from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
@@ -53,16 +53,12 @@ class DatasetVersion:
         assert 'version' in doc, doc
         assert 'reference_genome' in doc, doc
         if cloud in doc['url']:
-            return DatasetVersion(doc['url'][cloud],
-                                  doc['version'],
-                                  doc['reference_genome'])
+            return DatasetVersion(doc['url'][cloud], doc['version'], doc['reference_genome'])
         else:
             return None
 
     @staticmethod
-    def get_region(name: str,
-                   versions: List['DatasetVersion'],
-                   region: str) -> List['DatasetVersion']:
+    def get_region(name: str, versions: List['DatasetVersion'], region: str) -> List['DatasetVersion']:
         """Get versions of a :class:`.Dataset` in the specified region, if they
         exist.
 
@@ -90,10 +86,7 @@ class DatasetVersion:
                 available_versions.append(version)
         return available_versions
 
-    def __init__(self,
-                 url: Union[dict, str],
-                 version: Optional[str],
-                 reference_genome: Optional[str]):
+    def __init__(self, url: Union[dict, str], version: Optional[str], reference_genome: Optional[str]):
         self.url = url
         self.version = version
         self.reference_genome = reference_genome
@@ -120,20 +113,20 @@ class DatasetVersion:
         available_regions = [k for k in self.url.keys()]
         valid_region = region in available_regions
         if not valid_region:
-            message = (f'\nName: {name}\n'
-                       f'Version: {current_version}\n'
-                       f'This dataset exists but is not yet available in the'
-                       f' {region} region bucket.\n'
-                       f'Dataset is currently available in the'
-                       f' {", ".join(available_regions)} region bucket(s).\n'
-                       f'Reach out to the Hail team at https://discuss.hail.is/'
-                       f' to request this dataset in your region.')
+            message = (
+                f'\nName: {name}\n'
+                f'Version: {current_version}\n'
+                f'This dataset exists but is not yet available in the'
+                f' {region} region bucket.\n'
+                f'Dataset is currently available in the'
+                f' {", ".join(available_regions)} region bucket(s).\n'
+                f'Reach out to the Hail team at https://discuss.hail.is/'
+                f' to request this dataset in your region.'
+            )
             warnings.warn(message, UserWarning, stacklevel=1)
         return valid_region
 
-    def maybe_index(self,
-                    indexer_key_expr: StructExpression,
-                    all_matches: bool) -> Optional[StructExpression]:
+    def maybe_index(self, indexer_key_expr: StructExpression, all_matches: bool) -> Optional[StructExpression]:
         """Find the prefix of the given indexer expression that can index the
         :class:`.DatasetVersion`, if it exists.
 
@@ -152,8 +145,7 @@ class DatasetVersion:
         :class:`StructExpression`, optional
             Struct of compatible indexed values, if they exist.
         """
-        return hl.read_table(self.url)._maybe_flexindex_table_by_expr(
-            indexer_key_expr, all_matches=all_matches)
+        return hl.read_table(self.url)._maybe_flexindex_table_by_expr(indexer_key_expr, all_matches=all_matches)
 
 
 class Dataset:
@@ -177,10 +169,7 @@ class Dataset:
     """
 
     @staticmethod
-    def from_name_and_json(name: str,
-                           doc: dict,
-                           region: str,
-                           cloud: str) -> Optional['Dataset']:
+    def from_name_and_json(name: str, doc: dict, region: str, cloud: str) -> Optional['Dataset']:
         """Create :class:`.Dataset` object from dictionary.
 
         Parameters
@@ -208,24 +197,17 @@ class Dataset:
         assert 'description' in doc, doc
         assert 'url' in doc, doc
         assert 'versions' in doc, doc
-        key_properties = set(x for x in doc['annotation_db']['key_properties']
-                             if x is not None)
-        versions = [DatasetVersion.from_json(x, cloud) for x in doc['versions']
-                    if DatasetVersion.from_json(x, cloud) is not None]
+        key_properties = set(x for x in doc['annotation_db']['key_properties'] if x is not None)
+        versions = [
+            DatasetVersion.from_json(x, cloud)
+            for x in doc['versions']
+            if DatasetVersion.from_json(x, cloud) is not None
+        ]
         versions_in_region = DatasetVersion.get_region(name, versions, region)
         if versions_in_region:
-            return Dataset(name,
-                           doc['description'],
-                           doc['url'],
-                           key_properties,
-                           versions_in_region)
+            return Dataset(name, doc['description'], doc['url'], key_properties, versions_in_region)
 
-    def __init__(self,
-                 name: str,
-                 description: str,
-                 url: str,
-                 key_properties: Set[str],
-                 versions: List[DatasetVersion]):
+    def __init__(self, name: str, description: str, url: str, key_properties: Set[str], versions: List[DatasetVersion]):
         assert set(key_properties).issubset(DB._valid_key_properties)
         self.name = name
         self.description = description
@@ -244,8 +226,7 @@ class Dataset:
         """
         return 'gene' in self.key_properties
 
-    def index_compatible_version(self,
-                                 key_expr: StructExpression) -> StructExpression:
+    def index_compatible_version(self, key_expr: StructExpression) -> StructExpression:
         """Get index from compatible version of annotation dataset.
 
         Checks for compatible indexed values from each :class:`.DatasetVersion`
@@ -280,9 +261,11 @@ class Dataset:
             indexed_values = sorted(compatible_indexed_values, key=lambda x: x[1])[-1]
 
         if len(compatible_indexed_values) > 1:
-            info(f'index_compatible_version: More than one compatible version'
-                 f' exists for annotation dataset: {self.name}. Rows have been'
-                 f' annotated with version {indexed_values[1]}.')
+            info(
+                f'index_compatible_version: More than one compatible version'
+                f' exists for annotation dataset: {self.name}. Rows have been'
+                f' annotated with version {indexed_values[1]}.'
+            )
         return indexed_values[0]
 
 
@@ -328,34 +311,36 @@ class DB:
     _valid_clouds = {'gcp', 'aws'}
     _valid_combinations = {('us', 'aws'), ('us', 'gcp'), ('eu', 'gcp')}
 
-    def __init__(self,
-                 *,
-                 region: str = 'us',
-                 cloud: str = 'gcp',
-                 url: Optional[str] = None,
-                 config: Optional[dict] = None):
+    def __init__(
+        self, *, region: str = 'us', cloud: str = 'gcp', url: Optional[str] = None, config: Optional[dict] = None
+    ):
         if region not in DB._valid_regions:
-            raise ValueError(f'Specify valid region parameter,'
-                             f' received: region={repr(region)}.\n'
-                             f'Valid regions are {DB._valid_regions}.')
+            raise ValueError(
+                f'Specify valid region parameter,'
+                f' received: region={repr(region)}.\n'
+                f'Valid regions are {DB._valid_regions}.'
+            )
         if cloud not in DB._valid_clouds:
-            raise ValueError(f'Specify valid cloud parameter,'
-                             f' received: cloud={repr(cloud)}.\n'
-                             f'Valid cloud platforms are {DB._valid_clouds}.')
+            raise ValueError(
+                f'Specify valid cloud parameter,'
+                f' received: cloud={repr(cloud)}.\n'
+                f'Valid cloud platforms are {DB._valid_clouds}.'
+            )
         if (region, cloud) not in DB._valid_combinations:
-            raise ValueError(f'The {repr(region)} region is not available for'
-                             f' the {repr(cloud)} cloud platform. '
-                             f'Valid region, cloud combinations are'
-                             f' {DB._valid_combinations}.')
+            raise ValueError(
+                f'The {repr(region)} region is not available for'
+                f' the {repr(cloud)} cloud platform. '
+                f'Valid region, cloud combinations are'
+                f' {DB._valid_combinations}.'
+            )
         if config is not None and url is not None:
-            raise ValueError(f'Only specify one of the parameters url and'
-                             f' config, received: url={url} and config={config}')
+            raise ValueError(
+                f'Only specify one of the parameters url and' f' config, received: url={url} and config={config}'
+            )
         if config is None:
             if url is None:
-                config_path = pkg_resources.resource_filename(__name__,
-                                                              'datasets.json')
-                assert os.path.exists(config_path), \
-                    f'{config_path} does not exist'
+                config_path = pkg_resources.resource_filename(__name__, 'datasets.json')
+                assert os.path.exists(config_path), f'{config_path} does not exist'
                 with open(config_path) as f:
                     config = json.load(f)
             else:
@@ -365,17 +350,17 @@ class DB:
             assert isinstance(config, dict)
         else:
             if not isinstance(config, dict):
-                raise ValueError(f'expected a dict mapping dataset names to '
-                                 f'configurations, but found {config}')
+                raise ValueError(f'expected a dict mapping dataset names to ' f'configurations, but found {config}')
         config = {k: v for k, v in config.items() if 'annotation_db' in v}
         self.region = region
         self.cloud = cloud
         self.url = url
         self.config = config
-        self.__by_name = {k: Dataset.from_name_and_json(k, v, region, cloud)
-                          for k, v in config.items()
-                          if Dataset.from_name_and_json(k, v, region, cloud)
-                          is not None}
+        self.__by_name = {
+            k: Dataset.from_name_and_json(k, v, region, cloud)
+            for k, v in config.items()
+            if Dataset.from_name_and_json(k, v, region, cloud) is not None
+        }
 
     @property
     def available_datasets(self) -> List[str]:
@@ -405,8 +390,7 @@ class DB:
         elif isinstance(rel, Table):
             return TableRows(rel)
         else:
-            raise ValueError('annotation database can only annotate Hail'
-                             ' MatrixTable or Table')
+            raise ValueError('annotation database can only annotate Hail' ' MatrixTable or Table')
 
     def _dataset_by_name(self, name: str) -> Dataset:
         """Retrieve :class:`Dataset` object by name.
@@ -421,14 +405,14 @@ class DB:
         :class:`Dataset`
         """
         if name not in self.__by_name:
-            raise ValueError(f'{name} not found in annotation database,'
-                             f' you may list all known dataset names'
-                             f' with available_datasets')
+            raise ValueError(
+                f'{name} not found in annotation database,'
+                f' you may list all known dataset names'
+                f' with available_datasets'
+            )
         return self.__by_name[name]
 
-    def _annotate_gene_name(self,
-                            rel: Union[TableRows, MatrixRows]
-                            ) -> Tuple[str, Union[TableRows, MatrixRows]]:
+    def _annotate_gene_name(self, rel: Union[TableRows, MatrixRows]) -> Tuple[str, Union[TableRows, MatrixRows]]:
         """Annotate row lens with gene name if annotation dataset is gene
         keyed.
 
@@ -456,13 +440,10 @@ class DB:
         """
         unavailable = [x for x in names if x not in self.__by_name.keys()]
         if unavailable:
-            raise ValueError(f'datasets: {unavailable} not available'
-                             f' in the {self.region} region.')
+            raise ValueError(f'datasets: {unavailable} not available' f' in the {self.region} region.')
 
     @typecheck_method(rel=oneof(table_type, matrix_table_type), names=str)
-    def annotate_rows_db(self,
-                         rel: Union[Table, MatrixTable],
-                         *names: str) -> Union[Table, MatrixTable]:
+    def annotate_rows_db(self, rel: Union[Table, MatrixTable], *names: str) -> Union[Table, MatrixTable]:
         """Add annotations from datasets specified by name to a relational
         object.
 
@@ -512,8 +493,7 @@ class DB:
         """
         rel = self._row_lens(rel)
         if len(set(names)) != len(names):
-            raise ValueError(f'cannot annotate same dataset twice,'
-                             f' please remove duplicates from: {names}')
+            raise ValueError(f'cannot annotate same dataset twice,' f' please remove duplicates from: {names}')
         self._check_availability(names)
         datasets = [self._dataset_by_name(name) for name in names]
         if any(dataset.is_gene_keyed for dataset in datasets):
@@ -523,14 +503,17 @@ class DB:
         for dataset in datasets:
             if dataset.is_gene_keyed:
                 genes = rel.select(gene_field).explode(gene_field)
-                genes = genes.annotate(**{
-                    dataset.name: dataset.index_compatible_version(genes[gene_field])})
-                genes = genes.group_by(*genes.key)\
-                             .aggregate(**{
-                                 dataset.name: hl.dict(
-                                     hl.agg.filter(hl.is_defined(genes[dataset.name]),
-                                                   hl.agg.collect((genes[gene_field],
-                                                                   genes[dataset.name]))))})
+                genes = genes.annotate(**{dataset.name: dataset.index_compatible_version(genes[gene_field])})
+                genes = genes.group_by(*genes.key).aggregate(
+                    **{
+                        dataset.name: hl.dict(
+                            hl.agg.filter(
+                                hl.is_defined(genes[dataset.name]),
+                                hl.agg.collect((genes[gene_field], genes[dataset.name])),
+                            )
+                        )
+                    }
+                )
                 rel = rel.annotate(**{dataset.name: genes.index(rel.key)[dataset.name]})
             else:
                 indexed_value = dataset.index_compatible_version(rel.key)
