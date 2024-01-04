@@ -8,7 +8,6 @@ import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
-
 object StoredCodeTuple {
   def canStore(ti: TypeInfo[_]): Boolean = ti match {
     case IntInfo => true
@@ -91,19 +90,28 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
 
   override def virtualType: Type = sType.virtualType
 
-  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+    : Value[Long] = {
     val addr = cb.memoize(region.allocate(ct.alignment, ct.byteSize))
     ct.store(cb, addr, value.st.coerceOrCopy(cb, region, value, deepCopy).valueTuple.map(_.get))
     addr
   }
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
-    ct.store(cb, cb.newLocal[Long]("stored_stype_ptype_addr", addr), value.st.coerceOrCopy(cb, region, value, deepCopy).valueTuple.map(_.get))
-  }
+  override def storeAtAddress(
+    cb: EmitCodeBuilder,
+    addr: Code[Long],
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): Unit =
+    ct.store(
+      cb,
+      cb.newLocal[Long]("stored_stype_ptype_addr", addr),
+      value.st.coerceOrCopy(cb, region, value, deepCopy).valueTuple.map(_.get),
+    )
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SValue = {
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SValue =
     sType.fromValues(ct.loadValues(cb, cb.newLocal[Long]("stored_stype_ptype_loaded_addr")))
-  }
 
   override def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
@@ -115,25 +123,48 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
 
   override def containsPointers: Boolean = sType.containsPointers
 
-  override def setRequired(required: Boolean): PType = if (required == this.required) this else StoredSTypePType(sType, required)
+  override def setRequired(required: Boolean): PType =
+    if (required == this.required) this else StoredSTypePType(sType, required)
 
-  def unsupportedCanonicalMethod: Nothing = throw new UnsupportedOperationException("not supported on StoredStypePType")
+  def unsupportedCanonicalMethod: Nothing =
+    throw new UnsupportedOperationException("not supported on StoredStypePType")
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append(sType.toString)
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
+    sb.append(sType.toString)
 
-  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = unsupportedCanonicalMethod
+  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering =
+    unsupportedCanonicalMethod
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = unsupportedCanonicalMethod
 
   def unstagedLoadFromNested(addr: Long): Long = unsupportedCanonicalMethod
 
-  def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = unsupportedCanonicalMethod
+  def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long =
+    unsupportedCanonicalMethod
 
-  def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = unsupportedCanonicalMethod
+  def unstagedStoreJavaObjectAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    annotation: Annotation,
+    region: Region,
+  ): Unit = unsupportedCanonicalMethod
 
-  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = unsupportedCanonicalMethod
+  override def _copyFromAddress(
+    sm: HailStateManager,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Long = unsupportedCanonicalMethod
 
-  override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = unsupportedCanonicalMethod
+  override def unstagedStoreAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Unit = unsupportedCanonicalMethod
 
   override def _asIdent: String = "stored_stype_ptype"
 

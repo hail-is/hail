@@ -46,7 +46,7 @@ trait PArrayBackedContainer extends PContainer {
     arrayRep.setElementMissing(cb, aoff, i)
 
   override def setElementPresent(aoff: Long, i: Int) {
-      arrayRep.setElementPresent(aoff, i)
+    arrayRep.setElementPresent(aoff, i)
   }
 
   override def setElementPresent(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
@@ -106,7 +106,12 @@ trait PArrayBackedContainer extends PContainer {
   override def initialize(aoff: Long, length: Int, setMissing: Boolean = false) =
     arrayRep.initialize(aoff, length, setMissing)
 
-  override def stagedInitialize(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Unit =
+  override def stagedInitialize(
+    cb: EmitCodeBuilder,
+    aoff: Code[Long],
+    length: Code[Int],
+    setMissing: Boolean = false,
+  ): Unit =
     arrayRep.stagedInitialize(cb, aoff, length, setMissing)
 
   override def zeroes(region: Region, length: Int): Long =
@@ -124,8 +129,20 @@ trait PArrayBackedContainer extends PContainer {
   override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering =
     arrayRep.unsafeOrdering(sm, rightType)
 
-  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    arrayRep.copyFromAddress(sm, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
+  override def _copyFromAddress(
+    sm: HailStateManager,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Long =
+    arrayRep.copyFromAddress(
+      sm,
+      region,
+      srcPType.asInstanceOf[PArrayBackedContainer].arrayRep,
+      srcAddress,
+      deepCopy,
+    )
 
   override def nextElementAddress(currentOffset: Long): Long =
     arrayRep.nextElementAddress(currentOffset)
@@ -145,10 +162,25 @@ trait PArrayBackedContainer extends PContainer {
   override def pastLastElementOffset(aoff: Code[Long], length: Value[Int]): Code[Long] =
     arrayRep.pastLastElementOffset(aoff, length)
 
-  override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    arrayRep.unstagedStoreAtAddress(sm, addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
+  override def unstagedStoreAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Unit =
+    arrayRep.unstagedStoreAtAddress(
+      sm,
+      addr,
+      region,
+      srcPType.asInstanceOf[PArrayBackedContainer].arrayRep,
+      srcAddress,
+      deepCopy,
+    )
 
-  override def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PArrayBackedContainer])
+  override def sType: SIndexablePointer =
+    SIndexablePointer(setRequired(false).asInstanceOf[PArrayBackedContainer])
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue = {
     val a = cb.memoize(addr)
@@ -157,17 +189,28 @@ trait PArrayBackedContainer extends PContainer {
     new SIndexablePointerValue(sType, a, length, elementsAddr)
   }
 
-  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+    : Value[Long] =
     arrayRep.store(cb, region, value.asIndexable.castToArray(cb), deepCopy)
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit =
+  override def storeAtAddress(
+    cb: EmitCodeBuilder,
+    addr: Code[Long],
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): Unit =
     arrayRep.storeAtAddress(cb, addr, region, value.asIndexable.castToArray(cb), deepCopy)
 
   override def loadFromNested(addr: Code[Long]): Code[Long] = arrayRep.loadFromNested(addr)
 
   override def unstagedLoadFromNested(addr: Long): Long = arrayRep.unstagedLoadFromNested(addr)
 
-  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    annotation: Annotation,
+    region: Region,
+  ): Unit =
     Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
-  }
 }

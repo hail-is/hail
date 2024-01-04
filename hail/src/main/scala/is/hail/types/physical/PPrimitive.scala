@@ -14,7 +14,13 @@ trait PPrimitive extends PType {
 
   override def containsPointers: Boolean = false
 
-  def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  def _copyFromAddress(
+    sm: HailStateManager,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Long = {
     if (!deepCopy)
       return srcAddress
 
@@ -24,26 +30,38 @@ trait PPrimitive extends PType {
     addr
   }
 
-
-  def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  def unstagedStoreAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Unit = {
     assert(srcPType.isOfType(this))
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+    : Value[Long] = {
     val newAddr = cb.memoize(region.allocate(alignment, byteSize))
     storeAtAddress(cb, newAddr, region, value, deepCopy)
     newAddr
   }
 
-
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+  override def storeAtAddress(
+    cb: EmitCodeBuilder,
+    addr: Code[Long],
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): Unit =
     storePrimitiveAtAddress(cb, addr, value)
-  }
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
+    : Long = {
     val addr = region.allocate(this.byteSize)
     unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
     addr

@@ -18,9 +18,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
     normalizeIR(ir.noSharing(ctx), env).run().asInstanceOf[IR]
 
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    normalizeIR(ir.noSharing(ctx), BindingEnv(agg=Some(Env.empty), scan=Some(Env.empty))).run()
+    normalizeIR(ir.noSharing(ctx), BindingEnv(agg = Some(Env.empty), scan = Some(Env.empty))).run()
 
-  private def normalizeIR(ir: BaseIR, env: BindingEnv[String], context: Array[String] = Array()): StackFrame[BaseIR] = {
+  private def normalizeIR(ir: BaseIR, env: BindingEnv[String], context: Array[String] = Array())
+    : StackFrame[BaseIR] = {
 
     def normalizeBaseIR(next: BaseIR, env: BindingEnv[String] = env): StackFrame[BaseIR] =
       call(normalizeIR(next, env, context :+ ir.getClass().getName()))
@@ -51,7 +52,9 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           case Some(n) => n
           case None =>
             if (!allowFreeVariables)
-              throw new RuntimeException(s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}")
+              throw new RuntimeException(
+                s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}"
+              )
             else
               name
         }
@@ -61,7 +64,9 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           case Some(n) => n
           case None =>
             if (!allowFreeVariables)
-              throw new RuntimeException(s"found free loop variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}")
+              throw new RuntimeException(
+                s"found free loop variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}"
+              )
             else
               name
         }
@@ -84,7 +89,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val (names, values) = args.unzip
         for {
           newValues <- values.mapRecur(v => normalize(v))
-          newBody <- normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames) :+ name -> newFName: _*)))
+          newBody <- normalize(
+            body,
+            env.copy(eval = env.eval.bind(names.zip(newNames) :+ name -> newFName: _*)),
+          )
         } yield TailLoop(newFName, newNames.zip(newValues), resultType, newBody)
       case ArraySort(a, left, right, lessThan) =>
         val newLeft = gen()
@@ -120,7 +128,8 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newCtxs <- normalize(contexts)
           newMakeProducer <- normalize(makeProducer, env.bindEval(ctxName -> newCtxName))
           newJoinF <- normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals))
-        } yield StreamZipJoinProducers(newCtxs, newCtxName, newMakeProducer, key, newCurKey, newCurVals, newJoinF)
+        } yield StreamZipJoinProducers(newCtxs, newCtxName, newMakeProducer, key, newCurKey,
+          newCurVals, newJoinF)
       case StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lEltName, rEltName, body) =>
         val newLName = gen()
         val newRName = gen()
@@ -139,13 +148,13 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         val newName = gen()
         for {
           newA <- normalize(a)
-            newBody <- normalize(body, env.bindEval(name, newName))
+          newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamTakeWhile(newA, newName, newBody)
       case StreamDropWhile(a, name, body) =>
         val newName = gen()
         for {
           newA <- normalize(a)
-            newBody <- normalize(body, env.bindEval(name, newName))
+          newBody <- normalize(body, env.bindEval(name, newName))
         } yield StreamDropWhile(newA, newName, newBody)
       case StreamFlatMap(a, name, body) =>
         val newName = gen()
@@ -159,7 +168,8 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         for {
           newA <- normalize(a)
           newZero <- normalize(zero)
-          newBody <- normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName))
+          newBody <-
+            normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName))
         } yield StreamFold(newA, newZero, newAccumName, newValueName, newBody)
       case StreamFold2(a, accum, valueName, seq, res) =>
         val newValueName = gen()
@@ -183,7 +193,8 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         for {
           newA <- normalize(a)
           newZero <- normalize(zero)
-          newBody <- normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName))
+          newBody <-
+            normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName))
         } yield StreamScan(newA, newZero, newAccumName, newValueName, newBody)
       case StreamFor(a, valueName, body) =>
         val newValueName = gen()
@@ -198,8 +209,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         for {
           newA <- normalize(a)
           newBody <- normalize(body, env.copy(agg = Some(env.eval.bind(name, newName))))
-        } yield
-        StreamAgg(newA, newName, newBody)
+        } yield StreamAgg(newA, newName, newBody)
       case RunAggScan(a, name, init, seq, result, sig) =>
         val newName = gen()
         val e2 = env.bindEval(name, newName)
@@ -226,7 +236,8 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newLeft <- normalize(left)
           newRight <- normalize(right)
           newJoinF <- normalize(joinF, newEnv)
-        } yield StreamJoinRightDistinct(newLeft, newRight, lKey, rKey, newL, newR, newJoinF, joinType)
+        } yield StreamJoinRightDistinct(newLeft, newRight, lKey, rKey, newL, newR, newJoinF,
+          joinType)
       case NDArrayMap(nd, name, body) =>
         val newName = gen()
         for {
@@ -252,7 +263,8 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newA <- normalize(a, aEnv)
           newAggBody <- normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName))
           newKnownLength <- knownLength.mapRecur(normalize(_, env))
-        } yield AggArrayPerElement(newA, newElementName, newIndexName, newAggBody, newKnownLength, isScan)
+        } yield AggArrayPerElement(newA, newElementName, newIndexName, newAggBody, newKnownLength,
+          isScan)
       case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val newC = gen()
         val newG = gen()
@@ -261,7 +273,8 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newGlobals <- normalize(globals)
           newBody <- normalize(body, BindingEnv.eval(cname -> newC, gname -> newG))
           newDynamicID <- normalize(dynamicID)
-        } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody, newDynamicID, staticID, tsd)
+        } yield CollectDistributedArray(newCtxs, newGlobals, newC, newG, newBody, newDynamicID,
+          staticID, tsd)
       case RelationalLet(name, value, body) =>
         val newName = gen()
         for {
@@ -270,7 +283,9 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         } yield RelationalLet(newName, newValue, newBody)
       case RelationalRef(name, typ) =>
         val newName = env.relational.lookupOption(name).getOrElse(
-          if (!allowFreeVariables) throw new RuntimeException(s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}")
+          if (!allowFreeVariables) throw new RuntimeException(
+            s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}"
+          )
           else name
         )
         done(RelationalRef(newName, typ))

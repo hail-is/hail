@@ -1,13 +1,14 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
-import org.testng.annotations.Test
+
 import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.Test
 
 class SetFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))
@@ -67,9 +68,20 @@ class SetFunctionsSuite extends HailSuite {
   @Test def isSubset() {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("add", TSet(TInt32), s, I32(4))), true)
-    assertEvalsTo(invoke("isSubset", TBoolean, IRSet(3, 7), invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32))), true)
+    assertEvalsTo(
+      invoke(
+        "isSubset",
+        TBoolean,
+        IRSet(3, 7),
+        invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32)),
+      ),
+      true,
+    )
     assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, I32(3))), false)
-    assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, NA(TInt32))), false)
+    assertEvalsTo(
+      invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, NA(TInt32))),
+      false,
+    )
   }
 
   @Test def union() {
@@ -79,7 +91,10 @@ class SetFunctionsSuite extends HailSuite {
 
   @Test def intersection() {
     assertEvalsTo(invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(3))
-    assertEvalsTo(invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)), Set(null, 3))
+    assertEvalsTo(
+      invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)),
+      Set(null, 3),
+    )
   }
 
   @Test def difference() {

@@ -2,23 +2,19 @@ package is.hail.annotations
 
 import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils.{info, using}
-import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
 
 import scala.collection.mutable.ArrayBuffer
+
+import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.Test
 
 class RegionSuite extends TestNGSuite {
 
   @Test def testRegionSizes() {
     RegionPool.scoped { pool =>
-      pool.scopedSmallRegion { region =>
-        Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
-      }
+      pool.scopedSmallRegion(region => Array.range(0, 30).foreach(_ => region.allocate(1, 500)))
 
-
-      pool.scopedTinyRegion { region =>
-        Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
-      }
+      pool.scopedTinyRegion(region => Array.range(0, 30).foreach(_ => region.allocate(1, 60)))
     }
   }
 
@@ -82,8 +78,10 @@ class RegionSuite extends TestNGSuite {
     RegionPool.scoped { pool =>
       case class Counts(regions: Int, freeRegions: Int) {
         def allocate(n: Int): Counts =
-          copy(regions = regions + math.max(0, n - freeRegions),
-            freeRegions = math.max(0, freeRegions - n))
+          copy(
+            regions = regions + math.max(0, n - freeRegions),
+            freeRegions = math.max(0, freeRegions - n),
+          )
 
         def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
           copy(freeRegions = freeRegions + nRegions)
@@ -110,8 +108,8 @@ class RegionSuite extends TestNGSuite {
       assertAfterEquals(before.free(2))
 
       pool.scopedRegion { region =>
-        pool.scopedRegion { region2 => region.addReferenceTo(region2) }
-        pool.scopedRegion { region2 => region.addReferenceTo(region2) }
+        pool.scopedRegion(region2 => region.addReferenceTo(region2))
+        pool.scopedRegion(region2 => region.addReferenceTo(region2))
         assertAfterEquals(before.allocate(3))
       }
       assertAfterEquals(before.free(3))
@@ -131,27 +129,21 @@ class RegionSuite extends TestNGSuite {
         res
       }
 
-      val region = Region(pool=pool)
+      val region = Region(pool = pool)
       region.setNumParents(5)
 
       val off4 = using(assertUsesRegions(1) {
         region.getParentReference(4, Region.SMALL)
-      }) { r =>
-        offset(r)
-      }
+      })(r => offset(r))
 
       val off2 = pool.scopedTinyRegion { r =>
         region.setParentReference(r, 2)
         offset(r)
       }
 
-      using(region.getParentReference(2, Region.TINY)) { r =>
-        assert(offset(r) == off2)
-      }
+      using(region.getParentReference(2, Region.TINY))(r => assert(offset(r) == off2))
 
-      using(region.getParentReference(4, Region.SMALL)) { r =>
-        assert(offset(r) == off4)
-      }
+      using(region.getParentReference(4, Region.SMALL))(r => assert(offset(r) == off4))
 
       assertUsesRegions(-1) {
         region.unreferenceRegionAtIndex(2)
@@ -239,7 +231,6 @@ class RegionSuite extends TestNGSuite {
   @Test
   def testChunkCache(): Unit = {
     RegionPool.scoped { pool =>
-
       val operations = ArrayBuffer[(String, Long)]()
 
       def allocate(numBytes: Long): Long = {
@@ -258,11 +249,11 @@ class RegionSuite extends TestNGSuite {
       chunkCache.freeChunkToCache(ab.pop())
       ab += chunkCache.getChunk(pool, 50L)._1
       assert(operations(0) == (("allocate", 512)))
-      //512 size chunk freed from cache to not exceed peak memory
+      // 512 size chunk freed from cache to not exceed peak memory
       assert(operations(1) == (("free", 0L)))
       assert(operations(2) == (("allocate", 64)))
       chunkCache.freeChunkToCache(ab.pop())
-      //No additional allocate should be made as uses cache
+      // No additional allocate should be made as uses cache
       ab += chunkCache.getChunk(pool, 50L)._1
       assert(operations.length == 3)
       ab += chunkCache.getChunk(pool, 40L)._1

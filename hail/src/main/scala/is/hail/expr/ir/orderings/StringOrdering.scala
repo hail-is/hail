@@ -29,9 +29,11 @@ object StringOrdering {
           override val type1: SString = t1
           override val type2: SString = t2
 
-          override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
-            cb.memoize(x.asString.loadString(cb).invoke[String, Int]("compareTo", y.asString.loadString(cb)))
-          }
+          override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] =
+            cb.memoize(x.asString.loadString(cb).invoke[String, Int](
+              "compareTo",
+              y.asString.loadString(cb),
+            ))
         }
     }
   }

@@ -1,14 +1,13 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
 import is.hail.expr.ir.{MatrixRangeReader, _}
+import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
 import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.{Logging, TreeTraversal, toRichBoolean}
-import org.apache.commons.codec.digest.MurmurHash3
+import is.hail.utils.{toRichBoolean, Logging, TreeTraversal}
 
 import java.io.FileNotFoundException
 import java.nio.ByteBuffer
@@ -16,13 +15,14 @@ import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.util.control.NonFatal
 
+import org.apache.commons.codec.digest.MurmurHash3
+
 case object SemanticHash extends Logging {
   type Type = Int
 
   // Picked from https://softwareengineering.stackexchange.com/a/145633
   def extend(x: Type, bytes: Array[Byte]): Type =
     MurmurHash3.hash32x86(bytes, 0, bytes.length, x)
-
 
   def apply(ctx: ExecuteContext)(root: BaseIR): Option[Type] =
     ctx.timer.time("SemanticHash") {
@@ -45,7 +45,7 @@ case object SemanticHash extends Logging {
               val bytes = encode(ctx.fs, ir, index)
               hash = extend(hash, bytes)
             } catch {
-              case error@(_: UnsupportedOperationException | _: FileNotFoundException) =>
+              case error @ (_: UnsupportedOperationException | _: FileNotFoundException) =>
                 log.info(error)
                 return None
 
@@ -56,7 +56,7 @@ case object SemanticHash extends Logging {
                     |INCLUDING THE STACK TRACE AT THE END OF THIS MESSAGE.
                     |https://github.com/hail-is/hail/issues/new/choose
                     |""".stripMargin,
-                  error
+                  error,
                 )
                 return None
             }
@@ -71,7 +71,6 @@ case object SemanticHash extends Logging {
       log.info(s"IR Semantic Hash: $semhash")
       semhash
     }
-
 
   private def encode(fs: FS, ir: BaseIR, index: Int): Array[Byte] = {
     val buffer: mutable.ArrayBuilder[Byte] =
@@ -156,7 +155,9 @@ case object SemanticHash extends Logging {
             buffer ++= getFileHash(fs)(path)
 
           case _ =>
-            throw new UnsupportedOperationException(s"SemanticHash unknown: ${reader.getClass.getName}")
+            throw new UnsupportedOperationException(
+              s"SemanticHash unknown: ${reader.getClass.getName}"
+            )
         }
 
       case Cast(_, typ) =>
@@ -195,7 +196,6 @@ case object SemanticHash extends Logging {
               params.nPartitions.fold(Array.empty[Byte])(Bytes.fromInt) ++=
               Bytes.fromInt(nPartitionsAdj)
 
-
           case _: MatrixNativeReader =>
             reader
               .pathsUsed
@@ -203,11 +203,11 @@ case object SemanticHash extends Logging {
               .foreach(g => buffer ++= getFileHash(fs)(g.getPath))
 
           case _: MatrixVCFReader =>
-            reader.pathsUsed.foreach { path =>
-              buffer ++= getFileHash(fs)(path)
-            }
+            reader.pathsUsed.foreach(path => buffer ++= getFileHash(fs)(path))
           case _ =>
-            throw new UnsupportedOperationException(s"SemanticHash unknown: ${reader.getClass.getName}")
+            throw new UnsupportedOperationException(
+              s"SemanticHash unknown: ${reader.getClass.getName}"
+            )
         }
 
       case MatrixWrite(_, writer) =>
@@ -237,7 +237,6 @@ case object SemanticHash extends Logging {
         val getFieldIndex = table.typ.rowType.fieldIdx
         keys.map(getFieldIndex).foreach(buffer ++= Bytes.fromInt(_))
 
-
       case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
         nPartitions.foreach {
           buffer ++= Bytes.fromInt(_)
@@ -260,14 +259,16 @@ case object SemanticHash extends Logging {
           case StringTableReader(_, fileStatuses) =>
             fileStatuses.foreach(s => buffer ++= getFileHash(fs)(s.getPath))
 
-          case reader@(_: TableNativeReader | _: TableNativeZippedReader) =>
+          case reader @ (_: TableNativeReader | _: TableNativeZippedReader) =>
             reader
               .pathsUsed
               .flatMap(p => fs.glob(p + "/**").filter(_.isFile))
               .foreach(g => buffer ++= getFileHash(fs)(g.getPath))
 
           case _ =>
-            throw new UnsupportedOperationException(s"SemanticHash unknown: ${reader.getClass.getName}")
+            throw new UnsupportedOperationException(
+              s"SemanticHash unknown: ${reader.getClass.getName}"
+            )
         }
 
       case TableToValueApply(_, op) =>
@@ -282,7 +283,9 @@ case object SemanticHash extends Logging {
                 buffer ++= Bytes.fromClass(op.getClass)
 
               case _: MatrixExportEntriesByCol =>
-                throw new UnsupportedOperationException("SemanticHash unknown: MatrixExportEntriesByCol")
+                throw new UnsupportedOperationException(
+                  "SemanticHash unknown: MatrixExportEntriesByCol"
+                )
             }
 
           case _: ForceCountTable | _: NPartitionsTable =>
@@ -294,76 +297,76 @@ case object SemanticHash extends Logging {
 
       // The following are parameterized entirely by the operation's input and the operation itself
       case _: ArrayLen |
-           _: ArrayRef |
-           _: ArraySlice |
-           _: ArraySort |
-           _: ArrayZeros |
-           _: Begin |
-           _: BlockMatrixCollect |
-           _: CastToArray |
-           _: Coalesce |
-           _: CollectDistributedArray |
-           _: ConsoleLog |
-           _: Consume |
-           _: Die |
-           _: GroupByKey |
-           _: If |
-           _: InsertFields |
-           _: IsNA |
-           _: Let |
-           _: LiftMeOut |
-           _: MakeArray |
-           _: MakeNDArray |
-           _: MakeStream |
-           _: MakeStruct |
-           _: MatrixAggregate |
-           _: MatrixColsTable |
-           _: MatrixCount |
-           _: MatrixMapGlobals |
-           _: MatrixMapRows |
-           _: MatrixFilterRows |
-           _: MatrixMapCols |
-           _: MatrixFilterCols |
-           _: MatrixMapEntries |
-           _: MatrixFilterEntries |
-           _: MatrixDistinctByRow |
-           _: NDArrayShape |
-           _: NDArraySlice |
-           _: NDArrayReshape |
-           _: NDArrayWrite |
-           _: RelationalLet |
-           _: RNGSplit |
-           _: RNGStateLiteral |
-           _: StreamAgg |
-           _: StreamDrop |
-           _: StreamDropWhile |
-           _: StreamFilter |
-           _: StreamFlatMap |
-           _: StreamFold |
-           _: StreamFold2 |
-           _: StreamFor |
-           _: StreamIota |
-           _: StreamLen |
-           _: StreamMap |
-           _: StreamRange |
-           _: StreamTake |
-           _: StreamTakeWhile |
-           _: Switch |
-           _: TableGetGlobals |
-           _: TableAggregate |
-           _: TableAggregateByKey |
-           _: TableCollect |
-           _: TableCount |
-           _: TableDistinct |
-           _: TableFilter |
-           _: TableMapGlobals |
-           _: TableMapRows |
-           _: TableRename |
-           _: ToArray |
-           _: ToDict |
-           _: ToSet |
-           _: ToStream |
-           _: Trap =>
+          _: ArrayRef |
+          _: ArraySlice |
+          _: ArraySort |
+          _: ArrayZeros |
+          _: Begin |
+          _: BlockMatrixCollect |
+          _: CastToArray |
+          _: Coalesce |
+          _: CollectDistributedArray |
+          _: ConsoleLog |
+          _: Consume |
+          _: Die |
+          _: GroupByKey |
+          _: If |
+          _: InsertFields |
+          _: IsNA |
+          _: Let |
+          _: LiftMeOut |
+          _: MakeArray |
+          _: MakeNDArray |
+          _: MakeStream |
+          _: MakeStruct |
+          _: MatrixAggregate |
+          _: MatrixColsTable |
+          _: MatrixCount |
+          _: MatrixMapGlobals |
+          _: MatrixMapRows |
+          _: MatrixFilterRows |
+          _: MatrixMapCols |
+          _: MatrixFilterCols |
+          _: MatrixMapEntries |
+          _: MatrixFilterEntries |
+          _: MatrixDistinctByRow |
+          _: NDArrayShape |
+          _: NDArraySlice |
+          _: NDArrayReshape |
+          _: NDArrayWrite |
+          _: RelationalLet |
+          _: RNGSplit |
+          _: RNGStateLiteral |
+          _: StreamAgg |
+          _: StreamDrop |
+          _: StreamDropWhile |
+          _: StreamFilter |
+          _: StreamFlatMap |
+          _: StreamFold |
+          _: StreamFold2 |
+          _: StreamFor |
+          _: StreamIota |
+          _: StreamLen |
+          _: StreamMap |
+          _: StreamRange |
+          _: StreamTake |
+          _: StreamTakeWhile |
+          _: Switch |
+          _: TableGetGlobals |
+          _: TableAggregate |
+          _: TableAggregateByKey |
+          _: TableCollect |
+          _: TableCount |
+          _: TableDistinct |
+          _: TableFilter |
+          _: TableMapGlobals |
+          _: TableMapRows |
+          _: TableRename |
+          _: ToArray |
+          _: ToDict |
+          _: ToSet |
+          _: ToStream |
+          _: Trap =>
         ()
 
       // Discrete values
@@ -395,7 +398,6 @@ case object SemanticHash extends Logging {
       case None =>
         path.getBytes ++ Bytes.fromLong(fs.fileListEntry(path).getModificationTime)
     }
-
 
   def levelOrder(root: BaseIR): Iterator[(BaseIR, Int)] = {
     val adj: ((BaseIR, Int)) => Iterator[(BaseIR, Int)] =

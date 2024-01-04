@@ -8,5 +8,6 @@ import is.hail.types.virtual.TSet
 abstract class PSet extends PContainer {
   lazy val virtualType: TSet = TSet(elementType.virtualType)
 
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue(sm))
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
+    Gen.buildableOf[Set](elementType.genValue(sm))
 }

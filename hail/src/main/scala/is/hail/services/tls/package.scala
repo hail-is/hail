@@ -1,18 +1,20 @@
 package is.hail.services
 
 import is.hail.utils._
+
 import org.json4s.{DefaultFormats, Formats}
+import org.json4s.JsonAST.JString
+import org.json4s.jackson.JsonMethods
+
 import java.io.{File, FileInputStream}
 import java.security.KeyStore
 
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
-import org.apache.log4j.{LogManager, Logger}
-import org.json4s.JsonAST.JString
-import org.json4s.jackson.JsonMethods
+import org.apache.log4j.{Logger, LogManager}
 
 class NoSSLConfigFound(
   message: String,
-  cause: Throwable
+  cause: Throwable,
 ) extends Exception(message, cause) {
   def this() = this(null, null)
 
@@ -26,7 +28,8 @@ case class SSLConfig(
   incoming_trust_store: String,
   key: String,
   cert: String,
-  key_store: String)
+  key_store: String,
+)
 
 package object tls {
   lazy val log: Logger = LogManager.getLogger("is.hail.tls")
@@ -40,7 +43,9 @@ package object tls {
 
     using(new FileInputStream(configFile)) { is =>
       implicit val formats: Formats = DefaultFormats
-      JsonMethods.parse(is).mapField { case (k, JString(v)) => (k, JString(s"$configDir/$v")) }.extract[SSLConfig]
+      JsonMethods.parse(is).mapField { case (k, JString(v)) =>
+        (k, JString(s"$configDir/$v"))
+      }.extract[SSLConfig]
     }
   }
 
@@ -72,16 +77,12 @@ package object tls {
     val pw = "dummypw".toCharArray
 
     val ks = KeyStore.getInstance("PKCS12")
-    using(new FileInputStream(sslConfig.key_store)) { is =>
-      ks.load(is, pw)
-    }
+    using(new FileInputStream(sslConfig.key_store))(is => ks.load(is, pw))
     val kmf = KeyManagerFactory.getInstance("SunX509")
     kmf.init(ks, pw)
 
     val ts = KeyStore.getInstance("JKS")
-    using(new FileInputStream(sslConfig.outgoing_trust_store)) { is =>
-      ts.load(is, pw)
-    }
+    using(new FileInputStream(sslConfig.outgoing_trust_store))(is => ts.load(is, pw))
     val tmf = TrustManagerFactory.getInstance("SunX509")
     tmf.init(ts)
 

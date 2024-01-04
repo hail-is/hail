@@ -3,10 +3,10 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.{PCanonicalString, PType}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64Value
-import is.hail.types.physical.stypes.{SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalString, PType}
 import is.hail.types.virtual.{TString, Type}
 import is.hail.utils.FastSeq
 
@@ -21,28 +21,32 @@ case object SJavaString extends SString {
 
   override def castRename(t: Type): SType = this
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SJavaStringValue = {
+  override def _coerceOrCopy(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): SJavaStringValue =
     value.st match {
       case SJavaString => value.asInstanceOf[SJavaStringValue]
       case _ => new SJavaStringValue(value.asString.loadString(cb))
     }
-  }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(classInfo[String])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaStringSettable = {
-    val IndexedSeq(s: Settable[String@unchecked]) = settables
+    val IndexedSeq(s: Settable[String @unchecked]) = settables
     new SJavaStringSettable(s)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SJavaStringValue = {
-    val IndexedSeq(s: Value[String@unchecked]) = values
+    val IndexedSeq(s: Value[String @unchecked]) = values
     new SJavaStringValue(s)
   }
 
-  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SJavaStringValue = {
+  override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String])
+    : SJavaStringValue =
     new SJavaStringValue(cb.memoize(s))
-  }
 
   def construct(cb: EmitCodeBuilder, s: Code[String]): SJavaStringValue =
     new SJavaStringValue(cb.memoize(s))
@@ -70,15 +74,14 @@ class SJavaStringValue(val s: Value[String]) extends SStringValue {
 }
 
 object SJavaStringSettable {
-  def apply(sb: SettableBuilder, name: String): SJavaStringSettable = {
-    new SJavaStringSettable(sb.newSettable[String](s"${ name }_str"))
-  }
+  def apply(sb: SettableBuilder, name: String): SJavaStringSettable =
+    new SJavaStringSettable(sb.newSettable[String](s"${name}_str"))
 }
 
-final class SJavaStringSettable(override val s: Settable[String]) extends SJavaStringValue(s) with SSettable {
+final class SJavaStringSettable(override val s: Settable[String])
+    extends SJavaStringValue(s) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(s)
 
-  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(s, v.asInstanceOf[SJavaStringValue].s)
-  }
 }

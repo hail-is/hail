@@ -1,9 +1,9 @@
 package is.hail.io
 
-import java.io.{Closeable, InputStream, OutputStream}
-
 import is.hail.annotations.Memory
 import is.hail.utils._
+
+import java.io.{Closeable, InputStream, OutputStream}
 
 final class DoubleInputBuffer(in: InputStream, bufSize: Int) extends Closeable {
   private val buf = new Array[Byte](bufSize)

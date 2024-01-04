@@ -1,8 +1,8 @@
 package is.hail.io
 
-import java.util
-
 import is.hail.annotations.{Memory, Region}
+
+import java.util
 
 final class MemoryBuffer extends Serializable {
   var mem: Array[Byte] = new Array[Byte](8)
@@ -11,9 +11,8 @@ final class MemoryBuffer extends Serializable {
 
   def capacity: Int = mem.length
 
-  def invalidate(): Unit = {
+  def invalidate(): Unit =
     mem = null
-  }
 
   def clear() {
     pos = 0
@@ -170,11 +169,10 @@ final class MemoryBuffer extends Serializable {
       val x = (mem(i).toInt & 0xff).toHexString
       if (x.length == 1) "0" + x
       else x
-    } .mkString(" ")
+    }.mkString(" ")
 
     val index = (from until to by 4).map(i => String.format("%1$-12s", i.toString)).mkString("")
     println(s"bytes: $bytes")
     println(s"index: $index")
   }
 }
-

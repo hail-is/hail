@@ -1,21 +1,21 @@
 package is.hail.methods
 
-import java.util
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir._
+import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.variant._
 
-import org.apache.spark.rdd.RDD
+import java.util
 
 import BitPackedVector._
+import org.apache.spark.rdd.RDD
 
 object BitPackedVector {
   final val GENOTYPES_PER_PACK: Int = 32
@@ -110,7 +110,14 @@ class BitPackedVectorBuilder(nSamples: Int) {
   }
 }
 
-case class BitPackedVector(locus: Locus, alleles: IndexedSeq[String], gs: Array[Long], nSamples: Int, mean: Double, centeredLengthRec: Double) {
+case class BitPackedVector(
+  locus: Locus,
+  alleles: IndexedSeq[String],
+  gs: Array[Long],
+  nSamples: Int,
+  mean: Double,
+  centeredLengthRec: Double,
+) {
   def nPacks: Int = gs.length
 
   def getPack(idx: Int): Long = gs(idx)
@@ -162,8 +169,12 @@ object LocalLDPrune {
     table
   }
 
-  private def doubleSampleLookup(sample1VariantX: Int, sample1VariantY: Int, sample2VariantX: Int,
-    sample2VariantY: Int): (Int, Int, Int, Int) = {
+  private def doubleSampleLookup(
+    sample1VariantX: Int,
+    sample1VariantY: Int,
+    sample2VariantX: Int,
+    sample2VariantY: Int,
+  ): (Int, Int, Int, Int) = {
     val r1 = singleSampleLookup(sample1VariantX, sample1VariantY)
     val r2 = singleSampleLookup(sample2VariantX, sample2VariantY)
     (r1._1 + r2._1, r1._2 + r2._2, r1._3 + r2._3, r1._4 + r2._4)
@@ -235,14 +246,22 @@ object LocalLDPrune {
     r2
   }
 
-  def pruneLocal(queue: util.ArrayDeque[BitPackedVector], bpv: BitPackedVector, r2Threshold: Double, windowSize: Int, queueSize: Int): Boolean = {
+  def pruneLocal(
+    queue: util.ArrayDeque[BitPackedVector],
+    bpv: BitPackedVector,
+    r2Threshold: Double,
+    windowSize: Int,
+    queueSize: Int,
+  ): Boolean = {
     var keepVariant = true
     var done = false
     val qit = queue.descendingIterator()
 
     while (!done && qit.hasNext) {
       val bpvPrev = qit.next()
-      if (bpv.locus.contig != bpvPrev.locus.contig || bpv.locus.position - bpvPrev.locus.position > windowSize) {
+      if (
+        bpv.locus.contig != bpvPrev.locus.contig || bpv.locus.position - bpvPrev.locus.position > windowSize
+      ) {
         done = true
       } else {
         val r2 = computeR2(bpv, bpvPrev)
@@ -263,18 +282,28 @@ object LocalLDPrune {
     keepVariant
   }
 
-  private def pruneLocal(inputRDD: RDD[BitPackedVector], r2Threshold: Double, windowSize: Int, queueSize: Int): RDD[BitPackedVector] = {
-    inputRDD.mapPartitions({ it =>
-      val queue = new util.ArrayDeque[BitPackedVector](queueSize)
-      it.filter { bpvv =>
-        pruneLocal(queue, bpvv, r2Threshold, windowSize, queueSize)
-      }
-    }, preservesPartitioning = true)
+  private def pruneLocal(
+    inputRDD: RDD[BitPackedVector],
+    r2Threshold: Double,
+    windowSize: Int,
+    queueSize: Int,
+  ): RDD[BitPackedVector] = {
+    inputRDD.mapPartitions(
+      { it =>
+        val queue = new util.ArrayDeque[BitPackedVector](queueSize)
+        it.filter(bpvv => pruneLocal(queue, bpvv, r2Threshold, windowSize, queueSize))
+      },
+      preservesPartitioning = true,
+    )
   }
 
-  def apply(ctx: ExecuteContext,
+  def apply(
+    ctx: ExecuteContext,
     mt: MatrixValue,
-    callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int
+    callField: String = "GT",
+    r2Threshold: Double = 0.2,
+    windowSize: Int = 1000000,
+    maxQueueSize: Int,
   ): TableValue = {
     val pruner = LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize)
     pruner.execute(ctx, mt)
@@ -282,15 +311,20 @@ object LocalLDPrune {
 }
 
 case class LocalLDPrune(
-  callField: String, r2Threshold: Double, windowSize: Int, maxQueueSize: Int
+  callField: String,
+  r2Threshold: Double,
+  windowSize: Int,
+  maxQueueSize: Int,
 ) extends MatrixToTableFunction {
   require(maxQueueSize > 0, s"Maximum queue size must be positive. Found '$maxQueueSize'.")
 
-  override def typ(childType: MatrixType): TableType = {
+  override def typ(childType: MatrixType): TableType =
     TableType(
-      rowType = childType.rowKeyStruct ++ TStruct("mean" -> TFloat64, "centered_length_rec" -> TFloat64),
-      key = childType.rowKey, globalType = TStruct.empty)
-  }
+      rowType =
+        childType.rowKeyStruct ++ TStruct("mean" -> TFloat64, "centered_length_rec" -> TFloat64),
+      key = childType.rowKey,
+      globalType = TStruct.empty,
+    )
 
   def preservesPartitionCounts: Boolean = false
 
@@ -310,9 +344,11 @@ case class LocalLDPrune(
     val fullRowPType = mv.rvRowPType
     val localCallField = callField
     val tableType = typ(mv.typ)
-    val ts = TableExecuteIntermediate(mv.toTableValue).asTableStage(ctx).mapPartition(Some(tableType.key)) { rows =>
-      makeStream(rows, MatrixType.entriesIdentifier, nSamples)
-    }.mapGlobals(_ => makestruct())
+    val ts = TableExecuteIntermediate(mv.toTableValue).asTableStage(ctx).mapPartition(Some(
+      tableType.key
+    ))(rows => makeStream(rows, MatrixType.entriesIdentifier, nSamples)).mapGlobals(_ =>
+      makestruct()
+    )
     TableExecuteIntermediate(ts).asTableValue(ctx)
   }
 }

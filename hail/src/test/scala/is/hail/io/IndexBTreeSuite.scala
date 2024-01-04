@@ -4,9 +4,10 @@ import is.hail.HailSuite
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import org.testng.annotations.Test
 
 import scala.language.implicitConversions
+
+import org.testng.annotations.Test
 
 class IndexBTreeSuite extends HailSuite {
 
@@ -16,7 +17,8 @@ class IndexBTreeSuite extends HailSuite {
       depth <- frequency((4, const(1)), (5, const(2)), (1, const(3)))
       arraySize <- choose(
         math.max(1, math.pow(10, (depth - 1) * math.log10(1024)).toInt),
-        math.min(1100000, math.pow(10, depth * math.log10(1024)).toInt))
+        math.min(1100000, math.pow(10, depth * math.log10(1024)).toInt),
+      )
     } yield (depth, arraySize)
 
     def fillRandomArray(arraySize: Int): Array[Long] = {
@@ -59,7 +61,9 @@ class IndexBTreeSuite extends HailSuite {
           arrayRandomStarts.forall { case (l) => btree.queryIndex(l - 1).contains(l) }
         else {
           val randomIndices = Array(0) ++ Array.fill(100)(choose(0, arraySize - 1).sample())
-          randomIndices.map(arrayRandomStarts).forall { case (l) => btree.queryIndex(l - 1).contains(l) }
+          randomIndices.map(arrayRandomStarts).forall { case (l) =>
+            btree.queryIndex(l - 1).contains(l)
+          }
         }
 
         if (!depthCorrect || !indexCorrectSize || !queryCorrect)
@@ -76,13 +80,12 @@ class IndexBTreeSuite extends HailSuite {
 
   @Test def oneVariant() {
     val index = Array(24.toLong)
-    val fileSize = 30 //made-up value greater than index
+    val fileSize = 30 // made-up value greater than index
     val idxFile = ctx.createTmpPath("testBtree_1variant", "idx")
 
     fs.delete(idxFile, recursive = true)
     IndexBTree.write(index, idxFile, fs)
     val btree = new IndexBTree(idxFile, fs)
-
 
     intercept[IllegalArgumentException] {
       btree.queryIndex(-5)
@@ -125,7 +128,8 @@ class IndexBTreeSuite extends HailSuite {
     IndexBTree.write(
       Array.tabulate(1024)(i => i),
       idxFile,
-      fs)
+      fs,
+    )
     val index = new IndexBTree(idxFile, fs)
     assert(index.queryIndex(33).contains(33L))
   }
@@ -201,11 +205,23 @@ class IndexBTreeSuite extends HailSuite {
     assert(bt.queryArrayPositionAndFileOffset(4).contains((2, sqr(2))))
     assert(bt.queryArrayPositionAndFileOffset(5).contains((3, sqr(3))))
 
-    assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024 - 1)).contains((1024 * 1024 - 1, sqr(1024 * 1024 - 1))))
-    assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024 - 1) + 1).contains((1024 * 1024, sqr(1024 * 1024))))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024 - 1)).contains((
+      1024 * 1024 - 1,
+      sqr(1024 * 1024 - 1),
+    )))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024 - 1) + 1).contains((
+      1024 * 1024,
+      sqr(1024 * 1024),
+    )))
 
-    assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024)).contains((1024 * 1024, sqr(1024 * 1024))))
-    assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024) - 1).contains((1024 * 1024, sqr(1024 * 1024))))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024)).contains((
+      1024 * 1024,
+      sqr(1024 * 1024),
+    )))
+    assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024) - 1).contains((
+      1024 * 1024,
+      sqr(1024 * 1024),
+    )))
 
     assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024) + 1).isEmpty)
   }
@@ -223,13 +239,16 @@ class IndexBTreeSuite extends HailSuite {
       val indices = Seq(0, 5, 1, 6)
       val actual = bt.positionOfVariants(indices.toArray)
       val expected = indices.sorted.map(v)
-      assert(actual sameElements expected,
-        s"${ actual.toSeq } not same elements as expected ${ expected.toSeq }")
+      assert(
+        actual sameElements expected,
+        s"${actual.toSeq} not same elements as expected ${expected.toSeq}",
+      )
     } catch {
       case t: Throwable =>
         throw new RuntimeException(
           "exception while checking BTree: " + IndexBTree.toString(v, branchingFactor),
-          t)
+          t,
+        )
     }
   }
 
@@ -246,13 +265,16 @@ class IndexBTreeSuite extends HailSuite {
         val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
         val actual = bt.positionOfVariants(indices.toArray)
         val expected = indices.sorted.map(longs)
-        assert(actual sameElements expected,
-          s"${ actual.toSeq } not same elements as expected ${ expected.toSeq }")
+        assert(
+          actual sameElements expected,
+          s"${actual.toSeq} not same elements as expected ${expected.toSeq}",
+        )
       } catch {
         case t: Throwable =>
           throw new RuntimeException(
             "exception while checking BTree: " + IndexBTree.toString(longs, branchingFactor),
-            t)
+            t,
+          )
       }
       true
     }.check()
@@ -268,13 +290,16 @@ class IndexBTreeSuite extends HailSuite {
       val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
       val expected = indices.sorted.map(longs)
       val actual = bt.positionOfVariants(indices.toArray)
-      assert(actual sameElements expected,
-        s"${ actual.toSeq } not same elements as expected ${ expected.toSeq }")
+      assert(
+        actual sameElements expected,
+        s"${actual.toSeq} not same elements as expected ${expected.toSeq}",
+      )
     } catch {
       case t: Throwable =>
         throw new RuntimeException(
           "exception while checking BTree: " + IndexBTree.toString(longs, branchingFactor),
-          t)
+          t,
+        )
     }
   }
 

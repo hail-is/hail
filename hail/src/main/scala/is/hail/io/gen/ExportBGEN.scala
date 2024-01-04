@@ -4,11 +4,12 @@ import is.hail.HailContext
 import is.hail.annotations.{RegionValue, UnsafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{ByteArrayBuilder, MatrixValue}
-import is.hail.types.physical.PStruct
 import is.hail.io.fs.FS
+import is.hail.types.physical.PStruct
+import is.hail.utils._
 import is.hail.utils.BoxedArrayBuilder
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, View}
-import is.hail.utils._
+
 import org.apache.hadoop.io.IOUtils
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
@@ -86,12 +87,20 @@ object BgenWriter {
   }
 
   def writeSampleFile(fs: FS, path: String, sampleIds: Array[String]) {
-    fs.writeTable(path + ".sample",
-      "ID_1 ID_2 missing" :: "0 0 0" :: sampleIds.map(s => s"$s $s 0").toList)
+    fs.writeTable(
+      path + ".sample",
+      "ID_1 ID_2 missing" :: "0 0 0" :: sampleIds.map(s => s"$s $s 0").toList,
+    )
   }
 
-  def roundWithConstantSum(input: Array[Double], fractional: Array[Double], index: Array[Int],
-    indexInverse: Array[Int], output: ByteArrayBuilder, expectedSize: Long) {
+  def roundWithConstantSum(
+    input: Array[Double],
+    fractional: Array[Double],
+    index: Array[Int],
+    indexInverse: Array[Int],
+    output: ByteArrayBuilder,
+    expectedSize: Long,
+  ) {
     val n = input.length
     assert(fractional.length == n && index.length == n && indexInverse.length == n)
 

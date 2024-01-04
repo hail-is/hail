@@ -1,11 +1,12 @@
 package is.hail.stats
 
-import breeze.linalg.DenseMatrix
+import is.hail.{HailSuite, TestUtils}
 import is.hail.TestUtils._
 import is.hail.testUtils._
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.{HailSuite, TestUtils}
+
+import breeze.linalg.DenseMatrix
 import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution}
 import org.testng.annotations.Test
 
@@ -13,8 +14,8 @@ class StatsSuite extends HailSuite {
 
   @Test def chiSquaredTailTest() {
     val chiSq1 = new ChiSquaredDistribution(1)
-    assert(D_==(pchisqtail(1d,1), 1 - chiSq1.cumulativeProbability(1d)))
-    assert(D_==(pchisqtail(5.52341d,1), 1 - chiSq1.cumulativeProbability(5.52341d)))
+    assert(D_==(pchisqtail(1d, 1), 1 - chiSq1.cumulativeProbability(1d)))
+    assert(D_==(pchisqtail(5.52341d, 1), 1 - chiSq1.cumulativeProbability(5.52341d)))
 
     val chiSq2 = new ChiSquaredDistribution(2)
     assert(D_==(pchisqtail(1, 2), 1 - chiSq2.cumulativeProbability(1)))
@@ -59,7 +60,12 @@ class StatsSuite extends HailSuite {
     assert(D_==(ppois(5, 10, lowerTail = false, logP = false), 0.932914))
 
     assert(qpois(ppois(5, 10), 10) == 5)
-    assert(qpois(ppois(5, 10, lowerTail = false, logP = false), 10, lowerTail = false, logP = false) == 5)
+    assert(qpois(
+      ppois(5, 10, lowerTail = false, logP = false),
+      10,
+      lowerTail = false,
+      logP = false,
+    ) == 5)
 
     assert(ppois(30, 1, lowerTail = false, logP = false) > 0)
   }
@@ -67,7 +73,7 @@ class StatsSuite extends HailSuite {
   @Test def betaTest() {
     val tol = 1e-5
 
-    assert(D_==(dbeta(.2 , 1, 3), 1.92, tol))
+    assert(D_==(dbeta(.2, 1, 3), 1.92, tol))
     assert(D_==(dbeta(0.70, 2, 10), 0.001515591, tol))
     assert(D_==(dbeta(.4, 5, 3), 0.96768, tol))
     assert(D_==(dbeta(.3, 7, 2), 0.0285768, tol))
