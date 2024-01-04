@@ -17,6 +17,7 @@ from rich.progress import track
 from hailtop import pip_version
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
+from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 
@@ -53,24 +54,14 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     """
     _closed = False
 
-    def __init__(self):
-        self._requester_pays_fses: Dict[GCSRequesterPaysConfiguration, RouterAsyncFS] = {}
+    def __init__(self, requester_pays_fses: GCSRequesterPaysFSCache):
+        self._requester_pays_fses = requester_pays_fses
 
-    def requester_pays_fs(self, requester_pays_config: GCSRequesterPaysConfiguration) -> RouterAsyncFS:
-        try:
-            return self._requester_pays_fses[requester_pays_config]
-        except KeyError:
-            if requester_pays_config is not None:
-                self._requester_pays_fses[requester_pays_config] = RouterAsyncFS(
-                    gcs_kwargs={"gcs_requester_pays_configuration": requester_pays_config}
-                )
-                return self._requester_pays_fses[requester_pays_config]
-            return self._fs
+    def requester_pays_fs(self, requester_pays_config: Optional[GCSRequesterPaysConfiguration]) -> RouterAsyncFS:
+        return self._requester_pays_fses[requester_pays_config]
 
     def validate_file(self, uri: str, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> None:
-        self._validate_file(
-            uri, self.requester_pays_fs(requester_pays_config) if requester_pays_config is not None else self._fs
-        )
+        self._validate_file(uri, self.requester_pays_fs(requester_pays_config))
 
     @abc.abstractmethod
     def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
@@ -160,7 +151,7 @@ class LocalBackend(Backend[None]):
                  tmp_dir: str = '/tmp/',
                  gsa_key_file: Optional[str] = None,
                  extra_docker_run_flags: Optional[str] = None):
-        super().__init__()
+        super().__init__(GCSRequesterPaysFSCache(fs_constructor=RouterAsyncFS))
         self._tmp_dir = tmp_dir.rstrip('/')
 
         flags = ''
@@ -176,7 +167,7 @@ class LocalBackend(Backend[None]):
             flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
-        self.__fs = RouterAsyncFS()
+        self.__fs = self._requester_pays_fses[None]
 
     @property
     def _fs(self) -> RouterAsyncFS:
@@ -502,8 +493,6 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
     ):
-        super().__init__()
-
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
         if len(args) >= 1:
@@ -542,7 +531,15 @@ class ServiceBackend(Backend[bc.Batch]):
             gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
         else:
             gcs_kwargs = {'gcs_requester_pays_configuration': gcs_requester_pays_configuration}
-        self.__fs = RouterAsyncFS(gcs_kwargs=gcs_kwargs, gcs_bucket_allow_list=gcs_bucket_allow_list)
+
+        super().__init__(
+            GCSRequesterPaysFSCache(
+                fs_constructor=RouterAsyncFS,
+                default_kwargs={"gcs_kwargs": gcs_kwargs, "gcs_bucket_allow_list": gcs_bucket_allow_list}
+            )
+        )
+
+        self.__fs = self._requester_pays_fses[None]
 
         self.validate_file(self.remote_tmpdir)
 
