@@ -155,7 +155,7 @@ object StagedBGENReader {
         val pc = requestedType.field("locus").typ match {
           case TLocus(rg) =>
             val pt = SCanonicalLocusPointer(PCanonicalLocus(rg))
-            pt.pType.constructFromPositionAndString(cb, region, contigRecoded, position)
+            pt.pType.constructFromContigAndPosition(cb, region, contigRecoded, position)
           case t: TStruct =>
             val contig = SJavaString.constructFromString(cb, region, contigRecoded)
             SStackStruct.constructFromArgs(cb, region, t,
@@ -385,7 +385,7 @@ object StagedBGENReader {
               .concat(nExpectedBytesProbs.toS)
               .concat("'.")))
 
-          cb.invokeVoid(memoMB)
+          cb.invokeVoid(memoMB, cb.this_)
 
           val (pushElement, finish) = entriesArrayType.constructFromFunctions(cb, region, nSamples, deepCopy = false)
 
@@ -424,7 +424,7 @@ object StagedBGENReader {
 
       cb.define(Lfinish)
     }
-    cb.invokeVoid(emb, region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding)
+    cb.invokeVoid(emb, cb.this_, region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding)
     out
   }
 
@@ -596,7 +596,7 @@ object BGENFunctions extends RegistryFunctions {
               "()V",
               false,
               UnitInfo,
-              FastSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+              FastSeq(lir.load(ctor.mb.this_.asInstanceOf[LocalRef[_]].l))))
           cb += new VCode(L, L, null)
 
           val path = cb.memoize(ctor.getCodeParam[String](1))

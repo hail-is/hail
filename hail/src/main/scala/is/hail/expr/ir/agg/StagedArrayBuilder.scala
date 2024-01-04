@@ -16,17 +16,16 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   val eltArray = PCanonicalArray(eltType.setRequired(false), required = true) // element type must be optional for serialization to work
   val stateType = PCanonicalTuple(true, PInt32Required, PInt32Required, eltArray)
 
-  val size: Settable[Int] = kb.genFieldThisRef[Int]("size")
+  val size: ThisFieldRef[Int] = kb.genFieldThisRef[Int]("size")
   private val capacity = kb.genFieldThisRef[Int]("capacity")
   val data = kb.genFieldThisRef[Long]("data")
 
-  private val tmpOff = kb.genFieldThisRef[Long]("tmp_offset")
   private val currentSizeOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 0)
   private val capacityOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 1)
   private val dataOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 2)
 
   def loadFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
-    cb.assign(tmpOff, src)
+    val tmpOff = cb.memoize(src)
     cb.assign(size, Region.loadInt(currentSizeOffset(tmpOff)))
     cb.assign(capacity, Region.loadInt(capacityOffset(tmpOff)))
     cb.assign(data, Region.loadAddress(dataOffset(tmpOff)))
@@ -34,14 +33,13 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
 
 
   def cloneFrom(cb: EmitCodeBuilder, other: StagedArrayBuilder): Unit = {
-    cb.assign(tmpOff, other.tmpOff)
     cb.assign(size, other.size)
     cb.assign(data, other.data)
     cb.assign(capacity, other.capacity)
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
-    cb.assign(tmpOff, src)
+    val tmpOff = cb.memoize(src)
     cb.assign(size, Region.loadInt(currentSizeOffset(tmpOff)))
     cb.assign(capacity, Region.loadInt(capacityOffset(tmpOff)))
     cb.assign(data, eltArray.store(cb, region, eltArray.loadCheapSCode(cb, Region.loadAddress(dataOffset(tmpOff))), deepCopy = true))
@@ -52,7 +50,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   }
 
   def storeTo(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
-    cb.assign(tmpOff, dest)
+    val tmpOff = cb.memoize(dest)
     cb += Region.storeInt(currentSizeOffset(tmpOff), size)
     cb += Region.storeInt(capacityOffset(tmpOff), capacity)
     cb += Region.storeAddress(dataOffset(tmpOff), data)
@@ -121,18 +119,23 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   def elementOffset(cb: EmitCodeBuilder, idx: Value[Int]): Value[Long] =
     cb.memoize(eltArray.elementOffset(data, capacity, idx))
 
-
   def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {
     val m = eltArray.isElementMissing(data, idx)
     EmitCode(Code._empty, m, eltType.loadCheapSCode(cb, eltArray.loadElement(data, capacity, idx)))
   }
 
-  private def resize(cb: EmitCodeBuilder): Unit = {
-    val newDataOffset = kb.genFieldThisRef[Long]("new_data_offset")
-    cb.if_(size.ceq(capacity),
-      {
-        cb.assign(capacity, capacity * 2)
-        cb.assign(data, eltArray.padWithMissing(cb, region, size, capacity, data))
-      })
+  def swap(cb: EmitCodeBuilder, p: Value[Int], q: Value[Int]): Unit = {
+    val pOff = elementOffset(cb, p)
+    val qOff = elementOffset(cb, q)
+    val tmpOff = elementOffset(cb, size)
+    cb += Region.copyFrom(pOff, tmpOff, eltType.byteSize)
+    cb += Region.copyFrom(qOff, pOff, eltType.byteSize)
+    cb += Region.copyFrom(tmpOff, qOff, eltType.byteSize)
   }
+
+  private def resize(cb: EmitCodeBuilder): Unit =
+    cb.if_(size.ceq(capacity), {
+      cb.assign(capacity, capacity * 2)
+      cb.assign(data, eltArray.padWithMissing(cb, region, size, capacity, data))
+    })
 }

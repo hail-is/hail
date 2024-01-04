@@ -1244,7 +1244,7 @@ object Value {
   }
 }
 
-trait Value[+T] { self =>
+trait Value[+T] {
   def get: Code[T]
 }
 
@@ -1267,7 +1267,7 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
 
   override def get: Code[T] =
     CodeBuilder.scopedCode(null) { cb =>
-      cb.if_(!present, cb += setm.invoke(cb) )
+      cb.if_(!present, cb += cb.invoke(setm, this.cb.this_))
       value
     }
 }
@@ -1275,9 +1275,9 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
 class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settable[T] {
   def name: String = f.name
 
-  def get: Code[T] = f.get(cb._this)
+  def get: Code[T] = f.get(cb.this_)
 
-  def store(rhs: Code[T]): Code[Unit] = f.put(cb._this, rhs)
+  def store(rhs: Code[T]): Code[Unit] = f.put(cb.this_, rhs)
 }
 
 class StaticFieldRef[T: TypeInfo](f: StaticField[T]) extends Settable[T] {

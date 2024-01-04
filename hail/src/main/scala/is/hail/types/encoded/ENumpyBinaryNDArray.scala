@@ -65,7 +65,8 @@ final case class ENumpyBinaryNDArray(nRows: Long, nCols: Long, required: Boolean
     ???
   }
 
-  def _asIdent = s"ndarray_of_${ elementType.asIdent }"
+  override def _asIdent: String =
+    s"${nRows}by${nCols}_numpy_array_of_${ elementType.asIdent }"
 
   def _toPretty = s"ENDArray[$elementType]"
 

@@ -405,7 +405,7 @@ class ServiceBackend(
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
   }
 
-  def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T = { f =>
+  override def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T =
     ExecutionTimer.logTime(methodName) { timer =>
       ExecuteContext.scoped(
         tmpdir,
@@ -415,12 +415,10 @@ class ServiceBackend(
         timer,
         null,
         theHailClassLoader,
-        references,
         flags,
         serviceBackendContext
       )(f)
     }
-  }
 
   def addLiftover(name: String, chainFile: String, destRGName: String): Unit = {
     withExecuteContext("addLiftover") { ctx =>

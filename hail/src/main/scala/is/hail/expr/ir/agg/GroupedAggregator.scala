@@ -35,7 +35,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
         comp(cb, ev1, ev2)
       }
     }
-    cb.invokeCode(mb, off, k)
+    cb.invokeCode(mb, cb.this_, off, k)
   }
 
   val regionIdx: Value[Int] = new Value[Int] {

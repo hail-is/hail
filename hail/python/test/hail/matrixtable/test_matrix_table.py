@@ -797,8 +797,6 @@ class Tests(unittest.TestCase):
             )
         )
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
         intervals = hl.utils.range_table(25)

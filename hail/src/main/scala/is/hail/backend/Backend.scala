@@ -159,7 +159,7 @@ abstract class Backend {
     analyses: LoweringAnalyses
   ): TableStage
 
-  def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T
+  def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T
 
   final def valueType(s: String): Array[Byte] = {
     withExecuteContext("valueType") { ctx =>

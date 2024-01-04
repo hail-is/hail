@@ -121,6 +121,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newMakeProducer <- normalize(makeProducer, env.bindEval(ctxName -> newCtxName))
           newJoinF <- normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals))
         } yield StreamZipJoinProducers(newCtxs, newCtxName, newMakeProducer, key, newCurKey, newCurVals, newJoinF)
+      case StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lEltName, rEltName, body) =>
+        val newLName = gen()
+        val newRName = gen()
+        for {
+          newL <- normalize(left)
+          newR <- normalize(right)
+          newB <- normalize(body, env.bindEval(lEltName -> newLName, rEltName -> newRName))
+        } yield StreamLeftIntervalJoin(newL, newR, lKeyNames, rIntrvlName, newLName, newRName, newB)
       case StreamFilter(a, name, body) =>
         val newName = gen()
         for {

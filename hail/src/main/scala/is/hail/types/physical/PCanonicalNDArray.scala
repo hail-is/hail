@@ -15,7 +15,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   assert(elementType.required, "elementType must be required")
   assert(!elementType.containsPointers, "ndarrays do not currently support elements which contain arrays, ndarrays, or strings")
 
-  def _asIdent: String = s"ndarray_of_${elementType.asIdent}"
+  override def _asIdent: String =
+    s"${nDims}darray_of_${elementType.asIdent}"
 
   override def containsPointers: Boolean = true
 
@@ -190,7 +191,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val cacheKey = ("constructByCopyingArray", this, dataCode.st)
     val mb = cb.emb.ecb.getOrGenEmitMethod("pcndarray_construct_by_copying_array", cacheKey,
       FastSeq[ParamType](classInfo[Region], dataCode.st.paramType) ++ (0 until 2 * nDims).map(_ => CodeParamType(LongInfo)),
-      sType.paramType) { mb =>
+      sType.paramType
+    ) { mb =>
       mb.emitSCode { cb =>
 
         val region = mb.getCodeParam[Region](1)
@@ -219,7 +221,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       case s => SizeValueDyn(s)
     }
 
-    cb.invokeSCode(mb, FastSeq[Param](region, SCodeParam(dataCode)) ++ (newShape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
+    cb.invokeSCode(mb, FastSeq[Param](cb.this_, region, SCodeParam(dataCode)) ++ (newShape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
       .asNDArray
       .coerceToShape(cb, newShape)
   }

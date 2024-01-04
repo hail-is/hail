@@ -132,7 +132,7 @@ object IRFunctionRegistry {
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type]
   ): Option[JVMFunction] = {
-    jvmRegistry.lift(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq }.getOrElse(FastSeq()) match {
+    jvmRegistry.get(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
       case Seq(f) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ valueParameterTypes.mkString(",") }).")
@@ -724,6 +724,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
   override def computeReturnEmitType(returnType: Type, valueParameterTypes: Seq[EmitType]): EmitType = {
     EmitType(computeStrictReturnEmitType(returnType, valueParameterTypes.map(_.st)), valueParameterTypes.forall(_.required))
   }
+
   def computeStrictReturnEmitType(returnType: Type, valueParameterTypes: Seq[SType]): SType =
     MissingnessObliviousJVMFunction.returnSType(missingnessObliviousComputeReturnType)(returnType, valueParameterTypes)
 
@@ -746,9 +747,9 @@ abstract class UnseededMissingnessObliviousJVMFunction (
     assert(unified, name)
     val methodbuilder = cb.genEmitMethod(name, FastSeq[ParamType](typeInfo[Region], typeInfo[Int]) ++ args.map(_.paramType), rpt.paramType)
     methodbuilder.emitSCode(cb => apply(EmitRegion.default(methodbuilder),
-      cb,
-      rpt,
-      typeParameters,
+          cb,
+          rpt,
+          typeParameters,
       methodbuilder.getCodeParam[Int](2),
       (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3)): _*))
     methodbuilder

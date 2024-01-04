@@ -268,6 +268,12 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinf, joinType) =>
         addElementBinding(l, left, makeOptional = (joinType == "outer" || joinType == "right"))
         addElementBinding(r, right, makeOptional = (joinType == "outer" || joinType == "left"))
+      case StreamLeftIntervalJoin(left, right, _, _, lname, rname, _) =>
+        addElementBinding(lname, left)
+        val uses = refMap(rname)
+        val rtypes = Array(lookup(right))
+        uses.foreach { u => defs.bind(u, rtypes) }
+        dependents.getOrElseUpdate(right, mutable.Set[RefEquality[BaseIR]]()) ++= uses
       case StreamAgg(a, name, query) =>
         addElementBinding(name, a)
       case StreamAggScan(a, name, query) =>
@@ -639,6 +645,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamFold2(a, accums, valueName, seq, result) =>
         requiredness.union(lookup(a).required)
         requiredness.unionFrom(lookup(result))
+      case StreamLeftIntervalJoin(left, right, _, _, _, _, body) =>
+        requiredness.union(lookup(left).required && lookup(right).required)
+        tcoerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
       case StreamJoinRightDistinct(left, right, _, _, _, _, joinf, joinType) =>
         requiredness.union(lookup(left).required && lookup(right).required)
         tcoerce[RIterable](requiredness).elementType.unionFrom(lookup(joinf))

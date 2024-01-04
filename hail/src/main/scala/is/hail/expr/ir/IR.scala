@@ -475,6 +475,24 @@ object StreamJoin {
   }
 }
 
+final case class StreamLeftIntervalJoin(
+                                         // input streams
+                                         left: IR,
+                                         right: IR,
+
+                                         // names for joiner
+                                         lKeyFieldName: String,
+                                         rIntervalFieldName: String,
+
+                                         // how to combine records
+                                         lname: String,
+                                         rname: String,
+                                         body: IR
+                                       ) extends IR {
+  override protected lazy val childrenSeq: IndexedSeq[BaseIR] =
+    FastSeq(left, right, body)
+}
+
 final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR {
   def isIntervalJoin: Boolean = {
     if (rKey.size != 1) return false
