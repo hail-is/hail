@@ -37,6 +37,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
+import scala.util.control.NonFatal
 
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
@@ -419,7 +420,14 @@ class SparkBackend(
           val sp = partition.asInstanceOf[TaggedRDDPartition]
           val fs = new HadoopFS(null)
           // FIXME: this is broken: the partitionId of SparkTaskContext will be incorrect
-          val result = Try(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
+          val result = try {
+            Success(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
+          } catch {
+            case NonFatal(exc) =>
+              exc.getStackTrace()  // Calling getStackTrace appears to ensure the exception is
+                                   // serialized with its stack trace.
+              Failure(exc)
+          }
           Iterator.single((result, sp.tag))
         }
       }

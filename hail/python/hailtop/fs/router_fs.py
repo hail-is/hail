@@ -185,6 +185,10 @@ class RouterFS(FS):
             s3_kwargs=s3_kwargs
         )
 
+    @property
+    def _gcs_kwargs(self) -> Optional[Dict[str, Any]]:
+        return self.afs._gcs_kwargs
+
     def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
         del buffer_size
 
