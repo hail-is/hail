@@ -168,7 +168,7 @@ class GoogleStorageFS(
       exc.getMessage != null && (exc.getMessage.equals(
         "userProjectMissing"
       ) || (exc.getStatusCode == 400 && exc.getMessage.contains("requester pays")))
-    case exc: Throwable =>
+    case _: Throwable =>
       false
   }
 

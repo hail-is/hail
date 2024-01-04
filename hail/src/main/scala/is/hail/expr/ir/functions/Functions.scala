@@ -6,7 +6,6 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
 import is.hail.io.bgen.BGENFunctions
-import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
@@ -267,10 +266,9 @@ object IRFunctionRegistry {
     def dtype(t: Type): String = s"""dtype("${StringEscapeUtils.escapeString(t.toString)}\")"""
 
     irRegistry.foreach { case (name, fns) =>
-      fns.foreach { case ((typeParameters, valueParameterTypes, returnType, _), f) =>
-        println(s"""register_function("${StringEscapeUtils.escapeString(name)}", (${typeParameters.map(
-            dtype
-          ).mkString(",")}), (${valueParameterTypes.map(dtype).mkString(",")}), ${dtype(returnType)})""")
+      fns.foreach { case ((typeParameters, valueParameterTypes, returnType, _), _) =>
+        println(s"""register_function("${StringEscapeUtils.escapeString(name)}", (${typeParameters
+            .map(dtype).mkString(",")}), (${valueParameterTypes.map(dtype).mkString(",")}), ${dtype(returnType)})""")
       }
     }
 
@@ -307,8 +305,6 @@ object RegistryHelpers {
 abstract class RegistryFunctions {
 
   def registerAll(): Unit
-
-  private val boxes = mutable.Map[String, Box[Type]]()
 
   def tv(name: String): TVariable =
     TVariable(name)
@@ -417,7 +413,7 @@ abstract class RegistryFunctions {
       case TArray(TString) =>
         val ast = st.asInstanceOf[SJavaArrayString]
         ast.construct(cb, coerce[Array[String]](value))
-      case t: TBaseStruct =>
+      case _: TBaseStruct =>
         val sst = st.asInstanceOf[SBaseStructPointer]
         val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
         val addr = cb.memoize(Code.invokeScalaObject4[Map[
@@ -435,7 +431,7 @@ abstract class RegistryFunctions {
           SBaseStructPointer(pt.setRequired(false).asInstanceOf[PBaseStruct]),
           addr,
         )
-      case TArray(t: TBaseStruct) =>
+      case TArray(_: TBaseStruct) =>
         val ast = st.asInstanceOf[SIndexablePointer]
         val pca = ast.pType.asInstanceOf[PCanonicalArray]
         val array = cb.memoize(Code.invokeScalaObject4[Map[
@@ -586,7 +582,7 @@ abstract class RegistryFunctions {
     method: String,
   ) {
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) {
-      case (r, cb, _, rt, args, _) =>
+      case (_, cb, _, rt, args, _) =>
         val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
 
         val returnValue = cb.memoizeAny(
@@ -726,7 +722,7 @@ abstract class RegistryFunctions {
     cls: Class[_],
     method: String,
   ) {
-    registerCode(name, valueParameterTypes, returnType, pt) { case (r, cb, rt, _, args) =>
+    registerCode(name, valueParameterTypes, returnType, pt) { case (_, cb, _, _, args) =>
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
       val ct = PrimitiveTypeToIRIntermediateClassTag(returnType)
       cb.memoizeAny(

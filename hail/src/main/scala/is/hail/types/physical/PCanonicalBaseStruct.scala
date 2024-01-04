@@ -283,7 +283,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     row match {
       case ur: UnsafeRow =>
         this.unstagedStoreAtAddress(sm, addr, region, ur.t, ur.offset, region.ne(ur.region))
-      case sr: Row =>
+      case _: Row =>
         this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
           if (row(fieldIdx) == null) {
             setFieldMissing(addr, fieldIdx)

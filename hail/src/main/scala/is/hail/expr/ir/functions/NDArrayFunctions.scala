@@ -14,7 +14,6 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
-import is.hail.utils._
 
 object NDArrayFunctions extends RegistryFunctions {
   override def registerAll() {
@@ -168,7 +167,7 @@ object NDArrayFunctions extends RegistryFunctions {
       TNDArray(TFloat64, Nat(2)),
       TNDArray(TFloat64, Nat(2)),
       TStruct(("solution", TNDArray(TFloat64, Nat(2))), ("failed", TBoolean)),
-      (t, p1, p2) =>
+      (_, _, _) =>
         EmitType(
           PCanonicalStruct(
             false,
@@ -210,20 +209,18 @@ object NDArrayFunctions extends RegistryFunctions {
       TNDArray(TFloat64, Nat(2)),
       TNDArray(TFloat64, Nat(2)),
       TNDArray(TFloat64, Nat(2)),
-      (t, p1, p2) => PCanonicalNDArray(PFloat64Required, 2, true).sType,
-    ) {
-      case (er, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
-        val (resPCode, info) =
-          linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region, errorID)
-        cb.if_(
-          info cne 0,
-          cb._fatalWithError(
-            errorID,
-            s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ",
-            info.toS,
-          ),
-        )
-        resPCode
+      (_, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType,
+    ) { case (er, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
+      val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region, errorID)
+      cb.if_(
+        info cne 0,
+        cb._fatalWithError(
+          errorID,
+          s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ",
+          info.toS,
+        ),
+      )
+      resPCode
     }
 
     registerIEmitCode3(
@@ -232,7 +229,7 @@ object NDArrayFunctions extends RegistryFunctions {
       TNDArray(TFloat64, Nat(2)),
       TBoolean,
       TStruct(("solution", TNDArray(TFloat64, Nat(2))), ("failed", TBoolean)),
-      (t, p1, p2, p3) =>
+      (_, _, _, _) =>
         EmitType(
           PCanonicalStruct(
             false,
@@ -285,27 +282,26 @@ object NDArrayFunctions extends RegistryFunctions {
       TNDArray(TFloat64, Nat(2)),
       TBoolean,
       TNDArray(TFloat64, Nat(2)),
-      (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType,
-    ) {
-      case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
-        val (resPCode, info) = linear_triangular_solve(
-          apc.asNDArray,
-          bpc.asNDArray,
-          lower.asBoolean,
-          pt,
-          cb,
-          er.region,
+      (_, _, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType,
+    ) { case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
+      val (resPCode, info) = linear_triangular_solve(
+        apc.asNDArray,
+        bpc.asNDArray,
+        lower.asBoolean,
+        pt,
+        cb,
+        er.region,
+        errorID,
+      )
+      cb.if_(
+        info cne 0,
+        cb._fatalWithError(
           errorID,
-        )
-        cb.if_(
-          info cne 0,
-          cb._fatalWithError(
-            errorID,
-            s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ",
-            info.toS,
-          ),
-        )
-        resPCode
+          s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ",
+          info.toS,
+        ),
+      )
+      resPCode
     }
 
     registerSCode3(
@@ -323,7 +319,7 @@ object NDArrayFunctions extends RegistryFunctions {
             block: SNDArrayValue,
             lower: SInt64Value,
             upper: SInt64Value,
-            errorID,
+            _,
           ) =>
         val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[
           SNDArrayPointerValue
@@ -408,13 +404,13 @@ object NDArrayFunctions extends RegistryFunctions {
             block: SNDArrayValue,
             starts: SIndexableValue,
             stops: SIndexableValue,
-            errorID,
+            _,
           ) =>
         val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[
           SNDArrayPointerValue
         ]
         val row = cb.newLocal[Long]("rowIdx")
-        val IndexedSeq(nRows, nCols) = newBlock.shapes
+        val IndexedSeq(nRows, _) = newBlock.shapes
         cb.for_(
           cb.assign(row, 0L),
           row < nRows.get,

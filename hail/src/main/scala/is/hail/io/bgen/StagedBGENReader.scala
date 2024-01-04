@@ -115,7 +115,6 @@ object StagedBGENReader {
       val nAlleles2 = cb.newLocal[Int]("nAlleles2")
       val minPloidy = cb.newLocal[Int]("minPloidy")
       val maxPloidy = cb.newLocal[Int]("maxPloidy")
-      val longPloidy = cb.newLocal[Long]("longPloidy")
       val ploidy = cb.newLocal[Int]("ploidy")
       val phase = cb.newLocal[Int]("phase")
       val nBitsPerProb = cb.newLocal[Int]("nBitsPerProb")
@@ -716,7 +715,7 @@ object BGENFunctions extends RegistryFunctions {
           sorter.sort(
             cb,
             er.region,
-            { case (cb, region, l, r) =>
+            { case (cb, _, l, r) =>
               val lv = bufferSct.loadToSValue(cb, l).asBaseStruct.subset("locus", "alleles")
               val rv = bufferSct.loadToSValue(cb, r).asBaseStruct.subset("locus", "alleles")
               cb.emb.ecb.getOrdering(lv.st, rv.st).ltNonnull(cb, lv, rv)

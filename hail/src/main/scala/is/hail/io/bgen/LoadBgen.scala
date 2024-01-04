@@ -271,7 +271,7 @@ object LoadBgen {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)
 
     val bgenFilesWhichAreMisssingIdx2Files = files.zip(indexFiles).filterNot {
-      case (f, index) => index.endsWith("idx2") && fs.isFile(index + "/index") && fs.isFile(
+      case (_, index) => index.endsWith("idx2") && fs.isFile(index + "/index") && fs.isFile(
           index + "/metadata.json.gz"
         )
     }.map(_._1.getPath)

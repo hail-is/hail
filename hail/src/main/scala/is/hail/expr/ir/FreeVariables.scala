@@ -17,16 +17,17 @@ object FreeVariables {
           val aE = compute(a, baseEnv)
           val qE = compute(query, baseEnv.copy(agg = Some(Env.empty)))
           aE.merge(qE.copy(eval = qE.eval.bindIterable(qE.agg.get.m - name), agg = baseEnv.agg))
-        case ApplyAggOp(init, seq, sig) =>
+        case ApplyAggOp(init, seq, _) =>
           val initEnv = baseEnv.copy(agg = None)
           val initFreeVars = init.iterator.map(x => compute(x, initEnv)).fold(initEnv)(_.merge(_))
             .copy(agg = Some(Env.empty[Unit]))
           val seqEnv = baseEnv.promoteAgg
-          seq.iterator.map { x =>
-            val e = compute(x, seqEnv)
-            e.copy(eval = Env.empty[Unit], agg = Some(e.eval))
-          }.fold(initFreeVars)(_.merge(_))
-        case ApplyScanOp(init, seq, sig) =>
+          seq.iterator
+            .map { x =>
+              val e = compute(x, seqEnv)
+              e.copy(eval = Env.empty[Unit], agg = Some(e.eval))
+            }.fold(initFreeVars)(_.merge(_))
+        case ApplyScanOp(init, seq, _) =>
           val initEnv = baseEnv.copy(scan = None)
           val initFreeVars = init.iterator.map(x => compute(x, initEnv)).fold(initEnv)(_.merge(_))
             .copy(scan = Some(Env.empty[Unit]))

@@ -386,8 +386,6 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
     mutable.Map()
 
-  private[this] val pTypeMap: mutable.Map[PType, Value[_ <: PType]] = mutable.Map()
-
   private[this] type CompareMapKey = (SType, SType)
 
   private[this] val memoizedComparisons: mutable.Map[CompareMapKey, CodeOrdering] =
@@ -450,8 +448,9 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
         .apply(cb, partitionRegion, ib)
         .asBaseStruct
-      literals.zipWithIndex.foreach { case ((t, _, pt, arrIdx), i) =>
-        lits.loadField(cb, i)
+      literals.zipWithIndex.foreach { case ((_, _, pt, arrIdx), i) =>
+        lits
+          .loadField(cb, i)
           .consume(
             cb,
             cb._fatal("expect non-missing literals!"),
@@ -489,7 +488,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     Array[AnyRef](baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] var _mods: BoxedArrayBuilder[(
+  private[this] val _mods: BoxedArrayBuilder[(
     String,
     (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]],
   )] = new BoxedArrayBuilder()

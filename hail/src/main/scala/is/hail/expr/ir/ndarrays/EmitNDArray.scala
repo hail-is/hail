@@ -509,7 +509,7 @@ object EmitNDArray {
             deforestRecur(child, cb).flatMap(cb) { childProducer =>
               emitI(slicesIR, cb).flatMap(cb) { case slicesValue: SBaseStructValue =>
                 val (indexingIndices, slicingIndices) =
-                  slicesValue.st.fieldTypes.zipWithIndex.partition { case (pFieldType, idx) =>
+                  slicesValue.st.fieldTypes.zipWithIndex.partition { case (pFieldType, _) =>
                     pFieldType.isPrimitive
                   } match {
                     case (a, b) => (a.map(_._2), b.map(_._2))
@@ -593,7 +593,7 @@ object EmitNDArray {
                         shape.indices.map(idx => { (cb: EmitCodeBuilder, outerStep: Value[Long]) =>
                           // SlicingIndices is a map from my coordinates to my child's coordinates.
                           val whichSlicingAxis = slicingIndices(idx)
-                          val (start, stop, sliceStep) = slicingValueTriples(idx)
+                          val (_, _, sliceStep) = slicingValueTriples(idx)
                           val innerStep = cb.newLocal[Long](
                             "ndarray_producer_slice_child_step",
                             sliceStep * outerStep,

@@ -11,6 +11,7 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 
 import java.io.{FileNotFoundException, OutputStreamWriter}
+import scala.annotation.nowarn
 import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 
@@ -75,7 +76,8 @@ object RelationalSpec {
 
   def read(fs: FS, path: String): RelationalSpec = {
     val jv = readMetadata(fs, path)
-    val references = readReferences(fs, path, jv)
+    @nowarn val references =
+      readReferences(fs, path, jv)
 
     (jv \ "name").extract[String] match {
       case "TableSpec" => TableSpec.fromJValue(fs, path, jv)

@@ -5,7 +5,6 @@ import is.hail.io.compress.LZ4
 import is.hail.utils._
 
 import java.io._
-import java.util
 import java.util.UUID
 import java.util.function.Supplier
 
@@ -186,7 +185,7 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toOff, n)
 
   def readBytesArray(n: Int): Array[Byte] = {
-    var arr = new Array[Byte](n)
+    val arr = new Array[Byte](n)
     mb.readBytesArray(arr, n)
     arr
   }
@@ -460,7 +459,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   }
 
   def readBytesArray(n: Int): Array[Byte] = {
-    var arr = new Array[Byte](n)
+    val arr = new Array[Byte](n)
     read(arr, 0, n)
     arr
   }

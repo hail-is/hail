@@ -292,7 +292,7 @@ object MathFunctions extends RegistryFunctions {
       case (
             r,
             cb,
-            rt,
+            _,
             x: SFloat64Value,
             _w: SIndexablePointerValue,
             _k: SIndexablePointerValue,
@@ -397,7 +397,7 @@ object MathFunctions extends RegistryFunctions {
       TInt32,
       fetStruct.virtualType,
       (_, _, _, _, _) => fetStruct.sType,
-    ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
+    ) { case (r, cb, _, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]](
         "fisher_exact_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](
@@ -431,7 +431,7 @@ object MathFunctions extends RegistryFunctions {
       TInt32,
       chisqStruct.virtualType,
       (_, _, _, _, _) => chisqStruct.sType,
-    ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
+    ) { case (r, cb, _, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]](
         "chi_squared_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](
@@ -468,7 +468,7 @@ object MathFunctions extends RegistryFunctions {
       case (
             r,
             cb,
-            rt,
+            _,
             a: SInt32Value,
             b: SInt32Value,
             c: SInt32Value,
@@ -512,7 +512,7 @@ object MathFunctions extends RegistryFunctions {
       case (
             r,
             cb,
-            rt,
+            _,
             nHomRef: SInt32Value,
             nHet: SInt32Value,
             nHomVar: SInt32Value,

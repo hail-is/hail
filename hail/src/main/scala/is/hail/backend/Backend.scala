@@ -227,7 +227,7 @@ abstract class Backend {
 
   def parseVCFMetadata(path: String): Array[Byte] = jsonToBytes {
     withExecuteContext("parseVCFMetadata") { ctx =>
-      val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, Set.empty, TFloat64, path)
+      val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, path)
       implicit val formats = defaultJSONFormats
       Extraction.decompose(metadata)
     }

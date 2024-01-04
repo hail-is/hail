@@ -1,7 +1,7 @@
 package is.hail.expr.ir.orderings
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitValue}
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
 
@@ -123,8 +123,6 @@ object IterableOrdering {
 
         val lhs = x.asIndexable
         val rhs = y.asIndexable
-        val gt = cb.newLocal("gt", false)
-        val eq = cb.newLocal("eq", true)
 
         loop(cb, lhs, rhs) { (lhs, rhs) =>
           val gt = elemGt(cb, lhs, rhs)

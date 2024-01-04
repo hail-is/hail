@@ -727,7 +727,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     annotation match {
       case uis: UnsafeIndexedSeq =>
         this.unstagedStoreAtAddress(sm, addr, region, uis.t, uis.aoff, region.ne(uis.region))
-      case is: IndexedSeq[Annotation] =>
+      case _: IndexedSeq[Annotation] =>
         Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
     }
 

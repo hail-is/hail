@@ -1,17 +1,13 @@
 package is.hail.sparkextras
 
 import is.hail.HailContext
-import is.hail.annotations.RegionPool
-import is.hail.backend.HailTaskContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.rvd.RVDContext
 import is.hail.utils._
-import is.hail.utils.PartitionCounts._
 
 import scala.reflect.ClassTag
 
 import org.apache.spark._
-import org.apache.spark.ExposedUtils
 import org.apache.spark.rdd._
 
 object Combiner {
@@ -405,9 +401,6 @@ class ContextRDD[T: ClassTag](
 
   def preferredLocations(partition: Partition): Seq[String] =
     rdd.preferredLocations(partition)
-
-  private[this] def clean[U <: AnyRef](value: U): U =
-    ExposedUtils.clean(value)
 
   def partitions: Array[Partition] = rdd.partitions
 

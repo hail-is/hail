@@ -3,7 +3,6 @@ package is.hail.expr
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -17,7 +16,7 @@ class RichParser[T](parser: Parser.Parser[T]) {
   def parseOpt(input: String): Option[T] =
     Parser.parseAll(parser, input) match {
       case Parser.Success(result, _) => Some(result)
-      case Parser.NoSuccess(msg, next) => None
+      case Parser.NoSuccess(_, _) => None
     }
 }
 
@@ -58,7 +57,8 @@ object Parser extends JavaTokenParsers {
   def parseLocusInterval(input: String, rg: ReferenceGenome, invalidMissing: Boolean): Interval = {
     parseAll[Interval](locusInterval(rg, invalidMissing), input) match {
       case Success(r, _) => r
-      case NoSuccess(msg, next) => fatal(
+      case NoSuccess(msg, _) =>
+        fatal(
           s"""invalid interval expression: '$input': $msg
              |  Acceptable formats:
              |    CHR:POS-CHR:POS e.g. 1:12345-1:17299 or [5:151111-8:191293]
@@ -81,7 +81,7 @@ object Parser extends JavaTokenParsers {
   def parseCall(input: String): Call =
     parseAll[Call](call, input) match {
       case Success(r, _) => r
-      case NoSuccess(msg, next) => fatal(s"invalid call expression: '$input': $msg")
+      case NoSuccess(msg, _) => fatal(s"invalid call expression: '$input': $msg")
     }
 
   def oneOfLiteral(a: Array[String]): Parser[String] = new Parser[String] {
@@ -109,7 +109,8 @@ object Parser extends JavaTokenParsers {
         _in = _in.rest
         node = nextNode
       }
-      return null // unreachable
+
+      null // unreachable
     }
   }
 
@@ -135,7 +136,7 @@ object Parser extends JavaTokenParsers {
   }
 
   def locusInterval(rgBase: ReferenceGenome, invalidMissing: Boolean): Parser[Interval] = {
-    val rg = rgBase.asInstanceOf[ReferenceGenome]
+    val rg = rgBase
     val contig = rg.contigParser
 
     val valueParser =
@@ -170,7 +171,7 @@ object Parser extends JavaTokenParsers {
     try
       s.toInt
     catch {
-      case e: java.lang.NumberFormatException => Int.MaxValue
+      case _: java.lang.NumberFormatException => Int.MaxValue
     }
 
   def exp10(i: Int): Int = {

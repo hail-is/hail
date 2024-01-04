@@ -1,6 +1,6 @@
 package is.hail.io.reference
 
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
@@ -95,7 +95,7 @@ class FASTAReader(val cfg: FASTAReaderConfig) {
       reader.getSubsequenceAt(contig, start, if (end > maxEnd) maxEnd else end).getBaseString
     catch {
       // One retry, to refresh the file
-      case e: htsjdk.samtools.SAMException =>
+      case _: htsjdk.samtools.SAMException =>
         reader = newReader()
         reader.getSubsequenceAt(contig, start, if (end > maxEnd) maxEnd else end).getBaseString
     }

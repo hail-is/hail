@@ -1,8 +1,6 @@
 package is.hail.annotations
 
 import is.hail.types.physical._
-import is.hail.utils.Interval
-import is.hail.variant.{Call, Locus}
 
 trait ValueVisitor {
   def visitMissing(t: PType): Unit
@@ -107,9 +105,9 @@ final class PrettyVisitor extends ValueVisitor {
 
   def enterArray(t: PContainer, length: Int) {
     t match {
-      case t: PSet =>
+      case _: PSet =>
         sb.append("Set")
-      case t: PDict =>
+      case _: PDict =>
         sb.append("Dict")
       case _ =>
     }

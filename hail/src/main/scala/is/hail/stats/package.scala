@@ -1,6 +1,6 @@
 package is.hail
 
-import is.hail.types.physical.{PCanonicalStruct, PFloat64, PStruct}
+import is.hail.types.physical.{PCanonicalStruct, PFloat64}
 import is.hail.utils._
 
 import net.sourceforge.jdistlib.{Beta, ChiSquare, NonCentralChiSquare, Normal, Poisson}
@@ -203,7 +203,7 @@ package object stats {
     val hgd = new HypergeometricDistribution(null, popSize, numSuccessPopulation, sampleSize)
     val epsilon = 2.220446e-16
 
-    def dhyper(k: Int, logProb: Boolean = false): Double =
+    def dhyper(k: Int, logProb: Boolean): Double =
       if (logProb) hgd.logProbability(k) else hgd.probability(k)
 
     val logdc = support.map(dhyper(_, logProb = true))
@@ -214,7 +214,7 @@ package object stats {
       d.map(_ / d.sum)
     }
 
-    def phyper(k: Int, lower_tail: Boolean = true): Double =
+    def phyper(k: Int, lower_tail: Boolean): Double =
       if (lower_tail)
         hgd.cumulativeProbability(k)
       else
@@ -237,10 +237,13 @@ package object stats {
         else if (q >= high) 1d
         else 0d
       } else {
+        dnhyper(ncp).zipWithIndex
+          .filter { case (_, i) => if (upper_tail) support(i) >= q else support(i) <= q }
+          .map { case (dbl, _) => dbl }
         dnhyper(ncp)
           .zipWithIndex
-          .filter { case (dbl, i) => if (upper_tail) support(i) >= q else support(i) <= q }
-          .map { case (dbl, i) => dbl }
+          .filter { case (_, i) => if (upper_tail) support(i) >= q else support(i) <= q }
+          .map { case (dbl, _) => dbl }
           .sum
       }
     }

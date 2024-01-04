@@ -82,11 +82,9 @@ object VariantSubgen {
   def plinkCompatible(rg: ReferenceGenome): VariantSubgen = {
     val r = random(rg)
     val compatible = (1 until 22).map(_.toString).toSet
-    r.copy(
-      contigGen = r.contigGen.filter { case (contig, len) =>
-        compatible.contains(contig)
-      }
-    )
+    r.copy(contigGen = r.contigGen.filter { case (contig, _) =>
+      compatible.contains(contig)
+    })
   }
 
   def biallelic(rg: ReferenceGenome): VariantSubgen = random(rg).copy(nAllelesGen = Gen.const(2))

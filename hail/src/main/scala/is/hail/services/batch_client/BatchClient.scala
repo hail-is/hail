@@ -1,8 +1,7 @@
 package is.hail.services.batch_client
 
 import is.hail.expr.ir.ByteArrayBuilder
-import is.hail.services._
-import is.hail.services.DeployConfig
+import is.hail.services.{DeployConfig, _}
 import is.hail.utils._
 
 import org.json4s.{DefaultFormats, Formats, JInt, JObject, JString, JValue}
@@ -11,12 +10,9 @@ import org.json4s.jackson.JsonMethods
 import java.nio.charset.StandardCharsets
 import scala.util.Random
 
-import org.apache.commons.io.IOUtils
-import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
-import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost, HttpUriRequest}
+import org.apache.http.HttpEntity
+import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost}
 import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
-import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
-import org.apache.http.util.EntityUtils
 import org.apache.log4j.{Logger, LogManager}
 
 class NoBodyException(message: String, cause: Throwable) extends Exception(message, cause) {
@@ -35,7 +31,7 @@ class BatchClient(
 ) {
 
   def this(credentialsPath: String) =
-    this(DeployConfig.get, Requester.fromCredentialsFile(credentialsPath))
+    this(DeployConfig.get(), Requester.fromCredentialsFile(credentialsPath))
 
   import BatchClient._
   import requester.request
@@ -197,11 +193,8 @@ class BatchClient(
       // at most, 5s
       val now = System.nanoTime()
       val elapsed = now - start
-      var d = math.max(
-        math.min(
-          (0.1 * (0.8 + Random.nextFloat() * 0.4) * (elapsed / 1000.0 / 1000)).toInt,
-          5000,
-        ),
+      val d = math.max(
+        math.min((0.1 * (0.8 + Random.nextFloat() * 0.4) * (elapsed / 1000.0 / 1000)).toInt, 5000),
         50,
       )
       Thread.sleep(d)

@@ -3,23 +3,20 @@ package is.hail.io.index
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.expr.ir.IRParser
 import is.hail.io._
-import is.hail.io.bgen.BgenSettings
 import is.hail.io.fs.FS
-import is.hail.rvd.{AbstractIndexSpec, AbstractRVDSpec, PartitionBoundOrdering}
-import is.hail.types.physical.{PStruct, PType}
+import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
+import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.utils._
 
-import org.json4s.{Formats, NoTypeHints}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.Formats
+import org.json4s.jackson.JsonMethods
 
 import java.io.InputStream
 import java.util
 import java.util.Map.Entry
 
-import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.Row
 
 object IndexReaderBuilder {
@@ -176,7 +173,6 @@ class IndexReader(
     } else {
       val node = readInternalNode(offset)
       val children = node.children
-      val n = children.length
       val idx = children.upperBound(key, ordering.lt, _.firstKey)
       upperBound(key, level - 1, children(idx - 1).indexFileOffset)
     }

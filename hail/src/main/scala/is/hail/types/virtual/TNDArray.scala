@@ -1,10 +1,9 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray, UnsafeIndexedSeq}
+import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.expr.{Nat, NatBase}
-import is.hail.types.physical.PNDArray
 
 import scala.reflect.{classTag, ClassTag}
 
@@ -123,9 +122,4 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
-
-  private lazy val representation = TStruct(
-    ("shape", shapeType),
-    ("data", TArray(elementType)),
-  )
 }

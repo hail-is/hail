@@ -6,6 +6,7 @@ import is.hail.io.fs.FS
 import is.hail.utils._
 
 import java.io.InputStream
+import scala.annotation.nowarn
 import scala.collection.mutable
 import scala.language.implicitConversions
 
@@ -97,7 +98,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
       fatal(s"Hail only supports tabix indexing for VCF, found format code $format")
     val colSeq = readInt(is)
     val colBeg = readInt(is)
-    val colEnd = readInt(is)
+    @nowarn val colEnd = readInt(is)
     val meta = readInt(is)
     // meta char for VCF is '#'
     if (meta != '#')

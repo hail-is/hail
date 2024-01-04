@@ -55,7 +55,7 @@ object LoweringPipeline {
     // recursively lowers and executes
     val withShuffleRewrite =
       LoweringPipeline(
-        LowerAndExecuteShufflesPass(base),
+        LowerAndExecuteShufflesPass,
         OptimizePass(s"$context, after LowerAndExecuteShuffles"),
       ) + base
 

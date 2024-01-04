@@ -1,9 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.types._
 import is.hail.types.physical.{typeToTypeInfo, PType}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -118,14 +117,9 @@ object BinaryOp {
           case RoundToNegInfDivide() => Code.invokeStatic1[Math, Double, Double]("floor", ll / rr)
           case _ => incompatible(lt, rt, op)
         }
-      case (TBoolean, TBoolean) =>
-        val ll = coerce[Boolean](l)
-        val rr = coerce[Boolean](r)
-        op match {
-          case _ => incompatible(lt, rt, op)
-        }
 
-      case _ => incompatible(lt, rt, op)
+      case _ =>
+        incompatible(lt, rt, op)
     }
 
   val fromString: PartialFunction[String, BinaryOp] = {

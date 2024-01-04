@@ -208,7 +208,7 @@ class LocalBackend(
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}")
 
     if (ir.typ == TVoid) {
-      val (pt, f) = ctx.timer.time("Compile") {
+      val (_, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionUnit](
           ctx,
           FastSeq(),
@@ -289,7 +289,7 @@ class LocalBackend(
         log.info(s"starting execution of query $queryID} of initial size ${IRSize(ir)}")
         val retVal = _execute(ctx, ir)
         val literalIR = retVal match {
-          case Left(x) => throw new HailException("Can't create literal")
+          case Left(_) => throw new HailException("Can't create literal")
           case Right((pt, addr)) =>
             GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
         }

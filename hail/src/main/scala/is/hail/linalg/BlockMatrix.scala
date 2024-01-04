@@ -297,7 +297,7 @@ object BlockMatrix {
 
     val d = digitsNeeded(bms.length)
     val fsBc = fs.broadcast
-    val partitionCounts = collectMatrices(bms)
+    collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
@@ -309,7 +309,7 @@ object BlockMatrix {
       }
       .collect()
 
-    using(fs.create(prefix + "/_SUCCESS"))(out => ())
+    using(fs.create(prefix + "/_SUCCESS"))(_ => ())
   }
 
   def exportBlockMatrices(
@@ -341,7 +341,7 @@ object BlockMatrix {
 
     val compressionExtension = compression.map(x => "." + x).getOrElse("")
 
-    val partitionCounts = collectMatrices(bms)
+    collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
@@ -381,7 +381,7 @@ object BlockMatrix {
       }
       .collect()
 
-    using(fs.create(prefix + "/_SUCCESS"))(out => ())
+    using(fs.create(prefix + "/_SUCCESS"))(_ => ())
   }
 
   def writeBlockMatrices(
@@ -396,7 +396,7 @@ object BlockMatrix {
     val fs = ctx.fs
     val tmpdir = ctx.localTmpdir
 
-    bms.zipWithIndex.foreach { case (bm, bIdx) =>
+    bms.zipWithIndex.foreach { case (_, bIdx) =>
       val uri = blockMatrixURI(bIdx)
       if (overwrite)
         fs.delete(uri, recursive = true)
@@ -470,17 +470,17 @@ object BlockMatrix {
     val grouped = rddNumberAndPartFiles.groupBy(_._2)
     grouped.foreach { case (rddIndex, numberedPartFiles) =>
       val fileData = numberedPartFiles.map { case (partFileName, _) => partFileName }
-      val metadataPath = blockMatrixURI(rddIndex.toInt) + metadataRelativePath
+      val metadataPath = blockMatrixURI(rddIndex) + metadataRelativePath
       using(new DataOutputStream(fs.create(metadataPath))) { os =>
         implicit val formats = defaultJSONFormats
-        val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex.toInt)
+        val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex)
         jackson.Serialization.write(
           BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, fileData.map(_.path)),
           os,
         )
       }
 
-      using(fs.create(blockMatrixURI(rddIndex.toInt) + "/_SUCCESS"))(out => ())
+      using(fs.create(blockMatrixURI(rddIndex) + "/_SUCCESS"))(_ => ())
     }
   }
 }
@@ -1019,7 +1019,7 @@ class BlockMatrix(
       try
         StorageLevel.fromString(storageLevel)
       catch {
-        case e: IllegalArgumentException =>
+        case _: IllegalArgumentException =>
           fatal(s"unknown StorageLevel '$storageLevel'")
       }
     persist(level)
@@ -1414,7 +1414,7 @@ class BlockMatrix(
 
   def reduce(blockOp: BDM[Double] => Double, scalarOp: (Double, Double) => Double): Double =
     blocks
-      .map { case ((i, j), lm) => blockOp(lm) }
+      .map { case (_, lm) => blockOp(lm) }
       .fold(0.0)(scalarOp)
 
   def rowReduce(
@@ -1423,7 +1423,7 @@ class BlockMatrix(
   ): BlockMatrix =
     new BlockMatrix(
       blocks
-        .map { case ((i, j), lm) => ((0, j), blockOp(lm)) }
+        .map { case ((_, j), lm) => ((0, j), blockOp(lm)) }
         .reduceByKey(GridPartitioner(blockSize, 1, nCols, gp.maybeBlockCols()), vectorOp)
         .mapValues(v => new BDM[Double](1, v.length, v.data)),
       blockSize,
@@ -1437,7 +1437,7 @@ class BlockMatrix(
   ): BlockMatrix =
     new BlockMatrix(
       blocks
-        .map { case ((i, j), lm) => ((i, 0), blockOp(lm)) }
+        .map { case ((i, _), lm) => ((i, 0), blockOp(lm)) }
         .reduceByKey(GridPartitioner(blockSize, nRows, 1, gp.maybeBlockRows()), vectorOp)
         .mapValues(v => new BDM[Double](v.length, 1, v.data)),
       blockSize,
@@ -2377,7 +2377,7 @@ class BlockMatrixReadRowBlockedRDD(
     ) {
   import BlockMatrixReadRowBlockedRDD._
 
-  private[this] val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) =
+  private[this] val BlockMatrixMetadata(blockSize, nRows, nCols, _, partFiles) =
     metadata
 
   private[this] val gp = GridPartitioner(blockSize, nRows, nCols)
@@ -2413,7 +2413,6 @@ class BlockMatrixReadRowBlockedRDD(
     Iterator.single { ctx =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
-      val rv = RegionValue(region)
       val firstRow = rowsForPartition(0)
       var blockRow = (firstRow / blockSize).toInt
       val fs = fsBc.value
@@ -2521,7 +2520,6 @@ class BlockMatrixCachedPartFile(
       )
       in.readDoubles(cache, startWritingAt, doublesToRead)
       cacheEnd = doublesToRead + startWritingAt
-      var i = 0
       fileIndex += doublesToRead
       assert(doublesToRead > 0)
     }

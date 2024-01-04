@@ -135,8 +135,6 @@ class ExecuteContext(
 
   private val cleanupFunctions = mutable.ArrayBuffer[() => Unit]()
 
-  private[this] val broadcasts = mutable.ArrayBuffer.empty[BroadcastValue[_]]
-
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
   val taskContext: HailTaskContext = new LocalTaskContext(0, 0)

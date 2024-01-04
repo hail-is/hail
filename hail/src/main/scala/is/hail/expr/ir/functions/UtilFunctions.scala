@@ -103,7 +103,7 @@ object UtilFunctions extends RegistryFunctions {
   }
 
   def isValidBoolean(s: String): Boolean =
-    (s.equalsCaseInsensitive("true") || s.equalsCaseInsensitive("false"))
+    s.equalsCaseInsensitive("true") || s.equalsCaseInsensitive("false")
 
   def isValidInt32(s: String): Boolean =
     try {
@@ -209,28 +209,30 @@ object UtilFunctions extends RegistryFunctions {
       TFloat64,
       TBoolean,
       TBoolean,
-      {
-        case (_: Type, _: SType, _: SType, _: SType, _: SType) => SBoolean
-      },
-    ) {
-      case (er, cb, rt, l, r, tol, abs, _) =>
-        assert(
-          l.st.virtualType == r.st.virtualType,
-          s"\n  lt=${l.st.virtualType}\n  rt=${r.st.virtualType}",
+      { case (_: Type, _: SType, _: SType, _: SType, _: SType) => SBoolean },
+    ) { case (er, cb, _, l, r, tol, abs, _) =>
+      assert(
+        l.st.virtualType == r.st.virtualType,
+        s"\n  lt=${l.st.virtualType}\n  rt=${r.st.virtualType}",
+      )
+      val lb = svalueToJavaValue(cb, er.region, l)
+      val rb = svalueToJavaValue(cb, er.region, r)
+      primitive(
+        cb.memoize(
+          er.mb
+            .getType(l.st.virtualType).invoke[Any, Any, Double, Boolean, Boolean](
+              "valuesSimilar",
+              lb,
+              rb,
+              tol.asDouble.value,
+              abs.asBoolean.value,
+            )
         )
-        val lb = svalueToJavaValue(cb, er.region, l)
-        val rb = svalueToJavaValue(cb, er.region, r)
-        primitive(cb.memoize(er.mb.getType(l.st.virtualType).invoke[
-          Any,
-          Any,
-          Double,
-          Boolean,
-          Boolean,
-        ]("valuesSimilar", lb, rb, tol.asDouble.value, abs.asBoolean.value)))
+      )
     }
 
     registerCode1("triangle", TInt32, TInt32, (_: Type, _: SType) => SInt32) {
-      case (cb, _, rt, nn) =>
+      case (cb, _, _, nn) =>
         val n = nn.asInt.value
         cb.memoize((n * (n + 1)) / 2)
     }
@@ -263,7 +265,7 @@ object UtilFunctions extends RegistryFunctions {
     ) {
       val ctString: ClassTag[String] = implicitly[ClassTag[String]]
       registerSCode1(s"to$name", TString, t, (_: Type, _: SType) => rpt) {
-        case (r, cb, rt, x: SStringValue, err) =>
+        case (_, cb, rt, x: SStringValue, err) =>
           val s = x.loadString(cb)
           primitive(
             rt.virtualType,
@@ -282,26 +284,25 @@ object UtilFunctions extends RegistryFunctions {
         TString,
         t,
         (_: Type, _: EmitType) => EmitType(rpt, false),
-      ) {
-        case (cb, r, rt, err, x) =>
-          x.toI(cb).flatMap(cb) { case sc: SStringValue =>
-            val sv = cb.newLocal[String]("s", sc.loadString(cb))
-            IEmitCode(
-              cb,
-              !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
-              primitive(
-                rt.virtualType,
-                cb.memoizeAny(
-                  Code.invokeScalaObject2(thisClass, s"parse$name", sv, err)(
-                    ctString,
-                    implicitly[ClassTag[Int]],
-                    ct,
-                  ),
-                  typeInfoFromClassTag(ct),
+      ) { case (cb, _, rt, err, x) =>
+        x.toI(cb).flatMap(cb) { case sc: SStringValue =>
+          val sv = cb.newLocal[String]("s", sc.loadString(cb))
+          IEmitCode(
+            cb,
+            !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
+            primitive(
+              rt.virtualType,
+              cb.memoizeAny(
+                Code.invokeScalaObject2(thisClass, s"parse$name", sv, err)(
+                  ctString,
+                  implicitly[ClassTag[Int]],
+                  ct,
                 ),
+                typeInfoFromClassTag(ct),
               ),
-            )
-          }
+            ),
+          )
+        }
       }
     }
 
@@ -312,21 +313,21 @@ object UtilFunctions extends RegistryFunctions {
 
     Array("min", "max").foreach { name =>
       registerCode2(name, TFloat32, TFloat32, TFloat32, (_: Type, _: SType, _: SType) => SFloat32) {
-        case (cb, r, rt, v1, v2) =>
-          cb.memoize(Code.invokeStatic2[Math, Float, Float, Float](
-            name,
-            v1.asFloat.value,
-            v2.asFloat.value,
-          ))
+        case (cb, _, _, v1, v2) =>
+          cb.memoize(
+            Code.invokeStatic2[Math, Float, Float, Float](name, v1.asFloat.value, v2.asFloat.value)
+          )
       }
 
       registerCode2(name, TFloat64, TFloat64, TFloat64, (_: Type, _: SType, _: SType) => SFloat64) {
-        case (cb, r, rt, v1, v2) =>
-          cb.memoize(Code.invokeStatic2[Math, Double, Double, Double](
-            name,
-            v1.asDouble.value,
-            v2.asDouble.value,
-          ))
+        case (cb, _, _, v1, v2) =>
+          cb.memoize(
+            Code.invokeStatic2[Math, Double, Double, Double](
+              name,
+              v1.asDouble.value,
+              v2.asDouble.value,
+            )
+          )
       }
 
       val ignoreMissingName = name + "_ignore_missing"
@@ -339,14 +340,15 @@ object UtilFunctions extends RegistryFunctions {
         TFloat32,
         TFloat32,
         (_: Type, _: SType, _: SType) => SFloat32,
-      ) {
-        case (cb, r, rt, v1, v2) =>
-          cb.memoize(Code.invokeScalaObject2[Float, Float, Float](
+      ) { case (cb, _, _, v1, v2) =>
+        cb.memoize(
+          Code.invokeScalaObject2[Float, Float, Float](
             thisClass,
             ignoreNanName,
             v1.asFloat.value,
             v2.asFloat.value,
-          ))
+          )
+        )
       }
 
       registerCode2(
@@ -355,26 +357,25 @@ object UtilFunctions extends RegistryFunctions {
         TFloat64,
         TFloat64,
         (_: Type, _: SType, _: SType) => SFloat64,
-      ) {
-        case (cb, r, rt, v1, v2) =>
-          cb.memoize(Code.invokeScalaObject2[Double, Double, Double](
+      ) { case (cb, _, _, v1, v2) =>
+        cb.memoize(
+          Code.invokeScalaObject2[Double, Double, Double](
             thisClass,
             ignoreNanName,
             v1.asDouble.value,
             v2.asDouble.value,
-          ))
+          )
+        )
       }
 
-      def ignoreMissingTriplet[T](
+      def ignoreMissingTriplet[T: ClassTag](
         cb: EmitCodeBuilder,
         rt: SType,
         v1: EmitCode,
         v2: EmitCode,
         name: String,
         f: (Code[T], Code[T]) => Code[T],
-      )(implicit
-        ct: ClassTag[T],
-        ti: TypeInfo[T],
+      )(implicit ti: TypeInfo[T]
       ): IEmitCode = {
         val value = cb.newLocal[T](s"ignore_missing_${name}_value")
         val v1Value = v1.toI(cb).memoize(cb, "ignore_missing_v1")
@@ -410,15 +411,15 @@ object UtilFunctions extends RegistryFunctions {
         TInt32,
         TInt32,
         (_: Type, t1: EmitType, t2: EmitType) => EmitType(SInt32, t1.required || t2.required),
-      ) {
-        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Int](
-            cb,
-            rt,
-            v1,
-            v2,
-            name,
-            Code.invokeStatic2[Math, Int, Int, Int](name, _, _),
-          )
+      ) { case (cb, _, rt, _, v1, v2) =>
+        ignoreMissingTriplet[Int](
+          cb,
+          rt,
+          v1,
+          v2,
+          name,
+          Code.invokeStatic2[Math, Int, Int, Int](name, _, _),
+        )
       }
 
       registerIEmitCode2(
@@ -427,15 +428,15 @@ object UtilFunctions extends RegistryFunctions {
         TInt64,
         TInt64,
         (_: Type, t1: EmitType, t2: EmitType) => EmitType(SInt64, t1.required || t2.required),
-      ) {
-        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Long](
-            cb,
-            rt,
-            v1,
-            v2,
-            name,
-            Code.invokeStatic2[Math, Long, Long, Long](name, _, _),
-          )
+      ) { case (cb, _, rt, _, v1, v2) =>
+        ignoreMissingTriplet[Long](
+          cb,
+          rt,
+          v1,
+          v2,
+          name,
+          Code.invokeStatic2[Math, Long, Long, Long](name, _, _),
+        )
       }
 
       registerIEmitCode2(
@@ -444,15 +445,15 @@ object UtilFunctions extends RegistryFunctions {
         TFloat32,
         TFloat32,
         (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat32, t1.required || t2.required),
-      ) {
-        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Float](
-            cb,
-            rt,
-            v1,
-            v2,
-            name,
-            Code.invokeStatic2[Math, Float, Float, Float](name, _, _),
-          )
+      ) { case (cb, _, rt, _, v1, v2) =>
+        ignoreMissingTriplet[Float](
+          cb,
+          rt,
+          v1,
+          v2,
+          name,
+          Code.invokeStatic2[Math, Float, Float, Float](name, _, _),
+        )
       }
 
       registerIEmitCode2(
@@ -461,15 +462,15 @@ object UtilFunctions extends RegistryFunctions {
         TFloat64,
         TFloat64,
         (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat64, t1.required || t2.required),
-      ) {
-        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Double](
-            cb,
-            rt,
-            v1,
-            v2,
-            name,
-            Code.invokeStatic2[Math, Double, Double, Double](name, _, _),
-          )
+      ) { case (cb, _, rt, _, v1, v2) =>
+        ignoreMissingTriplet[Double](
+          cb,
+          rt,
+          v1,
+          v2,
+          name,
+          Code.invokeStatic2[Math, Double, Double, Double](name, _, _),
+        )
       }
 
       registerIEmitCode2(
@@ -478,15 +479,15 @@ object UtilFunctions extends RegistryFunctions {
         TFloat32,
         TFloat32,
         (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat32, t1.required || t2.required),
-      ) {
-        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Float](
-            cb,
-            rt,
-            v1,
-            v2,
-            ignoreNanName,
-            Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, _, _),
-          )
+      ) { case (cb, _, rt, _, v1, v2) =>
+        ignoreMissingTriplet[Float](
+          cb,
+          rt,
+          v1,
+          v2,
+          ignoreNanName,
+          Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, _, _),
+        )
       }
 
       registerIEmitCode2(
@@ -495,15 +496,15 @@ object UtilFunctions extends RegistryFunctions {
         TFloat64,
         TFloat64,
         (_: Type, t1: EmitType, t2: EmitType) => EmitType(SFloat64, t1.required || t2.required),
-      ) {
-        case (cb, r, rt, _, v1, v2) => ignoreMissingTriplet[Double](
-            cb,
-            rt,
-            v1,
-            v2,
-            ignoreNanName,
-            Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, _, _),
-          )
+      ) { case (cb, _, rt, _, v1, v2) =>
+        ignoreMissingTriplet[Double](
+          cb,
+          rt,
+          v1,
+          v2,
+          ignoreNanName,
+          Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, _, _),
+        )
       }
     }
 
@@ -531,42 +532,41 @@ object UtilFunctions extends RegistryFunctions {
       TBoolean,
       TBoolean,
       (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required),
-    ) {
-      case (cb, _, rt, _, l, r) =>
-        if (l.required && r.required) {
-          val result = cb.newLocal[Boolean]("land_result")
-          cb.if_(
-            l.toI(cb).get(cb).asBoolean.value,
-            cb.assign(result, r.toI(cb).get(cb).asBoolean.value),
-            cb.assign(result, const(false)),
+    ) { case (cb, _, _, _, l, r) =>
+      if (l.required && r.required) {
+        val result = cb.newLocal[Boolean]("land_result")
+        cb.if_(
+          l.toI(cb).get(cb).asBoolean.value,
+          cb.assign(result, r.toI(cb).get(cb).asBoolean.value),
+          cb.assign(result, const(false)),
+        )
+
+        IEmitCode.present(cb, primitive(result))
+      } else {
+        // 00 ... 00 rv rm lv lm
+        val w = cb.newLocal[Int]("land_w")
+
+        // m/m, t/m, m/t
+        val M = const((1 << 5) | (1 << 6) | (1 << 9))
+
+        l.toI(cb)
+          .consume(
+            cb,
+            cb.assign(w, 1),
+            b1 => cb.assign(w, b1.asBoolean.value.mux(const(2), const(0))),
           )
 
-          IEmitCode.present(cb, primitive(result))
-        } else {
-          // 00 ... 00 rv rm lv lm
-          val w = cb.newLocal[Int]("land_w")
+        cb.if_(
+          w.cne(0),
+          r.toI(cb).consume(
+            cb,
+            cb.assign(w, w | const(4)),
+            b2 => cb.assign(w, w | b2.asBoolean.value.mux(const(8), const(0))),
+          ),
+        )
 
-          // m/m, t/m, m/t
-          val M = const((1 << 5) | (1 << 6) | (1 << 9))
-
-          l.toI(cb)
-            .consume(
-              cb,
-              cb.assign(w, 1),
-              b1 => cb.assign(w, b1.asBoolean.value.mux(const(2), const(0))),
-            )
-
-          cb.if_(
-            w.cne(0),
-            r.toI(cb).consume(
-              cb,
-              cb.assign(w, w | const(4)),
-              b2 => cb.assign(w, w | b2.asBoolean.value.mux(const(8), const(0))),
-            ),
-          )
-
-          IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.ceq(10))))
-        }
+        IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.ceq(10))))
+      }
     }
 
     registerIEmitCode2(
@@ -575,42 +575,41 @@ object UtilFunctions extends RegistryFunctions {
       TBoolean,
       TBoolean,
       (_: Type, tl: EmitType, tr: EmitType) => EmitType(SBoolean, tl.required && tr.required),
-    ) {
-      case (cb, _, rt, _, l, r) =>
-        if (l.required && r.required) {
-          val result = cb.newLocal[Boolean]("land_result")
-          cb.if_(
-            l.toI(cb).get(cb).asBoolean.value,
-            cb.assign(result, const(true)),
-            cb.assign(result, r.toI(cb).get(cb).asBoolean.value),
+    ) { case (cb, _, _, _, l, r) =>
+      if (l.required && r.required) {
+        val result = cb.newLocal[Boolean]("land_result")
+        cb.if_(
+          l.toI(cb).get(cb).asBoolean.value,
+          cb.assign(result, const(true)),
+          cb.assign(result, r.toI(cb).get(cb).asBoolean.value),
+        )
+
+        IEmitCode.present(cb, primitive(result))
+      } else {
+        // 00 ... 00 rv rm lv lm
+        val w = cb.newLocal[Int]("lor_w")
+
+        // m/m, f/m, m/f
+        val M = const((1 << 5) | (1 << 1) | (1 << 4))
+
+        l.toI(cb)
+          .consume(
+            cb,
+            cb.assign(w, 1),
+            b1 => cb.assign(w, b1.asBoolean.value.mux(const(2), const(0))),
           )
 
-          IEmitCode.present(cb, primitive(result))
-        } else {
-          // 00 ... 00 rv rm lv lm
-          val w = cb.newLocal[Int]("lor_w")
+        cb.if_(
+          w.cne(2),
+          r.toI(cb).consume(
+            cb,
+            cb.assign(w, w | const(4)),
+            b2 => cb.assign(w, w | b2.asBoolean.value.mux(const(8), const(0))),
+          ),
+        )
 
-          // m/m, f/m, m/f
-          val M = const((1 << 5) | (1 << 1) | (1 << 4))
-
-          l.toI(cb)
-            .consume(
-              cb,
-              cb.assign(w, 1),
-              b1 => cb.assign(w, b1.asBoolean.value.mux(const(2), const(0))),
-            )
-
-          cb.if_(
-            w.cne(2),
-            r.toI(cb).consume(
-              cb,
-              cb.assign(w, w | const(4)),
-              b2 => cb.assign(w, w | b2.asBoolean.value.mux(const(8), const(0))),
-            ),
-          )
-
-          IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.cne(0))))
-        }
+        IEmitCode(cb, ((M >> w) & 1).cne(0), primitive(cb.memoize(w.cne(0))))
+      }
     }
 
     registerIEmitCode4(
@@ -621,44 +620,44 @@ object UtilFunctions extends RegistryFunctions {
       TString,
       VCFHeaderInfo.headerType,
       (_, fileET, _, _, _) => EmitType(VCFHeaderInfo.headerTypePType.sType, fileET.required),
-    ) {
-      case (cb, r, rt, errID, file, filter, find, replace) =>
-        file.toI(cb).map(cb) { case filePath: SStringValue =>
-          val filterVar = cb.newLocal[String]("filterVar")
-          val findVar = cb.newLocal[String]("findVar")
-          val replaceVar = cb.newLocal[String]("replaceVar")
-          filter.toI(cb).consume(
+    ) { case (cb, r, _, _, file, filter, find, replace) =>
+      file.toI(cb).map(cb) { case filePath: SStringValue =>
+        val filterVar = cb.newLocal[String]("filterVar")
+        val findVar = cb.newLocal[String]("findVar")
+        val replaceVar = cb.newLocal[String]("replaceVar")
+        filter
+          .toI(cb).consume(
             cb,
             cb.assign(filterVar, Code._null),
             filt => cb.assign(filterVar, filt.asString.loadString(cb)),
           )
-          find.toI(cb).consume(
-            cb,
-            cb.assign(findVar, Code._null),
-            find => cb.assign(findVar, find.asString.loadString(cb)),
-          )
-          replace.toI(cb).consume(
-            cb,
-            cb.assign(replaceVar, Code._null),
-            replace => cb.assign(replaceVar, replace.asString.loadString(cb)),
-          )
-          val hd = Code.invokeScalaObject5[FS, String, String, String, String, VCFHeaderInfo](
-            LoadVCF.getClass,
-            "getVCFHeaderInfo",
-            cb.emb.getFS,
-            filePath.loadString(cb),
-            filterVar,
-            findVar,
-            replaceVar,
-          )
-          val addr = cb.memoize(hd.invoke[HailStateManager, Region, Boolean, Long](
-            "writeToRegion",
-            cb.emb.getObject(cb.emb.ecb.ctx.stateManager),
-            r,
-            const(false),
-          ))
-          VCFHeaderInfo.headerTypePType.loadCheapSCode(cb, addr)
-        }
+        find.toI(cb).consume(
+          cb,
+          cb.assign(findVar, Code._null),
+          find => cb.assign(findVar, find.asString.loadString(cb)),
+        )
+        replace.toI(cb).consume(
+          cb,
+          cb.assign(replaceVar, Code._null),
+          replace => cb.assign(replaceVar, replace.asString.loadString(cb)),
+        )
+        val hd = Code.invokeScalaObject5[FS, String, String, String, String, VCFHeaderInfo](
+          LoadVCF.getClass,
+          "getVCFHeaderInfo",
+          cb.emb.getFS,
+          filePath.loadString(cb),
+          filterVar,
+          findVar,
+          replaceVar,
+        )
+        val addr = cb.memoize(hd.invoke[HailStateManager, Region, Boolean, Long](
+          "writeToRegion",
+          cb.emb.getObject(cb.emb.ecb.ctx.stateManager),
+          r,
+          const(false),
+        ))
+        VCFHeaderInfo.headerTypePType.loadCheapSCode(cb, addr)
+      }
     }
   }
 }

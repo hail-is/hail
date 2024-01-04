@@ -2,8 +2,7 @@ package is.hail.lir
 
 import is.hail.utils._
 
-import java.io.ByteArrayOutputStream
-import java.io.PrintWriter
+import java.io.{ByteArrayOutputStream, PrintWriter}
 import java.nio.charset.StandardCharsets
 import scala.collection.mutable
 
@@ -165,7 +164,7 @@ object Emit {
           mv.visitIincInsn(getLocalIndex(x.l), x.i)
         case x: StmtOpX =>
           mv.visitInsn(x.op)
-        case x: ThrowX =>
+        case _: ThrowX =>
           mv.visitInsn(ATHROW)
       }
     }

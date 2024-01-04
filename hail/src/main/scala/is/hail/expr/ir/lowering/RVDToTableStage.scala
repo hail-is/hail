@@ -60,20 +60,22 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
       )
 
     val fsBc = ctx.fsBc
-    TableExecuteIntermediate(TableValue(
-      ctx,
-      requestedType,
-      globRow,
-      rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
-        val partF = rowF(
-          theHailClassLoaderForSparkWorkers,
-          fsBc.value,
-          SparkTaskContext.get(),
-          ctx.partitionRegion,
-        )
-        it.map(elt => partF(ctx.r, elt))
-      },
-    ))
+    TableExecuteIntermediate(
+      TableValue(
+        ctx,
+        requestedType,
+        globRow,
+        rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { (_, ctx, it) =>
+          val partF = rowF(
+            theHailClassLoaderForSparkWorkers,
+            fsBc.value,
+            SparkTaskContext.get(),
+            ctx.partitionRegion,
+          )
+          it.map(elt => partF(ctx.r, elt))
+        },
+      )
+    )
   }
 
   override def isDistinctlyKeyed: Boolean = false
@@ -202,8 +204,9 @@ object TableStageToRVD {
 
     val rdd = new TableStageToRDD(fsBc, sparkContext, encodedContexts, sparkDeps)
 
-    val crdd = ContextRDD.weaken(rdd)
-      .cflatMap { case (rvdContext, (encodedContext, idx)) =>
+    val crdd = ContextRDD
+      .weaken(rdd)
+      .cflatMap { case (rvdContext, (encodedContext, _)) =>
         val decodedContext = makeContextDec(
           new ByteArrayInputStream(encodedContext),
           theHailClassLoaderForSparkWorkers,

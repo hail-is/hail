@@ -103,7 +103,7 @@ class DaviesAlgorithm(
     ndtsrt = false
   }
 
-  def errbd(_u: Double): (Double, Double) = {
+  private def errbd(_u: Double): (Double, Double) = {
     var u = _u
     counter()
     var xconst = u * sigsq
@@ -127,7 +127,7 @@ class DaviesAlgorithm(
     (exp1(-0.5 * sum1), xconst)
   }
 
-  def ctff(accx: Double, _u2: Double): (Double, Double) = {
+  private def ctff(accx: Double, _u2: Double): (Double, Double) = {
     var u2 = _u2
     var u1 = 0.0
     var c1 = mean
@@ -172,16 +172,14 @@ class DaviesAlgorithm(
     (c2, u2)
   }
 
-  def truncation(_u: Double, _tausq: Double): Double = {
+  private def truncation(_u: Double, tausq: Double): Double = {
     counter()
     var u = _u
-    var tausq = _tausq
-
     var sum1 = 0.0
     var prod2 = 0.0
     var prod3 = 0.0
     var s = 0
-    var sum2 = (sigsq + tausq) * square(u)
+    val sum2 = (sigsq + tausq) * square(u)
     var prod1 = 2.0 * sum2
     u = 2.0 * u
 
@@ -195,10 +193,10 @@ class DaviesAlgorithm(
       sum1 = sum1 + ncj * x / (1.0 + x)
       if (x > 1.0) {
         prod2 = prod2 + nj * Math.log(x)
-        prod3 = prod3 + nj * log1(x, true)
+        prod3 = prod3 + nj * log1(x, first = true)
         s = s + nj
       } else {
-        prod1 = prod1 + nj * log1(x, true)
+        prod1 = prod1 + nj * log1(x, first = true)
       }
 
       j += 1
@@ -241,7 +239,7 @@ class DaviesAlgorithm(
     }
   }
 
-  def findu(_ut: Double, accx: Double): Double = {
+  private def findu(_ut: Double, accx: Double): Double = {
     var ut = _ut
     var u = ut / 4.0
     if (truncation(u, 0.0) > accx) {
@@ -271,7 +269,7 @@ class DaviesAlgorithm(
     ut
   }
 
-  def integrate(nterm: Int, interv: Double, tausq: Double, mainx: Boolean): Unit = {
+  private def integrate(nterm: Int, interv: Double, tausq: Double, mainx: Boolean): Unit = {
     val inpi = interv / pi
 
     var k = nterm
@@ -310,7 +308,7 @@ class DaviesAlgorithm(
     }
   }
 
-  def cfe(x: Double): Double = {
+  private def cfe(x: Double): Double = {
     counter();
     if (ndtsrt) {
       order()
@@ -587,7 +585,7 @@ object GeneralizedChiSquaredDistribution {
     assert(lim >= 0)
     assert(acc >= 0)
 
-    val (value, trace, fault) = new DaviesAlgorithm(c, n, lb, nc, lim, sigma).cdf(acc)
+    val (value, _, fault) = new DaviesAlgorithm(c, n, lb, nc, lim, sigma).cdf(acc)
 
     assert(fault >= 0 && fault <= 2, fault)
 

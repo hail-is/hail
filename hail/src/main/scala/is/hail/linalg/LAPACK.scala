@@ -40,7 +40,7 @@ object LAPACK {
         case Success(version) =>
           log.info(s"Imported LAPACK library $libraryName, version $version, with standard names")
           standard
-        case Failure(exception) =>
+        case Failure(_) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
           val underscoreAfter = Native.load(libraryName, classOf[LAPACKLibrary], underscoreAfterMap)

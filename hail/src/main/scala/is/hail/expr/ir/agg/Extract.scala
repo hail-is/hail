@@ -20,18 +20,10 @@ import org.apache.spark.TaskContext
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
 object AggStateSig {
-  def apply(op: AggOp, initOpArgs: Seq[IR], seqOpArgs: Seq[IR], r: RequirednessAnalysis)
-    : AggStateSig = {
-    val inits = initOpArgs.map(i => i -> (if (i.typ == TVoid) null else r(i)))
-    val seqs = seqOpArgs.map(s => s -> (if (s.typ == TVoid) null else r(s)))
-    apply(op, inits, seqs)
-  }
+  def apply(op: AggOp, seqOpArgs: Seq[IR], r: RequirednessAnalysis): AggStateSig =
+    apply(op, seqOpArgs.map(s => s -> (if (s.typ == TVoid) null else r(s))))
 
-  def apply(
-    op: AggOp,
-    initOpArgs: Seq[(IR, TypeWithRequiredness)],
-    seqOpArgs: Seq[(IR, TypeWithRequiredness)],
-  ): AggStateSig = {
+  def apply(op: AggOp, seqOpArgs: Seq[(IR, TypeWithRequiredness)]): AggStateSig = {
     val seqVTypes = seqOpArgs.map { case (a, r) => VirtualTypeWithReq(a.typ, r) }
     op match {
       case Sum() | Product() => TypedStateSig(seqVTypes.head.setRequired(true))
@@ -65,9 +57,6 @@ object AggStateSig {
   def grouped(k: IR, aggs: Seq[AggStateSig], r: RequirednessAnalysis): GroupedStateSig =
     GroupedStateSig(VirtualTypeWithReq(k.typ, r(k)), aggs)
 
-  def arrayelements(aggs: Seq[AggStateSig]): ArrayAggStateSig =
-    ArrayAggStateSig(aggs)
-
   def getState(sig: AggStateSig, cb: EmitClassBuilder[_]): AggregatorState = sig match {
     case TypedStateSig(vt) if vt.t.isPrimitive => new PrimitiveRVAState(Array(vt), cb)
     case TypedStateSig(vt) => new TypedRegionBackedAggState(vt, cb)
@@ -90,7 +79,7 @@ object AggStateSig {
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
     case NDArrayMultiplyAddStateSig(nda) =>
       new TypedRegionBackedAggState(nda, cb)
-    case FoldStateSig(resultEmitType, accumName, otherAccumName, combOpIR) =>
+    case FoldStateSig(resultEmitType, _, _, _) =>
       val vWithReq = resultEmitType.typeWithRequiredness
       new TypedRegionBackedAggState(vWithReq, cb)
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
@@ -241,7 +230,7 @@ class Aggs(
     aggs.exists(containsBigAggregator)
   }
 
-  def eltOp(ctx: ExecuteContext): IR = seqPerElt
+  def eltOp: IR = seqPerElt
 
   def deserialize(ctx: ExecuteContext, spec: BufferSpec)
     : ((HailClassLoader, HailTaskContext, Region, Array[Byte]) => Long) = {
@@ -335,7 +324,7 @@ class Aggs(
 
   // Takes ownership of both input regions, and returns ownership of region in
   // resulting RegionValue.
-  def combOpF(ctx: ExecuteContext, spec: BufferSpec)
+  def combOpF(ctx: ExecuteContext)
     : (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue = {
     val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
       ctx,
@@ -426,7 +415,7 @@ object Extract {
     case AggSignature(Take(), _, Seq(t)) => TArray(t)
     case AggSignature(ReservoirSample(), _, Seq(t)) => TArray(t)
     case AggSignature(CallStats(), _, _) => CallStatsState.resultPType.virtualType
-    case AggSignature(TakeBy(_), _, Seq(value, key)) => TArray(value)
+    case AggSignature(TakeBy(_), _, Seq(value, _)) => TArray(value)
     case AggSignature(PrevNonnull(), _, Seq(t)) => t
     case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
     case AggSignature(Collect(), _, Seq(t)) => TArray(t)
@@ -435,7 +424,7 @@ object Extract {
     case AggSignature(LinearRegression(), _, _) =>
       LinearRegressionAggregator.resultPType.virtualType
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultPType.virtualType
-    case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
+    case AggSignature(Downsample(), _, Seq(_, _, _)) => DownsampleAggregator.resultType
     case AggSignature(NDArraySum(), _, Seq(t)) => t
     case AggSignature(NDArrayMultiplyAdd(), _, Seq(a: TNDArray, _)) => a
     case _ => throw new UnsupportedExtraction(aggSig.toString)
@@ -527,7 +516,7 @@ object Extract {
     }
 
     val newNode = ir match {
-      case x @ AggLet(name, value, body, _) =>
+      case x @ AggLet(_, _, body, _) =>
         letBuilder += x
         this.extract(body, env, bindingNodesReferenced, rewriteMap, ab, seqBuilder, letBuilder,
           memo, result, r, isScan)
@@ -537,7 +526,7 @@ object Extract {
             val i = ab.length
             val op = x.aggSig.op
             bindInitArgRefs(x.initOpArgs)
-            val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
+            val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             ab += InitOp(i, x.initOpArgs, state) -> state
             seqBuilder += SeqOp(i, x.seqOpArgs, state)
             i
@@ -550,14 +539,14 @@ object Extract {
             val i = ab.length
             val op = x.aggSig.op
             bindInitArgRefs(x.initOpArgs)
-            val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
+            val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             ab += InitOp(i, x.initOpArgs, state) -> state
             seqBuilder += SeqOp(i, x.seqOpArgs, state)
             i
           },
         )
         GetTupleElement(result, idx)
-      case x @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+      case x @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
         val idx = memo.getOrElseUpdate(
           x, {
             val i = ab.length

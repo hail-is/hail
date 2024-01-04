@@ -2,11 +2,9 @@ package is.hail
 
 import is.hail.backend.Backend
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.BaseIR
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
 import is.hail.io.vcf._
-import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.json4s.Extraction
@@ -14,10 +12,9 @@ import org.json4s.jackson.JsonMethods
 
 import java.io.InputStream
 import java.util.Properties
-import scala.collection.mutable
 import scala.reflect.ClassTag
 
-import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
+import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
@@ -82,10 +79,10 @@ object HailContext {
       // new-style version: MAJOR.MINOR.SECURITY (started in JRE 9)
       /* see:
        * https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB */
-      case javaVersion("1", major, minor) =>
+      case javaVersion("1", major, _) =>
         if (major.toInt < 8)
           fatal(s"Hail requires Java 1.8, found $versionString")
-      case javaVersion(major, minor, security) =>
+      case javaVersion(major, _, _) =>
         if (major.toInt != 11)
           fatal(s"Hail requires Java 8 or 11, found $versionString")
       case _ =>
@@ -213,10 +210,10 @@ class HailContext private (
     fileAndLineCounts(fs: FS, regex, files, maxLines).mapValues(_.map(_.value)).toArray
 
   def parseVCFMetadata(fs: FS, file: String): Map[String, Map[String, Map[String, String]]] =
-    LoadVCF.parseHeaderMetadata(fs, Set.empty, TFloat64, file)
+    LoadVCF.parseHeaderMetadata(fs, file)
 
   def pyParseVCFMetadataJSON(fs: FS, file: String): String = {
-    val metadata = LoadVCF.parseHeaderMetadata(fs, Set.empty, TFloat64, file)
+    val metadata = LoadVCF.parseHeaderMetadata(fs, file)
     implicit val formats = defaultJSONFormats
     JsonMethods.compact(Extraction.decompose(metadata))
   }

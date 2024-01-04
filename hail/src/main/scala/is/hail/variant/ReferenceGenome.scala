@@ -2,18 +2,16 @@ package is.hail.variant
 
 import is.hail.HailContext
 import is.hail.annotations.ExtendedOrdering
-import is.hail.asm4s.Code
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.check.Gen
 import is.hail.expr.{
   JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser,
 }
-import is.hail.expr.ir.{EmitClassBuilder, RelationalSpec}
+import is.hail.expr.ir.RelationalSpec
 import is.hail.io.fs.FS
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
-import is.hail.io.reference.LiftOver
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.types._
-import is.hail.types.virtual.{TInt64, TLocus, Type}
+import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
 
 import org.json4s._
@@ -643,7 +641,6 @@ object ReferenceGenome {
     mtContigs: Array[String] = Array.empty[String],
     parInput: Array[String] = Array.empty[String],
   ): ReferenceGenome = {
-    val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
 
     if (!fs.isFile(fastaFile))

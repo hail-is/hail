@@ -346,14 +346,14 @@ object ArraySort {
     val compare = if (onKey) {
       val elementType = atyp.elementType.asInstanceOf[TBaseStruct]
       elementType match {
-        case t: TStruct =>
+        case _: TStruct =>
           val elt = tcoerce[TStruct](atyp.elementType)
           ApplyComparisonOp(
             Compare(elt.types(0)),
             GetField(Ref(l, elt), elt.fieldNames(0)),
             GetField(Ref(r, atyp.elementType), elt.fieldNames(0)),
           )
-        case t: TTuple =>
+        case _: TTuple =>
           val elt = tcoerce[TTuple](atyp.elementType)
           ApplyComparisonOp(
             Compare(elt.types(0)),
@@ -515,7 +515,6 @@ final case class StreamFold2(
   result: IR,
 ) extends IR {
   assert(accum.length == seq.length)
-  val nameIdx: Map[String, Int] = accum.map(_._1).zipWithIndex.toMap
 }
 
 final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR)
@@ -963,7 +962,7 @@ object In {
         case TFloat32 => Float32SingleCodeType
         case TFloat64 => Float64SingleCodeType
         case TBoolean => BooleanSingleCodeType
-        case ts: TStream => throw new UnsupportedOperationException
+        case _: TStream => throw new UnsupportedOperationException
         case t => PTypeReferenceSingleCodeType(PType.canonical(t))
       },
     ),

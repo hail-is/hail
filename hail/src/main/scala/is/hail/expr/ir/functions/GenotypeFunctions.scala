@@ -11,7 +11,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerSCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: SType) => SInt32) {
-      case (r, cb, rt, pl: SIndexableValue, errorID) =>
+      case (_, cb, _, pl: SIndexableValue, errorID) =>
         val m = cb.newLocal[Int]("m", 99)
         val m2 = cb.newLocal[Int]("m2", 99)
         val i = cb.newLocal[Int]("i", 0)
@@ -43,7 +43,7 @@ object GenotypeFunctions extends RegistryFunctions {
           SFloat64,
           arrayType.required && arrayType.st.asInstanceOf[SContainer].elementEmitType.required,
         ),
-    ) { case (cb, r, rt, errorID, gp) =>
+    ) { case (cb, _, _, errorID, gp) =>
       gp.toI(cb).flatMap(cb) { case gpv: SIndexableValue =>
         cb.if_(
           gpv.loadLength().cne(3),

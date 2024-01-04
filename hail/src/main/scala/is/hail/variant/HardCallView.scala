@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.Region
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual.TCall
@@ -22,7 +22,7 @@ final class ArrayGenotypeView(rvType: PStruct) {
     }
   }
 
-  private val (gtExists, gtIndex, gtType) = lookupField("GT", _ == PCanonicalCall())
+  private val (gtExists, gtIndex, _) = lookupField("GT", _ == PCanonicalCall())
 
   private val (gpExists, gpIndex, _gpType) = lookupField(
     "GP",

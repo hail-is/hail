@@ -21,7 +21,6 @@ class NativeReaderOptionsSerializer() extends CustomSerializer[NativeReaderOptio
           NativeReaderOptions(intervals, intervalPointType, filterIntervals)
         },
         { case opts: NativeReaderOptions =>
-          implicit val fmt = format
           val ty = TArray(TInterval(opts.intervalPointType))
           (("name" -> opts.getClass.getSimpleName) ~
             ("intervals" -> JSONAnnotationImpex.exportAnnotation(opts.intervals, ty)) ~

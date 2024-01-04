@@ -1,5 +1,7 @@
 package is.hail.utils
 
+import scala.annotation.tailrec
+
 class HailException(val msg: String, val logMsg: Option[String], cause: Throwable, val errorId: Int)
     extends RuntimeException(msg, cause) {
   def this(msg: String) = this(msg, None, null, -1)
@@ -58,18 +60,16 @@ trait ErrorHandling {
 
   def handleForPython(e: Throwable): (String, String, Int) = {
     val short = deepestMessage(e)
-    val expanded = expandException(e, false)
-    val logExpanded = expandException(e, true)
+    val expanded = expandException(e, logMessage = false)
 
-    def searchForErrorCode(exception: Throwable): Int = {
-      if (exception.isInstanceOf[HailException]) {
-        exception.asInstanceOf[HailException].errorId
-      } else if (exception.getCause == null) {
-        -1
-      } else {
-        searchForErrorCode(exception.getCause)
+    @tailrec def searchForErrorCode(exception: Throwable): Int =
+      exception match {
+        case e: HailException =>
+          e.errorId
+        case _ =>
+          val cause = exception.getCause
+          if (cause == null) -1 else searchForErrorCode(cause)
       }
-    }
 
     val error_id = searchForErrorCode(e)
 

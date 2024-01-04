@@ -95,9 +95,10 @@ class BackendUtils(
     case Some(cachedResults) =>
       val remainingContexts =
         for {
-          c @ (_, k) <- contexts.zipWithIndex
-          if !cachedResults.containsOrdered[Int](k, _ < _, _._2)
-        } yield c
+          context <- contexts.zipWithIndex
+          if !cachedResults.containsOrdered[Int](context._2, _ < _, _._2)
+        } yield context
+
       val results =
         if (remainingContexts.isEmpty) {
           cachedResults

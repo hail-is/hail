@@ -74,12 +74,9 @@ trait SIndexableValue extends SValue {
   override def hash(cb: EmitCodeBuilder): SInt32Value = {
     val hash_result = cb.newLocal[Int]("array_hash", 1)
     forEachDefinedOrMissing(cb)(
-      {
-        case (cb, idx) => cb.assign(hash_result, hash_result * 31)
-      },
-      {
-        case (cb, idx, element) =>
-          cb.assign(hash_result, hash_result * 31 + element.hash(cb).value)
+      { case (cb, _) => cb.assign(hash_result, hash_result * 31) },
+      { case (cb, _, element) =>
+        cb.assign(hash_result, hash_result * 31 + element.hash(cb).value)
       },
     )
     new SInt32Value(hash_result)

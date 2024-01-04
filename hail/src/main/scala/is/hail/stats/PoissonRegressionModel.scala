@@ -55,8 +55,9 @@ object PoissonScoreTest extends GLMTest {
 
         Some(ScoreStats(chi2, p))
       } catch {
-        case e: breeze.linalg.MatrixSingularException => None
-        case e: breeze.linalg.NotConvergedException => None
+        case _: breeze.linalg.MatrixSingularException |
+            _: breeze.linalg.NotConvergedException =>
+          None
       }
     }
 
@@ -133,8 +134,9 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
           fisher := X.t * (X(::, *) *:* mu)
         }
       } catch {
-        case e: breeze.linalg.MatrixSingularException => exploded = true
-        case e: breeze.linalg.NotConvergedException => exploded = true
+        case _: breeze.linalg.MatrixSingularException |
+            _: breeze.linalg.NotConvergedException =>
+          exploded = true
       }
     }
 

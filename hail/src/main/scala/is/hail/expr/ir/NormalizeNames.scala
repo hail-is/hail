@@ -23,11 +23,13 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
   private def normalizeIR(ir: BaseIR, env: BindingEnv[String], context: Array[String] = Array())
     : StackFrame[BaseIR] = {
 
-    def normalizeBaseIR(next: BaseIR, env: BindingEnv[String] = env): StackFrame[BaseIR] =
-      call(normalizeIR(next, env, context :+ ir.getClass().getName()))
+    def normalizeBaseIR(next: BaseIR, newEnv: BindingEnv[String]): StackFrame[BaseIR] =
+      call(normalizeIR(next, newEnv, context :+ ir.getClass().getName()))
 
-    def normalize(next: IR, env: BindingEnv[String] = env): StackFrame[IR] =
-      call(normalizeIR(next, env, context :+ ir.getClass().getName()).asInstanceOf[StackFrame[IR]])
+    def normalize(next: IR, newEnv: BindingEnv[String] = env): StackFrame[IR] =
+      call(
+        normalizeIR(next, newEnv, context :+ ir.getClass().getName()).asInstanceOf[StackFrame[IR]]
+      )
 
     ir match {
       case Let(bindings, body) =>

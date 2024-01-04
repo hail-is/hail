@@ -1,6 +1,6 @@
 package is.hail.io.index
 
-import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
+import is.hail.annotations.{Annotation, Region, RegionPool}
 import is.hail.asm4s.{HailClassLoader, _}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.expr.ir.{
@@ -95,7 +95,6 @@ object IndexWriter {
         annotationType,
         f(path, hcl, htc, pool, attributes),
         pool,
-        attributes,
       )
     }
   }
@@ -107,10 +106,8 @@ class IndexWriter(
   valueType: PType,
   comp: CompiledIndexWriter,
   pool: RegionPool,
-  attributes: Map[String, Any],
 ) extends AutoCloseable {
   private val region = Region(pool = pool)
-  private val rvb = new RegionValueBuilder(sm, region)
 
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
     val koff = keyType.unstagedStoreJavaObject(sm, x, region)
@@ -370,14 +367,15 @@ class StagedIndexWriter(
 ) {
   require(branchingFactor > 1)
 
-  private var elementIdx = cb.genFieldThisRef[Long]()
-  private val ob = cb.genFieldThisRef[OutputBuffer]()
+  private[this] val elementIdx = cb.genFieldThisRef[Long]()
+  private[this] val ob = cb.genFieldThisRef[OutputBuffer]()
+
   private val utils = new StagedIndexWriterUtils(cb.genFieldThisRef[IndexWriterUtils]())
 
-  private val leafBuilder =
+  private[this] val leafBuilder =
     new StagedLeafNodeBuilder(branchingFactor, keyType, annotationType, cb.fieldBuilder)
 
-  private val writeInternalNode: EmitMethodBuilder[_] =
+  private[this] val writeInternalNode: EmitMethodBuilder[_] =
     cb.defineEmitMethod(
       genName("m", "writeInternalNode"),
       FastSeq(IntInfo, BooleanInfo),

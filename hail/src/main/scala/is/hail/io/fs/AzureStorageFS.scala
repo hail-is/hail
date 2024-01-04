@@ -1,39 +1,30 @@
 package is.hail.io.fs
 
-import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
-import is.hail.services.Requester.httpClient
+import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.retryTransientErrors
 import is.hail.shadedazure.com.azure.core.credential.{AzureSasCredential, TokenCredential}
-import is.hail.shadedazure.com.azure.core.http.HttpClient
 import is.hail.shadedazure.com.azure.core.util.HttpClientOptions
 import is.hail.shadedazure.com.azure.identity.{
   ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential,
-  DefaultAzureCredentialBuilder, ManagedIdentityCredentialBuilder,
+  DefaultAzureCredentialBuilder,
 }
 import is.hail.shadedazure.com.azure.storage.blob.{
   BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder,
 }
-import is.hail.shadedazure.com.azure.storage.blob.models.{
-  BlobItem, BlobProperties, BlobRange, BlobStorageException, ListBlobsOptions,
-}
+import is.hail.shadedazure.com.azure.storage.blob.models._
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 import is.hail.utils._
 
-import org.json4s.{DefaultFormats, Formats, JInt, JObject, JString, JValue}
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileNotFoundException, OutputStream}
+import java.io.{ByteArrayOutputStream, FileNotFoundException, OutputStream}
 import java.net.URI
 import java.nio.file.Paths
 import java.time.Duration
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-
-import org.apache.commons.io.IOUtils
-import org.apache.log4j.Logger
-import org.json4s
 
 abstract class AzureStorageFSURL(
   val account: String,
@@ -94,10 +85,6 @@ object AzureStorageFS {
   private val AZURE_HTTPS_URI_REGEX =
     "^https:\\/\\/([a-z0-9_\\-\\.]+)\\.blob\\.core\\.windows\\.net\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
-  private val log = Logger.getLogger(getClass.getName)
-
-  val schemes: Array[String] = Array("hail-az", "https")
-
   def parseUrl(filename: String): AzureStorageFSURL = {
     val scheme = filename.split(":")(0)
     if (scheme == "hail-az") {
@@ -146,7 +133,7 @@ object AzureStorageFS {
     } else {
       val (path, queryString) = pathAndMaybeQuery.splitAt(indexOfLastQuestionMark)
       queryString.split("&")(0).split("=") match {
-        case Array(k, v) => (path, Some(queryString))
+        case Array(_, _) => (path, Some(queryString))
         case _ => (pathAndMaybeQuery, None)
       }
     }
@@ -399,7 +386,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           blobClient.delete()
         }
       catch {
-        case e: FileNotFoundException =>
+        case _: FileNotFoundException =>
       }
     }
   }

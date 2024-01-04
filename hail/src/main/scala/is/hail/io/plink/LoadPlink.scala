@@ -113,7 +113,7 @@ object LoadPlink {
     val idBuilder = new BoxedArrayBuilder[String]
     val structBuilder = new BoxedArrayBuilder[Row]
 
-    val m = fs.readLines(filename) {
+    fs.readLines(filename) {
       _.foreachLine { line =>
         val split = line.split(delimiter)
         if (split.length != 6)
@@ -182,7 +182,6 @@ object LoadPlink {
 
 object MatrixPLINKReader {
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixPLINKReader = {
-    val backend = ctx.backend
     val fs = ctx.fs
 
     implicit val formats: Formats = DefaultFormats

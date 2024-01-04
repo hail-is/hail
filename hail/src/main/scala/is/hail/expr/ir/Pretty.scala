@@ -24,10 +24,9 @@ object Pretty {
     ribbonWidth: Int = 50,
     elideLiterals: Boolean = true,
     maxLen: Int = -1,
-    allowUnboundRefs: Boolean = false,
   ): String = {
     val useSSA = ctx != null && ctx.getFlag("use_ssa_logs") != null
-    val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA)
+    val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, useSSA)
     pretty(ir)
   }
 
@@ -37,10 +36,9 @@ object Pretty {
     ribbonWidth: Int = 50,
     elideLiterals: Boolean = true,
     maxLen: Int = -1,
-    allowUnboundRefs: Boolean = false,
   ): String = {
     val pretty =
-      new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = false)
+      new Pretty(width, ribbonWidth, elideLiterals, maxLen, useSSA = false)
     pretty(ir)
   }
 
@@ -50,10 +48,9 @@ object Pretty {
     ribbonWidth: Int = 50,
     elideLiterals: Boolean = true,
     maxLen: Int = -1,
-    allowUnboundRefs: Boolean = false,
   ): String = {
     val pretty =
-      new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = true)
+      new Pretty(width, ribbonWidth, elideLiterals, maxLen, useSSA = true)
     pretty(ir)
   }
 
@@ -72,7 +69,6 @@ class Pretty(
   ribbonWidth: Int,
   elideLiterals: Boolean,
   maxLen: Int,
-  allowUnboundRefs: Boolean,
   useSSA: Boolean,
 ) {
   def short(ir: BaseIR): String = {
@@ -188,16 +184,16 @@ class Pretty(
   def single(d: Doc): Iterable[Doc] = RichIterable.single(d)
 
   def header(ir: BaseIR, elideBindings: Boolean = false): Iterable[Doc] = ir match {
-    case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => single(Pretty.prettyClass(aggSig.op))
-    case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) => single(Pretty.prettyClass(aggSig.op))
-    case InitOp(i, args, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
-    case SeqOp(i, args, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
+    case ApplyAggOp(_, _, aggSig) => single(Pretty.prettyClass(aggSig.op))
+    case ApplyScanOp(_, _, aggSig) => single(Pretty.prettyClass(aggSig.op))
+    case InitOp(i, _, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
+    case SeqOp(i, _, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case CombOp(i1, i2, aggSig) => FastSeq(i1.toString, i2.toString, prettyPhysicalAggSig(aggSig))
     case ResultOp(i, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case AggStateValue(i, sig) => FastSeq(i.toString, prettyAggStateSignature(sig))
-    case InitFromSerializedValue(i, value, aggSig) =>
+    case InitFromSerializedValue(i, _, aggSig) =>
       FastSeq(i.toString, prettyAggStateSignature(aggSig))
-    case CombOpValue(i, value, sig) => FastSeq(i.toString, prettyPhysicalAggSig(sig))
+    case CombOpValue(i, _, sig) => FastSeq(i.toString, prettyPhysicalAggSig(sig))
     case SerializeAggs(i, i2, spec, aggSigs) =>
       FastSeq(
         i.toString,
@@ -212,8 +208,8 @@ class Pretty(
         prettyStringLiteral(spec.toString),
         prettyAggStateSignatures(aggSigs),
       )
-    case RunAgg(body, result, signature) => single(prettyAggStateSignatures(signature))
-    case RunAggScan(a, name, init, seq, res, signature) =>
+    case RunAgg(_, _, signature) => single(prettyAggStateSignatures(signature))
+    case RunAggScan(_, name, _, _, _, signature) =>
       FastSeq(prettyIdentifier(name), prettyAggStateSignatures(signature))
     case I32(x) => single(x.toString)
     case I64(x) => single(x.toString)
@@ -245,7 +241,7 @@ class Pretty(
         prettyIdentifiers(args.map(_._1).toFastSeq),
         returnType.parsableString(),
       )
-    case Recur(name, _, t) if !elideBindings =>
+    case Recur(name, _, _) if !elideBindings =>
       FastSeq(prettyIdentifier(name))
 //    case Ref(name, t) if t != null => FastSeq(prettyIdentifier(name), t.parsableString())  // For debug purposes
     case Ref(name, _) => single(prettyIdentifier(name))
@@ -349,9 +345,9 @@ class Pretty(
 
       builder.underlying()
     case StreamFor(_, valueName, _) if !elideBindings => single(prettyIdentifier(valueName))
-    case StreamAgg(a, name, query) if !elideBindings => single(prettyIdentifier(name))
-    case StreamAggScan(a, name, query) if !elideBindings => single(prettyIdentifier(name))
-    case StreamGroupByKey(a, key, missingEqual) =>
+    case StreamAgg(_, name, _) if !elideBindings => single(prettyIdentifier(name))
+    case StreamAggScan(_, name, _) if !elideBindings => single(prettyIdentifier(name))
+    case StreamGroupByKey(_, key, missingEqual) =>
       FastSeq(prettyIdentifiers(key), prettyBooleanLiteral(missingEqual))
     case AggFold(_, _, _, accumName, otherAccumName, isScan) => if (elideBindings)
         single(Pretty.prettyBooleanLiteral(isScan))
@@ -406,7 +402,7 @@ class Pretty(
       )
     case Apply(function, typeArgs, _, t, errorID) =>
       FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
-    case ApplySeeded(function, _, rngState, staticUID, t) =>
+    case ApplySeeded(function, _, _, staticUID, t) =>
       FastSeq(prettyIdentifier(function), staticUID.toString, t.parsableString())
     case ApplySpecial(function, typeArgs, _, t, errorID) =>
       FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
@@ -414,7 +410,7 @@ class Pretty(
       single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(Pretty.prettyBooleanLiteral(onKey))
     case In(i, typ) => FastSeq(typ.toString, i.toString)
-    case Die(message, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
+    case Die(_, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
     case CollectDistributedArray(_, _, cname, gname, _, _, staticID, _) if !elideBindings =>
       FastSeq(staticID, prettyIdentifier(cname), prettyIdentifier(gname))
     case MatrixRead(typ, dropCols, dropRows, reader) =>
@@ -491,7 +487,7 @@ class Pretty(
     case MatrixRepartition(_, n, strategy) => single(s"$n $strategy")
     case MatrixChooseCols(_, oldIndices) => single(prettyInts(oldIndices, elideLiterals))
     case MatrixMapCols(_, _, newKey) => single(prettyStringsOpt(newKey))
-    case MatrixUnionCols(l, r, joinType) => single(joinType)
+    case MatrixUnionCols(_, _, joinType) => single(joinType)
     case MatrixKeyRowsBy(_, keys, isSorted) =>
       FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRead(typ, dropRows, tr) =>
@@ -612,9 +608,9 @@ class Pretty(
     case RelationalLetBlockMatrix(name, _, _) => single(prettyIdentifier(name))
     case ReadPartition(_, rowType, reader) =>
       FastSeq(rowType.parsableString(), prettyStringLiteral(JsonMethods.compact(reader.toJValue)))
-    case WritePartition(value, writeCtx, writer) =>
+    case WritePartition(_, _, writer) =>
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
-    case WriteMetadata(writeAnnotations, writer) =>
+    case WriteMetadata(_, writer) =>
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue), elide = elideLiterals))
     case ReadValue(_, reader, reqType) =>
       FastSeq(prettyStringLiteral(JsonMethods.compact(reader.toJValue)), reqType.parsableString())
@@ -641,12 +637,12 @@ class Pretty(
           fields.view.map { case (n, a) =>
             list(n, pretty(a))
           }
-        case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+        case ApplyAggOp(initOpArgs, seqOpArgs, _) =>
           FastSeq(prettySeq(initOpArgs), prettySeq(seqOpArgs))
-        case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+        case ApplyScanOp(initOpArgs, seqOpArgs, _) =>
           FastSeq(prettySeq(initOpArgs), prettySeq(seqOpArgs))
-        case InitOp(i, args, aggSig) => single(prettySeq(args))
-        case SeqOp(i, args, aggSig) => single(prettySeq(args))
+        case InitOp(_, args, _) => single(prettySeq(args))
+        case SeqOp(_, args, _) => single(prettySeq(args))
         case InsertFields(old, fields, fieldOrder) =>
           val fieldDocs = fields.view.map { case (n, a) =>
             list(prettyIdentifier(n), pretty(a))
@@ -672,121 +668,131 @@ class Pretty(
         if (i > 0) Some(FastSeq()) else None
       case _: Switch =>
         if (i > 0) Some(FastSeq()) else None
-      case TailLoop(name, args, _, body) => if (i == args.length)
-          Some(args.map { case (name, ir) => name -> "loopvar" } :+
-            name -> "loop")
+      case TailLoop(name, args, _, _) =>
+        if (i == args.length)
+          Some(
+            args.map { case (name, _) => name -> "loopvar" } :+
+              name -> "loop"
+          )
         else None
-      case StreamMap(a, name, _) =>
+      case StreamMap(_, name, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
       case StreamZip(as, names, _, _, _) =>
         if (i == as.length) Some(names.map(_ -> "elt")) else None
-      case StreamZipJoin(as, key, curKey, curVals, _) =>
+      case StreamZipJoin(as, _, curKey, curVals, _) =>
         if (i == as.length)
           Some(Array(curKey -> "key", curVals -> "elts"))
         else
           None
-      case StreamFor(a, name, _) =>
+      case StreamFor(_, name, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
-      case StreamFlatMap(a, name, _) =>
+      case StreamFlatMap(_, name, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
-      case StreamFilter(a, name, _) =>
+      case StreamFilter(_, name, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
-      case StreamTakeWhile(a, name, _) =>
+      case StreamTakeWhile(_, name, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
-      case StreamDropWhile(a, name, _) =>
+      case StreamDropWhile(_, name, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
-      case StreamFold(a, zero, accumName, valueName, _) =>
+      case StreamFold(_, _, accumName, valueName, _) =>
         if (i == 2) Some(Array(accumName -> "accum", valueName -> "elt")) else None
-      case StreamFold2(a, accum, valueName, seq, result) =>
+      case StreamFold2(_, accum, valueName, _, _) =>
         if (i <= accum.length)
           None
         else if (i < 2 * accum.length + 1)
-          Some(Array(valueName -> "elt") ++ accum.map { case (name, value) => name -> "accum" })
+          Some(Array(valueName -> "elt") ++ accum.map { case (name, _) => name -> "accum" })
         else
-          Some(accum.map { case (name, value) => name -> "accum" })
-      case RunAggScan(a, name, _, _, _, _) =>
+          Some(accum.map { case (name, _) => name -> "accum" })
+      case RunAggScan(_, name, _, _, _, _) =>
         if (i == 2 || i == 3) Some(Array(name -> "elt")) else None
-      case StreamScan(a, zero, accumName, valueName, _) =>
+      case StreamScan(_, _, accumName, valueName, _) =>
         if (i == 2) Some(Array(accumName -> "accum", valueName -> "elt")) else None
-      case StreamAggScan(a, name, _) =>
+      case StreamAggScan(_, name, _) =>
         if (i == 1) Some(FastSeq(name -> "elt")) else None
-      case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) =>
+      case StreamJoinRightDistinct(_, _, _, _, l, r, _, _) =>
         if (i == 2) Some(Array(l -> "l_elt", r -> "r_elt")) else None
       case StreamLeftIntervalJoin(_, _, _, _, l, r, _) =>
         if (i == 2) Some(Array(l -> "l_elt", r -> "r_elts")) else None
-      case ArraySort(a, left, right, _) =>
+      case ArraySort(_, left, right, _) =>
         if (i == 1) Some(Array(left -> "l", right -> "r")) else None
       case AggArrayPerElement(_, elementName, indexName, _, _, _) =>
         if (i == 1) Some(Array(elementName -> "elt", indexName -> "idx")) else None
-      case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
+      case AggFold(_, _, _, accumName, otherAccumName, _) =>
         if (i == 1) Some(Array(accumName -> "accum"))
         else if (i == 2) Some(Array(accumName -> "l", otherAccumName -> "r"))
         else None
-      case NDArrayMap(nd, name, _) =>
+      case NDArrayMap(_, name, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
-      case NDArrayMap2(l, r, lName, rName, _, _) => if (i == 2)
+      case NDArrayMap2(_, _, lName, rName, _, _) =>
+        if (i == 2)
           Some(Array(lName -> "l_elt", rName -> "r_elt"))
         else
           None
-      case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) =>
+      case CollectDistributedArray(_, _, cname, gname, _, _, _, _) =>
         if (i == 2) Some(Array(cname -> "ctx", gname -> "g")) else None
-      case TableAggregate(child, _) =>
+      case TableAggregate(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
-      case MatrixAggregate(child, _) =>
+      case MatrixAggregate(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "sa" -> "col", "va" -> "row", "g" -> "entry"))
         else None
-      case TableFilter(child, _) =>
+      case TableFilter(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
-      case TableMapGlobals(child, _) =>
+      case TableMapGlobals(_, _) =>
         if (i == 1) Some(Array("global" -> "g")) else None
-      case TableMapRows(child, _) =>
+      case TableMapRows(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
-      case TableAggregateByKey(child, _) =>
+      case TableAggregateByKey(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
-      case TableKeyByAndAggregate(child, _, _, _, _) =>
+      case TableKeyByAndAggregate(_, _, _, _, _) =>
         if (i == 1 || i == 2)
           Some(Array("global" -> "g", "row" -> "row"))
         else None
-      case TableMapPartitions(child, g, p, _, _, _) =>
+      case TableMapPartitions(_, g, p, _, _, _) =>
         if (i == 1) Some(Array(g -> "g", p -> "part")) else None
-      case MatrixMapRows(child, _) =>
-        if (i == 1) Some(Array(
-          "global" -> "g",
-          "va" -> "row",
-          "sa" -> "col",
-          "g" -> "entry",
-          "n_cols" -> "n_cols",
-        ))
+      case MatrixMapRows(_, _) =>
+        if (i == 1)
+          Some(
+            Array(
+              "global" -> "g",
+              "va" -> "row",
+              "sa" -> "col",
+              "g" -> "entry",
+              "n_cols" -> "n_cols",
+            )
+          )
         else None
-      case MatrixFilterRows(child, _) =>
+      case MatrixFilterRows(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "va" -> "row")) else None
-      case MatrixMapCols(child, _, _) =>
-        if (i == 1) Some(Array(
-          "global" -> "g",
-          "va" -> "row",
-          "sa" -> "col",
-          "g" -> "entry",
-          "n_rows" -> "n_rows",
-        ))
+      case MatrixMapCols(_, _, _) =>
+        if (i == 1)
+          Some(
+            Array(
+              "global" -> "g",
+              "va" -> "row",
+              "sa" -> "col",
+              "g" -> "entry",
+              "n_rows" -> "n_rows",
+            )
+          )
         else None
-      case MatrixFilterCols(child, _) =>
+      case MatrixFilterCols(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "sa" -> "col")) else None
-      case MatrixMapEntries(child, _) =>
+      case MatrixMapEntries(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "sa" -> "col", "va" -> "row", "g" -> "entry"))
         else None
-      case MatrixFilterEntries(child, _) =>
+      case MatrixFilterEntries(_, _) =>
         if (i == 1) Some(Array("global" -> "g", "sa" -> "col", "va" -> "row", "g" -> "entry"))
         else None
-      case MatrixMapGlobals(child, _) =>
+      case MatrixMapGlobals(_, _) =>
         if (i == 1) Some(Array("global" -> "g")) else None
-      case MatrixAggregateColsByKey(child, _, _) =>
+      case MatrixAggregateColsByKey(_, _, _) =>
         if (i == 1)
           Some(Array("global" -> "g", "va" -> "row", "sa" -> "col", "g" -> "entry"))
         else if (i == 2)
           Some(Array("global" -> "g", "sa" -> "col"))
         else
           None
-      case MatrixAggregateRowsByKey(child, _, _) =>
+      case MatrixAggregateRowsByKey(_, _, _) =>
         if (i == 1)
           Some(Array("global" -> "g", "va" -> "row", "sa" -> "col", "g" -> "entry"))
         else if (i == 2)

@@ -135,7 +135,6 @@ object StringEscapeUtils {
   def unescapeString(str: String, sb: StringBuilder): String = {
     sb.clear()
 
-    val sz = str.length()
     var hadSlash = false
     var inUnicode = false
     lazy val unicode = new StringBuilder(capacity = 4)
@@ -157,7 +156,7 @@ object StringEscapeUtils {
             inUnicode = false
             hadSlash = false
           } catch {
-            case nfe: NumberFormatException =>
+            case _: NumberFormatException =>
               fatal("Unable to parse unicode value: " + unicode)
           }
         }

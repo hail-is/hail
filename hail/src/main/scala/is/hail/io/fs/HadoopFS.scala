@@ -3,13 +3,10 @@ package is.hail.io.fs
 import is.hail.utils._
 
 import java.io._
-import java.security.MessageDigest
-import java.util.Base64
 import scala.util.Try
 
 import org.apache.hadoop
 import org.apache.hadoop.fs.{EtagSource, FSDataInputStream, FSDataOutputStream}
-import org.apache.hadoop.io.MD5Hash
 
 class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
   val normalizedPath = fs.getPath
@@ -128,7 +125,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
 
   def listDirectory(url: URL): Array[FileListEntry] = {
-    var statuses = url.hadoopFs.globStatus(url.hadoopPath)
+    val statuses = url.hadoopFs.globStatus(url.hadoopPath)
     if (statuses == null) {
       throw new FileNotFoundException(url.toString)
     } else {
@@ -197,17 +194,13 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   override def deleteOnExit(url: URL): Unit =
     url.hadoopFs.deleteOnExit(url.hadoopPath)
 
-  def supportsScheme(scheme: String): Boolean = {
-    if (scheme == "") {
-      true
-    } else {
+  def supportsScheme(scheme: String): Boolean =
+    (scheme == "") || {
       try {
         hadoop.fs.FileSystem.getFileSystemClass(scheme, conf.value)
         true
       } catch {
-        case e: hadoop.fs.UnsupportedFileSystemException => false
-        case e: Exception => throw e
+        case _: hadoop.fs.UnsupportedFileSystemException => false
       }
     }
-  }
 }

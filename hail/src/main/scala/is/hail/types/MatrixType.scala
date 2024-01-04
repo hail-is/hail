@@ -58,6 +58,16 @@ object MatrixType {
       entryType,
     )
   }
+
+  val minimal: MatrixType =
+    MatrixType(
+      rowKey = FastSeq(),
+      colKey = FastSeq(),
+      rowType = TStruct.empty,
+      colType = TStruct.empty,
+      globalType = TStruct.empty,
+      entryType = TStruct.empty,
+    )
 }
 
 case class MatrixType(

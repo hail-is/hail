@@ -17,6 +17,7 @@ import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.{Base64, Date}
 import java.util.concurrent.ExecutorService
+import scala.annotation.tailrec
 import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
@@ -551,11 +552,11 @@ package object utils
 
   def roundWithConstantSum(a: Array[Double]): Array[Int] = {
     val withFloors = a.zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
-    val totalFractional = (withFloors.map { case (i, orig, floor) => orig - floor }.sum + 0.5).toInt
+    val totalFractional = (withFloors.map { case (_, orig, floor) => orig - floor }.sum + 0.5).toInt
     withFloors
       .sortBy { case (_, orig, floor) => floor - orig }
       .zipWithIndex
-      .map { case ((i, orig, floor), iSort) =>
+      .map { case ((i, orig, _), iSort) =>
         if (iSort < totalFractional)
           (i, math.ceil(orig))
         else
@@ -564,7 +565,7 @@ package object utils
   }
 
   def uniqueMinIndex(a: Array[Int]): java.lang.Integer = {
-    def f(i: Int, m: Int, mi: Int, count: Int): java.lang.Integer = {
+    @tailrec def f(i: Int, m: Int, mi: Int, count: Int): java.lang.Integer = {
       if (i == a.length) {
         assert(count >= 1)
         if (count == 1)
@@ -586,7 +587,7 @@ package object utils
   }
 
   def uniqueMaxIndex(a: Array[Int]): java.lang.Integer = {
-    def f(i: Int, m: Int, mi: Int, count: Int): java.lang.Integer = {
+    @tailrec def f(i: Int, m: Int, mi: Int, count: Int): java.lang.Integer = {
       if (i == a.length) {
         assert(count >= 1)
         if (count == 1)
@@ -804,7 +805,7 @@ package object utils
   ): Either[Map[K2, Traversable[K]], Map[K2, V]] = {
     val grouped = kvs.groupBy(x => keyBy(x._1))
 
-    val dupes = grouped.filter { case (k, m) => m.size != 1 }
+    val dupes = grouped.filter { case (_, m) => m.size != 1 }
 
     if (dupes.nonEmpty) {
       Left(dupes.map { case (k, m) => k -> m.map(_._1) })

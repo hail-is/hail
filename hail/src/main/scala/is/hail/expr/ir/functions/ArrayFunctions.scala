@@ -381,7 +381,7 @@ object ArrayFunctions extends RegistryFunctions {
       TInt32,
       TInt32,
       (_, _, _, _, _) => SInt32,
-    ) { case (r, cb, rt, array, key, begin, end, _) =>
+    ) { case (_, cb, _, array, key, begin, end, _) =>
       val lt =
         cb.emb.ecb.getOrderingFunction(key.st, array.asIndexable.st.elementType, CodeOrdering.Lt())
       primitive(BinarySearch.lowerBound(
@@ -399,7 +399,7 @@ object ArrayFunctions extends RegistryFunctions {
       TArray(TFloat64),
       TFloat64,
       (_: Type, _: EmitType, _: EmitType) => EmitType(SFloat64, false),
-    ) { case (cb, r, rt, errorID, ec1, ec2) =>
+    ) { case (cb, _, _, errorID, ec1, ec2) =>
       ec1.toI(cb).flatMap(cb) { case pv1: SIndexableValue =>
         ec2.toI(cb).flatMap(cb) { case pv2: SIndexableValue =>
           val l1 = cb.newLocal("len1", pv1.loadLength())
@@ -470,7 +470,7 @@ object ArrayFunctions extends RegistryFunctions {
       TInt32,
       TVariable("T"),
       TArray(TVariable("T")),
-      { case (rt, inArrayET, la, n, _) =>
+      { case (_, inArrayET, la, n, _) =>
         EmitType(
           PCanonicalArray(
             PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())
@@ -596,7 +596,7 @@ object ArrayFunctions extends RegistryFunctions {
       TVariable("T"),
       TBoolean,
       TArray(TVariable("T")),
-      { case (rt, inArrayET, la, n, _, omitFirst) =>
+      { case (_, inArrayET, la, n, _, omitFirst) =>
         EmitType(
           PCanonicalArray(
             PType.canonical(inArrayET.st.asInstanceOf[SContainer].elementType.storageType())

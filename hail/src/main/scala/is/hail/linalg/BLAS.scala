@@ -17,7 +17,7 @@ object BLAS {
         case Success(_) =>
           log.info("Imported BLAS with standard names")
           standard
-        case Failure(exc) =>
+        case Failure(_) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
           val underscoreAfter =

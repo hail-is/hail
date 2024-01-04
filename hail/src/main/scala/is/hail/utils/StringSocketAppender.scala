@@ -19,13 +19,11 @@ object StringSocketAppender {
 }
 
 class StringSocketAppender() extends AppenderSkeleton {
-  private var remoteHost: String = _
   private var address: InetAddress = _
   private var port: Int = _
   private var os: OutputStream = _
-  private var reconnectionDelay = StringSocketAppender.DEFAULT_RECONNECTION_DELAY
+  private val reconnectionDelay = StringSocketAppender.DEFAULT_RECONNECTION_DELAY
   private var connector: SocketConnector = null
-  private var counter = 0
   private var patternLayout: PatternLayout = _
   private var initialized: Boolean = false
 
@@ -34,19 +32,18 @@ class StringSocketAppender() extends AppenderSkeleton {
   def connect(host: String, port: Int, format: String): Unit = {
     this.port = port
     this.address = InetAddress.getByName(host)
-    this.remoteHost = host
     this.patternLayout = new PatternLayout(format)
     connect(address, port)
     initialized = true
   }
 
-  override def close() {
+  override def close(): Unit = {
     if (closed) return
     this.closed = true
     cleanUp()
   }
 
-  def cleanUp() {
+  private def cleanUp(): Unit = {
     if (os != null) {
       try
         os.close()
@@ -63,7 +60,7 @@ class StringSocketAppender() extends AppenderSkeleton {
     }
   }
 
-  private def connect(address: InetAddress, port: Int) {
+  private def connect(address: InetAddress, port: Int): Unit = {
     if (this.address == null) return
     try { // First, close the previous connection if any.
       cleanUp()
@@ -142,10 +139,10 @@ class StringSocketAppender() extends AppenderSkeleton {
             c = false
           }
         } catch {
-          case e: InterruptedException =>
+          case _: InterruptedException =>
             LogLog.debug("Connector interrupted. Leaving loop.")
             return
-          case e: ConnectException =>
+          case _: ConnectException =>
             LogLog.debug("Remote host " + address.getHostName + " refused connection.")
           case e: IOException =>
             if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()

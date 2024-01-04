@@ -181,7 +181,7 @@ class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) ext
   def queryIndex(query: Long): Option[Long] = {
     require(query >= 0)
 
-    val (index, result) = traverseTree(query, 0L, 1)
+    val (_, result) = traverseTree(query, 0L, 1)
 
     if (result != -1L)
       Option(result)

@@ -139,7 +139,7 @@ abstract class Type extends BaseType with Serializable {
   def query(fields: String*): Querier = query(fields.toList)
 
   def query(path: List[String]): Querier = {
-    val (t, q) = queryTyped(path)
+    val (_, q) = queryTyped(path)
     q
   }
 

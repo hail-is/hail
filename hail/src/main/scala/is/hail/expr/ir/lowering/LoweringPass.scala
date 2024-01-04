@@ -170,11 +170,11 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
     EvalRelationalLets(ir, ctx, passesBelow)
 }
 
-case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends LoweringPass {
+case object LowerAndExecuteShufflesPass extends LoweringPass {
   val before: IRState = NoRelationalLetsState + MatrixLoweredToTable
   val after: IRState = before + LoweredShuffles
   val context: String = "LowerAndExecuteShuffles"
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    LowerAndExecuteShuffles(ir, ctx, passesBelow)
+    LowerAndExecuteShuffles(ir, ctx)
 }

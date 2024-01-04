@@ -26,11 +26,12 @@ abstract class StateMachine[A] {
 }
 
 object StateMachine {
-  def terminal[A]: StateMachine[A] = new StateMachine[A] {
-    val isValid = false
-    var value: A = _
-    def advance() {}
-  }
+  def terminal[A]: StateMachine[A] =
+    new StateMachine[A] {
+      override val isValid = false
+      override def value: A = throw new NoSuchElementException()
+      override def advance(): Unit = {}
+    }
 }
 
 object StagingIterator {

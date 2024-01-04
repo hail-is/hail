@@ -2,6 +2,7 @@ package is.hail.io.compress
 
 import java.io.OutputStream
 import java.util.zip.{CRC32, Deflater}
+import scala.annotation.nowarn
 
 import org.apache.hadoop.io.compress.CompressionOutputStream
 
@@ -75,7 +76,7 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     var numBytesRemaining = length
 
     while (numBytesRemaining > 0) {
-      var bytesToWrite =
+      val bytesToWrite =
         math.min(uncompressedBuffer.length - numUncompressedBytes, numBytesRemaining)
       System.arraycopy(bytes, currentPosition, uncompressedBuffer, numUncompressedBytes,
         bytesToWrite)
@@ -111,7 +112,8 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     crc32.reset()
     crc32.update(uncompressedBuffer, 0, numUncompressedBytes)
 
-    val totalBlockSize: Int = writeGzipBlock(compressedSize, numUncompressedBytes, crc32.getValue)
+    @nowarn val totalBlockSize: Int =
+      writeGzipBlock(compressedSize, numUncompressedBytes, crc32.getValue)
 
     numUncompressedBytes = 0 // reset variable
   }

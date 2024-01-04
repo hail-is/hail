@@ -9,11 +9,11 @@ import is.hail.utils.FastSeq
 
 object LowerAndExecuteShuffles {
 
-  def apply(ir: BaseIR, ctx: ExecuteContext, passesBelow: LoweringPipeline): BaseIR = {
+  def apply(ir: BaseIR, ctx: ExecuteContext): BaseIR = {
     RewriteBottomUp(
       ir,
       {
-        case t @ TableKeyBy(child, key, isSorted) if !t.definitelyDoesNotShuffle =>
+        case t @ TableKeyBy(child, key, _) if !t.definitelyDoesNotShuffle =>
           val r = Requiredness(child, ctx)
           val reader = ctx.backend.lowerDistributedSort(
             ctx,
@@ -21,17 +21,13 @@ object LowerAndExecuteShuffles {
             key.map(k => SortField(k, Ascending)),
             r.lookup(child).asInstanceOf[RTable],
           )
-          Some(TableRead(t.typ, false, reader))
+          Some(TableRead(t.typ, dropRows = false, reader))
 
         case t @ TableOrderBy(child, sortFields) if !t.definitelyDoesNotShuffle =>
           val r = Requiredness(child, ctx)
-          val reader = ctx.backend.lowerDistributedSort(
-            ctx,
-            child,
-            sortFields,
-            r.lookup(child).asInstanceOf[RTable],
-          )
-          Some(TableRead(t.typ, false, reader))
+          val reader = ctx.backend
+            .lowerDistributedSort(ctx, child, sortFields, r.lookup(child).asInstanceOf[RTable])
+          Some(TableRead(t.typ, dropRows = false, reader))
 
         case t @ TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
@@ -136,38 +132,42 @@ object LowerAndExecuteShuffles {
                 missingEqual = true,
               )) { groupRef =>
                 RunAgg(
-                  Begin(FastSeq(
-                    bindIR(GetField(insGlob, "__initState")) { states =>
-                      Begin(aggSigs.indices.map { aIdx =>
-                        InitFromSerializedValue(
-                          aIdx,
-                          GetTupleElement(states, aIdx),
-                          aggSigs(aIdx).state,
-                        )
-                      })
-                    },
-                    InitOp(
-                      aggSigs.length,
-                      IndexedSeq(I32(1)),
-                      PhysicalAggSig(Take(), takeVirtualSig),
-                    ),
-                    forIR(groupRef) { elem =>
-                      Begin(FastSeq(
-                        SeqOp(
-                          aggSigs.length,
-                          IndexedSeq(SelectFields(elem, newKeyType.fieldNames)),
-                          PhysicalAggSig(Take(), takeVirtualSig),
-                        ),
-                        Begin((0 until aggSigs.length).map { aIdx =>
-                          CombOpValue(
+                  Begin(
+                    FastSeq(
+                      bindIR(GetField(insGlob, "__initState")) { states =>
+                        Begin(aggSigs.indices.map { aIdx =>
+                          InitFromSerializedValue(
                             aIdx,
-                            GetTupleElement(GetField(elem, "agg"), aIdx),
-                            aggSigs(aIdx),
+                            GetTupleElement(states, aIdx),
+                            aggSigs(aIdx).state,
                           )
-                        }),
-                      ))
-                    },
-                  )),
+                        })
+                      },
+                      InitOp(
+                        aggSigs.length,
+                        IndexedSeq(I32(1)),
+                        PhysicalAggSig(Take(), takeVirtualSig),
+                      ),
+                      forIR(groupRef) { elem =>
+                        Begin(
+                          FastSeq(
+                            SeqOp(
+                              aggSigs.length,
+                              IndexedSeq(SelectFields(elem, newKeyType.fieldNames)),
+                              PhysicalAggSig(Take(), takeVirtualSig),
+                            ),
+                            Begin(aggSigs.indices.map { aIdx =>
+                              CombOpValue(
+                                aIdx,
+                                GetTupleElement(GetField(elem, "agg"), aIdx),
+                                aggSigs(aIdx),
+                              )
+                            }),
+                          )
+                        )
+                      },
+                    )
+                  ),
                   Let(
                     FastSeq(
                       resultUID -> ResultOp.makeTuple(aggs.aggs),

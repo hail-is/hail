@@ -1,12 +1,9 @@
 package is.hail.annotations
 
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.HailStateManager
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.Locus
-
-import org.apache.spark.sql.Row
 
 class RegionValueBuilder(sm: HailStateManager, var region: Region) {
   def this(sm: HailStateManager) = this(sm, null)
@@ -71,7 +68,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
   def allocateRoot() {
     assert(typestk.isEmpty)
     root match {
-      case t: PArray =>
+      case _: PArray =>
       case _: PBinary =>
       case _ =>
         start = region.allocate(root.alignment, root.byteSize)

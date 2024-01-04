@@ -6,8 +6,7 @@ import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
-import org.json4s._
-import org.json4s.CustomSerializer
+import org.json4s.{CustomSerializer, _}
 import org.json4s.JsonAST.JString
 
 class TableTypeSerializer extends CustomSerializer[TableType](format =>
@@ -23,6 +22,13 @@ object TableType {
 
   def valueType(ts: TStruct, key: IndexedSeq[String]): TStruct =
     ts.filterSet(key.toSet, include = false)._1
+
+  val minimal: TableType =
+    TableType(
+      TStruct.empty,
+      FastSeq(),
+      TStruct.empty,
+    )
 }
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct)
