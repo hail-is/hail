@@ -1,21 +1,24 @@
 import abc
+import base64
 import os
 import tempfile
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 import aiohttp
+import orjson
+from azure.identity.aio import ClientSecretCredential
 
 from hailtop import httpx
 from hailtop.aiocloud import aioazure
+from hailtop.auth.auth import IdentityProvider
 from hailtop.utils import check_exec_output, retry_transient_errors, time_msecs
 
 from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ..instance_config import AzureSlimInstanceConfig
-from .credentials import AzureUserCredentials
 from .disk import AzureDisk
 
 
-class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
+class AzureWorkerAPI(CloudWorkerAPI[aioazure.AzureCredentials]):
     nameserver_ip = '168.63.129.16'
 
     @staticmethod
@@ -28,6 +31,7 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
         return AzureWorkerAPI(subscription_id, resource_group, acr_url, hail_oauth_scope)
 
     def __init__(self, subscription_id: str, resource_group: str, acr_url: str, hail_oauth_scope: str):
+        super().__init__()
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.hail_oauth_scope = hail_oauth_scope
@@ -37,7 +41,12 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
 
     @property
     def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
-        return [f'HAIL_AZURE_OAUTH_SCOPE={self.hail_oauth_scope}']
+        idp_json = orjson.dumps({"idp": IdentityProvider.MICROSOFT.value}).decode('utf-8')
+        return [
+            f'HAIL_AZURE_OAUTH_SCOPE={self.hail_oauth_scope}',
+            'AZURE_APPLICATION_CREDENTIALS=/azure-credentials/key.json',
+            f'HAIL_IDENTITY_PROVIDER_JSON={idp_json}',
+        ]
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
         return AzureDisk(disk_name, instance_name, size_in_gb, mount_path)
@@ -45,8 +54,13 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
     def get_cloud_async_fs(self) -> aioazure.AzureAsyncFS:
         return aioazure.AzureAsyncFS(credentials=self.azure_credentials)
 
-    def user_credentials(self, credentials: Dict[str, str]) -> AzureUserCredentials:
-        return AzureUserCredentials(credentials)
+    def _load_user_credentials(self, credentials: Dict[str, str]) -> aioazure.AzureCredentials:
+        sp_credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
+        return aioazure.AzureCredentials.from_credentials_data(sp_credentials)
+
+    def _get_user_hail_identity(self, credentials: Dict[str, str]) -> str:
+        sp_credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
+        return sp_credentials['appId']
 
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         # https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
@@ -55,33 +69,35 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
             'password': await self.acr_refresh_token.token(session),
         }
 
-    async def user_container_registry_credentials(
-        self, user_credentials: AzureUserCredentials
-    ) -> ContainerRegistryCredentials:
-        return {
-            'username': user_credentials.username,
-            'password': user_credentials.password,
-        }
+    def _user_service_principal_client_id_secret_tenant(self, hail_identity: str) -> Tuple[str, str, str]:
+        credential = self._user_credentials[hail_identity].credential
+
+        assert isinstance(credential, ClientSecretCredential)
+        return credential._client_id, cast(str, credential._secret), credential._client._tenant_id
+
+    async def user_container_registry_credentials(self, hail_identity: str) -> ContainerRegistryCredentials:
+        username, password, _ = self._user_service_principal_client_id_secret_tenant(hail_identity)
+        return {'username': username, 'password': password}
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
 
     def _write_blobfuse_credentials(
         self,
-        credentials: AzureUserCredentials,
+        hail_identity: str,
         account: str,
         container: str,
         mount_base_path_data: str,
     ) -> str:
         if mount_base_path_data not in self._blobfuse_credential_files:
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
-                credsfile.write(credentials.blobfuse_credentials(account, container))
+                credsfile.write(self.blobfuse_credentials(hail_identity, account, container))
                 self._blobfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._blobfuse_credential_files[mount_base_path_data]
 
     async def _mount_cloudfuse(
         self,
-        credentials: AzureUserCredentials,
+        hail_identity: str,
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
@@ -91,7 +107,9 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
         account, container = bucket.split('/', maxsplit=1)
         assert account and container
 
-        fuse_credentials_path = self._write_blobfuse_credentials(credentials, account, container, mount_base_path_data)
+        fuse_credentials_path = self._write_blobfuse_credentials(
+            hail_identity, account, container, mount_base_path_data
+        )
 
         options = ['allow_other']
         if config['read_only']:
@@ -121,6 +139,18 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
         finally:
             os.remove(self._blobfuse_credential_files[mount_base_path_data])
             del self._blobfuse_credential_files[mount_base_path_data]
+
+    def blobfuse_credentials(self, hail_identity: str, account: str, container: str) -> str:
+        client_id, client_secret, tenant_id = self._user_service_principal_client_id_secret_tenant(hail_identity)
+        # https://github.com/Azure/azure-storage-fuse
+        return f'''
+accountName {account}
+authType SPN
+servicePrincipalClientId {client_id}
+servicePrincipalClientSecret {client_secret}
+servicePrincipalTenantId {tenant_id}
+containerName {container}
+'''
 
     async def close(self):
         pass

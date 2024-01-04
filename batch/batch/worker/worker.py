@@ -85,7 +85,6 @@ from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
-from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
 # import uvloop
@@ -396,7 +395,7 @@ class ReadOnlyCloudfuseManager:
         destination: str,
         *,
         user: str,
-        credentials: CloudUserCredentials,
+        hail_identity: str,
         tmp_path: str,
         config: dict,
     ):
@@ -404,7 +403,7 @@ class ReadOnlyCloudfuseManager:
         async with self.user_bucket_locks[(user, bucket)]:
             if (user, bucket) not in self.fuse_mounts:
                 local_path = self._new_path()
-                await self._fuse_mount(local_path, credentials=credentials, tmp_path=tmp_path, config=config)
+                await self._fuse_mount(local_path, hail_identity=hail_identity, tmp_path=tmp_path, config=config)
                 self.fuse_mounts[(user, bucket)] = FuseMount(local_path)
             mount = self.fuse_mounts[(user, bucket)]
             await self._bind_mount(mount.path, destination)
@@ -423,13 +422,13 @@ class ReadOnlyCloudfuseManager:
         self,
         destination: str,
         *,
-        credentials: CloudUserCredentials,
+        hail_identity: str,
         tmp_path: str,
         config: dict,
     ):
         assert CLOUD_WORKER_API
         await CLOUD_WORKER_API.mount_cloudfuse(
-            credentials,
+            hail_identity,
             destination,
             tmp_path,
             config,
@@ -484,12 +483,12 @@ class Image:
     def __init__(
         self,
         name: str,
-        credentials: Union[CloudUserCredentials, 'JVMUserCredentials', 'CopyStepCredentials'],
+        hail_identity: Optional[str],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
         self.image_name = name
-        self.credentials = credentials
+        self.hail_identity = hail_identity
         self.client_session = client_session
         self.pool = pool
 
@@ -537,9 +536,7 @@ class Image:
                     await self._ensure_image_is_pulled()
                 elif self.is_public_image:
                     await self._ensure_image_is_pulled(auth=self._batch_worker_registry_credentials)
-                elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
-                    self.credentials, (JVMUserCredentials, CopyStepCredentials)
-                ):
+                elif self.image_ref_str == BATCH_WORKER_IMAGE and self.hail_identity is None:
                     pass
                 else:
                     # Pull to verify this user has access to this
@@ -613,9 +610,9 @@ class Image:
         return await CLOUD_WORKER_API.worker_container_registry_credentials(self.client_session)
 
     async def _current_user_registry_credentials(self) -> ContainerRegistryCredentials:
-        assert self.credentials and isinstance(self.credentials, CloudUserCredentials)
+        assert self.hail_identity
         assert CLOUD_WORKER_API
-        return await CLOUD_WORKER_API.user_container_registry_credentials(self.credentials)
+        return await CLOUD_WORKER_API.user_container_registry_credentials(self.hail_identity)
 
     async def _extract_rootfs(self):
         assert self.image_id
@@ -1353,8 +1350,8 @@ class Container:
         assert CLOUD_WORKER_API
         env = (
             (self.image.image_config['Config']['Env'] or [])
-            + self.env
             + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
+            + self.env  # User-defined env variables should take precedence
         )
         machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
         if is_gpu(machine_family):
@@ -1461,13 +1458,12 @@ def copy_container(
         task_manager=job.task_manager,
         fs=job.worker.fs,
         name=job.container_name(task_name),
-        image=Image(BATCH_WORKER_IMAGE, CopyStepCredentials(), client_session, job.pool),
+        image=Image(BATCH_WORKER_IMAGE, None, client_session, job.pool),
         scratch_dir=f'{scratch}/{task_name}',
         command=command,
         cpu_in_mcpu=cpu_in_mcpu,
         memory_in_bytes=memory_in_bytes,
         volume_mounts=volume_mounts,
-        env=[f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
         stdin=json.dumps(files),
     )
 
@@ -1503,7 +1499,7 @@ class Job(abc.ABC):
     def create(
         batch_id,
         user,
-        credentials: CloudUserCredentials,
+        hail_identity: str,
         job_spec: dict,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1514,16 +1510,16 @@ class Job(abc.ABC):
         type = job_spec['process']['type']
         if type == 'docker':
             return DockerJob(
-                batch_id, user, credentials, job_spec, format_version, task_manager, pool, client_session, worker
+                batch_id, user, hail_identity, job_spec, format_version, task_manager, pool, client_session, worker
             )
         assert type == 'jvm'
-        return JVMJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
+        return JVMJob(batch_id, user, hail_identity, job_spec, format_version, task_manager, pool, worker)
 
     def __init__(
         self,
         batch_id: int,
         user: str,
-        credentials: CloudUserCredentials,
+        hail_identity: str,
         job_spec,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1532,7 +1528,7 @@ class Job(abc.ABC):
     ):
         self.batch_id = batch_id
         self.user = user
-        self.credentials = credentials
+        self.hail_identity = hail_identity
         self.job_spec = job_spec
         self.format_version = format_version
         self.task_manager = task_manager
@@ -1714,7 +1710,7 @@ class DockerJob(Job):
         self,
         batch_id: int,
         user: str,
-        credentials: CloudUserCredentials,
+        hail_identity: str,
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1722,7 +1718,7 @@ class DockerJob(Job):
         client_session: httpx.ClientSession,
         worker: 'Worker',
     ):
-        super().__init__(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
+        super().__init__(batch_id, user, hail_identity, job_spec, format_version, task_manager, pool, worker)
         assert worker.fs
 
         input_files = job_spec.get('input_files')
@@ -1737,7 +1733,6 @@ class DockerJob(Job):
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
             {'name': 'HAIL_JOB_ID', 'value': str(self.job_id)},
             {'name': 'HAIL_ATTEMPT_ID', 'value': str(self.attempt_id)},
-            {'name': 'HAIL_IDENTITY_PROVIDER_JSON', 'value': json.dumps(self.credentials.identity_provider_json)},
         ]
         self.env += hail_extra_env
 
@@ -1790,7 +1785,7 @@ class DockerJob(Job):
             task_manager=self.task_manager,
             fs=self.worker.fs,
             name=self.container_name('main'),
-            image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
+            image=Image(job_spec['process']['image'], self.hail_identity, client_session, pool),
             scratch_dir=f'{self.scratch}/main',
             command=job_spec['process']['command'],
             cpu_in_mcpu=self.cpu_in_mcpu,
@@ -1941,7 +1936,7 @@ class DockerJob(Job):
                             os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
 
                             await CLOUD_WORKER_API.mount_cloudfuse(
-                                self.credentials,
+                                self.hail_identity,
                                 self.cloudfuse_data_path(bucket),
                                 self.cloudfuse_tmp_path(bucket),
                                 config,
@@ -2004,6 +1999,9 @@ class DockerJob(Job):
                             mjs_fut.cancel()
 
     async def cleanup(self):
+        assert CLOUD_WORKER_API
+        await CLOUD_WORKER_API.remove_user_credentials(self.hail_identity)
+
         if self.disk:
             try:
                 async with async_timeout.timeout(300):
@@ -2024,7 +2022,6 @@ class DockerJob(Job):
                     mount_path = self.cloudfuse_data_path(bucket)
 
                     try:
-                        assert CLOUD_WORKER_API
                         async with async_timeout.timeout(120):
                             await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
                             log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
@@ -2102,14 +2099,14 @@ class JVMJob(Job):
         self,
         batch_id: int,
         user: str,
-        credentials: CloudUserCredentials,
+        hail_identity: str,
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
         worker: 'Worker',
     ):
-        super().__init__(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
+        super().__init__(batch_id, user, hail_identity, job_spec, format_version, task_manager, pool, worker)
         assert job_spec['process']['type'] == 'jvm'
         assert worker is not None
 
@@ -2261,7 +2258,7 @@ class JVMJob(Job):
                                 bucket,
                                 data_path,
                                 user=self.user,
-                                credentials=self.credentials,
+                                hail_identity=self.hail_identity,
                                 tmp_path=tmp_path,
                                 config=config,
                             )
@@ -2323,10 +2320,13 @@ class JVMJob(Job):
                     mjs_fut.cancel()
 
     async def cleanup(self):
+        assert CLOUD_WORKER_API
         assert self.worker
         assert self.worker.file_store is not None
         assert self.worker.fs
         assert self.jvm
+
+        await CLOUD_WORKER_API.remove_user_credentials(self.hail_identity)
 
         if os.path.exists(self.log_file):
             with self.step('uploading_log'):
@@ -2471,14 +2471,6 @@ class IncompleteJVMCleanupError(Exception):
     pass
 
 
-class JVMUserCredentials:
-    pass
-
-
-class CopyStepCredentials:
-    pass
-
-
 class JVMContainer:
     @staticmethod
     async def create_and_start(
@@ -2556,7 +2548,7 @@ class JVMContainer:
             task_manager=task_manager,
             fs=fs,
             name=f'jvm-{index}',
-            image=Image(BATCH_WORKER_IMAGE, JVMUserCredentials(), client_session, pool),
+            image=Image(BATCH_WORKER_IMAGE, None, client_session, pool),
             scratch_dir=f'{root_dir}/container',
             command=command,
             cpu_in_mcpu=n_cores * 1000,
@@ -3106,12 +3098,12 @@ class Worker:
             return web.HTTPServiceUnavailable()
 
         assert CLOUD_WORKER_API
-        credentials = CLOUD_WORKER_API.user_credentials(body['gsa_key'])
+        hail_identity = CLOUD_WORKER_API.register_user_credentials(body['gsa_key'])
 
         job = Job.create(
             batch_id,
             body['user'],
-            credentials,
+            hail_identity,
             job_spec,
             format_version,
             self.task_manager,
