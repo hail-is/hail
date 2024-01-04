@@ -1,6 +1,7 @@
 import unittest
 from hailtop.config.deploy_config import DeployConfig
 
+
 class Test(unittest.TestCase):
     def test_deploy_external_default(self):
         deploy_config = DeployConfig('external', 'default', 'organization.tld')

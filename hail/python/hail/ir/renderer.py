@@ -126,9 +126,7 @@ Vars = Dict[str, int]
 Context = (Vars, Vars, Vars)
 
 
-BindingSite = namedtuple(
-    'BindingSite',
-    'depth lifted_lets agg_lifted_lets scan_lifted_lets')
+BindingSite = namedtuple('BindingSite', 'depth lifted_lets agg_lifted_lets scan_lifted_lets')
 
 
 class CSERenderer(Renderer):
@@ -162,9 +160,7 @@ class CSEAnalysisPass:
     # where for each descendant 'x' which will be bound above 'node',
     # 'lifted_lets' maps 'id(x)' to the unique id 'x' will be bound to.
     def __call__(self, root: 'ir.BaseIR') -> Dict[int, BindingSite]:
-        root_frame = self.StackFrame(0, 0, False,
-                                     ({var: 0 for var in root.free_vars}, {}, {}),
-                                     root)
+        root_frame = self.StackFrame(0, 0, False, ({var: 0 for var in root.free_vars}, {}, {}), root)
         stack = [root_frame]
         binding_sites = {}
 
@@ -235,13 +231,29 @@ class CSEAnalysisPass:
         return binding_sites
 
     class StackFrame:
-        __slots__ = ['min_binding_depth', 'min_value_binding_depth', 'scan_scope',
-                     'context', 'node', 'visited', 'agg_visited',
-                     'scan_visited', 'lifted_lets', 'agg_lifted_lets',
-                     'scan_lifted_lets', 'child_idx']
+        __slots__ = [
+            'min_binding_depth',
+            'min_value_binding_depth',
+            'scan_scope',
+            'context',
+            'node',
+            'visited',
+            'agg_visited',
+            'scan_visited',
+            'lifted_lets',
+            'agg_lifted_lets',
+            'scan_lifted_lets',
+            'child_idx',
+        ]
 
-        def __init__(self, min_binding_depth: int, min_value_binding_depth: int,
-                     scan_scope: bool, context: Context, x: 'ir.BaseIR'):
+        def __init__(
+            self,
+            min_binding_depth: int,
+            min_value_binding_depth: int,
+            scan_scope: bool,
+            context: Context,
+            x: 'ir.BaseIR',
+        ):
             # Immutable:
 
             # The node corresponding to this stack frame.
@@ -290,7 +302,8 @@ class CSEAnalysisPass:
                 lifted_lets=self.lifted_lets,
                 agg_lifted_lets=self.agg_lifted_lets,
                 scan_lifted_lets=self.scan_lifted_lets,
-                depth=depth)
+                depth=depth,
+            )
 
         # compute depth at which we might bind this node
         def bind_depth(self) -> int:
@@ -322,7 +335,9 @@ class CSEAnalysisPass:
 
             child_context = x.child_context(i, self.context, depth)
 
-            return CSEAnalysisPass.StackFrame(child_min_binding_depth, child_min_value_binding_depth, child_scan_scope, child_context, child)
+            return CSEAnalysisPass.StackFrame(
+                child_min_binding_depth, child_min_value_binding_depth, child_scan_scope, child_context, child
+            )
 
 
 class CSEPrintPass:
@@ -347,8 +362,7 @@ class CSEPrintPass:
         if id(root) in memo:
             return ''.join(memo[id(root)])
         root_ctx = ({var: 0 for var in root.free_vars}, {}, {})
-        stack = [self.StackFrame.make(root, self.renderer, binding_sites,
-                                      bindings_stack, 0, 0, False, root_ctx, 0)]
+        stack = [self.StackFrame.make(root, self.renderer, binding_sites, bindings_stack, 0, 0, False, root_ctx, 0)]
         stack[0].set_builder(root_builder, self.renderer)
 
         while True:
@@ -359,7 +373,7 @@ class CSEPrintPass:
 
             if child_idx >= len(frame.children):
                 if frame.lift_to_frame is not None:
-                    assert(not frame.insert_lets)
+                    assert not frame.insert_lets
                     if id(node) in memo:
                         frame.builder.append(memo[id(node)])
                     else:
@@ -453,24 +467,36 @@ class CSEPrintPass:
 
     BindingsStackFrame = namedtuple(
         'BindingsStackFrame',
-        'depth lifted_lets agg_lifted_lets scan_lifted_lets visited agg_visited'
-        ' scan_visited let_bodies')
+        'depth lifted_lets agg_lifted_lets scan_lifted_lets visited agg_visited' ' scan_visited let_bodies',
+    )
 
     class StackFrame:
-        __slots__ = ['node', 'children', 'min_binding_depth', 'context',
-                     'min_value_binding_depth', 'scan_scope', 'depth',
-                     'lift_to_frame', 'insert_lets', 'builder', 'child_idx']
+        __slots__ = [
+            'node',
+            'children',
+            'min_binding_depth',
+            'context',
+            'min_value_binding_depth',
+            'scan_scope',
+            'depth',
+            'lift_to_frame',
+            'insert_lets',
+            'builder',
+            'child_idx',
+        ]
 
-        def __init__(self,
-                     node: Renderable,
-                     children: Sequence[Renderable],
-                     min_binding_depth: int,
-                     min_value_binding_depth: int,
-                     scan_scope: bool,
-                     context: Context,
-                     depth: int,
-                     insert_lets: bool,
-                     lift_to_frame: 'Optional[CSEPrintPass.BindingsStackFrame]' = None):
+        def __init__(
+            self,
+            node: Renderable,
+            children: Sequence[Renderable],
+            min_binding_depth: int,
+            min_value_binding_depth: int,
+            scan_scope: bool,
+            context: Context,
+            depth: int,
+            insert_lets: bool,
+            lift_to_frame: 'Optional[CSEPrintPass.BindingsStackFrame]' = None,
+        ):
             # Immutable
 
             # The 'Renderable' node corresponding to this stack frame.
@@ -534,10 +560,12 @@ class CSEPrintPass:
             for _ in range(num_lets):
                 out_builder.append(')')
 
-        def make_child_frame(self,
-                             renderer: 'CSERenderer',
-                             binding_sites: Dict[int, BindingSite],
-                             bindings_stack: 'Dict[int, CSEPrintPass.BindingsStackFrame]'):
+        def make_child_frame(
+            self,
+            renderer: 'CSERenderer',
+            binding_sites: Dict[int, BindingSite],
+            bindings_stack: 'Dict[int, CSEPrintPass.BindingsStackFrame]',
+        ):
             child_min_binding_depth = self.min_binding_depth
             child_min_value_binding_depth = self.min_value_binding_depth
             child_scan_scope = self.scan_scope
@@ -562,33 +590,52 @@ class CSEPrintPass:
                 child_context = self.node.renderable_child_context(self.child_idx, self.context, child_depth)
             else:
                 child_context = self.context
-            return self.make(child, renderer, binding_sites, bindings_stack,
-                             child_min_binding_depth, child_min_value_binding_depth,
-                             child_scan_scope, child_context, child_depth)
+            return self.make(
+                child,
+                renderer,
+                binding_sites,
+                bindings_stack,
+                child_min_binding_depth,
+                child_min_value_binding_depth,
+                child_scan_scope,
+                child_context,
+                child_depth,
+            )
 
         @staticmethod
-        def make(node: Renderable,
-                 renderer: 'CSERenderer',
-                 binding_sites: Dict[int, BindingSite],
-                 bindings_stack: 'Dict[int, CSEPrintPass.BindingsStackFrame]',
-                 min_binding_depth: int,
-                 min_value_binding_depth: int,
-                 scan_scope: bool,
-                 context: Context,
-                 depth: int):
-            insert_lets = (id(node) in binding_sites
-                           and depth == binding_sites[id(node)].depth
-                           and (len(binding_sites[id(node)].lifted_lets) > 0
-                                or len(binding_sites[id(node)].agg_lifted_lets) > 0
-                                or len(binding_sites[id(node)].scan_lifted_lets) > 0))
-            state = CSEPrintPass.StackFrame(node,
-                                            node.render_children(renderer),
-                                            min_binding_depth,
-                                            min_value_binding_depth,
-                                            scan_scope, context, depth, insert_lets)
+        def make(
+            node: Renderable,
+            renderer: 'CSERenderer',
+            binding_sites: Dict[int, BindingSite],
+            bindings_stack: 'Dict[int, CSEPrintPass.BindingsStackFrame]',
+            min_binding_depth: int,
+            min_value_binding_depth: int,
+            scan_scope: bool,
+            context: Context,
+            depth: int,
+        ):
+            insert_lets = (
+                id(node) in binding_sites
+                and depth == binding_sites[id(node)].depth
+                and (
+                    len(binding_sites[id(node)].lifted_lets) > 0
+                    or len(binding_sites[id(node)].agg_lifted_lets) > 0
+                    or len(binding_sites[id(node)].scan_lifted_lets) > 0
+                )
+            )
+            state = CSEPrintPass.StackFrame(
+                node,
+                node.render_children(renderer),
+                min_binding_depth,
+                min_value_binding_depth,
+                scan_scope,
+                context,
+                depth,
+                insert_lets,
+            )
             if insert_lets:
                 bind_site = binding_sites[id(node)]
-                assert(bind_site.depth == depth)
+                assert bind_site.depth == depth
                 bindings_stack[depth] = CSEPrintPass.StackFrame.make_bindings_stack_frame(bind_site)
             return state
 
@@ -610,4 +657,5 @@ class CSEPrintPass:
                 visited={},
                 agg_visited={},
                 scan_visited={},
-                let_bodies=[])
+                let_bodies=[],
+            )

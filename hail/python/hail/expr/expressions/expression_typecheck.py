@@ -3,9 +3,26 @@ from typing import Optional, Dict, Any, TypeVar, List
 
 import hail as hl
 from hail.expr.expressions import Expression, ExpressionException, to_expr
-from hail.expr.types import HailType, tint32, tint64, tfloat32, tfloat64, \
-    tstr, tbool, tarray, tstream, tndarray, tset, tdict, tstruct, tunion, \
-    ttuple, tinterval, tlocus, tcall
+from hail.expr.types import (
+    HailType,
+    tint32,
+    tint64,
+    tfloat32,
+    tfloat64,
+    tstr,
+    tbool,
+    tarray,
+    tstream,
+    tndarray,
+    tset,
+    tdict,
+    tstruct,
+    tunion,
+    ttuple,
+    tinterval,
+    tlocus,
+    tcall,
+)
 
 from hail.typecheck import TypeChecker, TypecheckFailure
 from hail.utils.java import escape_parsable
@@ -231,10 +248,12 @@ class IntervalCoercer(ExprCoercer):
 
     def _coerce(self, x):
         assert isinstance(x, hl.expr.IntervalExpression)
-        return hl.interval(self.point_type.coerce(x.start),
-                           self.point_type.coerce(x.end),
-                           includes_start=x.includes_start,
-                           includes_end=x.includes_end)
+        return hl.interval(
+            self.point_type.coerce(x.start),
+            self.point_type.coerce(x.end),
+            includes_start=x.includes_start,
+            includes_end=x.includes_end,
+        )
 
 
 class ArrayCoercer(ExprCoercer):
@@ -253,8 +272,7 @@ class ArrayCoercer(ExprCoercer):
         return self.ec._requires_conversion(t.element_type)
 
     def can_coerce(self, t: HailType) -> bool:
-        return ((isinstance(t, tndarray) and t.ndim == 1 or isinstance(t, tarray))
-                and self.ec.can_coerce(t.element_type))
+        return (isinstance(t, tndarray) and t.ndim == 1 or isinstance(t, tarray)) and self.ec.can_coerce(t.element_type)
 
     def _coerce(self, x: Expression):
         if isinstance(x, hl.expr.NDArrayExpression):
@@ -306,7 +324,6 @@ class NDArrayCoercer(ExprCoercer):
 
 
 class SetCoercer(ExprCoercer):
-
     def __init__(self, ec: ExprCoercer = AnyCoercer()):
         super(SetCoercer, self).__init__()
         self.ec = ec
@@ -350,8 +367,7 @@ class DictCoercer(ExprCoercer):
             # fast path
             return x.map_values(self.vc.coerce)
         else:
-            return hl.dict(hl.map(lambda e: (self.kc.coerce(e[0]), self.vc.coerce(e[1])),
-                                  hl.array(x)))
+            return hl.dict(hl.map(lambda e: (self.kc.coerce(e[0]), self.vc.coerce(e[1])), hl.array(x)))
 
 
 class TupleCoercer(ExprCoercer):
@@ -378,9 +394,11 @@ class TupleCoercer(ExprCoercer):
         if self.elements is None:
             return isinstance(t, ttuple)
         else:
-            return (isinstance(t, ttuple)
-                    and len(t.types) == len(self.elements)
-                    and all(c.can_coerce(t_) for c, t_ in zip(self.elements, t.types)))
+            return (
+                isinstance(t, ttuple)
+                and len(t.types) == len(self.elements)
+                and all(c.can_coerce(t_) for c, t_ in zip(self.elements, t.types))
+            )
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.TupleExpression)
@@ -411,10 +429,14 @@ class StructCoercer(ExprCoercer):
         if self.fields is None:
             return isinstance(t, tstruct)
         else:
-            return (isinstance(t, tstruct)
-                    and len(t) == len(self.fields)
-                    and all(expected[0] == actual[0] and expected[1].can_coerce(actual[1])
-                            for expected, actual in zip(self.fields.items(), t.items())))
+            return (
+                isinstance(t, tstruct)
+                and len(t) == len(self.fields)
+                and all(
+                    expected[0] == actual[0] and expected[1].can_coerce(actual[1])
+                    for expected, actual in zip(self.fields.items(), t.items())
+                )
+            )
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.StructExpression)
@@ -446,10 +468,14 @@ class UnionCoercer(ExprCoercer):
         if self.cases is None:
             return isinstance(t, tunion)
         else:
-            return (isinstance(t, tunion)
-                    and len(t) == len(self.cases)
-                    and all(expected[0] == actual[0] and expected[1].can_coerce(actual[1])
-                            for expected, actual in zip(self.cases.items(), t.items())))
+            return (
+                isinstance(t, tunion)
+                and len(t) == len(self.cases)
+                and all(
+                    expected[0] == actual[0] and expected[1].can_coerce(actual[1])
+                    for expected, actual in zip(self.cases.items(), t.items())
+                )
+            )
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.StructExpression)
@@ -511,7 +537,7 @@ primitives: Dict[HailType, ExprCoercer] = {
     tfloat64: expr_float64,
     tbool: expr_bool,
     tcall: expr_call,
-    tstr: expr_str
+    tstr: expr_str,
 }
 
 
@@ -531,8 +557,7 @@ def coercer_from_dtype(t: HailType) -> ExprCoercer:
     elif isinstance(t, tset):
         return expr_set(coercer_from_dtype(t.element_type))
     elif isinstance(t, tdict):
-        return expr_dict(coercer_from_dtype(t.key_type),
-                         coercer_from_dtype(t.value_type))
+        return expr_dict(coercer_from_dtype(t.key_type), coercer_from_dtype(t.value_type))
     elif isinstance(t, ttuple):
         return expr_tuple([coercer_from_dtype(t_) for t_ in t.types])
     elif isinstance(t, tstruct):

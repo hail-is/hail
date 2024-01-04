@@ -5,19 +5,15 @@ from hail.expr.expressions import expr_float64, expr_numeric, expr_locus
 from hail.utils import new_temp_file, wrap_to_list
 
 
-@typecheck(entry_expr=expr_float64,
-           locus_expr=expr_locus(),
-           radius=oneof(int, float),
-           coord_expr=nullable(expr_float64),
-           annotation_exprs=nullable(oneof(expr_numeric,
-                                           sequenceof(expr_numeric))),
-           block_size=nullable(int))
-def ld_score(entry_expr,
-             locus_expr,
-             radius,
-             coord_expr=None,
-             annotation_exprs=None,
-             block_size=None) -> hl.Table:
+@typecheck(
+    entry_expr=expr_float64,
+    locus_expr=expr_locus(),
+    radius=oneof(int, float),
+    coord_expr=nullable(expr_float64),
+    annotation_exprs=nullable(oneof(expr_numeric, sequenceof(expr_numeric))),
+    block_size=nullable(int),
+)
+def ld_score(entry_expr, locus_expr, radius, coord_expr=None, annotation_exprs=None, block_size=None) -> hl.Table:
     """Calculate LD scores.
 
     Example
@@ -123,26 +119,25 @@ def ld_score(entry_expr,
         mt_coord_expr = coord_expr._indices.source
 
     if not annotation_exprs:
-        check_mts = all([mt == mt_locus_expr,
-                         mt == mt_coord_expr])
+        check_mts = all([mt == mt_locus_expr, mt == mt_coord_expr])
     else:
-        check_mts = all([mt == mt_locus_expr,
-                         mt == mt_coord_expr]
-                        + [mt == x._indices.source
-                           for x in wrap_to_list(annotation_exprs)])
+        check_mts = all(
+            [mt == mt_locus_expr, mt == mt_coord_expr]
+            + [mt == x._indices.source for x in wrap_to_list(annotation_exprs)]
+        )
 
     if not check_mts:
-        raise ValueError("""ld_score: entry_expr, locus_expr, coord_expr
+        raise ValueError(
+            """ld_score: entry_expr, locus_expr, coord_expr
                             (if specified), and annotation_exprs (if
-                            specified) must come from same MatrixTable.""")
+                            specified) must come from same MatrixTable."""
+        )
 
     n = mt.count_cols()
     r2 = hl.row_correlation(entry_expr, block_size) ** 2
     r2_adj = ((n - 1.0) / (n - 2.0)) * r2 - (1.0 / (n - 2.0))
 
-    starts, stops = hl.linalg.utils.locus_windows(locus_expr,
-                                                  radius,
-                                                  coord_expr)
+    starts, stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr)
     r2_adj_sparse = r2_adj.sparsify_row_intervals(starts, stops)
 
     r2_adj_sparse_tmp = new_temp_file()
@@ -159,12 +154,9 @@ def ld_score(entry_expr,
         names = [name for name in ht.row if name not in ht.key]
 
         ht_union = hl.Table.union(
-            *[(ht.annotate(name=hl.str(x),
-                           value=hl.float(ht[x]))
-               .select('name', 'value')) for x in names])
-        mt_annotations = ht_union.to_matrix_table(
-            row_key=list(ht_union.key),
-            col_key=['name'])
+            *[(ht.annotate(name=hl.str(x), value=hl.float(ht[x])).select('name', 'value')) for x in names]
+        )
+        mt_annotations = ht_union.to_matrix_table(row_key=list(ht_union.key), col_key=['name'])
 
         cols = mt_annotations.key_cols_by()['name'].collect()
         col_idxs = {i: cols[i] for i in range(len(cols))}
@@ -183,8 +175,7 @@ def ld_score(entry_expr,
     ht_scores = hl.import_table(l2_tsv_tmp, no_header=True, impute=True)
     ht_scores = ht_scores.add_index()
     ht_scores = ht_scores.key_by('idx')
-    ht_scores = ht_scores.rename({'f{:}'.format(i): col_idxs[i]
-                                  for i in range(len(cols))})
+    ht_scores = ht_scores.rename({'f{:}'.format(i): col_idxs[i] for i in range(len(cols))})
 
     ht = mt.select_rows(__locus=locus_expr).rows()
     ht = ht.add_index()

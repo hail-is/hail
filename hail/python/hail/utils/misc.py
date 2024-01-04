@@ -64,17 +64,19 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     check_nonnegative_and_in_range('range_matrix_table', 'n_cols', n_cols)
     if n_partitions is not None:
         check_positive_and_in_range('range_matrix_table', 'n_partitions', n_partitions)
-    return hail.MatrixTable(hail.ir.MatrixRead(
-        hail.ir.MatrixRangeReader(n_rows, n_cols, n_partitions),
-        _assert_type=hl.tmatrix(
-            hl.tstruct(),
-            hl.tstruct(col_idx=hl.tint32),
-            ['col_idx'],
-            hl.tstruct(row_idx=hl.tint32),
-            ['row_idx'],
-            hl.tstruct()
+    return hail.MatrixTable(
+        hail.ir.MatrixRead(
+            hail.ir.MatrixRangeReader(n_rows, n_cols, n_partitions),
+            _assert_type=hl.tmatrix(
+                hl.tstruct(),
+                hl.tstruct(col_idx=hl.tint32),
+                ['col_idx'],
+                hl.tstruct(row_idx=hl.tint32),
+                ['row_idx'],
+                hl.tstruct(),
+            ),
         )
-    ))
+    )
 
 
 @typecheck(n=int, n_partitions=nullable(int))
@@ -120,16 +122,18 @@ def check_positive_and_in_range(caller, name, value):
     if value <= 0:
         raise ValueError(f"'{caller}': parameter '{name}' must be positive, found {value}")
     elif value > hail.tint32.max_value:
-        raise ValueError(f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, "
-                         f"found {value}")
+        raise ValueError(
+            f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, " f"found {value}"
+        )
 
 
 def check_nonnegative_and_in_range(caller, name, value):
     if value < 0:
         raise ValueError(f"'{caller}': parameter '{name}' must be non-negative, found {value}")
     elif value > hail.tint32.max_value:
-        raise ValueError(f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, "
-                         f"found {value}")
+        raise ValueError(
+            f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, " f"found {value}"
+        )
 
 
 def wrap_to_list(s):
@@ -145,7 +149,7 @@ def wrap_to_tuple(x):
     if isinstance(x, tuple):
         return x
     else:
-        return x,
+        return (x,)
 
 
 def wrap_to_sequence(x):
@@ -154,7 +158,7 @@ def wrap_to_sequence(x):
     if isinstance(x, list):
         return tuple(x)
     else:
-        return x,
+        return (x,)
 
 
 def get_env_or_default(maybe, envvar, default):
@@ -208,14 +212,25 @@ def with_local_temp_file(filename: str = 'temp') -> str:
             pass
 
 
-storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',
-                            'MEMORY_ONLY_2', 'MEMORY_ONLY_SER', 'MEMORY_ONLY_SER_2',
-                            'MEMORY_AND_DISK', 'MEMORY_AND_DISK_2', 'MEMORY_AND_DISK_SER',
-                            'MEMORY_AND_DISK_SER_2', 'OFF_HEAP')
+storage_level = enumeration(
+    'NONE',
+    'DISK_ONLY',
+    'DISK_ONLY_2',
+    'MEMORY_ONLY',
+    'MEMORY_ONLY_2',
+    'MEMORY_ONLY_SER',
+    'MEMORY_ONLY_SER_2',
+    'MEMORY_AND_DISK',
+    'MEMORY_AND_DISK_2',
+    'MEMORY_AND_DISK_SER',
+    'MEMORY_AND_DISK_SER_2',
+    'OFF_HEAP',
+)
 
 
 def run_command(args):
     import subprocess as sp
+
     try:
         sp.check_output(args, stderr=sp.STDOUT)
     except sp.CalledProcessError as e:
@@ -259,12 +274,14 @@ def get_obj_metadata(obj):
             else:
                 assert inds == index_obj._entry_indices
                 return "'{}' [entry]".format(field)
+
         return fmt_field
 
     def struct_error(s):
         def fmt_field(field):
             assert field in s._fields
             return "'{}'".format(field)
+
         return fmt_field
 
     if isinstance(obj, MatrixTable):
@@ -322,16 +339,21 @@ def get_nice_attr_error(obj, item):
                 s.append('\n        Data {}: {}'.format(word, ', '.join(handler(f) for f in fs)))
             if method_matches:
                 word = plural('method', len(method_matches))
-                s.append('\n        {} {}: {}'.format(class_name, word,
-                                                      ', '.join("'{}'".format(m) for m in method_matches)))
+                s.append(
+                    '\n        {} {}: {}'.format(class_name, word, ', '.join("'{}'".format(m) for m in method_matches))
+                )
             if prop_matches:
                 word = plural('property', len(prop_matches), 'properties')
-                s.append('\n        {} {}: {}'.format(class_name, word,
-                                                      ', '.join("'{}'".format(p) for p in prop_matches)))
+                s.append(
+                    '\n        {} {}: {}'.format(class_name, word, ', '.join("'{}'".format(p) for p in prop_matches))
+                )
             if inherited_matches:
                 word = plural('inherited method', len(inherited_matches))
-                s.append('\n        {} {}: {}'.format(class_name, word,
-                                                      ', '.join("'{}'".format(m) for m in inherited_matches)))
+                s.append(
+                    '\n        {} {}: {}'.format(
+                        class_name, word, ', '.join("'{}'".format(m) for m in inherited_matches)
+                    )
+                )
         elif has_describe:
             s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
         return ''.join(s)
@@ -362,12 +384,16 @@ def get_nice_field_error(obj, item):
 
 def check_collisions(caller, names, indices, override_protected_indices=None):
     from hail.expr.expressions import ExpressionException
+
     fields = indices.source._fields
 
     if override_protected_indices is not None:
+
         def invalid(e):
             return e._indices in override_protected_indices
+
     else:
+
         def invalid(e):
             return e._indices != indices
 
@@ -382,11 +408,13 @@ def check_collisions(caller, names, indices, override_protected_indices=None):
     for k, v in Counter(names).items():
         if v > 1:
             from hail.expr.expressions import ExpressionException
+
             raise ExpressionException(f"{caller!r}: selection would produce duplicate field {k!r}")
 
 
 def get_key_by_exprs(caller, exprs, named_exprs, indices, override_protected_indices=None):
     from hail.expr.expressions import to_expr, ExpressionException, analyze
+
     exprs = [indices.source[e] if isinstance(e, str) else e for e in exprs]
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
 
@@ -400,11 +428,13 @@ def get_key_by_exprs(caller, exprs, named_exprs, indices, override_protected_ind
     for e in exprs:
         analyze(caller, e, indices, broadcast=False)
         if not e._ir.is_nested_field:
-            raise ExpressionException(f"{caller!r} expects keyword arguments for complex expressions\n"
-                                      f"  Correct:   ht = ht.key_by('x')\n"
-                                      f"  Correct:   ht = ht.key_by(ht.x)\n"
-                                      f"  Correct:   ht = ht.key_by(x = ht.x.replace(' ', '_'))\n"
-                                      f"  INCORRECT: ht = ht.key_by(ht.x.replace(' ', '_'))")
+            raise ExpressionException(
+                f"{caller!r} expects keyword arguments for complex expressions\n"
+                f"  Correct:   ht = ht.key_by('x')\n"
+                f"  Correct:   ht = ht.key_by(ht.x)\n"
+                f"  Correct:   ht = ht.key_by(x = ht.x.replace(' ', '_'))\n"
+                f"  INCORRECT: ht = ht.key_by(ht.x.replace(' ', '_'))"
+            )
 
         name = e._ir.name
         final_key.append(name)
@@ -422,15 +452,19 @@ def get_key_by_exprs(caller, exprs, named_exprs, indices, override_protected_ind
 
 def check_keys(caller, name, protected_key):
     from hail.expr.expressions import ExpressionException
+
     if name in protected_key:
-        msg = f"{caller!r}: cannot overwrite key field {name!r} with annotate, select or drop; " \
-              f"use key_by to modify keys."
+        msg = (
+            f"{caller!r}: cannot overwrite key field {name!r} with annotate, select or drop; "
+            f"use key_by to modify keys."
+        )
         error('Analysis exception: {}'.format(msg))
         raise ExpressionException(msg)
 
 
 def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
     from hail.expr.expressions import to_expr, ExpressionException, analyze
+
     exprs = [indices.source[e] if isinstance(e, str) else e for e in exprs]
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
     select_fields = indices.protected_key[:]
@@ -444,11 +478,13 @@ def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
 
     for e in exprs:
         if not e._ir.is_nested_field:
-            raise ExpressionException(f"{caller!r} expects keyword arguments for complex expressions\n"
-                                      f"  Correct:   ht = ht.select('x')\n"
-                                      f"  Correct:   ht = ht.select(ht.x)\n"
-                                      f"  Correct:   ht = ht.select(x = ht.x.replace(' ', '_'))\n"
-                                      f"  INCORRECT: ht = ht.select(ht.x.replace(' ', '_'))")
+            raise ExpressionException(
+                f"{caller!r} expects keyword arguments for complex expressions\n"
+                f"  Correct:   ht = ht.select('x')\n"
+                f"  Correct:   ht = ht.select(ht.x)\n"
+                f"  Correct:   ht = ht.select(x = ht.x.replace(' ', '_'))\n"
+                f"  INCORRECT: ht = ht.select(ht.x.replace(' ', '_'))"
+            )
         analyze(caller, e, indices, broadcast=False)
 
         name = e._ir.name
@@ -477,6 +513,7 @@ def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
 
 def check_annotate_exprs(caller, named_exprs, indices, agg_axes):
     from hail.expr.expressions import analyze
+
     protected_key = set(indices.protected_key)
     for k, v in named_exprs.items():
         analyze(f'{caller}: field {k!r}', v, indices, agg_axes, broadcast=True)
@@ -508,6 +545,7 @@ def process_joins(obj, exprs):
 def divide_null(num, denom):
     from hail.expr.expressions.base_expression import unify_types_limited
     from hail.expr import missing, if_else
+
     typ = unify_types_limited(num.dtype, denom.dtype)
     assert typ is not None
     return if_else(denom != 0, num / denom, missing(typ))
@@ -518,10 +556,7 @@ def lookup_bit(byte, which_bit):
 
 
 def timestamp_path(base, suffix=''):
-    return ''.join([base,
-                    '-',
-                    datetime.datetime.now().strftime("%Y%m%d-%H%M"),
-                    suffix])
+    return ''.join([base, '-', datetime.datetime.now().strftime("%Y%m%d-%H%M"), suffix])
 
 
 def upper_hex(n, num_digits=None):
@@ -534,23 +569,17 @@ def upper_hex(n, num_digits=None):
 def escape_str(s, backticked=False):
     sb = StringIO()
 
-    rewrite_dict = {
-        '\b': '\\b',
-        '\n': '\\n',
-        '\t': '\\t',
-        '\f': '\\f',
-        '\r': '\\r'
-    }
+    rewrite_dict = {'\b': '\\b', '\n': '\\n', '\t': '\\t', '\f': '\\f', '\r': '\\r'}
 
     for ch in s:
         chNum = ord(ch)
-        if chNum > 0x7f:
+        if chNum > 0x7F:
             sb.write("\\u" + upper_hex(chNum, 4))
         elif chNum < 32:
             if ch in rewrite_dict:
                 sb.write(rewrite_dict[ch])
             else:
-                if chNum > 0xf:
+                if chNum > 0xF:
                     sb.write("\\u00" + upper_hex(chNum))
                 else:
                     sb.write("\\u000" + upper_hex(chNum))
@@ -590,20 +619,22 @@ def parsable_strings(strs):
 
 def _dumps_partitions(partitions, row_key_type):
     parts_type = partitions.dtype
-    if not (isinstance(parts_type, hl.tarray)
-            and isinstance(parts_type.element_type, hl.tinterval)):
+    if not (isinstance(parts_type, hl.tarray) and isinstance(parts_type.element_type, hl.tinterval)):
         raise ValueError(f'partitions type invalid: {parts_type} must be array of intervals')
 
     point_type = parts_type.element_type.point_type
 
     f1, t1 = next(iter(row_key_type.items()))
     if point_type == t1:
-        partitions = hl.map(lambda x: hl.interval(
-            start=hl.struct(**{f1: x.start}),
-            end=hl.struct(**{f1: x.end}),
-            includes_start=x.includes_start,
-            includes_end=x.includes_end),
-            partitions)
+        partitions = hl.map(
+            lambda x: hl.interval(
+                start=hl.struct(**{f1: x.start}),
+                end=hl.struct(**{f1: x.end}),
+                includes_start=x.includes_start,
+                includes_end=x.includes_end,
+            ),
+            partitions,
+        )
     else:
         if not isinstance(point_type, hl.tstruct):
             raise ValueError(f'partitions has wrong type: {point_type} must be struct or type of first row key field')
@@ -617,6 +648,7 @@ def _dumps_partitions(partitions, row_key_type):
 def default_handler():
     try:
         from IPython.display import display
+
         return display
     except ImportError:
         return print
@@ -633,10 +665,13 @@ def guess_cloud_spark_provider() -> Optional[Literal['dataproc', 'hdinsight']]:
 def no_service_backend(unsupported_feature):
     from hail import current_backend
     from hail.backend.service_backend import ServiceBackend
+
     if isinstance(current_backend(), ServiceBackend):
-        raise NotImplementedError(f'{unsupported_feature!r} is not yet supported on the service backend.'
-                                  f'\n  If this is a pressing need, please alert the team on the discussion'
-                                  f'\n  forum to aid in prioritization: https://discuss.hail.is')
+        raise NotImplementedError(
+            f'{unsupported_feature!r} is not yet supported on the service backend.'
+            f'\n  If this is a pressing need, please alert the team on the discussion'
+            f'\n  forum to aid in prioritization: https://discuss.hail.is'
+        )
 
 
 ANY_REGION = ['any_region']
