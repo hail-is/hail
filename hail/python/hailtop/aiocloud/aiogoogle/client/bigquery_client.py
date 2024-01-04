@@ -43,6 +43,7 @@ class ResultsParser:
                 return int(or_none(float, value))
             # DATE, TIME, DATETIME
             raise NotImplementedError((name, value, typ, mode))
+
         return {
             field['name']: parse_field(field['name'], field['v'], field_schema)
             for field, field_schema in zip(data['f'], schema['fields'])
@@ -72,13 +73,9 @@ class PagedQueriesIterator:
 
     async def __anext__(self):
         if self._page is None:
-            config = {
-                'kind': 'bigquery#queryRequest',
-                'useLegacySql': False,
-                'query': self._query}
+            config = {'kind': 'bigquery#queryRequest', 'useLegacySql': False, 'query': self._query}
 
-            self._page = await self._client.post(
-                '/queries', json=config, **self._request_kwargs)
+            self._page = await self._client.post('/queries', json=config, **self._request_kwargs)
             self._row_index = 0
             self._total_rows = self._page['totalRows']
             self._parser = ResultsParser(self._page['schema'])
@@ -101,31 +98,31 @@ class PagedQueriesIterator:
 
             next_page_token = self._page.get('pageToken')
             if next_page_token is not None:
-                query_parameters = {
-                    'pageToken': next_page_token,
-                    'location': self._location
-                }
+                query_parameters = {'pageToken': next_page_token, 'location': self._location}
                 self._page = await self._client.get_query_results(
-                    self._job_id, query_parameters, **self._request_kwargs)
+                    self._job_id, query_parameters, **self._request_kwargs
+                )
                 self._row_index = 0
             else:
                 raise StopAsyncIteration
 
 
 class GoogleBigQueryClient(GoogleBaseClient):
-    def __init__(self,
-                 project: str,
-                 credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None,
-                 credentials_file: Optional[str] = None,
-                 params: Optional[Mapping[str, str]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        project: str,
+        credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None,
+        credentials_file: Optional[str] = None,
+        params: Optional[Mapping[str, str]] = None,
+        **kwargs,
+    ):
         super().__init__(
             base_url=f'https://bigquery.googleapis.com/bigquery/v2/projects/{project}',
             session=Session(
                 credentials=credentials or GoogleCredentials.from_file_or_default(credentials_file),
                 params=params,
-                **kwargs
-            )
+                **kwargs,
+            ),
         )
 
     # docs:

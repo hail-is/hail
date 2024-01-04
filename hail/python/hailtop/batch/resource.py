@@ -30,6 +30,7 @@ class ResourceFile(Resource, str):
     Class representing a single file resource. There exist two subclasses:
     :class:`.InputResourceFile` and :class:`.JobResourceFile`.
     """
+
     _counter = 0
     _uid_prefix = "__RESOURCE_FILE__"
     _regex_pattern = r"(?P<RESOURCE_FILE>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
@@ -257,8 +258,10 @@ class ResourceGroup(Resource):
 
     def _get_resource(self, item: str) -> ResourceFile:
         if item not in self._resources:
-            raise BatchException(f"'{item}' not found in the resource group.\n"
-                                 f"Hint: you must declare each attribute when constructing the resource group.")
+            raise BatchException(
+                f"'{item}' not found in the resource group.\n"
+                f"Hint: you must declare each attribute when constructing the resource group."
+            )
         return self._resources[item]
 
     def __getitem__(self, item: str) -> ResourceFile:
@@ -311,6 +314,7 @@ class PythonResult(Resource, str):
     to be saved. In most cases, you'll want to convert the :class:`.PythonResult`
     to a :class:`.JobResourceFile` in a human-readable format.
     """
+
     _counter = 0
     _uid_prefix = "__PYTHON_RESULT__"
     _regex_pattern = r"(?P<PYTHON_RESULT>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string

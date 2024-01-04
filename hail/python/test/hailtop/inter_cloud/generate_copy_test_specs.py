@@ -70,7 +70,7 @@ def copy_test_configurations():
                                 'dest_basename': dest_basename,
                                 'treat_dest_as': treat_dest_as,
                                 'src_trailing_slash': src_trailing_slash,
-                                'dest_trailing_slash': dest_trailing_slash
+                                'dest_trailing_slash': dest_trailing_slash,
                             }
 
 

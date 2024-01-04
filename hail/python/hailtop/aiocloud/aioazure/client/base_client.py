@@ -10,21 +10,23 @@ from ...common.credentials import AnonymousCloudCredentials
 
 
 class AzureBaseClient(CloudBaseClient):
-    def __init__(self,
-                 base_url: str,
-                 *,
-                 session: Optional[BaseSession] = None,
-                 rate_limit: Optional[RateLimit] = None,
-                 credentials: Optional[Union['AzureCredentials', AnonymousCloudCredentials]] = None,
-                 credentials_file: Optional[str] = None,
-                 scopes: Optional[List[str]] = None,
-                 params: Optional[Mapping[str, str]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        session: Optional[BaseSession] = None,
+        rate_limit: Optional[RateLimit] = None,
+        credentials: Optional[Union['AzureCredentials', AnonymousCloudCredentials]] = None,
+        credentials_file: Optional[str] = None,
+        scopes: Optional[List[str]] = None,
+        params: Optional[Mapping[str, str]] = None,
+        **kwargs,
+    ):
         if session is None:
             session = Session(
                 credentials=credentials or AzureCredentials.from_file_or_default(credentials_file, scopes),
                 params=params,
-                **kwargs
+                **kwargs,
             )
         elif credentials_file is not None or credentials is not None:
             raise ValueError('Do not provide credentials_file or credentials when session is not None')
@@ -43,7 +45,9 @@ class AzureBaseClient(CloudBaseClient):
                 yield v
             next_link = page.get('nextLink')
 
-    async def delete_and_wait(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
+    async def delete_and_wait(
+        self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs
+    ) -> aiohttp.ClientResponse:
         tries = 1
         while True:
             resp = await self.delete(path, url=url, **kwargs)

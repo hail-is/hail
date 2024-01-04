@@ -24,7 +24,7 @@ async def gs_filesystem(request):
         async with fs:
             test_storage_uri = os.environ['HAIL_TEST_STORAGE_URI']
             protocol = 'gs://'
-            assert test_storage_uri[:len(protocol)] == protocol
+            assert test_storage_uri[: len(protocol)] == protocol
             base = f'{test_storage_uri}/tmp/{token}/'
 
             await fs.mkdir(base)
@@ -53,9 +53,11 @@ async def test_get_object_metadata(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
 
     async with GoogleStorageClient() as client:
+
         async def upload():
             async with await client.insert_object(bucket, file) as f:
                 await f.write(b'foo')
+
         await retry_transient_errors(upload)
         metadata = await client.get_object_metadata(bucket, file)
         assert 'etag' in metadata
@@ -68,9 +70,11 @@ async def test_get_object_headers(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
 
     async with GoogleStorageClient() as client:
+
         async def upload():
             async with await client.insert_object(bucket, file) as f:
                 await f.write(b'foo')
+
         await retry_transient_errors(upload)
         async with await client.get_object(bucket, file) as f:
             headers = f.headers()  # type: ignore
@@ -85,9 +89,11 @@ async def test_compose(bucket_and_temporary_file):
     part_data = [b'a', b'bb', b'ccc']
 
     async with GoogleStorageClient() as client:
+
         async def upload(i, b):
             async with await client.insert_object(bucket, f'{file}/{i}') as f:
                 await f.write(b)
+
         for i, b in enumerate(part_data):
             await retry_transient_errors(upload, i, b)
         await client.compose(bucket, [f'{file}/{i}' for i in range(len(part_data))], f'{file}/combined')
@@ -117,19 +123,22 @@ async def test_multi_part_create_many_two_level_merge(gs_filesystem):
 
         path = f'{base}a'
         async with await fs.multi_part_create(sema, path, len(part_data)) as c:
+
             async def create_part(i):
                 async with await c.create_part(i, part_start[i]) as f:
                     await f.write(part_data[i])
 
             # do in parallel
-            await bounded_gather2(sema, *[
-                functools.partial(retry_transient_errors, create_part, i) for i in range(len(part_data))])
+            await bounded_gather2(
+                sema, *[functools.partial(retry_transient_errors, create_part, i) for i in range(len(part_data))]
+            )
 
         expected = b''.join(part_data)
         actual = await fs.read(path)
         assert expected == actual
     except (concurrent.futures._base.CancelledError, asyncio.CancelledError) as err:
         raise AssertionError('uncaught cancelled error') from err
+
 
 async def test_weird_urls(gs_filesystem):
     _, fs, base = gs_filesystem

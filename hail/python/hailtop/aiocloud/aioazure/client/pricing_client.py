@@ -7,9 +7,7 @@ from ...common import AnonymousCloudCredentials, Session
 class AzurePricingClient(AzureBaseClient):
     def __init__(self, **kwargs):
         super().__init__(
-            'https://prices.azure.com/api/retail',
-            session = Session(credentials=AnonymousCloudCredentials()),
-            **kwargs
+            'https://prices.azure.com/api/retail', session=Session(credentials=AnonymousCloudCredentials()), **kwargs
         )
 
     async def _paged_get(self, path, **kwargs) -> AsyncGenerator[Any, None]:

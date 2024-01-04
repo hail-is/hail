@@ -9,15 +9,17 @@ from ...common.credentials import AnonymousCloudCredentials
 
 
 class GoogleBaseClient(CloudBaseClient):
-    def __init__(self,
-                 base_url: str,
-                 *,
-                 session: Optional[BaseSession] = None,
-                 rate_limit: Optional[RateLimit] = None,
-                 credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None,
-                 credentials_file: Optional[str] = None,
-                 params: Optional[Mapping[str, str]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        session: Optional[BaseSession] = None,
+        rate_limit: Optional[RateLimit] = None,
+        credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None,
+        credentials_file: Optional[str] = None,
+        params: Optional[Mapping[str, str]] = None,
+        **kwargs
+    ):
         if session is None:
             session = Session(
                 credentials=credentials or GoogleCredentials.from_file_or_default(credentials_file),

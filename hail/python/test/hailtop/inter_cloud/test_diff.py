@@ -38,22 +38,18 @@ async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
         azure_container = os.environ['HAIL_TEST_AZURE_CONTAINER']
         azure_base = f'https://{azure_account}.blob.core.windows.net/{azure_container}/tmp/{token}/'
 
-        bases = {
-            'file': file_base,
-            'gs': gs_base,
-            's3': s3_base,
-            'azure-https': azure_base
-        }
+        bases = {'file': file_base, 'gs': gs_base, 's3': s3_base, 'azure-https': azure_base}
 
         sema = asyncio.Semaphore(50)
         async with sema:
             yield (sema, fs, bases)
-            await bounded_gather2(sema,
-                                  functools.partial(fs.rmtree, sema, file_base),
-                                  functools.partial(fs.rmtree, sema, gs_base),
-                                  functools.partial(fs.rmtree, sema, s3_base),
-                                  functools.partial(fs.rmtree, sema, azure_base)
-                                  )
+            await bounded_gather2(
+                sema,
+                functools.partial(fs.rmtree, sema, file_base),
+                functools.partial(fs.rmtree, sema, gs_base),
+                functools.partial(fs.rmtree, sema, s3_base),
+                functools.partial(fs.rmtree, sema, azure_base),
+            )
 
         assert not await fs.isdir(file_base)
         assert not await fs.isdir(gs_base)
@@ -68,10 +64,26 @@ async def fresh_dir(fs, bases, scheme):
     return dir
 
 
-@pytest.fixture(params=['file/file', 'file/gs', 'file/s3', 'file/azure-https',
-                        'gs/file', 'gs/gs', 'gs/s3', 'gs/azure-https',
-                        's3/file', 's3/gs', 's3/s3', 's3/azure-https',
-                        'azure-https/file', 'azure-https/gs', 'azure-https/s3', 'azure-https/azure-https'])
+@pytest.fixture(
+    params=[
+        'file/file',
+        'file/gs',
+        'file/s3',
+        'file/azure-https',
+        'gs/file',
+        'gs/gs',
+        'gs/s3',
+        'gs/azure-https',
+        's3/file',
+        's3/gs',
+        's3/s3',
+        's3/azure-https',
+        'azure-https/file',
+        'azure-https/gs',
+        'azure-https/s3',
+        'azure-https/azure-https',
+    ]
+)
 async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
     sema, fs, bases = router_filesystem
 
@@ -80,8 +92,7 @@ async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore,
     src_base = await fresh_dir(fs, bases, src_scheme)
     dest_base = await fresh_dir(fs, bases, dest_scheme)
 
-    await asyncio.gather(*[
-        fs.mkdir(x) for x in [f'{src_base}a/', f'{src_base}b/', f'{dest_base}a/', f'{dest_base}b/']])
+    await asyncio.gather(*[fs.mkdir(x) for x in [f'{src_base}a/', f'{src_base}b/', f'{dest_base}a/', f'{dest_base}b/']])
 
     await asyncio.gather(
         fs.write(f'{src_base}same', b'123'),
@@ -90,14 +101,12 @@ async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore,
         fs.write(f'{dest_base}diff', b'1'),
         fs.write(f'{src_base}src-only', b'123'),
         fs.write(f'{dest_base}dest-only', b'123'),
-
         fs.write(f'{src_base}a/same', b'123'),
         fs.write(f'{dest_base}a/same', b'123'),
         fs.write(f'{src_base}a/diff', b'123'),
         fs.write(f'{dest_base}a/diff', b'1'),
         fs.write(f'{src_base}a/src-only', b'123'),
         fs.write(f'{dest_base}a/dest-only', b'123'),
-
         fs.write(f'{src_base}b/same', b'123'),
         fs.write(f'{dest_base}b/same', b'123'),
         fs.write(f'{src_base}b/diff', b'123'),
@@ -105,7 +114,6 @@ async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore,
         fs.write(f'{src_base}b/src-only', b'123'),
         fs.write(f'{dest_base}b/dest-only', b'123'),
     )
-
 
     yield sema, fs, src_base, dest_base
 
@@ -132,15 +140,11 @@ async def test_diff(diff_test_context):
     else:
         assert False, result
 
-    expected = [
-        {'from': f'{src_base}src-only', 'to': f'{dest_base}', 'from_size': 3, 'to_size': None}
-    ]
+    expected = [{'from': f'{src_base}src-only', 'to': f'{dest_base}', 'from_size': 3, 'to_size': None}]
     actual = await diff(source=f'{src_base}src-only', target=f'{dest_base}')
     assert actual == expected
 
-    expected = [
-        {'from': f'{src_base}diff', 'to': f'{dest_base}diff', 'from_size': 3, 'to_size': 1}
-    ]
+    expected = [{'from': f'{src_base}diff', 'to': f'{dest_base}diff', 'from_size': 3, 'to_size': 1}]
     actual = await diff(source=f'{src_base}diff', target=f'{dest_base}diff')
     assert actual == expected
 

@@ -1,11 +1,9 @@
-from typing import (Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable,
-                    ClassVar)
+from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable, ClassVar
 import asyncio
 from contextlib import AsyncExitStack
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
-from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
-                 WritableStream, AsyncFSURL)
+from .fs import AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFSURL
 from .local_fs import LocalAsyncFS
 
 from hailtop.config import ConfigVariable, configuration_of
@@ -16,16 +14,18 @@ class RouterAsyncFS(AsyncFS):
         LocalAsyncFS,
         aiogoogle.GoogleStorageAsyncFS,
         aioazure.AzureAsyncFS,
-        aioaws.S3AsyncFS
+        aioaws.S3AsyncFS,
     ]
 
-    def __init__(self,
-                 *,
-                 local_kwargs: Optional[Dict[str, Any]] = None,
-                 gcs_kwargs: Optional[Dict[str, Any]] = None,
-                 azure_kwargs: Optional[Dict[str, Any]] = None,
-                 s3_kwargs: Optional[Dict[str, Any]] = None,
-                 gcs_bucket_allow_list: Optional[List[str]] = None):
+    def __init__(
+        self,
+        *,
+        local_kwargs: Optional[Dict[str, Any]] = None,
+        gcs_kwargs: Optional[Dict[str, Any]] = None,
+        azure_kwargs: Optional[Dict[str, Any]] = None,
+        s3_kwargs: Optional[Dict[str, Any]] = None,
+        gcs_bucket_allow_list: Optional[List[str]] = None,
+    ):
         self._local_fs: Optional[LocalAsyncFS] = None
         self._google_fs: Optional[aiogoogle.GoogleStorageAsyncFS] = None
         self._azure_fs: Optional[aioazure.AzureAsyncFS] = None
@@ -71,8 +71,7 @@ class RouterAsyncFS(AsyncFS):
         if aiogoogle.GoogleStorageAsyncFS.valid_url(url):
             if self._google_fs is None:
                 self._google_fs = aiogoogle.GoogleStorageAsyncFS(
-                    **self._gcs_kwargs,
-                    bucket_allow_list = self._gcs_bucket_allow_list.copy()
+                    **self._gcs_kwargs, bucket_allow_list=self._gcs_bucket_allow_list.copy()
                 )
                 self._exit_stack.push_async_callback(self._google_fs.close)
             return self._google_fs
@@ -100,11 +99,7 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.create(url, retry_writes=retry_writes)
 
-    async def multi_part_create(
-            self,
-            sema: asyncio.Semaphore,
-            url: str,
-            num_parts: int) -> MultiPartCreate:
+    async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
         fs = self._get_fs(url)
         return await fs.multi_part_create(sema, url, num_parts)
 
@@ -112,11 +107,9 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.statfile(url)
 
-    async def listfiles(self,
-                        url: str,
-                        recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True
-                        ) -> AsyncIterator[FileListEntry]:
+    async def listfiles(
+        self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
+    ) -> AsyncIterator[FileListEntry]:
         fs = self._get_fs(url)
         return await fs.listfiles(url, recursive, exclude_trailing_slash_files)
 
@@ -144,10 +137,9 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.remove(url)
 
-    async def rmtree(self,
-                     sema: Optional[asyncio.Semaphore],
-                     url: str,
-                     listener: Optional[Callable[[int], None]] = None) -> None:
+    async def rmtree(
+        self, sema: Optional[asyncio.Semaphore], url: str, listener: Optional[Callable[[int], None]] = None
+    ) -> None:
         fs = self._get_fs(url)
         return await fs.rmtree(sema, url, listener)
 
