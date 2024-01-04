@@ -27,9 +27,12 @@ class Stat:
 
 class StatIdentity(Stat):
     def make_agg(self, mapping, precomputed, scales):
-        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_scale_for_grouping(scales[aes_key])}
-        non_grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys() if aes_key not in grouping_variables}
+        grouping_variables = {
+            aes_key: mapping[aes_key] for aes_key in mapping.keys() if should_use_scale_for_grouping(scales[aes_key])
+        }
+        non_grouping_variables = {
+            aes_key: mapping[aes_key] for aes_key in mapping.keys() if aes_key not in grouping_variables
+        }
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(hl.struct(**non_grouping_variables)))
 
     def listify(self, agg_result) -> List[DataFrame]:
@@ -67,10 +70,13 @@ class StatNone(Stat):
 
 class StatCount(Stat):
     def make_agg(self, mapping, precomputed, scales):
-        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_scale_for_grouping(scales[aes_key])}
+        grouping_variables = {
+            aes_key: mapping[aes_key] for aes_key in mapping.keys() if should_use_scale_for_grouping(scales[aes_key])
+        }
         if "weight" in mapping:
-            return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.counter(mapping["x"], weight=mapping["weight"]))
+            return hl.agg.group_by(
+                hl.struct(**grouping_variables), hl.agg.counter(mapping["x"], weight=mapping["weight"])
+            )
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.group_by(mapping["x"], hl.agg.count()))
 
     def listify(self, agg_result) -> List[DataFrame]:
@@ -106,8 +112,9 @@ class StatBin(Stat):
         return hl.struct(**precomputes)
 
     def make_agg(self, mapping, precomputed, scales):
-        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_scale_for_grouping(scales[aes_key])}
+        grouping_variables = {
+            aes_key: mapping[aes_key] for aes_key in mapping.keys() if should_use_scale_for_grouping(scales[aes_key])
+        }
 
         start = self.min_val if self.min_val is not None else precomputed.min_val
         end = self.max_val if self.max_val is not None else precomputed.max_val
@@ -128,7 +135,7 @@ class StatBin(Stat):
         for grouped_struct, hist in items:
             data_rows = []
             y_values = hist.bin_freq
-            for i, x in enumerate(x_edges[:num_edges - 1]):
+            for i, x in enumerate(x_edges[: num_edges - 1]):
                 data_rows.append({"x": x, "y": y_values[i]})
             df = pd.DataFrame.from_records(data_rows)
             df.attrs.update(**grouped_struct)
@@ -141,8 +148,9 @@ class StatCDF(Stat):
         self.k = k
 
     def make_agg(self, mapping, precomputed, scales):
-        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_scale_for_grouping(scales[aes_key])}
+        grouping_variables = {
+            aes_key: mapping[aes_key] for aes_key in mapping.keys() if should_use_scale_for_grouping(scales[aes_key])
+        }
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.approx_cdf(mapping["x"], self.k))
 
     def listify(self, agg_result) -> List[DataFrame]:

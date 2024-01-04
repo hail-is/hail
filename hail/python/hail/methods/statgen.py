@@ -7,10 +7,21 @@ import hail
 import hail as hl
 import hail.expr.aggregators as agg
 from hail import ir
-from hail.expr import (Expression, ExpressionException, expr_float64, expr_call,
-                       expr_any, expr_numeric, expr_locus, analyze, raise_unless_entry_indexed,
-                       raise_unless_row_indexed, matrix_table_source, table_source,
-                       raise_unless_column_indexed)
+from hail.expr import (
+    Expression,
+    ExpressionException,
+    expr_float64,
+    expr_call,
+    expr_any,
+    expr_numeric,
+    expr_locus,
+    analyze,
+    raise_unless_entry_indexed,
+    raise_unless_row_indexed,
+    matrix_table_source,
+    table_source,
+    raise_unless_column_indexed,
+)
 from hail.expr.types import tbool, tarray, tfloat64, tint32
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
@@ -18,8 +29,7 @@ from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant
 from hail.stats import LinearMixedModel
 from hail.table import Table
-from hail.typecheck import (typecheck, nullable, numeric, oneof, sized_tupleof,
-                            sequenceof, enumeration, anytype)
+from hail.typecheck import typecheck, nullable, numeric, oneof, sized_tupleof, sequenceof, enumeration, anytype
 from hail.utils import wrap_to_list, new_temp_file, FatalError
 from hail.utils.java import Env, info, warning
 from . import pca
@@ -46,15 +56,18 @@ numerical_regression_fit_dtype = hl.tstruct(
     n_iterations=hl.tint32,
     log_lkhd=hl.tfloat64,
     converged=hl.tbool,
-    exploded=hl.tbool)
+    exploded=hl.tbool,
+)
 
 
-@typecheck(call=expr_call,
-           aaf_threshold=numeric,
-           include_par=bool,
-           female_threshold=numeric,
-           male_threshold=numeric,
-           aaf=nullable(str))
+@typecheck(
+    call=expr_call,
+    aaf_threshold=numeric,
+    include_par=bool,
+    female_threshold=numeric,
+    male_threshold=numeric,
+    aaf=nullable(str),
+)
 def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2, male_threshold=0.8, aaf=None) -> Table:
     r"""Impute sex of samples by calculating inbreeding coefficient on the
     X chromosome.
@@ -153,29 +166,26 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     mt, _ = mt._process_joins(call)
     mt = mt.annotate_entries(call=call)
     mt = require_biallelic(mt, 'impute_sex')
-    if (aaf is None):
+    if aaf is None:
         mt = mt.annotate_rows(aaf=agg.call_stats(mt.call, mt.alleles).AF[1])
         aaf = 'aaf'
 
     rg = mt.locus.dtype.reference_genome
-    mt = hl.filter_intervals(mt,
-                             hl.map(lambda x_contig: hl.parse_locus_interval(x_contig, rg), rg.x_contigs),
-                             keep=True)
+    mt = hl.filter_intervals(
+        mt, hl.map(lambda x_contig: hl.parse_locus_interval(x_contig, rg), rg.x_contigs), keep=True
+    )
     if not include_par:
         interval_type = hl.tarray(hl.tinterval(hl.tlocus(rg)))
-        mt = hl.filter_intervals(mt,
-                                 hl.literal(rg.par, interval_type),
-                                 keep=False)
+        mt = hl.filter_intervals(mt, hl.literal(rg.par, interval_type), keep=False)
 
     mt = mt.filter_rows((mt[aaf] > aaf_threshold) & (mt[aaf] < (1 - aaf_threshold)))
     mt = mt.annotate_cols(ib=agg.inbreeding(mt.call, mt[aaf]))
     kt = mt.select_cols(
-        is_female=hl.if_else(mt.ib.f_stat < female_threshold,
-                             True,
-                             hl.if_else(mt.ib.f_stat > male_threshold,
-                                        False,
-                                        hl.missing(tbool))),
-        **mt.ib).cols()
+        is_female=hl.if_else(
+            mt.ib.f_stat < female_threshold, True, hl.if_else(mt.ib.f_stat > male_threshold, False, hl.missing(tbool))
+        ),
+        **mt.ib,
+    ).cols()
 
     return kt
 
@@ -199,7 +209,9 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
             if not f._ir.is_nested_field:
                 raise ValueError(f"'{method}/pass_through': expect fields or nested fields, not complex expressions")
             if not f._indices == mt._row_indices:
-                raise ExpressionException(f"'{method}/pass_through': require row-indexed fields, found indices {f._indices.axes}")
+                raise ExpressionException(
+                    f"'{method}/pass_through': require row-indexed fields, found indices {f._indices.axes}"
+                )
             name = f._ir.name
             if name in row_fields:
                 # allow silent pass through of key fields
@@ -211,12 +223,14 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
     return row_fields
 
 
-@typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           block_size=int,
-           pass_through=sequenceof(oneof(str, Expression)),
-           weights=nullable(oneof(expr_float64, sequenceof(expr_float64))))
+@typecheck(
+    y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    block_size=int,
+    pass_through=sequenceof(oneof(str, Expression)),
+    weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
+)
 def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, weights=None) -> hail.Table:
     r"""For each row, test an input variable for association with
     response variables using linear regression.
@@ -339,12 +353,13 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
     if is_chained and any(len(lst) == 0 for lst in y):
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
-    y = [raise_unless_column_indexed('linear_regression_rows_nd/y', y) or ys
-         for ys in wrap_to_list(y)
-         for y in (ys if is_chained else [ys])
-         ]
+    y = [
+        raise_unless_column_indexed('linear_regression_rows_nd/y', y) or ys
+        for ys in wrap_to_list(y)
+        for y in (ys if is_chained else [ys])
+    ]
 
-    for e in (itertools.chain.from_iterable(y) if is_chained else y):
+    for e in itertools.chain.from_iterable(y) if is_chained else y:
         analyze('linear_regression_rows/y', e, mt._col_indices)
 
     for e in covariates:
@@ -368,11 +383,12 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
     row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**y_dict,
-                                       **dict(zip(cov_field_names, covariates))),
-                        row_exprs=row_fields,
-                        col_key=[],
-                        entry_exprs={x_field_name: x})
+    mt = mt._select_all(
+        col_exprs=dict(**y_dict, **dict(zip(cov_field_names, covariates))),
+        row_exprs=row_fields,
+        col_key=[],
+        entry_exprs={x_field_name: x},
+    )
 
     config = {
         'name': func,
@@ -380,7 +396,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
         'xField': x_field_name,
         'covFields': cov_field_names,
         'rowBlockSize': block_size,
-        'passThrough': [x for x in row_fields if x not in mt.row_key]
+        'passThrough': [x for x in row_fields if x not in mt.row_key],
     }
     ht_result = Table(ir.MatrixToTableApply(mt._mir, config))
 
@@ -391,12 +407,14 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
     return ht_result.persist()
 
 
-@typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           block_size=int,
-           weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
-           pass_through=sequenceof(oneof(str, Expression)))
+@typecheck(
+    y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    block_size=int,
+    weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
+    pass_through=sequenceof(oneof(str, Expression)),
+)
 def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pass_through=()) -> hail.Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
     raise_unless_entry_indexed('linear_regression_rows_nd/x', x)
@@ -409,10 +427,11 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     if is_chained and any(len(lst) == 0 for lst in y):
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
-    y = [raise_unless_column_indexed('linear_regression_rows_nd/y', y) or ys
-         for ys in wrap_to_list(y)
-         for y in (ys if is_chained else [ys])
-         ]
+    y = [
+        raise_unless_column_indexed('linear_regression_rows_nd/y', y) or ys
+        for ys in wrap_to_list(y)
+        for y in (ys if is_chained else [ys])
+    ]
 
     if weights is not None:
         if y_is_list and is_chained and not isinstance(weights, list):
@@ -424,7 +443,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
 
     weights = wrap_to_list(weights) if weights is not None else None
 
-    for e in (itertools.chain.from_iterable(y) if is_chained else y):
+    for e in itertools.chain.from_iterable(y) if is_chained else y:
         analyze('linear_regression_rows_nd/y', e, mt._col_indices)
 
     for e in covariates:
@@ -453,12 +472,12 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     row_field_names = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**y_dict,
-                                       **weight_dict,
-                                       **dict(zip(cov_field_names, covariates))),
-                        row_exprs=row_field_names,
-                        col_key=[],
-                        entry_exprs={x_field_name: x})
+    mt = mt._select_all(
+        col_exprs=dict(**y_dict, **weight_dict, **dict(zip(cov_field_names, covariates))),
+        row_exprs=row_field_names,
+        col_key=[],
+        entry_exprs={x_field_name: x},
+    )
 
     entries_field_name = 'ent'
     sample_field_name = "by_sample"
@@ -487,58 +506,110 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     def setup_globals(ht):
         # cov_arrays is per sample, then per cov.
         if covariates:
-            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
+            ht = ht.annotate_globals(
+                cov_arrays=ht[sample_field_name].map(
+                    lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]
+                )
+            )
         else:
-            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64)))
+            ht = ht.annotate_globals(
+                cov_arrays=ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))
+            )
 
-        y_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
+        y_arrays_per_group = [
+            ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set])
+            for one_y_field_name_set in y_field_name_groups
+        ]
 
         if weight_field_names:
-            weight_arrays = ht[sample_field_name].map(lambda sample_struct: [sample_struct[weight_name] for weight_name in weight_field_names])
+            weight_arrays = ht[sample_field_name].map(
+                lambda sample_struct: [sample_struct[weight_name] for weight_name in weight_field_names]
+            )
         else:
             weight_arrays = ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))
 
-        ht = ht.annotate_globals(
-            y_arrays_per_group=y_arrays_per_group,
-            weight_arrays=weight_arrays
-        )
+        ht = ht.annotate_globals(y_arrays_per_group=y_arrays_per_group, weight_arrays=weight_arrays)
         ht = ht.annotate_globals(all_covs_defined=ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs)))
 
         def get_kept_samples(group_idx, sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
-            return hl.enumerate(sample_ys).filter(
-                lambda idx_and_y_values: ht.all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
-            ).map(lambda idx_and_y_values: idx_and_y_values[0])
+            return (
+                hl.enumerate(sample_ys)
+                .filter(
+                    lambda idx_and_y_values: ht.all_covs_defined[idx_and_y_values[0]]
+                    & no_missing(idx_and_y_values[1])
+                    & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
+                )
+                .map(lambda idx_and_y_values: idx_and_y_values[0])
+            )
 
         ht = ht.annotate_globals(kept_samples=hl.enumerate(ht.y_arrays_per_group).starmap(get_kept_samples))
-        ht = ht.annotate_globals(y_nds=hl.zip(ht.kept_samples, ht.y_arrays_per_group).starmap(
-            lambda sample_indices, y_arrays: hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx]))))
-        ht = ht.annotate_globals(cov_nds=ht.kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx]))))
+        ht = ht.annotate_globals(
+            y_nds=hl.zip(ht.kept_samples, ht.y_arrays_per_group).starmap(
+                lambda sample_indices, y_arrays: hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx]))
+            )
+        )
+        ht = ht.annotate_globals(
+            cov_nds=ht.kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
+        )
 
         if weights is None:
             ht = ht.annotate_globals(sqrt_weights=hl.missing(hl.tarray(hl.tndarray(hl.tfloat64, 2))))
             ht = ht.annotate_globals(scaled_y_nds=ht.y_nds)
             ht = ht.annotate_globals(scaled_cov_nds=ht.cov_nds)
         else:
-            ht = ht.annotate_globals(weight_nds=hl.enumerate(ht.kept_samples).starmap(
-                lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: ht.weight_arrays[group_sample_idx][group_idx]))))
-            ht = ht.annotate_globals(sqrt_weights=ht.weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e))))
-            ht = ht.annotate_globals(scaled_y_nds=hl.zip(ht.y_nds, ht.sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1)))
-            ht = ht.annotate_globals(scaled_cov_nds=hl.zip(ht.cov_nds, ht.sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1)))
+            ht = ht.annotate_globals(
+                weight_nds=hl.enumerate(ht.kept_samples).starmap(
+                    lambda group_idx, group_sample_indices: hl.nd.array(
+                        group_sample_indices.map(lambda group_sample_idx: ht.weight_arrays[group_sample_idx][group_idx])
+                    )
+                )
+            )
+            ht = ht.annotate_globals(
+                sqrt_weights=ht.weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e)))
+            )
+            ht = ht.annotate_globals(
+                scaled_y_nds=hl.zip(ht.y_nds, ht.sqrt_weights).starmap(
+                    lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1)
+                )
+            )
+            ht = ht.annotate_globals(
+                scaled_cov_nds=hl.zip(ht.cov_nds, ht.sqrt_weights).starmap(
+                    lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1)
+                )
+            )
 
         k = builtins.len(covariates)
         ht = ht.annotate_globals(ns=ht.kept_samples.map(lambda one_sample_set: hl.len(one_sample_set)))
 
         def log_message(i):
             if is_chained:
-                return "linear regression_rows[" + hl.str(i) + "] running on " + hl.str(ht.ns[i]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+                return (
+                    "linear regression_rows["
+                    + hl.str(i)
+                    + "] running on "
+                    + hl.str(ht.ns[i])
+                    + " samples for "
+                    + hl.str(ht.scaled_y_nds[i].shape[1])
+                    + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+                )
             else:
-                return "linear_regression_rows running on " + hl.str(ht.ns[0]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+                return (
+                    "linear_regression_rows running on "
+                    + hl.str(ht.ns[0])
+                    + " samples for "
+                    + hl.str(ht.scaled_y_nds[i].shape[1])
+                    + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+                )
 
         ht = ht.annotate_globals(ns=hl.range(num_y_lists).map(lambda i: hl._console_log(log_message(i), ht.ns[i])))
-        ht = ht.annotate_globals(cov_Qts=hl.if_else(k > 0,
-                                 ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
-                                 ht.ns.map(lambda n: hl.nd.zeros((0, n)))))
+        ht = ht.annotate_globals(
+            cov_Qts=hl.if_else(
+                k > 0,
+                ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
+                ht.ns.map(lambda n: hl.nd.zeros((0, n))),
+            )
+        )
         ht = ht.annotate_globals(Qtys=hl.zip(ht.cov_Qts, ht.scaled_y_nds).starmap(lambda cov_qt, y: cov_qt @ y))
 
         return ht.select_globals(
@@ -549,7 +620,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             ds=ht.ns.map(lambda n: n - k - 1),
             __cov_Qts=ht.cov_Qts,
             __Qtys=ht.Qtys,
-            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.scaled_y_nds[i].T) - dot_rows_with_themselves(ht.Qtys[i].T)))
+            __yyps=hl.range(num_y_lists).map(
+                lambda i: dot_rows_with_themselves(ht.scaled_y_nds[i].T) - dot_rows_with_themselves(ht.Qtys[i].T)
+            ),
+        )
 
     ht = setup_globals(ht)
 
@@ -559,9 +633,20 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
         # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
             if weights is not None:
-                X = (hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))) * ht.__sqrt_weight_nds[idx]).T
+                X = (
+                    hl.nd.array(
+                        block[entries_field_name].map(
+                            lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx]))
+                        )
+                    )
+                    * ht.__sqrt_weight_nds[idx]
+                ).T
             else:
-                X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
+                X = hl.nd.array(
+                    block[entries_field_name].map(
+                        lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx]))
+                    )
+                ).T
             n = ht.ns[idx]
             sum_x = X.sum(0)
             Qtx = ht.__cov_Qts[idx] @ X
@@ -569,15 +654,28 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
             xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
             b = xyp * xxpRec
-            se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(lambda entry: hl.sqrt(entry))
+            se = ((1.0 / ht.ds[idx]) * (ht.__yyps[idx].reshape((-1, 1)) @ xxpRec.reshape((1, -1)) - (b * b))).map(
+                lambda entry: hl.sqrt(entry)
+            )
             t = b / se
-            return hl.rbind(t, lambda t:
-                            hl.rbind(ht.ds[idx], lambda d:
-                                     hl.rbind(t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False)), lambda p:
-                                              hl.struct(n=hl.range(rows_in_block).map(lambda i: n), sum_x=sum_x._data_array(),
-                                                        y_transpose_x=ytx.T._data_array(), beta=b.T._data_array(),
-                                                        standard_error=se.T._data_array(), t_stat=t.T._data_array(),
-                                                        p_value=p.T._data_array()))))
+            return hl.rbind(
+                t,
+                lambda t: hl.rbind(
+                    ht.ds[idx],
+                    lambda d: hl.rbind(
+                        t.map(lambda entry: 2 * hl.expr.functions.pT(-hl.abs(entry), d, True, False)),
+                        lambda p: hl.struct(
+                            n=hl.range(rows_in_block).map(lambda i: n),
+                            sum_x=sum_x._data_array(),
+                            y_transpose_x=ytx.T._data_array(),
+                            beta=b.T._data_array(),
+                            standard_error=se.T._data_array(),
+                            t_stat=t.T._data_array(),
+                            p_value=p.T._data_array(),
+                        ),
+                    ),
+                ),
+            )
 
         per_y_list = hl.range(num_y_lists).map(lambda i: process_y_group(i))
 
@@ -588,11 +686,10 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
             idxth_keys = {field_name: block[field_name][row_idx] for field_name in key_field_names}
             computed_row_field_names = ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
             computed_row_fields = {
-                field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx]) for field_name in computed_row_field_names
+                field_name: per_y_list.map(lambda one_y: one_y[field_name][row_idx])
+                for field_name in computed_row_field_names
             }
-            pass_through_rows = {
-                field_name: block[field_name][row_idx] for field_name in row_field_names
-            }
+            pass_through_rows = {field_name: block[field_name][row_idx] for field_name in row_field_names}
 
             if not is_chained:
                 computed_row_fields = {key: value[0] for key, value in computed_row_fields.items()}
@@ -621,21 +718,18 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
     return res
 
 
-@typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
-           y=oneof(expr_float64, sequenceof(expr_float64)),
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)),
-           max_iterations=nullable(int),
-           tolerance=nullable(float))
-def logistic_regression_rows(test,
-                             y,
-                             x,
-                             covariates,
-                             pass_through=(),
-                             *,
-                             max_iterations: Optional[int] = None,
-                             tolerance: Optional[float] = None) -> hail.Table:
+@typecheck(
+    test=enumeration('wald', 'lrt', 'score', 'firth'),
+    y=oneof(expr_float64, sequenceof(expr_float64)),
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    pass_through=sequenceof(oneof(str, Expression)),
+    max_iterations=nullable(int),
+    tolerance=nullable(float),
+)
+def logistic_regression_rows(
+    test, y, x, covariates, pass_through=(), *, max_iterations: Optional[int] = None, tolerance: Optional[float] = None
+) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -872,7 +966,8 @@ def logistic_regression_rows(test,
 
     if hl.current_backend().requires_lowering:
         return _logistic_regression_rows_nd(
-            test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance)
+            test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance
+        )
 
     if tolerance is None:
         tolerance = 1e-6
@@ -887,9 +982,7 @@ def logistic_regression_rows(test,
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
         raise ValueError("'logistic_regression_rows': found no values for 'y'")
-    y = [raise_unless_column_indexed('logistic_regression_rows/y', y) or y
-         for y in wrap_to_list(y)
-         ]
+    y = [raise_unless_column_indexed('logistic_regression_rows/y', y) or y for y in wrap_to_list(y)]
 
     for e in covariates:
         analyze('logistic_regression_rows/covariates', e, mt._col_indices)
@@ -905,11 +998,12 @@ def logistic_regression_rows(test,
     row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**y_dict,
-                                       **dict(zip(cov_field_names, covariates))),
-                        row_exprs=row_fields,
-                        col_key=[],
-                        entry_exprs={x_field_name: x})
+    mt = mt._select_all(
+        col_exprs=dict(**y_dict, **dict(zip(cov_field_names, covariates))),
+        row_exprs=row_fields,
+        col_key=[],
+        entry_exprs={x_field_name: x},
+    )
 
     config = {
         'name': 'LogisticRegression',
@@ -919,7 +1013,7 @@ def logistic_regression_rows(test,
         'covFields': cov_field_names,
         'passThrough': [x for x in row_fields if x not in mt.row_key],
         'maxIterations': max_iterations,
-        'tolerance': tolerance
+        'tolerance': tolerance,
     }
 
     result = Table(ir.MatrixToTableApply(mt._mir, config))
@@ -943,12 +1037,13 @@ def nd_max(hl_nd):
     return hl.max(hl.array(hl_nd.reshape(-1)))
 
 
-def logreg_fit(X: hl.NDArrayNumericExpression,  # (K,)
-               y: hl.NDArrayNumericExpression,  # (N, K)
-               null_fit: Optional[hl.StructExpression],
-               max_iterations: int,
-               tolerance: float
-               ) -> hl.StructExpression:
+def logreg_fit(
+    X: hl.NDArrayNumericExpression,  # (K,)
+    y: hl.NDArrayNumericExpression,  # (N, K)
+    null_fit: Optional[hl.StructExpression],
+    max_iterations: int,
+    tolerance: float,
+) -> hl.StructExpression:
     """Iteratively reweighted least squares to fit the model y ~ Bernoulli(logit(X \beta))
 
     When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
@@ -986,10 +1081,7 @@ def logreg_fit(X: hl.NDArrayNumericExpression,  # (K,)
         fisher10 = fisher01.T
         fisher11 = X1.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
 
-        fisher = hl.nd.vstack([
-            hl.nd.hstack([fisher00, fisher01]),
-            hl.nd.hstack([fisher10, fisher11])
-        ])
+        fisher = hl.nd.vstack([hl.nd.hstack([fisher00, fisher01]), hl.nd.hstack([fisher10, fisher11])])
 
     dtype = numerical_regression_fit_dtype
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
@@ -1003,14 +1095,31 @@ def logreg_fit(X: hl.NDArrayNumericExpression,  # (K,)
             next_score = X.T @ (y - next_mu)
             next_fisher = X.T @ (X * (next_mu * (1 - next_mu)).reshape(-1, 1))
 
-            return (hl.case()
-                    .when(exploded | hl.is_nan(delta_b[0]),
-                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True))
-                    .when(max_delta_b < tolerance,
-                          hl.struct(b=b, score=score, fisher=fisher, mu=mu, n_iterations=iteration, log_lkhd=log_lkhd, converged=True, exploded=False))
-                    .when(iteration == max_iterations,
-                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False))
-                    .default(recur(iteration + 1, next_b, next_mu, next_score, next_fisher)))
+            return (
+                hl.case()
+                .when(
+                    exploded | hl.is_nan(delta_b[0]),
+                    blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True),
+                )
+                .when(
+                    max_delta_b < tolerance,
+                    hl.struct(
+                        b=b,
+                        score=score,
+                        fisher=fisher,
+                        mu=mu,
+                        n_iterations=iteration,
+                        log_lkhd=log_lkhd,
+                        converged=True,
+                        exploded=False,
+                    ),
+                )
+                .when(
+                    iteration == max_iterations,
+                    blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False),
+                )
+                .default(recur(iteration + 1, next_b, next_mu, next_score, next_fisher))
+            )
 
         delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
         exploded = delta_b_struct.failed
@@ -1032,7 +1141,8 @@ def wald_test(X, fit):
         standard_error=se[X.shape[1] - 1],
         z_stat=z[X.shape[1] - 1],
         p_value=p[X.shape[1] - 1],
-        fit=fit.select('n_iterations', 'converged', 'exploded'))
+        fit=fit.select('n_iterations', 'converged', 'exploded'),
+    )
 
 
 def lrt_test(X, null_fit, fit):
@@ -1043,7 +1153,8 @@ def lrt_test(X, null_fit, fit):
         beta=fit.b[X.shape[1] - 1],
         chi_sq_stat=chi_sq,
         p_value=p,
-        fit=fit.select('n_iterations', 'converged', 'exploded'))
+        fit=fit.select('n_iterations', 'converged', 'exploded'),
+    )
 
 
 def logistic_score_test(X, y, null_fit):
@@ -1065,29 +1176,24 @@ def logistic_score_test(X, y, null_fit):
     fisher10 = fisher01.T
     fisher11 = X1.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
 
-    fisher = hl.nd.vstack([
-        hl.nd.hstack([fisher00, fisher01]),
-        hl.nd.hstack([fisher10, fisher11])
-    ])
+    fisher = hl.nd.vstack([hl.nd.hstack([fisher00, fisher01]), hl.nd.hstack([fisher10, fisher11])])
 
     solve_attempt = hl.nd.solve(fisher, score, no_crash=True)
 
-    chi_sq = hl.or_missing(
-        ~solve_attempt.failed,
-        (score * solve_attempt.solution).sum()
-    )
+    chi_sq = hl.or_missing(~solve_attempt.failed, (score * solve_attempt.solution).sum())
 
     p = hl.pchisqtail(chi_sq, m - m0)
 
     return hl.struct(chi_sq_stat=chi_sq, p_value=p)
 
 
-def _firth_fit(b: hl.NDArrayNumericExpression,  # (K,)
-               X: hl.NDArrayNumericExpression,  # (N, K)
-               y: hl.NDArrayNumericExpression,  # (N,)
-               max_iterations: int,
-               tolerance: float
-               ) -> hl.StructExpression:
+def _firth_fit(
+    b: hl.NDArrayNumericExpression,  # (K,)
+    X: hl.NDArrayNumericExpression,  # (N, K)
+    y: hl.NDArrayNumericExpression,  # (N,)
+    max_iterations: int,
+    tolerance: float,
+) -> hl.StructExpression:
     """Iteratively reweighted least squares using Firth's regression to fit the model y ~ Bernoulli(logit(X \beta))
 
     When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
@@ -1099,7 +1205,7 @@ def _firth_fit(b: hl.NDArrayNumericExpression,  # (K,)
 
     dtype = numerical_regression_fit_dtype._drop_fields(['score', 'fisher'])
     blank_struct = hl.struct(**{k: hl.missing(dtype[k]) for k in dtype})
-    X_bslice = X[:, :b.shape[0]]
+    X_bslice = X[:, : b.shape[0]]
 
     def fit(recur, iteration, b):
         def cont(exploded, delta_b, max_delta_b):
@@ -1109,14 +1215,22 @@ def _firth_fit(b: hl.NDArrayNumericExpression,  # (K,)
 
             next_b = b + delta_b
 
-            return (hl.case()
-                    .when(exploded | hl.is_nan(delta_b[0]),
-                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True))
-                    .when(max_delta_b < tolerance,
-                          hl.struct(b=b, mu=mu, n_iterations=iteration, log_lkhd=log_lkhd, converged=True, exploded=False))
-                    .when(iteration == max_iterations,
-                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False))
-                    .default(recur(iteration + 1, next_b)))
+            return (
+                hl.case()
+                .when(
+                    exploded | hl.is_nan(delta_b[0]),
+                    blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True),
+                )
+                .when(
+                    max_delta_b < tolerance,
+                    hl.struct(b=b, mu=mu, n_iterations=iteration, log_lkhd=log_lkhd, converged=True, exploded=False),
+                )
+                .when(
+                    iteration == max_iterations,
+                    blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False),
+                )
+                .default(recur(iteration + 1, next_b))
+            )
 
         m = b.shape[0]  # n_covariates or n_covariates + 1, depending on improved null fit vs full fit
         mu = sigmoid(X_bslice @ b)
@@ -1156,45 +1270,45 @@ def _firth_test(null_fit, X, y, max_iterations, tolerance) -> hl.StructExpressio
                 chi_sq_stat=hl.missing(hl.tfloat64),
                 p_value=hl.missing(hl.tfloat64),
                 firth_null_fit=hl.missing(firth_improved_null_fit.dtype),
-                fit=hl.missing(firth_fit.dtype)
+                fit=hl.missing(firth_fit.dtype),
             )
-            return (hl.case()
-                    .when(firth_improved_null_fit.converged,
-                          hl.case()
-                          .when(firth_fit.converged,
-                                hl.struct(
-                                    beta=firth_fit.b[firth_fit.b.shape[0] - 1],
-                                    chi_sq_stat=firth_chi_sq,
-                                    p_value=firth_p,
-                                    firth_null_fit=firth_improved_null_fit,
-                                    fit=firth_fit
-                                ))
-                          .default(blank_struct.annotate(
-                              firth_null_fit=firth_improved_null_fit,
-                              fit=firth_fit
-                          )))
-                    .default(blank_struct.annotate(
-                        firth_null_fit=firth_improved_null_fit
-                    )))
+            return (
+                hl.case()
+                .when(
+                    firth_improved_null_fit.converged,
+                    hl.case()
+                    .when(
+                        firth_fit.converged,
+                        hl.struct(
+                            beta=firth_fit.b[firth_fit.b.shape[0] - 1],
+                            chi_sq_stat=firth_chi_sq,
+                            p_value=firth_p,
+                            firth_null_fit=firth_improved_null_fit,
+                            fit=firth_fit,
+                        ),
+                    )
+                    .default(blank_struct.annotate(firth_null_fit=firth_improved_null_fit, fit=firth_fit)),
+                )
+                .default(blank_struct.annotate(firth_null_fit=firth_improved_null_fit))
+            )
+
         return hl.bind(cont2, firth_fit)
+
     return hl.bind(cont, firth_improved_null_fit)
 
 
-@typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
-           y=oneof(expr_float64, sequenceof(expr_float64)),
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)),
-           max_iterations=nullable(int),
-           tolerance=nullable(float))
-def _logistic_regression_rows_nd(test,
-                                 y,
-                                 x,
-                                 covariates,
-                                 pass_through=(),
-                                 *,
-                                 max_iterations: Optional[int] = None,
-                                 tolerance: Optional[float] = None) -> hail.Table:
+@typecheck(
+    test=enumeration('wald', 'lrt', 'score', 'firth'),
+    y=oneof(expr_float64, sequenceof(expr_float64)),
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    pass_through=sequenceof(oneof(str, Expression)),
+    max_iterations=nullable(int),
+    tolerance=nullable(float),
+)
+def _logistic_regression_rows_nd(
+    test, y, x, covariates, pass_through=(), *, max_iterations: Optional[int] = None, tolerance: Optional[float] = None
+) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -1427,9 +1541,7 @@ def _logistic_regression_rows_nd(test,
     if y_is_list and len(y) == 0:
         raise ValueError("'logistic_regression_rows': found no values for 'y'")
 
-    y = [raise_unless_column_indexed('logistic_regression_rows/y', y) or y
-         for y in wrap_to_list(y)
-         ]
+    y = [raise_unless_column_indexed('logistic_regression_rows/y', y) or y for y in wrap_to_list(y)]
 
     for e in covariates:
         analyze('logistic_regression_rows/covariates', e, mt._col_indices)
@@ -1448,16 +1560,19 @@ def _logistic_regression_rows_nd(test,
     mt = mt.filter_cols(hl.array(y + covariates).all(hl.is_defined))
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**y_dict,
-                                       **dict(zip(cov_field_names, covariates))),
-                        row_exprs=row_fields,
-                        col_key=[],
-                        entry_exprs={x_field_name: x})
+    mt = mt._select_all(
+        col_exprs=dict(**y_dict, **dict(zip(cov_field_names, covariates))),
+        row_exprs=row_fields,
+        col_key=[],
+        entry_exprs={x_field_name: x},
+    )
 
     ht = mt._localize_entries('entries', 'samples')
 
     # covmat rows are samples, columns are the different covariates
-    ht = ht.annotate_globals(covmat=hl.nd.array(ht.samples.map(lambda s: [s[cov_name] for cov_name in cov_field_names])))
+    ht = ht.annotate_globals(
+        covmat=hl.nd.array(ht.samples.map(lambda s: [s[cov_name] for cov_name in cov_field_names]))
+    )
 
     # yvecs is a list of sample-length vectors, one for each dependent variable.
     ht = ht.annotate_globals(yvecs=[hl.nd.array(ht.samples[y_name]) for y_name in y_field_names])
@@ -1467,16 +1582,29 @@ def _logistic_regression_rows_nd(test,
         def error_if_not_converged(null_fit):
             return (
                 hl.case()
-                .when(~null_fit.exploded,
-                      (hl.case()
-                       .when(null_fit.converged, null_fit)
-                       .or_error("Failed to fit logistic regression null model (standard MLE with covariates only): "
-                                 "Newton iteration failed to converge")))
-                .or_error(hl.format("Failed to fit logistic regression null model (standard MLE with covariates only): "
-                                    "exploded at Newton iteration %d", null_fit.n_iterations)))
+                .when(
+                    ~null_fit.exploded,
+                    (
+                        hl.case()
+                        .when(null_fit.converged, null_fit)
+                        .or_error(
+                            "Failed to fit logistic regression null model (standard MLE with covariates only): "
+                            "Newton iteration failed to converge"
+                        )
+                    ),
+                )
+                .or_error(
+                    hl.format(
+                        "Failed to fit logistic regression null model (standard MLE with covariates only): "
+                        "exploded at Newton iteration %d",
+                        null_fit.n_iterations,
+                    )
+                )
+            )
 
         null_fit = logreg_fit(ht.covmat, yvec, None, max_iterations=max_iterations, tolerance=tolerance)
         return hl.bind(error_if_not_converged, null_fit)
+
     ht = ht.annotate_globals(null_fits=ht.yvecs.map(fit_null))
 
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
@@ -1493,9 +1621,9 @@ def _logistic_regression_rows_nd(test,
             return wald_test(ht.covs_and_x, test_fit)
         assert test == 'lrt', test
         return lrt_test(ht.covs_and_x, null_fit, test_fit)
+
     ht = ht.select(
-        logistic_regression=hl.starmap(run_test, hl.zip(ht.yvecs, ht.null_fits)),
-        **{f: ht[f] for f in row_fields}
+        logistic_regression=hl.starmap(run_test, hl.zip(ht.yvecs, ht.null_fits)), **{f: ht[f] for f in row_fields}
     )
     assert 'null_fits' not in row_fields
     assert 'logistic_regression' not in row_fields
@@ -1509,21 +1637,18 @@ def _logistic_regression_rows_nd(test,
     return ht
 
 
-@typecheck(test=enumeration('wald', 'lrt', 'score'),
-           y=expr_float64,
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)),
-           max_iterations=int,
-           tolerance=nullable(float))
-def poisson_regression_rows(test,
-                            y,
-                            x,
-                            covariates,
-                            pass_through=(),
-                            *,
-                            max_iterations: int = 25,
-                            tolerance: Optional[float] = None) -> Table:
+@typecheck(
+    test=enumeration('wald', 'lrt', 'score'),
+    y=expr_float64,
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    pass_through=sequenceof(oneof(str, Expression)),
+    max_iterations=int,
+    tolerance=nullable(float),
+)
+def poisson_regression_rows(
+    test, y, x, covariates, pass_through=(), *, max_iterations: int = 25, tolerance: Optional[float] = None
+) -> Table:
     r"""For each row, test an input variable for association with a
     count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
 
@@ -1559,7 +1684,9 @@ def poisson_regression_rows(test,
 
     """
     if hl.current_backend().requires_lowering:
-        return _lowered_poisson_regression_rows(test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance)
+        return _lowered_poisson_regression_rows(
+            test, y, x, covariates, pass_through, max_iterations=max_iterations, tolerance=tolerance
+        )
 
     if tolerance is None:
         tolerance = 1e-6
@@ -1586,11 +1713,12 @@ def poisson_regression_rows(test,
     row_fields = _get_regression_row_fields(mt, pass_through, 'poisson_regression_rows')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
-                                       **dict(zip(cov_field_names, covariates))),
-                        row_exprs=row_fields,
-                        col_key=[],
-                        entry_exprs={x_field_name: x})
+    mt = mt._select_all(
+        col_exprs=dict(**{y_field_name: y}, **dict(zip(cov_field_names, covariates))),
+        row_exprs=row_fields,
+        col_key=[],
+        entry_exprs={x_field_name: x},
+    )
 
     config = {
         'name': 'PoissonRegression',
@@ -1600,27 +1728,24 @@ def poisson_regression_rows(test,
         'covFields': cov_field_names,
         'passThrough': [x for x in row_fields if x not in mt.row_key],
         'maxIterations': max_iterations,
-        'tolerance': tolerance
+        'tolerance': tolerance,
     }
 
     return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
 
 
-@typecheck(test=enumeration('wald', 'lrt', 'score'),
-           y=expr_float64,
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)),
-           max_iterations=int,
-           tolerance=nullable(float))
-def _lowered_poisson_regression_rows(test,
-                                     y,
-                                     x,
-                                     covariates,
-                                     pass_through=(),
-                                     *,
-                                     max_iterations: int = 25,
-                                     tolerance: Optional[float] = None):
+@typecheck(
+    test=enumeration('wald', 'lrt', 'score'),
+    y=expr_float64,
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    pass_through=sequenceof(oneof(str, Expression)),
+    max_iterations=int,
+    tolerance=nullable(float),
+)
+def _lowered_poisson_regression_rows(
+    test, y, x, covariates, pass_through=(), *, max_iterations: int = 25, tolerance: Optional[float] = None
+):
     assert max_iterations > 0
 
     if tolerance is None:
@@ -1637,37 +1762,35 @@ def _lowered_poisson_regression_rows(test,
 
     row_exprs = _get_regression_row_fields(mt, pass_through, '_lowered_poisson_regression_rows')
     mt = mt._select_all(
-        row_exprs=dict(
-            pass_through=hl.struct(**row_exprs)
-        ),
-        col_exprs=dict(
-            y=y,
-            covariates=covariates
-        ),
-        entry_exprs=dict(
-            x=x
-        )
+        row_exprs=dict(pass_through=hl.struct(**row_exprs)),
+        col_exprs=dict(y=y, covariates=covariates),
+        entry_exprs=dict(x=x),
     )
     # FIXME: the order of the columns is irrelevant to regression
     mt = mt.key_cols_by()
 
-    mt = mt.filter_cols(
-        hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)])
-    )
+    mt = mt.filter_cols(hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)]))
 
-    mt = mt.annotate_globals(**mt.aggregate_cols(hl.struct(
-        yvec=hl.agg.collect(hl.float(mt.y)),
-        covmat=hl.agg.collect(mt.covariates.map(hl.float)),
-        n=hl.agg.count()
-    ), _localize=False))
     mt = mt.annotate_globals(
-        yvec=(hl.case()
-              .when(mt.n - k - 1 >= 1, hl.nd.array(mt.yvec))
-              .or_error(hl.format(
-                  "_lowered_poisson_regression_rows: insufficient degrees of freedom: n=%s, k=%s",
-                  mt.n, k))),
+        **mt.aggregate_cols(
+            hl.struct(
+                yvec=hl.agg.collect(hl.float(mt.y)),
+                covmat=hl.agg.collect(mt.covariates.map(hl.float)),
+                n=hl.agg.count(),
+            ),
+            _localize=False,
+        )
+    )
+    mt = mt.annotate_globals(
+        yvec=(
+            hl.case()
+            .when(mt.n - k - 1 >= 1, hl.nd.array(mt.yvec))
+            .or_error(
+                hl.format("_lowered_poisson_regression_rows: insufficient degrees of freedom: n=%s, k=%s", mt.n, k)
+            )
+        ),
         covmat=hl.nd.array(mt.covmat),
-        n_complete_samples=mt.n
+        n_complete_samples=mt.n,
     )
     covmat = mt.covmat
     yvec = mt.yvec
@@ -1681,9 +1804,14 @@ def _lowered_poisson_regression_rows(test,
     fisher = (mu * covmat.T) @ covmat
     mt = mt.annotate_globals(null_fit=_poisson_fit(covmat, yvec, b, mu, score, fisher, max_iterations, tolerance))
     mt = mt.annotate_globals(
-        null_fit=hl.case().when(mt.null_fit.converged, mt.null_fit).or_error(
-            hl.format('_lowered_poisson_regression_rows: null model did not converge: %s',
-                      mt.null_fit.select('n_iterations', 'log_lkhd', 'converged', 'exploded')))
+        null_fit=hl.case()
+        .when(mt.null_fit.converged, mt.null_fit)
+        .or_error(
+            hl.format(
+                '_lowered_poisson_regression_rows: null model did not converge: %s',
+                mt.null_fit.select('n_iterations', 'log_lkhd', 'converged', 'exploded'),
+            )
+        )
     )
     mt = mt.annotate_rows(mean_x=hl.agg.mean(mt.x))
     mt = mt.annotate_rows(xvec=hl.nd.array(hl.agg.collect(hl.coalesce(mt.x, mt.mean_x))))
@@ -1697,11 +1825,7 @@ def _lowered_poisson_regression_rows(test,
 
     if test == 'score':
         chi_sq, p = _poisson_score_test(null_fit, covmat, yvec, xvec)
-        return ht.select(
-            chi_sq_stat=chi_sq,
-            p_value=p,
-            **ht.pass_through
-        ).select_globals('null_fit')
+        return ht.select(chi_sq_stat=chi_sq, p_value=p, **ht.pass_through).select_globals('null_fit')
 
     X = hl.nd.hstack([covmat, xvec.T.reshape(-1, 1)])
     b = hl.nd.hstack([null_fit.b, hl.nd.array([0.0])])
@@ -1713,35 +1837,27 @@ def _lowered_poisson_regression_rows(test,
     fisher01 = ((covmat.T * mu) @ xvec).reshape((-1, 1))
     fisher10 = fisher01.T
     fisher11 = hl.nd.array([[(mu * xvec.T) @ xvec]])
-    fisher = hl.nd.vstack([
-        hl.nd.hstack([fisher00, fisher01]),
-        hl.nd.hstack([fisher10, fisher11])
-    ])
+    fisher = hl.nd.vstack([hl.nd.hstack([fisher00, fisher01]), hl.nd.hstack([fisher10, fisher11])])
 
     test_fit = _poisson_fit(X, yvec, b, mu, score, fisher, max_iterations, tolerance)
     if test == 'lrt':
-        return ht.select(
-            test_fit=test_fit,
-            **lrt_test(X, null_fit, test_fit),
-            **ht.pass_through
-        ).select_globals('null_fit')
+        return ht.select(test_fit=test_fit, **lrt_test(X, null_fit, test_fit), **ht.pass_through).select_globals(
+            'null_fit'
+        )
     assert test == 'wald'
-    return ht.select(
-        test_fit=test_fit,
-        **wald_test(X, test_fit),
-        **ht.pass_through
-    ).select_globals('null_fit')
+    return ht.select(test_fit=test_fit, **wald_test(X, test_fit), **ht.pass_through).select_globals('null_fit')
 
 
-def _poisson_fit(X: hl.NDArrayNumericExpression,       # (N, K)
-                 y: hl.NDArrayNumericExpression,       # (N,)
-                 b: hl.NDArrayNumericExpression,       # (K,)
-                 mu: hl.NDArrayNumericExpression,      # (N,)
-                 score: hl.NDArrayNumericExpression,   # (K,)
-                 fisher: hl.NDArrayNumericExpression,  # (K, K)
-                 max_iterations: int,
-                 tolerance: float
-                 ) -> hl.StructExpression:
+def _poisson_fit(
+    X: hl.NDArrayNumericExpression,  # (N, K)
+    y: hl.NDArrayNumericExpression,  # (N,)
+    b: hl.NDArrayNumericExpression,  # (K,)
+    mu: hl.NDArrayNumericExpression,  # (N,)
+    score: hl.NDArrayNumericExpression,  # (K,)
+    fisher: hl.NDArrayNumericExpression,  # (K, K)
+    max_iterations: int,
+    tolerance: float,
+) -> hl.StructExpression:
     """Iteratively reweighted least squares to fit the model y ~ Poisson(exp(X \beta))
 
     When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
@@ -1766,14 +1882,31 @@ def _poisson_fit(X: hl.NDArrayNumericExpression,       # (N, K)
             next_score = X.T @ (y - next_mu)
             next_fisher = (next_mu * X.T) @ X
 
-            return (hl.case()
-                    .when(exploded | hl.is_nan(delta_b[0]),
-                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True))
-                    .when(max_delta_b < tolerance,
-                          hl.struct(b=b, score=score, fisher=fisher, mu=mu, n_iterations=iteration, log_lkhd=log_lkhd, converged=True, exploded=False))
-                    .when(iteration == max_iterations,
-                          blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False))
-                    .default(recur(iteration + 1, next_b, next_mu, next_score, next_fisher)))
+            return (
+                hl.case()
+                .when(
+                    exploded | hl.is_nan(delta_b[0]),
+                    blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=True),
+                )
+                .when(
+                    max_delta_b < tolerance,
+                    hl.struct(
+                        b=b,
+                        score=score,
+                        fisher=fisher,
+                        mu=mu,
+                        n_iterations=iteration,
+                        log_lkhd=log_lkhd,
+                        converged=True,
+                        exploded=False,
+                    ),
+                )
+                .when(
+                    iteration == max_iterations,
+                    blank_struct.annotate(n_iterations=iteration, log_lkhd=log_lkhd, converged=False, exploded=False),
+                )
+                .default(recur(iteration + 1, next_b, next_mu, next_score, next_fisher))
+            )
 
         delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
 
@@ -1799,26 +1932,15 @@ def _poisson_score_test(null_fit, covmat, y, xvec):
     fisher01 = ((mu * covmat.T) @ xvec).reshape((-1, 1))
     fisher10 = fisher01.T
     fisher11 = hl.nd.array([[(mu * xvec.T) @ xvec]])
-    fisher = hl.nd.vstack([
-        hl.nd.hstack([fisher00, fisher01]),
-        hl.nd.hstack([fisher10, fisher11])
-    ])
+    fisher = hl.nd.vstack([hl.nd.hstack([fisher00, fisher01]), hl.nd.hstack([fisher10, fisher11])])
 
     fisher_div_score = hl.nd.solve(fisher, score, no_crash=True)
-    chi_sq = hl.or_missing(~fisher_div_score.failed,
-                           score @ fisher_div_score.solution)
+    chi_sq = hl.or_missing(~fisher_div_score.failed, score @ fisher_div_score.solution)
     p = hl.pchisqtail(chi_sq, dof)
     return chi_sq, p
 
 
-def linear_mixed_model(y,
-                       x,
-                       z_t=None,
-                       k=None,
-                       p_path=None,
-                       overwrite=False,
-                       standardize=True,
-                       mean_impute=True):
+def linear_mixed_model(y, x, z_t=None, k=None, p_path=None, overwrite=False, standardize=True, mean_impute=True):
     r"""Initialize a linear mixed model from a matrix table.
 
     .. warning::
@@ -1828,20 +1950,18 @@ def linear_mixed_model(y,
     raise NotImplementedError("linear_mixed_model is no longer implemented/supported as of Hail 0.2.94")
 
 
-@typecheck(entry_expr=expr_float64,
-           model=LinearMixedModel,
-           pa_t_path=nullable(str),
-           a_t_path=nullable(str),
-           mean_impute=bool,
-           partition_size=nullable(int),
-           pass_through=sequenceof(oneof(str, Expression)))
-def linear_mixed_regression_rows(entry_expr,
-                                 model,
-                                 pa_t_path=None,
-                                 a_t_path=None,
-                                 mean_impute=True,
-                                 partition_size=None,
-                                 pass_through=()):
+@typecheck(
+    entry_expr=expr_float64,
+    model=LinearMixedModel,
+    pa_t_path=nullable(str),
+    a_t_path=nullable(str),
+    mean_impute=bool,
+    partition_size=nullable(int),
+    pass_through=sequenceof(oneof(str, Expression)),
+)
+def linear_mixed_regression_rows(
+    entry_expr, model, pa_t_path=None, a_t_path=None, mean_impute=True, partition_size=None, pass_through=()
+):
     """For each row, test an input variable for association using a linear
     mixed model.
 
@@ -1852,22 +1972,19 @@ def linear_mixed_regression_rows(entry_expr,
     raise NotImplementedError("linear_mixed_model is no longer implemented/supported as of Hail 0.2.94")
 
 
-@typecheck(group=expr_any,
-           weight=expr_float64,
-           y=expr_float64,
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           max_size=int,
-           accuracy=numeric,
-           iterations=int)
-def _linear_skat(group,
-                 weight,
-                 y,
-                 x,
-                 covariates,
-                 max_size: int = 46340,
-                 accuracy: float = 1e-6,
-                 iterations: int = 10000):
+@typecheck(
+    group=expr_any,
+    weight=expr_float64,
+    y=expr_float64,
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    max_size=int,
+    accuracy=numeric,
+    iterations=int,
+)
+def _linear_skat(
+    group, weight, y, x, covariates, max_size: int = 46340, accuracy: float = 1e-6, iterations: int = 10000
+):
     r'''The linear sequence kernel association test (SKAT).
 
     Linear SKAT tests if the phenotype, `y`, is significantly associated with the genotype, `x`. For
@@ -2133,31 +2250,13 @@ def _linear_skat(group,
         raise ValueError('_linear_skat: at least one covariate is required.')
     _warn_if_no_intercept('_linear_skat', covariates)
     mt = mt._select_all(
-        row_exprs=dict(
-            group=group,
-            weight=weight
-        ),
-        col_exprs=dict(
-            y=y,
-            covariates=covariates
-        ),
-        entry_exprs=dict(
-            x=x
-        )
+        row_exprs=dict(group=group, weight=weight), col_exprs=dict(y=y, covariates=covariates), entry_exprs=dict(x=x)
     )
-    mt = mt.filter_cols(
-        hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)])
+    mt = mt.filter_cols(hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)]))
+    yvec, covmat, n = mt.aggregate_cols(
+        (hl.agg.collect(hl.float(mt.y)), hl.agg.collect(mt.covariates.map(hl.float)), hl.agg.count()), _localize=False
     )
-    yvec, covmat, n = mt.aggregate_cols((
-        hl.agg.collect(hl.float(mt.y)),
-        hl.agg.collect(mt.covariates.map(hl.float)),
-        hl.agg.count()
-    ), _localize=False)
-    mt = mt.annotate_globals(
-        yvec=hl.nd.array(yvec),
-        covmat=hl.nd.array(covmat),
-        n_complete_samples=n
-    )
+    mt = mt.annotate_globals(yvec=hl.nd.array(yvec), covmat=hl.nd.array(covmat), n_complete_samples=n)
     # Instead of finding the best-fit beta, we go directly to the best-predicted value using the
     # reduced QR decomposition:
     #
@@ -2175,37 +2274,24 @@ def _linear_skat(group,
     #            = Q Q^T y
     #
     covmat_Q, _ = hl.nd.qr(mt.covmat)
-    mt = mt.annotate_globals(
-        covmat_Q=covmat_Q
-    )
+    mt = mt.annotate_globals(covmat_Q=covmat_Q)
     null_mu = mt.covmat_Q @ (mt.covmat_Q.T @ mt.yvec)
     y_residual = mt.yvec - null_mu
-    mt = mt.annotate_globals(
-        y_residual=y_residual,
-        s2=y_residual @ y_residual.T / (n - k)
-    )
-    mt = mt.annotate_rows(
-        G_row_mean=hl.agg.mean(mt.x)
-    )
-    mt = mt.annotate_rows(
-        G_row=hl.agg.collect(hl.coalesce(mt.x, mt.G_row_mean))
-    )
+    mt = mt.annotate_globals(y_residual=y_residual, s2=y_residual @ y_residual.T / (n - k))
+    mt = mt.annotate_rows(G_row_mean=hl.agg.mean(mt.x))
+    mt = mt.annotate_rows(G_row=hl.agg.collect(hl.coalesce(mt.x, mt.G_row_mean)))
     ht = mt.rows()
     ht = ht.filter(hl.all(hl.is_defined(ht.group), hl.is_defined(ht.weight)))
-    ht = ht.group_by(
-        'group'
-    ).aggregate(
+    ht = ht.group_by('group').aggregate(
         weight_take=hl.agg.take(ht.weight, n=max_size + 1),
         G_take=hl.agg.take(ht.G_row, n=max_size + 1),
-        size=hl.agg.count()
+        size=hl.agg.count(),
     )
     ht = ht.annotate(
         weight=hl.nd.array(hl.or_missing(hl.len(ht.weight_take) <= max_size, ht.weight_take)),
-        G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T
+        G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T,
     )
-    ht = ht.annotate(
-        Q=((ht.y_residual @ ht.G).map(lambda x: x**2) * ht.weight).sum(0)
-    )
+    ht = ht.annotate(Q=((ht.y_residual @ ht.G).map(lambda x: x**2) * ht.weight).sum(0))
 
     # Null model:
     #
@@ -2286,11 +2372,20 @@ def _linear_skat(group,
     #             = W S^2 W
 
     weights_arr = hl.array(ht.weight)
-    A = hl.case().when(
-        hl.all(weights_arr.map(lambda x: x >= 0)),
-        (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G)) * hl.sqrt(ht.weight)
-    ).or_error(hl.format('hl._linear_skat: every weight must be positive, in group %s, the weights were: %s',
-                         ht.group, weights_arr))
+    A = (
+        hl.case()
+        .when(
+            hl.all(weights_arr.map(lambda x: x >= 0)),
+            (ht.G - ht.covmat_Q @ (ht.covmat_Q.T @ ht.G)) * hl.sqrt(ht.weight),
+        )
+        .or_error(
+            hl.format(
+                'hl._linear_skat: every weight must be positive, in group %s, the weights were: %s',
+                ht.group,
+                weights_arr,
+            )
+        )
+    )
     singular_values = hl.nd.svd(A, compute_uv=False)
 
     # SVD(M) = U S V. U and V are unitary, therefore SVD(k M) = U (k S) V.
@@ -2309,7 +2404,7 @@ def _linear_skat(group,
         mu=0,
         sigma=0,
         min_accuracy=accuracy,
-        max_iterations=iterations
+        max_iterations=iterations,
     )
     ht = ht.select(
         'size',
@@ -2324,31 +2419,35 @@ def _linear_skat(group,
         #
         # Ergo, we want to check the right-tail of the distribution.
         p_value=1.0 - genchisq_data.value,
-        fault=genchisq_data.fault
+        fault=genchisq_data.fault,
     )
     return ht.select_globals('y_residual', 's2', 'n_complete_samples')
 
 
-@typecheck(group=expr_any,
-           weight=expr_float64,
-           y=expr_float64,
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           max_size=int,
-           null_max_iterations=int,
-           null_tolerance=float,
-           accuracy=numeric,
-           iterations=int)
-def _logistic_skat(group,
-                   weight,
-                   y,
-                   x,
-                   covariates,
-                   max_size: int = 46340,
-                   null_max_iterations: int = 25,
-                   null_tolerance: float = 1e-6,
-                   accuracy: float = 1e-6,
-                   iterations: int = 10000):
+@typecheck(
+    group=expr_any,
+    weight=expr_float64,
+    y=expr_float64,
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    max_size=int,
+    null_max_iterations=int,
+    null_tolerance=float,
+    accuracy=numeric,
+    iterations=int,
+)
+def _logistic_skat(
+    group,
+    weight,
+    y,
+    x,
+    covariates,
+    max_size: int = 46340,
+    null_max_iterations: int = 25,
+    null_tolerance: float = 1e-6,
+    accuracy: float = 1e-6,
+    iterations: int = 10000,
+):
     r'''The logistic sequence kernel association test (SKAT).
 
     Logistic SKAT tests if the phenotype, `y`, is significantly associated with the genotype,
@@ -2656,67 +2755,47 @@ def _logistic_skat(group,
         raise ValueError('_logistic_skat: at least one covariate is required.')
     _warn_if_no_intercept('_logistic_skat', covariates)
     mt = mt._select_all(
-        row_exprs=dict(
-            group=group,
-            weight=weight
-        ),
-        col_exprs=dict(
-            y=y,
-            covariates=covariates
-        ),
-        entry_exprs=dict(
-            x=x
-        )
+        row_exprs=dict(group=group, weight=weight), col_exprs=dict(y=y, covariates=covariates), entry_exprs=dict(x=x)
     )
-    mt = mt.filter_cols(
-        hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)])
-    )
+    mt = mt.filter_cols(hl.all(hl.is_defined(mt.y), *[hl.is_defined(mt.covariates[i]) for i in range(k)]))
     if mt.y.dtype != hl.tbool:
         mt = mt.annotate_cols(
-            y=(hl.case()
-               .when(hl.any(mt.y == 0, mt.y == 1), hl.bool(mt.y))
-               .or_error(hl.format(
-                   f'hl._logistic_skat: phenotypes must either be True, False, 0, or 1, found: %s of type {mt.y.dtype}', mt.y)))
+            y=(
+                hl.case()
+                .when(hl.any(mt.y == 0, mt.y == 1), hl.bool(mt.y))
+                .or_error(
+                    hl.format(
+                        f'hl._logistic_skat: phenotypes must either be True, False, 0, or 1, found: %s of type {mt.y.dtype}',
+                        mt.y,
+                    )
+                )
+            )
         )
-    yvec, covmat, n = mt.aggregate_cols((
-        hl.agg.collect(hl.float(mt.y)),
-        hl.agg.collect(mt.covariates.map(hl.float)),
-        hl.agg.count()
-    ), _localize=False)
-    mt = mt.annotate_globals(
-        yvec=hl.nd.array(yvec),
-        covmat=hl.nd.array(covmat),
-        n_complete_samples=n
+    yvec, covmat, n = mt.aggregate_cols(
+        (hl.agg.collect(hl.float(mt.y)), hl.agg.collect(mt.covariates.map(hl.float)), hl.agg.count()), _localize=False
     )
+    mt = mt.annotate_globals(yvec=hl.nd.array(yvec), covmat=hl.nd.array(covmat), n_complete_samples=n)
     null_fit = logreg_fit(mt.covmat, mt.yvec, None, max_iterations=null_max_iterations, tolerance=null_tolerance)
     mt = mt.annotate_globals(
-        null_fit=hl.case().when(null_fit.converged, null_fit).or_error(
-            hl.format('hl._logistic_skat: null model did not converge: %s', null_fit))
+        null_fit=hl.case()
+        .when(null_fit.converged, null_fit)
+        .or_error(hl.format('hl._logistic_skat: null model did not converge: %s', null_fit))
     )
     null_mu = mt.null_fit.mu
     y_residual = mt.yvec - null_mu
-    mt = mt.annotate_globals(
-        y_residual=y_residual,
-        s2=null_mu * (1 - null_mu)
-    )
-    mt = mt.annotate_rows(
-        G_row_mean=hl.agg.mean(mt.x)
-    )
-    mt = mt.annotate_rows(
-        G_row=hl.agg.collect(hl.coalesce(mt.x, mt.G_row_mean))
-    )
+    mt = mt.annotate_globals(y_residual=y_residual, s2=null_mu * (1 - null_mu))
+    mt = mt.annotate_rows(G_row_mean=hl.agg.mean(mt.x))
+    mt = mt.annotate_rows(G_row=hl.agg.collect(hl.coalesce(mt.x, mt.G_row_mean)))
     ht = mt.rows()
     ht = ht.filter(hl.all(hl.is_defined(ht.group), hl.is_defined(ht.weight)))
-    ht = ht.group_by(
-        'group'
-    ).aggregate(
+    ht = ht.group_by('group').aggregate(
         weight_take=hl.agg.take(ht.weight, n=max_size + 1),
         G_take=hl.agg.take(ht.G_row, n=max_size + 1),
-        size=hl.agg.count()
+        size=hl.agg.count(),
     )
     ht = ht.annotate(
         weight=hl.nd.array(hl.or_missing(hl.len(ht.weight_take) <= max_size, ht.weight_take)),
-        G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T
+        G=hl.nd.array(hl.or_missing(hl.len(ht.G_take) <= max_size, ht.G_take)).T,
     )
     ht = ht.annotate(
         # Q=ht.y_residual @ (ht.G * ht.weight) @ ht.G.T @ ht.y_residual.T
@@ -2729,11 +2808,17 @@ def _logistic_skat(group,
     Q, _ = hl.nd.qr(ht.covmat * sqrtv.reshape(-1, 1))
     weights_arr = hl.array(ht.weight)
     G_scaled = ht.G * sqrtv.reshape(-1, 1)
-    A = hl.case().when(
-        hl.all(weights_arr.map(lambda x: x >= 0)),
-        (G_scaled - Q @ (Q.T @ G_scaled)) * hl.sqrt(ht.weight)
-    ).or_error(hl.format('hl._logistic_skat: every weight must be positive, in group %s, the weights were: %s',
-                         ht.group, weights_arr))
+    A = (
+        hl.case()
+        .when(hl.all(weights_arr.map(lambda x: x >= 0)), (G_scaled - Q @ (Q.T @ G_scaled)) * hl.sqrt(ht.weight))
+        .or_error(
+            hl.format(
+                'hl._logistic_skat: every weight must be positive, in group %s, the weights were: %s',
+                ht.group,
+                weights_arr,
+            )
+        )
+    )
     singular_values = hl.nd.svd(A, compute_uv=False)
     eigenvalues = singular_values.map(lambda x: x**2)
 
@@ -2750,7 +2835,7 @@ def _logistic_skat(group,
         mu=0,
         sigma=0,
         min_accuracy=accuracy,
-        max_iterations=iterations
+        max_iterations=iterations,
     )
     ht = ht.select(
         'size',
@@ -2765,29 +2850,33 @@ def _logistic_skat(group,
         #
         # Ergo, we want to check the right-tail of the distribution.
         p_value=1.0 - genchisq_data.value,
-        fault=genchisq_data.fault
+        fault=genchisq_data.fault,
     )
     return ht.select_globals('y_residual', 's2', 'n_complete_samples', 'null_fit')
 
 
-@typecheck(key_expr=expr_any,
-           weight_expr=expr_float64,
-           y=expr_float64,
-           x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           logistic=oneof(bool, sized_tupleof(nullable(int), nullable(float))),
-           max_size=int,
-           accuracy=numeric,
-           iterations=int)
-def skat(key_expr,
-         weight_expr,
-         y,
-         x,
-         covariates,
-         logistic: Union[bool, Tuple[int, float]] = False,
-         max_size: int = 46340,
-         accuracy: float = 1e-6,
-         iterations: int = 10000) -> Table:
+@typecheck(
+    key_expr=expr_any,
+    weight_expr=expr_float64,
+    y=expr_float64,
+    x=expr_float64,
+    covariates=sequenceof(expr_float64),
+    logistic=oneof(bool, sized_tupleof(nullable(int), nullable(float))),
+    max_size=int,
+    accuracy=numeric,
+    iterations=int,
+)
+def skat(
+    key_expr,
+    weight_expr,
+    y,
+    x,
+    covariates,
+    logistic: Union[bool, Tuple[int, float]] = False,
+    max_size: int = 46340,
+    accuracy: float = 1e-6,
+    iterations: int = 10000,
+) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
 
@@ -2929,10 +3018,7 @@ def skat(key_expr,
     """
     if hl.current_backend().requires_lowering:
         if logistic:
-            kwargs = {
-                'accuracy': accuracy,
-                'iterations': iterations
-            }
+            kwargs = {'accuracy': accuracy, 'iterations': iterations}
             if logistic is not True:
                 null_max_iterations, null_tolerance = logistic
                 kwargs['null_max_iterations'] = null_max_iterations
@@ -2969,11 +3055,11 @@ def skat(key_expr,
     key_field_name = '__key'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
-                                       **dict(zip(cov_field_names, covariates))),
-                        row_exprs={weight_field_name: weight_expr,
-                                   key_field_name: key_expr},
-                        entry_exprs=entry_expr)
+    mt = mt._select_all(
+        col_exprs=dict(**{y_field_name: y}, **dict(zip(cov_field_names, covariates))),
+        row_exprs={weight_field_name: weight_expr, key_field_name: key_expr},
+        entry_exprs=entry_expr,
+    )
 
     if logistic is True:
         use_logistic = True
@@ -3000,14 +3086,13 @@ def skat(key_expr,
         'accuracy': accuracy,
         'iterations': iterations,
         'logistic_max_iterations': max_iterations,
-        'logistic_tolerance': tolerance
+        'logistic_tolerance': tolerance,
     }
 
     return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
 
 
-@typecheck(p_value=expr_numeric,
-           approximate=bool)
+@typecheck(p_value=expr_numeric, approximate=bool)
 def lambda_gc(p_value, approximate=True):
     """
     Compute genomic inflation factor (lambda GC) from an Expression of p-values.
@@ -3032,8 +3117,7 @@ def lambda_gc(p_value, approximate=True):
     return t.aggregate(med_chisq)
 
 
-@typecheck(p_value=expr_numeric,
-           approximate=bool)
+@typecheck(p_value=expr_numeric, approximate=bool)
 def _lambda_gc_agg(p_value, approximate=True):
     chisq = hl.qchisqtail(p_value, 1)
     if approximate:
@@ -3043,10 +3127,7 @@ def _lambda_gc_agg(p_value, approximate=True):
     return med_chisq / hl.qchisqtail(0.5, 1)
 
 
-@typecheck(ds=oneof(Table, MatrixTable),
-           keep_star=bool,
-           left_aligned=bool,
-           permit_shuffle=bool)
+@typecheck(ds=oneof(Table, MatrixTable), keep_star=bool, left_aligned=bool, permit_shuffle=bool)
 def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False):
     """Split multiallelic variants.
 
@@ -3152,25 +3233,23 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
         kept_alleles = kept_alleles.filter(lambda i: old_row.alleles[i] != "*")
 
     def new_struct(variant, i):
-        return hl.struct(alleles=variant.alleles,
-                         locus=variant.locus,
-                         a_index=i,
-                         was_split=hl.len(old_row.alleles) > 2)
+        return hl.struct(alleles=variant.alleles, locus=variant.locus, a_index=i, was_split=hl.len(old_row.alleles) > 2)
 
     def split_rows(expr, rekey):
         if isinstance(ds, MatrixTable):
-            mt = (ds.annotate_rows(**{new_id: expr})
-                  .explode_rows(new_id))
+            mt = ds.annotate_rows(**{new_id: expr}).explode_rows(new_id)
             if rekey:
                 mt = mt.key_rows_by()
             else:
                 mt = mt.key_rows_by('locus')
-            new_row_expr = mt._rvrow.annotate(locus=mt[new_id]['locus'],
-                                              alleles=mt[new_id]['alleles'],
-                                              a_index=mt[new_id]['a_index'],
-                                              was_split=mt[new_id]['was_split'],
-                                              old_locus=mt.locus,
-                                              old_alleles=mt.alleles).drop(new_id)
+            new_row_expr = mt._rvrow.annotate(
+                locus=mt[new_id]['locus'],
+                alleles=mt[new_id]['alleles'],
+                a_index=mt[new_id]['a_index'],
+                was_split=mt[new_id]['was_split'],
+                old_locus=mt.locus,
+                old_alleles=mt.alleles,
+            ).drop(new_id)
 
             mt = mt._select_rows('split_multi', new_row_expr)
             if rekey:
@@ -3179,18 +3258,19 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
                 return MatrixTable(ir.MatrixKeyRowsBy(mt._mir, ['locus', 'alleles'], is_sorted=True))
         else:
             assert isinstance(ds, Table)
-            ht = (ds.annotate(**{new_id: expr})
-                  .explode(new_id))
+            ht = ds.annotate(**{new_id: expr}).explode(new_id)
             if rekey:
                 ht = ht.key_by()
             else:
                 ht = ht.key_by('locus')
-            new_row_expr = ht.row.annotate(locus=ht[new_id]['locus'],
-                                           alleles=ht[new_id]['alleles'],
-                                           a_index=ht[new_id]['a_index'],
-                                           was_split=ht[new_id]['was_split'],
-                                           old_locus=ht.locus,
-                                           old_alleles=ht.alleles).drop(new_id)
+            new_row_expr = ht.row.annotate(
+                locus=ht[new_id]['locus'],
+                alleles=ht[new_id]['alleles'],
+                a_index=ht[new_id]['a_index'],
+                was_split=ht[new_id]['was_split'],
+                old_locus=ht.locus,
+                old_alleles=ht.alleles,
+            ).drop(new_id)
 
             ht = ht._select('split_multi', new_row_expr)
             if rekey:
@@ -3199,22 +3279,25 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
                 return Table(ir.TableKeyBy(ht._tir, ['locus', 'alleles'], is_sorted=True))
 
     if left_aligned:
+
         def make_struct(i):
             def error_on_moved(v):
-                return (hl.case()
-                        .when(v.locus == old_row.locus, new_struct(v, i))
-                        .or_error("Found non-left-aligned variant in split_multi"))
-            return hl.bind(error_on_moved,
-                           hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+                return (
+                    hl.case()
+                    .when(v.locus == old_row.locus, new_struct(v, i))
+                    .or_error("Found non-left-aligned variant in split_multi")
+                )
+
+            return hl.bind(error_on_moved, hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+
         return split_rows(hl.sorted(kept_alleles.map(make_struct)), permit_shuffle)
     else:
+
         def make_struct(i, cond):
             def struct_or_empty(v):
-                return (hl.case()
-                        .when(cond(v.locus), hl.array([new_struct(v, i)]))
-                        .or_missing())
-            return hl.bind(struct_or_empty,
-                           hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
+                return hl.case().when(cond(v.locus), hl.array([new_struct(v, i)])).or_missing()
+
+            return hl.bind(struct_or_empty, hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
 
         def make_array(cond):
             return hl.sorted(kept_alleles.flatmap(lambda i: make_struct(i, cond)))
@@ -3224,11 +3307,7 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
     return left.union(moved) if is_table else left.union_rows(moved, _check_cols=False)
 
 
-@typecheck(ds=oneof(Table, MatrixTable),
-           keep_star=bool,
-           left_aligned=bool,
-           vep_root=str,
-           permit_shuffle=bool)
+@typecheck(ds=oneof(Table, MatrixTable), keep_star=bool, left_aligned=bool, vep_root=str, permit_shuffle=bool)
 def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, permit_shuffle=False):
     """Split multiallelic variants for datasets that contain one or more fields
     from a standard high-throughput sequencing entry schema.
@@ -3407,10 +3486,17 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     row_fields = set(ds.row)
     update_rows_expression = {}
     if vep_root in row_fields:
-        update_rows_expression[vep_root] = split[vep_root].annotate(**{
-            x: split[vep_root][x].filter(lambda csq: csq.allele_num == split.a_index)
-            for x in ('intergenic_consequences', 'motif_feature_consequences',
-                      'regulatory_feature_consequences', 'transcript_consequences')})
+        update_rows_expression[vep_root] = split[vep_root].annotate(
+            **{
+                x: split[vep_root][x].filter(lambda csq: csq.allele_num == split.a_index)
+                for x in (
+                    'intergenic_consequences',
+                    'motif_feature_consequences',
+                    'regulatory_feature_consequences',
+                    'transcript_consequences',
+                )
+            }
+        )
 
     if isinstance(ds, Table):
         return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
@@ -3425,7 +3511,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
         'GQ': hl.tint,
         'PL': hl.tarray(hl.tint),
         'PGT': hl.tcall,
-        'PID': hl.tstr
+        'PID': hl.tstr,
     }
 
     bad_fields = []
@@ -3443,16 +3529,29 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     if 'DP' in entry_fields:
         update_entries_expression['DP'] = split.DP
     if 'AD' in entry_fields:
-        update_entries_expression['AD'] = hl.or_missing(hl.is_defined(split.AD),
-                                                        [hl.sum(split.AD) - split.AD[split.a_index], split.AD[split.a_index]])
+        update_entries_expression['AD'] = hl.or_missing(
+            hl.is_defined(split.AD), [hl.sum(split.AD) - split.AD[split.a_index], split.AD[split.a_index]]
+        )
     if 'PL' in entry_fields:
         pl = hl.or_missing(
             hl.is_defined(split.PL),
-            (hl.range(0, 3).map(lambda i:
-                                hl.min((hl.range(0, hl.triangle(split.old_alleles.length()))
-                                        .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j),
-                                                                      split.a_index).unphased_diploid_gt_index() == i
-                                                ).map(lambda j: split.PL[j]))))))
+            (
+                hl.range(0, 3).map(
+                    lambda i: hl.min(
+                        (
+                            hl.range(0, hl.triangle(split.old_alleles.length()))
+                            .filter(
+                                lambda j: hl.downcode(
+                                    hl.unphased_diploid_gt_index_call(j), split.a_index
+                                ).unphased_diploid_gt_index()
+                                == i
+                            )
+                            .map(lambda j: split.PL[j])
+                        )
+                    )
+                )
+            ),
+        )
         if 'GQ' in entry_fields:
             update_entries_expression['PL'] = pl
             update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
@@ -3531,8 +3630,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
     raise_unless_entry_indexed('genetic_relatedness_matrix/call_expr', call_expr)
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
-    mt = mt.select_rows(__AC=agg.sum(mt.__gt),
-                        __n_called=agg.count_where(hl.is_defined(mt.__gt)))
+    mt = mt.select_rows(__AC=agg.sum(mt.__gt), __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
 
     mt = mt.select_rows(__mean_gt=mt.__AC / mt.__n_called)
@@ -3604,11 +3702,12 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     raise_unless_entry_indexed('realized_relationship_matrix/call_expr', call_expr)
 
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
-    mt = mt.select_rows(__AC=agg.sum(mt.__gt),
-                        __ACsq=agg.sum(mt.__gt * mt.__gt),
-                        __n_called=agg.count_where(hl.is_defined(mt.__gt)))
-    mt = mt.select_rows(__mean_gt=mt.__AC / mt.__n_called,
-                        __centered_length=hl.sqrt(mt.__ACsq - (mt.__AC ** 2) / mt.__n_called))
+    mt = mt.select_rows(
+        __AC=agg.sum(mt.__gt), __ACsq=agg.sum(mt.__gt * mt.__gt), __n_called=agg.count_where(hl.is_defined(mt.__gt))
+    )
+    mt = mt.select_rows(
+        __mean_gt=mt.__AC / mt.__n_called, __centered_length=hl.sqrt(mt.__ACsq - (mt.__AC**2) / mt.__n_called)
+    )
     fmt = mt.filter_rows(mt.__centered_length > 0.1)  # truly non-zero values are at least sqrt(0.5)
 
     normalized_gt = hl.or_else((fmt.__gt - fmt.__mean_gt) / fmt.__centered_length, 0.0)
@@ -3617,8 +3716,10 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
         bm = BlockMatrix.from_entry_expr(normalized_gt)
         return (bm.T @ bm) / (bm.n_rows / bm.n_cols)
     except FatalError as fe:
-        raise FatalError("Could not convert MatrixTable to BlockMatrix. It's possible all variants were dropped by variance filter.\n"
-                         "Check that the input MatrixTable has at least two samples in it:  mt.count_cols().") from fe
+        raise FatalError(
+            "Could not convert MatrixTable to BlockMatrix. It's possible all variants were dropped by variance filter.\n"
+            "Check that the input MatrixTable has at least two samples in it:  mt.count_cols()."
+        ) from fe
 
 
 @typecheck(entry_expr=expr_float64, block_size=nullable(int))
@@ -3721,11 +3822,13 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     return bm @ bm.T
 
 
-@typecheck(entry_expr=expr_float64,
-           locus_expr=expr_locus(),
-           radius=oneof(int, float),
-           coord_expr=nullable(expr_float64),
-           block_size=nullable(int))
+@typecheck(
+    entry_expr=expr_float64,
+    locus_expr=expr_locus(),
+    radius=oneof(int, float),
+    coord_expr=nullable(expr_float64),
+    block_size=nullable(int),
+)
 def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) -> BlockMatrix:
     """Computes the windowed correlation (linkage disequilibrium) matrix between
     variants.
@@ -3854,33 +3957,38 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
         Row and column indices correspond to matrix table variant index.
     """
     starts_and_stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr, _localize=False)
-    starts_and_stops = hl.tuple([starts_and_stops[0].map(lambda i: hl.int64(i)), starts_and_stops[1].map(lambda i: hl.int64(i))])
+    starts_and_stops = hl.tuple(
+        [starts_and_stops[0].map(lambda i: hl.int64(i)), starts_and_stops[1].map(lambda i: hl.int64(i))]
+    )
     ld = hl.row_correlation(entry_expr, block_size)
     return ld._sparsify_row_intervals_expr(starts_and_stops, blocks_only=False)
 
 
-@typecheck(n_populations=int,
-           n_samples=int,
-           n_variants=int,
-           n_partitions=nullable(int),
-           pop_dist=nullable(sequenceof(numeric)),
-           fst=nullable(sequenceof(numeric)),
-           af_dist=nullable(expr_any),
-           reference_genome=reference_genome_type,
-           mixture=bool,
-           phased=bool)
-def balding_nichols_model(n_populations: int,
-                          n_samples: int,
-                          n_variants: int,
-                          n_partitions: Optional[int] = None,
-                          pop_dist: Optional[List[int]] = None,
-                          fst: Optional[List[Union[float, int]]] = None,
-                          af_dist: Optional[hl.Expression] = None,
-                          reference_genome: str = 'default',
-                          mixture: bool = False,
-                          *,
-                          phased: bool = False
-                          ) -> MatrixTable:
+@typecheck(
+    n_populations=int,
+    n_samples=int,
+    n_variants=int,
+    n_partitions=nullable(int),
+    pop_dist=nullable(sequenceof(numeric)),
+    fst=nullable(sequenceof(numeric)),
+    af_dist=nullable(expr_any),
+    reference_genome=reference_genome_type,
+    mixture=bool,
+    phased=bool,
+)
+def balding_nichols_model(
+    n_populations: int,
+    n_samples: int,
+    n_variants: int,
+    n_partitions: Optional[int] = None,
+    pop_dist: Optional[List[int]] = None,
+    fst: Optional[List[Union[float, int]]] = None,
+    af_dist: Optional[hl.Expression] = None,
+    reference_genome: str = 'default',
+    mixture: bool = False,
+    *,
+    phased: bool = False,
+) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols or Pritchard-Stephens-Donnelly model.
 
@@ -4079,41 +4187,47 @@ def balding_nichols_model(n_populations: int,
         n_partitions = max(8, int(n_samples * n_variants / (128 * 1024 * 1024)))
 
     # verify args
-    for name, var in {"populations": n_populations,
-                      "samples": n_samples,
-                      "variants": n_variants,
-                      "partitions": n_partitions}.items():
+    for name, var in {
+        "populations": n_populations,
+        "samples": n_samples,
+        "variants": n_variants,
+        "partitions": n_partitions,
+    }.items():
         if var < 1:
             raise ValueError("n_{} must be positive, got {}".format(name, var))
 
     for name, var in {"pop_dist": pop_dist, "fst": fst}.items():
         if len(var) != n_populations:
-            raise ValueError("{} must be of length n_populations={}, got length {}"
-                             .format(name, n_populations, len(var)))
+            raise ValueError(
+                "{} must be of length n_populations={}, got length {}".format(name, n_populations, len(var))
+            )
 
     if any(x < 0 for x in pop_dist):
-        raise ValueError("pop_dist must be non-negative, got {}"
-                         .format(pop_dist))
+        raise ValueError("pop_dist must be non-negative, got {}".format(pop_dist))
 
     if any(x <= 0 or x >= 1 for x in fst):
-        raise ValueError("elements of fst must satisfy 0 < x < 1, got {}"
-                         .format(fst))
+        raise ValueError("elements of fst must satisfy 0 < x < 1, got {}".format(fst))
 
     # verify af_dist
     if not af_dist._is_scalar:
-        raise ExpressionException('balding_nichols_model expects af_dist to '
-                                  + 'have scalar arguments: found expression '
-                                  + 'from source {}'
-                                  .format(af_dist._indices.source))
+        raise ExpressionException(
+            'balding_nichols_model expects af_dist to '
+            + 'have scalar arguments: found expression '
+            + 'from source {}'.format(af_dist._indices.source)
+        )
 
     if af_dist.dtype != tfloat64:
         raise ValueError("af_dist must be a hail function with return type tfloat64.")
 
-    info("balding_nichols_model: generating genotypes for {} populations, {} samples, and {} variants..."
-         .format(n_populations, n_samples, n_variants))
+    info(
+        "balding_nichols_model: generating genotypes for {} populations, {} samples, and {} variants...".format(
+            n_populations, n_samples, n_variants
+        )
+    )
 
     # generate matrix table
     from numpy import linspace
+
     n_partitions = min(n_partitions, n_variants)
     start_idxs = [int(x) for x in linspace(0, n_variants, n_partitions + 1)]
     idx_bounds = list(zip(start_idxs, start_idxs[1:]))
@@ -4130,19 +4244,17 @@ def balding_nichols_model(n_populations: int,
                 n_partitions=n_partitions,
                 pop_dist=pop_dist,
                 fst=fst,
-                mixture=mixture
+                mixture=mixture,
             ),
-            cols=hl.range(n_samples).map(
-                lambda idx: hl.struct(sample_idx=idx, pop=pop_f(pop_dist))
-            )
+            cols=hl.range(n_samples).map(lambda idx: hl.struct(sample_idx=idx, pop=pop_f(pop_dist))),
         ),
         partitions=[
-            hl.Interval(**{
-                endpoint: hl.Struct(
-                    locus=reference_genome.locus_from_global_position(idx),
-                    alleles=['A', 'C']
-                ) for endpoint, idx in [('start', lo), ('end', hi)]
-            })
+            hl.Interval(
+                **{
+                    endpoint: hl.Struct(locus=reference_genome.locus_from_global_position(idx), alleles=['A', 'C'])
+                    for endpoint, idx in [('start', lo), ('end', hi)]
+                }
+            )
             for (lo, hi) in idx_bounds
         ],
         rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(
@@ -4156,9 +4268,9 @@ def balding_nichols_model(n_populations: int,
                     ),
                     entries=hl.repeat(hl.struct(), n_samples),
                 ),
-                af_dist
+                af_dist,
             )
-        )
+        ),
     )
 
     bn = bn._unlocalize_entries('entries', 'cols', ['sample_idx'])
@@ -4172,13 +4284,12 @@ def balding_nichols_model(n_populations: int,
         dad = hl.rand_bool(p)
         return bn.select_entries(GT=hl.call(mom, dad, phased=True))
 
-    idx = hl.rand_cat([q ** 2, 2 * p * q, p ** 2])
+    idx = hl.rand_cat([q**2, 2 * p * q, p**2])
     return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 
 @typecheck(mt=MatrixTable, f=anytype)
-def filter_alleles(mt: MatrixTable,
-                   f: Callable) -> MatrixTable:
+def filter_alleles(mt: MatrixTable, f: Callable) -> MatrixTable:
     """Filter alternate alleles.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -4267,15 +4378,13 @@ def filter_alleles(mt: MatrixTable,
     inclusion = hl.range(0, hl.len(mt.alleles)).map(lambda i: (i == 0) | hl.bind(lambda ii: f(mt.alleles[ii], ii), i))
 
     # old locus, old alleles, new to old, old to new
-    mt = mt.annotate_rows(__allele_inclusion=inclusion,
-                          old_locus=mt.locus,
-                          old_alleles=mt.alleles)
-    new_to_old = (hl.enumerate(mt.__allele_inclusion)
-                  .filter(lambda elt: elt[1])
-                  .map(lambda elt: elt[0]))
-    old_to_new_dict = (hl.dict(hl.enumerate(hl.enumerate(mt.alleles)
-                                            .filter(lambda elt: mt.__allele_inclusion[elt[0]]))
-                               .map(lambda elt: (elt[1][1], elt[0]))))
+    mt = mt.annotate_rows(__allele_inclusion=inclusion, old_locus=mt.locus, old_alleles=mt.alleles)
+    new_to_old = hl.enumerate(mt.__allele_inclusion).filter(lambda elt: elt[1]).map(lambda elt: elt[0])
+    old_to_new_dict = hl.dict(
+        hl.enumerate(hl.enumerate(mt.alleles).filter(lambda elt: mt.__allele_inclusion[elt[0]])).map(
+            lambda elt: (elt[1][1], elt[0])
+        )
+    )
 
     old_to_new = hl.bind(lambda d: mt.alleles.map(lambda a: d.get(a)), old_to_new_dict)
     mt = mt.annotate_rows(old_to_new=old_to_new, new_to_old=new_to_old)
@@ -4290,9 +4399,7 @@ def filter_alleles(mt: MatrixTable,
 
 
 @typecheck(mt=MatrixTable, f=anytype, subset=bool)
-def filter_alleles_hts(mt: MatrixTable,
-                       f: Callable,
-                       subset: bool = False) -> MatrixTable:
+def filter_alleles_hts(mt: MatrixTable, f: Callable, subset: bool = False) -> MatrixTable:
     """Filter alternate alleles and update standard GATK entry fields.
 
     Examples
@@ -4476,11 +4583,14 @@ def filter_alleles_hts(mt: MatrixTable,
     :class:`.MatrixTable`
     """
     if mt.entry.dtype != hl.hts_entry_schema:
-        raise FatalError("'filter_alleles_hts': entry schema must be the HTS entry schema:\n"
-                         "  found: {}\n"
-                         "  expected: {}\n"
-                         "  Use 'hl.filter_alleles' to split entries with non-HTS entry fields.".format(
-                             mt.entry.dtype, hl.hts_entry_schema))
+        raise FatalError(
+            "'filter_alleles_hts': entry schema must be the HTS entry schema:\n"
+            "  found: {}\n"
+            "  expected: {}\n"
+            "  Use 'hl.filter_alleles' to split entries with non-HTS entry fields.".format(
+                mt.entry.dtype, hl.hts_entry_schema
+            )
+        )
 
     mt = filter_alleles(mt, f)
 
@@ -4491,53 +4601,70 @@ def filter_alleles_hts(mt: MatrixTable,
                 lambda unnorm: unnorm - hl.min(unnorm),
                 hl.range(0, hl.triangle(mt.alleles.length())).map(
                     lambda newi: hl.bind(
-                        lambda newc: mt.PL[hl.call(mt.new_to_old[newc[0]],
-                                                   mt.new_to_old[newc[1]]).unphased_diploid_gt_index()],
-                        hl.unphased_diploid_gt_index_call(newi)))),
-            hl.missing(tarray(tint32)))
+                        lambda newc: mt.PL[
+                            hl.call(mt.new_to_old[newc[0]], mt.new_to_old[newc[1]]).unphased_diploid_gt_index()
+                        ],
+                        hl.unphased_diploid_gt_index_call(newi),
+                    )
+                ),
+            ),
+            hl.missing(tarray(tint32)),
+        )
         return mt.annotate_entries(
             GT=hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
             AD=hl.if_else(
                 hl.is_defined(mt.AD),
-                hl.range(0, mt.alleles.length()).map(
-                    lambda newi: mt.AD[mt.new_to_old[newi]]),
-                hl.missing(tarray(tint32))),
+                hl.range(0, mt.alleles.length()).map(lambda newi: mt.AD[mt.new_to_old[newi]]),
+                hl.missing(tarray(tint32)),
+            ),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
-            PL=newPL)
+            PL=newPL,
+        )
     # otherwise downcode
     else:
         mt = mt.annotate_rows(__old_to_new_no_na=mt.old_to_new.map(lambda x: hl.or_else(x, 0)))
         newPL = hl.if_else(
             hl.is_defined(mt.PL),
-            (hl.range(0, hl.triangle(hl.len(mt.alleles)))
-             .map(lambda newi: hl.min(hl.range(0, hl.triangle(hl.len(mt.old_alleles)))
-                                      .filter(lambda oldi: hl.bind(
-                                          lambda oldc: hl.call(mt.__old_to_new_no_na[oldc[0]],
-                                                               mt.__old_to_new_no_na[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi),
-                                          hl.unphased_diploid_gt_index_call(oldi)))
-                                      .map(lambda oldi: mt.PL[oldi])))),
-            hl.missing(tarray(tint32)))
+            (
+                hl.range(0, hl.triangle(hl.len(mt.alleles))).map(
+                    lambda newi: hl.min(
+                        hl.range(0, hl.triangle(hl.len(mt.old_alleles)))
+                        .filter(
+                            lambda oldi: hl.bind(
+                                lambda oldc: hl.call(mt.__old_to_new_no_na[oldc[0]], mt.__old_to_new_no_na[oldc[1]])
+                                == hl.unphased_diploid_gt_index_call(newi),
+                                hl.unphased_diploid_gt_index_call(oldi),
+                            )
+                        )
+                        .map(lambda oldi: mt.PL[oldi])
+                    )
+                )
+            ),
+            hl.missing(tarray(tint32)),
+        )
         return mt.annotate_entries(
-            GT=hl.call(mt.__old_to_new_no_na[mt.GT[0]],
-                       mt.__old_to_new_no_na[mt.GT[1]]),
+            GT=hl.call(mt.__old_to_new_no_na[mt.GT[0]], mt.__old_to_new_no_na[mt.GT[1]]),
             AD=hl.if_else(
                 hl.is_defined(mt.AD),
-                (hl.range(0, hl.len(mt.alleles))
-                 .map(lambda newi: hl.sum(hl.range(0, hl.len(mt.old_alleles))
-                                          .filter(lambda oldi: mt.__old_to_new_no_na[oldi] == newi)
-                                          .map(lambda oldi: mt.AD[oldi])))),
-                hl.missing(tarray(tint32))),
+                (
+                    hl.range(0, hl.len(mt.alleles)).map(
+                        lambda newi: hl.sum(
+                            hl.range(0, hl.len(mt.old_alleles))
+                            .filter(lambda oldi: mt.__old_to_new_no_na[oldi] == newi)
+                            .map(lambda oldi: mt.AD[oldi])
+                        )
+                    )
+                ),
+                hl.missing(tarray(tint32)),
+            ),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
-            PL=newPL).drop('__old_to_new_no_na')
+            PL=newPL,
+        ).drop('__old_to_new_no_na')
 
 
-@typecheck(mt=MatrixTable,
-           call_field=str,
-           r2=numeric,
-           bp_window_size=int,
-           memory_per_core=int)
+@typecheck(mt=MatrixTable, call_field=str, r2=numeric, bp_window_size=int, memory_per_core=int)
 def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_core=256):
     bytes_per_core = memory_per_core * 1024 * 1024
     fraction_memory_to_use = 0.25
@@ -4553,21 +4680,28 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
-    return Table(ir.MatrixToTableApply(mt._mir, {
-        'name': 'LocalLDPrune',
-        'callField': call_field,
-        'r2Threshold': float(r2),
-        'windowSize': bp_window_size,
-        'maxQueueSize': max_queue_size
-    })).persist()
+    return Table(
+        ir.MatrixToTableApply(
+            mt._mir,
+            {
+                'name': 'LocalLDPrune',
+                'callField': call_field,
+                'r2Threshold': float(r2),
+                'windowSize': bp_window_size,
+                'maxQueueSize': max_queue_size,
+            },
+        )
+    ).persist()
 
 
-@typecheck(call_expr=expr_call,
-           r2=numeric,
-           bp_window_size=int,
-           memory_per_core=int,
-           keep_higher_maf=bool,
-           block_size=nullable(int))
+@typecheck(
+    call_expr=expr_call,
+    r2=numeric,
+    bp_window_size=int,
+    memory_per_core=int,
+    keep_higher_maf=bool,
+    block_size=nullable(int),
+)
 def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, keep_higher_maf=True, block_size=None):
     """Returns a maximal subset of variants that are nearly uncorrelated within each window.
 
@@ -4669,18 +4803,19 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     mt = mt.select_rows().select_cols()
     mt = mt.distinct_by_row()
     locally_pruned_table_path = new_temp_file()
-    (_local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core)
-        .write(locally_pruned_table_path, overwrite=True))
+    (
+        _local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core).write(
+            locally_pruned_table_path, overwrite=True
+        )
+    )
     locally_pruned_table = hl.read_table(locally_pruned_table_path).add_index()
 
     mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
     mt = mt.filter_rows(hl.is_defined(mt.info)).unfilter_entries()
 
     std_gt_bm = BlockMatrix.from_entry_expr(
-        hl.or_else(
-            (mt[field].n_alt_alleles() - mt.info.mean) * mt.info.centered_length_rec,
-            0.0),
-        block_size=block_size)
+        hl.or_else((mt[field].n_alt_alleles() - mt.info.mean) * mt.info.centered_length_rec, 0.0), block_size=block_size
+    )
     r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
     _, stops = hl.linalg.utils.locus_windows(locally_pruned_table.locus, bp_window_size)
@@ -4695,42 +4830,56 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         fields = ['locus']
 
     info = locally_pruned_table.aggregate(
-        hl.agg.collect(locally_pruned_table.row.select('idx', *fields)), _localize=False)
+        hl.agg.collect(locally_pruned_table.row.select('idx', *fields)), _localize=False
+    )
     info = hl.sorted(info, key=lambda x: x.idx)
 
     entries = entries.annotate_globals(info=info)
 
     entries = entries.filter(
         (entries.info[entries.i].locus.contig == entries.info[entries.j].locus.contig)
-        & (entries.info[entries.j].locus.position - entries.info[entries.i].locus.position <= bp_window_size))
+        & (entries.info[entries.j].locus.position - entries.info[entries.i].locus.position <= bp_window_size)
+    )
 
     if keep_higher_maf:
         entries = entries.annotate(
-            i=hl.struct(idx=entries.i,
-                        twice_maf=hl.min(entries.info[entries.i].mean, 2.0 - entries.info[entries.i].mean)),
-            j=hl.struct(idx=entries.j,
-                        twice_maf=hl.min(entries.info[entries.j].mean, 2.0 - entries.info[entries.j].mean)))
+            i=hl.struct(
+                idx=entries.i, twice_maf=hl.min(entries.info[entries.i].mean, 2.0 - entries.info[entries.i].mean)
+            ),
+            j=hl.struct(
+                idx=entries.j, twice_maf=hl.min(entries.info[entries.j].mean, 2.0 - entries.info[entries.j].mean)
+            ),
+        )
 
         def tie_breaker(left, right):
             return hl.sign(right.twice_maf - left.twice_maf)
+
     else:
         tie_breaker = None
 
     variants_to_remove = hl.maximal_independent_set(
-        entries.i, entries.j, keep=False, tie_breaker=tie_breaker, keyed=False)
+        entries.i, entries.j, keep=False, tie_breaker=tie_breaker, keyed=False
+    )
 
     locally_pruned_table = locally_pruned_table.annotate_globals(
         variants_to_remove=variants_to_remove.aggregate(
-            hl.agg.collect_as_set(variants_to_remove.node.idx), _localize=False))
-    return locally_pruned_table.filter(
-        locally_pruned_table.variants_to_remove.contains(hl.int32(locally_pruned_table.idx)),
-        keep=False
-    ).select().persist()
+            hl.agg.collect_as_set(variants_to_remove.node.idx), _localize=False
+        )
+    )
+    return (
+        locally_pruned_table.filter(
+            locally_pruned_table.variants_to_remove.contains(hl.int32(locally_pruned_table.idx)), keep=False
+        )
+        .select()
+        .persist()
+    )
 
 
 def _warn_if_no_intercept(caller, covariates):
     if all([e._indices.axes for e in covariates]):
-        warning(f'{caller}: model appears to have no intercept covariate.'
-                '\n    To include an intercept, add 1.0 to the list of covariates.')
+        warning(
+            f'{caller}: model appears to have no intercept covariate.'
+            '\n    To include an intercept, add 1.0 to the list of covariates.'
+        )
         return True
     return False

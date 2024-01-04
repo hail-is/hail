@@ -62,4 +62,4 @@ def submit(
             )
             break
         tries += 1
-        sync_sleep_before_try(tries, base_delay_ms = 10)
+        sync_sleep_before_try(tries, base_delay_ms=10)

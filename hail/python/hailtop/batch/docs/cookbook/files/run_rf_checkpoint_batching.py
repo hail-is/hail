@@ -20,11 +20,7 @@ def random_forest(df_x_path: str, df_y_path: str, window_name: str, cores: int =
 
     # run random forest
     max_features = 3 / 4
-    rf = RandomForestRegressor(n_estimators=100,
-                               n_jobs=cores,
-                               max_features=max_features,
-                               oob_score=True,
-                               verbose=False)
+    rf = RandomForestRegressor(n_estimators=100, n_jobs=cores, max_features=max_features, oob_score=True, verbose=False)
 
     rf.fit(x_train, y_train)
 

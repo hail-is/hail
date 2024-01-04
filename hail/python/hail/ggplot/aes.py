@@ -4,7 +4,6 @@ from hail import literal
 
 
 class Aesthetic(Mapping):
-
     def __init__(self, properties):
         self.properties = properties
 

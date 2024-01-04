@@ -19,15 +19,11 @@ class DeployConfig:
         return DeployConfig(
             env_var_or_default('location', config),
             env_var_or_default('default_namespace', config),
-            env_var_or_default('domain', config)
+            env_var_or_default('domain', config),
         )
 
     def get_config(self) -> Dict[str, str]:
-        return {
-            'location': self._location,
-            'default_namespace': self._default_namespace,
-            'domain': self._domain
-        }
+        return {'location': self._location, 'default_namespace': self._default_namespace, 'domain': self._domain}
 
     @staticmethod
     def from_config_file(config_file=None) -> 'DeployConfig':
@@ -35,7 +31,8 @@ class DeployConfig:
             config_file,
             os.environ.get('HAIL_DEPLOY_CONFIG_FILE'),
             os.path.expanduser('~/.hail/deploy-config.json'),
-            '/deploy-config/deploy-config.json')
+            '/deploy-config/deploy-config.json',
+        )
         if config_file is not None:
             log.info(f'deploy config file found at {config_file}')
             with open(config_file, 'r', encoding='utf-8') as f:
@@ -112,6 +109,7 @@ class DeployConfig:
 
     def prefix_application(self, app, service, **kwargs):
         from aiohttp import web  # pylint: disable=import-outside-toplevel
+
         base_path = self.base_path(service)
         if not base_path:
             return app

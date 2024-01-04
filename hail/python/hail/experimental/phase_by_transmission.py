@@ -4,17 +4,19 @@ from hail.expr.expressions import expr_str, expr_call, expr_locus, expr_array
 from typing import List
 
 
-@typecheck(locus=expr_locus(),
-           alleles=expr_array(expr_str),
-           proband_call=expr_call,
-           father_call=expr_call,
-           mother_call=expr_call)
+@typecheck(
+    locus=expr_locus(),
+    alleles=expr_array(expr_str),
+    proband_call=expr_call,
+    father_call=expr_call,
+    mother_call=expr_call,
+)
 def phase_by_transmission(
-        locus: hl.expr.LocusExpression,
-        alleles: hl.expr.ArrayExpression,
-        proband_call: hl.expr.CallExpression,
-        father_call: hl.expr.CallExpression,
-        mother_call: hl.expr.CallExpression
+    locus: hl.expr.LocusExpression,
+    alleles: hl.expr.ArrayExpression,
+    proband_call: hl.expr.CallExpression,
+    father_call: hl.expr.CallExpression,
+    mother_call: hl.expr.CallExpression,
 ) -> hl.expr.ArrayExpression:
     """Phases genotype calls in a trio based allele transmission.
 
@@ -62,7 +64,9 @@ def phase_by_transmission(
     :class:`.ArrayExpression`
         Array containing: [phased proband call, phased father call, phased mother call]"""
 
-    def call_to_one_hot_alleles_array(call: hl.expr.CallExpression, alleles: hl.expr.ArrayExpression) -> hl.expr.ArrayExpression:
+    def call_to_one_hot_alleles_array(
+        call: hl.expr.CallExpression, alleles: hl.expr.ArrayExpression
+    ) -> hl.expr.ArrayExpression:
         """
         Get the set of all different one-hot-encoded allele-vectors in a genotype call.
         It is returned as an ordered array where the first vector corresponds to the first allele,
@@ -75,11 +79,13 @@ def phase_by_transmission(
         """
         return hl.if_else(
             call.is_het(),
-            hl.array([
-                hl.call(call[0]).one_hot_alleles(alleles),
-                hl.call(call[1]).one_hot_alleles(alleles),
-            ]),
-            hl.array([hl.call(call[0]).one_hot_alleles(alleles)])
+            hl.array(
+                [
+                    hl.call(call[0]).one_hot_alleles(alleles),
+                    hl.call(call[1]).one_hot_alleles(alleles),
+                ]
+            ),
+            hl.array([hl.call(call[0]).one_hot_alleles(alleles)]),
         )
 
     def phase_parent_call(call: hl.expr.CallExpression, transmitted_allele_index: int):
@@ -91,18 +97,14 @@ def phase_by_transmission(
         :return: Phased parent genotype
         :rtype: CallExpression
         """
-        return hl.call(
-            call[transmitted_allele_index],
-            call[hl.int(transmitted_allele_index == 0)],
-            phased=True
-        )
+        return hl.call(call[transmitted_allele_index], call[hl.int(transmitted_allele_index == 0)], phased=True)
 
     def phase_diploid_proband(
-            locus: hl.expr.LocusExpression,
-            alleles: hl.expr.ArrayExpression,
-            proband_call: hl.expr.CallExpression,
-            father_call: hl.expr.CallExpression,
-            mother_call: hl.expr.CallExpression
+        locus: hl.expr.LocusExpression,
+        alleles: hl.expr.ArrayExpression,
+        proband_call: hl.expr.CallExpression,
+        father_call: hl.expr.CallExpression,
+        mother_call: hl.expr.CallExpression,
     ) -> hl.expr.ArrayExpression:
         """
         Returns phased genotype calls in the case of a diploid proband
@@ -121,33 +123,34 @@ def phase_by_transmission(
         father_v = hl.if_else(
             locus.in_x_nonpar() | locus.in_y_nonpar(),
             hl.or_missing(father_call.is_haploid(), hl.array([father_call.one_hot_alleles(alleles)])),
-            call_to_one_hot_alleles_array(father_call, alleles)
+            call_to_one_hot_alleles_array(father_call, alleles),
         )
         mother_v = call_to_one_hot_alleles_array(mother_call, alleles)
 
         combinations = hl.flatmap(
-            lambda f:
-            hl.enumerate(mother_v)
-                .filter(lambda m: m[1] + f[1] == proband_v)
-                .map(lambda m: hl.struct(m=m[0], f=f[0])),
-            hl.enumerate(father_v)
+            lambda f: hl.enumerate(mother_v)
+            .filter(lambda m: m[1] + f[1] == proband_v)
+            .map(lambda m: hl.struct(m=m[0], f=f[0])),
+            hl.enumerate(father_v),
         )
 
-        return (
-            hl.or_missing(
-                hl.is_defined(combinations) & (hl.len(combinations) == 1),
-                hl.array([
+        return hl.or_missing(
+            hl.is_defined(combinations) & (hl.len(combinations) == 1),
+            hl.array(
+                [
                     hl.call(father_call[combinations[0].f], mother_call[combinations[0].m], phased=True),
-                    hl.if_else(father_call.is_haploid(), hl.call(father_call[0], phased=True), phase_parent_call(father_call, combinations[0].f)),
-                    phase_parent_call(mother_call, combinations[0].m)
-                ])
-            )
+                    hl.if_else(
+                        father_call.is_haploid(),
+                        hl.call(father_call[0], phased=True),
+                        phase_parent_call(father_call, combinations[0].f),
+                    ),
+                    phase_parent_call(mother_call, combinations[0].m),
+                ]
+            ),
         )
 
     def phase_haploid_proband_x_nonpar(
-            proband_call: hl.expr.CallExpression,
-            father_call: hl.expr.CallExpression,
-            mother_call: hl.expr.CallExpression
+        proband_call: hl.expr.CallExpression, father_call: hl.expr.CallExpression, mother_call: hl.expr.CallExpression
     ) -> hl.expr.ArrayExpression:
         """
         Returns phased genotype calls in the case of a haploid proband in the non-PAR region of X
@@ -159,19 +162,23 @@ def phase_by_transmission(
         :rtype: ArrayExpression
         """
 
-        transmitted_allele = hl.enumerate(hl.array([mother_call[0], mother_call[1]])).find(lambda m: m[1] == proband_call[0])
+        transmitted_allele = hl.enumerate(hl.array([mother_call[0], mother_call[1]])).find(
+            lambda m: m[1] == proband_call[0]
+        )
         return hl.or_missing(
             hl.is_defined(transmitted_allele),
-            hl.array([
-                hl.call(proband_call[0], phased=True),
-                hl.or_missing(father_call.is_haploid(), hl.call(father_call[0], phased=True)),
-                phase_parent_call(mother_call, transmitted_allele[0])
-            ])
+            hl.array(
+                [
+                    hl.call(proband_call[0], phased=True),
+                    hl.or_missing(father_call.is_haploid(), hl.call(father_call[0], phased=True)),
+                    phase_parent_call(mother_call, transmitted_allele[0]),
+                ]
+            ),
         )
 
     def phase_y_nonpar(
-            proband_call: hl.expr.CallExpression,
-            father_call: hl.expr.CallExpression,
+        proband_call: hl.expr.CallExpression,
+        father_call: hl.expr.CallExpression,
     ) -> hl.expr.ArrayExpression:
         """
         Returns phased genotype calls in the non-PAR region of Y (requires both father and proband to be haploid to return phase)
@@ -183,26 +190,27 @@ def phase_by_transmission(
         """
         return hl.or_missing(
             proband_call.is_haploid() & father_call.is_haploid() & (father_call[0] == proband_call[0]),
-            hl.array([
-                hl.call(proband_call[0], phased=True),
-                hl.call(father_call[0], phased=True),
-                hl.missing(hl.tcall)
-            ])
+            hl.array(
+                [hl.call(proband_call[0], phased=True), hl.call(father_call[0], phased=True), hl.missing(hl.tcall)]
+            ),
         )
 
     return (
         hl.case()
-        .when(locus.in_x_nonpar() & proband_call.is_haploid(), phase_haploid_proband_x_nonpar(proband_call, father_call, mother_call))
+        .when(
+            locus.in_x_nonpar() & proband_call.is_haploid(),
+            phase_haploid_proband_x_nonpar(proband_call, father_call, mother_call),
+        )
         .when(locus.in_y_nonpar(), phase_y_nonpar(proband_call, father_call))
         .when(proband_call.is_diploid(), phase_diploid_proband(locus, alleles, proband_call, father_call, mother_call))
         .or_missing()
     )
 
 
-@typecheck(tm=hl.MatrixTable,
-           call_field=str,
-           phased_call_field=str)
-def phase_trio_matrix_by_transmission(tm: hl.MatrixTable, call_field: str = 'GT', phased_call_field: str = 'PBT_GT') -> hl.MatrixTable:
+@typecheck(tm=hl.MatrixTable, call_field=str, phased_call_field=str)
+def phase_trio_matrix_by_transmission(
+    tm: hl.MatrixTable, call_field: str = 'GT', phased_call_field: str = 'PBT_GT'
+) -> hl.MatrixTable:
     """Adds a phased genoype entry to a trio MatrixTable based allele transmission in the trio.
 
     Example
@@ -254,35 +262,21 @@ def phase_trio_matrix_by_transmission(tm: hl.MatrixTable, call_field: str = 'GT'
 
     tm = tm.annotate_entries(
         __phased_GT=phase_by_transmission(
-            tm.locus,
-            tm.alleles,
-            tm.proband_entry[call_field],
-            tm.father_entry[call_field],
-            tm.mother_entry[call_field]
+            tm.locus, tm.alleles, tm.proband_entry[call_field], tm.father_entry[call_field], tm.mother_entry[call_field]
         )
     )
 
     return tm.select_entries(
-        proband_entry=hl.struct(
-            **tm.proband_entry,
-            **{phased_call_field: tm.__phased_GT[0]}
-        ),
-        father_entry=hl.struct(
-            **tm.father_entry,
-            **{phased_call_field: tm.__phased_GT[1]}
-        ),
-        mother_entry=hl.struct(
-            **tm.mother_entry,
-            **{phased_call_field: tm.__phased_GT[2]}
-        )
+        proband_entry=hl.struct(**tm.proband_entry, **{phased_call_field: tm.__phased_GT[0]}),
+        father_entry=hl.struct(**tm.father_entry, **{phased_call_field: tm.__phased_GT[1]}),
+        mother_entry=hl.struct(**tm.mother_entry, **{phased_call_field: tm.__phased_GT[2]}),
     )
 
 
-@typecheck(tm=hl.MatrixTable,
-           col_keys=sequenceof(str),
-           keep_trio_cols=bool,
-           keep_trio_entries=bool)
-def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_trio_cols: bool = True, keep_trio_entries: bool = False) -> hl.MatrixTable:
+@typecheck(tm=hl.MatrixTable, col_keys=sequenceof(str), keep_trio_cols=bool, keep_trio_entries=bool)
+def explode_trio_matrix(
+    tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_trio_cols: bool = True, keep_trio_entries: bool = False
+) -> hl.MatrixTable:
     """Splits a trio MatrixTable back into a sample MatrixTable.
 
     Example
@@ -339,9 +333,7 @@ def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_tr
 
     mt = tm.explode_cols(tm.__trio_members)
 
-    mt = mt.transmute_entries(
-        **mt.__trio_entries[mt.__trio_members[0]]
-    )
+    mt = mt.transmute_entries(**mt.__trio_entries[mt.__trio_members[0]])
 
     mt = mt.key_cols_by()
     mt = mt.transmute_cols(**mt.__trio_members[1])

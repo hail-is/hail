@@ -42,6 +42,7 @@ check-hail-fast:
 	ruff check hail/python/hail
 	ruff check hail/python/hailtop
 	$(PYTHON) -m pyright hail/python/hailtop
+	$(PYTHON) -m black hail --check --diff
 
 .PHONY: pylint-hailtop
 pylint-hailtop:

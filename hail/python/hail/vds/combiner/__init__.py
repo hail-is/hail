@@ -7,5 +7,5 @@ __all__ = [
     'new_combiner',
     'load_combiner',
     'VariantDatasetCombiner',
-    'VDSMetadata'
+    'VDSMetadata',
 ]

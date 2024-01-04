@@ -43,10 +43,9 @@ class BaseSession(abc.ABC):
     async def __aenter__(self: SessionType) -> SessionType:
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         await self.close()
 
 
@@ -68,12 +67,14 @@ class RateLimitedSession(BaseSession):
 
 
 class Session(BaseSession):
-    def __init__(self,
-                 *,
-                 credentials: Union[CloudCredentials, AnonymousCloudCredentials],
-                 params: Optional[Mapping[str, str]] = None,
-                 http_session: Optional[httpx.ClientSession] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        *,
+        credentials: Union[CloudCredentials, AnonymousCloudCredentials],
+        params: Optional[Mapping[str, str]] = None,
+        http_session: Optional[httpx.ClientSession] = None,
+        **kwargs,
+    ):
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
         self._params = params

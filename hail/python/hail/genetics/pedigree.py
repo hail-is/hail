@@ -23,11 +23,7 @@ class Trio(object):
     :type is_female: bool or None
     """
 
-    @typecheck_method(s=str,
-                      fam_id=nullable(str),
-                      pat_id=nullable(str),
-                      mat_id=nullable(str),
-                      is_female=nullable(bool))
+    @typecheck_method(s=str, fam_id=nullable(str), pat_id=nullable(str), mat_id=nullable(str), is_female=nullable(bool))
     def __init__(self, s, fam_id=None, pat_id=None, mat_id=None, is_female=None):
 
         self._fam_id = fam_id
@@ -38,21 +34,31 @@ class Trio(object):
 
     def __repr__(self):
         return 'Trio(s=%s, fam_id=%s, pat_id=%s, mat_id=%s, is_female=%s)' % (
-            repr(self.s), repr(self.fam_id), repr(self.pat_id),
-            repr(self.mat_id), repr(self.is_female))
+            repr(self.s),
+            repr(self.fam_id),
+            repr(self.pat_id),
+            repr(self.mat_id),
+            repr(self.is_female),
+        )
 
     def __str__(self):
         return 'Trio(s=%s, fam_id=%s, pat_id=%s, mat_id=%s, is_female=%s)' % (
-            str(self.s), str(self.fam_id), str(self.pat_id),
-            str(self.mat_id), str(self.is_female))
+            str(self.s),
+            str(self.fam_id),
+            str(self.pat_id),
+            str(self.mat_id),
+            str(self.is_female),
+        )
 
     def __eq__(self, other):
-        return (isinstance(other, Trio)
-                and self._s == other._s
-                and self._mat_id == other._mat_id
-                and self._pat_id == other._pat_id
-                and self._fam_id == other._fam_id
-                and self._is_female == other._is_female)
+        return (
+            isinstance(other, Trio)
+            and self._s == other._s
+            and self._mat_id == other._mat_id
+            and self._pat_id == other._pat_id
+            and self._fam_id == other._fam_id
+            and self._is_female == other._is_female
+        )
 
     def __hash__(self):
         return hash((self._s, self._pat_id, self._mat_id, self._fam_id, self._is_female))
@@ -135,11 +141,13 @@ class Trio(object):
         if self._s not in ids:
             return None
 
-        return Trio(self._s,
-                    self._fam_id,
-                    self._pat_id if self._pat_id in ids else None,
-                    self._mat_id if self._mat_id in ids else None,
-                    self._is_female)
+        return Trio(
+            self._s,
+            self._fam_id,
+            self._pat_id if self._pat_id in ids else None,
+            self._mat_id if self._mat_id in ids else None,
+            self._is_female,
+        )
 
     def _sex_as_numeric_string(self):
         if self._is_female is None:
@@ -151,12 +159,15 @@ class Trio(object):
             if sample_id is None:
                 return "0"
             return sample_id
-        line_list = [sample_id_or_else_zero(self._fam_id),
-                     self._s,
-                     sample_id_or_else_zero(self._pat_id),
-                     sample_id_or_else_zero(self._mat_id),
-                     self._sex_as_numeric_string(),
-                     "0"]
+
+        line_list = [
+            sample_id_or_else_zero(self._fam_id),
+            self._s,
+            sample_id_or_else_zero(self._pat_id),
+            sample_id_or_else_zero(self._mat_id),
+            self._sex_as_numeric_string(),
+            "0",
+        ]
         return "\t".join(line_list)
 
 
@@ -181,8 +192,7 @@ class Pedigree(object):
         return self._trios.__iter__()
 
     @classmethod
-    @typecheck_method(fam_path=str,
-                      delimiter=str)
+    @typecheck_method(fam_path=str, delimiter=str)
     def read(cls, fam_path, delimiter='\\s+') -> 'Pedigree':
         """Read a PLINK .fam file and return a pedigree object.
 
@@ -211,7 +221,9 @@ class Pedigree(object):
                 split_line = re.split(delimiter, line.strip())
                 num_fields = len(split_line)
                 if num_fields != 6:
-                    raise FatalError("Require 6 fields per line in .fam, but this line has {}: {}".format(num_fields, line))
+                    raise FatalError(
+                        "Require 6 fields per line in .fam, but this line has {}: {}".format(num_fields, line)
+                    )
                 (fam, kid, dad, mom, sex, _) = tuple(split_line)
                 # 1 is male, 2 is female, 0 is unknown.
                 is_female = sex == "2" if sex == "1" or sex == "2" else None
@@ -220,11 +232,13 @@ class Pedigree(object):
                     missing_sex_count += 1
                     missing_sex_values.add(kid)
 
-                trio = Trio(kid,
-                            fam if fam != "0" else None,
-                            dad if dad != "0" else None,
-                            mom if mom != "0" else None,
-                            is_female)
+                trio = Trio(
+                    kid,
+                    fam if fam != "0" else None,
+                    dad if dad != "0" else None,
+                    mom if mom != "0" else None,
+                    is_female,
+                )
                 trios.append(trio)
 
         only_ids = [trio.s for trio in trios]
@@ -233,7 +247,11 @@ class Pedigree(object):
             raise FatalError("Invalid pedigree: found duplicate proband IDs\n{}".format(duplicate_ids))
 
         if missing_sex_count > 0:
-            warning("Found {} samples with missing sex information (not 1 or 2).\n Missing samples: [{}]".format(missing_sex_count, missing_sex_values))
+            warning(
+                "Found {} samples with missing sex information (not 1 or 2).\n Missing samples: [{}]".format(
+                    missing_sex_count, missing_sex_values
+                )
+            )
 
         return Pedigree(trios)
 

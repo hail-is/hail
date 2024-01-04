@@ -6,7 +6,6 @@ from hail.utils.java import FatalError
 
 
 class Tests(unittest.TestCase):
-
     def test_trios(self):
         t1 = Trio('kid1', pat_id='dad1', is_female=True)
         t2 = Trio('kid1', pat_id='dad1', is_female=True)
@@ -31,7 +30,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(t4.is_complete(), True)
         self.assertEqual(t5.is_complete(), False)
         self.assertEqual(t6.is_complete(), True)
-
 
     def test_pedigree(self):
         ped = Pedigree.read(resource('sample.fam'))

@@ -1,9 +1,7 @@
 from typing import Union
 
 import hail as hl
-from hail.expr import Expression, \
-    expr_numeric, expr_array, expr_interval, expr_any, \
-    construct_expr, construct_variable
+from hail.expr import Expression, expr_numeric, expr_array, expr_interval, expr_any, construct_expr, construct_variable
 from hail.expr.types import tlocus, tarray, tstr, tstruct, ttuple
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -14,11 +12,7 @@ from hail.utils.java import Env, info
 from hail import ir
 
 
-@typecheck(i=Expression,
-           j=Expression,
-           keep=bool,
-           tie_breaker=nullable(func_spec(2, expr_numeric)),
-           keyed=bool)
+@typecheck(i=Expression, j=Expression, keep=bool, tie_breaker=nullable(func_spec(2, expr_numeric)), keyed=bool)
 def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Table:
     """Return a table containing the vertices in a near
     `maximal independent set <https://en.wikipedia.org/wiki/Maximal_independent_set>`_
@@ -119,19 +113,24 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     """
 
     if i.dtype != j.dtype:
-        raise ValueError("'maximal_independent_set' expects arguments `i` and `j` to have same type. "
-                         "Found {} and {}.".format(i.dtype, j.dtype))
+        raise ValueError(
+            "'maximal_independent_set' expects arguments `i` and `j` to have same type. "
+            "Found {} and {}.".format(i.dtype, j.dtype)
+        )
 
     source = i._indices.source
     if not isinstance(source, Table):
-        raise ValueError("'maximal_independent_set' expects an expression of 'Table'. Found {}".format(
-            "expression of '{}'".format(
-                source.__class__) if source is not None else 'scalar expression'))
+        raise ValueError(
+            "'maximal_independent_set' expects an expression of 'Table'. Found {}".format(
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'
+            )
+        )
 
     if i._indices.source != j._indices.source:
         raise ValueError(
             "'maximal_independent_set' expects arguments `i` and `j` to be expressions of the same Table. "
-            "Found\n{}\n{}".format(i, j))
+            "Found\n{}\n{}".format(i, j)
+        )
 
     node_t = i.dtype
 
@@ -151,9 +150,12 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
     edges = edges.checkpoint(new_temp_file())
 
-    mis_nodes = hl.set(construct_expr(
-        ir.ArrayMaximalIndependentSet(edges.collect(_localize=False)._ir, left_id, right_id, tie_breaker_ir),
-        hl.tarray(node_t)))
+    mis_nodes = hl.set(
+        construct_expr(
+            ir.ArrayMaximalIndependentSet(edges.collect(_localize=False)._ir, left_id, right_id, tie_breaker_ir),
+            hl.tarray(node_t),
+        )
+    )
 
     nodes = edges.select(node=[edges.__i, edges.__j])
     nodes = nodes.explode(nodes.node)
@@ -167,18 +169,23 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
 
 def require_col_key_str(dataset: MatrixTable, method: str):
     if not len(dataset.col_key) == 1 or dataset[next(iter(dataset.col_key))].dtype != hl.tstr:
-        raise ValueError(f"Method '{method}' requires column key to be one field of type 'str', found "
-                         f"{list(str(x.dtype) for x in dataset.col_key.values())}")
+        raise ValueError(
+            f"Method '{method}' requires column key to be one field of type 'str', found "
+            f"{list(str(x.dtype) for x in dataset.col_key.values())}"
+        )
 
 
 def require_table_key_variant(ht, method):
-    if (list(ht.key) != ['locus', 'alleles']
-            or not isinstance(ht['locus'].dtype, tlocus)
-            or not ht['alleles'].dtype == tarray(tstr)):
-        raise ValueError("Method '{}' requires key to be two fields 'locus' (type 'locus<any>') and "
-                         "'alleles' (type 'array<str>')\n"
-                         "  Found:{}".format(method, ''.join(
-                             "\n    '{}': {}".format(k, str(ht[k].dtype)) for k in ht.key)))
+    if (
+        list(ht.key) != ['locus', 'alleles']
+        or not isinstance(ht['locus'].dtype, tlocus)
+        or not ht['alleles'].dtype == tarray(tstr)
+    ):
+        raise ValueError(
+            "Method '{}' requires key to be two fields 'locus' (type 'locus<any>') and "
+            "'alleles' (type 'array<str>')\n"
+            "  Found:{}".format(method, ''.join("\n    '{}': {}".format(k, str(ht[k].dtype)) for k in ht.key))
+        )
 
 
 def require_row_key_variant(dataset, method):
@@ -187,36 +194,46 @@ def require_row_key_variant(dataset, method):
     else:
         assert isinstance(dataset, MatrixTable)
         key = dataset.row_key
-    if (list(key) != ['locus', 'alleles']
-            or not isinstance(dataset['locus'].dtype, tlocus)
-            or not dataset['alleles'].dtype == tarray(tstr)):
-        raise ValueError("Method '{}' requires row key to be two fields 'locus' (type 'locus<any>') and "
-                         "'alleles' (type 'array<str>')\n"
-                         "  Found:{}".format(method, ''.join(
-                             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
+    if (
+        list(key) != ['locus', 'alleles']
+        or not isinstance(dataset['locus'].dtype, tlocus)
+        or not dataset['alleles'].dtype == tarray(tstr)
+    ):
+        raise ValueError(
+            "Method '{}' requires row key to be two fields 'locus' (type 'locus<any>') and "
+            "'alleles' (type 'array<str>')\n"
+            "  Found:{}".format(method, ''.join("\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key))
+        )
 
 
 def require_alleles_field(dataset, method):
     if 'alleles' not in dataset.row:
-        raise ValueError(
-            f"Method '{method}' requires a field 'alleles' (type 'array<str>')\n")
+        raise ValueError(f"Method '{method}' requires a field 'alleles' (type 'array<str>')\n")
     if dataset.alleles.dtype != tarray(tstr):
         raise ValueError(
             f"Method '{method}' requires a field 'alleles' (type 'array<str>')\n"
             f"  Found:\n"
-            f"    'alleles': {dataset.alleles.dtype}")
+            f"    'alleles': {dataset.alleles.dtype}"
+        )
 
 
 def require_row_key_variant_w_struct_locus(dataset, method):
-    if (list(dataset.row_key) != ['locus', 'alleles']
+    if (
+        list(dataset.row_key) != ['locus', 'alleles']
         or not dataset['alleles'].dtype == tarray(tstr)
-        or (not isinstance(dataset['locus'].dtype, tlocus)
-            and dataset['locus'].dtype != hl.dtype('struct{contig: str, position: int32}'))):
-        raise ValueError("Method '{}' requires row key to be two fields 'locus'"
-                         " (type 'locus<any>' or 'struct{{contig: str, position: int32}}') and "
-                         "'alleles' (type 'array<str>')\n"
-                         "  Found:{}".format(method, ''.join(
-                             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
+        or (
+            not isinstance(dataset['locus'].dtype, tlocus)
+            and dataset['locus'].dtype != hl.dtype('struct{contig: str, position: int32}')
+        )
+    ):
+        raise ValueError(
+            "Method '{}' requires row key to be two fields 'locus'"
+            " (type 'locus<any>' or 'struct{{contig: str, position: int32}}') and "
+            "'alleles' (type 'array<str>')\n"
+            "  Found:{}".format(
+                method, ''.join("\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)
+            )
+        )
 
 
 def require_first_key_field_locus(dataset, method):
@@ -225,11 +242,11 @@ def require_first_key_field_locus(dataset, method):
     else:
         assert isinstance(dataset, MatrixTable)
         key = dataset.row_key
-    if (len(key) == 0
-            or not isinstance(key[0].dtype, tlocus)):
-        raise ValueError("Method '{}' requires first key field of type 'locus<any>'.\n"
-                         "  Found:{}".format(method, ''.join(
-                             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
+    if len(key) == 0 or not isinstance(key[0].dtype, tlocus):
+        raise ValueError(
+            "Method '{}' requires first key field of type 'locus<any>'.\n"
+            "  Found:{}".format(method, ''.join("\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key))
+        )
 
 
 @typecheck(table=Table, method=str)
@@ -244,11 +261,17 @@ def require_biallelic(dataset, method, tolerate_generic_locus: bool = False) -> 
         require_row_key_variant_w_struct_locus(dataset, method)
     else:
         require_row_key_variant(dataset, method)
-    return dataset._select_rows(method,
-                                hl.case()
-                                .when(dataset.alleles.length() == 2, dataset._rvrow)
-                                .or_error(f"'{method}' expects biallelic variants ('alleles' field of length 2), found "
-                                          + hl.str(dataset.locus) + ", " + hl.str(dataset.alleles)))
+    return dataset._select_rows(
+        method,
+        hl.case()
+        .when(dataset.alleles.length() == 2, dataset._rvrow)
+        .or_error(
+            f"'{method}' expects biallelic variants ('alleles' field of length 2), found "
+            + hl.str(dataset.locus)
+            + ", "
+            + hl.str(dataset.alleles)
+        ),
+    )
 
 
 @typecheck(dataset=MatrixTable, name=str)
@@ -292,16 +315,16 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     mapping, new_ids = deduplicate(ids)
 
     if mapping:
-        info(f'Renamed {len(mapping)} duplicate {plural("sample ID", len(mapping))}. Mangled IDs as follows:'
-             + ''.join(f'\n  "{pre}" => "{post}"' for pre, post in mapping))
+        info(
+            f'Renamed {len(mapping)} duplicate {plural("sample ID", len(mapping))}. Mangled IDs as follows:'
+            + ''.join(f'\n  "{pre}" => "{post}"' for pre, post in mapping)
+        )
     else:
         info('No duplicate sample IDs found.')
     return dataset.annotate_cols(**{name: hl.literal(new_ids)[hl.int(hl.scan.count())]})
 
 
-@typecheck(ds=oneof(Table, MatrixTable),
-           intervals=expr_array(expr_interval(expr_any)),
-           keep=bool)
+@typecheck(ds=oneof(Table, MatrixTable), intervals=expr_array(expr_interval(expr_any)), keep=bool)
 def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     """Filter rows with a list of intervals.
 
@@ -354,7 +377,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
     point_type = intervals.dtype.element_type.point_type
 
     def is_struct_prefix(partial, full):
-        if list(partial) != list(full)[:len(partial)]:
+        if list(partial) != list(full)[: len(partial)]:
             return False
         for k, v in partial.items():
             if full[k] != v:
@@ -369,17 +392,21 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         needs_wrapper = False
     else:
         raise TypeError(
-            "The point type is incompatible with key type of the dataset ('{}', '{}')".format(repr(point_type),
-                                                                                              repr(k_type)))
+            "The point type is incompatible with key type of the dataset ('{}', '{}')".format(
+                repr(point_type), repr(k_type)
+            )
+        )
 
     def wrap_input(interval):
         if interval is None:
             raise TypeError("'filter_intervals' does not allow missing values in 'intervals'.")
         elif needs_wrapper:
-            return Interval(Struct(**{k_name: interval.start}),
-                            Struct(**{k_name: interval.end}),
-                            interval.includes_start,
-                            interval.includes_end)
+            return Interval(
+                Struct(**{k_name: interval.start}),
+                Struct(**{k_name: interval.end}),
+                interval.includes_start,
+                interval.includes_end,
+            )
         else:
             return interval
 
@@ -392,8 +419,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         return Table(ir.TableFilterIntervals(ds._tir, intervals, point_type, keep))
 
 
-@typecheck(ht=Table,
-           points=oneof(Table, expr_array(expr_any)))
+@typecheck(ht=Table, points=oneof(Table, expr_array(expr_any)))
 def segment_intervals(ht, points):
     """Segment the interval keys of `ht` at a given set of points.
 
@@ -413,14 +439,18 @@ def segment_intervals(ht, points):
     point_type = ht.key[0].dtype.point_type
     if isinstance(points, Table):
         if len(points.key) != 1 or points.key[0].dtype != point_type:
-            raise ValueError("'segment_intervals' expects points to be a table with a single"
-                             " key of the same type as the intervals in 'ht', or an array of those points:"
-                             f"\n  expect {point_type}, found {list(points.key.dtype.values())}")
+            raise ValueError(
+                "'segment_intervals' expects points to be a table with a single"
+                " key of the same type as the intervals in 'ht', or an array of those points:"
+                f"\n  expect {point_type}, found {list(points.key.dtype.values())}"
+            )
         points = hl.array(hl.set(points.collect(_localize=False)))
     if points.dtype.element_type != point_type:
-        raise ValueError(f"'segment_intervals' expects points to be a table with a single"
-                         f" key of the same type as the intervals in 'ht', or an array of those points:"
-                         f"\n  expect {point_type}, found {points.dtype.element_type}")
+        raise ValueError(
+            f"'segment_intervals' expects points to be a table with a single"
+            f" key of the same type as the intervals in 'ht', or an array of those points:"
+            f"\n  expect {point_type}, found {points.dtype.element_type}"
+        )
 
     points = hl._sort_by(points, lambda l, r: hl._compare(l, r) < 0)
 
@@ -433,18 +463,30 @@ def segment_intervals(ht, points):
     n_points = hl.len(points)
     lower = hl.if_else((lower < n_points) & (points[lower] == interval.start), lower + 1, lower)
     higher = hl.if_else((higher < n_points) & (points[higher] == interval.end), higher - 1, higher)
-    interval_results = hl.rbind(lower, higher,
-                                lambda lower, higher: hl.if_else(
-                                    lower >= higher,
-                                    [interval],
-                                    hl.flatten([
-                                        [hl.interval(interval.start, points[lower],
-                                                     includes_start=interval.includes_start, includes_end=False)],
-                                        hl.range(lower, higher - 1).map(
-                                            lambda x: hl.interval(points[x], points[x + 1], includes_start=True,
-                                                                  includes_end=False)),
-                                        [hl.interval(points[higher - 1], interval.end, includes_start=True,
-                                                     includes_end=interval.includes_end)],
-                                    ])))
+    interval_results = hl.rbind(
+        lower,
+        higher,
+        lambda lower, higher: hl.if_else(
+            lower >= higher,
+            [interval],
+            hl.flatten(
+                [
+                    [
+                        hl.interval(
+                            interval.start, points[lower], includes_start=interval.includes_start, includes_end=False
+                        )
+                    ],
+                    hl.range(lower, higher - 1).map(
+                        lambda x: hl.interval(points[x], points[x + 1], includes_start=True, includes_end=False)
+                    ),
+                    [
+                        hl.interval(
+                            points[higher - 1], interval.end, includes_start=True, includes_end=interval.includes_end
+                        )
+                    ],
+                ]
+            ),
+        ),
+    )
     ht = ht.annotate(__new_intervals=interval_results, lower=lower, higher=higher).explode('__new_intervals')
     return ht.key_by(**{list(ht.key)[0]: ht.__new_intervals}).drop('__new_intervals')
