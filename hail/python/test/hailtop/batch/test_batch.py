@@ -68,7 +68,6 @@ class LocalTests(unittest.TestCase):
         ) as input_file2, tempfile.NamedTemporaryFile('w') as output_file1, tempfile.NamedTemporaryFile(
             'w'
         ) as output_file2:
-
             input_file1.write('abc')
             input_file2.write('123')
             input_file1.flush()
@@ -88,7 +87,6 @@ class LocalTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
             'w'
         ) as input_file2, tempfile.TemporaryDirectory() as output_dir:
-
             b = self.batch()
             input = b.read_input_group(in1=input_file1.name, in2=input_file2.name)
 
@@ -336,7 +334,6 @@ class LocalTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile(
             'w', prefix="some file name with (foo) spaces"
         ) as input_file, tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file:
-
             input_file.write('abc')
             input_file.flush()
 

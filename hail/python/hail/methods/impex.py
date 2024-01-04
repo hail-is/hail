@@ -3304,7 +3304,6 @@ def import_avro(paths, *, key=None, intervals=None):
         raise ValueError('key and intervals must either be both defined or both undefined')
 
     with hl.current_backend().fs.open(paths[0], 'rb') as avro_file:
-
         # monkey patch DataFileReader.determine_file_length to account for bug in Google HadoopFS
 
         def patched_determine_file_length(self) -> int:
@@ -3328,37 +3327,41 @@ def import_avro(paths, *, key=None, intervals=None):
     return Table(ir.TableRead(tr))
 
 
-@typecheck(paths=oneof(str, sequenceof(str)),
-           key=table_key_type,
-           min_partitions=nullable(int),
-           impute=bool,
-           no_header=bool,
-           comment=oneof(str, sequenceof(str)),
-           missing=oneof(str, sequenceof(str)),
-           types=dictof(str, hail_type),
-           quote=nullable(char),
-           skip_blank_lines=bool,
-           force_bgz=bool,
-           filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)),
-           force=bool,
-           source_file_field=nullable(str))
-def import_csv(paths,
-               *,
-               key=None,
-               min_partitions=None,
-               impute=False,
-               no_header=False,
-               comment=(),
-               missing="NA",
-               types={},
-               quote='"',
-               skip_blank_lines=False,
-               force_bgz=False,
-               filter=None,
-               find_replace=None,
-               force=False,
-               source_file_field=None) -> Table:
+@typecheck(
+    paths=oneof(str, sequenceof(str)),
+    key=table_key_type,
+    min_partitions=nullable(int),
+    impute=bool,
+    no_header=bool,
+    comment=oneof(str, sequenceof(str)),
+    missing=oneof(str, sequenceof(str)),
+    types=dictof(str, hail_type),
+    quote=nullable(char),
+    skip_blank_lines=bool,
+    force_bgz=bool,
+    filter=nullable(str),
+    find_replace=nullable(sized_tupleof(str, str)),
+    force=bool,
+    source_file_field=nullable(str),
+)
+def import_csv(
+    paths,
+    *,
+    key=None,
+    min_partitions=None,
+    impute=False,
+    no_header=False,
+    comment=(),
+    missing="NA",
+    types={},
+    quote='"',
+    skip_blank_lines=False,
+    force_bgz=False,
+    filter=None,
+    find_replace=None,
+    force=False,
+    source_file_field=None,
+) -> Table:
     """Import a csv file as a :class:`.Table`.
 
     Examples

@@ -2056,7 +2056,7 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
                     "    Identifier '{}' appeared more than once".format(a)
                 )
             name_set.add(a)
-        for (n, _) in named_exprs.items():
+        for n, _ in named_exprs.items():
             if n in name_set:
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(n))
 
@@ -4250,7 +4250,6 @@ class NDArrayExpression(Expression):
             for i, s in enumerate(formatted_item):
                 dlen = self.shape[i]
                 if isinstance(s, slice):
-
                     if s.step is not None:
                         step = hl.case().when(s.step != 0, s.step).or_error("Slice step cannot be zero")
                     else:

@@ -553,7 +553,6 @@ class Expression(object):
     def __init__(
         self, x: ir.IR, type: HailType, indices: Indices = Indices(), aggregations: LinkedList = LinkedList(Aggregation)
     ):
-
         self._ir: ir.IR = x
         self._type = type
         self._indices = indices

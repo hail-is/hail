@@ -842,7 +842,6 @@ def _collect_scatter_plot_data(
     n_divisions: Optional[int] = None,
     missing_label: str = 'NA',
 ) -> pd.DataFrame:
-
     expressions = dict()
     if fields is not None:
         expressions.update(
@@ -914,7 +913,6 @@ def _get_scatter_plot_elements(
     Tuple[Plot, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]],
     Tuple[Plot, None, None, None, None, None],
 ]:
-
     if not source_pd.shape[0]:
         print("WARN: No data to plot.")
         return sp, None, None, None, None, None
@@ -1360,7 +1358,6 @@ def joint_plot(
         continuous_cols: List[str],
         factor_cols: List[str],
     ):
-
         density_renderers = []
         max_densities = {}
         if not factor_cols or continuous_cols:
@@ -1427,7 +1424,6 @@ def joint_plot(
 
     # If multiple labels, create JS call back selector
     if len(label_cols) > 1:
-
         for factor_col, _, renderer in density_renderers:
             renderer.visible = factor_col == label_cols[0]
 

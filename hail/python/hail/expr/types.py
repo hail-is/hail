@@ -1546,7 +1546,6 @@ class tunion(HailType, Mapping):
 
     @property
     def cases(self):
-
         """Return union case names.
 
         Returns

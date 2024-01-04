@@ -100,7 +100,6 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('regressionLinear.vcf')).annotate_rows(foo=hl.struct(bar=hl.rand_norm(0, 1)))
 
         for linreg_function in self.linreg_functions:
-
             # single group
             lr_result = linreg_function(
                 phenos[mt.s].Pheno, mt.GT.n_alt_alleles(), [1.0], pass_through=['filters', mt.foo.bar, mt.qual]
@@ -146,7 +145,6 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(x=mt.GT.n_alt_alleles()).cache()
 
         for linreg_function in self.linreg_functions:
-
             t1 = linreg_function(y=[[mt.pheno], [mt.pheno]], x=mt.x, covariates=[1, mt.cov.Cov1, mt.cov.Cov2])
 
             def all_eq(*args):
@@ -247,7 +245,6 @@ class Tests(unittest.TestCase):
     # summary(fit)["coefficients"]
     @pytest.mark.unchecked_allocator
     def test_linear_regression_with_cov(self):
-
         covariates = hl.import_table(
             resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
         )
@@ -289,7 +286,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[10].standard_error))
 
     def test_linear_regression_pl(self):
-
         covariates = hl.import_table(
             resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
         )
@@ -300,7 +296,6 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
 
         for linreg_function in self.linreg_functions:
-
             ht = linreg_function(
                 y=pheno[mt.s].Pheno, x=hl.pl_dosage(mt.PL), covariates=[1.0] + list(covariates[mt.s].values())
             )
@@ -323,7 +318,6 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
     def test_linear_regression_with_dosage(self):
-
         covariates = hl.import_table(
             resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
         )
@@ -780,7 +774,6 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
 
         for logistic_regression_function in self.logreg_functions:
-
             ht = logistic_regression_function(
                 'wald',
                 y=[pheno[mt.s].isCase],
@@ -835,7 +828,6 @@ class Tests(unittest.TestCase):
         mt = hl.import_bgen(bgen_path, entry_fields=['dosage'])
 
         for logistic_regression_function in self.logreg_functions:
-
             ht_single_pheno = logistic_regression_function(
                 'wald',
                 y=pheno[mt.s].Pheno1,
@@ -875,7 +867,6 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
 
         for logistic_regression_function in self.logreg_functions:
-
             ht = logistic_regression_function(
                 test='wald',
                 y=pheno[mt.s].isCase,
@@ -915,7 +906,6 @@ class Tests(unittest.TestCase):
         mt = hl.import_gen(resource('regressionLogistic.gen'), sample_file=resource('regressionLogistic.sample'))
 
         for logistic_regression_function in self.logreg_functions:
-
             ht = logistic_regression_function(
                 test='wald',
                 y=pheno[mt.s].isCase,

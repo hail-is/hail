@@ -75,7 +75,6 @@ class GGPlot:
         return copied
 
     def add_default_scales(self, aesthetic):
-
         for aesthetic_str, mapped_expr in aesthetic.items():
             dtype = mapped_expr.dtype
             if aesthetic_str not in self.scales:

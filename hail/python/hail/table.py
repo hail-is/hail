@@ -117,7 +117,6 @@ def desc(col):
 
 
 class ExprContainer:
-
     # this can only grow as big as the object dir, so no need to worry about memory leak
     _warned_about = set()
 
@@ -681,7 +680,9 @@ class Table(ExprContainer):
         dtype = schema
         if schema is not None:
             if not isinstance(schema, hl.tstruct):
-                raise ValueError("parallelize expectes the 'schema' argument to be an hl.tstruct, see docs for details.")
+                raise ValueError(
+                    "parallelize expectes the 'schema' argument to be an hl.tstruct, see docs for details."
+                )
             dtype = hl.tarray(schema)
         elif partial_type is not None:
             partial_type = hl.tarray(hl.tstruct(**partial_type))
@@ -2217,7 +2218,7 @@ class Table(ExprContainer):
 
             s = ''
             first = True
-            for (start, end) in column_blocks:
+            for start, end in column_blocks:
                 if first:
                     first = False
                 else:
