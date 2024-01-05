@@ -336,17 +336,19 @@ def test_cloudfuse_read_only(backend: ServiceBackend, output_bucket_path):
     assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
 
-def test_cloudfuse_implicit_dirs(backend: ServiceBackend, output_bucket_path):
-    bucket, path, output_tmpdir = output_bucket_path
+def test_cloudfuse_implicit_dirs(fs: RouterAsyncFS, backend: ServiceBackend, upload_test_files):
+    (url1, data1), _, _ = upload_test_files
+    object_name = fs.parse_url(url1).path
 
     b = batch(backend)
     j = b.new_job()
-    j.command(f'cat /cloudfuse{path}')
+    j.command(f'cat ' + os.path.join('/cloudfuse', object_name))
     j.cloudfuse(bucket, f'/cloudfuse', read_only=True)
 
     res = b.run()
     assert res
     res_status = res.status()
+    assert res.get_job_log(1)['main'] == data1
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
 
@@ -645,7 +647,7 @@ def test_python_job_w_non_zero_ec(backend: ServiceBackend):
     b = batch(backend, default_python_image=PYTHON_DILL_IMAGE)
     j = b.new_python_job()
 
-    def error(backend):
+    def error():
         raise Exception("this should fail")
 
     j.call(error)
