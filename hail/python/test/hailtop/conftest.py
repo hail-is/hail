@@ -22,4 +22,4 @@ def pytest_collection_modifyitems(items):
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
         if is_async_test(item):
-            async_test.add_marker(session_scope_marker)
+            item.add_marker(session_scope_marker)
