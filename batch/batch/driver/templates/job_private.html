@@ -52,24 +52,35 @@
 </div>
 <table class="data-table" id="status">
   <thead>
-  <tr>
-    <th>Pending</th>
-    <th>Active</th>
-    <th>Inactive</th>
-    <th>Deleted</th>
-    <th>Live Total Cores</th>
-    <th>Live Free Cores</th>
-  </tr>
+    <tr>
+      <th colspan="4">Instances</th>
+      <th></th>
+      <th colspan="4">Cores</th>
+    </tr>
+    <tr>
+      <th>Pending</th>
+      <th>Active</th>
+      <th>Inactive</th>
+      <th>Deleted</th>
+      <th></th>
+      <th>Pending</th>
+      <th>Active</th>
+      <th>Inactive</th>
+      <th>Deleted</th>
+    </tr>
   </thead>
   <tbody>
-  <tr>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['pending'] }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['active'] }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['inactive'] }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.n_instances_by_state['deleted'] }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_total_cores_mcpu / 1000 }}</td>
-    <td class="numeric-cell">{{ jpim.current_worker_version_stats.live_free_cores_mcpu / 1000 }}</td>
-  </tr>
+    <tr>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['pending'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['active'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['inactive'] }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_instances_by_state['deleted'] }}</td>
+      <td></td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['pending'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['active'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['inactive'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.all_versions_cores_mcpu_by_state['deleted'] / 1000 }}</td>
+    </tr>
   </tbody>
 </table>
 

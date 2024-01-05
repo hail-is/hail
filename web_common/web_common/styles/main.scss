@@ -237,6 +237,16 @@ a {
         background-color: #888;
     }
 
+    tfoot {
+        td {
+            white-space: nowrap;
+            padding: 3px 10px;
+            color: $white;
+            background-color: #888;
+            font-weight: 700;
+        }
+    }
+
     tr {
         &:nth-of-type(7n+1) {
             background-color: #fff4f4;

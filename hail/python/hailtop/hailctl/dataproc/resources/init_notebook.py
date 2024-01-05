@@ -163,7 +163,7 @@ if role == 'Master':
     with open('/opt/conda/default/etc/jupyter/jupyter_notebook_config.py', 'w') as f:
         opts = [
             'c.Application.log_level = "DEBUG"',
-            'c.NotebookApp.ip = "127.0.0.1"',
+            'c.NotebookApp.ip = "0.0.0.0"',
             'c.NotebookApp.open_browser = False',
             'c.NotebookApp.port = 8123',
             'c.NotebookApp.token = ""',

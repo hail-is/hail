@@ -11,6 +11,8 @@ states = {
 
 complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
 
+live_instance_states = ('pending', 'active')
+
 valid_state_transitions = {
     'Pending': {'Ready'},
     'Ready': {'Creating', 'Running', 'Cancelled', 'Error'},

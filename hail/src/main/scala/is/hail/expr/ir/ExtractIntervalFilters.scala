@@ -755,7 +755,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       .restrict(keySet)
     case (IsNA(_), Seq(b: BoolValue)) => b.isNA.restrict(keySet)
     // collection contains
-    case (ApplyIR("contains", _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
+    case (ApplyIR("contains", _, _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
       if (collectionVal == null) {
         BoolValue.allNA(keySet)
       } else queryVal match {
@@ -815,7 +815,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     var res: AbstractLattice.Value = if (env.keySet == KeySetLattice.bottom)
       AbstractLattice.bottom
     else x match {
-      case Let(name, value, body) => recur(body, env.bind(name -> recur(value)))
+      case Let(bindings, body) =>
+        recur(body, bindings.foldLeft(env) { case (env, (name, value)) =>
+          env.bind(name -> recur(value, env))
+        })
       case Ref(name, _) => env(name)
       case GetField(o, name) => recur(o).asInstanceOf[StructValue](name)
       case MakeStruct(fields) => StructValue(fields.view.map { case (name, field) =>
@@ -866,7 +869,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     res = if (res == null) {
-      val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastSeq
+      val children = x.children.map {
+        case child: IR => recur(child)
+        case _ => AbstractLattice.top
+      }.toFastSeq
       val keyOrConstVal = computeKeyOrConst(x, children)
       if (x.typ == TBoolean) {
         if (keyOrConstVal == AbstractLattice.top)

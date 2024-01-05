@@ -84,7 +84,7 @@ def start(
         Opt(
             help='Fraction of master memory allocated to the JVM. Use a smaller value to reserve more memory for Python.'
         ),
-    ] = 0.8,
+    ] = 0.9,
     master_boot_disk_size: Ann[int, Opt(help='Disk size of master machine, in GB')] = 100,
     num_master_local_ssds: Ann[int, Opt(help='Number of local SSDs to attach to the master machine.')] = 0,
     num_secondary_workers: NumSecondaryWorkersOption = 0,

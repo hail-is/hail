@@ -35,7 +35,7 @@ class FlowResult:
 
 class Flow(abc.ABC):
     @abc.abstractmethod
-    async def organization_id(self) -> str:
+    def organization_id(self) -> str:
         """
         The unique identifier of the organization (e.g. Azure Tenant, Google Organization) in
         which this Hail Batch instance lives.

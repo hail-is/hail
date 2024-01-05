@@ -248,14 +248,14 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testEmitLet() {
+  @Test def testEmitLet(): Unit = {
     val ir =
-      Let("end", 10,
+      Let(FastSeq("start" -> 3, "end" -> 10),
         StreamFlatMap(
-          Let("start", 3,
-            StreamRange(Ref("start", TInt32), Ref("end", TInt32), 1)),
+          StreamRange(Ref("start", TInt32), Ref("end", TInt32), 1),
           "i",
-          MakeStream(IndexedSeq(Ref("i", TInt32), Ref("end", TInt32)), TStream(TInt32)))
+          MakeStream(IndexedSeq(Ref("i", TInt32), Ref("end", TInt32)), TStream(TInt32))
+        )
       )
     assert(evalStream(ir) == (3 until 10).flatMap { i => IndexedSeq(i, 10) }, Pretty(ctx, ir))
     assert(evalStreamLen(ir).isEmpty, Pretty(ctx, ir))
@@ -861,7 +861,7 @@ class EmitStreamSuite extends HailSuite {
     for ((ir, v) <- IndexedSeq(
       StreamRange(0, 10, 1) -> 0,
       target -> 1,
-      Let("x", True(), target) -> 1,
+      Let(FastSeq("x" -> True()), target) -> 1,
       StreamMap(target, "i", i) -> 1,
       StreamMap(StreamMap(target, "i", i), "i", i * i) -> 1,
       StreamFilter(target, "i", StreamFold(StreamRange(0, i, 1), 0, "a", "i", i)) -> 1,

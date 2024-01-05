@@ -193,7 +193,7 @@ object StagedBGENReader {
         structFieldCodes += EmitCode.present(cb.emb, primitive(fileIdx))
 
       cb.assign(dataSize, cbfis.invoke[Int]("readInt"))
-      requestedType.fieldOption(LowerMatrixIR.entriesFieldName) match {
+      requestedType.selfField(LowerMatrixIR.entriesFieldName) match {
         case None =>
           cb += Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
         case Some(t) =>

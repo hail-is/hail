@@ -16,11 +16,10 @@ async def polling_create_user(
     hail_identity: Optional[str],
     hail_credentials_secret_name: Optional[str],
     *,
-    namespace: Optional[str] = None,
     wait: bool = False,
 ):
     try:
-        await async_create_user(username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name, namespace=namespace)
+        await async_create_user(username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name)
 
         if not wait:
             return
@@ -28,7 +27,7 @@ async def polling_create_user(
         async def _poll():
             tries = 0
             while True:
-                user = await async_get_user(username, namespace)
+                user = await async_get_user(username)
                 if user['state'] == 'active':
                     print(f"Created user '{username}'")
                     return

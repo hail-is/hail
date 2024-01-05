@@ -240,25 +240,20 @@ logging:
         labels.instance_id:
           static_value: $INSTANCE_ID
   service:
+    log_level: error
     pipelines:
       default_pipeline:
         processors: [labels]
         receivers: [runlog, workerlog, jvmlog]
 
 metrics:
-  receivers:
-    hostmetrics:
-      type: hostmetrics
-      collection_interval: 60s
   processors:
     metrics_filter:
       type: exclude_metrics
-      metrics_pattern: []
+      metrics_pattern:
+      - agent.googleapis.com/*/*
   service:
-    pipelines:
-      default_pipeline:
-        receivers: [hostmetrics]
-        processors: [metrics_filter]
+    log_level: error
 EOF
 
 sudo systemctl restart google-cloud-ops-agent

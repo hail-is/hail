@@ -62,12 +62,12 @@ object InferType {
         cnsq.typ
       case Switch(_, default, _) =>
         default.typ
-      case Let(name, value, body) =>
+      case Let(_, body) =>
         body.typ
       case AggLet(name, value, body, _) =>
         body.typ
-      case TailLoop(_, _, body) =>
-        body.typ
+      case TailLoop(_, _, resultType, _) =>
+        resultType
       case Recur(_, _, typ) =>
         typ
       case ApplyBinaryPrimOp(op, l, r) =>
@@ -80,7 +80,7 @@ object InferType {
           case _: Compare => TInt32
           case _ => TBoolean
         }
-      case a: ApplyIR => a.explicitNode.typ
+      case a: ApplyIR => a.returnType
       case a: AbstractApplyNode[_] =>
         val typeArgs = a.typeArgs
         val argTypes = a.args.map(_.typ)

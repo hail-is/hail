@@ -1,5 +1,5 @@
 ===============
-Micorosft Azure
+Microsoft Azure
 ===============
 
 ``hailctl hdinsight``
