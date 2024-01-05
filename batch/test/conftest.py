@@ -3,6 +3,7 @@ import logging
 import os
 
 import pytest
+from pytest_asyncio import is_async_test
 
 from hailtop.config import get_remote_tmpdir
 
@@ -33,6 +34,9 @@ def pytest_collection_modifyitems(config, items):  # pylint: disable=unused-argu
     def digest(s):
         return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
 
+    session_scope_marker = pytest.mark.asyncio(scope="session")
     for item in items:
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
+        if is_async_test(item):
+            item.add_marker(session_scope_marker)
