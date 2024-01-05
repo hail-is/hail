@@ -72,6 +72,8 @@ trait FSSuite extends TestNGSuite {
     val f = r("/a")
     val s = fs.fileListEntry(f)
     assert(s.getPath == f)
+    assert(s.isFile)
+    assert(!s.isDirectory)
     assert(s.getLen == 12)
   }
 
@@ -87,6 +89,8 @@ trait FSSuite extends TestNGSuite {
     val f = r("/dir")
     val s = fs.fileListEntry(f)
     assert(s.getPath == f)
+    assert(!s.isFile)
+    assert(s.isDirectory)
   }
 
   @Test def testFileListEntryOnDirWithSlash(): Unit = {
@@ -94,6 +98,8 @@ trait FSSuite extends TestNGSuite {
     val f = r("/dir/")
     val s = fs.fileListEntry(f)
     assert(s.getPath == f.dropRight(1))
+    assert(!s.isFile)
+    assert(s.isDirectory)
   }
 
   @Test def testFileListEntryOnMissingFile(): Unit = {
