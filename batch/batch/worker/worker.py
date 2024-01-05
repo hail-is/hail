@@ -395,7 +395,7 @@ class ReadOnlyCloudfuseManager:
         destination: str,
         *,
         user: str,
-        hail_identity: str,
+        job_id: Tuple[int, int],
         tmp_path: str,
         config: dict,
     ):
@@ -403,7 +403,7 @@ class ReadOnlyCloudfuseManager:
         async with self.user_bucket_locks[(user, bucket)]:
             if (user, bucket) not in self.fuse_mounts:
                 local_path = self._new_path()
-                await self._fuse_mount(local_path, hail_identity=hail_identity, tmp_path=tmp_path, config=config)
+                await self._fuse_mount(local_path, job_id=job_id, tmp_path=tmp_path, config=config)
                 self.fuse_mounts[(user, bucket)] = FuseMount(local_path)
             mount = self.fuse_mounts[(user, bucket)]
             await self._bind_mount(mount.path, destination)
@@ -422,13 +422,13 @@ class ReadOnlyCloudfuseManager:
         self,
         destination: str,
         *,
-        hail_identity: str,
+        job_id: Tuple[int, int],
         tmp_path: str,
         config: dict,
     ):
         assert CLOUD_WORKER_API
         await CLOUD_WORKER_API.mount_cloudfuse(
-            hail_identity,
+            job_id,
             destination,
             tmp_path,
             config,
@@ -483,12 +483,12 @@ class Image:
     def __init__(
         self,
         name: str,
-        hail_identity: Optional[str],
+        job_id: Optional[Tuple[int, int]],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
         self.image_name = name
-        self.hail_identity = hail_identity
+        self.job_id = job_id
         self.client_session = client_session
         self.pool = pool
 
@@ -536,7 +536,7 @@ class Image:
                     await self._ensure_image_is_pulled()
                 elif self.is_public_image:
                     await self._ensure_image_is_pulled(auth=self._batch_worker_registry_credentials)
-                elif self.image_ref_str == BATCH_WORKER_IMAGE and self.hail_identity is None:
+                elif self.image_ref_str == BATCH_WORKER_IMAGE and self.job_id is None:
                     pass
                 else:
                     # Pull to verify this user has access to this
@@ -610,9 +610,9 @@ class Image:
         return await CLOUD_WORKER_API.worker_container_registry_credentials(self.client_session)
 
     async def _current_user_registry_credentials(self) -> ContainerRegistryCredentials:
-        assert self.hail_identity
+        assert self.job_id
         assert CLOUD_WORKER_API
-        return await CLOUD_WORKER_API.user_container_registry_credentials(self.hail_identity)
+        return await CLOUD_WORKER_API.user_container_registry_credentials(self.job_id)
 
     async def _extract_rootfs(self):
         assert self.image_id
@@ -1498,8 +1498,7 @@ class Job(abc.ABC):
     @staticmethod
     def create(
         batch_id,
-        user,
-        hail_identity: str,
+        user: str,
         job_spec: dict,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1509,17 +1508,14 @@ class Job(abc.ABC):
     ) -> 'Job':
         type = job_spec['process']['type']
         if type == 'docker':
-            return DockerJob(
-                batch_id, user, hail_identity, job_spec, format_version, task_manager, pool, client_session, worker
-            )
+            return DockerJob(batch_id, user, job_spec, format_version, task_manager, pool, client_session, worker)
         assert type == 'jvm'
-        return JVMJob(batch_id, user, hail_identity, job_spec, format_version, task_manager, pool, worker)
+        return JVMJob(batch_id, user, job_spec, format_version, task_manager, pool, worker)
 
     def __init__(
         self,
         batch_id: int,
         user: str,
-        hail_identity: str,
         job_spec,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1528,7 +1524,6 @@ class Job(abc.ABC):
     ):
         self.batch_id = batch_id
         self.user = user
-        self.hail_identity = hail_identity
         self.job_spec = job_spec
         self.format_version = format_version
         self.task_manager = task_manager
@@ -1606,7 +1601,7 @@ class Job(abc.ABC):
         self.project_id = Job.get_next_xfsquota_project_id()
 
     @property
-    def job_id(self):
+    def job_id(self) -> int:
         return self.job_spec['job_id']
 
     @property
@@ -1710,7 +1705,6 @@ class DockerJob(Job):
         self,
         batch_id: int,
         user: str,
-        hail_identity: str,
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1718,7 +1712,7 @@ class DockerJob(Job):
         client_session: httpx.ClientSession,
         worker: 'Worker',
     ):
-        super().__init__(batch_id, user, hail_identity, job_spec, format_version, task_manager, pool, worker)
+        super().__init__(batch_id, user, job_spec, format_version, task_manager, pool, worker)
         assert worker.fs
 
         input_files = job_spec.get('input_files')
@@ -1785,7 +1779,7 @@ class DockerJob(Job):
             task_manager=self.task_manager,
             fs=self.worker.fs,
             name=self.container_name('main'),
-            image=Image(job_spec['process']['image'], self.hail_identity, client_session, pool),
+            image=Image(job_spec['process']['image'], self.id, client_session, pool),
             scratch_dir=f'{self.scratch}/main',
             command=job_spec['process']['command'],
             cpu_in_mcpu=self.cpu_in_mcpu,
@@ -1936,7 +1930,7 @@ class DockerJob(Job):
                             os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
 
                             await CLOUD_WORKER_API.mount_cloudfuse(
-                                self.hail_identity,
+                                self.id,
                                 self.cloudfuse_data_path(bucket),
                                 self.cloudfuse_tmp_path(bucket),
                                 config,
@@ -2000,7 +1994,7 @@ class DockerJob(Job):
 
     async def cleanup(self):
         assert CLOUD_WORKER_API
-        await CLOUD_WORKER_API.remove_user_credentials(self.hail_identity)
+        await CLOUD_WORKER_API.remove_job_credentials(self.id)
 
         if self.disk:
             try:
@@ -2099,14 +2093,13 @@ class JVMJob(Job):
         self,
         batch_id: int,
         user: str,
-        hail_identity: str,
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
         pool: concurrent.futures.ThreadPoolExecutor,
         worker: 'Worker',
     ):
-        super().__init__(batch_id, user, hail_identity, job_spec, format_version, task_manager, pool, worker)
+        super().__init__(batch_id, user, job_spec, format_version, task_manager, pool, worker)
         assert job_spec['process']['type'] == 'jvm'
         assert worker is not None
 
@@ -2258,7 +2251,7 @@ class JVMJob(Job):
                                 bucket,
                                 data_path,
                                 user=self.user,
-                                hail_identity=self.hail_identity,
+                                job_id=self.id,
                                 tmp_path=tmp_path,
                                 config=config,
                             )
@@ -2326,7 +2319,7 @@ class JVMJob(Job):
         assert self.worker.fs
         assert self.jvm
 
-        await CLOUD_WORKER_API.remove_user_credentials(self.hail_identity)
+        await CLOUD_WORKER_API.remove_job_credentials(self.id)
 
         if os.path.exists(self.log_file):
             with self.step('uploading_log'):
@@ -3098,12 +3091,9 @@ class Worker:
             return web.HTTPServiceUnavailable()
 
         assert CLOUD_WORKER_API
-        hail_identity = CLOUD_WORKER_API.register_user_credentials(body['gsa_key'])
-
         job = Job.create(
             batch_id,
             body['user'],
-            hail_identity,
             job_spec,
             format_version,
             self.task_manager,
@@ -3111,6 +3101,8 @@ class Worker:
             self.client_session,
             self,
         )
+
+        CLOUD_WORKER_API.register_job_credentials(job.id, body['gsa_key'])
 
         log.info(f'created {job} attempt {job.attempt_id}')
 

@@ -1,7 +1,7 @@
 import base64
 import os
 import tempfile
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import aiohttp
 import orjson
@@ -16,7 +16,7 @@ from ..instance_config import GCPSlimInstanceConfig
 from .disk import GCPDisk
 
 
-class GCPWorkerAPI(CloudWorkerAPI[aiogoogle.GoogleServiceAccountCredentials]):
+class GCPWorkerAPI(CloudWorkerAPI):
     nameserver_ip = '169.254.169.254'
 
     # async because GoogleSession must be created inside a running event loop
@@ -33,6 +33,7 @@ class GCPWorkerAPI(CloudWorkerAPI[aiogoogle.GoogleServiceAccountCredentials]):
         self.zone = zone
         self._google_session = session
         self._compute_client = aiogoogle.GoogleComputeClient(project, session=session)
+        self._job_credentials: Dict[Tuple[int, int], aiogoogle.GoogleServiceAccountCredentials] = {}
         self._gcsfuse_credential_files: Dict[str, str] = {}
 
     @property
@@ -57,13 +58,12 @@ class GCPWorkerAPI(CloudWorkerAPI[aiogoogle.GoogleServiceAccountCredentials]):
     def get_cloud_async_fs(self) -> aiogoogle.GoogleStorageAsyncFS:
         return aiogoogle.GoogleStorageAsyncFS(session=self._google_session)
 
-    def _load_user_credentials(self, credentials: Dict[str, str]) -> aiogoogle.GoogleServiceAccountCredentials:
+    def register_job_credentials(self, job_id: Tuple[int, int], credentials: Dict[str, str]) -> None:
         key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
-        return aiogoogle.GoogleServiceAccountCredentials(key)
+        self._job_credentials[job_id] = aiogoogle.GoogleServiceAccountCredentials(key)
 
-    def _get_user_hail_identity(self, credentials: Dict[str, str]) -> str:
-        key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
-        return key['client_email']
+    async def remove_job_credentials(self, job_id: Tuple[int, int]) -> None:
+        await self._job_credentials.pop(job_id).close()
 
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         token_dict = await retry_transient_errors(
@@ -75,29 +75,29 @@ class GCPWorkerAPI(CloudWorkerAPI[aiogoogle.GoogleServiceAccountCredentials]):
         access_token = token_dict['access_token']
         return {'username': 'oauth2accesstoken', 'password': access_token}
 
-    async def user_container_registry_credentials(self, hail_identity: str) -> ContainerRegistryCredentials:
-        access_token = await self._user_credentials[hail_identity].access_token()
+    async def user_container_registry_credentials(self, job_id: Tuple[int, int]) -> ContainerRegistryCredentials:
+        access_token = await self._job_credentials[job_id].access_token()
         return {'username': 'oauth2accesstoken', 'password': access_token}
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
 
-    def _write_gcsfuse_credentials(self, hail_identity: str, mount_base_path_data: str) -> str:
+    def _write_gcsfuse_credentials(self, job_id: Tuple[int, int], mount_base_path_data: str) -> str:
         if mount_base_path_data not in self._gcsfuse_credential_files:
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
-                credsfile.write(orjson.dumps(self._user_credentials[hail_identity].key).decode('utf-8'))
+                credsfile.write(orjson.dumps(self._job_credentials[job_id].key).decode('utf-8'))
                 self._gcsfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._gcsfuse_credential_files[mount_base_path_data]
 
     async def _mount_cloudfuse(
         self,
-        hail_identity: str,
+        job_id: Tuple[int, int],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
     ):  # pylint: disable=unused-argument
 
-        fuse_credentials_path = self._write_gcsfuse_credentials(hail_identity, mount_base_path_data)
+        fuse_credentials_path = self._write_gcsfuse_credentials(job_id, mount_base_path_data)
 
         bucket = config['bucket']
         assert bucket
