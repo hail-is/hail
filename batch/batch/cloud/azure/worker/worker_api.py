@@ -61,10 +61,6 @@ class AzureWorkerAPI(CloudWorkerAPI):
     async def remove_job_credentials(self, job_id: Tuple[int, int]) -> None:
         await self._job_credentials.pop(job_id).close()
 
-    def _get_user_hail_identity(self, credentials: Dict[str, str]) -> str:
-        sp_credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
-        return sp_credentials['appId']
-
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         # https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
         return {
