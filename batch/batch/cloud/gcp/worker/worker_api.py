@@ -28,7 +28,6 @@ class GCPWorkerAPI(CloudWorkerAPI):
         return GCPWorkerAPI(project, zone, session)
 
     def __init__(self, project: str, zone: str, session: aiogoogle.GoogleSession):
-        super().__init__()
         self.project = project
         self.zone = zone
         self._google_session = session

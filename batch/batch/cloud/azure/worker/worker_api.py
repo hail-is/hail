@@ -31,7 +31,6 @@ class AzureWorkerAPI(CloudWorkerAPI):
         return AzureWorkerAPI(subscription_id, resource_group, acr_url, hail_oauth_scope)
 
     def __init__(self, subscription_id: str, resource_group: str, acr_url: str, hail_oauth_scope: str):
-        super().__init__()
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.hail_oauth_scope = hail_oauth_scope
