@@ -14,7 +14,7 @@ import msal
 
 from hailtop.utils import first_extant_file, blocking_to_async
 
-from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
+from ..common.credentials import CloudCredentials
 
 log = logging.getLogger(__name__)
 
