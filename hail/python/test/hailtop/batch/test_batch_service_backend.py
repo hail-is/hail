@@ -345,7 +345,7 @@ def test_cloudfuse_implicit_dirs(fs: RouterAsyncFS, backend: ServiceBackend, upl
     b = batch(backend)
     j = b.new_job()
     j.command(f'cat ' + os.path.join('/cloudfuse', object_name))
-    j.cloudfuse(bucket, f'/cloudfuse', read_only=True)
+    j.cloudfuse(bucket_name, f'/cloudfuse', read_only=True)
 
     res = b.run()
     assert res
