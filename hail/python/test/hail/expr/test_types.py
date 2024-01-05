@@ -28,9 +28,13 @@ class Tests(unittest.TestCase):
             tlocus('GRCh38'),
             tstruct(),
             tstruct(x=tint32, y=tint64, z=tarray(tset(tstr))),
-            tstruct(**{'weird field name 1': tint32,
-                       r"""this one ' has "" quotes and `` backticks```""": tint64,
-                       '!@#$%^&({[': tarray(tset(tstr))}),
+            tstruct(
+                **{
+                    'weird field name 1': tint32,
+                    r"""this one ' has "" quotes and `` backticks```""": tint64,
+                    '!@#$%^&({[': tarray(tset(tstr)),
+                }
+            ),
             tinterval(tlocus()),
             tset(tinterval(tlocus())),
             tstruct(a=tint32, b=tint32, c=tarray(tstr)),
@@ -42,7 +46,8 @@ class Tests(unittest.TestCase):
             tunion(**{'!@#$%^&({[': tstr}),
             ttuple(tstr, tint32),
             ttuple(tarray(tint32), tstr, tstr, tint32, tbool),
-            ttuple()]
+            ttuple(),
+        ]
 
     def test_parser_roundtrip(self):
         for t in self.types_to_test():
@@ -104,38 +109,48 @@ class Tests(unittest.TestCase):
         tl2 = tlocus('GRCh38')
 
         types_and_rgs = [
-            ([
-                tint32,
-                tint64,
-                tfloat32,
-                tfloat64,
-                tstr,
-                tbool,
-                tcall,
-                tinterval(tset(tint32)),
-                tdict(tstr, tarray(tint32)),
-                tndarray(tstr, 1),
-                tstruct(),
-                tstruct(x=tint32, y=tint64, z=tarray(tset(tstr))),
-                tunion(),
-                tunion(a=tint32, b=tstr),
-                ttuple(tstr, tint32),
-                ttuple()], set()),
-            ([
-                tl1,
-                tinterval(tl1),
-                tdict(tstr, tl1),
-                tndarray(tl1, 2),
-                tinterval(tl1),
-                tset(tinterval(tl1)),
-                tstruct(a=tint32, b=tint32, c=tarray(tl1)),
-                tunion(a=tint32, b=tl1),
-                ttuple(tarray(tint32), tl1, tstr, tint32, tbool),
-            ], {"GRCh37"}),
-            ([
-                tdict(tl1, tl2),
-                ttuple(tarray(tl2), tl1, tstr, tint32, tbool),
-            ], {"GRCh37", "GRCh38"})
+            (
+                [
+                    tint32,
+                    tint64,
+                    tfloat32,
+                    tfloat64,
+                    tstr,
+                    tbool,
+                    tcall,
+                    tinterval(tset(tint32)),
+                    tdict(tstr, tarray(tint32)),
+                    tndarray(tstr, 1),
+                    tstruct(),
+                    tstruct(x=tint32, y=tint64, z=tarray(tset(tstr))),
+                    tunion(),
+                    tunion(a=tint32, b=tstr),
+                    ttuple(tstr, tint32),
+                    ttuple(),
+                ],
+                set(),
+            ),
+            (
+                [
+                    tl1,
+                    tinterval(tl1),
+                    tdict(tstr, tl1),
+                    tndarray(tl1, 2),
+                    tinterval(tl1),
+                    tset(tinterval(tl1)),
+                    tstruct(a=tint32, b=tint32, c=tarray(tl1)),
+                    tunion(a=tint32, b=tl1),
+                    ttuple(tarray(tint32), tl1, tstr, tint32, tbool),
+                ],
+                {"GRCh37"},
+            ),
+            (
+                [
+                    tdict(tl1, tl2),
+                    ttuple(tarray(tl2), tl1, tstr, tint32, tbool),
+                ],
+                {"GRCh37", "GRCh38"},
+            ),
         ]
 
         for types, rgs in types_and_rgs:

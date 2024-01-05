@@ -2,22 +2,23 @@ from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextMa
 import asyncio
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
-from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
-                 WritableStream, AsyncFSURL)
+from .fs import AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFSURL
 from .local_fs import LocalAsyncFS
 
 from hailtop.config import ConfigVariable, configuration_of
 
 
 class RouterAsyncFS(AsyncFS):
-    def __init__(self,
-                 *,
-                 filesystems: Optional[List[AsyncFS]] = None,
-                 local_kwargs: Optional[Dict[str, Any]] = None,
-                 gcs_kwargs: Optional[Dict[str, Any]] = None,
-                 azure_kwargs: Optional[Dict[str, Any]] = None,
-                 s3_kwargs: Optional[Dict[str, Any]] = None,
-                 gcs_bucket_allow_list: Optional[List[str]] = None):
+    def __init__(
+        self,
+        *,
+        filesystems: Optional[List[AsyncFS]] = None,
+        local_kwargs: Optional[Dict[str, Any]] = None,
+        gcs_kwargs: Optional[Dict[str, Any]] = None,
+        azure_kwargs: Optional[Dict[str, Any]] = None,
+        s3_kwargs: Optional[Dict[str, Any]] = None,
+        gcs_bucket_allow_list: Optional[List[str]] = None,
+    ):
         self._filesystems = [] if filesystems is None else filesystems
         self._local_kwargs = local_kwargs or {}
         self._gcs_kwargs = gcs_kwargs or {}
@@ -52,8 +53,7 @@ class RouterAsyncFS(AsyncFS):
             fs = LocalAsyncFS(**self._local_kwargs)
         elif aiogoogle.GoogleStorageAsyncFS.valid_url(uri):
             fs = aiogoogle.GoogleStorageAsyncFS(
-                **self._gcs_kwargs,
-                bucket_allow_list = self._gcs_bucket_allow_list.copy()
+                **self._gcs_kwargs, bucket_allow_list=self._gcs_bucket_allow_list.copy()
             )
         elif aioazure.AzureAsyncFS.valid_url(uri):
             fs = aioazure.AzureAsyncFS(**self._azure_kwargs)
@@ -83,11 +83,7 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.create(url, retry_writes=retry_writes)
 
-    async def multi_part_create(
-            self,
-            sema: asyncio.Semaphore,
-            url: str,
-            num_parts: int) -> MultiPartCreate:
+    async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
         fs = self._get_fs(url)
         return await fs.multi_part_create(sema, url, num_parts)
 
@@ -95,11 +91,9 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.statfile(url)
 
-    async def listfiles(self,
-                        url: str,
-                        recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True
-                        ) -> AsyncIterator[FileListEntry]:
+    async def listfiles(
+        self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
+    ) -> AsyncIterator[FileListEntry]:
         fs = self._get_fs(url)
         return await fs.listfiles(url, recursive, exclude_trailing_slash_files)
 
@@ -127,10 +121,9 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.remove(url)
 
-    async def rmtree(self,
-                     sema: Optional[asyncio.Semaphore],
-                     url: str,
-                     listener: Optional[Callable[[int], None]] = None) -> None:
+    async def rmtree(
+        self, sema: Optional[asyncio.Semaphore], url: str, listener: Optional[Callable[[int], None]] = None
+    ) -> None:
         fs = self._get_fs(url)
         return await fs.rmtree(sema, url, listener)
 

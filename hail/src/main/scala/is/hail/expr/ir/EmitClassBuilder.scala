@@ -23,8 +23,9 @@ import scala.collection.mutable
 import scala.language.existentials
 
 class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
+
   def newEmitClass[C](name: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
-    new EmitClassBuilder(this, modb.newClass(name, sourceFile))
+    new EmitClassBuilder[C](this, modb.newClass[C](name, sourceFile))
 
   def genEmitClass[C](baseName: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName), sourceFile)
@@ -139,6 +140,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def genField[T: TypeInfo](baseName: String): Field[T] = ecb.genField(baseName)
 
+  def getField[T: TypeInfo](name: String): Field[T] = ecb.getField(name)
+
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = ecb.genFieldThisRef[T](name)
 
   def genLazyFieldThisRef[T: TypeInfo](setup: Code[T], name: String = null): Value[T] = ecb.genLazyFieldThisRef(setup, name)
@@ -218,9 +221,9 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   : (HailClassLoader, FS, HailTaskContext, Region) => C =
     ecb.resultWithIndex(print)
 
-  def getOrGenEmitMethod(
-    baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
-  )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = ecb.getOrGenEmitMethod(baseName, key, argsInfo, returnInfo)(body)
+  def getOrGenEmitMethod(baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType)
+                        (body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] =
+    ecb.getOrGenEmitMethod(baseName, key, argsInfo, returnInfo)(body)
 
   def genEmitMethod[R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[R](baseName)
@@ -255,10 +258,8 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
       getFS.invoke[String, OutputStream]("create", path))
 }
 
-class EmitClassBuilder[C](
-  val emodb: EmitModuleBuilder,
-  val cb: ClassBuilder[C]
-) extends WrappedEmitModuleBuilder { self =>
+final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuilder[C])
+  extends WrappedEmitModuleBuilder { self =>
   // wrapped ClassBuilder methods
   def className: String = cb.className
 
@@ -269,6 +270,8 @@ class EmitClassBuilder[C](
   def newStaticField[T: TypeInfo](name: String, init: Code[T]): StaticField[T] = cb.newStaticField[T](name, init)
 
   def genField[T: TypeInfo](baseName: String): Field[T] = cb.genField(baseName)
+
+  def getField[T: TypeInfo](name: String): Field[T] = cb.getField(name)
 
   def genFieldThisRef[T: TypeInfo](name: String = null): ThisFieldRef[T] = cb.genFieldThisRef[T](name)
 
@@ -434,7 +437,7 @@ class EmitClassBuilder[C](
     }
 
     getF.emitWithBuilder { cb =>
-      storeF.invokeCode[Unit](cb)
+      cb.invokeVoid(storeF, cb.this_)
       _aggOff
     }
 
@@ -471,7 +474,7 @@ class EmitClassBuilder[C](
   def runMethodWithHailExceptionHandler(mname: String): Code[(String, java.lang.Integer)] = {
     Code.invokeScalaObject2[AnyRef, String, (String, java.lang.Integer)](CodeExceptionHandler.getClass,
       "handleUserException",
-      cb._this.get.asInstanceOf[Code[AnyRef]], mname)
+      cb.this_.get.asInstanceOf[Code[AnyRef]], mname)
   }
 
   def backend(): Code[BackendUtils] = {
@@ -612,6 +615,13 @@ class EmitClassBuilder[C](
 
     (codeArgsInfo, codeReturnInfo, asmTuple)
   }
+
+  def ctor: EmitMethodBuilder[C] =
+    new EmitMethodBuilder[C](FastSeq(), CodeParamType(UnitInfo), this, cb.ctor, null)
+
+  def emitInitI(f: EmitCodeBuilder => Unit): Unit =
+    ctor.cb.emitInit(EmitCodeBuilder.scopedVoid(ctor)(f))
+
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {
     val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(argsInfo, returnInfo)
@@ -807,15 +817,21 @@ class EmitClassBuilder[C](
 
   private[this] val methodMemo: mutable.Map[Any, EmitMethodBuilder[C]] = mutable.Map()
 
-  def getOrGenEmitMethod(
-    baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
-  )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = {
+  def getOrGenEmitMethod(baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType)
+                        (body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] =
     methodMemo.getOrElse(key, {
       val mb = genEmitMethod(baseName, argsInfo, returnInfo)
       methodMemo(key) = mb
       body(mb)
       mb
     })
+
+  def defineEmitMethod(name: String, paramTys: IndexedSeq[ParamType], retTy: ParamType)
+                      (body: EmitMethodBuilder[C] => Unit)
+  : EmitMethodBuilder[C] = {
+    val mb = newEmitMethod(name, paramTys, retTy)
+    body(mb)
+    mb
   }
 
   def genEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
@@ -850,21 +866,26 @@ class EmitClassBuilder[C](
 }
 
 object EmitFunctionBuilder {
-  def apply[F](
-    ctx: ExecuteContext, baseName: String, paramTypes: IndexedSeq[ParamType], returnType: ParamType, sourceFile: Option[String] = None
-  )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
+  def apply[F: TypeInfo](ctx: ExecuteContext,
+                         baseName: String,
+                         paramTypes: IndexedSeq[ParamType],
+                         returnType: ParamType,
+                         sourceFile: Option[String] = None
+  ): EmitFunctionBuilder[F] = {
     val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName, sourceFile)
     val apply = cb.newEmitMethod("apply", paramTypes, returnType)
     new EmitFunctionBuilder(apply)
   }
 
-  def apply[F](
-    ctx: ExecuteContext, baseName: String, argInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]
-  )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
+  def apply[F: TypeInfo](ctx: ExecuteContext,
+                         baseName: String,
+                         argInfo: IndexedSeq[MaybeGenericTypeInfo[_]],
+                         returnInfo: MaybeGenericTypeInfo[_]
+                        ): EmitFunctionBuilder[F] = {
     val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName)
-        val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
+    val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
     new EmitFunctionBuilder(apply)
   }
 
@@ -1054,18 +1075,6 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def invokeCode[T](cb: CodeBuilderLike, args: Param*): Value[T] = {
-    assert(emitReturnType.isInstanceOf[CodeParamType])
-    assert(args.forall(_.isInstanceOf[CodeParam]))
-    mb.invoke(cb, args.flatMap {
-      case CodeParam(c) => FastSeq(c)
-      // If you hit this assertion, it means that an EmitParam was passed to
-      // invokeCode. Code with EmitParams must be invoked using the EmitCodeBuilder
-      // interface to ensure that setup is run and missingness is evaluated for the
-      // EmitCode
-      case EmitParam(ec) => fatal("EmitParam passed to invokeCode")
-    }: _*)
-  }
   def newPLocal(st: SType): SSettable = newPSettable(localBuilder, st)
 
   def newPLocal(name: String, st: SType): SSettable = newPSettable(localBuilder, st, name)
@@ -1151,6 +1160,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   def newEmitLocal(name: String, pt: SType, required: Boolean): EmitSettable = emb.newEmitLocal(name, pt, required)
 }
 
-class EmitFunctionBuilder[F](val apply_method: EmitMethodBuilder[F]) extends WrappedEmitMethodBuilder[F] {
-  def emb: EmitMethodBuilder[F] = apply_method
+final case class EmitFunctionBuilder[F] private(apply_method: EmitMethodBuilder[F])
+  extends WrappedEmitMethodBuilder[F] {
+  override val emb: EmitMethodBuilder[F] = apply_method
 }

@@ -1,9 +1,32 @@
-from .check import (TypeChecker, typecheck, typecheck_method, anytype, anyfunc,
-                    nullable, sequenceof, tupleof, sized_tupleof, sliceof,
-                    dictof, linked_list, setof, oneof, exactly, numeric, char,
-                    lazy, enumeration, identity, transformed, func_spec,
-                    table_key_type, TypecheckFailure, arg_check, args_check,
-                    kwargs_check)
+from .check import (
+    TypeChecker,
+    typecheck,
+    typecheck_method,
+    anytype,
+    anyfunc,
+    nullable,
+    sequenceof,
+    tupleof,
+    sized_tupleof,
+    sliceof,
+    dictof,
+    linked_list,
+    setof,
+    oneof,
+    exactly,
+    numeric,
+    char,
+    lazy,
+    enumeration,
+    identity,
+    transformed,
+    func_spec,
+    table_key_type,
+    TypecheckFailure,
+    arg_check,
+    args_check,
+    kwargs_check,
+)
 
 __all__ = [
     'TypeChecker',
@@ -32,5 +55,5 @@ __all__ = [
     'TypecheckFailure',
     'arg_check',
     'args_check',
-    'kwargs_check'
+    'kwargs_check',
 ]

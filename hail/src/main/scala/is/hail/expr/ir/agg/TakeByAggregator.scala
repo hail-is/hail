@@ -216,7 +216,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(i, 0)),
       indexedKeyType.loadCheapSCode(cb, eltTuple.fieldOffset(j, 0))))
 
-    mb.invokeCode(_, _, _)
+    (cb: EmitCodeBuilder, i: Value[Long], j: Value[Long]) =>
+      cb.invokeCode(mb, cb.this_, i, j)
   }
 
   private val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Unit = {
@@ -230,7 +231,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       cb += Region.copyFrom(staging, j, eltTuple.byteSize)
     })
 
-    (cb: EmitCodeBuilder, x: Value[Long], y: Value[Long]) => cb.invokeVoid(mb, x, y)
+    (cb: EmitCodeBuilder, x: Value[Long], y: Value[Long]) => cb.invokeVoid(mb, cb.this_, x, y)
   }
 
 
@@ -246,12 +247,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           val jj = elementOffset(cb, parent)
           cb.if_(compareElt(cb, ii, jj) > 0, {
             swap(cb, ii, jj)
-            cb.invokeVoid(mb, parent)
+            cb.invokeVoid(mb, cb.this_, parent)
           })
         })
     }
 
-    (cb: EmitCodeBuilder, x: Value[Int]) => cb.invokeVoid(mb, x)
+    (cb: EmitCodeBuilder, x: Value[Int]) => cb.invokeVoid(mb, cb.this_, x)
   }
 
   private val rebalanceDown: (EmitCodeBuilder, Value[Int]) => Unit = {
@@ -283,11 +284,11 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.if_(compareElt(cb, ii, jj) > 0,
             {
               swap(cb, ii, jj)
-              cb.invokeVoid(mb, minChild)
+              cb.invokeVoid(mb, cb.this_, minChild)
             })
         })
     }
-    (cb: EmitCodeBuilder, x: Value[Int]) => cb.invokeVoid(mb, x)
+    (cb: EmitCodeBuilder, x: Value[Int]) => cb.invokeVoid(mb, cb.this_, x)
   }
 
   private lazy val gc: EmitCodeBuilder => Unit = {
@@ -306,7 +307,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
             cb += oldRegion.invoke[Unit]("invalidate")
           })
       }
-      (cb: EmitCodeBuilder) => cb.invokeVoid(mb)
+      (cb: EmitCodeBuilder) => cb.invokeVoid(mb, cb.this_)
     } else
       (_: EmitCodeBuilder) => ()
   }
@@ -383,7 +384,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       })
     }
 
-    cb.invokeVoid(mb, v, k)
+    cb.invokeVoid(mb, cb.this_, v, k)
   }
 
   // for tests
@@ -423,13 +424,13 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       cb.assign(maxIndex, maxIndex + other.maxIndex)
     }
 
-    cb.invokeVoid(mb)
+    cb.invokeVoid(mb, cb.this_)
   }
 
   def result(cb: EmitCodeBuilder, _r: Value[Region], resultType: PCanonicalArray): SIndexablePointerValue = {
     val mb = kb.genEmitMethod("take_by_result", FastSeq[ParamType](classInfo[Region]), LongInfo)
 
-    val quickSort: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Unit] = {
+    val quickSort: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Unit = {
       val mb = kb.genEmitMethod("result_quicksort", FastSeq[ParamType](LongInfo, IntInfo, IntInfo), UnitInfo)
       val indices = mb.getCodeParam[Long](1)
       val low = mb.getCodeParam[Int](2)
@@ -437,7 +438,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
       val pivotIndex = mb.newLocal[Int]("pivotIdx")
 
-      val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Value[Unit] = {
+      val swap: (EmitCodeBuilder, Value[Long], Value[Long]) => Unit = {
         val mb = kb.genEmitMethod("quicksort_swap", FastSeq[ParamType](LongInfo, LongInfo), UnitInfo)
         val i = mb.getCodeParam[Long](1)
         val j = mb.getCodeParam[Long](2)
@@ -451,7 +452,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
             Region.storeInt(j, tmp)
           )
         )
-        mb.invokeCode(_, _, _)
+        (cb, i, j) => cb.invokeVoid(mb, cb.this_, i, j)
       }
 
       val partition: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Int] = {
@@ -503,17 +504,18 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
           high
         }
-        mb.invokeCode(_, _, _, _)
+        (cb, indices, lo, hi) => cb.invokeCode(mb, cb.this_, indices, lo, hi)
       }
 
       mb.voidWithBuilder { cb =>
         cb.if_(low < high, {
           cb.assign(pivotIndex, partition(cb, indices, low, high))
-          cb.invokeVoid(mb, indices, low, pivotIndex)
-          cb.invokeVoid(mb, indices, cb.memoize(pivotIndex + 1), high)
+          cb.invokeVoid(mb, cb.this_, indices, low, pivotIndex)
+          cb.invokeVoid(mb, cb.this_, indices, cb.memoize(pivotIndex + 1), high)
         })
       }
-      mb.invokeCode(_, _, _, _)
+
+      (cb, indices, lo, hi) => cb.invokeVoid(mb, cb.this_, indices, lo, hi)
     }
 
     mb.emitWithBuilder[Long] { cb =>
@@ -541,7 +543,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           }
       }.a
     }
-    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, _r))
+    resultType.loadCheapSCode(cb, cb.invokeCode[Long](mb, cb.this_, _r))
   }
 }
 

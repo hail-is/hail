@@ -53,7 +53,6 @@ object ExecuteContext {
     timer: ExecutionTimer,
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
-    referenceGenomes: Map[String, ReferenceGenome],
     flags: HailFeatureFlags,
     backendContext: BackendContext,
   )(
@@ -69,7 +68,6 @@ object ExecuteContext {
         timer,
         tempFileManager,
         theHailClassLoader,
-        referenceGenomes,
         flags,
         backendContext,
         IrMetadata(None)
@@ -109,7 +107,6 @@ class ExecuteContext(
   val timer: ExecutionTimer,
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
-  val referenceGenomes: Map[String, ReferenceGenome],
   val flags: HailFeatureFlags,
   val backendContext: BackendContext,
   var irMetadata: IrMetadata
@@ -122,7 +119,7 @@ class ExecuteContext(
       fatal(s"Could not parse flag rng_nonce as a 64-bit signed integer: ${getFlag("rng_nonce")}", exc)
   }
 
-  val stateManager = HailStateManager(referenceGenomes)
+  val stateManager = HailStateManager(backend.references)
 
   val tempFileManager: TempFileManager =
     if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
@@ -156,7 +153,7 @@ class ExecuteContext(
 
   def getFlag(name: String): String = flags.get(name)
 
-  def getReference(name: String): ReferenceGenome = referenceGenomes(name)
+  def getReference(name: String): ReferenceGenome = backend.references(name)
 
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
 

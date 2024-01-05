@@ -51,17 +51,17 @@ class Locus(object):
         return 'Locus(contig=%s, position=%s, reference_genome=%s)' % (self.contig, self.position, self._rg)
 
     def __eq__(self, other):
-        return ( self._contig   == other._contig and
-                 self._position == other._position and
-                 self._rg       == other._rg
-               ) if isinstance(other, Locus) else NotImplemented
+        return (
+            (self._contig == other._contig and self._position == other._position and self._rg == other._rg)
+            if isinstance(other, Locus)
+            else NotImplemented
+        )
 
     def __hash__(self):
         return hash(self._contig) ^ hash(self._position) ^ hash(self._rg)
 
     @classmethod
-    @typecheck_method(string=str,
-                      reference_genome=reference_genome_type)
+    @typecheck_method(string=str, reference_genome=reference_genome_type)
     def parse(cls, string, reference_genome='default'):
         """Parses a locus object from a CHR:POS string.
 

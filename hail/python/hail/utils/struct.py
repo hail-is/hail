@@ -89,21 +89,11 @@ class Struct(Mapping):
 
     def __str__(self):
         if all(k.isidentifier() for k in self._fields):
-            return (
-                'Struct('
-                + ', '.join(f'{k}={repr(v)}' for k, v in self._fields.items())
-                + ')'
-            )
-        return (
-            'Struct(**{'
-            + ', '.join(f'{repr(k)}: {repr(v)}' for k, v in self._fields.items())
-            + '})'
-        )
+            return 'Struct(' + ', '.join(f'{k}={repr(v)}' for k, v in self._fields.items()) + ')'
+        return 'Struct(**{' + ', '.join(f'{repr(k)}: {repr(v)}' for k, v in self._fields.items()) + '})'
 
     def __eq__(self, other):
-        return self._fields == other._fields \
-            if isinstance(other, Struct) \
-            else NotImplemented
+        return self._fields == other._fields if isinstance(other, Struct) else NotImplemented
 
     def __hash__(self):
         return 37 + hash(tuple(sorted(self._fields.items())))

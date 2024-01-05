@@ -32,7 +32,7 @@ def test_dry_run(gcloud_run):
 def test_script_args(gcloud_run):
     runner.invoke(cli.app, ['submit', 'test-cluster', 'a-script.py', '--foo', 'bar'])
     gcloud_args = gcloud_run.call_args[0][0]
-    job_args = gcloud_args[gcloud_args.index("--") + 1:]
+    job_args = gcloud_args[gcloud_args.index("--") + 1 :]
     assert job_args == ["--foo", "bar"]
 
 

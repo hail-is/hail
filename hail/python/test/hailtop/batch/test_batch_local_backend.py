@@ -27,15 +27,11 @@ async def backend() -> AsyncIterator[LocalBackend]:
 
 @pytest.fixture
 def batch(backend, requester_pays_project=None):
-    return Batch(
-        backend=backend,
-        requester_pays_project=requester_pays_project
-    )
+    return Batch(backend=backend, requester_pays_project=requester_pays_project)
 
 
 def test_read_input_and_write_output(batch):
-    with tempfile.NamedTemporaryFile('w') as input_file, \
-            tempfile.NamedTemporaryFile('w') as output_file:
+    with tempfile.NamedTemporaryFile('w') as input_file, tempfile.NamedTemporaryFile('w') as output_file:
         input_file.write('abc')
         input_file.flush()
 
@@ -48,19 +44,18 @@ def test_read_input_and_write_output(batch):
 
 
 def test_read_input_group(batch):
-    with tempfile.NamedTemporaryFile('w') as input_file1, \
-            tempfile.NamedTemporaryFile('w') as input_file2, \
-            tempfile.NamedTemporaryFile('w') as output_file1, \
-            tempfile.NamedTemporaryFile('w') as output_file2:
-
+    with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
+        'w'
+    ) as input_file2, tempfile.NamedTemporaryFile('w') as output_file1, tempfile.NamedTemporaryFile(
+        'w'
+    ) as output_file2:
         input_file1.write('abc')
         input_file2.write('123')
         input_file1.flush()
         input_file2.flush()
 
         b = batch
-        input = b.read_input_group(in1=input_file1.name,
-                                   in2=input_file2.name)
+        input = b.read_input_group(in1=input_file1.name, in2=input_file2.name)
 
         b.write_output(input.in1, output_file1.name)
         b.write_output(input.in2, output_file2.name)
@@ -71,13 +66,11 @@ def test_read_input_group(batch):
 
 
 def test_write_resource_group(batch):
-    with tempfile.NamedTemporaryFile('w') as input_file1, \
-            tempfile.NamedTemporaryFile('w') as input_file2, \
-            tempfile.TemporaryDirectory() as output_dir:
-
+    with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
+        'w'
+    ) as input_file2, tempfile.TemporaryDirectory() as output_dir:
         b = batch
-        input = b.read_input_group(in1=input_file1.name,
-                                   in2=input_file2.name)
+        input = b.read_input_group(in1=input_file1.name, in2=input_file2.name)
 
         b.write_output(input, output_dir + '/foo')
         b.run()
@@ -140,8 +133,7 @@ def test_single_job_with_intermediate_failure(batch):
 
 
 def test_single_job_w_input(batch):
-    with tempfile.NamedTemporaryFile('w') as input_file, \
-            tempfile.NamedTemporaryFile('w') as output_file:
+    with tempfile.NamedTemporaryFile('w') as input_file, tempfile.NamedTemporaryFile('w') as output_file:
         msg = 'abc'
         input_file.write(msg)
         input_file.flush()
@@ -157,9 +149,9 @@ def test_single_job_w_input(batch):
 
 
 def test_single_job_w_input_group(batch):
-    with tempfile.NamedTemporaryFile('w') as input_file1, \
-            tempfile.NamedTemporaryFile('w') as input_file2, \
-            tempfile.NamedTemporaryFile('w') as output_file:
+    with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
+        'w'
+    ) as input_file2, tempfile.NamedTemporaryFile('w') as output_file:
         msg1 = 'abc'
         msg2 = '123'
 
@@ -169,8 +161,7 @@ def test_single_job_w_input_group(batch):
         input_file2.flush()
 
         b = batch
-        input = b.read_input_group(in1=input_file1.name,
-                                   in2=input_file2.name)
+        input = b.read_input_group(in1=input_file1.name, in2=input_file2.name)
         j = b.new_job()
         j.command(f'cat {input.in1} {input.in2} > {j.ofile}')
         j.command(f'cat {input}.in1 {input}.in2')
@@ -204,8 +195,7 @@ def test_declare_resource_group(batch):
 
 def test_resource_group_get_all_inputs(batch):
     b = batch
-    input = b.read_input_group(fasta="foo",
-                               idx="bar")
+    input = b.read_input_group(fasta="foo", idx="bar")
     j = b.new_job()
     j.command(f"cat {input.fasta}")
     assert input.fasta in j._inputs
@@ -308,10 +298,14 @@ def test_scatter_gather(batch):
             j.command(f'echo "{i}" > {j.ofile}')
 
         merger = b.new_job()
-        merger.command('cat {files} > {ofile}'.format(files=' '.join([j.ofile for j in sorted(b.select_jobs('foo'),
-                                                                                              key=lambda x: x.name,  # type: ignore
-                                                                                              reverse=True)]),
-                                                      ofile=merger.ofile))
+        merger.command(
+            'cat {files} > {ofile}'.format(
+                files=' '.join(
+                    [j.ofile for j in sorted(b.select_jobs('foo'), key=lambda x: x.name, reverse=True)]  # type: ignore
+                ),
+                ofile=merger.ofile,
+            )
+        )
 
         b.write_output(merger.ofile, output_file.name)
         b.run()
@@ -338,9 +332,9 @@ def test_add_extension_input_resource_file(batch):
 
 
 def test_file_name_space(batch):
-    with tempfile.NamedTemporaryFile('w', prefix="some file name with (foo) spaces") as input_file, \
-            tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file:
-
+    with tempfile.NamedTemporaryFile(
+        'w', prefix="some file name with (foo) spaces"
+    ) as input_file, tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file:
         input_file.write('abc')
         input_file.flush()
 

@@ -8,9 +8,21 @@ import hail as hl
 from .coord_cartesian import CoordCartesian
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
-from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, scale_x_genomic, scale_y_continuous, \
-    scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
-    scale_fill_continuous, scale_shape_auto
+from .scale import (
+    Scale,
+    ScaleContinuous,
+    ScaleDiscrete,
+    scale_x_continuous,
+    scale_x_genomic,
+    scale_y_continuous,
+    scale_x_discrete,
+    scale_y_discrete,
+    scale_color_discrete,
+    scale_color_continuous,
+    scale_fill_discrete,
+    scale_fill_continuous,
+    scale_shape_auto,
+)
 from .aes import Aesthetic, aes
 from .facets import Faceter
 from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
@@ -41,7 +53,7 @@ class GGPlot:
         self.add_default_scales(aes)
 
     def __add__(self, other):
-        assert(isinstance(other, FigureAttribute) or isinstance(other, Aesthetic))
+        assert isinstance(other, FigureAttribute) or isinstance(other, Aesthetic)
 
         copied = self.copy()
         if isinstance(other, Geom):
@@ -148,7 +160,9 @@ class GGPlot:
 
                 for key in combined_mapping:
                     if key in self.scales:
-                        combined_mapping = combined_mapping.annotate(**{key: self.scales[key].transform_data(combined_mapping[key])})
+                        combined_mapping = combined_mapping.annotate(
+                            **{key: self.scales[key].transform_data(combined_mapping[key])}
+                        )
                 mapping_per_geom.append(combined_mapping)
                 precomputes[geom_label] = geom.get_stat().get_precomputes(combined_mapping)
 
@@ -170,7 +184,9 @@ class GGPlot:
                 stat = self.geoms[geom_idx].get_stat()
                 geom_label = make_geom_label(geom_idx)
                 if use_faceting:
-                    agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label], self.scales))
+                    agg = hl.agg.group_by(
+                        selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label], self.scales)
+                    )
                 else:
                     agg = stat.make_agg(combined_mapping, precomputed[geom_label], self.scales)
                 aggregators[geom_label] = agg
@@ -181,10 +197,15 @@ class GGPlot:
             if use_faceting:
                 facet_list = list(set(itertools.chain(*[list(x.keys()) for x in all_agg_results.values()])))
                 facet_to_idx = {facet: idx for idx, facet in enumerate(facet_list)}
-                facet_idx_to_agg_result = {geom_label: {facet_to_idx[facet]: agg_result for facet, agg_result in facet_to_agg_result.items()} for geom_label, facet_to_agg_result in all_agg_results.items()}
+                facet_idx_to_agg_result = {
+                    geom_label: {facet_to_idx[facet]: agg_result for facet, agg_result in facet_to_agg_result.items()}
+                    for geom_label, facet_to_agg_result in all_agg_results.items()
+                }
                 num_facets = len(facet_list)
             else:
-                facet_idx_to_agg_result = {geom_label: {0: agg_result} for geom_label, agg_result in all_agg_results.items()}
+                facet_idx_to_agg_result = {
+                    geom_label: {0: agg_result} for geom_label, agg_result in all_agg_results.items()
+                }
                 num_facets = 1
                 facet_list = None
 
@@ -193,17 +214,26 @@ class GGPlot:
         self.verify_scales()
         selected = select_table()
         mapping_per_geom, precomputed = collect_mappings_and_precomputed(selected)
-        labels_to_stats, aggregated, num_facets, facet_list = get_aggregation_result(selected, mapping_per_geom, precomputed)
+        labels_to_stats, aggregated, num_facets, facet_list = get_aggregation_result(
+            selected, mapping_per_geom, precomputed
+        )
 
         geoms_and_grouped_dfs_by_facet_idx = []
         for geom, (geom_label, agg_result_by_facet) in zip(self.geoms, aggregated.items()):
-            dfs_by_facet_idx = {facet_idx: labels_to_stats[geom_label].listify(agg_result) for facet_idx, agg_result in agg_result_by_facet.items()}
+            dfs_by_facet_idx = {
+                facet_idx: labels_to_stats[geom_label].listify(agg_result)
+                for facet_idx, agg_result in agg_result_by_facet.items()
+            }
             geoms_and_grouped_dfs_by_facet_idx.append((geom, geom_label, dfs_by_facet_idx))
 
         # Create scaling functions based on all the data:
         transformers = {}
         for scale in self.scales.values():
-            all_dfs = list(itertools.chain(*[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet_idx]))
+            all_dfs = list(
+                itertools.chain(
+                    *[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet_idx]
+                )
+            )
             transformers[scale.aesthetic_name] = scale.create_local_transformer(all_dfs)
 
         is_faceted = self.facet is not None
@@ -212,8 +242,10 @@ class GGPlot:
             subplot_args = {
                 "rows": n_facet_rows,
                 "cols": n_facet_cols,
-                "subplot_titles": [", ".join([str(fs_value) for fs_value in facet_struct.values()]) for facet_struct in facet_list],
-                **self.facet.get_shared_axis_kwargs()
+                "subplot_titles": [
+                    ", ".join([str(fs_value) for fs_value in facet_struct.values()]) for facet_struct in facet_list
+                ],
+                **self.facet.get_shared_axis_kwargs(),
             }
         else:
             n_facet_rows = 1
@@ -240,7 +272,9 @@ class GGPlot:
 
                 facet_row = facet_idx // n_facet_cols + 1
                 facet_col = facet_idx % n_facet_cols + 1
-                geom.apply_to_fig(scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache, is_faceted)
+                geom.apply_to_fig(
+                    scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache, is_faceted
+                )
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
@@ -270,8 +304,7 @@ class GGPlot:
         return fig
 
     def show(self):
-        """Render and show the plot, either in a browser or notebook.
-        """
+        """Render and show the plot, either in a browser or notebook."""
         self.to_plotly().show()
 
     def write_image(self, path):

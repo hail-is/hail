@@ -31,6 +31,7 @@ for cli in (
 def version():
     '''Print version information and exit.'''
     import hailtop  # pylint: disable=import-outside-toplevel
+
     print(hailtop.version())
 
 
@@ -43,6 +44,7 @@ def curl(
 ):
     '''Issue authenticated curl requests to Hail infrastructure.'''
     from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
+
     async_to_blocking(_curl(namespace, service, path, ctx))
 
 
@@ -55,10 +57,11 @@ async def _curl(
     from hailtop.auth import hail_credentials  # pylint: disable=import-outside-toplevel
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
-    async with hail_credentials(namespace=namespace) as credentials:
+    deploy_config = get_deploy_config().with_default_namespace(namespace)
+    async with hail_credentials(deploy_config=deploy_config) as credentials:
         headers_dict = await credentials.auth_headers()
     headers = [x for k, v in headers_dict.items() for x in ['-H', f'{k}: {v}']]
-    path = get_deploy_config().url(service, path)
+    path = deploy_config.url(service, path)
     os.execvp('curl', ['curl', *headers, *ctx.args, path])
 
 

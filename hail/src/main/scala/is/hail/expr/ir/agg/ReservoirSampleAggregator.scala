@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
@@ -84,9 +84,8 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
     builder.initialize(cb)
   }
 
-  def gc(cb: EmitCodeBuilder): Unit = {
-    cb.invokeVoid(cb.emb.ecb.getOrGenEmitMethod("reservoir_sample_gc",
-      (this, "gc"), FastSeq(), UnitInfo) { mb =>
+  private[this] val gc: EmitMethodBuilder[_] =
+    kb.defineEmitMethod(genName("m", "reservoir_sample_gc"), FastSeq(), UnitInfo) { mb =>
       mb.voidWithBuilder { cb =>
         cb.if_(garbage > (maxSize.toL * 2L + 1024L), {
           val oldRegion = mb.newLocal[Region]("old_region")
@@ -97,8 +96,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
           cb += oldRegion.invoke[Unit]("invalidate")
         })
       }
-    })
-  }
+    }
 
   def seqOp(cb: EmitCodeBuilder, elt: EmitCode): Unit = {
     val eltVal = cb.memoize(elt)
@@ -115,7 +113,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
         val idxToSwap = cb.memoize(rand.invoke[Int, Int]("nextInt", maxSize))
         builder.overwrite(cb, eltVal, idxToSwap)
         cb.assign(garbage, garbage + 1L)
-        gc(cb)
+        cb.invokeVoid(gc, cb.this_)
       })
     })
   }
@@ -195,7 +193,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
         builder.cloneFrom(cb, newBuilder)
         cb.assign(seenSoFar, seenSoFar + other.seenSoFar)
         cb.assign(garbage, garbage + leftSize.toL)
-        gc(cb)
+        cb.invokeVoid(gc, cb.this_)
       })
     })
   }

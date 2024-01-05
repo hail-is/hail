@@ -11,6 +11,7 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStreamValue}
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
+import is.hail.types.virtual.TIterable.elementType
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
@@ -1007,5 +1008,57 @@ class EmitStreamSuite extends HailSuite {
   @Test def testStreamIota(): Unit = {
     assert(evalStream(takeWhile(iota(0, 2))(elt => elt < 10)) == IndexedSeq(0, 2, 4, 6, 8))
     assert(evalStream(StreamTake(iota(5, -5), 3)) == IndexedSeq(5, 0, -5))
+  }
+
+  @Test def testStreamIntervalJoin(): Unit = {
+    val keyStream = mapIR(StreamRange(0, 9, 1, requiresMemoryManagementPerElement = true)) { i =>
+      MakeStruct(FastSeq("i" -> i))
+    }
+    val kType = TIterable.elementType(keyStream.typ).asInstanceOf[TStruct]
+    val rightElemType = TStruct("interval" -> TInterval(TInt32))
+
+    val intervals: IndexedSeq[Interval] =
+      for {
+        (start, end, includesStart, includesEnd) <- FastSeq(
+          (1, 6, true, false),
+          (2, 2, false, false),
+          (3, 5, true, true),
+          (4, 6, true, true),
+          (6, 7, false, true)
+        )
+      } yield Interval(
+        IntervalEndpoint(start, if (includesStart) -1 else 1),
+        IntervalEndpoint(end, if (includesEnd) 1 else -1)
+      )
+
+    val join =
+      ToArray(
+        StreamLeftIntervalJoin(
+          keyStream,
+          ToStream(Literal(TArray(rightElemType), intervals.map(Row(_))), requiresMemoryManagementPerElement = true),
+          kType.fieldNames.head,
+          "interval",
+          "lname",
+          "rname",
+          InsertFields(
+            Ref("lname", kType),
+            FastSeq(
+              "intervals" -> mapArray(Ref("rname", TArray(rightElemType))) { GetField(_, "interval") }
+            )
+          )
+        )
+      )
+
+    assertEvalsTo(join, FastSeq(
+      Row(0, FastSeq()),
+      Row(1, FastSeq(intervals(0))),
+      Row(2, FastSeq(intervals(0))),
+      Row(3, FastSeq(intervals(2), intervals(0))),
+      Row(4, FastSeq(intervals(2), intervals(0), intervals(3))),
+      Row(5, FastSeq(intervals(2), intervals(0), intervals(3))),
+      Row(6, FastSeq(intervals(3))),
+      Row(7, FastSeq(intervals(4))),
+      Row(8, FastSeq())
+    ))
   }
 }

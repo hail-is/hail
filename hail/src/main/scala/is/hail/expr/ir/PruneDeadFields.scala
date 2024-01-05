@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.types._
+import is.hail.types.virtual.TIterable.elementType
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -1247,6 +1248,22 @@ object PruneDeadFields {
           memoizeValueIR(ctx, left, TStream(lRequested), memo),
           memoizeValueIR(ctx, right, TStream(rRequested), memo)
         )
+
+      case StreamLeftIntervalJoin(left, right, keyFieldName, intervalFieldName, lname, rname, body) =>
+        val joinEnv = memoizeValueIR(ctx, body, elementType(requestedType), memo)
+
+        val lEltType = elementType(left.typ).asInstanceOf[TStruct]
+        val lRequestedType = unifySeq(lEltType, uses(lname, joinEnv.eval) :+ selectKey(lEltType, FastSeq(keyFieldName)))
+
+        val rEltType = elementType(right.typ).asInstanceOf[TStruct]
+        val rRequestedType = unifySeq(TArray(rEltType), uses(rname, joinEnv.eval) :+ TArray(selectKey(rEltType, FastSeq(intervalFieldName))))
+
+       unifyEnvs(
+         joinEnv.deleteEval(lname).deleteEval(rname),
+         memoizeValueIR(ctx, left, TStream(lRequestedType), memo),
+         memoizeValueIR(ctx, right, TStream(elementType(rRequestedType)), memo),
+       )
+
       case ArraySort(a, left, right, lessThan) =>
         val compEnv = memoizeValueIR(ctx, lessThan, lessThan.typ, memo)
 
@@ -2025,6 +2042,16 @@ object PruneDeadFields {
           left2, right2, lKey, rKey, l, r,
           rebuildIR(ctx, join, env.bindEval(l -> ltyp.elementType, r -> rtyp.elementType), memo),
           joinType)
+
+      case StreamLeftIntervalJoin(left, right, lKFieldName, rIntrvlName, lName, rName, body) =>
+        val newL = rebuildIR(ctx, left, env, memo)
+        val newR = rebuildIR(ctx, right, env, memo)
+        val newEnv = env.bindEval(
+          lName -> TIterable.elementType(newL.typ),
+          rName -> TArray(TIterable.elementType(newR.typ))
+        )
+        val newB = rebuildIR(ctx, body, newEnv, memo)
+        StreamLeftIntervalJoin(newL, newR, lKFieldName, rIntrvlName, lName, rName, newB)
       case StreamFor(a, valueName, body) =>
         val a2 = rebuildIR(ctx, a, env, memo)
         val body2 = rebuildIR(ctx, body, env.bindEval(valueName -> TIterable.elementType(a2.typ)), memo)

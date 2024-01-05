@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.types.tcoerce
+import is.hail.types.virtual.TIterable.elementType
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -32,14 +33,17 @@ object Bindings {
         empty
     case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, _) =>
       if (i == 1) {
-        val contextType = TIterable.elementType(contexts.typ)
+        val contextType = elementType(contexts.typ)
         Array(ctxName -> contextType)
       } else if (i == 2) {
-        val eltType = tcoerce[TStruct](tcoerce[TStream](makeProducer.typ).elementType)
+        val eltType = tcoerce[TStruct](elementType(makeProducer.typ))
         Array(curKey -> eltType.typeAfterSelectNames(key),
           curVals -> TArray(eltType))
       } else
         empty
+    case StreamLeftIntervalJoin(left, right, _, _, lEltName, rEltName, _) =>
+      if (i == 2) Array(lEltName -> elementType(left.typ), rEltName -> TArray(elementType(right.typ)))
+      else empty
     case StreamFor(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamFlatMap(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
     case StreamFilter(a, name, _) => if (i == 1) Array(name -> tcoerce[TStream](a.typ).elementType) else empty
@@ -80,7 +84,7 @@ object Bindings {
     case MatrixAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableFilter(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case TableGen(contexts, globals, cname, gname, _, _, _) =>
-      if (i == 2) Array(cname -> TIterable.elementType(contexts.typ), gname -> globals.typ)
+      if (i == 2) Array(cname -> elementType(contexts.typ), gname -> globals.typ)
       else empty
     case TableMapGlobals(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
