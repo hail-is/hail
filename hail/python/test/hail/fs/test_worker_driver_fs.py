@@ -163,11 +163,7 @@ def test_can_access_public_blobs():
 @fails_local_backend
 async def test_qob_can_use_sas_tokens():
     vcf = resource('sample.vcf')
-    fs = AzureAsyncFS()
-    try:
-        account = fs.parse_url(vcf).account
-    finally:
-        await fs.close()
+    account = AzureAsyncFS.parse_url(vcf).account
 
     sub_id = os.environ['HAIL_AZURE_SUBSCRIPTION_ID']
     rg = os.environ['HAIL_AZURE_RESOURCE_GROUP']
