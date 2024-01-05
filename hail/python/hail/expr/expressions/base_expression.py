@@ -1028,12 +1028,11 @@ class Expression(object):
         >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        sample_idx      pop
-        0       0
-        1       0
-        2       2
-        3       0
-        <BLANKLINE>
+        sample_idx	pop
+        0	1
+        1	2
+        2	2
+        3	2
 
         >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
         >>> with open('output/ancestral_af.tsv', 'r') as f:
