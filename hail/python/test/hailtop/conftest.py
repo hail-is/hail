@@ -6,13 +6,6 @@ from pytest_asyncio import is_async_test
 
 
 def pytest_collection_modifyitems(items):
-    pytest_asyncio_tests = (item for item in items if is_async_test(item))
-    session_scope_marker = pytest.mark.asyncio(scope="session")
-    for async_test in pytest_asyncio_tests:
-        async_test.add_marker(session_scope_marker)
-
-
-def pytest_collection_modifyitems(config, items):
     n_splits = int(os.environ.get('HAIL_RUN_IMAGE_SPLITS', '1'))
     split_index = int(os.environ.get('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))
     if n_splits <= 1:
@@ -24,6 +17,9 @@ def pytest_collection_modifyitems(config, items):
     def digest(s):
         return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
 
+    session_scope_marker = pytest.mark.asyncio(scope="session")
     for item in items:
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
+        if is_async_test(item):
+            async_test.add_marker(session_scope_marker)
