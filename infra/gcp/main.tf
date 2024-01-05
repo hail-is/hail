@@ -790,6 +790,10 @@ data "sops_file" "auth_oauth2_client_secret_sops" {
   source_file = "${var.github_organization}/auth_oauth2_client_secret.enc.json"
 }
 
+data "sops_file" "hailctl_client_secret_sops" {
+  source_file = "${var.github_organization}/hailctl_client_secret.enc.json"
+}
+
 resource "kubernetes_secret" "auth_oauth2_client_secret" {
   metadata {
     name = "auth-oauth2-client-secret"
@@ -797,6 +801,7 @@ resource "kubernetes_secret" "auth_oauth2_client_secret" {
 
   data = {
     "client_secret.json" = data.sops_file.auth_oauth2_client_secret_sops.raw
+    "hailctl_client_secret.json" = data.sops_file.hailctl_client_secret_sops.raw
   }
 }
 
