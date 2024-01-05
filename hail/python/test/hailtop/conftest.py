@@ -2,14 +2,14 @@ import asyncio
 import hashlib
 import os
 import pytest
+from pytest_asyncio import is_async_test
 
 
-@pytest.fixture(scope="session")
-def event_loop():  # a session scoped event loop ensures very fixture and test use the same event loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
+def pytest_collection_modifyitems(items):
+    pytest_asyncio_tests = (item for item in items if is_async_test(item))
+    session_scope_marker = pytest.mark.asyncio(scope="session")
+    for async_test in pytest_asyncio_tests:
+        async_test.add_marker(session_scope_marker)
 
 
 def pytest_collection_modifyitems(config, items):

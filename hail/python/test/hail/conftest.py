@@ -5,7 +5,8 @@ import os
 import logging
 
 import pytest
-from pytest import StashKey, CollectReport
+from pytest import StashKey, CollectReport, is_async_test
+
 
 from hail import current_backend, init, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
@@ -34,12 +35,11 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_this)
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
+def pytest_collection_modifyitems(items):
+    pytest_asyncio_tests = (item for item in items if is_async_test(item))
+    session_scope_marker = pytest.mark.asyncio(scope="session")
+    for async_test in pytest_asyncio_tests:
+        async_test.add_marker(session_scope_marker)
 
 
 @pytest.fixture(scope="session", autouse=True)
