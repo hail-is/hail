@@ -338,7 +338,9 @@ def test_cloudfuse_read_only(backend: ServiceBackend, output_bucket_path):
 
 def test_cloudfuse_implicit_dirs(fs: RouterAsyncFS, backend: ServiceBackend, upload_test_files):
     (url1, data1), _, _ = upload_test_files
-    object_name = fs.parse_url(url1).path
+    parsed_url1 = fs.parse_url(url1)
+    object_name = parsed_url1.path
+    bucket_name = '/'.join(parsed_url1.bucket_parts)
 
     b = batch(backend)
     j = b.new_job()
