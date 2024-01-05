@@ -5,7 +5,8 @@ import os
 import logging
 
 import pytest
-from pytest import StashKey, CollectReport, is_async_test
+from pytest import StashKey, CollectReport
+from pytest_asyncio import is_async_test
 
 
 from hail import current_backend, init, reset_global_randomness
