@@ -54,7 +54,7 @@ class GoogleCredentials(CloudCredentials):
     @staticmethod
     def from_file_or_default(
         credentials_file: Optional[str] = None,
-    ) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
+    ) -> 'GoogleCredentials':
         if credentials_file:
             return GoogleCredentials.from_file(credentials_file)
         return GoogleCredentials.default_credentials()

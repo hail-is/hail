@@ -111,19 +111,9 @@ class GoogleBigQueryClient(GoogleBaseClient):
     def __init__(
         self,
         project: str,
-        credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None,
-        credentials_file: Optional[str] = None,
-        params: Optional[Mapping[str, str]] = None,
         **kwargs,
     ):
-        super().__init__(
-            base_url=f'https://bigquery.googleapis.com/bigquery/v2/projects/{project}',
-            session=Session(
-                credentials=credentials or GoogleCredentials.from_file_or_default(credentials_file),
-                params=params,
-                **kwargs,
-            ),
-        )
+        super().__init__(base_url=f'https://bigquery.googleapis.com/bigquery/v2/projects/{project}', **kwargs)
 
     # docs:
     # https://cloud.google.com/bigquery/docs/reference

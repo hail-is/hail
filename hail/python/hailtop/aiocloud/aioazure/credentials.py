@@ -65,7 +65,7 @@ class AzureCredentials(CloudCredentials):
     def from_file_or_default(
         credentials_file: Optional[str] = None,
         scopes: Optional[List[str]] = None,
-    ) -> Union['AzureCredentials', AnonymousCloudCredentials]:
+    ) -> 'AzureCredentials':
         if credentials_file:
             return AzureCredentials.from_file(credentials_file, scopes=scopes)
         return AzureCredentials.default_credentials(scopes=scopes)
