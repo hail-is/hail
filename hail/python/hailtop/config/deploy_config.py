@@ -21,19 +21,19 @@ class DeployConfig:
         location = env_var_or_default('location', config['location'])
         domain = env_var_or_default('domain', config['domain'])
         ns = env_var_or_default('default_namespace', config['default_namespace'])
-        subpath = env_var_or_default('subpath', config.get('subpath')) or None
-        if subpath is None and ns != 'default':
+        base_path = env_var_or_default('base_path', config.get('base_path')) or None
+        if base_path is None and ns != 'default':
             domain = f'internal.{config["domain"]}'
-            subpath = f'/{ns}'
+            base_path = f'/{ns}'
 
-        return DeployConfig(location, ns, domain, subpath)
+        return DeployConfig(location, ns, domain, base_path)
 
     def get_config(self) -> Dict[str, Optional[str]]:
         return {
             'location': self._location,
             'default_namespace': self._default_namespace,
             'domain': self._domain,
-            'subpath': self._subpath,
+            'base_path': self._base_path,
         }
 
     @staticmethod
@@ -58,18 +58,18 @@ class DeployConfig:
             }
         return DeployConfig.from_config(config)
 
-    def __init__(self, location: str, default_namespace: str, domain: str, subpath: Optional[str]):
+    def __init__(self, location: str, default_namespace: str, domain: str, base_path: Optional[str]):
         assert location in ('external', 'k8s', 'gce')
         self._location = location
         self._default_namespace = default_namespace
         self._domain = domain
-        self._subpath = subpath
+        self._base_path = base_path
 
     def with_default_namespace(self, default_namespace):
-        return DeployConfig(self._location, default_namespace, self._domain, self._subpath)
+        return DeployConfig(self._location, default_namespace, self._domain, self._base_path)
 
     def with_location(self, location):
-        return DeployConfig(location, self._default_namespace, self._domain, self._subpath)
+        return DeployConfig(location, self._default_namespace, self._domain, self._base_path)
 
     def default_namespace(self):
         return self._default_namespace
@@ -86,18 +86,18 @@ class DeployConfig:
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
-            if self._subpath is None:
+            if self._base_path is None:
                 return f'{service}.hail'
             return 'internal.hail'
         assert self._location == 'external'
-        if self._subpath is None:
+        if self._base_path is None:
             return f'{service}.{self._domain}'
         return self._domain
 
     def base_path(self, service):
-        if self._subpath is None:
+        if self._base_path is None:
             return ''
-        return f'{self._subpath}/{service}'
+        return f'{self._base_path}/{service}'
 
     def base_url(self, service, base_scheme='http'):
         return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
@@ -111,11 +111,11 @@ class DeployConfig:
         return 'sesh'
 
     def external_url(self, service, path, base_scheme='http'):
-        if self._subpath is None:
+        if self._base_path is None:
             if service == 'www':
                 return f'{base_scheme}s://{self._domain}{path}'
             return f'{base_scheme}s://{service}.{self._domain}{path}'
-        return f'{base_scheme}s://{self._domain}{self._subpath}/{service}{path}'
+        return f'{base_scheme}s://{self._domain}{self._base_path}/{service}{path}'
 
     def prefix_application(self, app, service, **kwargs):
         from aiohttp import web  # pylint: disable=import-outside-toplevel

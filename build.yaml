@@ -478,7 +478,7 @@ steps:
       EOF
       {% else %}
       cat > deploy-config.json <<EOF
-      {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"internal.{{ global.domain }}","subpath":"/{{ default_ns.name }}"}
+      {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"internal.{{ global.domain }}","base_path":"/{{ default_ns.name }}"}
       EOF
       {% endif %}
       kubectl -n {{ default_ns.name }} create secret generic deploy-config \

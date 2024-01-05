@@ -1160,7 +1160,7 @@ python3 -c \'{script}\'''',
             'HAIL_DOMAIN': DOMAIN,
             'HAIL_DEFAULT_NAMESPACE': 'default',
             'HAIL_LOCATION': 'external',
-            'HAIL_SUBPATH': '',
+            'HAIL_BASE_PATH': '',
         },
     )
     b.submit()
