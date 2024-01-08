@@ -48,18 +48,17 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
+    (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       cb += ob.writeInt(maxSize)
       builder.serialize(codec)(cb, ob)
-    }
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
+    (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       cb.assign(maxSize, ib.readInt())
       builder.deserialize(codec)(cb, ib)
-    }
   }
+
 
   def init(cb: EmitCodeBuilder, _maxSize: Code[Int]): Unit = {
     cb.assign(maxSize, _maxSize)

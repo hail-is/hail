@@ -161,8 +161,8 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
     val codecSpec = TypedCodecSpec(storageType, codec)
 
     val dec = codecSpec.encodedType.buildDecoder(storageType.virtualType, kb)
-    ((cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib), deepCopy = false))
+    (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
+      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib), deepCopy = false)
   }
 }
 

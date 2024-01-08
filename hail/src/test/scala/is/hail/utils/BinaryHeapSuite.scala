@@ -4,8 +4,7 @@ import is.hail.check.Gen
 import is.hail.check.Prop._
 import is.hail.check.Arbitrary._
 import scala.collection.mutable
-import org.scalatest._
-import Matchers._
+import org.scalatest.Matchers._
 import org.testng.annotations.Test
 
 class BinaryHeapSuite {
