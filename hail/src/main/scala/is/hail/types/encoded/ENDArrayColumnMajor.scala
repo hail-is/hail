@@ -68,7 +68,8 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
 
   override def setRequired(required: Boolean): EType = ENDArrayColumnMajor(elementType, nDims, required)
 
-  override def _asIdent = s"ndarray_of_${ elementType.asIdent }"
+  override def _asIdent: String =
+    s"${nDims}d_array_column_major_of_${ elementType.asIdent }"
 
   override def _toPretty = s"ENDArrayColumnMajor[$elementType,$nDims]"
 }

@@ -9,7 +9,9 @@ from .exceptions import BatchException
 from .resource import ResourceGroup, ResourceFile
 
 
-def concatenate(b: Batch, files: List[ResourceFile], image: Optional[str] = None, branching_factor: int = 100) -> ResourceFile:
+def concatenate(
+    b: Batch, files: List[ResourceFile], image: Optional[str] = None, branching_factor: int = 100
+) -> ResourceFile:
     """
     Concatenate files using tree aggregation.
 
@@ -60,8 +62,9 @@ def concatenate(b: Batch, files: List[ResourceFile], image: Optional[str] = None
     return _combine(_concatenate, b, 'concatenate', files, branching_factor=branching_factor)
 
 
-def plink_merge(b: Batch, bfiles: List[ResourceGroup],
-                image: Optional[str] = None, branching_factor: int = 100) -> ResourceGroup:
+def plink_merge(
+    b: Batch, bfiles: List[ResourceGroup], image: Optional[str] = None, branching_factor: int = 100
+) -> ResourceGroup:
     """
     Merge binary PLINK files using tree aggregation.
 

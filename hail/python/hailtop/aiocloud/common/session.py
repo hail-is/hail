@@ -1,13 +1,17 @@
 from contextlib import AsyncExitStack
 from types import TracebackType
 from typing import Optional, Type, TypeVar, Mapping, Union
+import time
 import aiohttp
 import abc
+import logging
 from hailtop import httpx
 from hailtop.utils import retry_transient_errors, RateLimit, RateLimiter
 from .credentials import CloudCredentials, AnonymousCloudCredentials
 
+
 SessionType = TypeVar('SessionType', bound='BaseSession')
+log = logging.getLogger('hailtop.aiocloud.common.session')
 
 
 class BaseSession(abc.ABC):
@@ -39,10 +43,9 @@ class BaseSession(abc.ABC):
     async def __aenter__(self: SessionType) -> SessionType:
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         await self.close()
 
 
@@ -64,12 +67,14 @@ class RateLimitedSession(BaseSession):
 
 
 class Session(BaseSession):
-    def __init__(self,
-                 *,
-                 credentials: Union[CloudCredentials, AnonymousCloudCredentials],
-                 params: Optional[Mapping[str, str]] = None,
-                 http_session: Optional[httpx.ClientSession] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        *,
+        credentials: Union[CloudCredentials, AnonymousCloudCredentials],
+        params: Optional[Mapping[str, str]] = None,
+        http_session: Optional[httpx.ClientSession] = None,
+        **kwargs,
+    ):
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
         self._params = params
@@ -82,13 +87,6 @@ class Session(BaseSession):
         self._credentials = credentials
 
     async def request(self, method: str, url: str, **kwargs) -> aiohttp.ClientResponse:
-        auth_headers = await self._credentials.auth_headers()
-        if auth_headers:
-            if 'headers' in kwargs:
-                kwargs['headers'].update(auth_headers)
-            else:
-                kwargs['headers'] = auth_headers
-
         if self._params:
             if 'params' in kwargs:
                 request_params = kwargs['params']
@@ -102,8 +100,25 @@ class Session(BaseSession):
         # retry by default
         retry = kwargs.pop('retry', True)
         if retry:
-            return await retry_transient_errors(self._http_session.request, method, url, **kwargs)
-        return await self._http_session.request(method, url, **kwargs)
+            return await retry_transient_errors(self._request_with_valid_authn, method, url, **kwargs)
+        return await self._request_with_valid_authn(method, url, **kwargs)
+
+    async def _request_with_valid_authn(self, method, url, **kwargs):
+        while True:
+            auth_headers, expiration = await self._credentials.auth_headers_with_expiration()
+            if auth_headers:
+                if 'headers' in kwargs:
+                    kwargs['headers'].update(auth_headers)
+                else:
+                    kwargs['headers'] = auth_headers
+            try:
+                return await self._http_session.request(method, url, **kwargs)
+            except httpx.ClientResponseError as err:
+                if err.status != 401:
+                    raise
+                if expiration is None or time.time() <= expiration:
+                    raise err
+                log.info(f'Credentials expired while waiting for request to {url}. We will retry. {err}.')
 
     async def close(self) -> None:
         async with AsyncExitStack() as stack:

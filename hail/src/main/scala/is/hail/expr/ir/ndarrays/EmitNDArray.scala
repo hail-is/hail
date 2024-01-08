@@ -87,7 +87,7 @@ object EmitNDArray {
         ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
         cb.assign(ev, result)
       }
-      cb.invokeVoid(mb)
+      cb.invokeVoid(mb, cb.this_)
       ev.toI(cb)
     }
 

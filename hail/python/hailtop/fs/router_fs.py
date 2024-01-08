@@ -163,27 +163,31 @@ def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int,
         size=size_bytes,
         typ=FileType.DIRECTORY if is_dir else FileType.FILE,
         owner=None,
-        modification_time=time_modified)
+        modification_time=time_modified,
+    )
 
 
 class RouterFS(FS):
-    def __init__(self,
-                 afs: Optional[RouterAsyncFS] = None,
-                 *,
-                 local_kwargs: Optional[Dict[str, Any]] = None,
-                 gcs_kwargs: Optional[Dict[str, Any]] = None,
-                 azure_kwargs: Optional[Dict[str, Any]] = None,
-                 s3_kwargs: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        afs: Optional[RouterAsyncFS] = None,
+        *,
+        local_kwargs: Optional[Dict[str, Any]] = None,
+        gcs_kwargs: Optional[Dict[str, Any]] = None,
+        azure_kwargs: Optional[Dict[str, Any]] = None,
+        s3_kwargs: Optional[Dict[str, Any]] = None,
+    ):
         if afs and (local_kwargs or gcs_kwargs or azure_kwargs or s3_kwargs):
             raise ValueError(
                 f'If afs is specified, no other arguments may be specified: {afs=}, {local_kwargs=}, {gcs_kwargs=}, {azure_kwargs=}, {s3_kwargs=}'
             )
         self.afs = afs or RouterAsyncFS(
-            local_kwargs=local_kwargs,
-            gcs_kwargs=gcs_kwargs,
-            azure_kwargs=azure_kwargs,
-            s3_kwargs=s3_kwargs
+            local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
         )
+
+    @property
+    def _gcs_kwargs(self) -> Optional[Dict[str, Any]]:
+        return self.afs._gcs_kwargs
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
         del buffer_size
@@ -213,6 +217,7 @@ class RouterFS(FS):
         async def _copy():
             sema = asyncio.Semaphore(max_simultaneous_transfers)
             await Copier.copy(self.afs, sema, transfer)
+
         return async_to_blocking(_copy())
 
     def exists(self, path: str) -> bool:
@@ -220,9 +225,8 @@ class RouterFS(FS):
             dir_path = path
             if dir_path[-1] != '/':
                 dir_path = dir_path + '/'
-            return any(await asyncio.gather(
-                self.afs.isfile(path),
-                self.afs.isdir(dir_path)))
+            return any(await asyncio.gather(self.afs.isfile(path), self.afs.isdir(dir_path)))
+
         return async_to_blocking(_exists())
 
     def is_file(self, path: str) -> bool:
@@ -237,8 +241,9 @@ class RouterFS(FS):
         return async_to_blocking(self._async_is_dir(path))
 
     def stat(self, path: str) -> FileListEntry:
-        maybe_sb_and_t, is_dir = async_to_blocking(asyncio.gather(
-            self._size_bytes_and_time_modified_or_none(path), self._async_is_dir(path)))
+        maybe_sb_and_t, is_dir = async_to_blocking(
+            asyncio.gather(self._size_bytes_and_time_modified_or_none(path), self._async_is_dir(path))
+        )
         if maybe_sb_and_t is None:
             if not is_dir:
                 raise FileNotFoundError(path)
@@ -260,37 +265,35 @@ class RouterFS(FS):
                 return (await file_status.size(), file_status.time_modified().timestamp())
             except IsADirectoryError:
                 return None
-        return _stat_result(
-            *await asyncio.gather(fle.is_dir(), maybe_status(), fle.url()))
 
-    def ls(self,
-           path: str,
-           *,
-           error_when_file_and_directory: bool = True,
-           _max_simultaneous_files: int = 50) -> List[FileListEntry]:
-        return async_to_blocking(self._async_ls(
-            path,
-            error_when_file_and_directory=error_when_file_and_directory,
-            _max_simultaneous_files=_max_simultaneous_files))
+        return _stat_result(*await asyncio.gather(fle.is_dir(), maybe_status(), fle.url()))
 
-    async def _async_ls(self,
-                        path: str,
-                        *,
-                        error_when_file_and_directory: bool = True,
-                        _max_simultaneous_files: int = 50) -> List[FileListEntry]:
+    def ls(
+        self, path: str, *, error_when_file_and_directory: bool = True, _max_simultaneous_files: int = 50
+    ) -> List[FileListEntry]:
+        return async_to_blocking(
+            self._async_ls(
+                path,
+                error_when_file_and_directory=error_when_file_and_directory,
+                _max_simultaneous_files=_max_simultaneous_files,
+            )
+        )
+
+    async def _async_ls(
+        self, path: str, *, error_when_file_and_directory: bool = True, _max_simultaneous_files: int = 50
+    ) -> List[FileListEntry]:
         sema = asyncio.Semaphore(_max_simultaneous_files)
 
         async def ls_no_glob(path) -> List[FileListEntry]:
             try:
-                return await self._ls_no_glob(path,
-                                              error_when_file_and_directory=error_when_file_and_directory,
-                                              sema=sema)
+                return await self._ls_no_glob(
+                    path, error_when_file_and_directory=error_when_file_and_directory, sema=sema
+                )
             except FileNotFoundError:
                 return []
 
         url = self.afs.parse_url(path)
-        if any(glob.escape(bucket_part) != bucket_part
-               for bucket_part in url.bucket_parts):
+        if any(glob.escape(bucket_part) != bucket_part for bucket_part in url.bucket_parts):
             raise ValueError(f'glob pattern only allowed in path (e.g. not in bucket): {path}')
 
         blobpath = url.path
@@ -328,19 +331,17 @@ class RouterFS(FS):
                     functools.partial(ls_no_glob, '/'.join([*cumulative_prefix, *intervening_components]))
                     for cumulative_prefix in cumulative_prefixes
                 ],
-                cancel_on_error=True
+                cancel_on_error=True,
             )
             cached_stats_for_each_cumulative_prefix = [
                 stat
                 for stats_for_one_prefix, cumulative_prefix in zip(stats_grouped_by_prefix, cumulative_prefixes)
                 for stat in stats_for_one_prefix
-                if fnmatch.fnmatch(stat.path,
-                                   '/'.join([*cumulative_prefix, *intervening_components, single_component_glob_pattern]))
+                if fnmatch.fnmatch(
+                    stat.path, '/'.join([*cumulative_prefix, *intervening_components, single_component_glob_pattern])
+                )
             ]
-            cumulative_prefixes = [
-                stat.path.split('/')
-                for stat in cached_stats_for_each_cumulative_prefix
-            ]
+            cumulative_prefixes = [stat.path.split('/') for stat in cached_stats_for_each_cumulative_prefix]
 
         if len(suffix_components) == 0 and cached_stats_for_each_cumulative_prefix is not None:
             found_stats = cached_stats_for_each_cumulative_prefix
@@ -349,38 +350,33 @@ class RouterFS(FS):
                 sema,
                 *[
                     functools.partial(ls_no_glob, '/'.join([*cumulative_prefix, *suffix_components]))
-                        for cumulative_prefix in cumulative_prefixes
+                    for cumulative_prefix in cumulative_prefixes
                 ],
-                cancel_on_error=True
+                cancel_on_error=True,
             )
-            found_stats = [
-                stat
-                for stats in found_stats_grouped_by_prefix
-                for stat in stats
-            ]
+            found_stats = [stat for stats in found_stats_grouped_by_prefix for stat in stats]
 
         if len(glob_components) == 0 and len(found_stats) == 0:
             # Unless we are using a glob pattern, a path referring to no files should error
             raise FileNotFoundError(path)
         return found_stats
 
-    async def _ls_no_glob(self,
-                          path: str,
-                          *,
-                          error_when_file_and_directory: bool = True,
-                          sema: asyncio.Semaphore) -> List[FileListEntry]:
+    async def _ls_no_glob(
+        self, path: str, *, error_when_file_and_directory: bool = True, sema: asyncio.Semaphore
+    ) -> List[FileListEntry]:
         async def ls_as_dir() -> Optional[List[FileListEntry]]:
             try:
                 return await bounded_gather2(
                     sema,
-                    *[functools.partial(self._aiofle_to_fle, fle)
-                      async for fle in await self.afs.listfiles(path)],
-                    cancel_on_error=True
+                    *[functools.partial(self._aiofle_to_fle, fle) async for fle in await self.afs.listfiles(path)],
+                    cancel_on_error=True,
                 )
             except (FileNotFoundError, NotADirectoryError):
                 return None
+
         maybe_sb_and_t, maybe_contents = await asyncio.gather(
-            self._size_bytes_and_time_modified_or_none(path), ls_as_dir())
+            self._size_bytes_and_time_modified_or_none(path), ls_as_dir()
+        )
 
         if maybe_sb_and_t is not None:
             file_stat = _stat_result(False, maybe_sb_and_t, path)
@@ -393,23 +389,23 @@ class RouterFS(FS):
             raise FileNotFoundError(path)
         return maybe_contents
 
-    def mkdir(self, path: str):
+    def mkdir(self, path: str) -> None:
         return async_to_blocking(self.afs.mkdir(path))
 
-    async def amkdir(self, path: str):
-        return self.afs.mkdir(path)
+    async def amkdir(self, path: str) -> None:
+        return await self.afs.mkdir(path)
 
-    def remove(self, path: str):
+    def remove(self, path: str) -> None:
         return async_to_blocking(self.afs.remove(path))
 
-    async def aremove(self, path: str):
+    async def aremove(self, path: str) -> None:
         return await self.afs.remove(path)
 
-    def rmtree(self, path: str):
+    def rmtree(self, path: str) -> None:
         return async_to_blocking(self.afs.rmtree(None, path))
 
-    async def armtree(self, path: str):
-        return self.afs.rmtree(None, path)
+    async def armtree(self, path: str) -> None:
+        return await self.afs.rmtree(None, path)
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme in self.afs.schemes

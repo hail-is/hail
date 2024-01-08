@@ -47,27 +47,26 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildEncoder(st: SType, kb: EmitClassBuilder[_]): StagedEncoder = {
     val mb = buildEncoderMethod(st, kb);
-    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, sv, ob) }
+    { (cb: EmitCodeBuilder, sv: SValue, ob: Value[OutputBuffer]) => cb.invokeVoid(mb, cb.this_, sv, ob) }
   }
 
-  final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+  final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] =
     kb.getOrGenEmitMethod(s"ENCODE_${ st.asIdent }_TO_${ asIdent }",
       (st, this, "ENCODE"),
       FastSeq[ParamType](st.paramType, classInfo[OutputBuffer]),
-      UnitInfo) { mb =>
-
+      UnitInfo
+    ) { mb =>
       mb.voidWithBuilder { cb =>
         val arg = mb.getSCodeParam(1)
         val out = mb.getCodeParam[OutputBuffer](2)
         _buildEncoder(cb, arg, out)
       }
     }
-  }
 
   final def buildDecoder(t: Type, kb: EmitClassBuilder[_]): StagedDecoder = {
     val mb = buildDecoderMethod(t: Type, kb);
     { (cb: EmitCodeBuilder, r: Value[Region], ib: Value[InputBuffer]) =>
-      cb.invokeSCode(mb, r, ib)
+      cb.invokeSCode(mb, cb.this_, r, ib)
     }
   }
 
@@ -76,8 +75,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     kb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ st.asIdent }",
       (t, this, "DECODE"),
       FastSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
-      st.paramType) { mb =>
-
+      st.paramType
+    ) { mb =>
       mb.emitSCode { cb =>
         val region: Value[Region] = mb.getCodeParam[Region](1)
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
@@ -92,38 +91,38 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildInplaceDecoder(pt: PType, kb: EmitClassBuilder[_]): StagedInplaceDecoder = {
     val mb = buildInplaceDecoderMethod(pt, kb);
     { (cb: EmitCodeBuilder, r: Value[Region], addr: Value[Long], ib: Value[InputBuffer]) =>
-      cb.invokeVoid(mb, r, addr, ib)
+      cb.invokeVoid(mb, cb.this_, r, addr, ib)
     }
   }
 
-  final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+  final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] =
     kb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
       FastSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
-      UnitInfo)({ mb =>
-
+      UnitInfo
+    ) { mb =>
       mb.voidWithBuilder { cb =>
         val region: Value[Region] = mb.getCodeParam[Region](1)
         val addr: Value[Long] = mb.getCodeParam[Long](2)
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](3)
         _buildInplaceDecoder(cb, pt, region, addr, in)
       }
-    })
-  }
+    }
 
   final def buildSkip(kb: EmitClassBuilder[_]): (EmitCodeBuilder, Value[Region], Value[InputBuffer]) => Unit = {
     val mb = kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
       FastSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
-      UnitInfo)({ mb =>
+      UnitInfo
+    ) { mb =>
       mb.voidWithBuilder { cb =>
         val r: Value[Region] = mb.getCodeParam[Region](1)
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
         _buildSkip(cb, r, in)
       }
-    })
+    }
 
-    { (cb, r, in) => cb.invokeVoid(mb, r, in) }
+    { (cb, r, in) => cb.invokeVoid(mb, cb.this_, r, in) }
   }
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit

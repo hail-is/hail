@@ -220,6 +220,7 @@ class LinkedListChecker(TypeChecker):
 
     def check(self, x, caller, param):
         from hail.utils import LinkedList
+
         if not isinstance(x, LinkedList):
             raise TypecheckFailure
         if x.type is not self.type:
@@ -360,10 +361,7 @@ class FunctionChecker(TypeChecker):
 
         params = inspect.signature(x).parameters
         if self.nargs != len(params):
-            n_required_params = len([
-                p for p in params.values()
-                if p.default == inspect.Parameter.empty
-            ])
+            n_required_params = len([p for p in params.values() if p.default == inspect.Parameter.empty])
 
             if not (self.nargs >= n_required_params and self.nargs < len(params)):
                 raise TypecheckFailure
@@ -373,12 +371,14 @@ class FunctionChecker(TypeChecker):
             try:
                 return self.ret_checker.check(ret, caller, param)
             except TypecheckFailure:
-                raise TypeError("'{caller}': '{param}': expected return type {expected}, found {found}".format(
-                    caller=caller,
-                    param=param,
-                    expected=self.ret_checker.expects(),
-                    found=self.ret_checker.format(ret)
-                ))
+                raise TypeError(
+                    "'{caller}': '{param}': expected return type {expected}, found {found}".format(
+                        caller=caller,
+                        param=param,
+                        expected=self.ret_checker.expects(),
+                        found=self.ret_checker.format(ret),
+                    )
+                )
 
         return f
 
@@ -400,7 +400,9 @@ def only(t):
     elif isinstance(t, TypeChecker):
         return t
     else:
-        raise RuntimeError("invalid typecheck signature: expected 'type', 'lambda', or 'TypeChecker', found '%s'" % type(t))
+        raise RuntimeError(
+            "invalid typecheck signature: expected 'type', 'lambda', or 'TypeChecker', found '%s'" % type(t)
+        )
 
 
 def exactly(v, reference_equality=False):
@@ -472,10 +474,7 @@ numeric = oneof(int, float)
 
 char = CharChecker()
 
-table_key_type = nullable(
-    oneof(
-        transformed((str, lambda x: [x])),
-        sequenceof(str)))
+table_key_type = nullable(oneof(transformed((str, lambda x: [x])), sequenceof(str)))
 
 
 def get_signature(f) -> inspect.Signature:
@@ -525,17 +524,18 @@ def check_all(f, args, kwargs, checks, is_method):
 
     has_varargs = any(param.kind == param.VAR_POSITIONAL for param in spec.parameters.values())
     n_pos_args = len(
-        list(filter(
-            lambda p: p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD),
-            spec.parameters.values())))
+        list(filter(lambda p: p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD), spec.parameters.values()))
+    )
     if not has_varargs and len(args) > n_pos_args:
         raise TypeError(f"'{name}' takes {n_pos_args} positional arguments, found {len(args)}")
 
     for i, (arg_name, param) in enumerate(spec.parameters.items()):
         if i == 0 and is_method:
             if not isinstance(arg_list[0], object):
-                raise RuntimeError("no class found as first argument. Did you mean to use 'typecheck' "
-                                   "instead of 'typecheck_method'?")
+                raise RuntimeError(
+                    "no class found as first argument. Did you mean to use 'typecheck' "
+                    "instead of 'typecheck_method'?"
+                )
             args_.append(args[i])
             continue
         checker = checks[arg_name]
@@ -546,14 +546,12 @@ def check_all(f, args, kwargs, checks, is_method):
 
         if necessarily_positional or keyword_passed_as_positional:
             if i >= len(args):
-                raise TypeError(
-                    f'Expected {n_pos_args} positional arguments, found {len(args)}')
+                raise TypeError(f'Expected {n_pos_args} positional arguments, found {len(args)}')
             args_.append(arg_check(args[i], name, arg_name, checker))
         elif param.kind in (param.KEYWORD_ONLY, param.POSITIONAL_OR_KEYWORD):
             arg = kwargs.pop(arg_name, param.default)
             if arg is inspect._empty:
-                raise TypeError(
-                    f"{name}() missing required keyword-only argument '{arg_name}'")
+                raise TypeError(f"{name}() missing required keyword-only argument '{arg_name}'")
             kwargs_[arg_name] = arg_check(arg, name, arg_name, checker)
         elif param.kind == param.VAR_POSITIONAL:
             # consume the rest of the positional arguments
@@ -566,6 +564,7 @@ def check_all(f, args, kwargs, checks, is_method):
             for kwarg_name, arg in kwargs.items():
                 kwargs_[kwarg_name] = kwargs_check(arg, name, kwarg_name, checker)
     return args_, kwargs_
+
 
 def typecheck_method(**checkers):
     return _make_dec(checkers, is_method=True)
@@ -593,42 +592,38 @@ def arg_check(arg, function_name: str, arg_name: str, checker: TypeChecker):
     try:
         return checker.check(arg, function_name, arg_name)
     except TypecheckFailure as e:
-        raise TypeError("{fname}: parameter '{argname}': "
-                        "expected {expected}, found {found}".format(
-                            fname=function_name,
-                            argname=arg_name,
-                            expected=checker.expects(),
-                            found=checker.format(arg)
-                        )) from e
+        raise TypeError(
+            "{fname}: parameter '{argname}': "
+            "expected {expected}, found {found}".format(
+                fname=function_name, argname=arg_name, expected=checker.expects(), found=checker.format(arg)
+            )
+        ) from e
 
 
-def args_check(arg,
-               function_name: str,
-               arg_name: str,
-               index: int,
-               total_varargs: int,
-               checker: TypeChecker):
+def args_check(arg, function_name: str, arg_name: str, index: int, total_varargs: int, checker: TypeChecker):
     try:
         return checker.check(arg, function_name, arg_name)
     except TypecheckFailure as e:
-        raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
-                        "expected {expected}, found {found}".format(
-                            fname=function_name,
-                            argname=arg_name,
-                            idx=index,
-                            tot=total_varargs,
-                            expected=checker.expects(),
-                            found=checker.format(arg)
-                        )) from e
+        raise TypeError(
+            "{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
+            "expected {expected}, found {found}".format(
+                fname=function_name,
+                argname=arg_name,
+                idx=index,
+                tot=total_varargs,
+                expected=checker.expects(),
+                found=checker.format(arg),
+            )
+        ) from e
 
 
 def kwargs_check(arg, function_name: str, kwarg_name: str, checker: TypeChecker):
     try:
         return checker.check(arg, function_name, kwarg_name)
     except TypecheckFailure as e:
-        raise TypeError("{fname}: keyword argument '{argname}': "
-                        "expected {expected}, found {found}".format(
-                            fname=function_name,
-                            argname=kwarg_name,
-                            expected=checker.expects(),
-                            found=checker.format(arg))) from e
+        raise TypeError(
+            "{fname}: keyword argument '{argname}': "
+            "expected {expected}, found {found}".format(
+                fname=function_name, argname=kwarg_name, expected=checker.expects(), found=checker.format(arg)
+            )
+        ) from e

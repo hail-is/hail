@@ -19,7 +19,7 @@ object StringOrdering {
             val bcode1 = x.asInstanceOf[SStringPointerValue]
             val bcode2 = y.asInstanceOf[SStringPointerValue]
             val ord = BinaryOrdering.make(bcode1.binaryRepr.st, bcode2.binaryRepr.st, ecb)
-            ord.compareNonnull(cb, bcode1.binaryRepr, bcode2.binaryRepr)
+            ord._compareNonnull(cb, bcode1.binaryRepr, bcode2.binaryRepr)
           }
         }
 

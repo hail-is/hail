@@ -74,7 +74,8 @@ intersphinx_mapping = {
     'Bokeh': ('https://docs.bokeh.org/en/3.1.0/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
     'scipy': ('https://docs.scipy.org/doc/scipy-1.9.3', None),
-    'pandas': ('https://pandas.pydata.org/docs/', None)}
+    'pandas': ('https://pandas.pydata.org/docs/', None),
+}
 
 # Add any paths that contain templates here, relative to this directory.
 site_templates = os.environ.get('HAIL_WEBSITE_DIR', '../../../../website/website/') + 'templates'
@@ -173,13 +174,12 @@ html_theme = 'sphinx_rtd_theme'
 # documentation.
 #
 
-html_theme_options = {
-    'collapse_navigation': True,
-    'display_version': True
-}
+html_theme_options = {'collapse_navigation': True, 'display_version': True}
 
 # Add any paths that contain custom themes here, relative to this directory.
-html_theme_path = ["_themes", ]
+html_theme_path = [
+    "_themes",
+]
 
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
@@ -225,9 +225,7 @@ html_last_updated_fmt = ''
 
 # Custom sidebar templates, maps document names to template names.
 #
-html_sidebars = {
-    '**': ['globaltoc.html', 'localtoc.html', 'searchbox.html']
-}
+html_sidebars = {'**': ['globaltoc.html', 'localtoc.html', 'searchbox.html']}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
@@ -294,15 +292,12 @@ latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     #
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     #
     # 'preamble': '',
-
     # Latex figure (float) alignment
     #
     # 'figure_align': 'htbp',
@@ -312,8 +307,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'Hail.tex', u'Hail Documentation',
-     u'Hail Team', 'manual'),
+    (master_doc, 'Hail.tex', u'Hail Documentation', u'Hail Team', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -353,10 +347,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (master_doc, 'hail', u'Hail Documentation',
-     [author], 1)
-]
+man_pages = [(master_doc, 'hail', u'Hail Documentation', [author], 1)]
 
 # If true, show URL addresses after external links.
 #
@@ -369,9 +360,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'Hail', u'Hail Documentation',
-     author, 'Hail', 'One line description of project.',
-     'Miscellaneous'),
+    (master_doc, 'Hail', u'Hail Documentation', author, 'Hail', 'One line description of project.', 'Miscellaneous'),
 ]
 
 # Documents to append as an appendix to all manuals.
@@ -392,11 +381,26 @@ texinfo_documents = [
 
 
 def autodoc_skip_member(app, what, name, obj, skip, options):
-    exclusions = ('__delattr__', '__dict__', '__dir__', '__doc__', '__format__',
-                  '__getattribute__', '__hash__', '__init__',
-                  '__init_subclass__', '__new__', '__reduce__', '__reduce_ex__',
-                  '__repr__', '__setattr__', '__sizeof__', '__str__',
-                  '__subclasshook__', '__weakref__')
+    exclusions = (
+        '__delattr__',
+        '__dict__',
+        '__dir__',
+        '__doc__',
+        '__format__',
+        '__getattribute__',
+        '__hash__',
+        '__init__',
+        '__init_subclass__',
+        '__new__',
+        '__reduce__',
+        '__reduce_ex__',
+        '__repr__',
+        '__setattr__',
+        '__sizeof__',
+        '__str__',
+        '__subclasshook__',
+        '__weakref__',
+    )
     exclude = name in exclusions
     return skip or exclude
 

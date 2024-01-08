@@ -6,8 +6,7 @@ from hail.expr.expressions import expr_locus, expr_float64, raise_unless_row_ind
 from hail.utils.java import Env
 
 
-@typecheck(a=np.ndarray,
-           radius=oneof(int, float))
+@typecheck(a=np.ndarray, radius=oneof(int, float))
 def array_windows(a, radius):
     """Returns start and stop indices for window around each array value.
 
@@ -48,8 +47,9 @@ def array_windows(a, radius):
     if a.ndim != 1:
         raise ValueError("array_windows: 'a' must be 1-dimensional")
     if not (np.issubdtype(a.dtype, np.signedinteger) or np.issubdtype(a.dtype, np.floating)):
-        raise ValueError(f"array_windows: 'a' must be an ndarray of signed integer or float values, "
-                         f"found dtype {str(a.dtype)}")
+        raise ValueError(
+            f"array_windows: 'a' must be an ndarray of signed integer or float values, " f"found dtype {str(a.dtype)}"
+        )
 
     size = a.size
     if size == 0:
@@ -78,10 +78,7 @@ def array_windows(a, radius):
     return starts, stops
 
 
-@typecheck(locus_expr=expr_locus(),
-           radius=oneof(int, float),
-           coord_expr=nullable(expr_float64),
-           _localize=bool)
+@typecheck(locus_expr=expr_locus(), radius=oneof(int, float), coord_expr=nullable(expr_float64), _localize=bool)
 def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     """Returns start and stop indices for window around each locus.
 
@@ -198,16 +195,27 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     contig_group_expr = hl.agg.group_by(hl.locus(locus_expr.contig, 1, reference_genome=rg), hl.agg.collect(coord_expr))
 
     # check loci are in sorted order
-    last_pos = hl.fold(lambda a, elt: (hl.case()
-                                         .when(a <= elt, elt)
-                                         .or_error(hl.str("locus_windows: 'locus_expr' global position must be in ascending order. ") + hl.str(a) + hl.str(" was not less then or equal to ") + hl.str(elt))),
-                       -1,
-                       hl.agg.collect(hl.case()
-                                        .when(hl.is_defined(locus_expr), locus_expr.global_position())
-                                        .or_error("locus_windows: missing value for 'locus_expr'.")))
-    checked_contig_groups = (hl.case()
-                               .when(last_pos >= 0, contig_group_expr)
-                               .or_error("locus_windows: 'locus_expr' has length 0"))
+    last_pos = hl.fold(
+        lambda a, elt: (
+            hl.case()
+            .when(a <= elt, elt)
+            .or_error(
+                hl.str("locus_windows: 'locus_expr' global position must be in ascending order. ")
+                + hl.str(a)
+                + hl.str(" was not less then or equal to ")
+                + hl.str(elt)
+            )
+        ),
+        -1,
+        hl.agg.collect(
+            hl.case()
+            .when(hl.is_defined(locus_expr), locus_expr.global_position())
+            .or_error("locus_windows: missing value for 'locus_expr'.")
+        ),
+    )
+    checked_contig_groups = (
+        hl.case().when(last_pos >= 0, contig_group_expr).or_error("locus_windows: 'locus_expr' has length 0")
+    )
 
     contig_groups = locus_expr._aggregation_method()(checked_contig_groups, _localize=False)
 
@@ -223,12 +231,10 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
 
 def _check_dims(a, name, ndim, min_size=1):
     if len(a.shape) != ndim:
-        raise ValueError(f'{name} must be {ndim}-dimensional, '
-                         f'found {a.ndim}')
+        raise ValueError(f'{name} must be {ndim}-dimensional, ' f'found {a.ndim}')
     for i in range(ndim):
         if a.shape[i] < min_size:
-            raise ValueError(f'{name}.shape[{i}] must be at least '
-                             f'{min_size}, found {a.shape[i]}')
+            raise ValueError(f'{name}.shape[{i}] must be at least ' f'{min_size}, found {a.shape[i]}')
 
 
 def _ndarray_matmul_ndim(left, right):

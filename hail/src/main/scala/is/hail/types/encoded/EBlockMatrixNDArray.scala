@@ -83,7 +83,8 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
   }
 
-  def _asIdent = s"ndarray_of_${ elementType.asIdent }"
+  override def _asIdent: String =
+    s"bm_ndarray_${if (encodeRowMajor) "row" else "column"}_major_of_${elementType.asIdent}"
 
   def _toPretty = s"ENDArray[$elementType]"
 

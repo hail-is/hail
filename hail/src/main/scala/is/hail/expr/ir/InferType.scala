@@ -177,6 +177,8 @@ object InferType {
         result.typ
       case RunAggScan(_, _, _, _, result, _) =>
         TStream(result.typ)
+      case s: StreamLeftIntervalJoin =>
+        TStream(s.body.typ)
       case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
         TStream(join.typ)
       case NDArrayShape(nd) =>

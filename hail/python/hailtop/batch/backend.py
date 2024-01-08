@@ -17,6 +17,7 @@ from rich.progress import track
 from hailtop import pip_version
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
+from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 
@@ -29,14 +30,15 @@ from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
 from . import resource, batch  # pylint: disable=unused-import
 from .job import PythonJob
-from .utils import needs_tokens_mounted
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 from hailtop.aiotools.validators import validate_file
 
 
 HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{pip_version()}')
-HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE') or hailgenetics_hail_image_for_current_python_version()
+HAIL_GENETICS_HAIL_IMAGE = (
+    os.environ.get('HAIL_GENETICS_HAIL_IMAGE') or hailgenetics_hail_image_for_current_python_version()
+)
 
 
 RunningBatchType = TypeVar('RunningBatchType')
@@ -52,26 +54,17 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     """
     Abstract class for backends.
     """
+
     _closed = False
 
-    def __init__(self):
-        self._requester_pays_fses: Dict[GCSRequesterPaysConfiguration, RouterAsyncFS] = {}
+    def __init__(self, requester_pays_fses: GCSRequesterPaysFSCache):
+        self._requester_pays_fses = requester_pays_fses
 
-    def requester_pays_fs(self, requester_pays_config: GCSRequesterPaysConfiguration) -> RouterAsyncFS:
-        try:
-            return self._requester_pays_fses[requester_pays_config]
-        except KeyError:
-            if requester_pays_config is not None:
-                self._requester_pays_fses[requester_pays_config] = RouterAsyncFS(
-                    gcs_kwargs={"gcs_requester_pays_configuration": requester_pays_config}
-                )
-                return self._requester_pays_fses[requester_pays_config]
-            return self._fs
+    def requester_pays_fs(self, requester_pays_config: Optional[GCSRequesterPaysConfiguration]) -> RouterAsyncFS:
+        return self._requester_pays_fses[requester_pays_config]
 
     def validate_file(self, uri: str, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> None:
-        self._validate_file(
-            uri, self.requester_pays_fs(requester_pays_config) if requester_pays_config is not None else self._fs
-        )
+        self._validate_file(uri, self.requester_pays_fs(requester_pays_config))
 
     @abc.abstractmethod
     def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
@@ -157,11 +150,10 @@ class LocalBackend(Backend[None]):
         variable `HAIL_BATCH_EXTRA_DOCKER_RUN_FLAGS`.
     """
 
-    def __init__(self,
-                 tmp_dir: str = '/tmp/',
-                 gsa_key_file: Optional[str] = None,
-                 extra_docker_run_flags: Optional[str] = None):
-        super().__init__()
+    def __init__(
+        self, tmp_dir: str = '/tmp/', gsa_key_file: Optional[str] = None, extra_docker_run_flags: Optional[str] = None
+    ):
+        super().__init__(GCSRequesterPaysFSCache(fs_constructor=RouterAsyncFS))
         self._tmp_dir = tmp_dir.rstrip('/')
 
         flags = ''
@@ -177,7 +169,7 @@ class LocalBackend(Backend[None]):
             flags += f' -v {gsa_key_file}:/gsa-key/key.json'
 
         self._extra_docker_run_flags = flags
-        self.__fs = RouterAsyncFS()
+        self.__fs = self._requester_pays_fses[None]
 
     @property
     def _fs(self) -> RouterAsyncFS:
@@ -187,12 +179,7 @@ class LocalBackend(Backend[None]):
         validate_file(uri, fs)
 
     async def _async_run(
-        self,
-        batch: 'batch.Batch',
-        dry_run: bool,
-        verbose: bool,
-        delete_scratch_on_exit: bool,
-        **backend_kwargs
+        self, batch: 'batch.Batch', dry_run: bool, verbose: bool, delete_scratch_on_exit: bool, **backend_kwargs
     ) -> None:  # pylint: disable=R0915
         """
         Execute a batch.
@@ -219,11 +206,7 @@ class LocalBackend(Backend[None]):
         tmpdir = self._get_scratch_dir()
 
         def new_code_block():
-            return ['set -e' + ('x' if verbose else ''),
-                    '\n',
-                    '# change cd to tmp directory',
-                    f"cd {tmpdir}",
-                    '\n']
+            return ['set -e' + ('x' if verbose else ''), '\n', '# change cd to tmp directory', f"cd {tmpdir}", '\n']
 
         def run_code(code) -> Optional[sp.CalledProcessError]:
             code = '\n'.join(code)
@@ -280,7 +263,9 @@ class LocalBackend(Backend[None]):
                     symlinks.append(f'ln -sf {shq(src)} {shq(dest)}')
             return symlinks
 
-        def transfer_dicts_for_resource_file(res_file: Union[resource.ResourceFile, resource.PythonResult]) -> List[dict]:
+        def transfer_dicts_for_resource_file(
+            res_file: Union[resource.ResourceFile, resource.PythonResult]
+        ) -> List[dict]:
             if isinstance(res_file, resource.InputResourceFile):
                 source = res_file._input_path
             else:
@@ -293,7 +278,8 @@ class LocalBackend(Backend[None]):
             input_transfer_dicts = [
                 transfer_dict
                 for input_resource in batch._input_resources
-                for transfer_dict in transfer_dicts_for_resource_file(input_resource)]
+                for transfer_dict in transfer_dicts_for_resource_file(input_resource)
+            ]
 
             if input_transfer_dicts:
                 input_transfers = orjson.dumps(input_transfer_dicts).decode('utf-8')
@@ -370,25 +356,30 @@ class LocalBackend(Backend[None]):
                     else:
                         memory = ''
 
-                    code.append(f"docker run "
-                                "--entrypoint=''"
-                                f"{self._extra_docker_run_flags} "
-                                f"-v {tmpdir}:{tmpdir} "
-                                f"{memory} "
-                                f"{cpu} "
-                                f"{job._image} "
-                                f"{job_shell} -c {quoted_job_script}")
+                    code.append(
+                        f"docker run "
+                        "--entrypoint=''"
+                        f"{self._extra_docker_run_flags} "
+                        f"-v {tmpdir}:{tmpdir} "
+                        f"{memory} "
+                        f"{cpu} "
+                        f"{job._image} "
+                        f"{job_shell} -c {quoted_job_script}"
+                    )
                 else:
                     code.append(f"{job_shell} -c {quoted_job_script}")
 
                 output_transfer_dicts = [
                     transfer_dict
                     for output_resource in job._external_outputs
-                    for transfer_dict in transfer_dicts_for_resource_file(output_resource)]
+                    for transfer_dict in transfer_dicts_for_resource_file(output_resource)
+                ]
 
                 if output_transfer_dicts:
                     output_transfers = orjson.dumps(output_transfer_dicts).decode('utf-8')
-                    code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}']
+                    code += [
+                        f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}'
+                    ]
                 code += ['\n']
 
                 exc = run_code(code)
@@ -503,19 +494,21 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
     ):
-        super().__init__()
-
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
         if len(args) >= 1:
             if billing_project is not None:
                 raise TypeError('ServiceBackend() got multiple values for argument \'billing_project\'')
-            warnings.warn('Use of deprecated positional argument \'billing_project\' in ServiceBackend(). Specify \'billing_project\' as a keyword argument instead.')
+            warnings.warn(
+                'Use of deprecated positional argument \'billing_project\' in ServiceBackend(). Specify \'billing_project\' as a keyword argument instead.'
+            )
             billing_project = args[0]
         if len(args) >= 2:
             if bucket is not None:
                 raise TypeError('ServiceBackend() got multiple values for argument \'bucket\'')
-            warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
+            warnings.warn(
+                'Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.'
+            )
             bucket = args[1]
 
         billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
@@ -523,7 +516,8 @@ class ServiceBackend(Backend[bc.Batch]):
             raise ValueError(
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
-                'MY_BILLING_PROJECT`')
+                'MY_BILLING_PROJECT`'
+            )
         self._billing_project = billing_project
         self._token = token
 
@@ -543,7 +537,15 @@ class ServiceBackend(Backend[bc.Batch]):
             gcs_kwargs = {'gcs_requester_pays_configuration': google_project}
         else:
             gcs_kwargs = {'gcs_requester_pays_configuration': gcs_requester_pays_configuration}
-        self.__fs = RouterAsyncFS(gcs_kwargs=gcs_kwargs, gcs_bucket_allow_list=gcs_bucket_allow_list)
+
+        super().__init__(
+            GCSRequesterPaysFSCache(
+                fs_constructor=RouterAsyncFS,
+                default_kwargs={"gcs_kwargs": gcs_kwargs, "gcs_bucket_allow_list": gcs_bucket_allow_list},
+            )
+        )
+
+        self.__fs = self._requester_pays_fses[None]
 
         self.validate_file(self.remote_tmpdir)
 
@@ -588,7 +590,7 @@ class ServiceBackend(Backend[bc.Batch]):
         disable_progress_bar: bool = False,
         callback: Optional[str] = None,
         token: Optional[str] = None,
-        **backend_kwargs
+        **backend_kwargs,
     ) -> Optional[bc.Batch]:  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
@@ -636,7 +638,10 @@ class ServiceBackend(Backend[bc.Batch]):
 
         if batch._async_batch is None:
             batch._async_batch = (await self._batch_client()).create_batch(
-                attributes=attributes, callback=callback, token=token, cancel_after_n_failures=batch._cancel_after_n_failures
+                attributes=attributes,
+                callback=callback,
+                token=token,
+                cancel_after_n_failures=batch._cancel_after_n_failures,
             )
 
         async_batch = batch._async_batch
@@ -676,18 +681,14 @@ class ServiceBackend(Backend[bc.Batch]):
 
         write_external_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
         if write_external_inputs:
-            transfers_bytes = orjson.dumps([
-                {"from": src, "to": dest}
-                for src, dest in write_external_inputs])
+            transfers_bytes = orjson.dumps([{"from": src, "to": dest} for src, dest in write_external_inputs])
             transfers = transfers_bytes.decode('utf-8')
             write_cmd = ['python3', '-m', 'hailtop.aiotools.copy', 'null', transfers]
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
                 j = async_batch.create_job(
-                    image=HAIL_GENETICS_HAILTOP_IMAGE,
-                    command=write_cmd,
-                    attributes={'name': 'write_external_inputs'}
+                    image=HAIL_GENETICS_HAILTOP_IMAGE, command=write_cmd, attributes={'name': 'write_external_inputs'}
                 )
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
                 n_jobs_submitted += 1
@@ -698,18 +699,18 @@ class ServiceBackend(Backend[bc.Batch]):
         for pyjob in pyjobs:
             if pyjob._image is None:
                 pyjob._image = HAIL_GENETICS_HAIL_IMAGE
-        await batch._serialize_python_functions_to_input_files(
-            batch_remote_tmpdir, dry_run=dry_run
-        )
+        await batch._serialize_python_functions_to_input_files(batch_remote_tmpdir, dry_run=dry_run)
 
         disable_setup_steps_progress_bar = disable_progress_bar or len(unsubmitted_jobs) < 10_000
-        with SimpleCopyToolProgressBar(total=len(unsubmitted_jobs),
-                                       description='upload code',
-                                       disable=disable_setup_steps_progress_bar) as pbar:
+        with SimpleCopyToolProgressBar(
+            total=len(unsubmitted_jobs), description='upload code', disable=disable_setup_steps_progress_bar
+        ) as pbar:
+
             async def compile_job(job):
                 used_remote_tmpdir = await job._compile(local_tmpdir, batch_remote_tmpdir, dry_run=dry_run)
                 pbar.update(1)
                 return used_remote_tmpdir
+
             used_remote_tmpdir_results = await bounded_gather(
                 *[functools.partial(compile_job, j) for j in unsubmitted_jobs],
                 parallelism=150,
@@ -784,8 +785,9 @@ class ServiceBackend(Backend[bc.Batch]):
             image = job._image if job._image else default_image
             image_ref = parse_docker_image_reference(image)
             if image_ref.hosted_in('dockerhub') and image_ref.name() not in HAIL_GENETICS_IMAGES:
-                warnings.warn(f'Using an image {image} from Docker Hub. '
-                              f'Jobs may fail due to Docker Hub rate limits.')
+                warnings.warn(
+                    f'Using an image {image} from Docker Hub. ' f'Jobs may fail due to Docker Hub rate limits.'
+                )
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 
@@ -802,10 +804,9 @@ class ServiceBackend(Backend[bc.Batch]):
                 cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
                 env=env,
                 requester_pays_project=batch.requester_pays_project,
-                mount_tokens=needs_tokens_mounted(),
                 user_code=user_code,
                 regions=job._regions,
-                always_copy_output=job._always_copy_output
+                always_copy_output=job._always_copy_output,
             )
 
             n_jobs_submitted += 1
@@ -825,7 +826,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 parents=parents,
                 resources={'cpu': '0.25'},
                 attributes={'name': 'remove_tmpdir'},
-                always_run=True
+                always_run=True,
             )
             n_jobs_submitted += 1
 
@@ -843,7 +844,9 @@ class ServiceBackend(Backend[bc.Batch]):
         jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
 
         if verbose:
-            print(f'Submitted batch {batch_id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:')
+            print(
+                f'Submitted batch {batch_id} with {n_jobs_submitted} jobs in {round(time.time() - submit_batch_start, 3)} seconds:'
+            )
             for jid, cmd in jobs_to_command.items():
                 print(f'{jid}: {cmd}')
             print('')

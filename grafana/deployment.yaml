@@ -155,6 +155,9 @@ spec:
         - name: grafana-envoy-sidecar-config
           configMap:
             name: grafana-envoy-sidecar-config
+        - name: grafana-gsa-key
+          secret:
+            secretName: grafana-gsa-key
       initContainers:
        - name: setup-tokens
          image: {{ hail_ubuntu_image.image }}
@@ -163,6 +166,20 @@ spec:
          volumeMounts:
            - mountPath: /grafana-tokens
              name: grafana-tokens
+           - mountPath: /grafana-shared
+             name: grafana-shared
+       - name: setup-grafana-gsa-key
+         image: {{ hail_ubuntu_image.image }}
+         command: ["/bin/bash"]
+         args:
+           - "-c"
+           - |
+             jq -r '.tenant' /grafana-gsa-key/key.json > /grafana-shared/tenant-id
+             jq -r '.appId' /grafana-gsa-key/key.json > /grafana-shared/app-id
+             jq -r '.password' /grafana-gsa-key/key.json > /grafana-shared/client-secret
+         volumeMounts:
+           - mountPath: /grafana-gsa-key
+             name: grafana-gsa-key
            - mountPath: /grafana-shared
              name: grafana-shared
       containers:
@@ -284,6 +301,19 @@ data:
           authenticationType: gce
           defaultProject: $GCP_PROJECT
         editable: true
+{% elif global.cloud == "azure" %}
+      - name: Azure Monitor
+        type: grafana-azure-monitor-datasource
+        access: proxy
+        jsonData:
+          azureAuthType: clientsecret
+          cloudName: azuremonitor
+          tenantId: $__file{/grafana-shared/tenant-id}
+          clientId: $__file{/grafana-shared/app-id}
+          subscriptionId: {{ global.azure_subscription_id }}
+        secureJsonData:
+          clientSecret: $__file{/grafana-shared/client-secret}
+        version: 1
 {% endif %}
       - name: Prometheus
         type: prometheus

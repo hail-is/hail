@@ -84,7 +84,7 @@ def start(
         Opt(
             help='Fraction of master memory allocated to the JVM. Use a smaller value to reserve more memory for Python.'
         ),
-    ] = 0.8,
+    ] = 0.9,
     master_boot_disk_size: Ann[int, Opt(help='Disk size of master machine, in GB')] = 100,
     num_master_local_ssds: Ann[int, Opt(help='Number of local SSDs to attach to the master machine.')] = 0,
     num_secondary_workers: NumSecondaryWorkersOption = 0,
@@ -317,7 +317,9 @@ def submit(
     ] = None,
     dry_run: DryRunOption = False,
     region: Ann[Optional[str], Opt(help='Compute region for the cluster.')] = None,
-    arguments: Ann[Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')] = None,
+    arguments: Ann[
+        Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
+    ] = None,
 ):
     '''Submit the Python script at path SCRIPT to a running Dataproc cluster with name NAME.
 
@@ -329,7 +331,9 @@ def submit(
     $ hailctl dataproc submit name --image-name docker.io/image my_script.py -- some-argument --animal dog
 
     '''
-    dataproc_submit(name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, [*(arguments or []), *ctx.args])
+    dataproc_submit(
+        name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, [*(arguments or []), *ctx.args]
+    )
 
 
 @app.command()

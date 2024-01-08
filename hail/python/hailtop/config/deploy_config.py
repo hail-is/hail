@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, TypeVar, Union
 import os
 import ssl
 import json
@@ -10,25 +10,32 @@ from .user_config import get_user_config
 
 log = logging.getLogger('deploy_config')
 
+T = TypeVar("T")
 
-def env_var_or_default(name: str, defaults: Dict[str, str]) -> str:
-    return os.environ.get(f'HAIL_{name.upper()}') or defaults[name]
+
+def env_var_or_default(name: str, default: T) -> Union[str, T]:
+    return os.environ.get(f'HAIL_{name.upper()}', default)
 
 
 class DeployConfig:
     @classmethod
     def from_config(cls, config: Dict[str, str]) -> 'DeployConfig':
-        return cls(
-            env_var_or_default('location', config),
-            env_var_or_default('default_namespace', config),
-            env_var_or_default('domain', config)
-        )
+        location = env_var_or_default('location', config['location'])
+        domain = env_var_or_default('domain', config['domain'])
+        ns = env_var_or_default('default_namespace', config['default_namespace'])
+        base_path = env_var_or_default('base_path', config.get('base_path')) or None
+        if base_path is None and ns != 'default':
+            domain = f'internal.{config["domain"]}'
+            base_path = f'/{ns}'
 
-    def get_config(self) -> Dict[str, str]:
+        return cls(location, ns, domain, base_path)
+
+    def get_config(self) -> Dict[str, Optional[str]]:
         return {
             'location': self._location,
             'default_namespace': self._default_namespace,
-            'domain': self._domain
+            'domain': self._domain,
+            'base_path': self._base_path,
         }
 
     @classmethod
@@ -37,7 +44,8 @@ class DeployConfig:
             config_file,
             os.environ.get('HAIL_DEPLOY_CONFIG_FILE'),
             os.path.expanduser('~/.hail/deploy-config.json'),
-            '/deploy-config/deploy-config.json')
+            '/deploy-config/deploy-config.json',
+        )
         if config_file is not None:
             log.info(f'deploy config file found at {config_file}')
             with open(config_file, 'r', encoding='utf-8') as f:
@@ -52,19 +60,20 @@ class DeployConfig:
             }
         return cls.from_config(config)
 
-    def __init__(self, location, default_namespace, domain):
+    def __init__(self, location: str, default_namespace: str, domain: str, base_path: Optional[str]):
         assert location in ('external', 'k8s', 'gce')
         self._location = location
         self._default_namespace = default_namespace
         self._domain = domain
+        self._base_path = base_path
 
     def with_default_namespace(self, default_namespace):
-        return DeployConfig(self._location, default_namespace, self._domain)
+        return DeployConfig(self._location, default_namespace, self._domain, self._base_path)
 
     def with_location(self, location):
-        return DeployConfig(location, self._default_namespace, self._domain)
+        return DeployConfig(location, self._default_namespace, self._domain, self._base_path)
 
-    def default_namespace(self) -> str:
+    def default_namespace(self):
         return self._default_namespace
 
     def location(self):
@@ -79,19 +88,18 @@ class DeployConfig:
         if self._location == 'k8s':
             return f'{service}.{ns}'
         if self._location == 'gce':
-            if ns == 'default':
+            if self._base_path is None:
                 return f'{service}.hail'
             return 'internal.hail'
         assert self._location == 'external'
-        if ns == 'default':
+        if self._base_path is None:
             return f'{service}.{self._domain}'
-        return f'internal.{self._domain}'
+        return self._domain
 
     def base_path(self, service):
-        ns = self._default_namespace
-        if ns == 'default':
+        if self._base_path is None:
             return ''
-        return f'/{ns}/{service}'
+        return f'{self._base_path}/{service}'
 
     def base_url(self, service, base_scheme='http'):
         return f'{self.scheme(base_scheme)}://{self.domain(service)}{self.base_path(service)}'
@@ -105,15 +113,15 @@ class DeployConfig:
         return 'sesh'
 
     def external_url(self, service, path, base_scheme='http'):
-        ns = self._default_namespace
-        if ns == 'default':
+        if self._base_path is None:
             if service == 'www':
                 return f'{base_scheme}s://{self._domain}{path}'
             return f'{base_scheme}s://{service}.{self._domain}{path}'
-        return f'{base_scheme}s://internal.{self._domain}/{ns}/{service}{path}'
+        return f'{base_scheme}s://{self._domain}{self._base_path}/{service}{path}'
 
     def prefix_application(self, app, service, **kwargs):
         from aiohttp import web  # pylint: disable=import-outside-toplevel
+
         base_path = self.base_path(service)
         if not base_path:
             return app
@@ -149,22 +157,6 @@ class DeployConfig:
 
 
 class TerraDeployConfig(DeployConfig):
-    def __init__(self, location, default_namespace, domain, subpath):
-        super().__init__(location, default_namespace, domain)
-        self._subpath = subpath
-
-    def get_config(self) -> Dict[str, str]:
-        return {
-            'location': self._location,
-            'default_namespace': self._default_namespace,
-            'domain': self._domain,
-            'subpath': self._subpath,
-        }
-
-    @classmethod
-    def from_config(cls, config) -> 'DeployConfig':
-        return cls(config['location'], config['default_namespace'], config['domain'], config['subpath'])
-
     def domain(self, service):
         if self._location == 'k8s':
             return {
@@ -172,12 +164,6 @@ class TerraDeployConfig(DeployConfig):
                 'batch': 'localhost:5001',
             }[service]
         return self._domain
-
-    def base_path(self, service):
-        return f'{self._subpath}/{service}'
-
-    def external_url(self, service, path, base_scheme='http'):
-        return f'{base_scheme}s://{self._domain}{self._subpath}/{service}{path}'
 
     def client_ssl_context(self) -> ssl.SSLContext:
         # Terra app networking doesn't use self-signed certs

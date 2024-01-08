@@ -1554,34 +1554,35 @@ object LowerTableIR {
           })
 
       case TableIntervalJoin(left, right, root, product) =>
-        assert(!product)
-        val loweredLeft = lower(left)
-        val loweredRight = lower(right)
-
-        def partitionJoiner(lPart: IR, rPart: IR): IR = {
-          val lEltType = lPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-          val rEltType = rPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-
-          val lKey = left.typ.key
-          val rKey = right.typ.key
-
-          val lEltRef = Ref(genUID(), lEltType)
-          val rEltRef = Ref(genUID(), rEltType)
-
-          StreamJoinRightDistinct(
-            lPart, rPart,
-            lKey, rKey,
-            lEltRef.name, rEltRef.name,
-            InsertFields(lEltRef, FastSeq(
-              root -> SelectFields(rEltRef, right.typ.valueType.fieldNames))),
-            "left")
-        }
-
-        loweredLeft.intervalAlignAndZipPartitions(ctx,
-          loweredRight,
+        lower(left).intervalAlignAndZipPartitions(ctx,
+          lower(right),
           analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
           (lGlobals, _) => lGlobals,
-          partitionJoiner)
+          { (lstream, rstream) =>
+            val lref = Ref(genUID(), left.typ.rowType)
+            if (product) {
+              val rref = Ref(genUID(), TArray(right.typ.rowType))
+              StreamLeftIntervalJoin(
+                lstream, rstream,
+                left.typ.key.head,
+                right.typ.keyType.fields(0).name,
+                lref.name, rref.name,
+                InsertFields(lref, FastSeq(
+                  root -> mapArray(rref) { SelectFields(_, right.typ.valueType.fieldNames) }
+                ))
+              )
+            } else {
+              val rref = Ref(genUID(), right.typ.rowType)
+              StreamJoinRightDistinct(
+                lstream, rstream,
+                left.typ.key, right.typ.key,
+                lref.name, rref.name,
+                InsertFields(lref, FastSeq(root -> SelectFields(rref, right.typ.valueType.fieldNames))),
+                "left"
+              )
+            }
+          }
+        )
 
       case tj@TableJoin(left, right, joinType, joinKey) =>
         val loweredLeft = lower(left)

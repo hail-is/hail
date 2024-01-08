@@ -10,8 +10,9 @@ from ..session import AzureSession
 class AzureBaseClient(CloudBaseClient):
     _session: AzureSession
 
-    def __init__(self, base_url: str, *, session: Optional[AzureSession] = None,
-                 rate_limit: Optional[RateLimit] = None, **kwargs):
+    def __init__(
+        self, base_url: str, *, session: Optional[AzureSession] = None, rate_limit: Optional[RateLimit] = None, **kwargs
+    ):
         if session is None:
             session = AzureSession(**kwargs)
         super().__init__(base_url, session, rate_limit=rate_limit)
@@ -28,14 +29,18 @@ class AzureBaseClient(CloudBaseClient):
                 yield v
             next_link = page.get('nextLink')
 
-    async def delete(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
+    async def delete(
+        self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs
+    ) -> aiohttp.ClientResponse:
         if url is None:
             assert path
             url = f'{self._base_url}{path}'
         async with await self._session.delete(url, **kwargs) as resp:
             return resp
 
-    async def delete_and_wait(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
+    async def delete_and_wait(
+        self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs
+    ) -> aiohttp.ClientResponse:
         tries = 1
         while True:
             resp = await self.delete(path, url=url, **kwargs)

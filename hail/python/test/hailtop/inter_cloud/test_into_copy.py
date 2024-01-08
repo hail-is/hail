@@ -19,8 +19,10 @@ async def test_copy_file():
     with tempfile.TemporaryDirectory() as test_dir:
         write_file(f"{test_dir}/file1", "hello world\n")
 
-        inputs = [{"from": f"{test_dir}/file1", "to": f"{test_dir}/file2"},
-                  {"from": f"{test_dir}/file1", "into": f"{test_dir}/dir1"}]
+        inputs = [
+            {"from": f"{test_dir}/file1", "to": f"{test_dir}/file2"},
+            {"from": f"{test_dir}/file1", "into": f"{test_dir}/dir1"},
+        ]
 
         await copy_from_dict(files=inputs)
 

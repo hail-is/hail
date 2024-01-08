@@ -18,11 +18,10 @@ from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop import yamlx
-from hailtop.config import (ConfigVariable, configuration_of, get_remote_tmpdir)
+from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import async_to_blocking, Timings, am_i_interactive, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
-from hailtop.batch.utils import needs_tokens_mounted
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
@@ -108,13 +107,15 @@ class SerializedIRFunction:
 
 
 class IRFunction:
-    def __init__(self,
-                 name: str,
-                 type_parameters: Union[Tuple[HailType, ...], List[HailType]],
-                 value_parameter_names: Union[Tuple[str, ...], List[str]],
-                 value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
-                 return_type: HailType,
-                 body: Expression):
+    def __init__(
+        self,
+        name: str,
+        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+        value_parameter_names: Union[Tuple[str, ...], List[str]],
+        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+        return_type: HailType,
+        body: Expression,
+    ):
         assert len(value_parameter_names) == len(value_parameter_types)
         render = CSERenderer()
         self._name = name
@@ -188,22 +189,24 @@ class ServiceBackend(Backend):
     FROM_FASTA_FILE = 9
 
     @staticmethod
-    async def create(*,
-                     billing_project: Optional[str] = None,
-                     batch_client: Optional[BatchClient] = None,
-                     disable_progress_bar: Optional[bool] = None,
-                     remote_tmpdir: Optional[str] = None,
-                     flags: Optional[Dict[str, str]] = None,
-                     jar_url: Optional[str] = None,
-                     driver_cores: Optional[Union[int, str]] = None,
-                     driver_memory: Optional[str] = None,
-                     worker_cores: Optional[Union[int, str]] = None,
-                     worker_memory: Optional[str] = None,
-                     name_prefix: Optional[str] = None,
-                     credentials_token: Optional[str] = None,
-                     regions: Optional[List[str]] = None,
-                     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
-                     gcs_bucket_allow_list: Optional[List[str]] = None):
+    async def create(
+        *,
+        billing_project: Optional[str] = None,
+        batch_client: Optional[BatchClient] = None,
+        disable_progress_bar: Optional[bool] = None,
+        remote_tmpdir: Optional[str] = None,
+        flags: Optional[Dict[str, str]] = None,
+        jar_url: Optional[str] = None,
+        driver_cores: Optional[Union[int, str]] = None,
+        driver_memory: Optional[str] = None,
+        worker_cores: Optional[Union[int, str]] = None,
+        worker_memory: Optional[str] = None,
+        name_prefix: Optional[str] = None,
+        credentials_token: Optional[str] = None,
+        regions: Optional[List[str]] = None,
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+        gcs_bucket_allow_list: Optional[List[str]] = None,
+    ):
         billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
         if billing_project is None:
             raise ValueError(
@@ -216,7 +219,7 @@ class ServiceBackend(Backend):
         )
         async_fs = RouterAsyncFS(
             gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration},
-            gcs_bucket_allow_list=gcs_bucket_allow_list
+            gcs_bucket_allow_list=gcs_bucket_allow_list,
         )
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
@@ -284,26 +287,28 @@ class ServiceBackend(Backend):
             driver_memory=driver_memory,
             worker_cores=worker_cores,
             worker_memory=worker_memory,
-            regions=regions
+            regions=regions,
         )
         sb._initialize_flags(flags)
         return sb
 
-    def __init__(self,
-                 *,
-                 billing_project: str,
-                 sync_fs: FS,
-                 async_fs: RouterAsyncFS,
-                 batch_client: BatchClient,
-                 disable_progress_bar: bool,
-                 batch_attributes: Dict[str, str],
-                 remote_tmpdir: str,
-                 jar_spec: JarSpec,
-                 driver_cores: Optional[Union[int, str]],
-                 driver_memory: Optional[str],
-                 worker_cores: Optional[Union[int, str]],
-                 worker_memory: Optional[str],
-                 regions: List[str]):
+    def __init__(
+        self,
+        *,
+        billing_project: str,
+        sync_fs: FS,
+        async_fs: RouterAsyncFS,
+        batch_client: BatchClient,
+        disable_progress_bar: bool,
+        batch_attributes: Dict[str, str],
+        remote_tmpdir: str,
+        jar_spec: JarSpec,
+        driver_cores: Optional[Union[int, str]],
+        driver_memory: Optional[str],
+        worker_cores: Optional[Union[int, str]],
+        worker_memory: Optional[str],
+        regions: List[str],
+    ):
         super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
         self._sync_fs = sync_fs
@@ -378,11 +383,15 @@ class ServiceBackend(Backend):
         async with TemporaryDirectory(ensure_exists=False) as iodir:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
-                    await infile.write(orjson.dumps({
-                        'config': service_backend_config,
-                        'action': action.value,
-                        'payload': payload,
-                    }))
+                    await infile.write(
+                        orjson.dumps(
+                            {
+                                'config': service_backend_config,
+                                'action': action.value,
+                                'payload': payload,
+                            }
+                        )
+                    )
 
             with timings.step("submit batch"):
                 resources: Dict[str, Union[str, bool]] = {'preemptible': False}
@@ -407,7 +416,6 @@ class ServiceBackend(Backend):
                         iodir + '/in',
                         iodir + '/out',
                     ],
-                    mount_tokens=needs_tokens_mounted(),
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,
@@ -442,14 +450,16 @@ class ServiceBackend(Backend):
         try:
             driver_output = await self._async_fs.open(output_uri)
         except FileNotFoundError as exc:
-            raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
-                'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(
-                    _jobs_query_string='bad',
-                    _max_jobs=10
-                ),
-                'input_uri': await self._async_fs.read(input_uri),
-            })) from exc
+            raise FatalError(
+                'Hail internal error. Please contact the Hail team and provide the following information.\n\n'
+                + yamlx.dump(
+                    {
+                        'service_backend_debug_info': self.debug_info(),
+                        'batch_debug_info': await self._batch.debug_info(_jobs_query_string='bad', _max_jobs=10),
+                        'input_uri': await self._async_fs.read(input_uri),
+                    }
+                )
+            ) from exc
 
         try:
             async with driver_output as outfile:
@@ -463,15 +473,17 @@ class ServiceBackend(Backend):
 
                 raise fatal_error_from_java_error_triplet(short_message, expanded_message, error_id)
         except UnexpectedEOFError as exc:
-            raise FatalError('Hail internal error. Please contact the Hail team and provide the following information.\n\n' + yamlx.dump({
-                'service_backend_debug_info': self.debug_info(),
-                'batch_debug_info': await self._batch.debug_info(
-                    _jobs_query_string='bad',
-                    _max_jobs=10
-                ),
-                'in': await self._async_fs.read(input_uri),
-                'out': await self._async_fs.read(output_uri),
-            })) from exc
+            raise FatalError(
+                'Hail internal error. Please contact the Hail team and provide the following information.\n\n'
+                + yamlx.dump(
+                    {
+                        'service_backend_debug_info': self.debug_info(),
+                        'batch_debug_info': await self._batch.debug_info(_jobs_query_string='bad', _max_jobs=10),
+                        'in': await self._async_fs.read(input_uri),
+                        'out': await self._async_fs.read(output_uri),
+                    }
+                )
+            ) from exc
 
     def _cancel_on_ctrl_c(self, coro: Awaitable[T]) -> T:
         try:
@@ -489,12 +501,16 @@ class ServiceBackend(Backend):
 
     async def _async_rpc(self, action: ActionTag, payload: ActionPayload):
         if isinstance(payload, ExecutePayload):
-            payload = ServiceBackendExecutePayload([f.to_dataclass() for f in self.functions], self._batch.token, payload)
+            payload = ServiceBackendExecutePayload(
+                [f.to_dataclass() for f in self.functions], self._batch.token, payload
+            )
 
         storage_requirement_bytes = 0
         readonly_fuse_buckets: Set[str] = set()
 
-        added_sequences = {rg.name: rg._sequence_files for rg in self._references.values() if rg._sequence_files is not None}
+        added_sequences = {
+            rg.name: rg._sequence_files for rg in self._references.values() if rg._sequence_files is not None
+        }
         sequence_file_mounts = {}
         for rg_name, (fasta_file, index_file) in added_sequences.items():
             fasta_bucket, fasta_path = self._get_bucket_and_path(fasta_file)
@@ -502,7 +518,9 @@ class ServiceBackend(Backend):
             for bucket, blob in [(fasta_bucket, fasta_file), (index_bucket, index_file)]:
                 readonly_fuse_buckets.add(bucket)
                 storage_requirement_bytes += await (await self._async_fs.statfile(blob)).size()
-            sequence_file_mounts[rg_name] = SequenceConfig(f'/cloudfuse/{fasta_bucket}/{fasta_path}', f'/cloudfuse/{index_bucket}/{index_path}')
+            sequence_file_mounts[rg_name] = SequenceConfig(
+                f'/cloudfuse/{fasta_bucket}/{fasta_path}', f'/cloudfuse/{index_bucket}/{index_path}'
+            )
 
         storage_gib_str = f'{math.ceil(storage_requirement_bytes / 1024 / 1024 / 1024)}Gi'
         qob_config = ServiceBackendRPCConfig(
@@ -512,10 +530,16 @@ class ServiceBackend(Backend):
             worker_cores=str(self.worker_cores),
             worker_memory=str(self.worker_memory),
             storage=storage_gib_str,
-            cloudfuse_configs=[CloudfuseConfig(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets],
+            cloudfuse_configs=[
+                CloudfuseConfig(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets
+            ],
             regions=self.regions,
             flags=self.flags,
-            custom_references=[orjson.dumps(rg._config).decode('utf-8') for rg in self._references.values() if rg.name not in BUILTIN_REFERENCES],
+            custom_references=[
+                orjson.dumps(rg._config).decode('utf-8')
+                for rg in self._references.values()
+                if rg.name not in BUILTIN_REFERENCES
+            ],
             liftovers={rg.name: rg._liftovers for rg in self._references.values() if len(rg._liftovers) > 0},
             sequences=sequence_file_mounts,
         )
@@ -542,22 +566,19 @@ class ServiceBackend(Backend):
     def remove_liftover(self, name, dest_reference_genome):  # pylint: disable=unused-argument
         pass
 
-    def register_ir_function(self,
-                             name: str,
-                             type_parameters: Union[Tuple[HailType, ...], List[HailType]],
-                             value_parameter_names: Union[Tuple[str, ...], List[str]],
-                             value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
-                             return_type: HailType,
-                             body: Expression):
+    def register_ir_function(
+        self,
+        name: str,
+        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+        value_parameter_names: Union[Tuple[str, ...], List[str]],
+        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+        return_type: HailType,
+        body: Expression,
+    ):
         self._registered_ir_function_names.add(name)
-        self.functions.append(IRFunction(
-            name,
-            type_parameters,
-            value_parameter_names,
-            value_parameter_types,
-            return_type,
-            body
-        ))
+        self.functions.append(
+            IRFunction(name, type_parameters, value_parameter_names, value_parameter_types, return_type, body)
+        )
 
     def _is_registered_ir_function_name(self, name: str) -> bool:
         return name in self._registered_ir_function_names
