@@ -65,14 +65,14 @@ async def router_filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, A
                     sema,
                     functools.partial(fs.rmtree, sema, file_base),
                     functools.partial(fs.rmtree, sema, gs_base),
-                    # functools.partial(fs.rmtree, sema, s3_base),
-                    # functools.partial(fs.rmtree, sema, azure_base),
+                    functools.partial(fs.rmtree, sema, s3_base),
+                    functools.partial(fs.rmtree, sema, azure_base),
                 )
 
             assert not await fs.isdir(file_base)
             assert not await fs.isdir(gs_base)
-            # assert not await fs.isdir(s3_base)
-            # assert not await fs.isdir(azure_base)
+            assert not await fs.isdir(s3_base)
+            assert not await fs.isdir(azure_base)
 
 
 async def fresh_dir(fs, bases, scheme):
