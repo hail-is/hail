@@ -100,7 +100,7 @@ async def fresh_dir(fs, bases, scheme):
         'azure-https/gs',
         'azure-https/s3',
         'azure-https/azure-https',
-    ],
+    ]
 )
 async def copy_test_context(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
     sema, fs, bases = router_filesystem
