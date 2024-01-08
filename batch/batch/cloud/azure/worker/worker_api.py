@@ -41,7 +41,7 @@ class AzureWorkerAPI(CloudWorkerAPI):
 
     @property
     def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
-        idp_json = orjson.dumps({"idp": IdentityProvider.MICROSOFT.value}).decode('utf-8')
+        idp_json = orjson.dumps({'idp': IdentityProvider.MICROSOFT.value}).decode('utf-8')
         return [
             f'HAIL_AZURE_OAUTH_SCOPE={self.hail_oauth_scope}',
             'AZURE_APPLICATION_CREDENTIALS=/azure-credentials/key.json',
@@ -81,6 +81,18 @@ class AzureWorkerAPI(CloudWorkerAPI):
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
 
+    def _blobfuse_credentials(self, job_id: Tuple[int, int], account: str, container: str) -> str:
+        client_id, client_secret, tenant_id = self._user_service_principal_client_id_secret_tenant(job_id)
+        # https://github.com/Azure/azure-storage-fuse
+        return f'''
+accountName {account}
+authType SPN
+servicePrincipalClientId {client_id}
+servicePrincipalClientSecret {client_secret}
+servicePrincipalTenantId {tenant_id}
+containerName {container}
+'''
+
     def _write_blobfuse_credentials(
         self,
         job_id: Tuple[int, int],
@@ -90,7 +102,7 @@ class AzureWorkerAPI(CloudWorkerAPI):
     ) -> str:
         if mount_base_path_data not in self._blobfuse_credential_files:
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
-                credsfile.write(self.blobfuse_credentials(job_id, account, container))
+                credsfile.write(self._blobfuse_credentials(job_id, account, container))
                 self._blobfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._blobfuse_credential_files[mount_base_path_data]
 
@@ -136,18 +148,6 @@ class AzureWorkerAPI(CloudWorkerAPI):
         finally:
             os.remove(self._blobfuse_credential_files[mount_base_path_data])
             del self._blobfuse_credential_files[mount_base_path_data]
-
-    def blobfuse_credentials(self, job_id: Tuple[int, int], account: str, container: str) -> str:
-        client_id, client_secret, tenant_id = self._user_service_principal_client_id_secret_tenant(job_id)
-        # https://github.com/Azure/azure-storage-fuse
-        return f'''
-accountName {account}
-authType SPN
-servicePrincipalClientId {client_id}
-servicePrincipalClientSecret {client_secret}
-servicePrincipalTenantId {tenant_id}
-containerName {container}
-'''
 
     async def close(self):
         pass
