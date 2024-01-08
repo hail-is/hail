@@ -39,10 +39,8 @@ check-all: check-hail check-services
 
 .PHONY: check-hail-fast
 check-hail-fast:
-	ruff check hail/python/hail
-	ruff check hail/python/hailtop
+	ruff check hail
 	$(PYTHON) -m pyright hail/python/hailtop
-	$(PYTHON) -m black hail --check --diff
 
 .PHONY: pylint-hailtop
 pylint-hailtop:
@@ -63,7 +61,6 @@ pylint-%:
 check-%-fast:
 	ruff check $*
 	$(PYTHON) -m pyright $*
-	$(PYTHON) -m black $* --check --diff
 	curlylint $*
 	cd $* && bash ../check-sql.sh
 
