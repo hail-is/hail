@@ -11,15 +11,15 @@ class LogTestListener extends ITestListener {
   def testString(result: ITestResult): String =
     s"${result.getTestClass.getName}.${result.getMethod.getMethodName}"
 
-  def onTestStart(result: ITestResult) {
+  override def onTestStart(result: ITestResult) {
     System.err.println(s"starting test ${testString(result)}...")
   }
 
-  def onTestSuccess(result: ITestResult) {
+  override def onTestSuccess(result: ITestResult) {
     System.err.println(s"test ${testString(result)} SUCCESS")
   }
 
-  def onTestFailure(result: ITestResult) {
+  override def onTestFailure(result: ITestResult) {
     val cause = result.getThrowable
     if (cause != null) {
       val sw = new StringWriter()
@@ -30,13 +30,13 @@ class LogTestListener extends ITestListener {
     System.err.println(s"test ${testString(result)} FAILURE\n")
   }
 
-  def onTestSkipped(result: ITestResult) {
+  override def onTestSkipped(result: ITestResult) {
     System.err.println(s"test ${testString(result)} SKIPPED")
   }
 
-  def onTestFailedButWithinSuccessPercentage(result: ITestResult) {}
+  override def onTestFailedButWithinSuccessPercentage(result: ITestResult) {}
 
-  def onStart(context: ITestContext) {}
+  override def onStart(context: ITestContext) {}
 
-  def onFinish(context: ITestContext) {}
+  override def onFinish(context: ITestContext) {}
 }
