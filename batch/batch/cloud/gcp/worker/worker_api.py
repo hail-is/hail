@@ -183,6 +183,7 @@ class GoogleHailMetadataServer(HailMetadataServer[GCPUserCredentials, ContainerC
     async def user_service_account(self, request: web.Request):
         gsa_email = self._user_credentials(request).email
         recursive = request.query.get('recursive')
+        # https://cloud.google.com/compute/docs/metadata/querying-metadata
         if recursive == 'true':
             return web.json_response(
                 {
@@ -191,7 +192,7 @@ class GoogleHailMetadataServer(HailMetadataServer[GCPUserCredentials, ContainerC
                     'scopes': ['https://www.googleapis.com/auth/cloud-platform'],
                 },
             )
-        return web.Response(text='aliases\nemail\nidentity\nscopes\ntoken\n')
+        return web.Response(text='aliases\nemail\nscopes\ntoken\n')
 
     async def user_email(self, request: web.Request):
         return web.Response(text=self._user_credentials(request).email)
