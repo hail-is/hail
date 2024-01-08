@@ -7,7 +7,7 @@ from hailtop.batch_client.client import BatchClient
 from .utils import batch_status_job_counter, create_batch, legacy_batch_status
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def client():
     client = BatchClient('test')
     yield client

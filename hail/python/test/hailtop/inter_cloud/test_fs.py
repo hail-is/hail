@@ -27,7 +27,8 @@ from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
         'router/s3',
         'router/azure-https',
         'sas/azure-https',
-    ]
+    ],
+    scope='session',
 )
 async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]]:
     token = secret_alnum_string()

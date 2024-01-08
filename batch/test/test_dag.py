@@ -12,14 +12,14 @@ from hailtop.batch_client.client import BatchClient, Job
 from .utils import DOCKER_ROOT_IMAGE, batch_status_job_counter, create_batch, legacy_batch_status
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def client():
     client = BatchClient('test')
     yield client
     client.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 async def async_client():
     client = await aioclient.BatchClient.create('test')
     yield client

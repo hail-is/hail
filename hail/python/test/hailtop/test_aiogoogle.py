@@ -11,7 +11,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageClient, GoogleStorageAsyncFS
 
 
-@pytest.fixture(params=['gs', 'router/gs'])
+@pytest.fixture(params=['gs', 'router/gs'], scope='session')
 async def gs_filesystem(request):
     token = secret_alnum_string()
 
