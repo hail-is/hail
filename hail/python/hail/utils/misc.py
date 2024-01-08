@@ -8,15 +8,15 @@ import secrets
 import shutil
 import string
 import tempfile
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from contextlib import contextmanager
 from io import StringIO
-from typing import Optional, Literal
+from typing import Literal, Optional
 from urllib.parse import urlparse
 
 import hail
 import hail as hl
-from hail.typecheck import enumeration, typecheck, nullable
+from hail.typecheck import enumeration, nullable, typecheck
 from hail.utils.java import Env, error
 
 
@@ -256,10 +256,10 @@ def plural(orig, n, alternate=None):
 
 
 def get_obj_metadata(obj):
-    from hail.matrixtable import MatrixTable, GroupedMatrixTable
-    from hail.table import Table, GroupedTable
+    from hail.expr.expressions import ArrayStructExpression, SetStructExpression, StructExpression
+    from hail.matrixtable import GroupedMatrixTable, MatrixTable
+    from hail.table import GroupedTable, Table
     from hail.utils import Struct
-    from hail.expr.expressions import StructExpression, ArrayStructExpression, SetStructExpression
 
     def table_error(index_obj):
         def fmt_field(field):
@@ -413,7 +413,7 @@ def check_collisions(caller, names, indices, override_protected_indices=None):
 
 
 def get_key_by_exprs(caller, exprs, named_exprs, indices, override_protected_indices=None):
-    from hail.expr.expressions import to_expr, ExpressionException, analyze
+    from hail.expr.expressions import ExpressionException, analyze, to_expr
 
     exprs = [indices.source[e] if isinstance(e, str) else e for e in exprs]
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
@@ -463,7 +463,7 @@ def check_keys(caller, name, protected_key):
 
 
 def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
-    from hail.expr.expressions import to_expr, ExpressionException, analyze
+    from hail.expr.expressions import ExpressionException, analyze, to_expr
 
     exprs = [indices.source[e] if isinstance(e, str) else e for e in exprs]
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
@@ -543,8 +543,8 @@ def process_joins(obj, exprs):
 
 
 def divide_null(num, denom):
+    from hail.expr import if_else, missing
     from hail.expr.expressions.base_expression import unify_types_limited
-    from hail.expr import missing, if_else
 
     typ = unify_types_limited(num.dtype, denom.dtype)
     assert typ is not None

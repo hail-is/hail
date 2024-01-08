@@ -1,14 +1,16 @@
 import math
-import pytest
 import random
-from scipy.stats import pearsonr
+
 import numpy as np
+import pytest
+from scipy.stats import pearsonr
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail import ir
+from hail.expr.functions import _cdf_combine, _error_from_cdf, _result_from_raw_cdf
 from hail.expr.types import *
-from hail.expr.functions import _error_from_cdf, _cdf_combine, _result_from_raw_cdf
-import hail.ir as ir
+
 from ..helpers import *
 
 
@@ -3428,7 +3430,7 @@ class Tests(unittest.TestCase):
         expr = hl.dict(hl.zip(arg_list, values))
         results = hl.eval(expr)
         for args, result in results.items():
-            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {str(args)}')
+            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {args!s}')
 
     def test_min_rep(self):
         def assert_min_reps_to(old, new, pos_change=0):

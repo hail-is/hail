@@ -1,5 +1,5 @@
 import hail as hl
-from hail.expr import raise_unless_entry_indexed, matrix_table_source
+from hail.expr import matrix_table_source, raise_unless_entry_indexed
 from hail.utils.java import Env
 
 

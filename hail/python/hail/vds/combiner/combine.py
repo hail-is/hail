@@ -1,14 +1,15 @@
 import math
-from typing import Collection, Optional, Set, Union, List, Tuple, Dict
+from typing import Collection, Dict, List, Optional, Set, Tuple, Union
 
 import hail as hl
 from hail import MatrixTable, Table
 from hail.experimental.function import Function
-from hail.expr import StructExpression, unify_all, construct_expr
+from hail.expr import StructExpression, construct_expr, unify_all
 from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows
 from hail.typecheck import oneof, sequenceof, typecheck
+
 from ..variant_dataset import VariantDataset
 
 _transform_variant_function_map: Dict[Tuple[hl.HailType, Tuple[str, ...]], Function] = {}
@@ -459,7 +460,7 @@ def unlocalize(mt):
 
 
 def merge_alleles(alleles):
-    from hail.expr.functions import _num_allele_type, _allele_ints
+    from hail.expr.functions import _allele_ints, _num_allele_type
 
     return hl.rbind(
         alleles.map(lambda a: hl.or_else(a[0], '')).fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),

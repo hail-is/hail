@@ -1,7 +1,8 @@
 import pytest
 
 import hail as hl
-from ..helpers import resource, fails_local_backend, fails_service_backend
+
+from ..helpers import fails_local_backend, fails_service_backend, resource
 
 
 def assert_c_king_same_as_hail_king(c_king_path, hail_king_mt):

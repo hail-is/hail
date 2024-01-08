@@ -1,5 +1,5 @@
-from hail.typecheck import typecheck_method, lazy, nullable, anytype
 import hail as hl
+from hail.typecheck import anytype, lazy, nullable, typecheck_method
 
 interval_type = lazy()
 

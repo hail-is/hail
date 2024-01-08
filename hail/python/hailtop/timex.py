@@ -1,7 +1,6 @@
-from typing import Dict, Optional
-
-import re
 import datetime
+import re
+from typing import Dict, Optional
 
 rfc3339_re = re.compile(
     # https://www.rfc-editor.org/rfc/rfc3339#section-5.6

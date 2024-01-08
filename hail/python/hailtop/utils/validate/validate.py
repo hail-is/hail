@@ -1,6 +1,6 @@
-from typing import Union, Dict, Pattern, Callable, Any, List, Optional
-import re
 import logging
+import re
+from typing import Any, Callable, Dict, List, Optional, Pattern, Union
 
 log = logging.getLogger('foo')
 

@@ -1,6 +1,6 @@
-from typing import Optional, Union
-import sys
 import re
+import sys
+from typing import Optional, Union
 
 from hailtop.config import ConfigVariable, configuration_of
 

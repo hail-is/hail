@@ -1,6 +1,8 @@
-import orjson
 import os
 from shlex import quote as shq
+
+import orjson
+
 from hailtop import pip_version
 
 
@@ -8,9 +10,9 @@ async def submit(name, image_name, files, output, script, arguments):
     import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
     from hailtop.aiotools.copy import copy_from_dict  # pylint: disable=import-outside-toplevel
     from hailtop.config import (  # pylint: disable=import-outside-toplevel
+        get_deploy_config,
         get_remote_tmpdir,
         get_user_config_path,
-        get_deploy_config,
     )
     from hailtop.utils import (  # pylint: disable=import-outside-toplevel
         secret_alnum_string,

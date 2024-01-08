@@ -1,6 +1,5 @@
 from typing import Union
 
-
 _MICROSECOND = 1
 _MILLISECOND = 1000 * _MICROSECOND
 _SECOND = 1000 * _MILLISECOND

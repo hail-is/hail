@@ -1,5 +1,5 @@
-from hailtop.utils import sleep_before_try
 from hailtop.auth import async_delete_user, async_get_user
+from hailtop.utils import sleep_before_try
 
 
 class DeleteUserException(Exception):

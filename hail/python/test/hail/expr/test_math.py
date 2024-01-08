@@ -1,6 +1,6 @@
-import hail as hl
 import scipy.special as scsp
-import pytest
+
+import hail as hl
 
 
 def test_logit():

@@ -1,7 +1,9 @@
+import math
+
+import numpy as np
+
 import hail as hl
 from hail.ggplot import *
-import numpy as np
-import math
 
 
 def test_geom_point_line_text_col_area():

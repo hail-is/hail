@@ -1,6 +1,8 @@
-import hail as hl
-import scipy.stats as spst
 import pytest
+import scipy.stats as spst
+
+import hail as hl
+
 from ..helpers import resource
 
 

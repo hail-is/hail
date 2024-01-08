@@ -1,6 +1,6 @@
-from typing import TypeVar, Sequence, List
-from frozenlist import FrozenList as _FrozenList
+from typing import List, Sequence, TypeVar
 
+from frozenlist import FrozenList as _FrozenList
 
 T = TypeVar('T')
 

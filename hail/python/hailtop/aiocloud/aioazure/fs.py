@@ -1,37 +1,35 @@
-from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union, ClassVar
-from types import TracebackType
-
 import abc
-import re
 import asyncio
-from functools import wraps
-import secrets
 import logging
+import re
+import secrets
 from datetime import datetime, timedelta
+from functools import wraps
+from types import TracebackType
+from typing import Any, AsyncContextManager, AsyncIterator, ClassVar, Dict, List, Optional, Set, Tuple, Type, Union
 
+import azure.core.exceptions
 from azure.mgmt.storage.aio import StorageManagementClient
 from azure.storage.blob import BlobProperties, ResourceTypes, generate_account_sas
-from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
+from azure.storage.blob.aio import BlobClient, BlobServiceClient, ContainerClient, StorageStreamDownloader
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
-import azure.core.exceptions
 
-from hailtop.utils import retry_transient_errors, flatten
 from hailtop.aiotools import WriteBuffer
 from hailtop.aiotools.fs import (
     AsyncFS,
-    AsyncFSURL,
     AsyncFSFactory,
-    ReadableStream,
-    WritableStream,
-    MultiPartCreate,
+    AsyncFSURL,
+    FileAndDirectoryError,
     FileListEntry,
     FileStatus,
-    FileAndDirectoryError,
+    MultiPartCreate,
+    ReadableStream,
     UnexpectedEOFError,
+    WritableStream,
 )
+from hailtop.utils import flatten, retry_transient_errors
 
 from .credentials import AzureCredentials
-
 
 logger = logging.getLogger("azure.core.pipeline.policies.http_logging_policy")
 logger.setLevel(logging.WARNING)

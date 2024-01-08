@@ -1,7 +1,8 @@
-import hail as hl
-from hail.typecheck import typecheck, sequenceof
-from hail.expr.expressions import expr_str, expr_call, expr_locus, expr_array
 from typing import List
+
+import hail as hl
+from hail.expr.expressions import expr_array, expr_call, expr_locus, expr_str
+from hail.typecheck import sequenceof, typecheck
 
 
 @typecheck(

@@ -1,13 +1,14 @@
-from typing import Any, Tuple, Optional, Type, Union
 import asyncio
 from types import TracebackType
-import orjson
+from typing import Any, Optional, Tuple, Type, Union
+
 import aiohttp
 import aiohttp.abc
 import aiohttp.typedefs
+import orjson
 
-from .tls import internal_client_ssl_context, external_client_ssl_context
 from .config.deploy_config import get_deploy_config
+from .tls import external_client_ssl_context, internal_client_ssl_context
 
 
 class ClientResponseError(aiohttp.ClientResponseError):

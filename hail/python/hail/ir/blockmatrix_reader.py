@@ -1,7 +1,7 @@
 import abc
 import json
 
-from ..typecheck import typecheck_method, sequenceof
+from ..typecheck import sequenceof, typecheck_method
 from ..utils.misc import escape_str
 
 

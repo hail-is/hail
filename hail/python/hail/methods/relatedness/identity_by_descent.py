@@ -1,13 +1,13 @@
 import hail as hl
+from hail import ir
 from hail.backend.spark_backend import SparkBackend
 from hail.expr import analyze
 from hail.expr.expressions import expr_float64
-import hail.ir as ir
-from hail.table import Table
+from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_col_key_str
-from hail.typecheck import typecheck, nullable, numeric
-from hail.linalg import BlockMatrix
+from hail.table import Table
+from hail.typecheck import nullable, numeric, typecheck
 from hail.utils.java import Env
 
 

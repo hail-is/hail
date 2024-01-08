@@ -1,7 +1,7 @@
-from typing import Tuple, List, Optional
 import json
 import subprocess
 import sys
+from typing import List, Optional, Tuple
 
 
 def run(command: List[str]):

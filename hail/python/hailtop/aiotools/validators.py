@@ -1,9 +1,10 @@
-from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
-from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.utils import async_to_blocking
 from textwrap import dedent
 from typing import Optional
 from urllib.parse import urlparse
+
+from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.utils import async_to_blocking
 
 
 def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: Optional[bool] = False) -> None:

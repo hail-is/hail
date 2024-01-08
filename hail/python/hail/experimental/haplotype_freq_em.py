@@ -1,7 +1,7 @@
-from hail.expr.expressions import expr_int32, expr_array, ArrayExpression
-from hail.expr.types import tfloat64, tarray
-from hail.typecheck import typecheck
+from hail.expr.expressions import ArrayExpression, expr_array, expr_int32
 from hail.expr.functions import _func
+from hail.expr.types import tarray, tfloat64
+from hail.typecheck import typecheck
 
 
 @typecheck(gt_counts=expr_array(expr_int32))

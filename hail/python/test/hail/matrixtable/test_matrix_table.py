@@ -1,13 +1,15 @@
 import math
 import operator
 import random
+
 import pytest
 
 import hail as hl
-import hail.ir as ir
 import hail.expr.aggregators as agg
+from hail import ir
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
+
 from ..helpers import *
 
 

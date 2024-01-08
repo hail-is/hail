@@ -2,7 +2,6 @@ from typing import Any, DefaultDict, Dict, FrozenSet, Optional, Tuple, Type, Typ
 
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
-
 FS = TypeVar("FS")
 MaybeGCSRequesterPaysConfiguration = Optional[GCSRequesterPaysConfiguration]
 GCSRequesterPaysKey = Optional[Union[str, Tuple[str, FrozenSet[str]]]]

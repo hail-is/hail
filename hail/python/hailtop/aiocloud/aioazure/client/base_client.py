@@ -1,6 +1,7 @@
-from typing import Optional, AsyncGenerator, Any
+from typing import Any, AsyncGenerator, Optional
 
 import aiohttp
+
 from hailtop.utils import RateLimit, sleep_before_try, url_and_params
 
 from ...common import CloudBaseClient

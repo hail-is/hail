@@ -1,7 +1,6 @@
 from typing import Mapping, Optional, Union
 
-from ..common import Session, AnonymousCloudCredentials
-
+from ..common import AnonymousCloudCredentials, Session
 from .credentials import GoogleCredentials
 
 

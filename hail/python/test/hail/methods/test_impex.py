@@ -1,20 +1,19 @@
 import json
 import os
-import pytest
 import shutil
 import unittest
-
 from unittest import mock
 
+import pytest
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
-from hail.context import TemporaryFilename
 
-import pytest
 import hail as hl
-from ..helpers import *
 from hail import ir
-from hail.utils import new_temp_file, new_local_temp_file, FatalError, run_command, uri_path, HailUserError
+from hail.context import TemporaryFilename
+from hail.utils import FatalError, HailUserError, new_local_temp_file, new_temp_file, run_command, uri_path
+
+from ..helpers import *
 
 _FLOAT_INFO_FIELDS = [
     'BaseQRankSum',
@@ -516,7 +515,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt._same(vcf))
 
     def test_combiner_works(self):
-        from hail.vds.combiner.combine import transform_gvcf, combine_variant_datasets
+        from hail.vds.combiner.combine import combine_variant_datasets, transform_gvcf
 
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]

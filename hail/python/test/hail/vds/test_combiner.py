@@ -1,13 +1,11 @@
 import os
-import pytest
 
 import hail as hl
-
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
-from hail.vds.combiner import combine_variant_datasets, new_combiner, load_combiner, transform_gvcf
-from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, skip_when_service_backend, test_timeout, qobtest
+from hail.vds.combiner import load_combiner, new_combiner
+
+from ..helpers import qobtest, resource, skip_when_service_backend, test_timeout
 
 all_samples = [
     'HG00308',

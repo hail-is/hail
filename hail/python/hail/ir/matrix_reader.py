@@ -1,12 +1,12 @@
 import abc
 import json
 
-from .utils import make_filter_and_replace, impute_type_of_partition_interval_array
 from ..expr.types import HailType, tfloat32, tfloat64
 from ..genetics.reference_genome import reference_genome_type
-from ..typecheck import typecheck_method, sequenceof, nullable, enumeration, anytype, oneof, dictof, sized_tupleof
+from ..typecheck import anytype, dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck_method
 from ..utils import wrap_to_list
 from ..utils.misc import escape_str
+from .utils import impute_type_of_partition_interval_array, make_filter_and_replace
 
 
 class MatrixReader(object):

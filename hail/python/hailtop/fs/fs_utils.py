@@ -7,7 +7,6 @@ from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 from .router_fs import RouterFS
 from .stat_result import FileListEntry
 
-
 _fses = GCSRequesterPaysFSCache(fs_constructor=RouterFS)
 
 

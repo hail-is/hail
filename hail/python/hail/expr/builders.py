@@ -1,15 +1,15 @@
 import hail as hl
-from hail.typecheck import typecheck_method
+from hail import ir
 from hail.expr.expressions import (
-    unify_types,
-    unify_types_limited,
-    expr_any,
-    expr_bool,
     ExpressionException,
     construct_expr,
+    expr_any,
+    expr_bool,
     expr_str,
+    unify_types,
+    unify_types_limited,
 )
-from hail import ir
+from hail.typecheck import typecheck_method
 
 
 class ConditionalBuilder(object):

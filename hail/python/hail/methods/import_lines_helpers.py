@@ -1,4 +1,5 @@
 from typing import List, Optional
+
 import hail as hl
 from hail.utils.misc import hl_plural, plural
 

@@ -1,4 +1,4 @@
-from typing import Optional, ClassVar, List
+from typing import ClassVar, List, Optional
 
 from ..session import AzureSession
 from .base_client import AzureBaseClient

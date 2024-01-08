@@ -1,6 +1,5 @@
 import os
 import subprocess
-
 from typing import List
 
 
@@ -13,6 +12,7 @@ def submit(
 ):
     import requests  # pylint: disable=import-outside-toplevel
     import requests.auth  # pylint: disable=import-outside-toplevel
+
     from ...utils import sync_sleep_before_try  # pylint: disable=import-outside-toplevel
 
     print("Submitting to cluster '{}'...".format(name))

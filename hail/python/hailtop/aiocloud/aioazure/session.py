@@ -1,8 +1,8 @@
-from typing import Mapping, Optional, List, Union
+from typing import List, Mapping, Optional, Union
 
 import aiohttp
 
-from ..common import Session, AnonymousCloudCredentials
+from ..common import AnonymousCloudCredentials, Session
 from .credentials import AzureCredentials
 
 

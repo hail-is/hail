@@ -1,9 +1,12 @@
-import numpy as np
-import hail as hl
 import unittest
+
+import numpy as np
 import pytest
-from ..helpers import *
+
+import hail as hl
 from hail.utils import new_temp_file
+
+from ..helpers import *
 
 
 class Tests(unittest.TestCase):

@@ -1,17 +1,16 @@
 import unittest
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pyspark.sql
 import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail import ExpressionException, ir
 from hail.utils import new_temp_file
 from hail.utils.java import Env
-import hail.ir as ir
 
-from hail import ExpressionException
 from ..helpers import *
 
 

@@ -1,7 +1,7 @@
 import hail as hl
-from hail.expr.expressions import expr_array, expr_call, expr_int32, expr_any
+from hail.expr.expressions import expr_any, expr_array, expr_call, expr_int32
 from hail.expr.functions import _func
-from hail.typecheck import typecheck, enumeration
+from hail.typecheck import enumeration, typecheck
 
 
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))

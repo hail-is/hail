@@ -1,11 +1,12 @@
 import asyncio
-import orjson
-from typing import List, Optional, Union, Annotated as Ann
-from os import path
-from zlib import decompress, MAX_WBITS
-from statistics import median, mean, stdev
 from collections import OrderedDict
+from os import path
+from statistics import mean, median, stdev
+from typing import Annotated as Ann
+from typing import List, Optional, Union
+from zlib import MAX_WBITS, decompress
 
+import orjson
 from typer import Option as Opt
 
 SECTION_SEPARATOR = '-' * 40

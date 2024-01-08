@@ -3,16 +3,17 @@ import os
 import warnings
 from typing import Iterable, List, Optional, Set, Tuple, Union
 
-import hail as hl
 import pkg_resources
+
+import hail as hl
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions
 
-from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
 from ..matrixtable import MatrixTable, matrix_table_type
 from ..table import Table, table_type
 from ..typecheck import oneof, typecheck_method
 from ..utils.java import Env, info
+from .lens import MatrixRows, TableRows
 
 
 class DatasetVersion:
@@ -317,19 +318,19 @@ class DB:
         if region not in DB._valid_regions:
             raise ValueError(
                 f'Specify valid region parameter,'
-                f' received: region={repr(region)}.\n'
+                f' received: region={region!r}.\n'
                 f'Valid regions are {DB._valid_regions}.'
             )
         if cloud not in DB._valid_clouds:
             raise ValueError(
                 f'Specify valid cloud parameter,'
-                f' received: cloud={repr(cloud)}.\n'
+                f' received: cloud={cloud!r}.\n'
                 f'Valid cloud platforms are {DB._valid_clouds}.'
             )
         if (region, cloud) not in DB._valid_combinations:
             raise ValueError(
-                f'The {repr(region)} region is not available for'
-                f' the {repr(cloud)} cloud platform. '
+                f'The {region!r} region is not available for'
+                f' the {cloud!r} cloud platform. '
                 f'Valid region, cloud combinations are'
                 f' {DB._valid_combinations}.'
             )

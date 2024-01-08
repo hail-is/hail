@@ -2,7 +2,6 @@ import pytest
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.fs.router_fs import RouterFS
-from hailtop.utils import async_to_blocking
 from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 
 

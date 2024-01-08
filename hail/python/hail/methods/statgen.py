@@ -1,7 +1,7 @@
 import builtins
 import itertools
 import math
-from typing import Dict, Callable, Optional, Union, Tuple, List
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import hail
 import hail as hl
@@ -10,31 +10,31 @@ from hail import ir
 from hail.expr import (
     Expression,
     ExpressionException,
-    expr_float64,
-    expr_call,
-    expr_any,
-    expr_numeric,
-    expr_locus,
     analyze,
+    expr_any,
+    expr_call,
+    expr_float64,
+    expr_locus,
+    expr_numeric,
+    matrix_table_source,
+    raise_unless_column_indexed,
     raise_unless_entry_indexed,
     raise_unless_row_indexed,
-    matrix_table_source,
     table_source,
-    raise_unless_column_indexed,
 )
-from hail.expr.types import tbool, tarray, tfloat64, tint32
+from hail.expr.types import tarray, tbool, tfloat64, tint32
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant
 from hail.stats import LinearMixedModel
 from hail.table import Table
-from hail.typecheck import typecheck, nullable, numeric, oneof, sized_tupleof, sequenceof, enumeration, anytype
-from hail.utils import wrap_to_list, new_temp_file, FatalError
+from hail.typecheck import anytype, enumeration, nullable, numeric, oneof, sequenceof, sized_tupleof, typecheck
+from hail.utils import FatalError, new_temp_file, wrap_to_list
 from hail.utils.java import Env, info, warning
-from . import pca
-from . import relatedness
+
 from ..backend.spark_backend import SparkBackend
+from . import pca, relatedness
 
 pc_relate = relatedness.pc_relate
 identity_by_descent = relatedness.identity_by_descent
@@ -196,13 +196,13 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
     for f in pass_through:
         if isinstance(f, str):
             if f not in mt.row:
-                raise ValueError(f"'{method}/pass_through': MatrixTable has no row field {repr(f)}")
+                raise ValueError(f"'{method}/pass_through': MatrixTable has no row field {f!r}")
             if f in row_fields:
                 # allow silent pass through of key fields
                 if f in mt.row_key:
                     pass
                 else:
-                    raise ValueError(f"'{method}/pass_through': found duplicated field {repr(f)}")
+                    raise ValueError(f"'{method}/pass_through': found duplicated field {f!r}")
             row_fields[f] = mt[f]
         else:
             assert isinstance(f, Expression)
@@ -216,7 +216,7 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
             if name in row_fields:
                 # allow silent pass through of key fields
                 if not (name in mt.row_key and f._ir == mt[name]._ir):
-                    raise ValueError(f"'{method}/pass_through': found duplicated field {repr(name)}")
+                    raise ValueError(f"'{method}/pass_through': found duplicated field {name!r}")
             row_fields[name] = f
     for k in mt.row_key:
         del row_fields[k]

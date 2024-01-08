@@ -1,9 +1,8 @@
 import re
 from enum import Enum
+from typing import List, Optional
 
 import yaml
-
-from typing import Optional, List
 
 from . import gcloud
 from .cluster_config import ClusterConfig

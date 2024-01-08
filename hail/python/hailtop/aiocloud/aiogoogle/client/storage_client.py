@@ -1,33 +1,35 @@
-import os
-from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List, Coroutine, ClassVar
-from types import TracebackType
-from multidict import CIMultiDictProxy  # pylint: disable=unused-import
-import sys
-import logging
 import asyncio
-import urllib.parse
-import aiohttp
 import datetime
-from hailtop import timex
-from hailtop.utils import secret_alnum_string, OnlineBoundedGather2, TransientError, retry_transient_errors
-from hailtop.aiotools.fs import (
-    FileStatus,
-    FileListEntry,
-    ReadableStream,
-    WritableStream,
-    AsyncFS,
-    AsyncFSURL,
-    AsyncFSFactory,
-    FileAndDirectoryError,
-    MultiPartCreate,
-    UnexpectedEOFError,
-)
-from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
+import logging
+import os
+import sys
+import urllib.parse
+from types import TracebackType
+from typing import Any, AsyncIterator, ClassVar, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
 
-from .base_client import GoogleBaseClient
-from ..session import GoogleSession
+import aiohttp
+from multidict import CIMultiDictProxy  # pylint: disable=unused-import
+
+from hailtop import timex
+from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
+from hailtop.aiotools.fs import (
+    AsyncFS,
+    AsyncFSFactory,
+    AsyncFSURL,
+    FileAndDirectoryError,
+    FileListEntry,
+    FileStatus,
+    MultiPartCreate,
+    ReadableStream,
+    UnexpectedEOFError,
+    WritableStream,
+)
+from hailtop.utils import OnlineBoundedGather2, TransientError, retry_transient_errors, secret_alnum_string
+
 from ..credentials import GoogleCredentials
-from ..user_config import get_gcs_requester_pays_configuration, GCSRequesterPaysConfiguration
+from ..session import GoogleSession
+from ..user_config import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
+from .base_client import GoogleBaseClient
 
 log = logging.getLogger(__name__)
 

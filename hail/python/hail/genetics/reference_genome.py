@@ -1,10 +1,11 @@
-from bisect import bisect_right
 import json
 import re
-from hail.typecheck import typecheck_method, sequenceof, dictof, oneof, sized_tupleof, nullable, transformed, lazy
-from hail.utils.misc import wrap_to_list
-from hail.utils.java import Env
+from bisect import bisect_right
+
 import hail as hl
+from hail.typecheck import dictof, lazy, nullable, oneof, sequenceof, sized_tupleof, transformed, typecheck_method
+from hail.utils.java import Env
+from hail.utils.misc import wrap_to_list
 
 rg_type = lazy()
 reference_genome_type = oneof(transformed((str, lambda x: hl.get_reference(x))), rg_type)

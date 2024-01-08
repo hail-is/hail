@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 
 class CloudCredentials(abc.ABC):

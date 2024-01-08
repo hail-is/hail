@@ -1,18 +1,20 @@
 import sys
+from typing import Annotated as Ann
+from typing import List, Optional
 
 import typer
-from typer import Option as Opt, Argument as Arg
+from typer import Argument as Arg
+from typer import Option as Opt
 
-from typing import List, Optional, Annotated as Ann
-
-from .connect import connect as dataproc_connect, DataprocConnectService
-from .submit import submit as dataproc_submit
-from .diagnose import diagnose as dataproc_diagnose
-from .modify import modify as dataproc_modify
-from .start import start as dataproc_start, VepVersion
 from ..describe import describe
 from . import gcloud
-
+from .connect import DataprocConnectService
+from .connect import connect as dataproc_connect
+from .diagnose import diagnose as dataproc_diagnose
+from .modify import modify as dataproc_modify
+from .start import VepVersion
+from .start import start as dataproc_start
+from .submit import submit as dataproc_submit
 
 MINIMUM_REQUIRED_GCLOUD_VERSION = (285, 0, 0)
 

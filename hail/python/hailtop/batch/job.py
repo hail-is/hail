@@ -5,7 +5,8 @@ import re
 import textwrap
 import warnings
 from shlex import quote as shq
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast, Literal
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Union, cast
+
 from typing_extensions import Self
 
 import hailtop.batch_client.client as bc

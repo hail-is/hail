@@ -1,18 +1,19 @@
-from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple, Dict, Any
 import asyncio
-import io
-import os
+import fnmatch
 import functools
 import glob
-import fnmatch
+import io
+import os
+from typing import Any, AsyncContextManager, BinaryIO, Dict, List, Optional, Tuple
 
-from hailtop.aiotools.fs import Copier, Transfer, FileListEntry as AIOFileListEntry, ReadableStream, WritableStream
+from hailtop.aiotools.fs import Copier, ReadableStream, Transfer, WritableStream
+from hailtop.aiotools.fs import FileListEntry as AIOFileListEntry
 from hailtop.aiotools.local_fs import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.utils import bounded_gather2, async_to_blocking
+from hailtop.utils import async_to_blocking, bounded_gather2
 
 from .fs import FS
-from .stat_result import FileType, FileListEntry
+from .stat_result import FileListEntry, FileType
 
 
 class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://github.com/python/typeshed/blob/a40d79a4e63c4e750a8d3a8012305da942251eb4/stdlib/http/client.pyi#L81

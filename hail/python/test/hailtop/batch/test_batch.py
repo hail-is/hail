@@ -1,36 +1,33 @@
 import asyncio
 import inspect
-import secrets
-import unittest
-
-import pytest
 import os
+import re
+import secrets
 import subprocess as sp
 import tempfile
-from shlex import quote as shq
+import unittest
 import uuid
-import re
-import orjson
-
-import hailtop.fs as hfs
-import hailtop.batch_client.client as bc
-from hailtop import pip_version
-from hailtop.batch import Batch, ServiceBackend, LocalBackend, ResourceGroup
-from hailtop.batch.resource import JobResourceFile
-from hailtop.batch.exceptions import BatchException
-from hailtop.batch.globals import arg_max
-from hailtop.utils import grouped, async_to_blocking
-from hailtop.config import get_remote_tmpdir, configuration_of
-from hailtop.batch.utils import concatenate
-from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.test_utils import skip_in_azure
-from hailtop.httpx import ClientResponseError
-
 from configparser import ConfigParser
-from hailtop.config import get_user_config, user_config
-from hailtop.config.variables import ConfigVariable
+from shlex import quote as shq
+
+import orjson
+import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
+import hailtop.batch_client.client as bc
+import hailtop.fs as hfs
+from hailtop import pip_version
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.batch import Batch, LocalBackend, ResourceGroup, ServiceBackend
+from hailtop.batch.exceptions import BatchException
+from hailtop.batch.globals import arg_max
+from hailtop.batch.resource import JobResourceFile
+from hailtop.batch.utils import concatenate
+from hailtop.config import configuration_of, get_remote_tmpdir, get_user_config, user_config
+from hailtop.config.variables import ConfigVariable
+from hailtop.httpx import ClientResponseError
+from hailtop.test_utils import skip_in_azure
+from hailtop.utils import async_to_blocking, grouped
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
@@ -127,20 +124,20 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
         j.image(DOCKER_ROOT_IMAGE)
-        j.command(f'echo "hello"')
+        j.command('echo "hello"')
         self.assertRaises(Exception, b.run)
 
         b = self.batch()
         j = b.new_job(shell='/bin/nonexistent')
-        j.command(f'echo "hello"')
+        j.command('echo "hello"')
         self.assertRaises(Exception, b.run)
 
     def test_single_job_with_intermediate_failure(self):
         b = self.batch()
         j = b.new_job()
-        j.command(f'echoddd "hello"')
+        j.command('echoddd "hello"')
         j2 = b.new_job()
-        j2.command(f'echo "world"')
+        j2.command('echo "world"')
 
         self.assertRaises(Exception, b.run)
 
@@ -222,7 +219,7 @@ class LocalTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
-        j.command(f"cat")
+        j.command("cat")
         j2 = b.new_job()
         j2.command(f"cat {j.foo}")
 
@@ -734,7 +731,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-        j.cloudfuse(self.bucket, f'/io', read_only=True)
+        j.cloudfuse(self.bucket, '/io', read_only=True)
 
         try:
             b.run()
@@ -762,7 +759,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.command(f'cat /cloudfuse/{path}')
-        j.cloudfuse(self.bucket, f'/cloudfuse', read_only=True)
+        j.cloudfuse(self.bucket, '/cloudfuse', read_only=True)
 
         res = b.run()
         res_status = res.status()
@@ -782,7 +779,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         j = b.new_job()
         j.cloudfuse(self.bucket, '/io/cloudfuse')
-        j.command(f'ls /io/cloudfuse/')
+        j.command('ls /io/cloudfuse/')
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
@@ -805,8 +802,8 @@ class ServiceTests(unittest.TestCase):
         assert self.bucket
         b = self.batch(requester_pays_project=REQUESTER_PAYS_PROJECT)
         j = b.new_job()
-        j.command(f'ls /fuse-bucket')
-        j.cloudfuse(self.bucket, f'/fuse-bucket', read_only=True)
+        j.command('ls /fuse-bucket')
+        j.cloudfuse(self.bucket, '/fuse-bucket', read_only=True)
 
         res = b.run()
         res_status = res.status()
@@ -839,7 +836,7 @@ class ServiceTests(unittest.TestCase):
             j.command(f'echo "bar" >> {j.ofile}')
             jobs.append(j)
 
-        combine = b.new_job(f'combine_output').cpu(0.25)
+        combine = b.new_job('combine_output').cpu(0.25)
         for _ in grouped(arg_max(), jobs):
             combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
         b.write_output(combine.ofile, f'{self.cloud_output_dir}/pipeline_benchmark_test.txt')
@@ -867,7 +864,7 @@ class ServiceTests(unittest.TestCase):
     def test_single_job_with_nonsense_shell(self):
         b = self.batch()
         j = b.new_job(shell='/bin/ajdsfoijasidojf')
-        j.command(f'echo "hello"')
+        j.command('echo "hello"')
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
@@ -875,9 +872,9 @@ class ServiceTests(unittest.TestCase):
     def test_single_job_with_intermediate_failure(self):
         b = self.batch()
         j = b.new_job()
-        j.command(f'echoddd "hello"')
+        j.command('echoddd "hello"')
         j2 = b.new_job()
-        j2.command(f'echo "world"')
+        j2.command('echo "world"')
 
         res = b.run()
         res_status = res.status()

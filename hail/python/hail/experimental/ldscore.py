@@ -1,7 +1,7 @@
 import hail as hl
+from hail.expr.expressions import expr_float64, expr_locus, expr_numeric
 from hail.linalg import BlockMatrix
-from hail.typecheck import typecheck, nullable, sequenceof, oneof
-from hail.expr.expressions import expr_float64, expr_numeric, expr_locus
+from hail.typecheck import nullable, oneof, sequenceof, typecheck
 from hail.utils import new_temp_file, wrap_to_list
 
 

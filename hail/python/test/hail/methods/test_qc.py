@@ -2,9 +2,8 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.utils.misc import new_temp_file
-from ..helpers import *
 
+from ..helpers import *
 
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 

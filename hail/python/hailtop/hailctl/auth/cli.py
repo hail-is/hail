@@ -1,11 +1,11 @@
 import asyncio
+import json
 import sys
+from typing import Annotated as Ann
+from typing import Optional
+
 import typer
 from typer import Argument as Arg
-import json
-
-from typing import Optional, Annotated as Ann
-
 
 app = typer.Typer(
     name='auth',
@@ -44,8 +44,8 @@ def logout():
 @app.command()
 def list():
     '''List Hail credentials.'''
-    from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
     from hailtop.auth import get_tokens  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
     deploy_config = get_deploy_config()
     tokens = get_tokens()

@@ -1,7 +1,6 @@
 import unittest
 
 import hail as hl
-
 from hail.utils.placement_tree import PlacementTree
 
 

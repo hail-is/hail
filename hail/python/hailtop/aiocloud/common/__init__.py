@@ -1,7 +1,6 @@
 from .base_client import CloudBaseClient
-from .session import Session, RateLimitedSession
 from .credentials import AnonymousCloudCredentials
-
+from .session import RateLimitedSession, Session
 
 __all__ = [
     'CloudBaseClient',

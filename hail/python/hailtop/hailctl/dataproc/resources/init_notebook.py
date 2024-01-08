@@ -1,9 +1,9 @@
 #!/opt/conda/default/bin/python3
+import errno
 import json
 import os
 import subprocess as sp
 import sys
-import errno
 from subprocess import check_output
 
 assert sys.version_info > (3, 0), sys.version_info

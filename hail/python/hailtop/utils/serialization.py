@@ -1,5 +1,5 @@
-from typing import Dict, Any
 import traceback
+from typing import Any, Dict
 
 
 def exception_to_dict(exc: Exception) -> Dict[str, Any]:

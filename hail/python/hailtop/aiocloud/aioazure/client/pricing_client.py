@@ -1,9 +1,7 @@
-from typing import Optional, AsyncGenerator, Any
+from typing import Any, AsyncGenerator, Optional
 
 from ...common import AnonymousCloudCredentials
 from ..session import AzureSession
-
-
 from .base_client import AzureBaseClient
 
 

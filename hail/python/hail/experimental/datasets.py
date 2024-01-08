@@ -2,8 +2,9 @@ import json
 import os
 from typing import Optional, Union
 
-import hail as hl
 import pkg_resources
+
+import hail as hl
 
 
 def _read_dataset(path: str) -> Union[hl.Table, hl.MatrixTable, hl.linalg.BlockMatrix]:
@@ -61,13 +62,13 @@ def load_dataset(name: str,
     valid_regions = {'us', 'eu'}
     if region not in valid_regions:
         raise ValueError(f'Specify valid region parameter,'
-                         f' received: region={repr(region)}.\n'
+                         f' received: region={region!r}.\n'
                          f'Valid region values are {valid_regions}.')
 
     valid_clouds = {'gcp', 'aws'}
     if cloud not in valid_clouds:
         raise ValueError(f'Specify valid cloud parameter,'
-                         f' received: cloud={repr(cloud)}.\n'
+                         f' received: cloud={cloud!r}.\n'
                          f'Valid cloud platforms are {valid_clouds}.')
 
     config_path = pkg_resources.resource_filename(__name__, 'datasets.json')
@@ -82,30 +83,30 @@ def load_dataset(name: str,
 
     versions = set(dataset['version'] for dataset in datasets[name]['versions'])
     if version not in versions:
-        raise ValueError(f'Version {repr(version)} not available for dataset'
-                         f' {repr(name)}.\n'
+        raise ValueError(f'Version {version!r} not available for dataset'
+                         f' {name!r}.\n'
                          f'Available versions: {versions}.')
 
     reference_genomes = set(dataset['reference_genome']
                             for dataset in datasets[name]['versions'])
     if reference_genome not in reference_genomes:
-        raise ValueError(f'Reference genome build {repr(reference_genome)} not'
-                         f' available for dataset {repr(name)}.\n'
+        raise ValueError(f'Reference genome build {reference_genome!r} not'
+                         f' available for dataset {name!r}.\n'
                          f'Available reference genome builds:'
                          f' {reference_genomes}.')
 
     clouds = set(k for dataset in datasets[name]['versions']
                  for k in dataset['url'].keys())
     if cloud not in clouds:
-        raise ValueError(f'Cloud platform {repr(cloud)} not available for'
+        raise ValueError(f'Cloud platform {cloud!r} not available for'
                          f' dataset {name}.\n'
                          f'Available platforms: {clouds}.')
 
     regions = set(k for dataset in datasets[name]['versions']
                   for k in dataset['url'][cloud].keys())
     if region not in regions:
-        raise ValueError(f'Region {repr(region)} not available for dataset'
-                         f' {repr(name)} on cloud platform {repr(cloud)}.\n'
+        raise ValueError(f'Region {region!r} not available for dataset'
+                         f' {name!r} on cloud platform {cloud!r}.\n'
                          f'Available regions: {regions}.')
 
     path = [dataset['url'][cloud][region]

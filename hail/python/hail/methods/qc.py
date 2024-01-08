@@ -1,34 +1,31 @@
 import abc
 import logging
+import os
+from collections import Counter
+from shlex import quote as shq
+from typing import Dict, List, Optional, Tuple, Union
 
 import hail as hl
-from collections import Counter
-import os
-from shlex import quote as shq
-
-from typing import Dict, Tuple, List, Optional, Union
-
-from hailtop import pip_version
-from hailtop.utils import async_to_blocking
 import hailtop.batch_client as bc
-from hailtop.config import get_deploy_config
-from hailtop import yamlx
-
 from hail.backend.service_backend import ServiceBackend
-from hail.typecheck import typecheck, oneof, anytype, nullable, numeric
 from hail.expr.expressions.expression_typecheck import expr_float64
+from hail.ir import TableToTableApply
+from hail.matrixtable import MatrixTable
+from hail.table import Table
+from hail.typecheck import anytype, nullable, numeric, oneof, typecheck
 from hail.utils import FatalError
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, guess_cloud_spark_provider, new_temp_file
-from hail.matrixtable import MatrixTable
-from hail.table import Table
-from hail.ir import TableToTableApply
+from hailtop import pip_version, yamlx
+from hailtop.config import get_deploy_config
+from hailtop.utils import async_to_blocking
+
 from .misc import (
-    require_biallelic,
-    require_row_key_variant,
-    require_col_key_str,
-    require_table_key_variant,
     require_alleles_field,
+    require_biallelic,
+    require_col_key_str,
+    require_row_key_variant,
+    require_table_key_variant,
 )
 
 log = logging.getLogger('methods.qc')
@@ -115,7 +112,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     require_row_key_variant(mt, 'sample_qc')
 
-    from hail.expr.functions import _num_allele_type, _allele_types
+    from hail.expr.functions import _allele_types, _num_allele_type
 
     allele_types = _allele_types[:]
     allele_types.extend(['Transition', 'Transversion'])

@@ -1,47 +1,49 @@
-from typing import (
-    Any,
-    Callable,
-    TypeVar,
-    Awaitable,
-    Mapping,
-    Optional,
-    Type,
-    List,
-    Dict,
-    Iterable,
-    Tuple,
-    AsyncIterator,
-    Iterator,
-    Union,
-)
-from typing import Literal, Sequence
-from typing_extensions import ParamSpec
-from types import TracebackType
+import asyncio
 import concurrent.futures
 import contextlib
-import subprocess
-import traceback
-import sys
-import os
-import re
 import errno
-import random
+import itertools
 import logging
-import asyncio
-import aiohttp
-import urllib.parse
-import urllib3.exceptions
+import os
+import random
+import re
 import secrets
 import socket
-import requests
-import botocore.exceptions
-import itertools
+import subprocess
+import sys
 import time
+import traceback
+import urllib.parse
+from types import TracebackType
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
+
+import aiohttp
+import botocore.exceptions
+import requests
+import urllib3.exceptions
 from requests.adapters import HTTPAdapter
+from typing_extensions import ParamSpec
 from urllib3.poolmanager import PoolManager
 
-from .time import time_msecs
 from ..hail_event_loop import hail_event_loop
+from .time import time_msecs
 
 try:
     import aiodocker  # pylint: disable=import-error

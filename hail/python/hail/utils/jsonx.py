@@ -1,15 +1,15 @@
-from typing import Any
 import json
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
-
-from .frozendict import frozendict
-from .struct import Struct
-from .interval import Interval
 from ..genetics.locus import Locus
 from ..genetics.reference_genome import ReferenceGenome
+from .frozendict import frozendict
+from .interval import Interval
 from .misc import escape_str
+from .struct import Struct
 
 
 class JSONEncoder(json.JSONEncoder):

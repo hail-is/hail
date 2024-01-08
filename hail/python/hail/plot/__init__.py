@@ -6,19 +6,19 @@ if is_notebook():
     output_notebook()
 
 from .plots import (
-    output_notebook,
-    show,
-    histogram,
-    cumulative_histogram,
-    histogram2d,
-    scatter,
-    joint_plot,
-    qq,
-    manhattan,
-    smoothed_pdf,
-    pdf,
     cdf,
+    cumulative_histogram,
+    histogram,
+    histogram2d,
+    joint_plot,
+    manhattan,
+    output_notebook,
+    pdf,
+    qq,
+    scatter,
     set_font_size,
+    show,
+    smoothed_pdf,
     visualize_missingness,
 )
 

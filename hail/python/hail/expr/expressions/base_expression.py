@@ -1,39 +1,40 @@
-from typing import Tuple, Mapping, overload, Any, List
+from typing import Any, List, Mapping, Tuple, overload
+
 import numpy as np
 import pandas as pd
 
 import hail
 import hail as hl
+from hail import ir
 from hail.expr import expressions
 from hail.expr.types import (
     HailType,
-    is_numeric,
+    from_numpy,
     is_compound,
+    is_numeric,
     is_setlike,
-    tint32,
-    tint64,
+    summary_type,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
     tfloat32,
     tfloat64,
-    tstr,
-    tbool,
-    tarray,
-    tndarray,
-    tset,
-    tdict,
-    tstruct,
-    ttuple,
+    tint32,
+    tint64,
     tinterval,
     tlocus,
-    tcall,
-    from_numpy,
+    tndarray,
+    tset,
+    tstr,
+    tstruct,
+    ttuple,
 )
-from hail import ir
-from hail.typecheck import typecheck_method, nullable, anyfunc, linked_list
+from hail.typecheck import anyfunc, linked_list, nullable, typecheck_method
 from hail.utils.java import Env
 from hail.utils.linkedlist import LinkedList
-from .indices import Indices, Aggregation
 
-from hail.expr.types import summary_type
+from .indices import Aggregation, Indices
 
 
 class Summary(object):
@@ -152,7 +153,7 @@ def impute_type(x, partial_type=None):
 
 
 def _impute_type(x, partial_type):
-    from hail.genetics import Locus, Call
+    from hail.genetics import Call, Locus
     from hail.utils import Interval, Struct
 
     def refine(t, refined):
@@ -618,7 +619,7 @@ class Expression(object):
         )
 
     def __iter__(self):
-        raise ExpressionException(f"{repr(self)} object is not iterable")
+        raise ExpressionException(f"{self!r} object is not iterable")
 
     def _compare_op(self, op, other):
         other = to_expr(other)

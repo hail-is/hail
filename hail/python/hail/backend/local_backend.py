@@ -1,19 +1,19 @@
-from typing import Optional, Union, Tuple, List
 import os
 import sys
+from typing import List, Optional, Tuple, Union
 
-from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
+from py4j.java_gateway import GatewayParameters, JavaGateway, launch_gateway
 
-from hail.ir.renderer import CSERenderer
 from hail.ir import finalize_randomness
-from .py4j_backend import Py4JBackend, uninstall_exception_handler
-from .backend import local_jar_information
+from hail.ir.renderer import CSERenderer
+from hailtop.aiotools.validators import validate_file
+from hailtop.fs.router_fs import RouterFS
+from hailtop.utils import find_spark_home
+
 from ..expr import Expression
 from ..expr.types import HailType
-
-from hailtop.utils import find_spark_home
-from hailtop.fs.router_fs import RouterFS
-from hailtop.aiotools.validators import validate_file
+from .backend import local_jar_information
+from .py4j_backend import Py4JBackend, uninstall_exception_handler
 
 
 class LocalBackend(Py4JBackend):

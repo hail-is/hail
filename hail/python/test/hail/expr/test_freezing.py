@@ -1,4 +1,5 @@
 from typing import Dict
+
 import hail as hl
 from hailtop.frozendict import frozendict
 from hailtop.hail_frozenlist import frozenlist
