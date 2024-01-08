@@ -35,7 +35,7 @@ gcloud storage cp --billing-project $PROJECT gs://hail-us-vep/vep95-GRCh38-lofte
 ln -s /vep_data/vep95-GRCh38-gcloud.json $VEP_CONFIG_PATH
 
 gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data/ &
-gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/homo-sapiens/95_${ASSEMBLY}_indexed.tar | tar -xf - -C /vep_data/ &
+gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/homo-sapiens/95_${ASSEMBLY}_indexed.tar | tar -xf - -C /vep_data/homo_sapiens &
 docker pull ${VEP_DOCKER_IMAGE} &
 wait
 
