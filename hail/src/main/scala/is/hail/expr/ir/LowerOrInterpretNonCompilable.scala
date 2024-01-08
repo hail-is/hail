@@ -16,20 +16,20 @@ object LowerOrInterpretNonCompilable {
       val result = CanLowerEfficiently(ctx, value) match {
         case Some(failReason) =>
           log.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
-          log.info(s"interpreting non-compilable result: ${ value.getClass.getSimpleName }")
+          log.info(s"interpreting non-compilable result: ${value.getClass.getSimpleName}")
           val v = Interpret.alreadyLowered(ctx, value)
           if (value.typ == TVoid) {
             Begin(FastSeq())
           } else Literal.coerce(value.typ, v)
         case None =>
           log.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")
-          log.info(s"lowering result: ${ value.getClass.getSimpleName }")
+          log.info(s"lowering result: ${value.getClass.getSimpleName}")
           val fullyLowered = LowerToDistributedArrayPass(DArrayLowering.All).transform(ctx, value)
             .asInstanceOf[IR]
-          log.info(s"compiling and evaluating result: ${ value.getClass.getSimpleName }")
+          log.info(s"compiling and evaluating result: ${value.getClass.getSimpleName}")
           CompileAndEvaluate.evalToIR(ctx, fullyLowered, true)
       }
-      log.info(s"took ${ formatTime(System.nanoTime() - preTime) }")
+      log.info(s"took ${formatTime(System.nanoTime() - preTime)}")
       assert(result.typ == value.typ)
       result
     }
@@ -55,7 +55,8 @@ object LowerOrInterpretNonCompilable {
               res
             case None => throw new RuntimeException(name)
           }
-        case x: IR if InterpretableButNotCompilable(x) => evaluate(rewriteChildren(x, m).asInstanceOf[IR])
+        case x: IR if InterpretableButNotCompilable(x) =>
+          evaluate(rewriteChildren(x, m).asInstanceOf[IR])
         case _ => rewriteChildren(x, m)
       }
     }

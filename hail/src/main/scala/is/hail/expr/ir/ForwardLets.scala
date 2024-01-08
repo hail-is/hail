@@ -16,33 +16,34 @@ object ForwardLets {
       def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: IR): Boolean = {
         value.isInstanceOf[Ref] ||
         value.isInstanceOf[In] ||
-          (IsConstant(value) && !value.isInstanceOf[Str]) ||
-          refs.isEmpty ||
-          (refs.size == 1 &&
-            nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
-            !ContainsScan(value) &&
-            !ContainsAgg(value)) &&
-            !ContainsAggIntermediate(value)
+        (IsConstant(value) && !value.isInstanceOf[Str]) ||
+        refs.isEmpty ||
+        (refs.size == 1 &&
+          nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
+          !ContainsScan(value) &&
+          !ContainsAgg(value)) &&
+        !ContainsAggIntermediate(value)
       }
 
       ir match {
-        case l@Let(bindings, body) =>
+        case l @ Let(bindings, body) =>
           val keep = new BoxedArrayBuilder[(String, IR)]
           val refs = uses(ir)
           val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
             val rewriteValue = rewrite(value, env).asInstanceOf[IR]
             if (shouldForward(rewriteValue, refs.filter(_.t.name == name), l))
               env.bindEval(name -> rewriteValue)
-            else {keep += (name -> rewriteValue); env}
+            else { keep += (name -> rewriteValue); env }
           }
 
           val newBody = rewrite(body, newEnv).asInstanceOf[IR]
           if (keep.isEmpty) newBody
           else Let(keep.result(), newBody)
 
-        case l@AggLet(name, value, body, isScan) =>
+        case l @ AggLet(name, value, body, isScan) =>
           val refs = uses.lookup(ir)
-          val rewriteValue = rewrite(value, if (isScan) env.promoteScan else env.promoteAgg).asInstanceOf[IR]
+          val rewriteValue =
+            rewrite(value, if (isScan) env.promoteScan else env.promoteAgg).asInstanceOf[IR]
           if (shouldForward(rewriteValue, refs, l))
             if (isScan)
               rewrite(body, env.copy(scan = Some(env.scan.get.bind(name -> rewriteValue))))
@@ -50,15 +51,16 @@ object ForwardLets {
               rewrite(body, env.copy(agg = Some(env.agg.get.bind(name -> rewriteValue))))
           else
             AggLet(name, rewriteValue, rewrite(body, env).asInstanceOf[IR], isScan)
-        case x@Ref(name, _) =>
+        case x @ Ref(name, _) =>
           env.eval
             .lookupOption(name)
-            .map { forwarded => if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy() else forwarded }
+            .map { forwarded =>
+              if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy()
+              else forwarded
+            }
             .getOrElse(x)
         case _ =>
-          ir.mapChildrenWithIndex { (ir1, i) =>
-            rewrite(ir1, ChildEnvWithoutBindings(ir, i, env))
-          }
+          ir.mapChildrenWithIndex((ir1, i) => rewrite(ir1, ChildEnvWithoutBindings(ir, i, env)))
       }
     }
 

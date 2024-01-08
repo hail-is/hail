@@ -6,14 +6,30 @@ import is.hail.expr.ir.{CloseableIterator, GenericLine}
 import is.hail.io.fs.{FS, Positioned}
 import is.hail.io.tabix.{TabixLineIterator, TabixReader}
 import is.hail.types.physical.PStruct
-import is.hail.utils.{MissingArrayBuilder, TextInputFilterAndReplace, fatal, makeJavaSet}
+import is.hail.utils.{fatal, makeJavaSet, MissingArrayBuilder, TextInputFilterAndReplace}
 import is.hail.variant.ReferenceGenome
 
-class TabixReadVCFIterator(fs: FS, file: String, contigMapping: Map[String, String],
-  fileNum: Int, chrom: String, start: Int, end: Int,
-  sm: HailStateManager, partitionRegion: Region, elementRegion: Region, requestedPType: PStruct,
-  filterAndReplace: TextInputFilterAndReplace, infoFlagFieldNames: Set[String], nSamples: Int, _rg: ReferenceGenome,
-  arrayElementsRequired: Boolean, skipInvalidLoci: Boolean, entriesFieldName: String, uidFieldName: String) {
+class TabixReadVCFIterator(
+  fs: FS,
+  file: String,
+  contigMapping: Map[String, String],
+  fileNum: Int,
+  chrom: String,
+  start: Int,
+  end: Int,
+  sm: HailStateManager,
+  partitionRegion: Region,
+  elementRegion: Region,
+  requestedPType: PStruct,
+  filterAndReplace: TextInputFilterAndReplace,
+  infoFlagFieldNames: Set[String],
+  nSamples: Int,
+  _rg: ReferenceGenome,
+  arrayElementsRequired: Boolean,
+  skipInvalidLoci: Boolean,
+  entriesFieldName: String,
+  uidFieldName: String,
+) {
   val chromToQuery = contigMapping.iterator.find(_._2 == chrom).map(_._1).getOrElse(chrom)
 
   val rg = Option(_rg)
@@ -46,7 +62,7 @@ class TabixReadVCFIterator(fs: FS, file: String, contigMapping: Map[String, Stri
             val bytes = n.getBytes
             new GenericLine(file, 0, idx, bytes, bytes.length)
           } catch {
-            case e: Exception => fatal(s"error reading file: $file at ${ lines.getCurIdx() }", e)
+            case e: Exception => fatal(s"error reading file: $file at ${lines.getCurIdx()}", e)
           }
         }
       }.filter { gl =>
@@ -55,14 +71,16 @@ class TabixReadVCFIterator(fs: FS, file: String, contigMapping: Map[String, Stri
         val t2 = s.indexOf('\t', t1 + 1)
 
         if (t1 == -1 || t2 == -1) {
-          fatal(s"invalid line in file ${ gl.file } no CHROM or POS column at offset ${ gl.offset }.\n$s")
+          fatal(
+            s"invalid line in file ${gl.file} no CHROM or POS column at offset ${gl.offset}.\n$s"
+          )
         }
 
         val chr = s.substring(0, t1)
         val pos = s.substring(t1 + 1, t2).toInt
 
         if (chr != chrom) {
-          fatal(s"in file ${ gl.file } at offset ${ gl.offset }, bad chromosome! ${ chrom }, $s")
+          fatal(s"in file ${gl.file} at offset ${gl.offset}, bad chromosome! $chrom, $s")
         }
         start <= pos && pos <= end
       }
@@ -75,9 +93,15 @@ class TabixReadVCFIterator(fs: FS, file: String, contigMapping: Map[String, Stri
     }
   }
 
-
   val transformer = filterAndReplace.transformer()
-  val parseLineContext = new ParseLineContext(requestedPType.virtualType, makeJavaSet(infoFlagFieldNames), nSamples, fileNum, entriesFieldName)
+
+  val parseLineContext = new ParseLineContext(
+    requestedPType.virtualType,
+    makeJavaSet(infoFlagFieldNames),
+    nSamples,
+    fileNum,
+    entriesFieldName,
+  )
 
   val rvb = new RegionValueBuilder(sm)
 
@@ -98,14 +122,26 @@ class TabixReadVCFIterator(fs: FS, file: String, contigMapping: Map[String, Stri
         rvb.clear()
         rvb.set(elementRegion)
         try {
-          val vcfLine = new VCFLine(newText, line.fileNum, line.offset, arrayElementsRequired, abs, abi, abf, abd)
+          val vcfLine = new VCFLine(
+            newText,
+            line.fileNum,
+            line.offset,
+            arrayElementsRequired,
+            abs,
+            abi,
+            abf,
+            abd,
+          )
           val pl = LoadVCF.parseLine(rg, contigMapping, skipInvalidLoci,
             requestedPType, rvb, parseLineContext, vcfLine, entriesFieldName, uidFieldName)
           pl
         } catch {
           case e: Exception =>
-            fatal(s"${ line.file }:offset ${ line.offset }: error while parsing line\n" +
-              s"$newText\n", e)
+            fatal(
+              s"${line.file}:offset ${line.offset}: error while parsing line\n" +
+                s"$newText\n",
+              e,
+            )
         }
       }
     }
@@ -116,7 +152,6 @@ class TabixReadVCFIterator(fs: FS, file: String, contigMapping: Map[String, Stri
       0L
   }
 
-  def close(): Unit = {
+  def close(): Unit =
     linesIter.close()
-  }
 }

@@ -13,11 +13,12 @@ case class FilePartitionInfo(
   metadata: BgenFileMetadata,
   intervals: Array[Interval],
   partStarts: Array[Long],
-  partN: Array[Long]
+  partN: Array[Long],
 )
 
 object BgenRDDPartitions extends Logging {
-  def checkFilesDisjoint(ctx: ExecuteContext, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
+  def checkFilesDisjoint(ctx: ExecuteContext, fileMetadata: Seq[BgenFileMetadata], keyType: Type)
+    : Array[Interval] = {
     assert(fileMetadata.nonEmpty)
     val pord = keyType.ordering(ctx.stateManager)
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
@@ -39,11 +40,10 @@ object BgenRDDPartitions extends Logging {
     if (!overlappingBounds.isEmpty)
       fatal(
         s"""Each BGEN file must contain a region of the genome disjoint from other files. Found the following overlapping files:
-           |  ${
-          overlappingBounds.result().map { case (f1, i1, f2, i2) =>
+           |  ${overlappingBounds.result().map { case (f1, i1, f2, i2) =>
             s"file1: $f1\trangeBounds1: $i1\tfile2: $f2\trangeBounds2: $i2"
-          }.mkString("\n  ")
-        })""".stripMargin)
+          }.mkString("\n  ")})""".stripMargin
+      )
 
     bounds.map(_._2).toArray
   }
@@ -54,7 +54,7 @@ object BgenRDDPartitions extends Logging {
     files: IndexedSeq[BgenFileMetadata],
     blockSizeInMB: Option[Int],
     nPartitions: Option[Int],
-    keyType: Type
+    keyType: Type,
   ): IndexedSeq[FilePartitionInfo] = {
     val fs = ctx.fs
 
@@ -91,7 +91,9 @@ object BgenRDDPartitions extends Logging {
       val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants).toInt
       val partNVariants: Array[Long] = partition(file.nVariants, nPartitions)
       val partFirstVariantIndex = partNVariants.scan(0L)(_ + _).init
-      val partLastVariantIndex = (partFirstVariantIndex, partNVariants).zipped.map { (idx, n) => idx + n }
+      val partLastVariantIndex = (partFirstVariantIndex, partNVariants).zipped.map { (idx, n) =>
+        idx + n
+      }
 
       val allPositions = partFirstVariantIndex ++ partLastVariantIndex.map(_ - 1L)
       val keys = getKeysFromFile(file.indexPath, allPositions)
@@ -100,7 +102,8 @@ object BgenRDDPartitions extends Logging {
           keys(i),
           keys(i + nPartitions),
           true,
-          true) // this must be true -- otherwise boundaries with duplicates will have the wrong range bounds
+          true,
+        ) // this must be true -- otherwise boundaries with duplicates will have the wrong range bounds
       }.toArray
 
       FilePartitionInfo(file, rangeBounds, partFirstVariantIndex, partNVariants)

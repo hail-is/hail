@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import is.hail.expr.ir.IntArrayBuilder
+
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 

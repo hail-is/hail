@@ -13,8 +13,7 @@ case class SparkBlockMatrixCache() {
     blockmatrices.update(id, value.persist(storageLevel))
 
   def getPersistedBlockMatrix(id: String): BlockMatrix =
-    blockmatrices.getOrElse(id,
-      fatal(s"Persisted BlockMatrix with id ${ id } does not exist."))
+    blockmatrices.getOrElse(id, fatal(s"Persisted BlockMatrix with id $id does not exist."))
 
   def getPersistedBlockMatrixType(id: String): BlockMatrixType =
     BlockMatrixType.fromBlockMatrix(getPersistedBlockMatrix(id))

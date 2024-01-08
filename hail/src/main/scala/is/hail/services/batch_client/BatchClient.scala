@@ -1,22 +1,23 @@
 package is.hail.services.batch_client
 
 import is.hail.expr.ir.ByteArrayBuilder
-
-import java.nio.charset.StandardCharsets
-import is.hail.utils._
 import is.hail.services._
 import is.hail.services.DeployConfig
+import is.hail.utils._
+
+import org.json4s.{DefaultFormats, Formats, JInt, JObject, JString, JValue}
+import org.json4s.jackson.JsonMethods
+
+import java.nio.charset.StandardCharsets
+import scala.util.Random
+
 import org.apache.commons.io.IOUtils
 import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
 import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost, HttpUriRequest}
 import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.util.EntityUtils
-import org.apache.log4j.{LogManager, Logger}
-import org.json4s.{DefaultFormats, Formats, JInt, JObject, JString, JValue}
-import org.json4s.jackson.JsonMethods
-
-import scala.util.Random
+import org.apache.log4j.{Logger, LogManager}
 
 class NoBodyException(message: String, cause: Throwable) extends Exception(message, cause) {
   def this() = this(null, null)
@@ -30,10 +31,11 @@ object BatchClient {
 
 class BatchClient(
   deployConfig: DeployConfig,
-  requester: Requester
+  requester: Requester,
 ) {
 
-  def this(credentialsPath: String) = this(DeployConfig.get, Requester.fromCredentialsFile(credentialsPath))
+  def this(credentialsPath: String) =
+    this(DeployConfig.get, Requester.fromCredentialsFile(credentialsPath))
 
   import BatchClient._
   import requester.request
@@ -47,13 +49,16 @@ class BatchClient(
     request(new HttpPost(s"$baseUrl$path"), body = body)
 
   def post(path: String, json: JValue = null): JValue =
-    post(path,
+    post(
+      path,
       if (json != null)
         new StringEntity(
           JsonMethods.compact(json),
-          ContentType.create("application/json"))
+          ContentType.create("application/json"),
+        )
       else
-        null)
+        null,
+    )
 
   def patch(path: String): JValue =
     request(new HttpPatch(s"$baseUrl$path"))
@@ -76,8 +81,10 @@ class BatchClient(
         b += '}'
         val data = b.result()
         val resp = retryTransientErrors {
-          post(s"/api/v1alpha/batches/$batchID/update-fast",
-            new ByteArrayEntity(data, ContentType.create("application/json")))
+          post(
+            s"/api/v1alpha/batches/$batchID/update-fast",
+            new ByteArrayEntity(data, ContentType.create("application/json")),
+          )
         }
         b.clear()
         (resp \ "update_id").extract[Long]
@@ -97,7 +104,9 @@ class BatchClient(
               s"/api/v1alpha/batches/$batchID/updates/$updateID/jobs/create",
               new ByteArrayEntity(
                 data,
-                ContentType.create("application/json")))
+                ContentType.create("application/json"),
+              ),
+            )
           }
           b.clear()
           i += 1
@@ -126,14 +135,16 @@ class BatchClient(
       b ++= JsonMethods.compact(batchJson).getBytes(StandardCharsets.UTF_8)
       b += '}'
       val data = b.result()
-      val resp = retryTransientErrors{
-        post("/api/v1alpha/batches/create-fast",
-          new ByteArrayEntity(data, ContentType.create("application/json")))
+      val resp = retryTransientErrors {
+        post(
+          "/api/v1alpha/batches/create-fast",
+          new ByteArrayEntity(data, ContentType.create("application/json")),
+        )
       }
       b.clear()
       (resp \ "id").extract[Long]
     } else {
-      val resp = retryTransientErrors { post("/api/v1alpha/batches/create", json = batchJson) }
+      val resp = retryTransientErrors(post("/api/v1alpha/batches/create", json = batchJson))
       val batchID = (resp \ "id").extract[Long]
 
       val b = new ByteArrayBuilder()
@@ -147,13 +158,15 @@ class BatchClient(
             s"/api/v1alpha/batches/$batchID/jobs/create",
             new ByteArrayEntity(
               data,
-              ContentType.create("application/json")))
+              ContentType.create("application/json"),
+            ),
+          )
         }
         b.clear()
         i += 1
       }
 
-      retryTransientErrors { patch(s"/api/v1alpha/batches/$batchID/close") }
+      retryTransientErrors(patch(s"/api/v1alpha/batches/$batchID/close"))
       batchID
     }
     log.info(s"run: created batch $batchID")
@@ -168,12 +181,12 @@ class BatchClient(
   def waitForBatch(batchID: Long, excludeDriverJobInBatch: Boolean): JValue = {
     implicit val formats: Formats = DefaultFormats
 
-    Thread.sleep(600)  // it is not possible for the batch to be finished in less than 600ms
+    Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
 
     val start = System.nanoTime()
 
     while (true) {
-      val batch = retryTransientErrors { get(s"/api/v1alpha/batches/$batchID") }
+      val batch = retryTransientErrors(get(s"/api/v1alpha/batches/$batchID"))
       val n_completed = (batch \ "n_completed").extract[Int]
       val n_jobs = (batch \ "n_jobs").extract[Int]
       if ((excludeDriverJobInBatch && n_completed == n_jobs - 1) || n_completed == n_jobs)
@@ -187,8 +200,10 @@ class BatchClient(
       var d = math.max(
         math.min(
           (0.1 * (0.8 + Random.nextFloat() * 0.4) * (elapsed / 1000.0 / 1000)).toInt,
-          5000),
-        50)
+          5000,
+        ),
+        50,
+      )
       Thread.sleep(d)
     }
 

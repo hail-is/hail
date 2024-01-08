@@ -1,9 +1,9 @@
 package is.hail.check
 
-import org.apache.commons.math3.random.RandomDataGenerator
-
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Failure, Random, Success, Try}
+
+import org.apache.commons.math3.random.RandomDataGenerator
 
 abstract class Prop {
   def apply(p: Parameters, name: Option[String] = None): Unit
@@ -29,16 +29,16 @@ class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {
       r match {
         case Success(true) =>
         case Success(false) =>
-          println(s"""! ${ prefix }Falsified after $i passed tests.""")
+          println(s"""! ${prefix}Falsified after $i passed tests.""")
           println(s"> ARG_0: $v1")
           throw new AssertionError(null)
         case Failure(e) =>
-          println(s"""! ${ prefix }Error after $i passed tests.""")
+          println(s"""! ${prefix}Error after $i passed tests.""")
           println(s"> ARG_0: $v1")
           throw new AssertionError(e)
       }
     }
-    println(s" + ${ prefix }OK, passed ${ p.count } tests.")
+    println(s" + ${prefix}OK, passed ${p.count} tests.")
   }
 }
 
@@ -52,20 +52,21 @@ class GenProp2[T1, T2](g1: Gen[T1], g2: Gen[T2], f: (T1, T2) => Boolean) extends
       r match {
         case Success(true) =>
         case Success(false) =>
-          println(s"""! ${ prefix }Falsified after $i passed tests.""")
+          println(s"""! ${prefix}Falsified after $i passed tests.""")
           println(s"> ARG_0: $v1")
           throw new AssertionError(null)
         case Failure(e) =>
-          println(s"""! ${ prefix }Error after $i passed tests.""")
+          println(s"""! ${prefix}Error after $i passed tests.""")
           println(s"> ARG_0: $v1")
           throw new AssertionError(e)
       }
     }
-    println(s" + ${ prefix }OK, passed ${ p.count } tests.")
+    println(s" + ${prefix}OK, passed ${p.count} tests.")
   }
 }
 
-class GenProp3[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], f: (T1, T2, T3) => Boolean) extends Prop {
+class GenProp3[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], f: (T1, T2, T3) => Boolean)
+    extends Prop {
   override def apply(p: Parameters, name: Option[String]) {
     val prefix = name.map(_ + ": ").getOrElse("")
     for (i <- 0 until p.count) {
@@ -76,16 +77,16 @@ class GenProp3[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], f: (T1, T2, T3
       r match {
         case Success(true) =>
         case Success(false) =>
-          println(s"""! ${ prefix }Falsified after $i passed tests.""")
+          println(s"""! ${prefix}Falsified after $i passed tests.""")
           println(s"> ARG_0: $v1")
           throw new AssertionError(null)
         case Failure(e) =>
-          println(s"""! ${ prefix }Error after $i passed tests.""")
+          println(s"""! ${prefix}Error after $i passed tests.""")
           println(s"> ARG_0: $v1")
           throw new AssertionError(e)
       }
     }
-    println(s" + ${ prefix }OK, passed ${ p.count } tests.")
+    println(s" + ${prefix}OK, passed ${p.count} tests.")
   }
 }
 
@@ -119,7 +120,7 @@ object Prop {
   }
 
   def seed: Int = {
-    println(s"check: seed = ${ _seed }")
+    println(s"check: seed = ${_seed}")
     _seed
   }
 
@@ -145,7 +146,13 @@ object Prop {
   def forAll[T1, T2](p: (T1, T2) => Boolean)(implicit a1: Arbitrary[T1], a2: Arbitrary[T2]): Prop =
     new GenProp2(a1.arbitrary, a2.arbitrary, p)
 
-  def forAll[T1, T2, T3](p: (T1, T2, T3) => Boolean)(implicit a1: Arbitrary[T1], a2: Arbitrary[T2], a3: Arbitrary[T3]): Prop =
+  def forAll[T1, T2, T3](
+    p: (T1, T2, T3) => Boolean
+  )(implicit
+    a1: Arbitrary[T1],
+    a2: Arbitrary[T2],
+    a3: Arbitrary[T3],
+  ): Prop =
     new GenProp3(a1.arbitrary, a2.arbitrary, a3.arbitrary, p)
 
 }

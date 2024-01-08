@@ -1,15 +1,16 @@
 package is.hail.io.vcf
 
+import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
+import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
+import is.hail.io.fs.FS
+import is.hail.types.virtual._
+import is.hail.utils._
+import is.hail.variant.ReferenceGenome
+
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.SimpleFeature
 import htsjdk.tribble.index.tabix.{TabixFormat, TabixIndexCreator}
 import is.hail
-import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
-import is.hail.io.fs.FS
-import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
-import is.hail.types.virtual._
-import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 
 object ExportVCF {
   def infoNumber(t: Type): String = t match {
@@ -39,7 +40,7 @@ object ExportVCF {
     }
     tOption match {
       case Some(s) => s
-      case _ => fatal(s"INFO field '${ f.name }': VCF does not support type '${ f.typ }'.")
+      case _ => fatal(s"INFO field '${f.name}': VCF does not support type '${f.typ}'.")
     }
   }
 
@@ -85,11 +86,15 @@ object ExportVCF {
       if (valid) {
         None
       } else {
-        Some(s"\t'${ fd.name }': '${ fd.typ }'.")
+        Some(s"\t'${fd.name}': '${fd.typ}'.")
       }
     }
     if (!invalid.isEmpty) {
-      fatal("VCF does not support the type(s) for the following INFO field(s):\n" + invalid.mkString("\n"))
+      fatal(
+        "VCF does not support the type(s) for the following INFO field(s):\n" + invalid.mkString(
+          "\n"
+        )
+      )
     }
   }
 
@@ -114,26 +119,37 @@ object ExportVCF {
       if (valid) {
         None
       } else {
-        Some(s"\t'${ fd.name }': '${ fd.typ }'.")
+        Some(s"\t'${fd.name}': '${fd.typ}'.")
       }
     }
     if (!invalid.isEmpty) {
-      fatal("VCF does not support the type(s) for the following FORMAT field(s):\n" + invalid.mkString("\n"))
+      fatal(
+        "VCF does not support the type(s) for the following FORMAT field(s):\n" + invalid.mkString(
+          "\n"
+        )
+      )
     }
   }
 
   def getAttributes(k1: String, attributes: Option[VCFMetadata]): Option[VCFAttributes] =
     attributes.flatMap(_.get(k1))
 
-  def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
+  def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata])
+    : Option[VCFFieldAttributes] =
     getAttributes(k1, attributes).flatMap(_.get(k2))
 
-  def makeHeader(rowType: TStruct, entryType: TStruct, rg: ReferenceGenome, append: Option[String],
-      metadata: Option[VCFMetadata], sampleIds: Array[String]): String = {
+  def makeHeader(
+    rowType: TStruct,
+    entryType: TStruct,
+    rg: ReferenceGenome,
+    append: Option[String],
+    metadata: Option[VCFMetadata],
+    sampleIds: Array[String],
+  ): String = {
     val sb = new StringBuilder()
 
     sb.append("##fileformat=VCFv4.2\n")
-    sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
+    sb.append(s"##hailversion=${hail.HAIL_PRETTY_VERSION}\n")
 
     entryType.fields.foreach { f =>
       val attrs = getAttributes("format", f.name, metadata).getOrElse(Map.empty[String, String])
@@ -148,7 +164,8 @@ object ExportVCF {
       sb.append("\">\n")
     }
 
-    val filters = getAttributes("filter", metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
+    val filters =
+      getAttributes("filter", metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
     filters.foreach { id =>
       val attrs = getAttributes("filter", id, metadata).getOrElse(Map.empty[String, String])
       sb.append("##FILTER=<ID=")
@@ -178,9 +195,7 @@ object ExportVCF {
       sb.append("\">\n")
     }
 
-    append.foreach { append =>
-      sb.append(append)
-    }
+    append.foreach(append => sb.append(append))
 
     val assembly = rg.name
     rg.contigs.foreachBetween { c =>
@@ -206,14 +221,19 @@ object ExportVCF {
     sb.result()
   }
 
-  def lookupVAField(rowType: TStruct, fieldName: String, vcfColName: String, expectedTypeOpt: Option[Type]): (Boolean, Int) = {
+  def lookupVAField(
+    rowType: TStruct,
+    fieldName: String,
+    vcfColName: String,
+    expectedTypeOpt: Option[Type],
+  ): (Boolean, Int) = {
     rowType.fieldIdx.get(fieldName) match {
       case Some(idx) =>
         val t = rowType.types(idx)
         if (expectedTypeOpt.forall(t == _)) // FIXME: make sure this is right
           (true, idx)
         else {
-          warn(s"export_vcf found row field $fieldName with type '$t', but expected type ${ expectedTypeOpt.get }. " +
+          warn(s"export_vcf found row field $fieldName with type '$t', but expected type ${expectedTypeOpt.get}. " +
             s"Emitting missing $vcfColName.")
           (false, 0)
         }
@@ -223,28 +243,29 @@ object ExportVCF {
 }
 
 object TabixVCF {
-   def apply(fs: FS, filePath: String) {
-     val idx = using (new BGzipLineReader(fs, filePath)) { lines =>
-       val tabix = new TabixIndexCreator(TabixFormat.VCF)
-       var fileOffset = lines.getVirtualOffset
-       var s = lines.readLine()
-       while (s != null) {
-         if (s.nonEmpty && s.charAt(0) != '#') {
-           val Array(chrom, posStr, _*) = s.split("\t", 3)
-           val pos = posStr.toInt
-           val feature = new SimpleFeature(chrom, pos, pos)
-           tabix.addFeature(feature, fileOffset)
-         }
+  def apply(fs: FS, filePath: String) {
+    val idx = using(new BGzipLineReader(fs, filePath)) { lines =>
+      val tabix = new TabixIndexCreator(TabixFormat.VCF)
+      var fileOffset = lines.getVirtualOffset
+      var s = lines.readLine()
+      while (s != null) {
+        if (s.nonEmpty && s.charAt(0) != '#') {
+          val Array(chrom, posStr, _*) = s.split("\t", 3)
+          val pos = posStr.toInt
+          val feature = new SimpleFeature(chrom, pos, pos)
+          tabix.addFeature(feature, fileOffset)
+        }
 
-         fileOffset = lines.getVirtualOffset
-         s = lines.readLine()
-       }
+        fileOffset = lines.getVirtualOffset
+        s = lines.readLine()
+      }
 
-       tabix.finalizeIndex(fileOffset)
-     }
-     val tabixPath = htsjdk.tribble.util.ParsingUtils.appendToPath(filePath, FileExtensions.TABIX_INDEX)
-     using (new BGzipOutputStream(fs.createNoCompression(tabixPath))) { bgzos =>
-       using (new htsjdk.tribble.util.LittleEndianOutputStream(bgzos)) { os => idx.write(os) }
-     }
-   }
+      tabix.finalizeIndex(fileOffset)
+    }
+    val tabixPath =
+      htsjdk.tribble.util.ParsingUtils.appendToPath(filePath, FileExtensions.TABIX_INDEX)
+    using(new BGzipOutputStream(fs.createNoCompression(tabixPath))) { bgzos =>
+      using(new htsjdk.tribble.util.LittleEndianOutputStream(bgzos))(os => idx.write(os))
+    }
+  }
 }

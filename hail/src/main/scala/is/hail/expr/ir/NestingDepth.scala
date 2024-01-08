@@ -40,9 +40,9 @@ object NestingDepth {
 
     def computeIR(ir: IR, depth: ScopedDepth): Unit = {
       ir match {
-        case x@AggLet(_, _, _, false) =>
+        case x @ AggLet(_, _, _, false) =>
           memo.bind(x, depth.agg)
-        case x@AggLet(_, _, _, true) =>
+        case x @ AggLet(_, _, _, true) =>
           memo.bind(x, depth.scan)
         case _ =>
           memo.bind(ir, depth.eval)
@@ -131,11 +131,11 @@ object NestingDepth {
             .zipWithIndex
             .foreach {
               case (child: IR, i) => if (UsesAggEnv(ir, i))
-                computeIR(child, depth.promoteAgg)
-              else if (UsesScanEnv(ir, i))
-                computeIR(child, depth.promoteScan)
-              else
-                computeIR(child, depth)
+                  computeIR(child, depth.promoteAgg)
+                else if (UsesScanEnv(ir, i))
+                  computeIR(child, depth.promoteScan)
+                else
+                  computeIR(child, depth)
               case (child: TableIR, _) => computeTable(child)
               case (child: MatrixIR, _) => computeMatrix(child)
               case (child: BlockMatrixIR, _) => computeBlockMatrix(child)

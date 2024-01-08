@@ -1,14 +1,14 @@
 package is.hail.expr.ir
 
-import java.io.OutputStreamWriter
-
-import is.hail.utils._
-import is.hail.types._
 import is.hail.io.fs.FS
 import is.hail.rvd._
-import org.json4s.jackson.JsonMethods
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
+import is.hail.types._
+import is.hail.utils._
 
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
+import org.json4s.jackson.JsonMethods
+
+import java.io.OutputStreamWriter
 import scala.language.implicitConversions
 
 object SortOrder {
@@ -86,7 +86,8 @@ case class TableSpecParameters(
   hail_version: String,
   references_rel_path: String,
   table_type: TableType,
-  components: Map[String, ComponentSpec]) {
+  components: Map[String, ComponentSpec],
+) {
 
   def write(fs: FS, path: String) {
     using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
@@ -98,7 +99,8 @@ case class TableSpecParameters(
 class TableSpec(
   val params: TableSpecParameters,
   val globalsSpec: AbstractRVDSpec,
-  val rowsSpec: AbstractRVDSpec) extends AbstractTableSpec {
+  val rowsSpec: AbstractRVDSpec,
+) extends AbstractTableSpec {
   def file_version: Int = params.file_version
 
   def hail_version: String = params.hail_version
@@ -109,7 +111,6 @@ class TableSpec(
 
   def table_type: TableType = params.table_type
 
-  def toJValue: JValue = {
+  def toJValue: JValue =
     decomposeWithName(params, "TableSpec")(RelationalSpec.formats)
-  }
 }

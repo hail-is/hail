@@ -1,32 +1,32 @@
 package is.hail.services
 
+import is.hail.HailContext
+import is.hail.services._
+import is.hail.shadedazure.com.azure.core.credential.TokenRequestContext
+import is.hail.shadedazure.com.azure.identity.{
+  ClientSecretCredential, ClientSecretCredentialBuilder,
+}
+import is.hail.utils._
+
+import org.json4s.{DefaultFormats, Formats, JObject, JValue}
+import org.json4s.jackson.JsonMethods
+
+import java.io.FileInputStream
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
-
-import is.hail.HailContext
-import is.hail.utils._
-import is.hail.services._
-import is.hail.shadedazure.com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder}
-import is.hail.shadedazure.com.azure.core.credential.TokenRequestContext
+import scala.collection.JavaConverters._
+import scala.util.Random
 
 import com.google.auth.oauth2.ServiceAccountCredentials
 import org.apache.commons.io.IOUtils
 import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
+import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost, HttpUriRequest}
 import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
-import org.apache.http.client.config.RequestConfig
-import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager
 import org.apache.http.util.EntityUtils
-import org.apache.log4j.{LogManager, Logger}
-import org.json4s.{DefaultFormats, Formats, JObject, JValue}
-import org.json4s.jackson.JsonMethods
-
-import scala.collection.JavaConverters._
-import scala.util.Random
-import java.io.FileInputStream
-
+import org.apache.log4j.{Logger, LogManager}
 
 abstract class CloudCredentials {
   def accessToken(): String
@@ -46,7 +46,8 @@ class GoogleCloudCredentials(gsaKeyPath: String) extends CloudCredentials {
 }
 
 class AzureCloudCredentials(credentialsPath: String) extends CloudCredentials {
-  private[this] val credentials: ClientSecretCredential = using(new FileInputStream(credentialsPath)) { is =>
+  private[this] val credentials: ClientSecretCredential =
+    using(new FileInputStream(credentialsPath)) { is =>
       implicit val formats: Formats = defaultJSONFormats
       val kvs = JsonMethods.parse(is)
       val appId = (kvs \ "appId").extract[String]
@@ -58,7 +59,7 @@ class AzureCloudCredentials(credentialsPath: String) extends CloudCredentials {
         .clientSecret(password)
         .tenantId(tenant)
         .build()
-  }
+    }
 
   override def accessToken(): String = {
     val context = new TokenRequestContext()
@@ -70,7 +71,7 @@ class AzureCloudCredentials(credentialsPath: String) extends CloudCredentials {
 class ClientResponseException(
   val status: Int,
   message: String,
-  cause: Throwable
+  cause: Throwable,
 ) extends Exception(message, cause) {
   def this(statusCode: Int) = this(statusCode, null, null)
 
@@ -95,13 +96,14 @@ object Requester {
         .setMaxConnTotal(100)
         .setDefaultRequestConfig(requestConfig)
         .build()
-    } catch { case _: NoSSLConfigFound =>
-      log.info("creating HttpClient with no SSL Context")
-      HttpClients.custom()
-        .setMaxConnPerRoute(20)
-        .setMaxConnTotal(100)
-        .setDefaultRequestConfig(requestConfig)
-        .build()
+    } catch {
+      case _: NoSSLConfigFound =>
+        log.info("creating HttpClient with no SSL Context")
+        HttpClients.custom()
+          .setMaxConnPerRoute(20)
+          .setMaxConnTotal(100)
+          .setDefaultRequestConfig(requestConfig)
+          .build()
     }
   }
 
@@ -122,8 +124,10 @@ class Requester(
   val credentials: CloudCredentials
 ) {
   import Requester._
-  def requestWithHandler[T >: Null](req: HttpUriRequest, body: HttpEntity, f: InputStream => T): T = {
-    log.info(s"request ${ req.getMethod } ${ req.getURI }")
+
+  def requestWithHandler[T >: Null](req: HttpUriRequest, body: HttpEntity, f: InputStream => T)
+    : T = {
+    log.info(s"request ${req.getMethod} ${req.getURI}")
 
     if (body != null)
       req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(body)
@@ -134,7 +138,7 @@ class Requester(
     retryTransientErrors {
       using(httpClient.execute(req)) { resp =>
         val statusCode = resp.getStatusLine.getStatusCode
-        log.info(s"request ${ req.getMethod } ${ req.getURI } response $statusCode")
+        log.info(s"request ${req.getMethod} ${req.getURI} response $statusCode")
         if (statusCode < 200 || statusCode >= 300) {
           val entity = resp.getEntity
           val message =
@@ -157,11 +161,15 @@ class Requester(
     requestWithHandler(req, body, IOUtils.toByteArray)
 
   def request(req: HttpUriRequest, body: HttpEntity = null): JValue =
-    requestWithHandler(req, body, { content =>
-      val s = IOUtils.toByteArray(content)
-      if (s.isEmpty)
-        null
-      else
-        JsonMethods.parse(new String(s))
-    })
+    requestWithHandler(
+      req,
+      body,
+      { content =>
+        val s = IOUtils.toByteArray(content)
+        if (s.isEmpty)
+          null
+        else
+          JsonMethods.parse(new String(s))
+      },
+    )
 }
