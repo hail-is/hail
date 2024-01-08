@@ -35,9 +35,6 @@ async def submit(name, image_name, files, output, script, arguments):
         return f'{remote_tmpdir}/{tmpdir_path_prefix}/{path}'
 
     def file_input_to_src_dest(file: str) -> Tuple[str, str, str]:
-        if file.startswith('file://'):
-            file = file[7:]
-
         match = FILE_REGEX.match(file)
         if match is None:
             raise ValueError(f'invalid file specification {file}. Must have the form "src" or "src:dest"')
@@ -75,6 +72,8 @@ async def submit(name, image_name, files, output, script, arguments):
 
     script_src, _, script_cloud_file = file_input_to_src_dest(script)
     user_config_src, _, user_config_cloud_file = file_input_to_src_dest(user_config)
+
+    assert False, str(local_files_to_cloud_files)
 
     await copy_from_dict(files=[
         {'from': script_src, 'to': script_cloud_file},
