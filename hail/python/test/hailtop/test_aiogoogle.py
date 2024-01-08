@@ -12,14 +12,14 @@ from hailtop.aiocloud.aiogoogle import GoogleStorageClient, GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['gs', 'router/gs'])
-async def gs_filesystem():
+async def gs_filesystem(request):
     token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
-        if 'gs'.startswith('router/'):
+        if request.param.startswith('router/'):
             fs = RouterAsyncFS(filesystems=[LocalAsyncFS(thread_pool), GoogleStorageAsyncFS()])
         else:
-            assert 'gs'.endswith('gs')
+            assert request.param.endswith('gs')
             fs = GoogleStorageAsyncFS()
         async with fs:
             test_storage_uri = os.environ['HAIL_TEST_STORAGE_URI']
