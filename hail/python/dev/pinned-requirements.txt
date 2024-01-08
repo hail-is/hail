@@ -367,7 +367,7 @@ pytest==7.4.3
     #   pytest-metadata
     #   pytest-timeout
     #   pytest-xdist
-pytest-asyncio==0.23.3
+pytest-asyncio==0.21.1
     # via -r hail/hail/python/dev/requirements.txt
 pytest-forked==1.6.0
     # via pytest-xdist

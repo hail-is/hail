@@ -28,6 +28,7 @@ JAR ?= jar
 endif
 
 PYTEST_TARGET ?= test/hail
+PYTEST_INTER_CLOUD_TARGET ?= test/hailtop/inter_cloud
 
 # not perfect, not robust to simdpp changes, but probably fine
 BUILD_DEBUG_PREFIX := build/classes/scala/debug
@@ -57,6 +58,7 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
+HAIL_TEST_GCS_BUCKET = $(shell kubectl get secret global-config --template={{.data.hail_test_gcs_bucket}} | base64 --decode)
 GCP_PROJECT = $(shell kubectl get secret global-config --template={{.data.gcp_project}} | base64 --decode)
 CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
@@ -177,13 +179,10 @@ $(FAST_PYTHON_JAR_EXTRA_CLASSPATH): build.gradle
 .PHONY: python-jar
 python-jar: $(PYTHON_JAR)
 
-# NOTE: Look at upload-remote-test-resources target if test resources are missing
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
-pytest: upload-remote-test-resources
 	cd python && \
-          HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
           $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
@@ -195,8 +194,36 @@ pytest: upload-remote-test-resources
             --self-contained-html \
             --html=../build/reports/pytest.html \
             --timeout=120 \
+            --ignore $(PYTEST_INTER_CLOUD_TARGET) \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
+
+
+# NOTE: Look at upload-remote-test-resources target if test resources are missing
+.PHONY: pytest-inter-cloud
+pytest-inter-cloud: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
+pytest-inter-cloud: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
+pytest-inter-cloud: upload-remote-test-resources
+	cd python && \
+          HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
+          HAIL_TEST_GCS_BUCKET=$(HAIL_TEST_GCS_BUCKET) \
+          HAIL_TEST_S3_BUCKET=hail-test-dy5rg \
+          HAIL_TEST_AZURE_ACCOUNT=hailtest \
+          HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei \
+          $(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest.html \
+            --timeout=120 \
+            $(PYTEST_INTER_CLOUD_TARGET) \
+            $(PYTEST_ARGS)
+
 
 # NOTE: Look at upload-remote-test-resources target if test resources are missing
 .PHONY: pytest-qob

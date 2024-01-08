@@ -6,7 +6,6 @@ import logging
 
 import pytest
 from pytest import StashKey, CollectReport
-from pytest_asyncio import is_async_test
 
 
 from hail import current_backend, init, reset_global_randomness
@@ -17,6 +16,15 @@ from .helpers import hl_init_for_test, hl_stop_for_test
 
 
 log = logging.getLogger(__name__)
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.get_event_loop()
+    try:
+        yield loop
+    finally:
+        loop.close()
 
 
 def pytest_collection_modifyitems(items):
@@ -31,12 +39,9 @@ def pytest_collection_modifyitems(items):
     def digest(s):
         return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
 
-    session_scope_marker = pytest.mark.asyncio(scope="session")
     for item in items:
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
-        if is_async_test(item):
-            item.add_marker(session_scope_marker)
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -23,7 +23,7 @@ from .utils import DOCKER_ROOT_IMAGE, HAIL_GENETICS_HAIL_IMAGE, create_batch, le
 deploy_config = get_deploy_config()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def client():
     client = BatchClient('test')
     yield client
