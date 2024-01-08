@@ -109,9 +109,10 @@ class ClientSession:
     def request(
         self, method: str, url: aiohttp.typedefs.StrOrURL, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
-        assert (
-            self.loop == asyncio.get_running_loop()
-        ), f'ClientSession must be created and used in same loop {self.loop} != {asyncio.get_running_loop()}'
+        if self.loop != asyncio.get_running_loop():
+            raise ValueError(
+                f'ClientSession must be created and used in same loop {self.loop} != {asyncio.get_running_loop()}.'
+            )
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
 
         async def request_and_raise_for_status():

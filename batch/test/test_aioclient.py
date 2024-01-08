@@ -7,7 +7,7 @@ from .utils import DOCKER_ROOT_IMAGE, create_batch
 pytestmark = pytest.mark.asyncio
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 async def client():
     bc = await BatchClient.create('test')
     yield bc

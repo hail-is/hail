@@ -177,10 +177,14 @@ $(FAST_PYTHON_JAR_EXTRA_CLASSPATH): build.gradle
 .PHONY: python-jar
 python-jar: $(PYTHON_JAR)
 
+# NOTE: Look at upload-remote-test-resources target if test resources are missing
 .PHONY: pytest
 pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
-	cd python && $(HAIL_PYTHON3) -m pytest \
+pytest: upload-remote-test-resources
+	cd python && \
+          HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
+          $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
@@ -194,17 +198,18 @@ pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 
-# NOTE: Look at upload-qob-test-resources target if test resources are missing
+# NOTE: Look at upload-remote-test-resources target if test resources are missing
 .PHONY: pytest-qob
-pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
+pytest-qob: upload-qob-jar upload-remote-test-resources install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make pytest-qob NAMESPACE=default
 	cd python && \
-  HAIL_QUERY_BACKEND=batch \
-	HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
-	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
-	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
-	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	$(HAIL_PYTHON3) -m pytest \
+          HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
+          HAIL_QUERY_BACKEND=batch \
+          HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
+          HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
+          HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
+          HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
+          $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
@@ -312,10 +317,9 @@ upload-artifacts: $(WHEEL)
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day. To trigger this target to re-run,
-# > rm upload-qob-test-resources
-upload-qob-test-resources: $(shell git ls-files src/test/resources)
-upload-qob-test-resources: $(shell git ls-files python/hail/docs/data)
-	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
+# > rm upload-remote-test-resources
+upload-remote-test-resources: $(shell git ls-files src/test/resources)
+upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
 	gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
 	gcloud storage cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
 	# # In Azure, use the following instead of gcloud storage cp
@@ -323,7 +327,7 @@ upload-qob-test-resources: $(shell git ls-files python/hail/docs/data)
         #      {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
         #      {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
         # ]'
-	# touch $@
+	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day if using a dev NAMESPACE.

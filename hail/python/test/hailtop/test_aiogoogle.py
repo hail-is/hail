@@ -11,15 +11,15 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageClient, GoogleStorageAsyncFS
 
 
-@pytest.fixture(params=['gs', 'router/gs'], scope='session')
-async def gs_filesystem(request):
+@pytest.fixture(params=['gs', 'router/gs'])
+async def gs_filesystem():
     token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
-        if request.param.startswith('router/'):
+        if 'gs'.startswith('router/'):
             fs = RouterAsyncFS(filesystems=[LocalAsyncFS(thread_pool), GoogleStorageAsyncFS()])
         else:
-            assert request.param.endswith('gs')
+            assert 'gs'.endswith('gs')
             fs = GoogleStorageAsyncFS()
         async with fs:
             test_storage_uri = os.environ['HAIL_TEST_STORAGE_URI']
@@ -49,7 +49,6 @@ def test_bucket_path_parsing():
     assert bucket == 'foo' and prefix == 'bar/baz'
 
 
-@pytest.mark.asyncio
 async def test_get_object_metadata(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
 
@@ -67,7 +66,6 @@ async def test_get_object_metadata(bucket_and_temporary_file):
         assert int(metadata['size']) == 3
 
 
-@pytest.mark.asyncio
 async def test_get_object_headers(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
 
@@ -85,7 +83,6 @@ async def test_get_object_headers(bucket_and_temporary_file):
             assert await f.read() == b'foo'
 
 
-@pytest.mark.asyncio
 async def test_compose(bucket_and_temporary_file):
     bucket, file = bucket_and_temporary_file
 
@@ -107,7 +104,6 @@ async def test_compose(bucket_and_temporary_file):
         assert actual == expected
 
 
-@pytest.mark.asyncio
 async def test_multi_part_create_many_two_level_merge(gs_filesystem):
     # This is a white-box test.  compose has a maximum of 32 inputs,
     # so if we're composing more than 32 parts, the
@@ -144,7 +140,6 @@ async def test_multi_part_create_many_two_level_merge(gs_filesystem):
         raise AssertionError('uncaught cancelled error') from err
 
 
-@pytest.mark.asyncio
 async def test_weird_urls(gs_filesystem):
     _, fs, base = gs_filesystem
 

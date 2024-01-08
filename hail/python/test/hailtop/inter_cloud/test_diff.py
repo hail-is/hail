@@ -12,7 +12,7 @@ from hailtop.utils import bounded_gather2
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
     token = secrets.token_hex(16)
 

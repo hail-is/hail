@@ -21,5 +21,6 @@ def pytest_collection_modifyitems(items):
     for item in items:
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
+        print((item, is_async_test(item), item.name))
         if is_async_test(item):
             item.add_marker(session_scope_marker)

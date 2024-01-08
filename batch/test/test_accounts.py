@@ -19,7 +19,7 @@ from .utils import DOCKER_ROOT_IMAGE, create_batch
 pytestmark = pytest.mark.asyncio
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]], Any]:
     _bcs = []
 
@@ -33,7 +33,7 @@ async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]
         await bc.close()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 async def dev_client() -> AsyncGenerator[BatchClient, Any]:
     bc = await BatchClient.create(
         'billing-project-not-needed-but-required-by-BatchClient',
