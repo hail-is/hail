@@ -118,7 +118,7 @@ services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
-fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-qob-test-resources
+fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-remote-test-resources
 	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
