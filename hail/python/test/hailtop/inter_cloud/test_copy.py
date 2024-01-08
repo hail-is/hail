@@ -35,7 +35,7 @@ async def cloud_scheme(request):
     yield request.param
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='module')
 async def router_filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
     token = secrets.token_hex(16)
 
