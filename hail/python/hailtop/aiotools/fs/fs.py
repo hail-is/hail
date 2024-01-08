@@ -159,8 +159,9 @@ class AsyncFS(abc.ABC):
     def valid_url(url: str) -> bool:
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def parse_url(self, url: str) -> AsyncFSURL:
+    def parse_url(url: str) -> AsyncFSURL:
         pass
 
     @abc.abstractmethod

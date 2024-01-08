@@ -357,8 +357,9 @@ class S3AsyncFS(AsyncFS):
     def valid_url(url: str) -> bool:
         return url.startswith('s3://')
 
-    def parse_url(self, url: str) -> S3AsyncFSURL:
-        return S3AsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> S3AsyncFSURL:
+        return S3AsyncFSURL(*S3AsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:

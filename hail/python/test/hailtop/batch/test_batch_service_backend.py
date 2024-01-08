@@ -350,7 +350,7 @@ def test_cloudfuse_implicit_dirs(fs: RouterAsyncFS, backend: ServiceBackend, upl
     res = b.run()
     assert res
     res_status = res.status()
-    assert res.get_job_log(1)['main'] == data1
+    assert res.get_job_log(1)['main'] == data1.decode()
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
 

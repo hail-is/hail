@@ -30,8 +30,17 @@ class RouterAsyncFS(AsyncFS):
             else configuration_of(ConfigVariable.GCS_BUCKET_ALLOW_LIST, None, fallback="").split(",")
         )
 
-    def parse_url(self, url: str) -> AsyncFSURL:
-        return self._get_fs(url).parse_url(url)
+    @staticmethod
+    def parse_url(url: str) -> AsyncFSURL:
+        if LocalAsyncFS.valid_url(url):
+            return LocalAsyncFS.parse_url(url)
+        elif aiogoogle.GoogleStorageAsyncFS.valid_url(url):
+            return aiogoogle.GoogleStorageAsyncFS.parse_url(url)
+        elif aioazure.AzureAsyncFS.valid_url(url):
+            return aioazure.AzureAsyncFS.parse_url(url)
+        elif aioaws.S3AsyncFS.valid_url(url):
+            return aioaws.S3AsyncFS.parse_url(url)
+        raise ValueError(f'no file system found for url {url}')
 
     @property
     def schemes(self) -> Set[str]:
