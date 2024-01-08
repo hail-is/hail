@@ -108,4 +108,4 @@ def test_dir_outside_curdir(runner: CliRunner):
         write_hello(f'{dir}/hello2.txt')
         write_script(dir, '/hello1.txt')
         res = runner.invoke(cli.app, ['submit', '--files', f'{dir}/:/', '../test_job.py'])
-        assert res.exit_code == 0
+        assert res.exit_code == 0, (res.exit_code, res.stdout, res.stderr)
