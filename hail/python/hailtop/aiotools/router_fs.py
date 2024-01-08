@@ -34,11 +34,11 @@ class RouterAsyncFS(AsyncFS):
     def parse_url(url: str) -> AsyncFSURL:
         if LocalAsyncFS.valid_url(url):
             return LocalAsyncFS.parse_url(url)
-        elif aiogoogle.GoogleStorageAsyncFS.valid_url(url):
+        if aiogoogle.GoogleStorageAsyncFS.valid_url(url):
             return aiogoogle.GoogleStorageAsyncFS.parse_url(url)
-        elif aioazure.AzureAsyncFS.valid_url(url):
+        if aioazure.AzureAsyncFS.valid_url(url):
             return aioazure.AzureAsyncFS.parse_url(url)
-        elif aioaws.S3AsyncFS.valid_url(url):
+        if aioaws.S3AsyncFS.valid_url(url):
             return aioaws.S3AsyncFS.parse_url(url)
         raise ValueError(f'no file system found for url {url}')
 
