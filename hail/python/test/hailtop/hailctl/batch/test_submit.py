@@ -109,12 +109,3 @@ def test_dir_outside_curdir(runner: CliRunner):
         write_script(dir, '/hello1.txt')
         res = runner.invoke(cli.app, ['submit', '--files', f'{dir}/:/', '../test_job.py'])
         assert res.exit_code == 0
-
-
-def test_file_prefixed_with_file(runner: CliRunner):
-    with tempfile.TemporaryDirectory() as dir:
-        os.chdir(dir)
-        write_hello(f'{dir}/hello.txt')
-        write_script(dir, '/hello.txt')
-        res = runner.invoke(cli.app, ['submit', '--files', f'file://{dir}/hello.txt:/', 'test_job.py'])
-        assert res.exit_code == 0

@@ -28,6 +28,8 @@ async def submit(name, image_name, files, output, script, arguments):
     quiet = output != 'text'
 
     remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
+    remote_tmpdir = remote_tmpdir.rstrip('/')
+
     tmpdir_path_prefix = secret_alnum_string()
 
     def cloud_prefix(path):
@@ -72,8 +74,6 @@ async def submit(name, image_name, files, output, script, arguments):
 
     script_src, _, script_cloud_file = file_input_to_src_dest(script)
     user_config_src, _, user_config_cloud_file = file_input_to_src_dest(user_config)
-
-    assert False, str(local_files_to_cloud_files)
 
     await copy_from_dict(
         files=[
