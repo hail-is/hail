@@ -63,7 +63,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 
-        shared_fields = [call_field] + list(f for f in ref.dtype if f in var.dtype)
+        shared_fields = [call_field, *list(f for f in ref.dtype if f in var.dtype)]
         shared_field_set = set(shared_fields)
         var_fields = [f for f in var.dtype if f not in shared_field_set]
 
@@ -714,7 +714,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset', intervals, keep: bool
             schema=hl.tstruct(interval=intervals.dtype.element_type),
             key='interval',
         )
-        ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end', list(par_intervals.key)[0])
+        ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end', next(iter(par_intervals.key)))
         return VariantDataset(ref, hl.filter_intervals(vds.variant_data, intervals, keep))
 
 
@@ -870,7 +870,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     -------
     :class:`.MatrixTable`
     """
-    interval_field = list(intervals.key)[0]
+    interval_field = next(iter(intervals.key))
     if not intervals[interval_field].dtype == hl.tinterval(ref.locus.dtype):
         raise ValueError(
             f"expect intervals to be keyed by intervals of loci matching the VariantDataset:"
@@ -1227,18 +1227,18 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
         if merge_functions:
             for k, f in merge_functions.items():
                 if isinstance(f, str):
-                    f = f.lower()
-                    if f == 'min':
+                    _f = f.lower()
+                    if _f == 'min':
 
                         def f(b1, b2):
                             return hl.min(block1[k], block2[k])
 
-                    elif f == 'max':
+                    elif _f == 'max':
 
                         def f(b1, b2):
                             return hl.max(block1[k], block2[k])
 
-                    elif f == 'sum':
+                    elif _f == 'sum':
 
                         def f(b1, b2):
                             return block1[k] + block2[k]

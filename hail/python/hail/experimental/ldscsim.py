@@ -180,7 +180,7 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
         h2 = h2 if isinstance(h2, list) else [h2]
         annot_sum = mt.aggregate_rows(hl.agg.sum(annot))
         mt = mt.annotate_rows(beta=hl.literal(h2).map(lambda x: hl.rand_norm(0, hl.sqrt(annot * x / (annot_sum * M)))))
-    elif len(h2) > 1 and (pi == [None] or pi == [1]):  # multi-trait correlated infinitesimal
+    elif len(h2) > 1 and (pi in ([None], [1])):  # multi-trait correlated infinitesimal
         mt, rg = multitrait_inf(mt=mt, h2=h2, rg=rg)
     elif len(h2) == 2 and len(pi) > 1 and len(rg) == 1:  # two trait correlated spike & slab
         print('multitrait ss')
@@ -554,21 +554,20 @@ def calculate_phenotypes(mt, genotype, beta, h2, popstrat=None, popstrat_var=Non
                 y_no_noise=hl.agg.array_agg(lambda beta: hl.agg.sum(beta * mt['norm_gt']), mt['beta_' + uid])
             )
             mt = mt.annotate_cols(y=mt.y_no_noise + hl.literal(h2).map(lambda x: hl.rand_norm(0, hl.sqrt(1 - x))))
+    elif exact_h2 and min([h2[0], 1 - h2[0]]) != 0:
+        print('exact h2')
+        mt = mt.annotate_cols(**{'y_no_noise_' + uid: hl.agg.sum(mt['beta_' + uid] * mt['norm_gt'])})
+        y_no_noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['y_no_noise_' + uid]).stdev)
+        mt = mt.annotate_cols(
+            y_no_noise=hl.sqrt(h2[0]) * mt['y_no_noise_' + uid] / y_no_noise_stdev
+        )  # normalize genetic component of phenotype to have variance of exactly h2
+        mt = mt.annotate_cols(**{'noise_' + uid: hl.rand_norm(0, hl.sqrt(1 - h2[0]))})
+        noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['noise_' + uid]).stdev)
+        mt = mt.annotate_cols(noise=hl.sqrt(1 - h2[0]) * mt['noise_' + uid] / noise_stdev)
+        mt = mt.annotate_cols(y=mt.y_no_noise + hl.sqrt(1 - h2[0]) * mt['noise_' + uid] / noise_stdev)
     else:
-        if exact_h2 and min([h2[0], 1 - h2[0]]) != 0:
-            print('exact h2')
-            mt = mt.annotate_cols(**{'y_no_noise_' + uid: hl.agg.sum(mt['beta_' + uid] * mt['norm_gt'])})
-            y_no_noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['y_no_noise_' + uid]).stdev)
-            mt = mt.annotate_cols(
-                y_no_noise=hl.sqrt(h2[0]) * mt['y_no_noise_' + uid] / y_no_noise_stdev
-            )  # normalize genetic component of phenotype to have variance of exactly h2
-            mt = mt.annotate_cols(**{'noise_' + uid: hl.rand_norm(0, hl.sqrt(1 - h2[0]))})
-            noise_stdev = mt.aggregate_cols(hl.agg.stats(mt['noise_' + uid]).stdev)
-            mt = mt.annotate_cols(noise=hl.sqrt(1 - h2[0]) * mt['noise_' + uid] / noise_stdev)
-            mt = mt.annotate_cols(y=mt.y_no_noise + hl.sqrt(1 - h2[0]) * mt['noise_' + uid] / noise_stdev)
-        else:
-            mt = mt.annotate_cols(y_no_noise=hl.agg.sum(mt['beta_' + uid] * mt['norm_gt']))
-            mt = mt.annotate_cols(y=mt.y_no_noise + hl.rand_norm(0, hl.sqrt(1 - h2[0])))
+        mt = mt.annotate_cols(y_no_noise=hl.agg.sum(mt['beta_' + uid] * mt['norm_gt']))
+        mt = mt.annotate_cols(y=mt.y_no_noise + hl.rand_norm(0, hl.sqrt(1 - h2[0])))
     if popstrat is not None:
         var_factor = (
             1
@@ -663,7 +662,7 @@ def agg_fields(tb, coef_dict=None, str_expr=None, axis='rows'):
         :class:`.MatrixTable` or :class:`.Table` containing aggregation field.
     """
     assert str_expr is not None or coef_dict is not None, "str_expr and coef_dict cannot both be None"
-    assert axis == 'rows' or axis == 'cols', "axis must be 'rows' or 'cols'"
+    assert axis in {'rows', 'cols'}, "axis must be 'rows' or 'cols'"
     coef_dict = get_coef_dict(tb=tb, str_expr=str_expr, ref_coef_dict=coef_dict, axis=axis)
     axis_field = 'annot' if axis == 'rows' else 'cov'
     annotate_fn = (
@@ -704,7 +703,7 @@ def get_coef_dict(tb, str_expr=None, ref_coef_dict=None, axis='rows'):
         `coef_dict` value, the row (or col) field name is specified by `coef_dict` key.
     """
     assert str_expr is not None or ref_coef_dict is not None, "str_expr and ref_coef_dict cannot both be None"
-    assert axis == 'rows' or axis == 'cols', "axis must be 'rows' or 'cols'"
+    assert axis in {'rows', 'cols'}, "axis must be 'rows' or 'cols'"
     fields_to_search = tb.row if axis == 'rows' or isinstance(tb, Table) else tb.col
     # when axis='rows' we're searching for annotations, axis='cols' searching for covariates
     axis_field = 'annotation' if axis == 'rows' else 'covariate'

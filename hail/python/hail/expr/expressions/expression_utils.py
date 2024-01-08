@@ -60,9 +60,8 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
                 bad_axes = inds.axes.intersection(unexpected_axes)
                 if bad_axes:
                     bad_refs.append((name, inds))
-            else:
-                if inds.axes != expected_axes:
-                    bad_refs.append((name, inds))
+            elif inds.axes != expected_axes:
+                bad_refs.append((name, inds))
 
         assert len(bad_refs) > 0
         errors.append(

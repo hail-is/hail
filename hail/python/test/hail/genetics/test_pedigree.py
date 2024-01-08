@@ -3,7 +3,7 @@ import unittest
 from hail.genetics import Pedigree, Trio
 from hail.utils.java import FatalError
 
-from ..helpers import *
+from ..helpers import resource
 
 
 class Tests(unittest.TestCase):

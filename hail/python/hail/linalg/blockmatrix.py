@@ -816,14 +816,12 @@ class BlockMatrix(object):
                     if mean_impute:
                         expr = hl.or_else(expr, mt['__mean'])
                     expr = expr / mt['__length']
-            else:
-                if center:
-                    expr = expr - mt['__mean']
-                    if mean_impute:
-                        expr = hl.or_else(expr, 0.0)
-                else:
-                    if mean_impute:
-                        expr = hl.or_else(expr, mt['__mean'])
+            elif center:
+                expr = expr - mt['__mean']
+                if mean_impute:
+                    expr = hl.or_else(expr, 0.0)
+            elif mean_impute:
+                expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
             mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)
@@ -1159,11 +1157,11 @@ class BlockMatrix(object):
             Sparse block matrix.
         """
         if isinstance(starts, np.ndarray):
-            if not (starts.dtype == np.int32 or starts.dtype == np.int64):
+            if starts.dtype not in {np.int32, np.int64}:
                 raise ValueError("sparsify_row_intervals: starts ndarray must have dtype 'int32' or 'int64'")
             starts = [int(s) for s in starts]
         if isinstance(stops, np.ndarray):
-            if not (stops.dtype == np.int32 or stops.dtype == np.int64):
+            if stops.dtype not in {np.int32, np.int64}:
                 raise ValueError("sparsify_row_intervals: stops ndarray must have dtype 'int32' or 'int64'")
             stops = [int(s) for s in stops]
 
@@ -1583,7 +1581,7 @@ class BlockMatrix(object):
 
         if splits != 1:
             inner_brange_size = int(math.ceil(self._n_block_cols / splits))
-            split_points = list(range(0, self._n_block_cols, inner_brange_size)) + [self._n_block_cols]
+            split_points = [*list(range(0, self._n_block_cols, inner_brange_size)), self._n_block_cols]
             inner_ranges = list(zip(split_points[:-1], split_points[1:]))
             blocks_to_multiply = [
                 (
@@ -1718,7 +1716,7 @@ class BlockMatrix(object):
         if axis is None:
             bmir = BlockMatrixAgg(self._bmir, [0, 1])
             return BlockMatrix(bmir)[0, 0]
-        elif axis == 0 or axis == 1:
+        elif axis in {0, 1}:
             out_index_expr = [axis]
 
             bmir = BlockMatrixAgg(self._bmir, out_index_expr)
@@ -2559,7 +2557,7 @@ def _shape_after_broadcast(left, right):
     """
 
     def join_dim(l_size, r_size):
-        if not (l_size == r_size or l_size == 1 or r_size == 1):
+        if l_size not in {r_size, 1}:
             raise ValueError(f'Incompatible shapes for broadcasting: {left}, {right}')
 
         return max(l_size, r_size)

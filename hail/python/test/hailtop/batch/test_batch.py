@@ -1396,7 +1396,7 @@ class ServiceTests(unittest.TestCase):
         j.command('echo hello')
         res = b.run()
         assert res is not None
-        assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
+        assert not res.get_job(1).status()['spec']['resources']['preemptible']
 
     def test_spot_unspecified_job(self):
         b = self.batch()
@@ -1404,7 +1404,7 @@ class ServiceTests(unittest.TestCase):
         j.command('echo hello')
         res = b.run()
         assert res is not None
-        assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+        assert res.get_job(1).status()['spec']['resources']['preemptible']
 
     def test_spot_true_job(self):
         b = self.batch()
@@ -1413,7 +1413,7 @@ class ServiceTests(unittest.TestCase):
         j.command('echo hello')
         res = b.run()
         assert res is not None
-        assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+        assert res.get_job(1).status()['spec']['resources']['preemptible']
 
     def test_non_spot_batch(self):
         b = self.batch(default_spot=False)
@@ -1426,13 +1426,13 @@ class ServiceTests(unittest.TestCase):
         j3.command('echo hello')
         res = b.run()
         assert res is not None
-        assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
-        assert res.get_job(2).status()['spec']['resources']['preemptible'] == False
-        assert res.get_job(3).status()['spec']['resources']['preemptible'] == True
+        assert not res.get_job(1).status()['spec']['resources']['preemptible']
+        assert not res.get_job(2).status()['spec']['resources']['preemptible']
+        assert res.get_job(3).status()['spec']['resources']['preemptible']
 
     def test_local_file_paths_error(self):
         b = self.batch()
-        j = b.new_job()
+        b.new_job()
         for input in ["hi.txt", "~/hello.csv", "./hey.tsv", "/sup.json", "file://yo.yaml"]:
             with pytest.raises(ValueError) as e:
                 b.read_input(input)

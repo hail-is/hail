@@ -4,7 +4,7 @@ from numpy.random import default_rng
 import hail as hl
 from hail.methods.pca import _make_tsm
 
-from ..helpers import *
+from ..helpers import test_timeout
 
 
 def naive_whiten(X, w):

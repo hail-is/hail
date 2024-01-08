@@ -2,7 +2,7 @@ import unittest
 
 import hail as hl
 
-from ..helpers import *
+from ..helpers import get_dataset, resource, test_timeout
 
 
 class Tests(unittest.TestCase):

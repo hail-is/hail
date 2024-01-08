@@ -1,13 +1,25 @@
 import json
+import os
 import unittest
 
+import pytest
+
 import hail as hl
-from hail.utils import *
+from hail.utils import (
+    HailUserError,
+    Interval,
+    Struct,
+    frozendict,
+    hadoop_copy,
+    hadoop_open,
+    range_table,
+    with_local_temp_file,
+)
 from hail.utils.java import FatalError
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import escape_id, escape_str
 
-from ..helpers import *
+from ..helpers import fails_local_backend, fails_service_backend, qobtest, resource
 
 
 def normalize_path(path: str) -> str:
@@ -139,11 +151,11 @@ class Tests(unittest.TestCase):
         with hl.TemporaryDirectory() as dirname:
             with hl.current_backend().fs.open(dirname + '/a', 'w') as fobj:
                 fobj.write('hello world')
-            dirname = normalize_path(dirname)
+            _dirname = normalize_path(dirname)
 
-            results = hl.hadoop_ls(dirname + '/[a]')
+            results = hl.hadoop_ls(_dirname + '/[a]')
             assert len(results) == 1
-            assert results[0]['path'] == dirname + '/a'
+            assert results[0]['path'] == _dirname + '/a'
 
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
@@ -184,20 +196,20 @@ class Tests(unittest.TestCase):
             touch(dirname + '/def/dog')
             touch(dirname + '/ghi/cat')
             touch(dirname + '/ghi/cat')
-            dirname = normalize_path(dirname)
+            _dirname = normalize_path(dirname)
 
-            actual = {x['path'] for x in hl.hadoop_ls(dirname + '/*/cat')}
+            actual = {x['path'] for x in hl.hadoop_ls(_dirname + '/*/cat')}
             expected = {
-                dirname + '/abc/cat',
-                dirname + '/def/cat',
-                dirname + '/ghi/cat',
+                _dirname + '/abc/cat',
+                _dirname + '/def/cat',
+                _dirname + '/ghi/cat',
             }
             assert actual == expected
 
-            actual = {x['path'] for x in hl.hadoop_ls(dirname + '/*/dog')}
+            actual = {x['path'] for x in hl.hadoop_ls(_dirname + '/*/dog')}
             expected = {
-                dirname + '/abc/dog',
-                dirname + '/def/dog',
+                _dirname + '/abc/dog',
+                _dirname + '/def/dog',
             }
             assert actual == expected
 

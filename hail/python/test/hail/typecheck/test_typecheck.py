@@ -1,6 +1,20 @@
 import unittest
 
-from hail.typecheck.check import *
+from hail.typecheck.check import (
+    anytype,
+    dictof,
+    func_spec,
+    lazy,
+    nullable,
+    numeric,
+    oneof,
+    sequenceof,
+    sized_tupleof,
+    transformed,
+    tupleof,
+    typecheck,
+    typecheck_method,
+)
 
 
 class Tests(unittest.TestCase):

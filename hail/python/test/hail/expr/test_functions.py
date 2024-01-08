@@ -59,7 +59,7 @@ def test_pgenchisq():
     for test in tests:
         assert abs(test.genchisq_result.value - test.expected) < 0.0000005, str(test)
         assert test.genchisq_result.fault == 0, str(test)
-        assert test.genchisq_result.converged == True, str(test)
+        assert test.genchisq_result.converged, str(test)
         assert test.genchisq_result.n_iterations == test.expected_n_iterations, str(test)
 
 

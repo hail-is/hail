@@ -1,7 +1,7 @@
 import json
 import os
 import warnings
-from typing import Iterable, List, Optional, Set, Tuple, Union
+from typing import ClassVar, Iterable, List, Optional, Set, Tuple, Union
 
 import pkg_resources
 
@@ -307,10 +307,10 @@ class DB:
     >>> db = hl.experimental.DB(region='us', cloud='gcp')
     """
 
-    _valid_key_properties = {'gene', 'unique'}
-    _valid_regions = {'us', 'eu'}
-    _valid_clouds = {'gcp', 'aws'}
-    _valid_combinations = {('us', 'aws'), ('us', 'gcp'), ('eu', 'gcp')}
+    _valid_key_properties: ClassVar = {'gene', 'unique'}
+    _valid_regions: ClassVar = {'us', 'eu'}
+    _valid_clouds: ClassVar = {'gcp', 'aws'}
+    _valid_combinations: ClassVar = {('us', 'aws'), ('us', 'gcp'), ('eu', 'gcp')}
 
     def __init__(
         self, *, region: str = 'us', cloud: str = 'gcp', url: Optional[str] = None, config: Optional[dict] = None
@@ -349,9 +349,8 @@ class DB:
                 response = retry_response_returning_functions(session.get, url)
                 config = response.json()
             assert isinstance(config, dict)
-        else:
-            if not isinstance(config, dict):
-                raise ValueError(f'expected a dict mapping dataset names to ' f'configurations, but found {config}')
+        elif not isinstance(config, dict):
+            raise ValueError(f'expected a dict mapping dataset names to ' f'configurations, but found {config}')
         config = {k: v for k, v in config.items() if 'annotation_db' in v}
         self.region = region
         self.cloud = cloud

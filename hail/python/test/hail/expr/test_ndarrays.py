@@ -4,9 +4,10 @@ import re
 import numpy as np
 import pytest
 
+import hail as hl
 from hail.utils.java import FatalError, HailUserError
 
-from ..helpers import *
+from ..helpers import assert_all_eval_to, assert_evals_to
 
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
@@ -893,7 +894,6 @@ def test_svd():
             assert h.shape == n.shape
 
         k = min(np_array.shape)
-        rank = np.linalg.matrix_rank(np_array)
 
         if compute_uv:
             hu, hs, hv = evaled

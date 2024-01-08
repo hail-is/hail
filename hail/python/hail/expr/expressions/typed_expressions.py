@@ -2875,12 +2875,11 @@ class StringExpression(Expression):
                 return self._method('slice', tstr, start, stop)
             else:
                 return self._method('sliceRight', tstr, start)
+        elif stop is not None:
+            stop = to_expr(stop)
+            return self._method('sliceLeft', tstr, stop)
         else:
-            if stop is not None:
-                stop = to_expr(stop)
-                return self._method('sliceLeft', tstr, stop)
-            else:
-                return self
+            return self
 
     def length(self):
         """Returns the length of the string.

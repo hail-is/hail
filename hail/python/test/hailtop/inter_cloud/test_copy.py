@@ -135,7 +135,7 @@ async def test_copy_behavior(copy_test_context, test_spec):
 
         dest_scheme = url_scheme(dest_base)
         if (
-            (dest_scheme == 'gs' or dest_scheme == 's3' or dest_scheme == 'https')
+            dest_scheme in {'gs', 's3', 'https'}
             and (result is not None and 'files' in result)
             and expected.get('exception') in ('IsADirectoryError', 'NotADirectoryError')
         ):
@@ -164,7 +164,7 @@ class RaisedWrongExceptionError(Exception):
 class RaisesOrObjectStore:
     def __init__(self, dest_base, expected_type):
         scheme = url_scheme(dest_base)
-        self._object_store = scheme == 'gs' or scheme == 's3' or scheme == 'https'
+        self._object_store = scheme in {'gs', 's3', 'https'}
         self._expected_type = expected_type
 
     def __enter__(self):

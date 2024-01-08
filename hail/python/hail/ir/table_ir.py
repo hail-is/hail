@@ -58,8 +58,8 @@ class TableJoin(TableIR):
         old_joined_row = ir.SelectFields(row, [field for field in self.typ.row_type])
         left_uid = ir.GetField(row, '__left_uid')
         right_uid = ir.GetField(row, '__right_uid')
-        handle_missing_left = self.join_type == 'right' or self.join_type == 'outer'
-        handle_missing_right = self.join_type == 'left' or self.join_type == 'outer'
+        handle_missing_left = self.join_type in {'right', 'outer'}
+        handle_missing_right = self.join_type in {'left', 'outer'}
         uid = concat_uids(left_uid, right_uid, handle_missing_left, handle_missing_right)
 
         return TableMapRows(joined, ir.InsertFields(old_joined_row, [(uid_field_name, uid)], None))

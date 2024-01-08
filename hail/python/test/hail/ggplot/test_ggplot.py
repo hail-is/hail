@@ -3,7 +3,25 @@ import math
 import numpy as np
 
 import hail as hl
-from hail.ggplot import *
+from hail.ggplot import (
+    aes,
+    coord_cartesian,
+    facet_wrap,
+    geom_area,
+    geom_bar,
+    geom_col,
+    geom_histogram,
+    geom_hline,
+    geom_line,
+    geom_point,
+    geom_ribbon,
+    geom_text,
+    ggplot,
+    ggtitle,
+    scale_color_manual,
+    xlab,
+    ylab,
+)
 
 
 def test_geom_point_line_text_col_area():

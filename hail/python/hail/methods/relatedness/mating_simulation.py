@@ -28,7 +28,7 @@ def simulate_random_mating(mt, n_rounds=1, generation_size_multiplier=1.0, keep_
     if n_rounds < 1:
         raise ValueError(f"simulate_random_mating: 'n_rounds' must be positive: got {n_rounds}")
 
-    ck = list(mt.col_key)[0]
+    ck = next(iter(mt.col_key))
 
     mt = mt.select_entries('GT')
 

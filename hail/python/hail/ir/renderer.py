@@ -209,9 +209,8 @@ class CSEAnalysisPass:
                     elif child_frame.scan_scope:
                         if id(child) in bind_frame.scan_visited:
                             lets = bind_frame.scan_lifted_lets
-                    else:
-                        if id(child) in bind_frame.agg_visited:
-                            lets = bind_frame.agg_lifted_lets
+                    elif id(child) in bind_frame.agg_visited:
+                        lets = bind_frame.agg_lifted_lets
 
                 # 'lets' is either assigned before one of the 'br/has
                 if lets is not None:
@@ -310,11 +309,11 @@ class CSEAnalysisPass:
         def bind_depth(self) -> int:
             bind_depth = self.min_binding_depth
             if len(self.node.free_vars) > 0:
-                bind_depth = max(bind_depth, max(self.context[0][var] for var in self.node.free_vars))
+                bind_depth = max(bind_depth, *(self.context[0][var] for var in self.node.free_vars))
             if len(self.node.free_agg_vars) > 0:
-                bind_depth = max(bind_depth, max(self.context[1][var] for var in self.node.free_agg_vars))
+                bind_depth = max(bind_depth, *(self.context[1][var] for var in self.node.free_agg_vars))
             if len(self.node.free_scan_vars) > 0:
-                bind_depth = max(bind_depth, max(self.context[2][var] for var in self.node.free_scan_vars))
+                bind_depth = max(bind_depth, *(self.context[2][var] for var in self.node.free_scan_vars))
             return bind_depth
 
         def make_child_frame(self, depth: int):
@@ -546,11 +545,11 @@ class CSEPrintPass:
         def bind_depth(self) -> int:
             bind_depth = self.min_binding_depth
             if len(self.node.free_vars) > 0:
-                bind_depth = max(bind_depth, max(self.context[0][var] for var in self.node.free_vars))
+                bind_depth = max(bind_depth, *(self.context[0][var] for var in self.node.free_vars))
             if len(self.node.free_agg_vars) > 0:
-                bind_depth = max(bind_depth, max(self.context[1][var] for var in self.node.free_agg_vars))
+                bind_depth = max(bind_depth, *(self.context[1][var] for var in self.node.free_agg_vars))
             if len(self.node.free_scan_vars) > 0:
-                bind_depth = max(bind_depth, max(self.context[2][var] for var in self.node.free_scan_vars))
+                bind_depth = max(bind_depth, *(self.context[2][var] for var in self.node.free_scan_vars))
             return bind_depth
 
         def add_lets(self, let_bodies: Sequence[str], out_builder: MutableSequence[str]):

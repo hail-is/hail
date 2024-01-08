@@ -283,7 +283,7 @@ class If(IR):
         return self.cnsq.typ
 
     def renderable_new_block(self, i):
-        return i == 1 or i == 2
+        return i in {1, 2}
 
 
 class Coalesce(IR):
@@ -2149,7 +2149,7 @@ class StreamJoinRightDistinct(IR):
                 left, right, self.l_key, self.r_key, self.l_name, self.r_name, self.join, self.join_type
             )
 
-        if self.join_type == 'left' or self.join_type == 'inner':
+        if self.join_type in {'left', 'inner'}:
             left = pack_to_structs(self.left.handle_randomness(True))
             right = self.right.handle_randomness(False)
             r_name = self.r_name
@@ -2679,7 +2679,7 @@ class AggFold(IR):
 
     def renderable_bindings(self, i: int, default_value=None):
         dict_so_far = {}
-        if i == 1 or i == 2:
+        if i in {1, 2}:
             if default_value is None:
                 dict_so_far[self.accum_name] = self.zero.typ
             else:
@@ -2701,10 +2701,10 @@ class AggFold(IR):
         return {self.accum_name, self.other_accum_name} | super().bound_variables
 
     def renderable_uses_agg_context(self, i: int) -> bool:
-        return (i == 1 or i == 2) and not self.is_scan
+        return (i in {1, 2}) and not self.is_scan
 
     def renderable_uses_scan_context(self, i: int) -> bool:
-        return (i == 1 or i == 2) and self.is_scan
+        return (i in {1, 2}) and self.is_scan
 
 
 class Begin(IR):

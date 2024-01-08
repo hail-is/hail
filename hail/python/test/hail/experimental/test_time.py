@@ -1,6 +1,5 @@
+import hail as hl
 import hail.experimental.time as htime
-
-from ..helpers import *
 
 
 def test_strftime():

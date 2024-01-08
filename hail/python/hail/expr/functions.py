@@ -104,8 +104,8 @@ from hail.typecheck import (
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
-Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
-Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
+Coll_T = TypeVar('Coll_T', ArrayExpression, SetExpression)
+Num_T = TypeVar('Num_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
 
 
 def _func(name, ret_type, *args, type_args=()):
@@ -5069,7 +5069,7 @@ def _ndarray(collection, row_major=None, dtype=None):
                     other_inner_shape = list_shape(e)
                     if inner_shape != other_inner_shape:
                         raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
-                return [dim_len] + inner_shape
+                return [dim_len, *inner_shape]
             else:
                 return [dim_len]
         else:
@@ -6863,7 +6863,7 @@ def _locus_windows_per_contig(coords, radius):
 
 
 @typecheck(a=expr_array(), seed=nullable(builtins.int))
-def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
+def shuffle(a, seed: Optional[builtins.int] = None) -> ArrayExpression:
     """Randomly permute an array
 
     Example

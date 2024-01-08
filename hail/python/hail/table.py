@@ -2,7 +2,7 @@ import collections
 import itertools
 import pprint
 import shutil
-from typing import Callable, Dict, List, Optional, Sequence, Union, overload
+from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Union, overload
 
 import numpy as np
 import pandas
@@ -120,7 +120,7 @@ def desc(col):
 class ExprContainer:
 
     # this can only grow as big as the object dir, so no need to worry about memory leak
-    _warned_about = set()
+    _warned_about: ClassVar = set()
 
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
@@ -1643,8 +1643,8 @@ class Table(ExprContainer):
                     s += format_line(type_strs[start:end], block_column_width, block_right_align)
                     s += hline
                 for row in rows:
-                    row = row[start:end]
-                    s += format_line(row, block_column_width, block_right_align)
+                    _row = row[start:end]
+                    s += format_line(_row, block_column_width, block_right_align)
                 s += hline
 
             if has_more:
@@ -2731,7 +2731,7 @@ class Table(ExprContainer):
         right: 'Table',
         how='inner',
         _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}',
-        _join_key: int = None,
+        _join_key: Optional[int] = None,
     ) -> 'Table':
         """Join two tables together.
 
@@ -3087,16 +3087,17 @@ class Table(ExprContainer):
         lifted_exprs = []
         for e in exprs:
             sort_type = 'A'
+            _e = e
             if isinstance(e, Ascending):
-                e = e.col
+                _e = e.col
             elif isinstance(e, Descending):
-                e = e.col
+                _e = e.col
                 sort_type = 'D'
 
             if isinstance(e, str):
-                expr = self[e]
+                expr = self[_e]
             else:
-                expr = e
+                expr = _e
             lifted_exprs.append((expr, sort_type))
 
         sort_fields = []

@@ -45,6 +45,6 @@ def aes(**kwargs):
 
     for k, v in kwargs.items():
         if not isinstance(v, Expression):
-            v = literal(v)
-        hail_field_properties[k] = v
+            _v = literal(v)
+        hail_field_properties[k] = _v
     return Aesthetic(hail_field_properties)

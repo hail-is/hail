@@ -1,8 +1,7 @@
 import unittest
 
-from hail.genetics import *
-
-from ..helpers import *
+import hail as hl
+from hail.genetics import Call
 
 
 class Tests(unittest.TestCase):

@@ -1,9 +1,9 @@
-import hail as hl
-
-avro_file = 'gs://hail-common/test-resources/weather.avro'
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
 
+import hail as hl
+
+avro_file = 'gs://hail-common/test-resources/weather.avro'
 fs = hl.current_backend().fs
 
 with DataFileReader(fs.open(avro_file, 'rb'), DatumReader()) as avro:

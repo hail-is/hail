@@ -6,7 +6,7 @@ import sys
 import uuid
 from itertools import chain
 from math import floor, log
-from typing import Collection, Dict, List, NamedTuple, Optional, Union
+from typing import ClassVar, Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 from hail.expr import HailType, tmatrix
@@ -192,7 +192,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     default_exome_interval_size = 60_000_000
     "A reasonable partition size in basepairs given the density of exomes."
 
-    __serialized_slots__ = [
+    __serialized_slots__: ClassVar = [
         '_save_path',
         '_output_path',
         '_temp_path',
@@ -213,7 +213,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_call_fields',
     ]
 
-    __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id', '__intervals_cache'])
+    __slots__ = tuple([*__serialized_slots__, "_uuid", "_job_id", "__intervals_cache"])
 
     def __init__(
         self,
@@ -700,18 +700,17 @@ def new_combiner(
             gvcf_batch_size = VariantDatasetCombiner._default_gvcf_batch_size
         else:
             pass
-    else:
-        if gvcf_batch_size is None:
+    elif gvcf_batch_size is None:
             warning(
                 'The batch_size parameter is deprecated. '
                 'The batch_size parameter will be removed in a future version of Hail. '
                 'Please use gvcf_batch_size instead.'
             )
             gvcf_batch_size = batch_size
-        else:
-            raise ValueError(
-                'Specify only one of batch_size and gvcf_batch_size. ' f'Received {batch_size} and {gvcf_batch_size}.'
-            )
+    else:
+        raise ValueError(
+            'Specify only one of batch_size and gvcf_batch_size. ' f'Received {batch_size} and {gvcf_batch_size}.'
+        )
     del batch_size
 
     def maybe_load_from_saved_path(save_path: str) -> Optional[VariantDatasetCombiner]:

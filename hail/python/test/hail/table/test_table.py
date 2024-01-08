@@ -1,3 +1,4 @@
+import os
 import unittest
 
 import numpy as np
@@ -11,7 +12,17 @@ from hail import ExpressionException, ir
 from hail.utils import new_temp_file
 from hail.utils.java import Env
 
-from ..helpers import *
+from ..helpers import (
+    assert_time,
+    convert_struct_to_dict,
+    create_all_values_datasets,
+    create_all_values_table,
+    lower_only,
+    qobtest,
+    resource,
+    skip_unless_spark_backend,
+    test_timeout,
+)
 
 
 class Tests(unittest.TestCase):
@@ -1839,36 +1850,6 @@ def test_can_process_wide_tables(width):
     ht.annotate_globals(g=ht.collect(_localize=False))._force_count()
 
 
-def create_width_scale_files():
-    def write_file(n, n_rows=5):
-        assert n % 4 == 0
-        n2 = n // 4
-        d = {}
-        header = []
-        for i in range(n2):
-            header.append(f'i{i}')
-            header.append(f'f{i}')
-            header.append(f's{i}')
-            header.append(f'b{i}')
-        with open(resource(f'width_scale_tests/{n}.tsv'), 'w') as out:
-            out.write('\t'.join(header))
-            for i in range(n_rows):
-                out.write('\n')
-                for j in range(n2):
-                    if j > 0:
-                        out.write('\t')
-                    out.write(str(j))
-                    out.write('\t')
-                    out.write(str(i / (i + 1)))
-                    out.write('\t')
-                    out.write(f's_{i}_{j}')
-                    out.write('\t')
-                    out.write(str(i % 2 == 0))
-
-    for w in widths:
-        write_file(w)
-
-
 @test_timeout(batch=6 * 60)
 def test_join_with_key_prefix():
     t = hl.utils.range_table(20, 2)
@@ -2489,7 +2470,6 @@ def test_table_randomness_matrix_cols_table():
 
 
 def test_table_randomness_parallelize_with_body_randomness():
-    rt = hl.utils.range_table(20, 3)
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x, r=hl.rand_int64())))
     assert_contains_node(t, ir.TableParallelize)
     t._force_count()  # test with no consumer randomness
@@ -2497,7 +2477,6 @@ def test_table_randomness_parallelize_with_body_randomness():
 
 
 def test_table_randomness_parallelize_without_body_randomness():
-    rt = hl.utils.range_table(20, 3)
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x)))
     assert_contains_node(t, ir.TableParallelize)
     assert_unique_uids(t)

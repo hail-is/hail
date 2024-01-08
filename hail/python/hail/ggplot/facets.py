@@ -1,6 +1,6 @@
 import abc
 import math
-from typing import Dict, Tuple
+from typing import ClassVar, Dict, Optional, Tuple
 
 import hail as hl
 from hail import Expression, StructExpression
@@ -26,7 +26,7 @@ def vars(*args: Expression) -> StructExpression:
     return hl.struct(**{f"var_{i}": arg for i, arg in enumerate(args)})
 
 
-def facet_wrap(facets: StructExpression, *, nrow: int = None, ncol: int = None, scales: str = "fixed") -> "FacetWrap":
+def facet_wrap(facets: StructExpression, *, nrow: Optional[int] = None, ncol: Optional[int] = None, scales: str = "fixed") -> "FacetWrap":
     """Introduce a one dimensional faceting on specified fields.
 
     Parameters
@@ -56,12 +56,12 @@ class Faceter(FigureAttribute):
 
 
 class FacetWrap(Faceter):
-    _base_scale_mappings = {
+    _base_scale_mappings: ClassVar = {
         "shared_xaxes": "all",
         "shared_yaxes": "all",
     }
 
-    _scale_mappings = {
+    _scale_mappings: ClassVar = {
         "fixed": _base_scale_mappings,
         "free_x": {
             **_base_scale_mappings,
@@ -77,7 +77,7 @@ class FacetWrap(Faceter):
         },
     }
 
-    def __init__(self, facets: StructExpression, nrow: int = None, ncol: int = None, scales: str = "fixed"):
+    def __init__(self, facets: StructExpression, nrow: Optional[int] = None, ncol: Optional[int] = None, scales: str = "fixed"):
         if nrow is not None and ncol is not None:
             raise ValueError("Both `nrow` and `ncol` were specified. " "Please specify only one of these values.")
         if scales not in self._scale_mappings:

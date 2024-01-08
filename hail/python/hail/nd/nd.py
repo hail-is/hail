@@ -321,7 +321,7 @@ def solve_triangular(A, b, lower=False, no_crash=False):
 
 def solve_helper(nd_coef, nd_dep, nd_dep_ndim_orig):
     assert nd_coef.ndim == 2
-    assert nd_dep_ndim_orig == 1 or nd_dep_ndim_orig == 2
+    assert nd_dep_ndim_orig in {1, 2}
 
     if nd_dep_ndim_orig == 1:
         nd_dep = nd_dep.reshape((-1, 1))
