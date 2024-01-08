@@ -10,26 +10,29 @@ from hail.methods.qc import VEPConfigGRCh37Version85, VEPConfigGRCh38Version95
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
 
-vep_config_grch37_85 = VEPConfigGRCh37Version85(
-    data_bucket='hail-qob-vep-grch37-us-central1',
-    data_mount='/vep_data/',
-    image=os.environ['HAIL_GENETICS_VEP_GRCH37_85_IMAGE'],
-    regions=['us-central1'],
-    cloud='gcp',
-    data_bucket_is_requester_pays=True,
-)
-
-vep_config_grch38_95 = VEPConfigGRCh38Version95(
-    data_bucket='hail-qob-vep-grch38-us-central1',
-    data_mount='/vep_data/',
-    image=os.environ['HAIL_GENETICS_VEP_GRCH38_95_IMAGE'],
-    regions=['us-central1'],
-    cloud='gcp',
-    data_bucket_is_requester_pays=True,
-)
-
-
 class Tests(unittest.TestCase):
+    @property
+    def vep_config_grch37_85(self):
+        return VEPConfigGRCh37Version85(
+            data_bucket='hail-qob-vep-grch37-us-central1',
+            data_mount='/vep_data/',
+            image=os.environ['HAIL_GENETICS_VEP_GRCH37_85_IMAGE'],
+            regions=['us-central1'],
+            cloud='gcp',
+            data_bucket_is_requester_pays=True,
+        )
+
+    @property
+    def vep_config_grch38_95(self):
+        return VEPConfigGRCh38Version95(
+            data_bucket='hail-qob-vep-grch38-us-central1',
+            data_mount='/vep_data/',
+            image=os.environ['HAIL_GENETICS_VEP_GRCH38_95_IMAGE'],
+            regions=['us-central1'],
+            cloud='gcp',
+            data_bucket_is_requester_pays=True,
+        )
+
     @qobtest
     def test_sample_qc(self):
         data = [
@@ -333,7 +336,7 @@ class Tests(unittest.TestCase):
         gnomad_vep_result = hl.import_vcf(
             resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True
         )
-        hail_vep_result = hl.vep(gnomad_vep_result, vep_config_grch37_85, csq=True)
+        hail_vep_result = hl.vep(gnomad_vep_result, self.vep_config_grch37_85, csq=True)
 
         expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('|')[:8])).rows()
 
@@ -356,7 +359,7 @@ class Tests(unittest.TestCase):
         gnomad_vep_result = hl.import_vcf(
             resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True
         )
-        hail_vep_result = hl.vep(gnomad_vep_result, vep_config_grch38_95, csq=True)
+        hail_vep_result = hl.vep(gnomad_vep_result, self.vep_config_grch38_95, csq=True)
 
         expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('\|')[:8])).rows()
 
@@ -379,7 +382,7 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(
             resource('sample.gnomad.exomes.r2.1.1.sites.chr1.vcf.gz'), reference_genome='GRCh37', force=True
         )
-        hail_vep_result = hl.vep(mt, vep_config_grch37_85, csq=False)
+        hail_vep_result = hl.vep(mt, self.vep_config_grch37_85, csq=False)
         ht = hail_vep_result.rows()
         ht = ht.select(variant_class=ht.vep.variant_class)
         result = ht.head(1).collect()[0]
@@ -393,7 +396,7 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(
             resource('sample.gnomad.genomes.r3.0.sites.chr1.vcf.gz'), reference_genome='GRCh38', force=True
         )
-        hail_vep_result = hl.vep(mt, vep_config_grch38_95, csq=False)
+        hail_vep_result = hl.vep(mt, self.vep_config_grch38_95, csq=False)
         ht = hail_vep_result.rows()
         ht = ht.select(variant_class=ht.vep.variant_class)
         result = ht.head(1).collect()[0]
@@ -406,7 +409,7 @@ class Tests(unittest.TestCase):
     def test_vep_grch37_against_dataproc(self):
         mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force_bgz=True, n_partitions=4)
         mt = mt.head(20)
-        hail_vep_result = hl.vep(mt, vep_config_grch37_85)
+        hail_vep_result = hl.vep(mt, self.vep_config_grch37_85)
         initial_vep_dtype = hail_vep_result.vep.dtype
         hail_vep_result = hail_vep_result.annotate_rows(
             vep=hail_vep_result.vep.annotate(
@@ -468,7 +471,7 @@ class Tests(unittest.TestCase):
         )
         loftee_variants = dataproc_result.select()
 
-        hail_vep_result = hl.vep(loftee_variants, vep_config_grch38_95)
+        hail_vep_result = hl.vep(loftee_variants, self.vep_config_grch38_95)
         hail_vep_result = hail_vep_result.annotate(
             vep=hail_vep_result.vep.annotate(
                 input=hl.str('\t').join(
@@ -525,7 +528,7 @@ class Tests(unittest.TestCase):
         )
         loftee_variants = bad_variants.select()
 
-        hail_vep_result = hl.vep(loftee_variants, vep_config_grch38_95)
+        hail_vep_result = hl.vep(loftee_variants, self.vep_config_grch38_95)
         hail_vep_result = hail_vep_result.annotate(
             vep=hail_vep_result.vep.annotate(
                 input=hl.str('\t').join(
