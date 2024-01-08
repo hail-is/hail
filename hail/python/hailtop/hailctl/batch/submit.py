@@ -75,10 +75,13 @@ async def submit(name, image_name, files, output, script, arguments):
 
     assert False, str(local_files_to_cloud_files)
 
-    await copy_from_dict(files=[
-        {'from': script_src, 'to': script_cloud_file},
-        {'from': user_config_src, 'to': user_config_cloud_file},
-        *local_files_to_cloud_files])
+    await copy_from_dict(
+        files=[
+            {'from': script_src, 'to': script_cloud_file},
+            {'from': user_config_src, 'to': user_config_cloud_file},
+            *local_files_to_cloud_files,
+        ]
+    )
 
     script_file = b.read_input(script_cloud_file)
     config_file = b.read_input(user_config_cloud_file)

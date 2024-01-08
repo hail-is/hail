@@ -14,14 +14,16 @@ def runner():
 
 def write_script(dir: str, filename: str):
     with open(f'{dir}/test_job.py', 'w') as f:
-        f.write(f'''
+        f.write(
+            f'''
 import hailtop.batch as hb
 b = hb.Batch()
 j = b.new_job()
 j.command('cat {filename}')
 b.run(wait=False)
 backend.close()
-''')
+'''
+        )
 
 
 def write_hello(filename: str):
@@ -72,7 +74,9 @@ def test_mount_multiple_files(runner: CliRunner):
         write_hello(f'{dir}/child/hello1.txt')
         write_hello(f'{dir}/child/hello2.txt')
         write_script(dir, '/hello1.txt')
-        res = runner.invoke(cli.app, ['submit', '--files', 'child/hello1.txt:/', '--files', 'child/hello2.txt:/', 'test_job.py'])
+        res = runner.invoke(
+            cli.app, ['submit', '--files', 'child/hello1.txt:/', '--files', 'child/hello2.txt:/', 'test_job.py']
+        )
         assert res.exit_code == 0
 
 
