@@ -15,7 +15,6 @@ WORKSPACE_STORAGE_CONTAINER_URL = os.environ.get('WORKSPACE_STORAGE_CONTAINER_UR
 
 
 class TerraAzureAsyncFS(AsyncFS):
-
     def __init__(self, **azure_kwargs):
         assert WORKSPACE_STORAGE_CONTAINER_URL is not None
         self._terra_client = TerraClient()
@@ -58,7 +57,9 @@ class TerraAzureAsyncFS(AsyncFS):
         expiration = time_msecs() + an_hour_in_seconds * 1000
 
         assert WORKSPACE_STORAGE_CONTAINER_ID is not None
-        sas_token = await self._terra_client.get_storage_container_sas_token(WORKSPACE_STORAGE_CONTAINER_ID, blob_name, expires_after=an_hour_in_seconds)
+        sas_token = await self._terra_client.get_storage_container_sas_token(
+            WORKSPACE_STORAGE_CONTAINER_ID, blob_name, expires_after=an_hour_in_seconds
+        )
 
         return sas_token, expiration
 
@@ -74,12 +75,7 @@ class TerraAzureAsyncFS(AsyncFS):
             retry_writes=retry_writes,
         )
 
-
-    async def multi_part_create(
-            self,
-            sema: asyncio.Semaphore,
-            url: str,
-            num_parts: int) -> MultiPartCreate:
+    async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
         return await self._azure_fs.multi_part_create(
             sema,
             await self._to_azure_url(url),
@@ -98,10 +94,9 @@ class TerraAzureAsyncFS(AsyncFS):
     async def statfile(self, url: str) -> FileStatus:
         return await self._azure_fs.statfile(await self._to_azure_url(url))
 
-    async def listfiles(self,
-                        url: str,
-                        recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True) -> AsyncIterator[FileListEntry]:
+    async def listfiles(
+        self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
+    ) -> AsyncIterator[FileListEntry]:
         return await self._azure_fs.listfiles(
             await self._to_azure_url(url),
             recursive,
