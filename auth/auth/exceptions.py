@@ -7,7 +7,7 @@ class AuthUserError(Exception):
         self.message = message
         self.ui_error_type = severity
 
-    def http_response(self):
+    def http_response(self) -> web.HTTPError:
         return web.HTTPBadRequest(reason=self.message)
 
 

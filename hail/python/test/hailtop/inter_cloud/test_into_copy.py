@@ -14,7 +14,6 @@ def read_file(path):
         return f.read()
 
 
-@pytest.mark.asyncio
 async def test_copy_file():
     with tempfile.TemporaryDirectory() as test_dir:
         write_file(f"{test_dir}/file1", "hello world\n")
@@ -31,7 +30,6 @@ async def test_copy_file():
             assert read_file(file) == "hello world\n"
 
 
-@pytest.mark.asyncio
 async def test_copy_dir():
     with tempfile.TemporaryDirectory() as test_dir:
         os.makedirs(f"{test_dir}/subdir1")
@@ -43,7 +41,6 @@ async def test_copy_dir():
         assert read_file(f"{test_dir}/subdir2/subdir1/file1") == "hello world\n"
 
 
-@pytest.mark.asyncio
 async def test_error_function():
     with tempfile.TemporaryDirectory() as test_dir:
         write_file(f"{test_dir}/foo", "hello world\n")

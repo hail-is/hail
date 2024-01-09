@@ -44,7 +44,7 @@ from aiohttp import web
 
 from gear import json_request, json_response
 from hailtop import aiotools, httpx
-from hailtop.aiotools import AsyncFS, LocalAsyncFS
+from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.config import get_deploy_config
@@ -2966,15 +2966,8 @@ class Worker:
         self.image_data: Dict[str, ImageData] = defaultdict(ImageData)
         self.image_data[BATCH_WORKER_IMAGE_ID] += 1
 
-        assert CLOUD_WORKER_API
-        fs = CLOUD_WORKER_API.get_cloud_async_fs()
-        self.fs = RouterAsyncFS(
-            filesystems=[
-                LocalAsyncFS(self.pool),
-                fs,
-            ],
-        )
-        self.file_store = FileStore(fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
+        self.fs = RouterAsyncFS()
+        self.file_store = FileStore(self.fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
 
         self.instance_token = os.environ['ACTIVATION_TOKEN']
 

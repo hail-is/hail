@@ -2,7 +2,6 @@ import abc
 from typing import Dict, Generic, List, TypedDict, TypeVar
 
 from hailtop import httpx
-from hailtop.aiotools.fs import AsyncFS
 from hailtop.utils import CalledProcessError, sleep_before_try
 
 from ..instance_config import InstanceConfig
@@ -27,10 +26,6 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
 
     @abc.abstractmethod
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> CloudDisk:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def get_cloud_async_fs(self) -> AsyncFS:
         raise NotImplementedError
 
     @abc.abstractmethod

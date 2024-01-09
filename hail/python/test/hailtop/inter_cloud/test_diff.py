@@ -110,7 +110,6 @@ async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore,
     yield sema, fs, src_base, dest_base
 
 
-@pytest.mark.asyncio
 async def test_diff(diff_test_context):
     sema, fs, src_base, dest_base = diff_test_context
 

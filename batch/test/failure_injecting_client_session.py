@@ -24,6 +24,6 @@ class FailureInjectingClientSession(httpx.ClientSession):
                 history=(),
             )
 
-    def request(self, method, path, *args, **kwargs):
-        self.maybe_fail(method, path, kwargs.get('headers', {}))
-        return self.real_session.request(method, path, *args, **kwargs)
+    def request(self, method, url, *args, **kwargs):
+        self.maybe_fail(method, url, kwargs.get('headers', {}))
+        return self.real_session.request(method, url, *args, **kwargs)

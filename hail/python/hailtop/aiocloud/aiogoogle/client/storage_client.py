@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List, Coroutine, ClassVar
+from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List, Coroutine
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -25,15 +25,16 @@ from hailtop.aiotools.fs import (
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
 from .base_client import GoogleBaseClient
-from ..session import GoogleSession
 from ..credentials import GoogleCredentials
 from ..user_config import get_gcs_requester_pays_configuration, GCSRequesterPaysConfiguration
+from ...common.session import BaseSession
+
 
 log = logging.getLogger(__name__)
 
 
 class PageIterator:
-    def __init__(self, client: 'GoogleBaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
+    def __init__(self, client: GoogleBaseClient, path: str, request_kwargs: MutableMapping[str, Any]):
         if 'params' in request_kwargs:
             request_params = request_kwargs['params']
             del request_kwargs['params']
@@ -139,7 +140,7 @@ class _TaskManager:
 
 
 class ResumableInsertObjectStream(WritableStream):
-    def __init__(self, session: GoogleSession, session_url: str, chunk_size: int):
+    def __init__(self, session: BaseSession, session_url: str, chunk_size: int):
         super().__init__()
         self._session = session
         self._session_url = session_url
@@ -594,8 +595,6 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'gs'}
-
     def __init__(
         self,
         *,
@@ -609,6 +608,10 @@ class GoogleStorageAsyncFS(AsyncFS):
         if bucket_allow_list is None:
             bucket_allow_list = []
         self.allowed_storage_locations = bucket_allow_list
+
+    @staticmethod
+    def schemes() -> Set[str]:
+        return {'gs'}
 
     def storage_location(self, uri: str) -> str:
         return self.get_bucket_and_name(uri)[0]

@@ -70,7 +70,7 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
         raise NotImplementedError
 
-    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
+    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> Optional[RunningBatchType]:
         """
         See :meth:`._async_run`.
 
@@ -81,7 +81,9 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         return async_to_blocking(self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))
 
     @abc.abstractmethod
-    async def _async_run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
+    async def _async_run(
+        self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs
+    ) -> Optional[RunningBatchType]:
         """
         Execute a batch.
 
@@ -129,7 +131,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
 class LocalBackend(Backend[None]):
     """
     Backend that executes batches on a local computer.
-
     Examples
     --------
 
