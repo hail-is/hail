@@ -1031,7 +1031,7 @@ async def test_restartable_insert():
         b = await client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
         status = await b.wait()
         assert status['state'] == 'success', str((status, await b.debug_info()))
-        jobs = list(x async for x in b.jobs())
+        jobs = [x async for x in b.jobs()]
         assert len(jobs) == 9, str((jobs, await b.debug_info()))
 
 
