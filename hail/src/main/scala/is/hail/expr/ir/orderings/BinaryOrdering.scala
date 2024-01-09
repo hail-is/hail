@@ -23,18 +23,28 @@ object BinaryOrdering {
         val cmp = cb.newLocal[Int]("cmp", 0)
         val Lbreak = CodeLabel()
 
-        cb.for_(cb.assign(i, 0), i < lim, cb.assign(i, i + 1), {
-          val compval = Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
-            Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", xv.loadByte(cb, i)),
-            Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", yv.loadByte(cb, i)))
-          cb.assign(cmp, compval)
-          cb.if_(cmp.cne(0), cb.goto(Lbreak))
-        })
+        cb.for_(
+          cb.assign(i, 0),
+          i < lim,
+          cb.assign(i, i + 1), {
+            val compval = Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
+              "compare",
+              Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", xv.loadByte(cb, i)),
+              Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", yv.loadByte(cb, i)),
+            )
+            cb.assign(cmp, compval)
+            cb.if_(cmp.cne(0), cb.goto(Lbreak))
+          },
+        )
 
         cb.define(Lbreak)
-        cb.if_(cmp.ceq(0), {
-          cb.assign(cmp, Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", xlen, ylen))
-        })
+        cb.if_(
+          cmp.ceq(0),
+          cb.assign(
+            cmp,
+            Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", xlen, ylen),
+          ),
+        )
 
         cmp
       }

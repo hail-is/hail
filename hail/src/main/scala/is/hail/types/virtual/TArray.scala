@@ -3,9 +3,10 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
+
 import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.{classTag, ClassTag}
 
 final case class TArray(elementType: Type) extends TContainer {
   override def pyString(sb: StringBuilder): Unit = {

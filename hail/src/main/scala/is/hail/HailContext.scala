@@ -8,10 +8,7 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf._
 import is.hail.types.virtual._
 import is.hail.utils._
-import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
-import org.apache.spark._
-import org.apache.spark.executor.InputMetrics
-import org.apache.spark.rdd.RDD
+
 import org.json4s.Extraction
 import org.json4s.jackson.JsonMethods
 
@@ -19,6 +16,11 @@ import java.io.InputStream
 import java.util.Properties
 import scala.collection.mutable
 import scala.reflect.ClassTag
+
+import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
+import org.apache.spark._
+import org.apache.spark.executor.InputMetrics
+import org.apache.spark.rdd.RDD
 
 case class FilePartition(index: Int, file: String) extends Partition
 
@@ -78,7 +80,8 @@ object HailContext {
     versionString match {
       // old-style version: 1.MAJOR.MINOR
       // new-style version: MAJOR.MINOR.SECURITY (started in JRE 9)
-      // see: https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB
+      /* see:
+       * https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB */
       case javaVersion("1", major, minor) =>
         if (major.toInt < 8)
           fatal(s"Hail requires Java 1.8, found $versionString")
@@ -90,24 +93,26 @@ object HailContext {
     }
   }
 
-  def getOrCreate(backend: Backend,
-    branchingFactor: Int = 50,
-    optimizerIterations: Int = 3): HailContext = {
+  def getOrCreate(backend: Backend, branchingFactor: Int = 50, optimizerIterations: Int = 3)
+    : HailContext = {
     if (theContext == null)
       return HailContext(backend, branchingFactor, optimizerIterations)
 
     if (theContext.branchingFactor != branchingFactor)
-      warn(s"Requested branchingFactor $branchingFactor, but already initialized to ${ theContext.branchingFactor }.  Ignoring requested setting.")
+      warn(
+        s"Requested branchingFactor $branchingFactor, but already initialized to ${theContext.branchingFactor}.  Ignoring requested setting."
+      )
 
     if (theContext.optimizerIterations != optimizerIterations)
-      warn(s"Requested optimizerIterations $optimizerIterations, but already initialized to ${ theContext.optimizerIterations }.  Ignoring requested setting.")
+      warn(
+        s"Requested optimizerIterations $optimizerIterations, but already initialized to ${theContext.optimizerIterations}.  Ignoring requested setting."
+      )
 
     theContext
   }
 
-  def apply(backend: Backend,
-    branchingFactor: Int = 50,
-    optimizerIterations: Int = 3): HailContext = synchronized {
+  def apply(backend: Backend, branchingFactor: Int = 50, optimizerIterations: Int = 3)
+    : HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
 
@@ -115,13 +120,19 @@ object HailContext {
       import breeze.linalg._
       import breeze.linalg.operators.{BinaryRegistry, OpMulMatrix}
 
-      implicitly[BinaryRegistry[DenseMatrix[Double], Vector[Double], OpMulMatrix.type, DenseVector[Double]]].register(
-        DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
+      implicitly[BinaryRegistry[
+        DenseMatrix[Double],
+        Vector[Double],
+        OpMulMatrix.type,
+        DenseVector[Double],
+      ]].register(
+        DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD
+      )
     }
 
     theContext = new HailContext(backend, branchingFactor, optimizerIterations)
 
-    info(s"Running Hail version ${ theContext.version }")
+    info(s"Running Hail version ${theContext.version}")
 
     theContext
   }
@@ -138,7 +149,8 @@ object HailContext {
     path: String,
     partFiles: IndexedSeq[String],
     read: (Int, InputStream, InputMetrics) => Iterator[T],
-    optPartitioner: Option[Partitioner] = None): RDD[T] = {
+    optPartitioner: Option[Partitioner] = None,
+  ): RDD[T] = {
     val nPartitions = partFiles.length
 
     val fsBc = fs.broadcast
@@ -159,10 +171,11 @@ object HailContext {
   }
 }
 
-class HailContext private(
+class HailContext private (
   var backend: Backend,
   val branchingFactor: Int,
-  val optimizerIterations: Int) {
+  val optimizerIterations: Int,
+) {
   def stop(): Unit = HailContext.stop()
 
   def sparkBackend(op: String): SparkBackend = backend.asSpark(op)
@@ -175,7 +188,7 @@ class HailContext private(
     fs: FS,
     regex: String,
     files: Seq[String],
-    maxLines: Int
+    maxLines: Int,
   ): Map[String, Array[WithContext[String]]] = {
     val regexp = regex.r
     SparkBackend.sparkContext("fileAndLineCounts").textFilesLines(fs.globAll(files).map(_.getPath))
@@ -186,7 +199,7 @@ class HailContext private(
 
   def grepPrint(fs: FS, regex: String, files: Seq[String], maxLines: Int) {
     fileAndLineCounts(fs, regex, files, maxLines).foreach { case (file, lines) =>
-      info(s"$file: ${ lines.length } ${ plural(lines.length, "match", "matches") }:")
+      info(s"$file: ${lines.length} ${plural(lines.length, "match", "matches")}:")
       lines.map(_.value).foreach { line =>
         val (screen, logged) = line.truncatable().strings
         log.info("\t" + logged)
@@ -195,12 +208,12 @@ class HailContext private(
     }
   }
 
-  def grepReturn(fs: FS, regex: String, files: Seq[String], maxLines: Int): Array[(String, Array[String])] =
+  def grepReturn(fs: FS, regex: String, files: Seq[String], maxLines: Int)
+    : Array[(String, Array[String])] =
     fileAndLineCounts(fs: FS, regex, files, maxLines).mapValues(_.map(_.value)).toArray
 
-  def parseVCFMetadata(fs: FS, file: String): Map[String, Map[String, Map[String, String]]] = {
+  def parseVCFMetadata(fs: FS, file: String): Map[String, Map[String, Map[String, String]]] =
     LoadVCF.parseHeaderMetadata(fs, Set.empty, TFloat64, file)
-  }
 
   def pyParseVCFMetadataJSON(fs: FS, file: String): String = {
     val metadata = LoadVCF.parseHeaderMetadata(fs, Set.empty, TFloat64, file)

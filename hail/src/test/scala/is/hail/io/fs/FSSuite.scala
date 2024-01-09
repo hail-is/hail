@@ -4,11 +4,12 @@ import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.utils._
+
+import java.io.FileNotFoundException
+
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-
-import java.io.FileNotFoundException
 
 trait FSSuite extends TestNGSuite {
   val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
@@ -20,27 +21,21 @@ trait FSSuite extends TestNGSuite {
   def fs: FS
 
   /* Structure of src/test/resources/fs:
-     /a
-     /adir
-     /adir/x
-     /az
-     /dir
-     /dir/x
-     /zzz
-   */
+   * /a /adir /adir/x /az /dir /dir/x /zzz */
   def r(s: String): String = s"$fsResourcesRoot$s"
 
-  def t(extension: String = null): String = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fs-suite-tmp", extension)
+  def t(extension: String = null): String =
+    ExecuteContext.createTmpPathNoCleanup(tmpdir, "fs-suite-tmp", extension)
 
-  def pathsRelRoot(root: String, statuses: Array[FileListEntry]): Set[String] = {
+  def pathsRelRoot(root: String, statuses: Array[FileListEntry]): Set[String] =
     statuses.map { status =>
       var p = status.getPath
       assert(p.startsWith(root), s"$p $root")
       p.drop(root.length)
     }.toSet
-  }
 
-  def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
+  def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] =
+    pathsRelRoot(fsResourcesRoot, statuses)
 
   @Test def testExists(): Unit = {
     assert(fs.exists(r("/a")))
@@ -84,9 +79,9 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def testFileListEntryOnMissingFile(): Unit = {
-    try {
+    try
       fs.fileListEntry(r("/does_not_exist"))
-    } catch {
+    catch {
       case _: FileNotFoundException =>
         return
     }
@@ -156,32 +151,42 @@ trait FSSuite extends TestNGSuite {
 
   @Test def testGlobFilename(): Unit = {
     val statuses = fs.glob(r("/a*"))
-    assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az"),
-      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/a", "/adir", "/az")}")
+    assert(
+      pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az"),
+      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/a", "/adir", "/az")}",
+    )
   }
 
   @Test def testGlobFilenameMatchSingleCharacter(): Unit = {
     val statuses = fs.glob(r("/a?"))
-    assert(pathsRelResourcesRoot(statuses) == Set("/az"),
-      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/az")}")
+    assert(
+      pathsRelResourcesRoot(statuses) == Set("/az"),
+      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/az")}",
+    )
   }
 
   @Test def testGlobFilenameMatchSingleCharacterInMiddleOfName(): Unit = {
     val statuses = fs.glob(r("/a?ir"))
-    assert(pathsRelResourcesRoot(statuses) == Set("/adir"),
-      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/adir")}")
+    assert(
+      pathsRelResourcesRoot(statuses) == Set("/adir"),
+      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/adir")}",
+    )
   }
 
   @Test def testGlobDirnameMatchSingleCharacterInMiddleOfName(): Unit = {
     val statuses = fs.glob(r("/a?ir/x"))
-    assert(pathsRelResourcesRoot(statuses) == Set("/adir/x"),
-      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/adir/x")}")
+    assert(
+      pathsRelResourcesRoot(statuses) == Set("/adir/x"),
+      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/adir/x")}",
+    )
   }
 
   @Test def testGlobMatchDir(): Unit = {
     val statuses = fs.glob(r("/*dir/x"))
-    assert(pathsRelResourcesRoot(statuses) == Set("/adir/x", "/dir/x"),
-      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/adir/x", "/dir/x")}")
+    assert(
+      pathsRelResourcesRoot(statuses) == Set("/adir/x", "/dir/x"),
+      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/adir/x", "/dir/x")}",
+    )
   }
 
   @Test def testGlobRoot(): Unit = {
@@ -245,14 +250,14 @@ trait FSSuite extends TestNGSuite {
     val s2 = "second"
     val f = t()
 
-    using(fs.create(f)) { _.write(s1.getBytes) }
+    using(fs.create(f))(_.write(s1.getBytes))
     assert(fs.exists(f))
     using(fs.open(f)) { is =>
       val read = new String(IOUtils.toByteArray(is))
       assert(read == s1)
     }
 
-    using(fs.create(f)) { _.write(s2.getBytes) }
+    using(fs.create(f))(_.write(s2.getBytes))
     assert(fs.exists(f))
     using(fs.open(f)) { is =>
       val read = new String(IOUtils.toByteArray(is))
@@ -260,13 +265,11 @@ trait FSSuite extends TestNGSuite {
     }
   }
 
-  @Test def testGetCodecExtension(): Unit = {
+  @Test def testGetCodecExtension(): Unit =
     assert(fs.getCodecExtension("foo.vcf.bgz") == ".bgz")
-  }
 
-  @Test def testStripCodecExtension(): Unit = {
+  @Test def testStripCodecExtension(): Unit =
     assert(fs.stripCodecExtension("foo.vcf.bgz") == "foo.vcf")
-  }
 
   @Test def testReadWriteBytes(): Unit = {
     val f = t()
@@ -316,7 +319,7 @@ trait FSSuite extends TestNGSuite {
       var i = 0
       while (i < numWrites) {
         val readFromIs = is.read()
-        assert(readFromIs == (i & 0xff), s"${i} ${i & 0xff} ${readFromIs}")
+        assert(readFromIs == (i & 0xff), s"$i ${i & 0xff} $readFromIs")
         i = i + 1
       }
     }
@@ -336,9 +339,9 @@ trait FSSuite extends TestNGSuite {
 
   @Test def testSeekMoreThanMaxInt(): Unit = {
     val f = t()
-    using (fs.create(f)) { os =>
+    using(fs.create(f)) { os =>
       val eight_mib = 8 * 1024 * 1024
-      val arr = Array.fill(eight_mib){0.toByte}
+      val arr = Array.fill(eight_mib)(0.toByte)
       var i = 0
       // 256 * 8MiB = 2GiB
       while (i < 256) {
@@ -378,7 +381,6 @@ trait FSSuite extends TestNGSuite {
     }
 
     using(fs.openNoCompression(f)) { is =>
-
       is.seek(251)
       assert(is.read() == 0)
       assert(is.read() == 1)
@@ -389,17 +391,14 @@ trait FSSuite extends TestNGSuite {
       val toRead = new Array[Byte](512)
       is.readFully(toRead)
 
-      (0 until toRead.length).foreach { i =>
-        assert(toRead(i) == ((seekPos + i) % 251).toByte)
-      }
+      (0 until toRead.length).foreach(i => assert(toRead(i) == ((seekPos + i) % 251).toByte))
     }
   }
 
   @Test def largeDirectoryOperations(): Unit = {
-    val prefix = s"$tmpdir/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
-    for (i <- 0 until 2000) {
+    val prefix = s"$tmpdir/fs-suite/delete-many-files/${java.util.UUID.randomUUID()}"
+    for (i <- 0 until 2000)
       fs.touch(s"$prefix/$i.suffix")
-    }
 
     assert(fs.listDirectory(prefix).size == 2000)
     assert(fs.glob(prefix + "/" + "*.suffix").size == 2000)
@@ -407,15 +406,19 @@ trait FSSuite extends TestNGSuite {
     assert(fs.exists(prefix))
     fs.delete(prefix, recursive = true)
     if (fs.exists(prefix)) {
-      // NB: TestNGSuite.assert does not have a lazy message argument so we must use an if to protect this list
+      /* NB: TestNGSuite.assert does not have a lazy message argument so we must use an if to
+       * protect this list */
       //
       // see: https://www.scalatest.org/scaladoc/1.7.2/org/scalatest/testng/TestNGSuite.html
-      assert(false, s"files not deleted:\n${ fs.listDirectory(prefix).map(_.getPath).mkString("\n") }")
+      assert(
+        false,
+        s"files not deleted:\n${fs.listDirectory(prefix).map(_.getPath).mkString("\n")}",
+      )
     }
   }
 
   @Test def testSeekAfterEOF(): Unit = {
-    val prefix = s"$tmpdir/fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    val prefix = s"$tmpdir/fs-suite/delete-many-files/${java.util.UUID.randomUUID()}"
     val p = s"$prefix/seek_file"
     using(fs.createCachedNoCompression(p)) { os =>
       os.write(1.toByte)
@@ -438,7 +441,8 @@ trait FSSuite extends TestNGSuite {
 class HadoopFSSuite extends HailSuite with FSSuite {
   override val root: String = "file:/"
 
-  override lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
+  override lazy val fsResourcesRoot: String =
+    "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
 
   override lazy val tmpdir: String = ctx.tmpdir
 

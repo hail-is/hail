@@ -1,9 +1,10 @@
 package is.hail.io
 
-import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
 import is.hail.HailSuite
 import is.hail.io.tabix._
 import is.hail.io.vcf.TabixVCF
+
+import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
 import org.testng.annotations.{BeforeTest, Test}
 import org.testng.asserts.SoftAssert
 
@@ -28,9 +29,8 @@ class TabixSuite extends HailSuite {
 
   @Test def testSequenceNames() {
     val expectedSeqNames = new Array[String](24);
-    for (i <- 1 to 22) {
-      expectedSeqNames(i-1) = i.toString
-    }
+    for (i <- 1 to 22)
+      expectedSeqNames(i - 1) = i.toString
     expectedSeqNames(22) = "X";
     expectedSeqNames(23) = "Y";
 
@@ -38,9 +38,8 @@ class TabixSuite extends HailSuite {
     assert(expectedSeqNames.length == sequenceNames.size)
 
     val asserts = new SoftAssert()
-    for (s <- expectedSeqNames) {
-      asserts.assertTrue(sequenceNames.contains(s), s"sequenceNames does not contain ${ s }")
-    }
+    for (s <- expectedSeqNames)
+      asserts.assertTrue(sequenceNames.contains(s), s"sequenceNames does not contain $s")
     asserts.assertAll()
   }
 
@@ -100,16 +99,19 @@ class TabixSuite extends HailSuite {
     val hailrdr = new TabixReader(vcfFile, fs)
     val tid = hailrdr.chr2tid(chr)
 
-    for ((start, end) <-
-      Seq(
-        (12990058, 12990059),  // Small interval, containing just one locus at end
-        (10570000, 13000000),  // Open interval
-        (10019093, 16360860),  // Closed interval
-        (11000000, 13029764),  // Half open (beg, end]
-        (17434340, 18000000),  // Half open [beg, end)
-        (13943975, 14733634),  // Some random intervals
-        (11578765, 15291865),
-        (12703588, 16751726))) {
+    for (
+      (start, end) <-
+        Seq(
+          (12990058, 12990059), // Small interval, containing just one locus at end
+          (10570000, 13000000), // Open interval
+          (10019093, 16360860), // Closed interval
+          (11000000, 13029764), // Half open (beg, end]
+          (17434340, 18000000), // Half open [beg, end)
+          (13943975, 14733634), // Some random intervals
+          (11578765, 15291865),
+          (12703588, 16751726),
+        )
+    ) {
       val pairs = hailrdr.queryPairs(tid, start, end)
       val htsIter = htsjdkrdr.query(chr, start, end)
       val hailIter = new TabixLineIterator(fs, hailrdr.filePath, pairs)

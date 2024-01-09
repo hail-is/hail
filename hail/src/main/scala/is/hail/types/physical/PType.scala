@@ -5,28 +5,43 @@ import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir._
-import is.hail.types.physical.stypes.concrete.SRNGState
+import is.hail.types.{tcoerce, Requiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
+import is.hail.types.physical.stypes.concrete.SRNGState
 import is.hail.types.virtual._
-import is.hail.types.{Requiredness, tcoerce}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.sql.Row
+
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
-class PTypeSerializer extends CustomSerializer[PType](format => (
-  { case JString(s) => PType.canonical(IRParser.parsePType(s)) },
-  { case t: PType => JString(t.toString) }))
+import org.apache.spark.sql.Row
 
-class PStructSerializer extends CustomSerializer[PStruct](format => (
-  { case JString(s) => tcoerce[PStruct](IRParser.parsePType(s)) },
-  { case t: PStruct => JString(t.toString) }))
+class PTypeSerializer extends CustomSerializer[PType](format =>
+      (
+        { case JString(s) => PType.canonical(IRParser.parsePType(s)) },
+        { case t: PType => JString(t.toString) },
+      )
+    )
+
+class PStructSerializer extends CustomSerializer[PStruct](format =>
+      (
+        { case JString(s) => tcoerce[PStruct](IRParser.parsePType(s)) },
+        { case t: PStruct => JString(t.toString) },
+      )
+    )
 
 object PType {
   def genScalar(required: Boolean): Gen[PType] =
-    Gen.oneOf(PBoolean(required), PInt32(required), PInt64(required), PFloat32(required),
-      PFloat64(required), PCanonicalString(required), PCanonicalCall(required))
+    Gen.oneOf(
+      PBoolean(required),
+      PInt32(required),
+      PInt64(required),
+      PFloat32(required),
+      PFloat64(required),
+      PCanonicalString(required),
+      PCanonicalCall(required),
+    )
 
   val genOptionalScalar: Gen[PType] = genScalar(false)
 
@@ -40,24 +55,24 @@ object PType {
 
   def genFields(required: Boolean, genFieldType: Gen[PType]): Gen[Array[PField]] = {
     Gen.buildableOf[Array](
-      Gen.zip(Gen.identifier, genFieldType))
+      Gen.zip(Gen.identifier, genFieldType)
+    )
       .filter(fields => fields.map(_._1).areDistinct())
-      .map(fields => fields
-        .iterator
-        .zipWithIndex
-        .map { case ((k, t), i) => PField(k, t, i) }
-        .toArray)
+      .map(fields =>
+        fields
+          .iterator
+          .zipWithIndex
+          .map { case ((k, t), i) => PField(k, t, i) }
+          .toArray
+      )
   }
 
-  def preGenStruct(required: Boolean, genFieldType: Gen[PType]): Gen[PStruct] = {
-    for (fields <- genFields(required, genFieldType)) yield
-      PCanonicalStruct(fields, required)
-  }
+  def preGenStruct(required: Boolean, genFieldType: Gen[PType]): Gen[PStruct] =
+    for (fields <- genFields(required, genFieldType)) yield PCanonicalStruct(fields, required)
 
-  def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] = {
-    for (fields <- genFields(required, genFieldType)) yield
-      PCanonicalTuple(required, fields.map(_.typ): _*)
-  }
+  def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] =
+    for (fields <- genFields(required, genFieldType))
+      yield PCanonicalTuple(required, fields.map(_.typ): _*)
 
   private val defaultRequiredGenRatio = 0.2
 
@@ -71,7 +86,8 @@ object PType {
     if (required)
       preGenStruct(required = true, genArb)
     else
-      preGenStruct(required = false, genOptional))
+      preGenStruct(required = false, genOptional)
+  )
 
   def genSized(size: Int, required: Boolean, genPStruct: Gen[PStruct]): Gen[PType] =
     if (size < 1)
@@ -82,18 +98,28 @@ object PType {
       Gen.frequency(
         (4, genScalar(required)),
         (1, genComplexType(required)),
-        (1, genArb.map {
-          PCanonicalArray(_)
-        }),
-        (1, genArb.map {
-          PCanonicalSet(_)
-        }),
-        (1, genArb.map {
-          PCanonicalInterval(_)
-        }),
+        (
+          1,
+          genArb.map {
+            PCanonicalArray(_)
+          },
+        ),
+        (
+          1,
+          genArb.map {
+            PCanonicalSet(_)
+          },
+        ),
+        (
+          1,
+          genArb.map {
+            PCanonicalInterval(_)
+          },
+        ),
         (1, preGenTuple(required, genArb)),
         (1, Gen.zip(genRequired, genArb).map { case (k, v) => PCanonicalDict(k, v) }),
-        (1, genPStruct.resize(size)))
+        (1, genPStruct.resize(size)),
+      )
     }
 
   def preGenArb(required: Boolean, genStruct: Gen[PStruct] = genStruct): Gen[PType] =
@@ -121,13 +147,34 @@ object PType {
       case TCall => PCanonicalCall(required)
       case TRNGState => StoredSTypePType(SRNGState(None), required)
       case t: TLocus => PCanonicalLocus(t.rg, required)
-      case t: TInterval => PCanonicalInterval(canonical(t.pointType, innerRequired, innerRequired), required)
-      case t: TArray => PCanonicalArray(canonical(t.elementType, innerRequired, innerRequired), required)
-      case t: TSet => PCanonicalSet(canonical(t.elementType, innerRequired, innerRequired), required)
-      case t: TDict => PCanonicalDict(canonical(t.keyType, innerRequired, innerRequired), canonical(t.valueType, innerRequired, innerRequired), required)
-      case t: TTuple => PCanonicalTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ, innerRequired, innerRequired))), required)
-      case t: TStruct => PCanonicalStruct(t.fields.map(f => PField(f.name, canonical(f.typ, innerRequired, innerRequired), f.index)), required)
-      case t: TNDArray => PCanonicalNDArray(canonical(t.elementType, innerRequired, innerRequired).setRequired(true), t.nDims, required)
+      case t: TInterval =>
+        PCanonicalInterval(canonical(t.pointType, innerRequired, innerRequired), required)
+      case t: TArray =>
+        PCanonicalArray(canonical(t.elementType, innerRequired, innerRequired), required)
+      case t: TSet =>
+        PCanonicalSet(canonical(t.elementType, innerRequired, innerRequired), required)
+      case t: TDict => PCanonicalDict(
+          canonical(t.keyType, innerRequired, innerRequired),
+          canonical(t.valueType, innerRequired, innerRequired),
+          required,
+        )
+      case t: TTuple => PCanonicalTuple(
+          t._types.map(tf =>
+            PTupleField(tf.index, canonical(tf.typ, innerRequired, innerRequired))
+          ),
+          required,
+        )
+      case t: TStruct => PCanonicalStruct(
+          t.fields.map(f =>
+            PField(f.name, canonical(f.typ, innerRequired, innerRequired), f.index)
+          ),
+          required,
+        )
+      case t: TNDArray => PCanonicalNDArray(
+          canonical(t.elementType, innerRequired, innerRequired).setRequired(true),
+          t.nDims,
+          required,
+        )
       case TVoid => PVoid
     }
   }
@@ -151,8 +198,10 @@ object PType {
       case t: PInterval => PCanonicalInterval(canonical(t.pointType), t.required)
       case t: PArray => PCanonicalArray(canonical(t.elementType), t.required)
       case t: PSet => PCanonicalSet(canonical(t.elementType), t.required)
-      case t: PTuple => PCanonicalTuple(t._types.map(pf => PTupleField(pf.index, canonical(pf.typ))), t.required)
-      case t: PStruct => PCanonicalStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
+      case t: PTuple =>
+        PCanonicalTuple(t._types.map(pf => PTupleField(pf.index, canonical(pf.typ))), t.required)
+      case t: PStruct =>
+        PCanonicalStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
       case t: PNDArray => PCanonicalNDArray(canonical(t.elementType), t.nDims, t.required)
       case t: PDict => PCanonicalDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case PVoid => PVoid
@@ -240,9 +289,7 @@ object PType {
         case t: TNDArray =>
           val r = a.asInstanceOf[Row]
           val elems = r(2).asInstanceOf[IndexedSeq[_]]
-          elems.foreach { x =>
-            setOptional(t.elementType, x, ri + 1, ci)
-          }
+          elems.foreach(x => setOptional(t.elementType, x, ri + 1, ci))
         case t: TBaseStruct =>
           val r = a.asInstanceOf[Row]
           val n = r.size
@@ -269,7 +316,8 @@ object PType {
           PCanonicalDict(
             canonical(t.keyType, ri + 1, ci + 1),
             canonical(t.valueType, childRequiredIndex(ci), childIndex(ci)),
-            requiredVector(ri))
+            requiredVector(ri),
+          )
         case t: TArray =>
           PCanonicalArray(canonical(t.elementType, ri + 1, ci), requiredVector(ri))
         case t: TStream =>
@@ -286,22 +334,27 @@ object PType {
           PCanonicalNDArray(canonical(t.elementType, ri + 1, ci), t.nDims, requiredVector(ri))
         case TString => PCanonicalString(requiredVector(ri))
         case t: TStruct =>
-          PCanonicalStruct(requiredVector(ri),
+          PCanonicalStruct(
+            requiredVector(ri),
             t.fields.zipWithIndex.map { case (f, j) =>
               f.name -> canonical(f.typ, childRequiredIndex(ci + j), childIndex(ci + j))
-            }: _*)
+            }: _*
+          )
         case t: TTuple =>
-          PCanonicalTuple(requiredVector(ri),
+          PCanonicalTuple(
+            requiredVector(ri),
             t.types.zipWithIndex.map { case (ft, j) =>
               canonical(ft, childRequiredIndex(ci + j), childIndex(ci + j))
-            }: _*)
+            }: _*
+          )
       }
     }
 
     canonical(t, 0, 0)
   }
 
-  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String]): Option[(HailClassLoader) => AsmFunction2RegionLongLong] = {
+  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String])
+    : Option[(HailClassLoader) => AsmFunction2RegionLongLong] = {
     def canonicalPath(pt: PType, path: List[String]): PType = {
       if (path.isEmpty) {
         PType.canonical(pt)
@@ -309,9 +362,12 @@ object PType {
 
       val head :: tail = path
       pt match {
-        case t@PCanonicalStruct(fields, required) =>
+        case t @ PCanonicalStruct(fields, required) =>
           assert(t.hasField(head))
-          PCanonicalStruct(fields.map(f => if (f.name == head) f.copy(typ = canonicalPath(f.typ, tail)) else f), required)
+          PCanonicalStruct(
+            fields.map(f => if (f.name == head) f.copy(typ = canonicalPath(f.typ, tail)) else f),
+            required,
+          )
         case PCanonicalArray(element, required) =>
           assert(head == "element")
           PCanonicalArray(canonicalPath(element, tail), required)
@@ -324,9 +380,12 @@ object PType {
     if (cpt == t)
       None
     else {
-      val fb = EmitFunctionBuilder[AsmFunction2RegionLongLong](ctx,
+      val fb = EmitFunctionBuilder[AsmFunction2RegionLongLong](
+        ctx,
         "copyFromAddr",
-        FastSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
+        FastSeq[ParamType](classInfo[Region], LongInfo),
+        LongInfo,
+      )
 
       fb.emitWithBuilder { cb =>
         val region = fb.apply_method.getCodeParam[Region](1)
@@ -342,7 +401,10 @@ abstract class PType extends Serializable with Requiredness {
   self =>
 
   def genValue(sm: HailStateManager): Gen[Annotation] =
-    if (required) genNonmissingValue(sm) else Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue(sm))
+    if (required) genNonmissingValue(sm)
+    else Gen.nextCoin(0.05).flatMap(isEmpty =>
+      if (isEmpty) Gen.const(null) else genNonmissingValue(sm)
+    )
 
   def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = virtualType.genNonmissingValue(sm)
 
@@ -360,7 +422,8 @@ abstract class PType extends Serializable with Requiredness {
 
   def unsafeOrdering(sm: HailStateManager): UnsafeOrdering
 
-  def isCanonical: Boolean = PType.canonical(this) == this // will recons, may need to rewrite this method
+  def isCanonical: Boolean =
+    PType.canonical(this) == this // will recons, may need to rewrite this method
 
   def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = {
     require(virtualType == rightType.virtualType, s"$this, $rightType")
@@ -391,12 +454,11 @@ abstract class PType extends Serializable with Requiredness {
 
   def equalModuloRequired(that: PType): Boolean = this == that.setRequired(required)
 
-  final def orMissing(required2: Boolean): PType = {
+  final def orMissing(required2: Boolean): PType =
     if (!required2)
       setRequired(false)
     else
       this
-  }
 
   final def isOfType(t: PType): Boolean = this.virtualType == t.virtualType
 
@@ -415,13 +477,25 @@ abstract class PType extends Serializable with Requiredness {
 
   def subsetTo(t: Type): PType = {
     this match {
-      case x@PCanonicalStruct(fields, r) =>
+      case x @ PCanonicalStruct(fields, r) =>
         val ts = t.asInstanceOf[TStruct]
         assert(ts.fieldNames.forall(x.fieldNames.contains))
-        PCanonicalStruct(r, fields.flatMap { pf => ts.selfField(pf.name).map { vf => (pf.name, pf.typ.subsetTo(vf.typ)) } }: _*)
+        PCanonicalStruct(
+          r,
+          fields.flatMap { pf =>
+            ts.selfField(pf.name).map(vf => (pf.name, pf.typ.subsetTo(vf.typ)))
+          }: _*
+        )
       case PCanonicalTuple(fields, r) =>
         val tt = t.asInstanceOf[TTuple]
-        PCanonicalTuple(fields.flatMap { pf => tt.fieldIndex.get(pf.index).map(vi => PTupleField(pf.index, pf.typ.subsetTo(tt.types(vi)))) }, r)
+        PCanonicalTuple(
+          fields.flatMap { pf =>
+            tt.fieldIndex.get(pf.index).map(vi =>
+              PTupleField(pf.index, pf.typ.subsetTo(tt.types(vi)))
+            )
+          },
+          r,
+        )
       case PCanonicalArray(e, r) =>
         val ta = t.asInstanceOf[TArray]
         PCanonicalArray(e.subsetTo(ta.elementType), r)
@@ -440,29 +514,60 @@ abstract class PType extends Serializable with Requiredness {
     }
   }
 
-  protected[physical] def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
+  protected[physical] def _copyFromAddress(
+    sm: HailStateManager,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Long
 
-  def copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  def copyFromAddress(
+    sm: HailStateManager,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Long = {
     // no requirement for requiredness
     // this can have more/less requiredness than srcPType
     // if value is not compatible with this, an exception will be thrown
     (virtualType, srcPType.virtualType) match {
       case (l: TBaseStruct, r: TBaseStruct) => assert(l.isCompatibleWith(r))
-      case _ => assert(virtualType == srcPType.virtualType, s"virtualType: ${virtualType} != srcPType.virtualType: ${srcPType.virtualType}")
+      case _ => assert(
+          virtualType == srcPType.virtualType,
+          s"virtualType: $virtualType != srcPType.virtualType: ${srcPType.virtualType}",
+        )
     }
     _copyFromAddress(sm, region, srcPType, srcAddress, deepCopy)
   }
 
-  // return a SCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
+  /* return a SCode that can cheaply operate on the region representation. Generally a pointer type,
+   * but not necessarily (e.g. primitives). */
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SValue
 
   // stores a stack value as a region value of this type
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long]
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+    : Value[Long]
 
-  // stores a stack value inside pre-allocated memory of this type (in a nested structure, for instance).
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit
+  /* stores a stack value inside pre-allocated memory of this type (in a nested structure, for
+   * instance). */
+  def storeAtAddress(
+    cb: EmitCodeBuilder,
+    addr: Code[Long],
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): Unit
 
-  def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
+  def unstagedStoreAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Unit
 
   def deepRename(t: Type): PType = this
 
@@ -474,5 +579,10 @@ abstract class PType extends Serializable with Requiredness {
 
   def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long
 
-  def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit
+  def unstagedStoreJavaObjectAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    annotation: Annotation,
+    region: Region,
+  ): Unit
 }

@@ -3,9 +3,8 @@ package is.hail.utils
 import org.apache.commons.math3.random.RandomDataGenerator
 
 object UnivHash32 {
-  def apply(outBits: Int, rand: RandomDataGenerator): UnivHash32 = {
+  def apply(outBits: Int, rand: RandomDataGenerator): UnivHash32 =
     new UnivHash32(outBits, rand.getRandomGenerator.nextInt() | 1)
-  }
 }
 
 // see e.g. Thorup, "High Speed Hashing for Integers and Strings", for explanation of "multiply-shift" hash functions,
@@ -20,9 +19,12 @@ class UnivHash32(outBits: Int, factor: Int) extends (Int => Int) {
 }
 
 object TwoIndepHash32 {
-  def apply(outBits: Int, rand: RandomDataGenerator): TwoIndepHash32 = {
-    new TwoIndepHash32(outBits, rand.getRandomGenerator.nextInt(), rand.getRandomGenerator.nextInt())
-  }
+  def apply(outBits: Int, rand: RandomDataGenerator): TwoIndepHash32 =
+    new TwoIndepHash32(
+      outBits,
+      rand.getRandomGenerator.nextInt(),
+      rand.getRandomGenerator.nextInt(),
+    )
 }
 
 class TwoIndepHash32(outBits: Int, a: Long, b: Long) extends (Int => Int) {
@@ -88,14 +90,15 @@ object FiveIndepTabulationHash32 {
     val poly2 = PolyHash(rand, 32)
     new FiveIndepTabulationHash32(
       poly1.fillLongArray(256 * 4),
-      poly2.fillIntArray(259 * 3)
+      poly2.fillIntArray(259 * 3),
     )
   }
 }
 
 // compare to Thorup and Zhang, "Tabulation-Based 5-Independent Hashing with Applications to Linear Probing and
 // Second Moment Estimation", section A.7
-class FiveIndepTabulationHash32(keyTable: Array[Long], derivedKeyTable: Array[Int]) extends (Int => Int) {
+class FiveIndepTabulationHash32(keyTable: Array[Long], derivedKeyTable: Array[Int])
+    extends (Int => Int) {
   require(keyTable.length == 256 * 4)
   require(derivedKeyTable.length == 259 * 3)
 
@@ -128,9 +131,8 @@ class FiveIndepTabulationHash32(keyTable: Array[Long], derivedKeyTable: Array[In
 }
 
 object PolyHash {
-  def apply(rand: RandomDataGenerator, degree: Int): PolyHash = {
+  def apply(rand: RandomDataGenerator, degree: Int): PolyHash =
     new PolyHash(Array.fill(degree)(rand.getRandomGenerator.nextInt()))
-  }
 
   // Can be done by the PCLMULQDQ "carryless multiply" instruction on x86 processors post ~2010.
   // This would give a significant speed boost. Any way to do this from JVM?

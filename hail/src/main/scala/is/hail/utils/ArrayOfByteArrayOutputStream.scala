@@ -6,22 +6,18 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
 
   val MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
 
-  /**
-    * The buffer where data is stored.
-    */
+  /** The buffer where data is stored. */
   protected var buf = new BoxedArrayBuilder[ByteArrayOutputStream](1)
   buf += new ByteArrayOutputStream(initialBufferCapacity)
 
   protected var bytesInCurrentArray = 0
   protected var currentArray = buf(0)
 
-  /**
-    * Creates a new byte array output stream. The buffer capacity is
-    * initially 32 bytes, though its size increases if necessary.
+  /** Creates a new byte array output stream. The buffer capacity is initially 32 bytes, though its
+    * size increases if necessary.
     */
-  def this() {
+  def this() =
     this(32)
-  }
 
   def ensureNextByte(): Unit = {
     if (bytesInCurrentArray == MAX_ARRAY_SIZE) {
@@ -52,7 +48,6 @@ class ArrayOfByteArrayOutputStream(initialBufferCapacity: Int) extends OutputStr
     }
   }
 
-  def toByteArrays(): Array[Array[Byte]] = {
+  def toByteArrays(): Array[Array[Byte]] =
     buf.result().map(_.toByteArray)
-  }
 }

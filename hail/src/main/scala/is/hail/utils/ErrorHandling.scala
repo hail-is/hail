@@ -1,6 +1,7 @@
 package is.hail.utils
 
-class HailException(val msg: String, val logMsg: Option[String], cause: Throwable, val errorId: Int) extends RuntimeException(msg, cause) {
+class HailException(val msg: String, val logMsg: Option[String], cause: Throwable, val errorId: Int)
+    extends RuntimeException(msg, cause) {
   def this(msg: String) = this(msg, None, null, -1)
   def this(msg: String, logMsg: Option[String]) = this(msg, logMsg, null, -1)
   def this(msg: String, logMsg: Option[String], cause: Throwable) = this(msg, logMsg, cause, -1)
@@ -11,7 +12,7 @@ class HailWorkerException(
   val partitionId: Int,
   val shortMessage: String,
   val expandedMessage: String,
-  val errorId: Int
+  val errorId: Int,
 ) extends RuntimeException(s"[partitionId=$partitionId] " + shortMessage)
 
 trait ErrorHandling {
@@ -42,7 +43,7 @@ trait ErrorHandling {
     while (iterE.getCause != null)
       iterE = iterE.getCause
 
-    s"${ iterE.getClass.getSimpleName }: ${ iterE.getMessage }"
+    s"${iterE.getClass.getSimpleName}: ${iterE.getMessage}"
   }
 
   def expandException(e: Throwable, logMessage: Boolean): String = {
@@ -50,9 +51,9 @@ trait ErrorHandling {
       case e: HailException => e.logMsg.filter(_ => logMessage).getOrElse(e.msg)
       case _ => e.getLocalizedMessage
     }
-    s"${ e.getClass.getName }: $msg\n\tat ${ e.getStackTrace.mkString("\n\tat ") }\n\n${
-      Option(e.getCause).map(exception => expandException(exception, logMessage)).getOrElse("")
-    }\n"
+    s"${e.getClass.getName}: $msg\n\tat ${e.getStackTrace.mkString("\n\tat ")}\n\n${Option(
+        e.getCause
+      ).map(exception => expandException(exception, logMessage)).getOrElse("")}\n"
   }
 
   def handleForPython(e: Throwable): (String, String, Int) = {
@@ -63,11 +64,9 @@ trait ErrorHandling {
     def searchForErrorCode(exception: Throwable): Int = {
       if (exception.isInstanceOf[HailException]) {
         exception.asInstanceOf[HailException].errorId
-      }
-      else if (exception.getCause == null) {
+      } else if (exception.getCause == null) {
         -1
-      }
-      else {
+      } else {
         searchForErrorCode(exception.getCause)
       }
     }

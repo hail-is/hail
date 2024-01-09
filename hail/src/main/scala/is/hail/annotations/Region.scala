@@ -1,10 +1,11 @@
 package is.hail.annotations
 
 import is.hail.asm4s
-import is.hail.asm4s.{Code, coerce}
+import is.hail.asm4s.{coerce, Code}
 import is.hail.backend.HailTaskContext
 import is.hail.types.physical._
 import is.hail.utils._
+
 import org.apache.spark.TaskContext
 
 object Region {
@@ -90,14 +91,12 @@ object Region {
 
   def setBit(byteOff: Long, bitOff: Long) {
     val b = byteOff + (bitOff >> 3)
-    storeByte(b,
-      (loadByte(b) | (1 << (bitOff & 7).toInt)).toByte)
+    storeByte(b, (loadByte(b) | (1 << (bitOff & 7).toInt)).toByte)
   }
 
   def clearBit(byteOff: Long, bitOff: Long) {
     val b = byteOff + (bitOff >> 3)
-    storeByte(b,
-      (loadByte(b) & ~(1 << (bitOff & 7).toInt)).toByte)
+    storeByte(b, (loadByte(b) & ~(1 << (bitOff & 7).toInt)).toByte)
   }
 
   def storeBit(byteOff: Long, bitOff: Long, b: Boolean) {
@@ -107,52 +106,87 @@ object Region {
       clearBit(byteOff, bitOff)
   }
 
+  def loadInt(addr: Code[Long]): Code[Int] =
+    Code.invokeScalaObject1[Long, Int](Region.getClass, "loadInt", addr)
 
-  def loadInt(addr: Code[Long]): Code[Int] = Code.invokeScalaObject1[Long, Int](Region.getClass, "loadInt", addr)
+  def loadLong(addr: Code[Long]): Code[Long] =
+    Code.invokeScalaObject1[Long, Long](Region.getClass, "loadLong", addr)
 
-  def loadLong(addr: Code[Long]): Code[Long] = Code.invokeScalaObject1[Long, Long](Region.getClass, "loadLong", addr)
+  def loadFloat(addr: Code[Long]): Code[Float] =
+    Code.invokeScalaObject1[Long, Float](Region.getClass, "loadFloat", addr)
 
-  def loadFloat(addr: Code[Long]): Code[Float] = Code.invokeScalaObject1[Long, Float](Region.getClass, "loadFloat", addr)
+  def loadDouble(addr: Code[Long]): Code[Double] =
+    Code.invokeScalaObject1[Long, Double](Region.getClass, "loadDouble", addr)
 
-  def loadDouble(addr: Code[Long]): Code[Double] = Code.invokeScalaObject1[Long, Double](Region.getClass, "loadDouble", addr)
+  def loadAddress(addr: Code[Long]): Code[Long] =
+    Code.invokeScalaObject1[Long, Long](Region.getClass, "loadAddress", addr)
 
-  def loadAddress(addr: Code[Long]): Code[Long] = Code.invokeScalaObject1[Long, Long](Region.getClass, "loadAddress", addr)
+  def loadByte(addr: Code[Long]): Code[Byte] =
+    Code.invokeScalaObject1[Long, Byte](Region.getClass, "loadByte", addr)
 
-  def loadByte(addr: Code[Long]): Code[Byte] = Code.invokeScalaObject1[Long, Byte](Region.getClass, "loadByte", addr)
+  def loadShort(addr: Code[Long]): Code[Short] =
+    Code.invokeScalaObject1[Long, Short](Region.getClass, "loadShort", addr)
 
-  def loadShort(addr: Code[Long]): Code[Short] = Code.invokeScalaObject1[Long, Short](Region.getClass, "loadShort", addr)
+  def loadChar(addr: Code[Long]): Code[Char] =
+    Code.invokeScalaObject1[Long, Char](Region.getClass, "loadChar", addr)
 
-  def loadChar(addr: Code[Long]): Code[Char] = Code.invokeScalaObject1[Long, Char](Region.getClass, "loadChar", addr)
+  def storeInt(addr: Code[Long], v: Code[Int]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Int, Unit](Region.getClass, "storeInt", addr, v)
 
-  def storeInt(addr: Code[Long], v: Code[Int]): Code[Unit] = Code.invokeScalaObject2[Long, Int, Unit](Region.getClass, "storeInt", addr, v)
+  def storeLong(addr: Code[Long], v: Code[Long]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "storeLong", addr, v)
 
-  def storeLong(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "storeLong", addr, v)
+  def storeFloat(addr: Code[Long], v: Code[Float]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Float, Unit](Region.getClass, "storeFloat", addr, v)
 
-  def storeFloat(addr: Code[Long], v: Code[Float]): Code[Unit] = Code.invokeScalaObject2[Long, Float, Unit](Region.getClass, "storeFloat", addr, v)
+  def storeDouble(addr: Code[Long], v: Code[Double]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Double, Unit](Region.getClass, "storeDouble", addr, v)
 
-  def storeDouble(addr: Code[Long], v: Code[Double]): Code[Unit] = Code.invokeScalaObject2[Long, Double, Unit](Region.getClass, "storeDouble", addr, v)
+  def storeChar(addr: Code[Long], v: Code[Char]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Char, Unit](Region.getClass, "storeChar", addr, v)
 
-  def storeChar(addr: Code[Long], v: Code[Char]): Code[Unit] = Code.invokeScalaObject2[Long, Char, Unit](Region.getClass, "storeChar", addr, v)
+  def storeAddress(addr: Code[Long], v: Code[Long]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "storeAddress", addr, v)
 
-  def storeAddress(addr: Code[Long], v: Code[Long]): Code[Unit] = Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "storeAddress", addr, v)
+  def storeByte(addr: Code[Long], v: Code[Byte]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Byte, Unit](Region.getClass, "storeByte", addr, v)
 
-  def storeByte(addr: Code[Long], v: Code[Byte]): Code[Unit] = Code.invokeScalaObject2[Long, Byte, Unit](Region.getClass, "storeByte", addr, v)
+  def storeShort(addr: Code[Long], v: Code[Short]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Short, Unit](Region.getClass, "storeShort", addr, v)
 
-  def storeShort(addr: Code[Long], v: Code[Short]): Code[Unit] = Code.invokeScalaObject2[Long, Short, Unit](Region.getClass, "storeShort", addr, v)
+  def loadBoolean(addr: Code[Long]): Code[Boolean] =
+    Code.invokeScalaObject1[Long, Boolean](Region.getClass, "loadBoolean", addr)
 
-  def loadBoolean(addr: Code[Long]): Code[Boolean] = Code.invokeScalaObject1[Long, Boolean](Region.getClass, "loadBoolean", addr)
+  def storeBoolean(addr: Code[Long], v: Code[Boolean]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Boolean, Unit](Region.getClass, "storeBoolean", addr, v)
 
-  def storeBoolean(addr: Code[Long], v: Code[Boolean]): Code[Unit] = Code.invokeScalaObject2[Long, Boolean, Unit](Region.getClass, "storeBoolean", addr, v)
+  def loadBytes(addr: Code[Long], n: Code[Int]): Code[Array[Byte]] =
+    Code.invokeScalaObject2[Long, Int, Array[Byte]](Region.getClass, "loadBytes", addr, n)
 
-  def loadBytes(addr: Code[Long], n: Code[Int]): Code[Array[Byte]] = Code.invokeScalaObject2[Long, Int, Array[Byte]](Region.getClass, "loadBytes", addr, n)
+  def loadBytes(addr: Code[Long], dst: Code[Array[Byte]], dstOff: Code[Long], n: Code[Long])
+    : Code[Unit] =
+    Code.invokeScalaObject4[Long, Array[Byte], Long, Long, Unit](
+      Region.getClass,
+      "loadBytes",
+      addr,
+      dst,
+      dstOff,
+      n,
+    )
 
-  def loadBytes(addr: Code[Long], dst: Code[Array[Byte]], dstOff: Code[Long], n: Code[Long]): Code[Unit] =
-    Code.invokeScalaObject4[Long, Array[Byte], Long, Long, Unit](Region.getClass, "loadBytes", addr, dst, dstOff, n)
+  def storeBytes(addr: Code[Long], src: Code[Array[Byte]]): Code[Unit] =
+    Code.invokeScalaObject2[Long, Array[Byte], Unit](Region.getClass, "storeBytes", addr, src)
 
-  def storeBytes(addr: Code[Long], src: Code[Array[Byte]]): Code[Unit] = Code.invokeScalaObject2[Long, Array[Byte], Unit](Region.getClass, "storeBytes", addr, src)
-
-  def storeBytes(addr: Code[Long], src: Code[Array[Byte]], srcOff: Code[Long], n: Code[Long]): Code[Unit] =
-    Code.invokeScalaObject4[Long, Array[Byte], Long, Long, Unit](Region.getClass, "storeBytes", addr, src, srcOff, n)
+  def storeBytes(addr: Code[Long], src: Code[Array[Byte]], srcOff: Code[Long], n: Code[Long])
+    : Code[Unit] =
+    Code.invokeScalaObject4[Long, Array[Byte], Long, Long, Unit](
+      Region.getClass,
+      "storeBytes",
+      addr,
+      src,
+      srcOff,
+      n,
+    )
 
   def copyFrom(srcOff: Code[Long], dstOff: Code[Long], n: Code[Long]): Code[Unit] =
     Code.invokeScalaObject3[Long, Long, Long, Unit](Region.getClass, "copyFrom", srcOff, dstOff, n)
@@ -167,13 +201,24 @@ object Region {
     Code.invokeScalaObject2[Long, Long, Unit](Region.getClass, "clearBit", byteOff, bitOff)
 
   def storeBit(byteOff: Code[Long], bitOff: Code[Long], b: Code[Boolean]): Code[Unit] =
-    Code.invokeScalaObject3[Long, Long, Boolean, Unit](Region.getClass, "storeBit", byteOff, bitOff, b)
+    Code.invokeScalaObject3[Long, Long, Boolean, Unit](
+      Region.getClass,
+      "storeBit",
+      byteOff,
+      bitOff,
+      b,
+    )
 
   def setMemory(offset: Code[Long], size: Code[Long], b: Code[Byte]): Code[Unit] =
     Code.invokeScalaObject3[Long, Long, Byte, Unit](Region.getClass, "setMemory", offset, size, b)
 
   def containsNonZeroBits(address: Code[Long], nBits: Code[Long]): Code[Boolean] =
-    Code.invokeScalaObject2[Long, Long, Boolean](Region.getClass, "containsNonZeroBits", address, nBits)
+    Code.invokeScalaObject2[Long, Long, Boolean](
+      Region.getClass,
+      "containsNonZeroBits",
+      address,
+      nBits,
+    )
 
   def containsNonZeroBits(address: Long, nBits: Long): Boolean = {
     assert((address & 0x3) == 0)
@@ -188,21 +233,21 @@ object Region {
     }
 
     while (nBits - bitsRead >= 64) {
-      if (loadLong(address + bitsRead/8) != 0)
+      if (loadLong(address + bitsRead / 8) != 0)
         return true
 
       bitsRead += 64
     }
 
     while (nBits - bitsRead >= 32) {
-      if (loadInt(address + bitsRead/8) != 0)
+      if (loadInt(address + bitsRead / 8) != 0)
         return true
 
       bitsRead += 32
     }
 
     while (nBits - bitsRead >= 8) {
-      if (loadByte(address + bitsRead/8) != 0)
+      if (loadByte(address + bitsRead / 8) != 0)
         return true
 
       bitsRead += 8
@@ -220,30 +265,47 @@ object Region {
 
   val sharedChunkHeaderBytes = 16L
   def getSharedChunkRefCount(ndAddr: Long): Long = Region.loadLong(ndAddr - sharedChunkHeaderBytes)
-  def storeSharedChunkRefCount(ndAddr: Long, newCount: Long): Unit = Region.storeLong(ndAddr - sharedChunkHeaderBytes, newCount)
+
+  def storeSharedChunkRefCount(ndAddr: Long, newCount: Long): Unit =
+    Region.storeLong(ndAddr - sharedChunkHeaderBytes, newCount)
+
   def getSharedChunkByteSize(ndAddr: Long): Long = Region.loadLong(ndAddr - 8L)
   def getSharedChunkByteSize(ndAddr: Code[Long]): Code[Long] = Region.loadLong(ndAddr - 8L)
-  def storeSharedChunkByteSize(ndAddr: Long, byteSize: Long): Unit = Region.storeLong(ndAddr - 8L, byteSize)
+
+  def storeSharedChunkByteSize(ndAddr: Long, byteSize: Long): Unit =
+    Region.storeLong(ndAddr - 8L, byteSize)
 
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =
-    Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
+    Code.invokeScalaObject2[Int, RegionPool, Region](
+      Region.getClass,
+      "apply",
+      asm4s.const(blockSize),
+      pool,
+    )
 
-  def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool): Region = {
+  def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool): Region =
     pool.getRegion(blockSize)
-  }
 
   def pretty(off: Long, n: Int, header: String): String = {
     val linewidth = 4
     s"$header\n" +
-    Region.loadBytes(off, n)
-      .map(b => "%02x".format(b)).grouped(8).map(_.mkString(" "))
-      .grouped(linewidth).zipWithIndex
-      .map { case (s, i) => "    %016x  ".format(off + (8 * 8 * linewidth * i)) + s.mkString("  ") }
-      .mkString("\n")
+      Region.loadBytes(off, n)
+        .map(b => "%02x".format(b)).grouped(8).map(_.mkString(" "))
+        .grouped(linewidth).zipWithIndex
+        .map { case (s, i) =>
+          "    %016x  ".format(off + (8 * 8 * linewidth * i)) + s.mkString("  ")
+        }
+        .mkString("\n")
   }
 
   def pretty(off: Code[Long], n: Int, header: Code[String]): Code[String] =
-    Code.invokeScalaObject3[Long, Int, String, String](Region.getClass, "pretty", off, asm4s.const(n), header)
+    Code.invokeScalaObject3[Long, Int, String, String](
+      Region.getClass,
+      "pretty",
+      off,
+      asm4s.const(n),
+      header,
+    )
 
   def pretty(t: PType, off: Long): String = {
     val v = new PrettyVisitor()
@@ -317,7 +379,11 @@ object Region {
   }
 }
 
-final class Region protected[annotations](var blockSize: Region.Size, var pool: RegionPool, var memory: RegionMemory = null) extends AutoCloseable {
+final class Region protected[annotations] (
+  var blockSize: Region.Size,
+  var pool: RegionPool,
+  var memory: RegionMemory = null,
+) extends AutoCloseable {
   def getMemory(): RegionMemory = memory
 
   def isValid(): Boolean = memory != null
@@ -332,12 +398,11 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.allocate(a, n)
   }
 
-  def invalidate(): Unit = {
+  def invalidate(): Unit =
     if (memory != null) {
       memory.release()
       memory = null
     }
-  }
 
   def clear(): Unit = {
     if (memory.getReferenceCount == 1) {
@@ -353,17 +418,14 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.allocateSharedChunk(nBytes)
   }
 
-  def trackSharedChunk(addr: Long): Unit = {
+  def trackSharedChunk(addr: Long): Unit =
     memory.trackSharedChunk(addr)
-  }
 
-  def close(): Unit = {
+  def close(): Unit =
     invalidate()
-  }
 
-  def addReferenceTo(r: Region): Unit = {
+  def addReferenceTo(r: Region): Unit =
     memory.addReferenceTo(r.memory)
-  }
 
   def move(r: Region): Unit = {
     r.memory.takeOwnershipOf(memory)
@@ -378,19 +440,16 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory = pool.getMemory(blockSize)
   }
 
-  def setNumParents(n: Int): Unit = {
+  def setNumParents(n: Int): Unit =
     memory.setNumParents(n)
-  }
 
-  def setParentReference(child: Region, idx: Int): Unit = {
+  def setParentReference(child: Region, idx: Int): Unit =
     memory.setReferenceAtIndex(child.memory, idx)
-  }
 
   def getReferenceCount(): Long = memory.getReferenceCount
 
-  def getParentReference(idx: Int, blockSize: Region.Size): Region = {
+  def getParentReference(idx: Int, blockSize: Region.Size): Region =
     new Region(blockSize, pool, memory.getReferenceAtIndex(idx, blockSize))
-  }
 
   def setFromParentReference(r: Region, idx: Int, blockSize: Region.Size): Unit = {
     invalidate()
@@ -404,37 +463,48 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     r
   }
 
-  def unreferenceRegionAtIndex(idx: Int): Unit = {
+  def unreferenceRegionAtIndex(idx: Int): Unit =
     memory.releaseReferenceAtIndex(idx)
-  }
 
   def storeJavaObject(obj: AnyRef): Int = memory.storeJavaObject(obj)
 
   def lookupJavaObject(idx: Int): AnyRef = memory.lookupJavaObject(idx)
 
-  def prettyBits(): String = {
+  def prettyBits(): String =
     "FIXME: implement prettyBits on Region"
-  }
 
-  def getPool(): RegionPool = {
+  def getPool(): RegionPool =
     pool
-  }
 
   def totalManagedBytes(): Long = memory.totalManagedBytes()
 }
 
 object RegionUtils {
   def printAddr(off: Long, name: String): String = s"$name: ${"%016x".format(off)}"
-  def printAddr(off: Code[Long], name: String): Code[String] = Code.invokeScalaObject2[Long, String, String](RegionUtils.getClass, "printAddr", off, name)
+
+  def printAddr(off: Code[Long], name: String): Code[String] =
+    Code.invokeScalaObject2[Long, String, String](RegionUtils.getClass, "printAddr", off, name)
 
   def printBytes(off: Long, n: Int, header: String): String =
     Region.loadBytes(off, n).zipWithIndex
       .grouped(16)
-      .map(bs => bs.map { case (b, _) => "%02x".format(b) }.mkString("  %016x: ".format(off + bs(0)._2), " ", ""))
+      .map(bs =>
+        bs.map { case (b, _) => "%02x".format(b) }.mkString(
+          "  %016x: ".format(off + bs(0)._2),
+          " ",
+          "",
+        )
+      )
       .mkString(if (header != null) s"$header\n" else "\n", "\n", "")
 
   def printBytes(off: Code[Long], n: Int, header: String): Code[String] =
-    Code.invokeScalaObject3[Long, Int, String, String](RegionUtils.getClass, "printBytes", off, n, asm4s.const(header))
+    Code.invokeScalaObject3[Long, Int, String, String](
+      RegionUtils.getClass,
+      "printBytes",
+      off,
+      n,
+      asm4s.const(header),
+    )
 
   def logRegionStats(header: String, region: RegionMemory): Unit = {
     val size = region.blockSize
@@ -456,9 +526,15 @@ object RegionUtils {
          |  ndarrays: $ndarrays
          |  block addr: $addr
          |  referenced: $nReferenced
-       """.stripMargin)
+       """.stripMargin
+    )
   }
 
   def logRegionStats(header: String, region: Code[Region]): Code[Unit] =
-    Code.invokeScalaObject2[String, RegionMemory, Unit](RegionUtils.getClass, "logRegionStats", header, region.invoke[RegionMemory]("getMemory"))
+    Code.invokeScalaObject2[String, RegionMemory, Unit](
+      RegionUtils.getClass,
+      "logRegionStats",
+      header,
+      region.invoke[RegionMemory]("getMemory"),
+    )
 }

@@ -12,9 +12,8 @@ import scala.reflect.{ClassTag, _}
 case object TString extends Type {
   def _toPretty = "String"
 
-  override def pyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit =
     sb.append("str")
-  }
 
   override def _showStr(a: Annotation): String = "\"" + a.asInstanceOf[String] + "\""
 
