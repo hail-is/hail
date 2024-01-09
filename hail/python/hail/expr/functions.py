@@ -6581,7 +6581,7 @@ def format(f, *args):
 
     Notes
     -----
-    See the `Java documentation <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#format-java.lang.String-java.lang.Object...->`__
+    See the `Java documentation <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/Formatter.html#syntax>`__
     for valid format specifiers and arguments.
 
     Missing values are printed as ``'null'`` except when using the
@@ -6590,7 +6590,7 @@ def format(f, *args):
     Parameters
     ----------
     f : :class:`.StringExpression`
-        Java `format string <https://docs.oracle.com/javase/8/docs/api/java/util/Formatter.html#syntax>`__.
+        Java `format string <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/Formatter.html#syntax>`__.
     args : variable-length arguments of :class:`.Expression`
         Arguments to format.
 

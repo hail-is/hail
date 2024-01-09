@@ -211,7 +211,12 @@ portalocker==2.8.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   msal-extensions
-py4j==0.10.9.5
+protobuf==3.20.2
+    # via
+    #   -c hail/hail/python/hailtop/pinned-requirements.txt
+    #   -r hail/hail/python/hailtop/requirements.txt
+    #   -r hail/hail/python/requirements.txt
+py4j==0.10.9.7
     # via pyspark
 pyasn1==0.5.1
     # via
@@ -238,7 +243,7 @@ pyjwt[crypto]==2.8.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   msal
-pyspark==3.3.2
+pyspark==3.5.0
     # via
     #   -c hail/hail/python/dataproc-pre-installed-requirements.txt
     #   -r hail/hail/python/requirements.txt

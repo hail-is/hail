@@ -17,7 +17,7 @@ repositories {
 }
 
 project.ext {
-    sparkVersion = System.getProperty("spark.version", "3.3.2")
+    sparkVersion = System.getProperty("spark.version", "3.5.0")
     scalaVersion = System.getProperty("scala.version", "2.12.18")
 }
 

@@ -56,7 +56,7 @@ class BackendServer(backend: Backend) {
     // > method.
     //
     /* Source:
-     * https://docs.oracle.com/javase/8/docs/jre/api/net/httpserver/spec/com/sun/net/httpserver/HttpServer.html#setExecutor-java.util.concurrent.Executor- */
+     * https://docs.oracle.com/en/java/javase/11/docs/api/jdk.httpserver/com/sun/net/httpserver/HttpServer.html#setExecutor(java.util.concurrent.Executor) */
     //
     httpServer.createContext("/", handler)
     httpServer.setExecutor(null)
