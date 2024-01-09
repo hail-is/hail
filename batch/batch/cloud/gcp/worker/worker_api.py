@@ -24,14 +24,13 @@ class GCPWorkerAPI(CloudWorkerAPI):
     async def from_env() -> 'GCPWorkerAPI':
         project = os.environ['PROJECT']
         zone = os.environ['ZONE'].rsplit('/', 1)[1]
-        session = aiogoogle.GoogleSession()
-        return GCPWorkerAPI(project, zone, session)
+        compute_client = aiogoogle.GoogleComputeClient(project)
+        return GCPWorkerAPI(project, zone, compute_client)
 
-    def __init__(self, project: str, zone: str, session: aiogoogle.GoogleSession):
+    def __init__(self, project: str, zone: str, compute_client: aiogoogle.GoogleComputeClient):
         self.project = project
         self.zone = zone
-        self._google_session = session
-        self._compute_client = aiogoogle.GoogleComputeClient(project, session=session)
+        self._compute_client = compute_client
         self._gcsfuse_credential_files: Dict[str, str] = {}
 
     @property
@@ -52,9 +51,6 @@ class GCPWorkerAPI(CloudWorkerAPI):
             mount_path=mount_path,
             compute_client=self._compute_client,
         )
-
-    def get_cloud_async_fs(self) -> aiogoogle.GoogleStorageAsyncFS:
-        return aiogoogle.GoogleStorageAsyncFS(session=self._google_session)
 
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         token_dict = await retry_transient_errors(

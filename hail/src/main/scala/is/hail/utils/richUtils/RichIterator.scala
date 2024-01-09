@@ -3,17 +3,18 @@ package is.hail.utils.richUtils
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.types.physical.PStruct
 import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
-import org.apache.spark.sql.Row
 
 import java.io.PrintWriter
 import scala.collection.JavaConverters._
 import scala.io.Source
 import scala.reflect.ClassTag
 
+import org.apache.spark.sql.Row
+
 class RichIteratorLong(val it: Iterator[Long]) extends AnyVal {
   def toIteratorRV(region: Region): Iterator[RegionValue] = {
     val rv = RegionValue(region)
-    it.map(ptr => { rv.setOffset(ptr); rv })
+    it.map { ptr => rv.setOffset(ptr); rv }
   }
 }
 
@@ -44,6 +45,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def intersperse[S >: T](sep: S): Iterator[S] = new Iterator[S] {
     var nextIsSep = false
     def hasNext = it.hasNext
+
     def next() = {
       val n = if (nextIsSep) sep else it.next()
       nextIsSep = !nextIsSep
@@ -54,6 +56,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def intersperse[S >: T](start: S, sep: S, end: S): Iterator[S] = new Iterator[S] {
     var state = 0
     def hasNext = state != 4
+
     def next() = {
       state match {
         case 0 =>
@@ -73,10 +76,12 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     }
   }
 
-  def pipe(pb: ProcessBuilder,
+  def pipe(
+    pb: ProcessBuilder,
     printHeader: (String => Unit) => Unit,
     printElement: (String => Unit, T) => Unit,
-    printFooter: (String => Unit) => Unit): (Iterator[String], StringBuilder, Process) = {
+    printFooter: (String => Unit) => Unit,
+  ): (Iterator[String], StringBuilder, Process) = {
 
     val command = pb.command().asScala.mkString(" ")
 
@@ -118,7 +123,8 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
         if (!hasNext)
           throw new NoSuchElementException("next on empty iterator")
 
-        // the previous element must must be fully consumed or the next block will start in the wrong place
+        /* the previous element must must be fully consumed or the next block will start in the
+         * wrong place */
         assert(prev == null || !prev.hasNext)
         prev = new Iterator[T] {
           var i = 0
@@ -143,9 +149,6 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 }
 
 class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
-  def copyToRegion(region: Region, rowTyp: PStruct): Iterator[Long] = {
-    it.map { row =>
-      rowTyp.unstagedStoreJavaObject(null, row, region)
-    }
-  }
+  def copyToRegion(region: Region, rowTyp: PStruct): Iterator[Long] =
+    it.map(row => rowTyp.unstagedStoreJavaObject(null, row, region))
 }

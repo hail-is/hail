@@ -6,7 +6,8 @@ object BoxedArrayBuilder {
   final val defaultInitialCapacity: Int = 16
 }
 
-final class BoxedArrayBuilder[T <: AnyRef](initialCapacity: Int)(implicit tct: ClassTag[T]) extends Serializable {
+final class BoxedArrayBuilder[T <: AnyRef](initialCapacity: Int)(implicit tct: ClassTag[T])
+    extends Serializable {
   private[utils] var b: Array[T] = new Array[T](initialCapacity)
   private[utils] var size_ : Int = 0
 
@@ -39,9 +40,8 @@ final class BoxedArrayBuilder[T <: AnyRef](initialCapacity: Int)(implicit tct: C
     }
   }
 
-  def clear(): Unit = {
+  def clear(): Unit =
     size_ = 0
-  }
 
   def clearAndResize(): Unit = {
     size_ = 0

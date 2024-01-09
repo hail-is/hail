@@ -3,7 +3,7 @@ package is.hail.utils.richUtils
 import is.hail.utils._
 
 import java.io.Serializable
-import scala.collection.{AbstractIterable, mutable}
+import scala.collection.{mutable, AbstractIterable}
 import scala.reflect.ClassTag
 
 object RichIterable {
@@ -51,7 +51,8 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
       }
     }
 
-  def lazyMapWith2[T2, T3, S](i2: Iterable[T2], i3: Iterable[T3], f: (T, T2, T3) => S): Iterable[S] =
+  def lazyMapWith2[T2, T3, S](i2: Iterable[T2], i3: Iterable[T3], f: (T, T2, T3) => S)
+    : Iterable[S] =
     new Iterable[S] with Serializable {
       def iterator: Iterator[S] = new Iterator[S] {
         val it: Iterator[T] = i.iterator
@@ -96,16 +97,15 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
 
   def counter(): Map[T, Int] = {
     val m = new mutable.HashMap[T, Int]()
-    i.foreach { elem => m.updateValue(elem, 0, _ + 1) }
+    i.foreach(elem => m.updateValue(elem, 0, _ + 1))
 
     m.toMap
   }
 
-  def toFastSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = {
+  def toFastSeq(implicit tct: ClassTag[T]): IndexedSeq[T] =
     i match {
       case i: mutable.WrappedArray[T] => i
       case i: mutable.ArrayBuffer[T] => i
       case _ => i.toArray[T]
     }
-  }
 }

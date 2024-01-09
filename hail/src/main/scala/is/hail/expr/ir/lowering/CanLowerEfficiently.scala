@@ -2,7 +2,9 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.functions.{TableCalculateNewPartitions, TableToValueFunction, WrappedMatrixToTableFunction}
+import is.hail.expr.ir.functions.{
+  TableCalculateNewPartitions, TableToValueFunction, WrappedMatrixToTableFunction,
+}
 import is.hail.expr.ir.lowering.LowerDistributedSort.LocalSortReader
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
@@ -56,9 +58,12 @@ object CanLowerEfficiently {
         case t: TableMapRows =>
         case t: TableMapGlobals =>
         case t: TableExplode =>
-        case t: TableUnion if t.childrenSeq.length > 16 => fail(s"TableUnion lowering generates deeply nested IR if it has many children")
+        case t: TableUnion if t.childrenSeq.length > 16 =>
+          fail(s"TableUnion lowering generates deeply nested IR if it has many children")
         case t: TableUnion =>
-        case t: TableMultiWayZipJoin => fail(s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin")
+        case t: TableMultiWayZipJoin => fail(
+            s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin"
+          )
         case t: TableDistinct =>
         case t: TableKeyByAndAggregate =>
         case t: TableAggregateByKey =>
@@ -76,7 +81,8 @@ object CanLowerEfficiently {
         case x: BlockMatrixWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
         case x: BlockMatrixMultiWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
         case x: BlockMatrixCollect => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
-        case x: BlockMatrixToValueApply => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
+        case x: BlockMatrixToValueApply =>
+          fail(s"BlockMatrixIR lowering not yet efficient/scalable")
 
         case _: MatrixMultiWrite =>
 
@@ -84,12 +90,14 @@ object CanLowerEfficiently {
         case TableToValueApply(_, ForceCountTable()) =>
         case TableToValueApply(_, NPartitionsTable()) =>
         case TableToValueApply(_, TableCalculateNewPartitions(_)) =>
-        case TableToValueApply(_, f: TableToValueFunction) => fail(s"TableToValueApply: no lowering for ${ f.getClass.getName }")
+        case TableToValueApply(_, f: TableToValueFunction) =>
+          fail(s"TableToValueApply: no lowering for ${f.getClass.getName}")
         case TableAggregate(_, _) =>
         case TableCollect(_) =>
         case TableGetGlobals(_) =>
 
-        case TableWrite(_, writer) => if (!writer.canLowerEfficiently) fail(s"writer has no efficient lowering: ${ writer.getClass.getSimpleName }")
+        case TableWrite(_, writer) => if (!writer.canLowerEfficiently)
+            fail(s"writer has no efficient lowering: ${writer.getClass.getSimpleName}")
         case TableMultiWrite(_, _) =>
 
         case RelationalRef(_, _) => throw new RuntimeException(s"unexpected relational ref")
@@ -97,7 +105,7 @@ object CanLowerEfficiently {
         case x: IR =>
           // nodes with relational children should be enumerated above explicitly
           if (!x.children.forall(_.isInstanceOf[IR])) {
-            throw new RuntimeException(s"IR must be enumerated explicitly: ${ x.getClass.getName }")
+            throw new RuntimeException(s"IR must be enumerated explicitly: ${x.getClass.getName}")
           }
       }
 

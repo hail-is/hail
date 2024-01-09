@@ -5,6 +5,7 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
+
 import org.apache.spark.sql.Row
 
 class RegionValueBuilder(sm: HailStateManager, var region: Region) {
@@ -18,7 +19,8 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
   val offsetstk = new LongArrayStack()
   val elementsOffsetstk = new LongArrayStack()
 
-  def inactive: Boolean = root == null && typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty
+  def inactive: Boolean =
+    root == null && typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty
 
   def clear(): Unit = {
     root = null
@@ -141,7 +143,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
   def startMissingArray(length: Int, init: Boolean = true) {
     val t = currentType().asInstanceOf[PArray]
     if (t.elementType.required)
-      fatal(s"cannot use random array pattern for required type ${ t.elementType }")
+      fatal(s"cannot use random array pattern for required type ${t.elementType}")
     startArrayInternal(length, init, true)
   }
 
@@ -200,11 +202,11 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     typestk.top match {
       case t: PBaseStruct =>
         if (t.fieldRequired(i))
-          fatal(s"cannot set missing field for required type ${ t.types(i) }")
+          fatal(s"cannot set missing field for required type ${t.types(i)}")
         t.setFieldMissing(offsetstk.top, i)
       case t: PArray =>
         if (t.elementType.required)
-          fatal(s"cannot set missing field for required type ${ t.elementType }")
+          fatal(s"cannot set missing field for required type ${t.elementType}")
         t.setElementMissing(offsetstk.top, i)
     }
     advance()
@@ -276,7 +278,12 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
 
   def addString(s: String) {
     assert(currentType().isInstanceOf[PString])
-    currentType().asInstanceOf[PString].unstagedStoreJavaObjectAtAddress(sm, currentOffset(), s, region)
+    currentType().asInstanceOf[PString].unstagedStoreJavaObjectAtAddress(
+      sm,
+      currentOffset(),
+      s,
+      region,
+    )
     advance()
   }
 

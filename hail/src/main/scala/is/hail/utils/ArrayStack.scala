@@ -15,9 +15,8 @@ final class ObjectArrayStack[T <: AnyRef](hintSize: Int = 16)(implicit tct: Clas
 
   def nonEmpty: Boolean = size_ > 0
 
-  def clear(): Unit = {
+  def clear(): Unit =
     size_ = 0
-  }
 
   def top: T = {
     assert(size_ > 0)
@@ -70,9 +69,8 @@ final class LongArrayStack(hintSize: Int = 16) {
 
   def nonEmpty: Boolean = size_ > 0
 
-  def clear(): Unit = {
+  def clear(): Unit =
     size_ = 0
-  }
 
   def top: Long = {
     assert(size_ > 0)
@@ -125,9 +123,8 @@ final class IntArrayStack(hintSize: Int = 16) {
 
   def nonEmpty: Boolean = size_ > 0
 
-  def clear(): Unit = {
+  def clear(): Unit =
     size_ = 0
-  }
 
   def top: Int = {
     assert(size_ > 0)

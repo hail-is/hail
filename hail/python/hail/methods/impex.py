@@ -2870,7 +2870,7 @@ def import_vcf(
 
     Import a bgzipped VCF which uses the "gz" extension rather than the "bgz" extension:
 
-    >>> ds = hl.import_vcf('data/samplepart*.vcf.gz', force_bgz=True)
+    >>> ds = hl.import_vcf('data/sample.vcf.gz', force_bgz=True)
 
     Notes
     -----
@@ -3337,6 +3337,7 @@ def import_avro(paths, *, key=None, intervals=None):
     comment=oneof(str, sequenceof(str)),
     missing=oneof(str, sequenceof(str)),
     types=dictof(str, hail_type),
+    quote=nullable(char),
     skip_blank_lines=bool,
     force_bgz=bool,
     filter=nullable(str),

@@ -172,7 +172,7 @@ class Tests(unittest.TestCase):
         except FileNotFoundError:
             pass
         except FatalError as err:
-            assert 'FileNotFoundException: a_file_that_does_not_exist' in err.args[0]
+            assert 'FileNotFoundException: file:/io/a_file_that_does_not_exist' in err.args[0]
         else:
             assert False
 

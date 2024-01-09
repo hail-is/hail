@@ -67,19 +67,19 @@ def get_namespace(value, config):
 
 class Code(abc.ABC):
     @abc.abstractmethod
-    def short_str(self):
+    def short_str(self) -> str:
         pass
 
     @abc.abstractmethod
-    def config(self):
+    def config(self) -> Dict[str, str]:
         pass
 
     @abc.abstractmethod
-    def repo_dir(self):
+    def repo_dir(self) -> str:
         """Path to repository on the ci (locally)."""
 
     @abc.abstractmethod
-    def checkout_script(self):
+    def checkout_script(self) -> str:
         """Bash script to checkout out the code in the current directory."""
 
 

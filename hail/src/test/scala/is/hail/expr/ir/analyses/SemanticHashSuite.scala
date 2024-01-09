@@ -1,39 +1,41 @@
 package is.hail.expr.ir.analyses
 
+import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
+import is.hail.io.fs.{FakeFS, FakeURL, FileListEntry, FS}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
-import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType}
-import is.hail.utils.{FastSeq, using}
-import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
+import is.hail.types.virtual._
+import is.hail.utils.{using, FastSeq}
+
 import org.json4s.JValue
-import org.testng.annotations.{DataProvider, Test}
 
 import java.io.FileNotFoundException
 import java.lang
 import scala.util.control.NonFatal
 
+import org.testng.annotations.{DataProvider, Test}
+
 class SemanticHashSuite extends HailSuite {
 
   def isTriviallySemanticallyEquivalent: Array[Array[Any]] =
     Array(
-      Array(    True(),       True(),  true, "Refl"),
-      Array(   False(),      False(),  true, "Refl"),
-      Array(    True(),      False(), false, "Refl"),
-      Array(    I32(0),       I32(0),  true, "Refl"),
-      Array(    I32(0),       I32(1), false, "Refl"),
-      Array(    I64(0),       I64(0),  true, "Refl"),
-      Array(    I64(0),       I64(1), false, "Refl"),
-      Array(    F32(0),       F32(0),  true, "Refl"),
-      Array(    F32(0),       F32(1), false, "Refl"),
-      Array(    Void(),       Void(),  true, "Refl"),
-      Array(  Str("a"),     Str("a"),  true, "Refl"),
-      Array(  Str("a"),     Str("b"), false, "Refl"),
-      Array(NA(TInt32),   NA(TInt32),  true, "Refl"),
-      Array(NA(TInt32), NA(TFloat64), false, "Refl")
+      Array(True(), True(), true, "Refl"),
+      Array(False(), False(), true, "Refl"),
+      Array(True(), False(), false, "Refl"),
+      Array(I32(0), I32(0), true, "Refl"),
+      Array(I32(0), I32(1), false, "Refl"),
+      Array(I64(0), I64(0), true, "Refl"),
+      Array(I64(0), I64(1), false, "Refl"),
+      Array(F32(0), F32(0), true, "Refl"),
+      Array(F32(0), F32(1), false, "Refl"),
+      Array(Void(), Void(), true, "Refl"),
+      Array(Str("a"), Str("a"), true, "Refl"),
+      Array(Str("a"), Str("b"), false, "Refl"),
+      Array(NA(TInt32), NA(TInt32), true, "Refl"),
+      Array(NA(TInt32), NA(TFloat64), false, "Refl"),
     )
 
   def mkRelationalLet(bindings: IndexedSeq[(String, IR)], body: IR): IR =
@@ -48,42 +50,40 @@ class SemanticHashSuite extends HailSuite {
           let(FastSeq("x" -> Void()), ref("x", TVoid)),
           let(FastSeq("y" -> Void()), ref("y", TVoid)),
           true,
-          "names used in let-bindings do not change semantics"
+          "names used in let-bindings do not change semantics",
         ),
-
         Array(
           let(FastSeq("x" -> Void(), "y" -> Void()), ref("x", TVoid)),
           let(FastSeq("y" -> Void(), "x" -> Void()), ref("y", TVoid)),
           true,
-          "names of let-bindings do not change semantics"
+          "names of let-bindings do not change semantics",
         ),
         Array(
           let(FastSeq("a" -> I32(0)), ref("a", TInt32)),
           let(FastSeq("a" -> Void()), ref("a", TVoid)),
           false,
-          "different IRs"
+          "different IRs",
         ),
         Array(
           let(FastSeq("x" -> Void(), "y" -> Void()), ref("x", TVoid)),
           let(FastSeq("y" -> Void(), "x" -> Void()), ref("x", TVoid)),
           false,
-          "Different binding being referenced"
+          "Different binding being referenced",
         ),
         /* `SemanticHash` does not perform or recognise opportunities for simplification.
-         * The following examples demonstrate some of its limitations as a consequence.
-         */
+         * The following examples demonstrate some of its limitations as a consequence. */
         Array(
           let(FastSeq("A" -> Void()), ref("A", TVoid)),
           let(FastSeq("A" -> let(FastSeq(genUID() -> I32(0)), Void())), ref("A", TVoid)),
           false,
-          "SemanticHash does not simplify"
+          "SemanticHash does not simplify",
         ),
         Array(
           let(FastSeq("A" -> Void()), ref("A", TVoid)),
           let(FastSeq("A" -> Void(), "B" -> I32(0)), ref("A", TVoid)),
           false,
-          "SemanticHash does not simplify"
-        )
+          "SemanticHash does not simplify",
+        ),
       )
     }
 
@@ -94,58 +94,58 @@ class SemanticHashSuite extends HailSuite {
           MakeStruct(Array.empty[(String, IR)]),
           MakeStruct(Array.empty[(String, IR)]),
           true,
-          "empty structs"
+          "empty structs",
         ),
         Array(
           MakeStruct(Array(genUID() -> Void())),
           MakeStruct(Array(genUID() -> Void())),
           true,
-          "field names do not affect MakeStruct semantics"
+          "field names do not affect MakeStruct semantics",
         ),
         Array(
           MakeTuple(Array.empty[(Int, IR)]),
           MakeTuple(Array.empty[(Int, IR)]),
           true,
-          "empty tuples"
+          "empty tuples",
         ),
         Array(
           MakeTuple(Array(0 -> Void())),
           MakeTuple(Array(0 -> Void())),
           true,
-          "identical tuples"
+          "identical tuples",
         ),
         Array(
           MakeTuple(Array(0 -> Void())),
           MakeTuple(Array(1 -> Void())),
           false,
-          "tuple indices affect MakeTuple semantics"
-        )
+          "tuple indices affect MakeTuple semantics",
+        ),
       ), {
 
         def f(mkType: Int => Type, get: (IR, Int) => IR, isSame: Boolean, reason: String) =
-          Array.tabulate(2) { idx => bindIR(NA(mkType(idx)))(get(_, idx)) } ++ Array(isSame, reason)
+          Array.tabulate(2)(idx => bindIR(NA(mkType(idx)))(get(_, idx))) ++ Array(isSame, reason)
 
         Array(
           f(
             mkType = i => TStruct(i.toString -> TVoid),
             get = (ir, i) => GetField(ir, i.toString),
             isSame = true,
-            "field names do not affect GetField semantics"
+            "field names do not affect GetField semantics",
           ),
           f(
             mkType = _ => TTuple(TVoid),
             get = (ir, _) => GetTupleElement(ir, 0),
             isSame = true,
-            "GetTupleElement of same index"
+            "GetTupleElement of same index",
           ),
           f(
             mkType = i => TTuple(Array(TupleField(i, TVoid))),
             get = (ir, i) => GetTupleElement(ir, i),
             isSame = false,
-            "GetTupleElement on different index"
-          )
+            "GetTupleElement on different index",
+          ),
         )
-      }
+      },
     )
 
   def isTreeStructureSemanticallyEquivalent: Array[Array[Any]] =
@@ -153,7 +153,7 @@ class SemanticHashSuite extends HailSuite {
       Array(
         MakeArray(
           MakeArray(I32(0)),
-          MakeArray(I32(0))
+          MakeArray(I32(0)),
         ),
         MakeArray(
           MakeArray(
@@ -161,7 +161,7 @@ class SemanticHashSuite extends HailSuite {
           )
         ),
         false,
-        "Tree structure contributes to semantics"
+        "Tree structure contributes to semantics",
       )
     )
 
@@ -170,7 +170,7 @@ class SemanticHashSuite extends HailSuite {
       isTriviallySemanticallyEquivalent,
       isLetSemanticallyEquivalent,
       isBaseStructSemanticallyEquivalent,
-      isTreeStructureSemanticallyEquivalent
+      isTreeStructureSemanticallyEquivalent,
     )
 
   def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {
@@ -183,7 +183,7 @@ class SemanticHashSuite extends HailSuite {
     def mkTableIR(ttype: TableType, path: String): TableIR =
       mkTableRead(new TableNativeReader(
         TableNativeReaderParameters(path, None),
-        mkFakeTableSpec(ttype)
+        mkFakeTableSpec(ttype),
       ))
 
     val tir = mkTableIR(ttype, "/fake/table")
@@ -192,26 +192,57 @@ class SemanticHashSuite extends HailSuite {
       Array(
         Array(tir, tir, true, "TableRead same table"),
         Array(tir, mkTableIR(ttype, "/another/fake/table"), false, "TableRead different table"),
-        Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("a")), true, "TableKeyBy same key"),
-        Array(TableKeyBy(tir, IndexedSeq("a")), TableKeyBy(tir, IndexedSeq("b")), false, "TableKeyBy different key")
+        Array(
+          TableKeyBy(tir, IndexedSeq("a")),
+          TableKeyBy(tir, IndexedSeq("a")),
+          true,
+          "TableKeyBy same key",
+        ),
+        Array(
+          TableKeyBy(tir, IndexedSeq("a")),
+          TableKeyBy(tir, IndexedSeq("b")),
+          false,
+          "TableKeyBy different key",
+        ),
       ),
       Array[String => TableReader](
-        path => new StringTableReader(StringTableReaderParameters(Array(path), None, false, false, false), fakeFs.glob(path)),
-        path => TableNativeZippedReader(path + ".left", path + ".right", None, mkFakeTableSpec(ttype), mkFakeTableSpec(ttypeb)),
-
+        path =>
+          new StringTableReader(
+            StringTableReaderParameters(Array(path), None, false, false, false),
+            fakeFs.glob(path),
+          ),
+        path =>
+          TableNativeZippedReader(
+            path + ".left",
+            path + ".right",
+            None,
+            mkFakeTableSpec(ttype),
+            mkFakeTableSpec(ttypeb),
+          ),
       )
         .map(mkTableRead _ compose _)
         .flatMap { reader =>
           Array(
             Array(reader("/fake/table"), reader("/fake/table"), true, "read same table"),
-            Array(reader("/fake/table"), reader("/another/fake/table"), false, "read different table")
+            Array(
+              reader("/fake/table"),
+              reader("/another/fake/table"),
+              false,
+              "read different table",
+            ),
           )
         },
       Array(
         TableGetGlobals,
         TableAggregate(_, Void()),
         TableAggregateByKey(_, MakeStruct(FastSeq())),
-        TableKeyByAndAggregate(_, MakeStruct(FastSeq()), MakeStruct(FastSeq("idx" -> I32(0))), None, 256),
+        TableKeyByAndAggregate(
+          _,
+          MakeStruct(FastSeq()),
+          MakeStruct(FastSeq("idx" -> I32(0))),
+          None,
+          256,
+        ),
         TableCollect,
         TableCount,
         TableDistinct,
@@ -219,34 +250,46 @@ class SemanticHashSuite extends HailSuite {
         TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
         TableMapRows(_, MakeStruct(FastSeq("a" -> I32(0)))),
         TableRename(_, Map.empty, Map.empty),
-      ).map { wrap =>
-        Array(wrap(tir), wrap(tir), true, "")
-      }
+      ).map(wrap => Array(wrap(tir), wrap(tir), true, "")),
     )
   }
 
   def isBlockMatrixIRSemanticallyEquivalent: Array[Array[Any]] =
     Array[String => BlockMatrixReader](
       path => BlockMatrixBinaryReader(path, Array(1L, 1L), 1),
-      path => new BlockMatrixNativeReader(BlockMatrixNativeReaderParameters(path), BlockMatrixMetadata(1, 1, 1, None, IndexedSeq.empty))
+      path =>
+        new BlockMatrixNativeReader(
+          BlockMatrixNativeReaderParameters(path),
+          BlockMatrixMetadata(1, 1, 1, None, IndexedSeq.empty),
+        ),
     )
       .map(BlockMatrixRead compose _)
       .flatMap { reader =>
         Array(
-          Array(reader("/fake/block-matrix"), reader("/fake/block-matrix"), true, "Read same block matrix"),
-          Array(reader("/fake/block-matrix"), reader("/another/fake/block-matrix"), false, "Read different block matrix"),
+          Array(
+            reader("/fake/block-matrix"),
+            reader("/fake/block-matrix"),
+            true,
+            "Read same block matrix",
+          ),
+          Array(
+            reader("/fake/block-matrix"),
+            reader("/another/fake/block-matrix"),
+            false,
+            "Read different block matrix",
+          ),
         )
       }
 
   @DataProvider(name = "isBaseIRSemanticallyEquivalent")
   def isBaseIRSemanticallyEquivalent: Array[Array[Any]] =
-    try {
+    try
       Array.concat(
         isValueIRSemanticallyEquivalent,
         isTableIRSemanticallyEquivalent,
-        isBlockMatrixIRSemanticallyEquivalent
+        isBlockMatrixIRSemanticallyEquivalent,
       )
-    } catch {
+    catch {
       case NonFatal(t) =>
         t.printStackTrace()
         throw t
@@ -254,7 +297,10 @@ class SemanticHashSuite extends HailSuite {
 
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
   def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
-    assertResult(isEqual, s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment")(
+    assertResult(
+      isEqual,
+      s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
+    )(
       semhash(fakeFs)(a) == semhash(fakeFs)(b)
     )
 
@@ -287,10 +333,9 @@ class SemanticHashSuite extends HailSuite {
         ctx.theHailClassLoader,
         ctx.flags,
         ctx.backendContext,
-        ctx.irMetadata
+        ctx.irMetadata,
       ))(SemanticHash(_)(ir))
     }
-
 
   val fakeFs: FS =
     new FakeFS {
@@ -300,6 +345,7 @@ class SemanticHashSuite extends HailSuite {
       override def glob(url: FakeURL): Array[FileListEntry] =
         Array(new FileListEntry {
           override def getPath: String = url.getPath
+          override def getActualUrl(): String = url.getPath
           override def getModificationTime: lang.Long = ???
           override def getLen: Long = ???
           override def isDirectory: Boolean = ???
@@ -313,8 +359,10 @@ class SemanticHashSuite extends HailSuite {
     val ty =
       MatrixType(
         TStruct.empty,
-        FastSeq("col_idx"), TStruct("col_idx" -> TInt32),
-        FastSeq("row_idx"), TStruct("row_idx" -> TInt32),
+        FastSeq("col_idx"),
+        TStruct("col_idx" -> TInt32),
+        FastSeq("row_idx"),
+        TStruct("row_idx" -> TInt32),
         TStruct.empty,
       )
 
@@ -341,7 +389,7 @@ class SemanticHashSuite extends HailSuite {
           override def components: Map[String, ComponentSpec] =
             Map.empty
           override def toJValue: JValue = ???
-        }
+        },
       )
 
     MatrixRead(ty, false, false, reader)

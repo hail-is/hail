@@ -13,14 +13,6 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
 @pytest.fixture(scope='module')
-def event_loop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope='module')
 async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
     token = secrets.token_hex(16)
 
@@ -118,7 +110,6 @@ async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore,
     yield sema, fs, src_base, dest_base
 
 
-@pytest.mark.asyncio
 async def test_diff(diff_test_context):
     sema, fs, src_base, dest_base = diff_test_context
 
