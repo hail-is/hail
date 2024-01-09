@@ -78,7 +78,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
     def _write_gcsfuse_credentials(self, credentials: Dict[str, str], mount_base_path_data: str) -> str:
         if mount_base_path_data not in self._gcsfuse_credential_files:
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
-                credsfile.write(credentials['key.json'])
+                credsfile.write(base64.b64decode(credentials['key.json']).decode())
                 self._gcsfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._gcsfuse_credential_files[mount_base_path_data]
 
