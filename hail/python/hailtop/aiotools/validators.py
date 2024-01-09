@@ -1,6 +1,7 @@
+import asyncio
+
 from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.utils import async_to_blocking
 from textwrap import dedent
 from typing import Optional
 from urllib.parse import urlparse
@@ -16,6 +17,12 @@ def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: 
     :class:`ValueError`
         If one of the validation steps fails.
     """
+    return asyncio.run(_async_validate_file(uri, router_async_fs, validate_scheme=validate_scheme))
+
+
+async def _async_validate_file(
+    uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: Optional[bool] = False
+) -> None:
     if validate_scheme:
         scheme = urlparse(uri).scheme
         if not scheme or scheme == "file":
@@ -23,11 +30,11 @@ def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: 
                 f"Local filepath detected: '{uri}'. The Hail Batch Service does not support the use of local "
                 "filepaths. Please specify a remote URI instead (e.g. 'gs://bucket/folder')."
             )
-    fs = router_async_fs._get_fs(uri)
+    fs = await router_async_fs._get_fs(uri)
     if isinstance(fs, GoogleStorageAsyncFS):
         location = fs.storage_location(uri)
         if location not in fs.allowed_storage_locations:
-            if not async_to_blocking(fs.is_hot_storage(location)):
+            if not await fs.is_hot_storage(location):
                 raise ValueError(
                     dedent(
                         f"""\

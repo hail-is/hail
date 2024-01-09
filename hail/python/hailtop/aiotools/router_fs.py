@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable
+from typing import Any, Optional, List, Set, AsyncIterator, Dict, AsyncContextManager, Callable, Type
 import asyncio
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
@@ -31,15 +31,25 @@ class RouterAsyncFS(AsyncFS):
         )
 
     @staticmethod
+    def copy_part_size(url: str) -> int:
+        klass, _ = RouterAsyncFS._fs_class(url)
+        return klass.copy_part_size(url)
+
+    @staticmethod
     def parse_url(url: str) -> AsyncFSURL:
+        klass, _ = RouterAsyncFS._fs_class(url)
+        return klass.parse_url(url)
+
+    @staticmethod
+    def _fs_class(url: str) -> Type[AsyncFS]:
         if LocalAsyncFS.valid_url(url):
-            return LocalAsyncFS.parse_url(url)
+            return LocalAsyncFS
         if aiogoogle.GoogleStorageAsyncFS.valid_url(url):
-            return aiogoogle.GoogleStorageAsyncFS.parse_url(url)
+            return aiogoogle.GoogleStorageAsyncFS
         if aioazure.AzureAsyncFS.valid_url(url):
-            return aioazure.AzureAsyncFS.parse_url(url)
+            return aioazure.AzureAsyncFS
         if aioaws.S3AsyncFS.valid_url(url):
-            return aioaws.S3AsyncFS.parse_url(url)
+            return aioaws.S3AsyncFS
         raise ValueError(f'no file system found for url {url}')
 
     @property
@@ -55,7 +65,8 @@ class RouterAsyncFS(AsyncFS):
             or aioaws.S3AsyncFS.valid_url(url)
         )
 
-    def _load_fs(self, uri: str):
+    async def _load_fs(self, uri: str):  # async ensures a running loop which is required
+        # by aiohttp which is used by many AsyncFSes
         fs: AsyncFS
 
         if LocalAsyncFS.valid_url(uri):
@@ -74,72 +85,69 @@ class RouterAsyncFS(AsyncFS):
         self._filesystems.append(fs)
         return fs
 
-    def _get_fs(self, uri: str) -> AsyncFS:
+    async def _get_fs(self, url: str) -> AsyncFS:  # async ensures a running loop which is required
+        # by aiohttp which is used by many AsyncFSes
         for fs in self._filesystems:
-            if fs.valid_url(uri):
+            if fs.valid_url(url):
                 return fs
-        return self._load_fs(uri)
+        return await self._load_fs(url)
 
     async def open(self, url: str) -> ReadableStream:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.open(url)
 
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.open_from(url, start, length=length)
 
     async def create(self, url: str, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.create(url, retry_writes=retry_writes)
 
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.multi_part_create(sema, url, num_parts)
 
     async def statfile(self, url: str) -> FileStatus:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.statfile(url)
 
     async def listfiles(
         self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
     ) -> AsyncIterator[FileListEntry]:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.listfiles(url, recursive, exclude_trailing_slash_files)
 
     async def staturl(self, url: str) -> str:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.staturl(url)
 
     async def mkdir(self, url: str) -> None:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.mkdir(url)
 
     async def makedirs(self, url: str, exist_ok: bool = False) -> None:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.makedirs(url, exist_ok=exist_ok)
 
     async def isfile(self, url: str) -> bool:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.isfile(url)
 
     async def isdir(self, url: str) -> bool:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.isdir(url)
 
     async def remove(self, url: str) -> None:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.remove(url)
 
     async def rmtree(
         self, sema: Optional[asyncio.Semaphore], url: str, listener: Optional[Callable[[int], None]] = None
     ) -> None:
-        fs = self._get_fs(url)
+        fs = await self._get_fs(url)
         return await fs.rmtree(sema, url, listener)
 
     async def close(self) -> None:
         for fs in self._filesystems:
             await fs.close()
-
-    def copy_part_size(self, url: str) -> int:
-        fs = self._get_fs(url)
-        return fs.copy_part_size(url)
