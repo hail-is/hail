@@ -1,4 +1,5 @@
 import abc
+import base64
 import os
 import tempfile
 from typing import Dict, List, Optional, Tuple
@@ -59,12 +60,14 @@ class AzureWorkerAPI(CloudWorkerAPI):
         }
 
     async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
+        credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
         return {'username': credentials['appId'], 'password': credentials['password']}
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
 
     def _blobfuse_credentials(self, credentials: Dict[str, str], account: str, container: str) -> str:
+        credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
         # https://github.com/Azure/azure-storage-fuse
         return f'''
 accountName {account}

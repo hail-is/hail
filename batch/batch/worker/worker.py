@@ -3092,12 +3092,10 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
-        credentials = body['gsa_key']
-
         job = Job.create(
             batch_id,
             body['user'],
-            credentials,
+            body['gsa_key'],
             job_spec,
             format_version,
             self.task_manager,
