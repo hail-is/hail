@@ -1,9 +1,9 @@
 package org.apache.spark
 
+import scala.reflect._
+
 import org.apache.spark.serializer._
 import org.apache.spark.util._
-
-import scala.reflect._
 
 object ExposedUtils {
   def clean[F <: AnyRef](f: F, checkSerializable: Boolean = true): F = {

@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.types.virtual.{TBoolean, TInt32, TStream}
+
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -11,10 +12,14 @@ class UtilFunctionsSuite extends HailSuite {
 
   val na = NA(TBoolean)
   val die = Die("it ded", TBoolean)
+
   val folded = StreamFold(
     MakeStream(IndexedSeq(true), TStream(TBoolean)),
-    die, "a", "e",
-    Ref("a", TBoolean) || Ref("e", TBoolean))
+    die,
+    "a",
+    "e",
+    Ref("a", TBoolean) || Ref("e", TBoolean),
+  )
 
   @Test def shortCircuitOr() {
     assertEvalsTo(True() || True(), true)
@@ -33,7 +38,7 @@ class UtilFunctionsSuite extends HailSuite {
   }
 
   @Test def shortCircuitOrHandlesErrors() {
-    //FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
+    // FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
     assertCompiledFatal(na || die, "it ded")
     assertCompiledFatal(False() || die, "it ded")
     // FIXME: This needs to be fixed with an interpreter function registry

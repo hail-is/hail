@@ -6,10 +6,11 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
 import is.hail.utils._
-import org.testng.Assert._
-import org.testng.annotations.Test
 
 import scala.collection.generic.Growable
+
+import org.testng.Assert._
+import org.testng.annotations.Test
 
 class StagedBlockLinkedListSuite extends HailSuite {
 
@@ -43,18 +44,19 @@ class StagedBlockLinkedListSuite extends HailSuite {
       val ptr = fb.getCodeParam[Long](2)
       val eltOff = fb.getCodeParam[Long](3)
       fb.emitWithBuilder[Unit] { cb =>
-
         sbll.load(cb, ptr)
-        sbll.push(cb, r, EmitCode(Code._empty,
-          eltOff.get.ceq(0L),
-          elemPType.loadCheapSCode(cb, eltOff)))
+        sbll.push(
+          cb,
+          r,
+          EmitCode(Code._empty, eltOff.get.ceq(0L), elemPType.loadCheapSCode(cb, eltOff)),
+        )
         sbll.store(cb, ptr)
         Code._empty
       }
 
       val f = fb.result()(theHailClassLoader)
       ({ (r, ptr, elt) =>
-        f(r, ptr, if(elt == null) 0L else ScalaToRegionValue(ctx.stateManager, r, elemPType, elt))
+        f(r, ptr, if (elt == null) 0L else ScalaToRegionValue(ctx.stateManager, r, elemPType, elt))
       })
     }
 
@@ -121,13 +123,13 @@ class StagedBlockLinkedListSuite extends HailSuite {
 
       val f = fb.result()(theHailClassLoader)
       ({ (r, other) => f(r, other.ptr) })
-     }
+    }
 
     private var ptr = 0L
 
-    def clear(): Unit = { ptr = initF(region) }
-    def +=(e: E): this.type = { pushF(region, ptr, e) ; this }
-    def ++=(other: BlockLinkedList[E]): this.type = { appendF(region, ptr, other) ; this }
+    def clear(): Unit = ptr = initF(region)
+    def +=(e: E): this.type = { pushF(region, ptr, e); this }
+    def ++=(other: BlockLinkedList[E]): this.type = { appendF(region, ptr, other); this }
     def toIndexedSeq: IndexedSeq[E] = materializeF(region, ptr)
 
     if (initImmediately) clear()
@@ -152,7 +154,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
       val a = new BoxedArrayBuilder[String]()
       val b = new BlockLinkedList[String](region, PCanonicalString())
       for (i <- 1 to 100) {
-        val elt = if(i%3 == 0) null else i.toString()
+        val elt = if (i % 3 == 0) null else i.toString()
         a += elt
         b += elt
       }

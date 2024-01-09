@@ -100,6 +100,7 @@ class ClientSession:
         if timeout is None:
             timeout = aiohttp.ClientTimeout(total=5)
 
+        self.loop = asyncio.get_running_loop()
         self.raise_for_status = raise_for_status
         self.client_session = aiohttp.ClientSession(
             *args, timeout=timeout, raise_for_status=False, connector=aiohttp.TCPConnector(ssl=tls), **kwargs
@@ -108,6 +109,10 @@ class ClientSession:
     def request(
         self, method: str, url: aiohttp.typedefs.StrOrURL, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
+        if self.loop != asyncio.get_running_loop():
+            raise ValueError(
+                f'ClientSession must be created and used in same loop {self.loop} != {asyncio.get_running_loop()}.'
+            )
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
 
         async def request_and_raise_for_status():

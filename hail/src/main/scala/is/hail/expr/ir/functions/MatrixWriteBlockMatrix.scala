@@ -1,17 +1,26 @@
 package is.hail.expr.ir.functions
 
-import java.io.DataOutputStream
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.MatrixValue
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
 import is.hail.types.{MatrixType, RPrimitive, RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{TVoid, Type}
-import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
 import is.hail.utils._
+
 import org.json4s.jackson
 
+import java.io.DataOutputStream
+
 object MatrixWriteBlockMatrix {
-  def apply(ctx: ExecuteContext, mv: MatrixValue, entryField: String, path: String, overwrite: Boolean, blockSize: Int): Unit = {
+  def apply(
+    ctx: ExecuteContext,
+    mv: MatrixValue,
+    entryField: String,
+    path: String,
+    overwrite: Boolean,
+    blockSize: Int,
+  ): Unit = {
     val rvd = mv.rvd
 
     // FIXME
@@ -48,7 +57,8 @@ object MatrixWriteBlockMatrix {
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, localNCols, gp.partitionIndexToBlockIndex, partFiles),
-        os)
+        os,
+      )
     }
 
     assert(blockCount == gp.numPartitions)

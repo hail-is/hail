@@ -1,13 +1,13 @@
 package is.hail.io
 
-import java.io._
-import java.util
-import java.util.function.Supplier
-
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+
+import java.io._
+import java.util
+import java.util.function.Supplier
 
 import com.github.luben.zstd.{Zstd, ZstdCompressCtx}
 
@@ -176,7 +176,8 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
 
   def writeBytes(addr: Long, n: Int): Unit = out.writeBytes(addr, n)
 
-  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = out.writeDoubles(from, fromOff, n)
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit =
+    out.writeDoubles(from, fromOff, n)
 }
 
 final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
@@ -299,7 +300,8 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
   def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 }
 
-final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffer)
+    extends OutputBlockBuffer {
   private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
   def flush() {
@@ -319,7 +321,12 @@ final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffe
   def getPos(): Long = out.getPos()
 }
 
-final class LZ4SizeBasedCompressingOutputBlockBuffer(lz4: LZ4, blockSize: Int, minCompressionSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+final class LZ4SizeBasedCompressingOutputBlockBuffer(
+  lz4: LZ4,
+  blockSize: Int,
+  minCompressionSize: Int,
+  out: OutputBlockBuffer,
+) extends OutputBlockBuffer {
   private val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
 
   def flush() {
@@ -357,7 +364,8 @@ object ZstdCompressLib {
   })
 }
 
-final class ZstdOutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+final class ZstdOutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer)
+    extends OutputBlockBuffer {
   private[this] val zstd = ZstdCompressLib.instance.get
   private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
 
@@ -374,7 +382,11 @@ final class ZstdOutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extend
   def getPos(): Long = out.getPos()
 }
 
-final class ZstdSizedBasedOutputBlockBuffer(blockSize: Int, minCompressionSize: Int, out: OutputBlockBuffer) extends OutputBlockBuffer {
+final class ZstdSizedBasedOutputBlockBuffer(
+  blockSize: Int,
+  minCompressionSize: Int,
+  out: OutputBlockBuffer,
+) extends OutputBlockBuffer {
   private[this] val zstd = ZstdCompressLib.instance.get
   private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
 

@@ -1,11 +1,12 @@
 package is.hail
 
+import is.hail.utils.BoxedArrayBuilder
+
 import java.io.File
 import java.lang.reflect.Modifier
 import java.net.URI
 
 import breeze.linalg.{DenseMatrix, DenseVector}
-import is.hail.utils.BoxedArrayBuilder
 import org.testng.annotations.{DataProvider, Test}
 
 class TestUtilsSuite extends HailSuite {
@@ -34,11 +35,9 @@ class TestUtilsSuite extends HailSuite {
   }
 
   @Test def removeConstantColsTest(): Unit = {
-    val M = DenseMatrix((0, 0, 1, 1, 0),
-                        (0, 1, 0, 1, 1))
+    val M = DenseMatrix((0, 0, 1, 1, 0), (0, 1, 0, 1, 1))
 
-    val M1 = DenseMatrix((0, 1, 0),
-                         (1, 0, 1))
+    val M1 = DenseMatrix((0, 1, 0), (1, 0, 1))
 
     assert(TestUtils.removeConstantCols(M) == M1)
   }

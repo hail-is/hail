@@ -1,10 +1,11 @@
 package is.hail.kryo
 
-import com.esotericsoftware.kryo.Kryo
-import com.esotericsoftware.kryo.serializers.JavaSerializer
 import is.hail.annotations.{Region, UnsafeIndexedSeq, UnsafeRow}
 import is.hail.utils.{Interval, SerializableHadoopConfiguration}
 import is.hail.variant.Locus
+
+import com.esotericsoftware.kryo.Kryo
+import com.esotericsoftware.kryo.serializers.JavaSerializer
 import org.apache.spark.serializer.KryoRegistrator
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 

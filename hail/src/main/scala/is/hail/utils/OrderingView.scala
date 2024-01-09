@@ -8,6 +8,7 @@ trait OrderingView[A] {
     isInfinite = 0
     setFiniteValue(a)
   }
+
   def compare(a: A): Int =
     if (isInfinite != 0) isInfinite
     else compareFinite(a)

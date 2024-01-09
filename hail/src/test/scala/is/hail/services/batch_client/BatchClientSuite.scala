@@ -1,8 +1,10 @@
 package is.hail.services.batch_client
 
 import is.hail.utils._
-import org.json4s.JsonAST._
+
 import org.json4s.{DefaultFormats, Formats}
+import org.json4s.JsonAST._
+
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -14,7 +16,8 @@ class BatchClientSuite extends TestNGSuite {
       JObject(
         "billing_project" -> JString("test"),
         "n_jobs" -> JInt(1),
-        "token" -> JString(token)),
+        "token" -> JString(token),
+      ),
       FastSeq(
         JObject(
           "always_run" -> JBool(false),
@@ -25,9 +28,13 @@ class BatchClientSuite extends TestNGSuite {
             "command" -> JArray(List(
               JString("/bin/bash"),
               JString("-c"),
-              JString("echo 'Hello, world!'"))),
-            "type" -> JString("docker"))
-        )))
+              JString("echo 'Hello, world!'"),
+            )),
+            "type" -> JString("docker"),
+          ),
+        )
+      ),
+    )
     implicit val formats: Formats = DefaultFormats
     assert((batch \ "state").extract[String] == "success")
   }

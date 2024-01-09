@@ -1,11 +1,12 @@
 package is.hail.annotations
 
-import java.io._
-
 import is.hail.asm4s.HailClassLoader
+import is.hail.io._
 import is.hail.types.physical.PType
 import is.hail.utils.{using, RestartableByteArrayInputStream}
-import is.hail.io._
+
+import java.io._
+
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object RegionValue {
@@ -19,7 +20,7 @@ object RegionValue {
     theHailClassLoader: HailClassLoader,
     makeDec: (InputStream, HailClassLoader) => Decoder,
     r: Region,
-    byteses: Iterator[Array[Byte]]
+    byteses: Iterator[Array[Byte]],
   ): Iterator[Long] = {
     val bad = new ByteArrayDecoder(theHailClassLoader, makeDec)
     byteses.map(bad.regionValueFromBytes(r, _))
@@ -29,18 +30,16 @@ object RegionValue {
     theHailClassLoader: HailClassLoader,
     makeDec: (InputStream, HailClassLoader) => Decoder,
     r: Region,
-    byteses: Iterator[Array[Byte]]
+    byteses: Iterator[Array[Byte]],
   ): Iterator[Long] = {
     val bad = new ByteArrayDecoder(theHailClassLoader, makeDec)
-    byteses.map { bytes =>
-      bad.regionValueFromBytes(r, bytes)
-    }
+    byteses.map(bytes => bad.regionValueFromBytes(r, bytes))
   }
 
   def toBytes(
     theHailClassLoader: HailClassLoader,
     makeEnc: (OutputStream, HailClassLoader) => Encoder,
-    rvs: Iterator[Long]
+    rvs: Iterator[Long],
   ): Iterator[Array[Byte]] = {
     val bae = new ByteArrayEncoder(theHailClassLoader, makeEnc)
     rvs.map(bae.regionValueToBytes)
@@ -49,7 +48,7 @@ object RegionValue {
 
 final class RegionValue(
   var region: Region,
-  var offset: Long
+  var offset: Long,
 ) extends UnKryoSerializable {
   def getOffset: Long = offset
 
@@ -68,11 +67,9 @@ final class RegionValue(
 
   def pretty(t: PType): String = Region.pretty(t, offset)
 
-  private def writeObject(s: ObjectOutputStream): Unit = {
+  private def writeObject(s: ObjectOutputStream): Unit =
     throw new NotImplementedException()
-  }
 
-  private def readObject(s: ObjectInputStream): Unit = {
+  private def readObject(s: ObjectInputStream): Unit =
     throw new NotImplementedException()
-  }
 }

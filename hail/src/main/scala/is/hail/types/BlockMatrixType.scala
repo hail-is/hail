@@ -4,6 +4,7 @@ import is.hail.expr.ir._
 import is.hail.linalg.BlockMatrix
 import is.hail.types.virtual._
 import is.hail.utils._
+
 import org.apache.spark.sql.Row
 
 object BlockMatrixSparsity {
@@ -11,9 +12,11 @@ object BlockMatrixSparsity {
 
   val dense: BlockMatrixSparsity = new BlockMatrixSparsity(None: Option[IndexedSeq[(Int, Int)]])
 
-  def apply(definedBlocks: IndexedSeq[(Int, Int)]): BlockMatrixSparsity = BlockMatrixSparsity(Some(definedBlocks))
+  def apply(definedBlocks: IndexedSeq[(Int, Int)]): BlockMatrixSparsity =
+    BlockMatrixSparsity(Some(definedBlocks))
 
-  def constructFromShapeAndFunction(nRows: Int, nCols: Int)(exists: (Int, Int) => Boolean): BlockMatrixSparsity = {
+  def constructFromShapeAndFunction(nRows: Int, nCols: Int)(exists: (Int, Int) => Boolean)
+    : BlockMatrixSparsity = {
     var i = 0
     builder.clear()
     while (i < nRows) {
@@ -28,14 +31,25 @@ object BlockMatrixSparsity {
     BlockMatrixSparsity(Some(builder.result().toFastSeq))
   }
 
-  def fromLinearBlocks(nCols: Long, nRows: Long, blockSize: Int, definedBlocks: Option[IndexedSeq[Int]]): BlockMatrixSparsity = {
+  def fromLinearBlocks(
+    nCols: Long,
+    nRows: Long,
+    blockSize: Int,
+    definedBlocks: Option[IndexedSeq[Int]],
+  ): BlockMatrixSparsity = {
     val nColBlocks = BlockMatrixType.numBlocks(nCols, blockSize)
     definedBlocks.map { blocks =>
-      BlockMatrixSparsity(blocks.map { linearIdx => java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks })
+      BlockMatrixSparsity(blocks.map { linearIdx =>
+        java.lang.Math.floorDiv(linearIdx, nColBlocks) -> linearIdx % nColBlocks
+      })
     }.getOrElse(dense)
   }
+
   def transposeCSCSparsity(
-    nRows: Int, nCols: Int, rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int]
+    nRows: Int,
+    nCols: Int,
+    rowPos: IndexedSeq[Int],
+    rowIdx: IndexedSeq[Int],
   ): (IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int]) = {
     val newRowPos = Array.ofDim[Int](nRows + 1)
     val newRowIdx = Array.ofDim[Int](rowIdx.length)
@@ -80,7 +94,10 @@ object BlockMatrixSparsity {
   }
 
   def transposeCSCSparsityIR(
-    nRows: Int, nCols: Int, rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int]
+    nRows: Int,
+    nCols: Int,
+    rowPos: IndexedSeq[Int],
+    rowIdx: IndexedSeq[Int],
   ): (IR, IR, IR) = {
     val (newRowPos, newRowIdx, newToOldPos) = transposeCSCSparsity(nRows, nCols, rowPos, rowIdx)
     val t = TArray(TInt32)
@@ -88,8 +105,10 @@ object BlockMatrixSparsity {
   }
 
   def filterCSCSparsity(
-    rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int],
-    rowDeps: IndexedSeq[Int], colDeps: IndexedSeq[Int]
+    rowPos: IndexedSeq[Int],
+    rowIdx: IndexedSeq[Int],
+    rowDeps: IndexedSeq[Int],
+    colDeps: IndexedSeq[Int],
   ): (IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int]) = {
     val newRowPos = new IntArrayBuilder()
     val newRowIdx = new IntArrayBuilder()
@@ -123,12 +142,19 @@ object BlockMatrixSparsity {
   }
 
   def groupedCSCSparsity(
-    rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int],
-    rowDeps: IndexedSeq[IndexedSeq[Int]], colDeps: IndexedSeq[IndexedSeq[Int]]
-  ): (IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[(IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int])]) = {
+    rowPos: IndexedSeq[Int],
+    rowIdx: IndexedSeq[Int],
+    rowDeps: IndexedSeq[IndexedSeq[Int]],
+    colDeps: IndexedSeq[IndexedSeq[Int]],
+  ): (
+    IndexedSeq[Int],
+    IndexedSeq[Int],
+    IndexedSeq[(IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int])],
+  ) = {
     val newRowPos = new IntArrayBuilder()
     val newRowIdx = new IntArrayBuilder()
-    val nestedSparsities = new AnyRefArrayBuilder[(IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int])]()
+    val nestedSparsities =
+      new AnyRefArrayBuilder[(IndexedSeq[Int], IndexedSeq[Int], IndexedSeq[Int])]()
 
     var curOutPos = 0
     var j = 0
@@ -152,48 +178,57 @@ object BlockMatrixSparsity {
   }
 
   def groupedCSCSparsityIR(
-    rowPos: IndexedSeq[Int], rowIdx: IndexedSeq[Int],
-    rowDeps: IndexedSeq[IndexedSeq[Int]], colDeps: IndexedSeq[IndexedSeq[Int]]
+    rowPos: IndexedSeq[Int],
+    rowIdx: IndexedSeq[Int],
+    rowDeps: IndexedSeq[IndexedSeq[Int]],
+    colDeps: IndexedSeq[IndexedSeq[Int]],
   ): (IR, IR, IR) = {
-    val (newRowPos, newRowIdx, nestedSparsities) = groupedCSCSparsity(rowPos, rowIdx, rowDeps, colDeps)
+    val (newRowPos, newRowIdx, nestedSparsities) =
+      groupedCSCSparsity(rowPos, rowIdx, rowDeps, colDeps)
     val t = TArray(TInt32)
-    (Literal(t, newRowPos), Literal(t, newRowIdx), Literal(TArray(TTuple(t, t, t)), nestedSparsities.map(Row.fromTuple)))
+    (
+      Literal(t, newRowPos),
+      Literal(t, newRowIdx),
+      Literal(TArray(TTuple(t, t, t)), nestedSparsities.map(Row.fromTuple)),
+    )
   }
 }
 
 case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
   lazy val definedBlocksColMajor: Option[IndexedSeq[(Int, Int)]] = definedBlocks.map { blocks =>
     blocks.sortWith { case ((i1, j1), (i2, j2)) =>
-        j1 < j2 || (j1 == j2 && i1 < i2)
+      j1 < j2 || (j1 == j2 && i1 < i2)
     }
   }
 
-  def definedBlocksCSC(nCols: Int): Option[(IndexedSeq[Int], IndexedSeq[Int])] = definedBlocksColMajor.map { blocks =>
-    var curColIdx = 0
-    var curPos = 0
-    val pos = new Array[Int](nCols + 1)
-    val rowIdx = new IntArrayBuilder()
+  def definedBlocksCSC(nCols: Int): Option[(IndexedSeq[Int], IndexedSeq[Int])] =
+    definedBlocksColMajor.map { blocks =>
+      var curColIdx = 0
+      var curPos = 0
+      val pos = new Array[Int](nCols + 1)
+      val rowIdx = new IntArrayBuilder()
 
-    pos(0) = 0
-    for ((i, j) <- blocks) {
-      while (curColIdx < j) {
+      pos(0) = 0
+      for ((i, j) <- blocks) {
+        while (curColIdx < j) {
+          pos(curColIdx + 1) = curPos
+          curColIdx += 1
+        }
+        rowIdx += i
+        curPos += 1
+      }
+      while (curColIdx < nCols) {
         pos(curColIdx + 1) = curPos
         curColIdx += 1
       }
-      rowIdx += i
-      curPos += 1
+      (pos, rowIdx.result())
     }
-    while (curColIdx < nCols) {
-      pos(curColIdx + 1) = curPos
-      curColIdx += 1
-    }
-    (pos, rowIdx.result())
-  }
 
-  def definedBlocksCSCIR(nCols: Int): Option[(IR, IR)] = definedBlocksCSC(nCols).map { case (rowPos, rowIdx) =>
-    val t = TArray(TInt32)
-    (Literal(t, rowPos), Literal(t, rowIdx))
-  }
+  def definedBlocksCSCIR(nCols: Int): Option[(IR, IR)] =
+    definedBlocksCSC(nCols).map { case (rowPos, rowIdx) =>
+      val t = TArray(TInt32)
+      (Literal(t, rowPos), Literal(t, rowIdx))
+    }
 
   def definedBlocksColMajorIR: Option[IR] = definedBlocksColMajor.map { blocks =>
     ToStream(Literal(TArray(TTuple(TInt32, TInt32)), blocks.map(Row.fromTuple)))
@@ -212,6 +247,7 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
   def isSparse: Boolean = definedBlocks.isDefined
   lazy val blockSet: Set[(Int, Int)] = definedBlocks.get.toSet
   def hasBlock(idx: (Int, Int)): Boolean = definedBlocks.isEmpty || blockSet.contains(idx)
+
   def condense(blockOverlaps: => (Array[Array[Int]], Array[Array[Int]])): BlockMatrixSparsity = {
     definedBlocks.map { _ =>
       val (ro, co) = blockOverlaps
@@ -220,6 +256,7 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
       }
     }.getOrElse(BlockMatrixSparsity.dense)
   }
+
   def allBlocksColMajor(nRowBlocks: Int, nColBlocks: Int): IndexedSeq[(Int, Int)] = {
     definedBlocksColMajor.getOrElse {
       val foo = Array.fill[(Int, Int)](nRowBlocks * nColBlocks)(null)
@@ -238,13 +275,10 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
     }
   }
 
-  def allBlocksColMajorIR(nRowBlocks: Int, nColBlocks: Int): IR = definedBlocksColMajorIR.getOrElse {
-    flatMapIR(rangeIR(nColBlocks)) { j =>
-      mapIR(rangeIR(nRowBlocks)) { i =>
-        maketuple(i, j)
-      }
+  def allBlocksColMajorIR(nRowBlocks: Int, nColBlocks: Int): IR =
+    definedBlocksColMajorIR.getOrElse {
+      flatMapIR(rangeIR(nColBlocks))(j => mapIR(rangeIR(nRowBlocks))(i => maketuple(i, j)))
     }
-  }
 
   def allBlocksRowMajor(nRowBlocks: Int, nColBlocks: Int): IndexedSeq[(Int, Int)] = {
     (definedBlocksRowMajor).getOrElse {
@@ -264,13 +298,10 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
     }
   }
 
-  def allBlocksRowMajorIR(nRowBlocks: Int, nColBlocks: Int): IR = definedBlocksRowMajorIR.getOrElse {
-    flatMapIR(rangeIR(nRowBlocks)) { i =>
-      mapIR(rangeIR(nColBlocks)) { j =>
-        maketuple(i, j)
-      }
+  def allBlocksRowMajorIR(nRowBlocks: Int, nColBlocks: Int): IR =
+    definedBlocksRowMajorIR.getOrElse {
+      flatMapIR(rangeIR(nRowBlocks))(i => mapIR(rangeIR(nColBlocks))(j => maketuple(i, j)))
     }
-  }
 
   def transpose: BlockMatrixSparsity =
     BlockMatrixSparsity(definedBlocks.map(_.map { case (i, j) => (j, i) }))
@@ -282,15 +313,14 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
 }
 
 object BlockMatrixType {
-  def tensorToMatrixShape(shape: IndexedSeq[Long], isRowVector: Boolean): (Long, Long) = {
+  def tensorToMatrixShape(shape: IndexedSeq[Long], isRowVector: Boolean): (Long, Long) =
     shape match {
       case IndexedSeq() => (1, 1)
       case IndexedSeq(vectorLength) => if (isRowVector) (1, vectorLength) else (vectorLength, 1)
       case IndexedSeq(numRows, numCols) => (numRows, numCols)
     }
-  }
 
-  def matrixToTensorShape(nRows: Long,  nCols: Long): (IndexedSeq[Long], Boolean) = {
+  def matrixToTensorShape(nRows: Long, nCols: Long): (IndexedSeq[Long], Boolean) = {
     (nRows, nCols) match {
       case (1, 1) => (FastSeq(), false)
       case (_, 1) => (FastSeq(nRows), false)
@@ -310,7 +340,12 @@ object BlockMatrixType {
   }
 
   def fromBlockMatrix(value: BlockMatrix): BlockMatrixType = {
-    val sparsity = BlockMatrixSparsity.fromLinearBlocks(value.nRows, value.nCols, value.blockSize, value.gp.partitionIndexToBlockIndex)
+    val sparsity = BlockMatrixSparsity.fromLinearBlocks(
+      value.nRows,
+      value.nCols,
+      value.blockSize,
+      value.gp.partitionIndexToBlockIndex,
+    )
     val (shape, isRowVector) = matrixToTensorShape(value.nRows, value.nCols)
     BlockMatrixType(TFloat64, shape, isRowVector, value.blockSize, sparsity)
   }
@@ -321,7 +356,7 @@ case class BlockMatrixType(
   shape: IndexedSeq[Long],
   isRowVector: Boolean,
   blockSize: Int,
-  sparsity: BlockMatrixSparsity
+  sparsity: BlockMatrixSparsity,
 ) extends BaseType {
   require(blockSize >= 0)
   lazy val (nRows: Long, nCols: Long) = BlockMatrixType.tensorToMatrixShape(shape, isRowVector)
@@ -336,10 +371,13 @@ case class BlockMatrixType(
 
   def getBlockIdx(i: Long): Int = java.lang.Math.floorDiv(i, blockSize).toInt
   def isSparse: Boolean = sparsity.isSparse
+
   def nDefinedBlocks: Int =
     if (isSparse) sparsity.definedBlocks.get.length else nRowBlocks * nColBlocks
+
   def hasBlock(idx: (Int, Int)): Boolean =
-    if (isSparse) sparsity.hasBlock(idx) else idx._1 >= 0 && idx._1 < nRowBlocks && idx._2 >= 0 && idx._2 < nColBlocks
+    if (isSparse) sparsity.hasBlock(idx)
+    else idx._1 >= 0 && idx._1 < nRowBlocks && idx._2 >= 0 && idx._2 < nColBlocks
 
   def transpose: BlockMatrixType = {
     val newShape = shape match {
@@ -356,8 +394,8 @@ case class BlockMatrixType(
   def allBlocksRowMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksRowMajor(nRowBlocks, nColBlocks)
   def allBlocksRowMajorIR: IR = sparsity.allBlocksRowMajorIR(nRowBlocks, nColBlocks)
 
-  lazy val linearizedDefinedBlocks: Option[IndexedSeq[Int]] = sparsity.definedBlocksColMajor.map { blocks =>
-    blocks.map { case (i, j) => i + j * nRowBlocks }
+  lazy val linearizedDefinedBlocks: Option[IndexedSeq[Int]] = sparsity.definedBlocksColMajor.map {
+    blocks => blocks.map { case (i, j) => i + j * nRowBlocks }
   }
 
   def blockShape(i: Int, j: Int): (Long, Long) = {
@@ -375,12 +413,18 @@ case class BlockMatrixType(
   }
 
   private[this] def getBlockDependencies(keep: Array[Array[Long]]): Array[Array[Int]] =
-    keep.map(keeps => Array.range(BlockMatrixType.getBlockIdx(keeps.head, blockSize), BlockMatrixType.getBlockIdx(keeps.last, blockSize) + 1)).toArray
+    keep.map(keeps =>
+      Array.range(
+        BlockMatrixType.getBlockIdx(keeps.head, blockSize),
+        BlockMatrixType.getBlockIdx(keeps.last, blockSize) + 1,
+      )
+    ).toArray
 
   def rowBlockDependents(keepRows: Array[Array[Long]]): Array[Array[Int]] = if (keepRows.isEmpty)
     Array.tabulate(nRowBlocks)(i => Array(i))
   else
     getBlockDependencies(keepRows)
+
   def colBlockDependents(keepCols: Array[Array[Long]]): Array[Array[Int]] = if (keepCols.isEmpty)
     Array.tabulate(nColBlocks)(i => Array(i))
   else

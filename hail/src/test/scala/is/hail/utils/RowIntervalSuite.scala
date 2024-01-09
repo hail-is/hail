@@ -1,10 +1,11 @@
 package is.hail.utils
 
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir
 import is.hail.expr.ir.In
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.virtual.{TBoolean, TInt32, TStruct}
-import is.hail.{ExecStrategy, HailSuite}
+
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -29,24 +30,49 @@ class RowIntervalSuite extends HailSuite {
     assertEvalsTo(
       ir.invoke("partitionIntervalContains", TBoolean, in1, in2),
       args = FastSeq((intervalIRRep, irRepIntervalType), (point, tt)),
-      shouldContain)(ExecStrategy.compileOnly)
+      shouldContain,
+    )(ExecStrategy.compileOnly)
   }
 
   @Test def testContains() {
     assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true), Row(1, 1, 3))
     assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true), Row(0, 1, 5))
-    assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), false, true), Row(0, 1, 5), shouldContain = false)
-    assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, false), Row(1, 2, 4), shouldContain = false)
+    assertContains(
+      Interval(Row(0, 1, 5), Row(1, 2, 4), false, true),
+      Row(0, 1, 5),
+      shouldContain = false,
+    )
+    assertContains(
+      Interval(Row(0, 1, 5), Row(1, 2, 4), true, false),
+      Row(1, 2, 4),
+      shouldContain = false,
+    )
 
     assertContains(Interval(Row(0, 1), Row(1, 2, 4), true, true), Row(0, 1, 5))
-    assertContains(Interval(Row(0, 1), Row(1, 2, 4), false, true), Row(0, 1, 5), shouldContain = false)
+    assertContains(
+      Interval(Row(0, 1), Row(1, 2, 4), false, true),
+      Row(0, 1, 5),
+      shouldContain = false,
+    )
     assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, true), Row(0, 1, 4))
-    assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, false), Row(0, 1, 4), shouldContain = false)
+    assertContains(
+      Interval(Row(0, 1), Row(0, 1, 4), true, false),
+      Row(0, 1, 4),
+      shouldContain = false,
+    )
 
     assertContains(Interval(Row(0, 1), Row(1, 2, 4), true, true), Row(0, 1, 5))
-    assertContains(Interval(Row(0, 1), Row(1, 2, 4), false, true), Row(0, 1, 5), shouldContain = false)
+    assertContains(
+      Interval(Row(0, 1), Row(1, 2, 4), false, true),
+      Row(0, 1, 5),
+      shouldContain = false,
+    )
     assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, true), Row(0, 1, 4))
-    assertContains(Interval(Row(0, 1), Row(0, 1, 4), true, false), Row(0, 1, 4), shouldContain = false)
+    assertContains(
+      Interval(Row(0, 1), Row(0, 1, 4), true, false),
+      Row(0, 1, 4),
+      shouldContain = false,
+    )
 
     assertContains(Interval(Row(), Row(1, 2, 4), true, true), Row(1, 2, 4))
     assertContains(Interval(Row(), Row(1, 2, 4), true, false), Row(1, 2, 4), shouldContain = false)
@@ -68,8 +94,14 @@ class RowIntervalSuite extends HailSuite {
     assert(Interval(Row(0, 1), Row(1, 2, 4), false, true).isAbovePosition(pord, Row(0, 1, 5)))
     assert(!Interval(Row(0, 1), Row(0, 1, 4), true, true).isAbovePosition(pord, Row(0, 1, 4)))
 
-    assert(Interval(Row(0, 1, 2, 3), Row(1, 2, 3, 4), true, true).isAbovePosition(pord, Row(0, 1, 1, 4)))
-    assert(!Interval(Row(0, 1, 2, 3), Row(1, 2, 3, 4), true, true).isAbovePosition(pord, Row(0, 1, 2, 2)))
+    assert(Interval(Row(0, 1, 2, 3), Row(1, 2, 3, 4), true, true).isAbovePosition(
+      pord,
+      Row(0, 1, 1, 4),
+    ))
+    assert(!Interval(Row(0, 1, 2, 3), Row(1, 2, 3, 4), true, true).isAbovePosition(
+      pord,
+      Row(0, 1, 2, 2),
+    ))
   }
 
   @Test def testBelowPosition() {
@@ -84,72 +116,96 @@ class RowIntervalSuite extends HailSuite {
   }
 
   @Test def testAbutts() {
-    assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).abutts(pord,
-      Interval(Row(1, 2, 4), Row(1, 3, 4), false, true)))
-    assert(!Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).abutts(pord,
-      Interval(Row(1, 2, 4), Row(1, 3, 4), true, true)))
+    assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).abutts(
+      pord,
+      Interval(Row(1, 2, 4), Row(1, 3, 4), false, true),
+    ))
+    assert(!Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).abutts(
+      pord,
+      Interval(Row(1, 2, 4), Row(1, 3, 4), true, true),
+    ))
 
-    assert(Interval(Row(0, 1), Row(1, 2), true, true).abutts(pord,
-      Interval(Row(1, 2), Row(1, 3), false, true)))
-    assert(!Interval(Row(0, 1), Row(1, 2), true, true).abutts(pord,
-      Interval(Row(1, 2), Row(1, 3), true, true)))
+    assert(Interval(Row(0, 1), Row(1, 2), true, true).abutts(
+      pord,
+      Interval(Row(1, 2), Row(1, 3), false, true),
+    ))
+    assert(!Interval(Row(0, 1), Row(1, 2), true, true).abutts(
+      pord,
+      Interval(Row(1, 2), Row(1, 3), true, true),
+    ))
   }
 
   @Test def testLteqWithOverlap() {
     val eord = pord.intervalEndpointOrdering
     assert(!eord.lteqWithOverlap(3)(
-      IntervalEndpoint(Row(0, 1, 6), -1), IntervalEndpoint(Row(0, 1, 5), 1)
+      IntervalEndpoint(Row(0, 1, 6), -1),
+      IntervalEndpoint(Row(0, 1, 5), 1),
     ))
 
     assert(eord.lteqWithOverlap(3)(
-      IntervalEndpoint(Row(0, 1, 5), 1), IntervalEndpoint(Row(0, 1, 5), -1)
+      IntervalEndpoint(Row(0, 1, 5), 1),
+      IntervalEndpoint(Row(0, 1, 5), -1),
     ))
     assert(!eord.lteqWithOverlap(2)(
-      IntervalEndpoint(Row(0, 1, 5), 1), IntervalEndpoint(Row(0, 1, 5), -1)
+      IntervalEndpoint(Row(0, 1, 5), 1),
+      IntervalEndpoint(Row(0, 1, 5), -1),
     ))
 
     assert(eord.lteqWithOverlap(2)(
-      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+      IntervalEndpoint(Row(0, 1, 5), -1),
+      IntervalEndpoint(Row(0, 1, 5), -1),
     ))
     assert(!eord.lteqWithOverlap(1)(
-      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+      IntervalEndpoint(Row(0, 1, 5), -1),
+      IntervalEndpoint(Row(0, 1, 5), -1),
     ))
 
     assert(eord.lteqWithOverlap(2)(
-      IntervalEndpoint(Row(0, 1, 2), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+      IntervalEndpoint(Row(0, 1, 2), -1),
+      IntervalEndpoint(Row(0, 1, 5), -1),
     ))
     assert(!eord.lteqWithOverlap(1)(
-      IntervalEndpoint(Row(0, 1, 2), -1), IntervalEndpoint(Row(0, 1, 5), -1)
+      IntervalEndpoint(Row(0, 1, 2), -1),
+      IntervalEndpoint(Row(0, 1, 5), -1),
     ))
 
     assert(eord.lteqWithOverlap(1)(
-      IntervalEndpoint(Row(0, 1), -1), IntervalEndpoint(Row(0, 1), -1)
+      IntervalEndpoint(Row(0, 1), -1),
+      IntervalEndpoint(Row(0, 1), -1),
     ))
     assert(!eord.lteqWithOverlap(0)(
-      IntervalEndpoint(Row(0, 1), -1), IntervalEndpoint(Row(0, 1), -1)
+      IntervalEndpoint(Row(0, 1), -1),
+      IntervalEndpoint(Row(0, 1), -1),
     ))
 
     assert(eord.lteqWithOverlap(1)(
-      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 2), -1)
+      IntervalEndpoint(Row(0, 1, 5), -1),
+      IntervalEndpoint(Row(0, 2), -1),
     ))
     assert(!eord.lteqWithOverlap(0)(
-      IntervalEndpoint(Row(0, 1, 5), -1), IntervalEndpoint(Row(0, 2), -1)
+      IntervalEndpoint(Row(0, 1, 5), -1),
+      IntervalEndpoint(Row(0, 2), -1),
     ))
 
     assert(eord.lteqWithOverlap(0)(
-      IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(0), -1)
+      IntervalEndpoint(Row(0), -1),
+      IntervalEndpoint(Row(0), -1),
     ))
     assert(eord.lteqWithOverlap(0)(
-      IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(0, 1, 2), 1)
+      IntervalEndpoint(Row(0), -1),
+      IntervalEndpoint(Row(0, 1, 2), 1),
     ))
     assert(eord.lteqWithOverlap(0)(
-      IntervalEndpoint(Row(0, 3), -1), IntervalEndpoint(Row(1, 2), -1)
+      IntervalEndpoint(Row(0, 3), -1),
+      IntervalEndpoint(Row(1, 2), -1),
     ))
     assert(!eord.lteqWithOverlap(-1)(
-      IntervalEndpoint(Row(0, 3), -1), IntervalEndpoint(Row(1, 2), -1)
+      IntervalEndpoint(Row(0, 3), -1),
+      IntervalEndpoint(Row(1, 2), -1),
     ))
     assert(!eord.lteqWithOverlap(-1)(
-      IntervalEndpoint(Row(), 1), IntervalEndpoint(Row(), -1)
+      IntervalEndpoint(Row(), 1),
+      IntervalEndpoint(Row(), -1),
     ))
   }
 

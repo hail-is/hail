@@ -1,29 +1,36 @@
 package is.hail.types
 
 import is.hail.expr.ir._
+import is.hail.rvd.RVDType
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
-import is.hail.rvd.RVDType
 import is.hail.utils._
 
 import org.json4s._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
-class TableTypeSerializer extends CustomSerializer[TableType](format => (
-  { case JString(s) => IRParser.parseTableType(s) },
-  { case tt: TableType => JString(tt.toString) }))
+class TableTypeSerializer extends CustomSerializer[TableType](format =>
+      (
+        { case JString(s) => IRParser.parseTableType(s) },
+        { case tt: TableType => JString(tt.toString) },
+      )
+    )
 
 object TableType {
-  def keyType(ts: TStruct, key: IndexedSeq[String]): TStruct = ts.typeAfterSelect(key.map(ts.fieldIdx))
-  def valueType(ts: TStruct, key: IndexedSeq[String]): TStruct = ts.filterSet(key.toSet, include = false)._1
+  def keyType(ts: TStruct, key: IndexedSeq[String]): TStruct =
+    ts.typeAfterSelect(key.map(ts.fieldIdx))
+
+  def valueType(ts: TStruct, key: IndexedSeq[String]): TStruct =
+    ts.filterSet(key.toSet, include = false)._1
 }
 
-case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
+case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct)
+    extends BaseType {
   lazy val canonicalRowPType = PType.canonical(rowType).setRequired(true).asInstanceOf[PStruct]
   lazy val canonicalRVDType = RVDType(canonicalRowPType, key)
 
-  key.foreach {k =>
+  key.foreach { k =>
     if (!rowType.hasField(k))
       throw new RuntimeException(s"key field $k not in row type: $rowType")
   }
@@ -37,7 +44,8 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
 
   @transient lazy val refMap: Map[String, Type] = Map(
     "global" -> globalType,
-    "row" -> rowType)
+    "row" -> rowType,
+  )
 
   def isCanonical: Boolean = rowType.isCanonical && globalType.isCanonical
 
@@ -81,11 +89,10 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     sb += '}'
   }
 
-  def toJSON: JObject = {
+  def toJSON: JObject =
     JObject(
       "global_type" -> JString(globalType.toString),
       "row_type" -> JString(rowType.toString),
-      "row_key" -> JArray(key.map(f => JString(f)).toList)
+      "row_key" -> JArray(key.map(f => JString(f)).toList),
     )
-  }
 }
