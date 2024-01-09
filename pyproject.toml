@@ -1,8 +1,3 @@
-[tool.black]
-line-length = 120
-skip-string-normalization = true
-force-exclude = 'makeTestInfoScore.py|datasets|sql|\.mypy'
-
 [tool.ruff]
 line-length = 120
 select = ["F", "E", "W", "I", "PL", "RUF"]
@@ -18,6 +13,38 @@ ignore = [
     "PLR0913", # Too many arguments to function call
     "PLC1901", # `<VAR> != ''` can be simplified to `<VAR>` as an empty string is falsey
     "PLR2004", # Magic value used in comparison
+    # FIXME stop ignoring these and fix them (see https://github.com/hail-is/hail/pull/14131)
+    "I001",    # Import block is un-sorted or un-formatted
+    "F405",    # <VAR> may be undefined, or defined from star imports
+    "E712",    # Comparison to `<True|False>` should be `cond is <True|False>`
+    "PLW2901", # `with` statement variable overwritten by assignment target
+    "F841",    # Local variable is assigned to but never used
+    "RUF012",  # Mutable class attributes should be annotated with `typing.ClassVar`
+    "PLW2901", # `for` loop variable overwritten by assignment target
+    "PLR5501", # Use `elif` instead of `else` then `if`, to reduce indentation
+    "PLR1714", # Consider merging multiple comparisons: `<VAL> in (<VAL1>, <VAL2>)`.
+    "F541",    # f-string without any placeholders
+    "RUF010",  # Use explicit conversion flag
+    "PLR0402", # Use `from <MODULE> import <VAL>` in lieu of alias
+    "RUF005",  # Consider `[*<LIST1>, *<LIST2>]` instead of concatenation
+    "E711",    # Comparison to `None` should be `cond is None`
+    "F403",    # Star import used; unable to detect undefined names
+    "F401",    # Import imported but unused
+    "PLW3301", # Nested `max` calls can be flattened
+    "RUF013",  # PEP 484 prohibits implicit `Optional`
+    "PLR1701", # Merge `isinstance` calls
+    "RUF100",  # Unused `noqa` directive
+    "RUF015",  # Prefer `next(...)` over single element slice
+    "F811",    # Redefinition of unused <VAR>
+    "F601",    # Dictionary key literal repeated
+    "PLR0124", # Name compared with itself
+    "E402",    # Module level import not at top of file
+    "PLW0602", # Using global but no assignment is done
+    "RUF002",  # Docstring contains ambiguous `’` (RIGHT SINGLE QUOTATION MARK). Did you mean ``` (GRAVE ACCENT)?
+    "PLC0132", # `TypeVar` name does not match assigned variable name
+    "PLE0307", # `__str__` does not return `str`
+    "PLC0414", # Import alias does not rename original package
+    "PLW0127", # Self-assignment of variable
 ]
 extend-exclude = ['sql']
 force-exclude = true
@@ -26,13 +53,6 @@ force-exclude = true
 known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "website", "web_common"]
 
 [tool.ruff.per-file-ignores]
-"hail/python/hail/**/*" = ["I", "PL", "RUF"]
-"hail/python/hailtop/**/*" = ["I"]
-"hail/python/test/**/*" = ["ALL"]
-"hail/python/cluster-tests/**/*" = ["ALL"]
-"hail/python/setup-hailtop.py" = ["ALL"]
-"hail/python/setup.py" = ["ALL"]
-"hail/scripts/update-terra-image.py" = ["ALL"]
 "hail/src/**/*" = ["ALL"]
 "benchmark/**/*" = ["ALL"]
 "datasets/**/*" = ["ALL"]
