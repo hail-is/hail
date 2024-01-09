@@ -457,6 +457,14 @@ class JobGroupNotSubmittedError(Exception):
 
 
 class JobGroup:
+    @staticmethod
+    def submitted_job_group(batch: 'Batch', job_group_id: int):
+        return JobGroup(batch, AbsoluteJobGroupId(job_group_id))
+
+    @staticmethod
+    def unsubmitted_job_group(batch: 'Batch', job_group_id: int, parent_job_group: 'JobGroup', **kwargs):
+        return JobGroup(batch, InUpdateJobGroupId(job_group_id), parent_job_group=parent_job_group, **kwargs)
+
     def __init__(self,
                  batch: 'Batch',
                  job_group_id: Union[AbsoluteJobGroupId, InUpdateJobGroupId],
@@ -719,7 +727,7 @@ class Batch:
         self._job_group_idx = 0
         self._job_groups: List[JobGroup] = []
 
-        self._root_job_group = JobGroup(self, AbsoluteJobGroupId(ROOT_JOB_GROUP_ID))
+        self._root_job_group = JobGroup.submitted_job_group(self, ROOT_JOB_GROUP_ID)
 
     def _raise_if_not_created(self):
         if not self.is_created:
@@ -741,7 +749,7 @@ class Batch:
 
     def get_job_group(self, job_group_id: int) -> JobGroup:
         self._raise_if_not_created()
-        return JobGroup(self, AbsoluteJobGroupId(job_group_id))
+        return JobGroup.submitted_job_group(self, job_group_id)
 
     def create_job_group(self,
                          attributes: Optional[dict] = None,
@@ -758,12 +766,12 @@ class Batch:
                           callback: Optional[str] = None,
                           cancel_after_n_failures: Optional[int] = None) -> JobGroup:
         self._job_group_idx += 1
-        jg = JobGroup(self,
-                      InUpdateJobGroupId(self._job_group_idx),
-                      parent_job_group=parent_job_group,
-                      attributes=attributes,
-                      callback=callback,
-                      cancel_after_n_failures=cancel_after_n_failures)
+        jg = JobGroup.unsubmitted_job_group(self,
+                                            InUpdateJobGroupId(self._job_group_idx),
+                                            parent_job_group=parent_job_group,
+                                            attributes=attributes,
+                                            callback=callback,
+                                            cancel_after_n_failures=cancel_after_n_failures)
         self._job_groups.append(jg)
         return jg
 
