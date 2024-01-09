@@ -1,18 +1,23 @@
 import os
+import pytest
 import subprocess as sp
 import unittest
 
-import pytest
-
 import hail as hl
-from hail import utils
+import hail.utils as utils
+from ...helpers import test_timeout, qobtest
 
-from ...helpers import get_dataset, qobtest, test_timeout
+
+@pytest.fixture(scope='module')
+def ds():
+    dataset = hl.balding_nichols_model(1, 100, 100)
+    dataset = dataset.key_cols_by(s=hl.str(dataset.sample_idx + 1))
+    return dataset
 
 
-def plinkify(ds, min=None, max=None):
+def plinkify(dataset, min=None, max=None):
     vcf = utils.new_temp_file(prefix="plink", extension="vcf")
-    hl.export_vcf(ds, vcf)
+    hl.export_vcf(dataset, vcf)
 
     local_tmpdir = utils.new_local_temp_dir()
     plinkpath = f'{local_tmpdir}/plink-ibd'
@@ -47,9 +52,7 @@ def plinkify(ds, min=None, max=None):
 @qobtest
 @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
 @test_timeout(local=10 * 60, batch=10 * 60)
-def test_ibd_default_arguments():
-    ds = get_dataset()
-
+def test_ibd_default_arguments(ds):
     plink_results = plinkify(ds)
     hail_results = hl.identity_by_descent(ds).collect()
 
@@ -64,11 +67,10 @@ def test_ibd_default_arguments():
         assert plink_results[key][1][2] == row.ibs2
 
 
+@qobtest
 @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
 @test_timeout(local=10 * 60, batch=10 * 60)
-def test_ibd_0_and_1():
-    ds = get_dataset()
-
+def test_ibd_0_and_1(ds):
     plink_results = plinkify(ds, min=0.0, max=1.0)
     hail_results = hl.identity_by_descent(ds).collect()
 
@@ -83,15 +85,15 @@ def test_ibd_0_and_1():
         assert plink_results[key][1][2] == row.ibs2
 
 
+@qobtest
 @test_timeout(local=10 * 60, batch=10 * 60)
-def test_ibd_does_not_error_with_dummy_maf_float64():
-    dataset = get_dataset()
-    dataset = dataset.annotate_rows(dummy_maf=0.01)
-    hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
+def test_ibd_does_not_error_with_dummy_maf_float64(ds):
+    ds = ds.annotate_rows(dummy_maf=0.01)
+    hl.identity_by_descent(ds, ds['dummy_maf'], min=0.0, max=1.0)
 
 
+@qobtest
 @test_timeout(local=10 * 60, batch=10 * 60)
-def test_ibd_does_not_error_with_dummy_maf_float32():
-    dataset = get_dataset()
-    dataset = dataset.annotate_rows(dummy_maf=0.01)
-    hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
+def test_ibd_does_not_error_with_dummy_maf_float32(ds):
+    ds = ds.annotate_rows(dummy_maf=0.01)
+    hl.identity_by_descent(ds, hl.float32(ds['dummy_maf']), min=0.0, max=1.0)

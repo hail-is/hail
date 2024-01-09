@@ -1,22 +1,33 @@
+from typing import Dict
 import asyncio
 import hashlib
-import logging
 import os
-from typing import Dict
+import logging
 
 import pytest
-from pytest import CollectReport, StashKey
+from pytest import StashKey, CollectReport
 
-from hail import current_backend, reset_global_randomness
+
+from hail import current_backend, init, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
 from hailtop.hail_event_loop import hail_event_loop
-
+from hailtop.utils import secret_alnum_string
 from .helpers import hl_init_for_test, hl_stop_for_test
+
 
 log = logging.getLogger(__name__)
 
 
-def pytest_collection_modifyitems(config, items):
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.get_event_loop()
+    try:
+        yield loop
+    finally:
+        loop.close()
+
+
+def pytest_collection_modifyitems(items):
     n_splits = int(os.environ.get('HAIL_RUN_IMAGE_SPLITS', '1'))
     split_index = int(os.environ.get('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))
     if n_splits <= 1:
@@ -31,15 +42,6 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def ensure_event_loop_is_initialized_in_test_thread():
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError as err:
-        assert err.args[0] == "no running event loop"
-        asyncio.set_event_loop(asyncio.new_event_loop())
 
 
 @pytest.fixture(scope="session", autouse=True)
