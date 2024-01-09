@@ -1,11 +1,12 @@
 package is.hail.utils
 
+import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.check.Arbitrary._
+
 import scala.collection.mutable
-import org.scalatest._
-import Matchers._
+
+import org.scalatest.Matchers._
 import org.testng.annotations.Test
 
 class BinaryHeapSuite {
@@ -267,7 +268,10 @@ class BinaryHeapSuite {
         trace += bh.toString()
         bh.checkHeapProperty()
         val expected = count - i - 1
-        assert(actual === expected, s"[$count] $actual did not equal $expected, heap: $bh; trace ${ trace.result().mkString("\n") }")
+        assert(
+          actual === expected,
+          s"[$count] $actual did not equal $expected, heap: $bh; trace ${trace.result().mkString("\n")}",
+        )
       }
       assert(bh.isEmpty)
     }
@@ -287,9 +291,8 @@ class BinaryHeapSuite {
   @Test
   def growPastCapacity32() {
     val bh = new BinaryHeap[Int](32)
-    for (i <- 0 to 32) {
+    for (i <- 0 to 32)
       bh.insert(i, 0)
-    }
     assert(true)
   }
 
@@ -304,27 +307,30 @@ class BinaryHeapSuite {
       trace += bh.toString()
       bh.checkHeapProperty()
     }
-    assert(bh.size === 64, s"trace: ${ trace.result().mkString("\n") }")
-    assert(bh.max() === 63, s"trace: ${ trace.result().mkString("\n") }")
+    assert(bh.size === 64, s"trace: ${trace.result().mkString("\n")}")
+    assert(bh.max() === 63, s"trace: ${trace.result().mkString("\n")}")
     // shrinking happens when size is <1/4 of capacity
     for (i <- 0 until (32 + 16 + 1)) {
       val actual = bh.extractMax()
       val expected = 64 - i - 1
       trace += bh.toString()
       bh.checkHeapProperty()
-      assert(actual === expected, s"$actual did not equal $expected, trace: ${ trace.result().mkString("\n") }")
+      assert(
+        actual === expected,
+        s"$actual did not equal $expected, trace: ${trace.result().mkString("\n")}",
+      )
     }
-    assert(bh.size === 15, s"trace: ${ trace.result().mkString("\n") }")
-    assert(bh.max() === 14, s"trace: ${ trace.result().mkString("\n") }")
+    assert(bh.size === 15, s"trace: ${trace.result().mkString("\n")}")
+    assert(bh.max() === 14, s"trace: ${trace.result().mkString("\n")}")
   }
 
-  private sealed trait HeapOp
+  sealed private trait HeapOp
 
-  private sealed case class Max() extends HeapOp
+  sealed private case class Max() extends HeapOp
 
-  private sealed case class ExtractMax() extends HeapOp
+  sealed private case class ExtractMax() extends HeapOp
 
-  private sealed case class Insert(t: Long, rank: Long) extends HeapOp
+  sealed private case class Insert(t: Long, rank: Long) extends HeapOp
 
   private class LongPriorityQueueReference {
 
@@ -371,16 +377,16 @@ class BinaryHeapSuite {
       opList.foreach {
         case Max() =>
           if (bh.isEmpty && ref.isEmpty)
-            assert(true, s"trace; ${ trace.result().mkString("\n") }")
+            assert(true, s"trace; ${trace.result().mkString("\n")}")
           else
-            assert(bh.max() === ref.max(), s"trace; ${ trace.result().mkString("\n") }")
+            assert(bh.max() === ref.max(), s"trace; ${trace.result().mkString("\n")}")
           trace += bh.toString()
           bh.checkHeapProperty()
         case ExtractMax() =>
           if (bh.isEmpty && ref.isEmpty)
-            assert(true, s"trace; ${ trace.result().mkString("\n") }")
+            assert(true, s"trace; ${trace.result().mkString("\n")}")
           else
-            assert(bh.max() === ref.max(), s"trace; ${ trace.result().mkString("\n") }")
+            assert(bh.max() === ref.max(), s"trace; ${trace.result().mkString("\n")}")
           trace += bh.toString()
           bh.checkHeapProperty()
         case Insert(t, rank) =>
@@ -388,7 +394,7 @@ class BinaryHeapSuite {
           ref.insert(t, rank)
           trace += bh.toString()
           bh.checkHeapProperty()
-          assert(bh.size === ref.size, s"trace; ${ trace.result().mkString("\n") }")
+          assert(bh.size === ref.size, s"trace; ${trace.result().mkString("\n")}")
       }
       true
     }.check()

@@ -17,37 +17,41 @@ case class Context(line: String, file: String, position: Option[Int]) {
     e match {
       case _: HailException =>
         fatal(
-          s"""$locationString: ${ e.getMessage }
-             |  offending line: @1""".stripMargin, line, e)
+          s"""$locationString: ${e.getMessage}
+             |  offending line: @1""".stripMargin,
+          line,
+          e,
+        )
       case _ =>
         fatal(
-          s"""$locationString: caught ${ e.getClass.getName }: ${ e.getMessage }
-             |  offending line: @1""".stripMargin, line, e)
+          s"""$locationString: caught ${e.getClass.getName}: ${e.getMessage}
+             |  offending line: @1""".stripMargin,
+          line,
+          e,
+        )
     }
   }
 }
 
 case class WithContext[T](value: T, source: Context) {
-  def map[U](f: T => U): WithContext[U] = {
-    try {
+  def map[U](f: T => U): WithContext[U] =
+    try
       copy[U](value = f(value))
-    } catch {
+    catch {
       case e: Throwable => source.wrapException(e)
     }
-  }
 
-  def wrap[U](f: T => U): U = {
-    try {
+  def wrap[U](f: T => U): U =
+    try
       f(value)
-    } catch {
+    catch {
       case e: Throwable => source.wrapException(e)
     }
-  }
-  
+
   def foreach(f: T => Unit) {
-    try {
+    try
       f(value)
-    } catch {
+    catch {
       case e: Exception => source.wrapException(e)
     }
   }

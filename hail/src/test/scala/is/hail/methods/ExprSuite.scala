@@ -5,11 +5,13 @@ import is.hail.backend.HailStateManager
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
-import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.expr.ir.IRParser
+import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils.StringEscapeUtils._
+
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+
 import org.testng.annotations.Test
 
 class ExprSuite extends HailSuite {
@@ -42,9 +44,7 @@ class ExprSuite extends HailSuite {
   }
 
   @Test def testEscaping() {
-    val p = forAll { (s: String) =>
-      s == unescapeString(escapeString(s))
-    }
+    val p = forAll((s: String) => s == unescapeString(escapeString(s)))
 
     p.check()
   }
@@ -62,7 +62,10 @@ class ExprSuite extends HailSuite {
     assert(unescapeStringSimple("my name is _u540d_u8c26", '_') == "my name is 名谦")
 
     val p = forAll { (s: String) =>
-      s == unescapeStringSimple(escapeStringSimple(s, '_', _.isLetterOrDigit, _.isLetterOrDigit), '_')
+      s == unescapeStringSimple(
+        escapeStringSimple(s, '_', _.isLetterOrDigit, _.isLetterOrDigit),
+        '_',
+      )
     }
 
     p.check()
@@ -70,8 +73,10 @@ class ExprSuite extends HailSuite {
 
   @Test def testImpexes() {
 
-    val g = for {t <- Type.genArb
-    a <- t.genValue(sm)} yield (t, a)
+    val g = for {
+      t <- Type.genArb
+      a <- t.genValue(sm)
+    } yield (t, a)
 
     object Spec extends Properties("ImpEx") {
       property("json") = forAll(g) { case (t, a) =>
@@ -96,9 +101,11 @@ class ExprSuite extends HailSuite {
     assert(intOrd.compare(5, null) < 0)
     assert(intOrd.compare(null, -2) > 0)
 
-    val g = for (t <- Type.genArb;
-    a <- t.genValue(sm);
-    b <- t.genValue(sm)) yield (t, a, b)
+    val g = for {
+      t <- Type.genArb
+      a <- t.genValue(sm)
+      b <- t.genValue(sm)
+    } yield (t, a, b)
 
     val p = forAll(g) { case (t, a, b) =>
       val ord = t.ordering(ctx.stateManager)

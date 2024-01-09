@@ -1,12 +1,13 @@
 package is.hail.expr.ir
 
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 import is.hail.variant.Call2
-import is.hail.{ExecStrategy, HailSuite}
+
 import org.testng.annotations.Test
 
 object ScalaTestObject {
@@ -21,13 +22,21 @@ class ScalaTestCompanion {
   def testFunction(): Int = 3
 }
 
-
 object TestRegisterFunctions extends RegistryFunctions {
   def registerAll() {
     registerIR1("addone", TInt32, TInt32)((_, a, _) => ApplyBinaryPrimOp(Add(), a, I32(1)))
-    registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(classOf[java.lang.Integer], "compare")
-    registerScalaFunction("foobar1", Array(), TInt32, null)(ScalaTestObject.getClass, "testFunction")
-    registerScalaFunction("foobar2", Array(), TInt32, null)(ScalaTestCompanion.getClass, "testFunction")
+    registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(
+      classOf[java.lang.Integer],
+      "compare",
+    )
+    registerScalaFunction("foobar1", Array(), TInt32, null)(
+      ScalaTestObject.getClass,
+      "testFunction",
+    )
+    registerScalaFunction("foobar2", Array(), TInt32, null)(
+      ScalaTestCompanion.getClass,
+      "testFunction",
+    )
     registerSCode2("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
       case (_, cb, rt, a, b, _) => primitive(cb.memoize(a.asInt.value + b.asInt.value))
     }
@@ -48,16 +57,20 @@ class FunctionSuite extends HailSuite {
 
   @Test
   def testCodeFunction() {
-    assertEvalsTo(lookup("triangle", TInt32, TInt32)(In(0, TInt32)),
+    assertEvalsTo(
+      lookup("triangle", TInt32, TInt32)(In(0, TInt32)),
       FastSeq(5 -> TInt32),
-      (5 * (5 + 1)) / 2)
+      (5 * (5 + 1)) / 2,
+    )
   }
 
   @Test
   def testStaticFunction() {
-    assertEvalsTo(lookup("compare", TInt32, TInt32, TInt32)(In(0, TInt32), I32(0)) > 0,
+    assertEvalsTo(
+      lookup("compare", TInt32, TInt32, TInt32)(In(0, TInt32), I32(0)) > 0,
       FastSeq(5 -> TInt32),
-      true)
+      true,
+    )
   }
 
   @Test
@@ -67,9 +80,7 @@ class FunctionSuite extends HailSuite {
 
   @Test
   def testIRConversion() {
-    assertEvalsTo(lookup("addone", TInt32, TInt32)(In(0, TInt32)),
-      FastSeq(5 -> TInt32),
-      6)
+    assertEvalsTo(lookup("addone", TInt32, TInt32)(In(0, TInt32)), FastSeq(5 -> TInt32), 6)
   }
 
   @Test
@@ -79,17 +90,35 @@ class FunctionSuite extends HailSuite {
 
   @Test
   def testVariableUnification() {
-    assert(IRFunctionRegistry.lookupUnseeded("testCodeUnification", TInt32, Seq(TInt32, TInt32)).isDefined)
-    assert(IRFunctionRegistry.lookupUnseeded("testCodeUnification", TInt32, Seq(TInt64, TInt32)).isEmpty)
-    assert(IRFunctionRegistry.lookupUnseeded("testCodeUnification", TInt64, Seq(TInt32, TInt32)).isEmpty)
-    assert(IRFunctionRegistry.lookupUnseeded("testCodeUnification2", TArray(TInt32), Seq(TArray(TInt32))).isDefined)
+    assert(IRFunctionRegistry.lookupUnseeded(
+      "testCodeUnification",
+      TInt32,
+      Seq(TInt32, TInt32),
+    ).isDefined)
+    assert(IRFunctionRegistry.lookupUnseeded(
+      "testCodeUnification",
+      TInt32,
+      Seq(TInt64, TInt32),
+    ).isEmpty)
+    assert(IRFunctionRegistry.lookupUnseeded(
+      "testCodeUnification",
+      TInt64,
+      Seq(TInt32, TInt32),
+    ).isEmpty)
+    assert(IRFunctionRegistry.lookupUnseeded(
+      "testCodeUnification2",
+      TArray(TInt32),
+      Seq(TArray(TInt32)),
+    ).isDefined)
   }
 
   @Test
   def testUnphasedDiploidGtIndexCall() {
-    assertEvalsTo(lookup("UnphasedDiploidGtIndexCall", TCall, TInt32)(In(0, TInt32)),
+    assertEvalsTo(
+      lookup("UnphasedDiploidGtIndexCall", TCall, TInt32)(In(0, TInt32)),
       FastSeq(0 -> TInt32),
-      Call2.fromUnphasedDiploidGtIndex(0))
+      Call2.fromUnphasedDiploidGtIndex(0),
+    )
   }
 
   @Test

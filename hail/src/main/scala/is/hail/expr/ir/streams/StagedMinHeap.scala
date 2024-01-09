@@ -2,16 +2,16 @@ package is.hail.expr.ir.streams
 
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
-import is.hail.expr.ir.agg.StagedArrayBuilder
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder}
+import is.hail.expr.ir.agg.StagedArrayBuilder
 import is.hail.types.physical.PCanonicalArray
-import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.physical.stypes.{SType, SValue}
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.utils.FastSeq
 
 sealed trait StagedMinHeap {
   def arraySType: SType
-  
+
   def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit
   def realloc(cb: EmitCodeBuilder): Unit
   def close(cb: EmitCodeBuilder): Unit
@@ -25,9 +25,12 @@ sealed trait StagedMinHeap {
 }
 
 object StagedMinHeap {
-  def apply(modb: EmitModuleBuilder, elemSType: SType)
-           (comparator: (EmitCodeBuilder, SValue, SValue) => Value[Int])
-  : EmitClassBuilder[_] => StagedMinHeap = {
+  def apply(
+    modb: EmitModuleBuilder,
+    elemSType: SType,
+  )(
+    comparator: (EmitCodeBuilder, SValue, SValue) => Value[Int]
+  ): EmitClassBuilder[_] => StagedMinHeap = {
 
     val elemPType = elemSType.storageType().setRequired(true)
     val elemParamType = elemPType.sType.paramType
@@ -78,13 +81,15 @@ object StagedMinHeap {
     val realloc_ : EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("realloc", FastSeq(), UnitInfo) { mb =>
         mb.voidWithBuilder { cb =>
-          cb.if_(garbage > heap.size.toL * 2L + 1024L, {
-            val oldRegion = cb.memoize(region, "tmp")
-            cb.assign(region, Region.stagedCreate(Region.REGULAR, pool))
-            heap.reallocateData(cb)
-            cb.assign(garbage, 0L)
-            cb += oldRegion.invoke[Unit]("invalidate")
-          })
+          cb.if_(
+            garbage > heap.size.toL * 2L + 1024L, {
+              val oldRegion = cb.memoize(region, "tmp")
+              cb.assign(region, Region.stagedCreate(Region.REGULAR, pool))
+              heap.reallocateData(cb)
+              cb.assign(garbage, 0L)
+              cb += oldRegion.invoke[Unit]("invalidate")
+            },
+          )
         }
       }
 
@@ -128,20 +133,22 @@ object StagedMinHeap {
           cb.loop { Lrecur =>
             // left child
             cb.assign(child, index * 2 + 1)
-            cb.if_(child < heap.size,
+            cb.if_(
+              child < heap.size,
               cb.if_(
                 cb.invokeCode[Int](compareAtIndex, cb.this_, child, index) < 0,
-                cb.assign(smallest, child)
-              )
+                cb.assign(smallest, child),
+              ),
             )
 
             // right child
             cb.assign(child, index * 2 + 2)
-            cb.if_(child < heap.size,
+            cb.if_(
+              child < heap.size,
               cb.if_(
                 cb.invokeCode[Int](compareAtIndex, cb.this_, child, smallest) < 0,
-                cb.assign(smallest, child)
-              )
+                cb.assign(smallest, child),
+              ),
             )
 
             cb.if_(smallest ceq index, cb.goto(Ldone))
@@ -162,19 +169,20 @@ object StagedMinHeap {
 
           cb.assign(garbage, garbage + 1L)
           val newSize = cb.memoize(heap.size - 1)
-          cb.if_(newSize ceq 0, cb.assign(heap.size, newSize), {
-            cb.invokeVoid(swap, cb.this_, const(0), newSize)
-            cb.assign(heap.size, newSize)
-            cb.invokeVoid(heapify, cb.this_)
-          })
+          cb.if_(
+            newSize ceq 0,
+            cb.assign(heap.size, newSize), {
+              cb.invokeVoid(swap, cb.this_, const(0), newSize)
+              cb.assign(heap.size, newSize)
+              cb.invokeVoid(heapify, cb.this_)
+            },
+          )
         }
       }
 
     val append: EmitMethodBuilder[_] =
       classBuilder.defineEmitMethod("append", FastSeq(elemParamType), UnitInfo) { mb =>
-        mb.voidWithBuilder { cb =>
-          heap.append(cb, mb.getSCodeParam(1))
-        }
+        mb.voidWithBuilder(cb => heap.append(cb, mb.getSCodeParam(1)))
       }
 
     val push_ : EmitMethodBuilder[_] =
@@ -185,14 +193,16 @@ object StagedMinHeap {
           val current = cb.newLocal[Int]("index", heap.size - 1)
           val parent = cb.newLocal[Int]("parent")
 
-          cb.while_(current > 0, {
-            cb.assign(parent, (current - 1) / 2)
-            val cmp = cb.invokeCode[Int](compareAtIndex, cb.this_, parent, current)
-            cb.if_(cmp <= 0, cb.goto(Ldone))
+          cb.while_(
+            current > 0, {
+              cb.assign(parent, (current - 1) / 2)
+              val cmp = cb.invokeCode[Int](compareAtIndex, cb.this_, parent, current)
+              cb.if_(cmp <= 0, cb.goto(Ldone))
 
-            cb.invokeVoid(swap, cb.this_, parent, current)
-            cb.assign(current, parent)
-          })
+              cb.invokeVoid(swap, cb.this_, parent, current)
+              cb.assign(current, parent)
+            },
+          )
 
           cb.define(Ldone)
         }
@@ -201,7 +211,11 @@ object StagedMinHeap {
     val arrayPType = PCanonicalArray(elemPType, required = true)
 
     val toArray_ : EmitMethodBuilder[_] =
-      classBuilder.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), arrayPType.sType.paramType) { mb =>
+      classBuilder.defineEmitMethod(
+        "toArray",
+        FastSeq(typeInfo[Region]),
+        arrayPType.sType.paramType,
+      ) { mb =>
         val region = mb.getCodeParam[Region](1)
         mb.emitSCode { cb =>
           arrayPType.constructFromElements(cb, region, heap.size, true) {
@@ -210,38 +224,37 @@ object StagedMinHeap {
         }
       }
 
-    ecb => new StagedMinHeap {
-      private[this] val this_ : ThisFieldRef[_] =
-        ecb.genFieldThisRef("minheap")(classBuilder.cb.ti)
+    ecb =>
+      new StagedMinHeap {
+        private[this] val this_ : ThisFieldRef[_] =
+          ecb.genFieldThisRef("minheap")(classBuilder.cb.ti)
 
-      override def arraySType: SType =
-        arrayPType.sType
+        override def arraySType: SType =
+          arrayPType.sType
 
-      override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit =
-        cb.assignAny(this_, Code.newInstance(classBuilder.cb, ctor.mb, FastSeq(pool)))
+        override def init(cb: EmitCodeBuilder, pool: Value[RegionPool]): Unit =
+          cb.assignAny(this_, Code.newInstance(classBuilder.cb, ctor.mb, FastSeq(pool)))
 
-      override def realloc(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(realloc_, this_)
+        override def realloc(cb: EmitCodeBuilder): Unit =
+          cb.invokeVoid(realloc_, this_)
 
-      override def close(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(close_, this_)
+        override def close(cb: EmitCodeBuilder): Unit =
+          cb.invokeVoid(close_, this_)
 
-      override def push(cb: EmitCodeBuilder, a: SValue): Unit =
-        cb.invokeVoid(push_, this_, a)
+        override def push(cb: EmitCodeBuilder, a: SValue): Unit =
+          cb.invokeVoid(push_, this_, a)
 
-      override def peek(cb: EmitCodeBuilder): SValue =
-        cb.invokeSCode(peek_, this_)
+        override def peek(cb: EmitCodeBuilder): SValue =
+          cb.invokeSCode(peek_, this_)
 
-      override def pop(cb: EmitCodeBuilder): Unit =
-        cb.invokeVoid(pop_, this_)
+        override def pop(cb: EmitCodeBuilder): Unit =
+          cb.invokeVoid(pop_, this_)
 
-      override def nonEmpty(cb: EmitCodeBuilder): Value[Boolean] =
-        cb.memoize(classBuilder.getField[Int](heap.size.name).get(this_) > 0)
+        override def nonEmpty(cb: EmitCodeBuilder): Value[Boolean] =
+          cb.memoize(classBuilder.getField[Int](heap.size.name).get(this_) > 0)
 
-      override def toArray(cb: EmitCodeBuilder, region: Value[Region]): SIndexableValue =
-        cb.invokeSCode(toArray_, this_, region).asIndexable
-    }
+        override def toArray(cb: EmitCodeBuilder, region: Value[Region]): SIndexableValue =
+          cb.invokeSCode(toArray_, this_, region).asIndexable
+      }
   }
 }
-
-

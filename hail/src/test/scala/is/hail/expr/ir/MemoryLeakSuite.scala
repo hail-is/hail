@@ -6,6 +6,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir
 import is.hail.types.virtual.{TArray, TBoolean, TSet, TString}
 import is.hail.utils._
+
 import org.testng.annotations.Test
 
 class MemoryLeakSuite extends HailSuite {
@@ -13,14 +14,21 @@ class MemoryLeakSuite extends HailSuite {
 
     val litSize = 32000
 
-   def run(size: Int): Long = {
+    def run(size: Int): Long = {
       val lit = Literal(TSet(TString), (0 until litSize).map(_.toString).toSet)
       val queries = Literal(TArray(TString), (0 until size).map(_.toString).toFastSeq)
       ExecuteContext.scoped() { ctx =>
         val r = eval(
           ToArray(
-            mapIR(ToStream(queries)) { r => ir.invoke("contains", TBoolean, lit, r) }
-          ), Env.empty, FastSeq(), None, None, false, ctx)
+            mapIR(ToStream(queries))(r => ir.invoke("contains", TBoolean, lit, r))
+          ),
+          Env.empty,
+          FastSeq(),
+          None,
+          None,
+          false,
+          ctx,
+        )
         ctx.r.pool.getHighestTotalUsage
       }
     }

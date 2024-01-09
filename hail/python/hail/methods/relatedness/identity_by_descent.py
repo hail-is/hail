@@ -147,7 +147,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
         _e00=(2 * (p**2) * (q**2) * ((X - 1) / X) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))),
         _e10=(
             4 * (p**3) * q * ((X - 1) / X) * ((X - 2) / X) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
-            + 4 * p * (q**3) * ((Y - 1) / X) * ((Y - 2) / X) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
+            + 4 * p * (q**3) * ((Y - 1) / Y) * ((Y - 2) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
         ),
         _e20=(
             (p**4) * ((X - 1) / X) * ((X - 2) / X) * ((X - 3) / X) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
@@ -164,7 +164,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
             + (p**2) * q * ((X - 1) / X) * (T / (T - 1)) * (T / (T - 2))
             + p * (q**2) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2))
         ),
-        _e22=(T / 2),
+        _e22=1,
     )
 
     dataset = dataset.checkpoint(hl.utils.new_temp_file())

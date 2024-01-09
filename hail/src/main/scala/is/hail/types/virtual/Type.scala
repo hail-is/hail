@@ -3,21 +3,26 @@ package is.hail.types.virtual
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir._
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
+import is.hail.expr.ir._
 import is.hail.types._
 import is.hail.utils
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.sql.types.DataType
-import org.json4s.JsonAST.JString
+
 import org.json4s.{CustomSerializer, JValue}
+import org.json4s.JsonAST.JString
 
 import scala.reflect.ClassTag
 
-class TypeSerializer extends CustomSerializer[Type](format => (
-  { case JString(s) => IRParser.parseType(s) },
-  { case t: Type => JString(t.parsableString()) }))
+import org.apache.spark.sql.types.DataType
+
+class TypeSerializer extends CustomSerializer[Type](format =>
+      (
+        { case JString(s) => IRParser.parseType(s) },
+        { case t: Type => JString(t.parsableString()) },
+      )
+    )
 
 object Type {
   def genScalar(): Gen[Type] =
@@ -32,26 +37,23 @@ object Type {
 
   def genFields(genFieldType: Gen[Type]): Gen[Array[Field]] = {
     Gen.buildableOf[Array](
-      Gen.zip(Gen.identifier, genFieldType))
+      Gen.zip(Gen.identifier, genFieldType)
+    )
       .filter(fields => fields.map(_._1).areDistinct())
-      .map(fields => fields
-        .iterator
-        .zipWithIndex
-        .map { case ((k, t), i) => Field(k, t, i) }
-        .toArray)
+      .map(fields =>
+        fields
+          .iterator
+          .zipWithIndex
+          .map { case ((k, t), i) => Field(k, t, i) }
+          .toArray
+      )
   }
 
-  def preGenStruct(genFieldType: Gen[Type]): Gen[TStruct] = {
-    for (fields <- genFields(genFieldType)) yield {
-      TStruct(fields)
-    }
-  }
+  def preGenStruct(genFieldType: Gen[Type]): Gen[TStruct] =
+    for (fields <- genFields(genFieldType)) yield TStruct(fields)
 
-  def preGenTuple(genFieldType: Gen[Type]): Gen[TTuple] = {
-    for (fields <- genFields(genFieldType)) yield {
-      TTuple(fields.map(_.typ): _*)
-    }
-  }
+  def preGenTuple(genFieldType: Gen[Type]): Gen[TTuple] =
+    for (fields <- genFields(genFieldType)) yield TTuple(fields.map(_.typ): _*)
 
   private val defaultRequiredGenRatio = 0.2
   def genStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(c => preGenStruct(genArb))
@@ -65,18 +67,28 @@ object Type {
       Gen.frequency(
         (4, genScalar()),
         (1, genComplexType()),
-        (1, genArb.map {
-          TArray(_)
-        }),
-        (1, genArb.map {
-          TSet(_)
-        }),
-        (1, genArb.map {
-          TInterval(_)
-        }),
+        (
+          1,
+          genArb.map {
+            TArray(_)
+          },
+        ),
+        (
+          1,
+          genArb.map {
+            TSet(_)
+          },
+        ),
+        (
+          1,
+          genArb.map {
+            TInterval(_)
+          },
+        ),
         (1, preGenTuple(genArb)),
         (1, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
-        (1, genTStruct.resize(size)))
+        (1, genTStruct.resize(size)),
+      )
     }
 
   def preGenArb(genStruct: Gen[TStruct] = genStruct): Gen[Type] =
@@ -133,12 +145,11 @@ abstract class Type extends BaseType with Serializable {
 
   def queryTyped(fields: String*): (Type, Querier) = queryTyped(fields.toList)
 
-  def queryTyped(path: List[String]): (Type, Querier) = {
+  def queryTyped(path: List[String]): (Type, Querier) =
     if (path.nonEmpty)
-      throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
+      throw new AnnotationPathException(s"invalid path ${path.mkString(".")} from type ${this}")
     else
       (this, identity[Annotation])
-  }
 
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     _pretty(sb, indent, compact)
@@ -175,8 +186,14 @@ abstract class Type extends BaseType with Serializable {
 
   def isRealizable: Boolean = children.forall(_.isRealizable)
 
-  /* compare values for equality, but compare Float and Double values by the absolute value of their difference is within tolerance or with D_== */
-  def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = a1 == a2
+  /* compare values for equality, but compare Float and Double values by the absolute value of their
+   * difference is within tolerance or with D_== */
+  def valuesSimilar(
+    a1: Annotation,
+    a2: Annotation,
+    tolerance: Double = utils.defaultTolerance,
+    absolute: Boolean = false,
+  ): Boolean = a1 == a2
 
   def scalaClassTag: ClassTag[_ <: AnyRef]
 
@@ -185,6 +202,7 @@ abstract class Type extends BaseType with Serializable {
   def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering
 
   @transient protected var ord: ExtendedOrdering = _
+
   def ordering(sm: HailStateManager): ExtendedOrdering = {
     if (ord == null) ord = mkOrdering(sm)
     ord
@@ -209,29 +227,31 @@ abstract class Type extends BaseType with Serializable {
 
   def canCastTo(t: Type): Boolean = this match {
     case TInterval(tt1) => t match {
-      case TInterval(tt2) => tt1.canCastTo(tt2)
-      case _ => false
-    }
+        case TInterval(tt2) => tt1.canCastTo(tt2)
+        case _ => false
+      }
     case TStruct(f1) => t match {
-      case TStruct(f2) => f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
-      case _ => false
-    }
+        case TStruct(f2) =>
+          f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
+        case _ => false
+      }
     case TTuple(f1) => t match {
-      case TTuple(f2) => f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
-      case _ => false
-    }
+        case TTuple(f2) =>
+          f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
+        case _ => false
+      }
     case TArray(t1) => t match {
-      case TArray(t2) => t1.canCastTo(t2)
-      case _ => false
-    }
+        case TArray(t2) => t1.canCastTo(t2)
+        case _ => false
+      }
     case TSet(t1) => t match {
-      case TSet(t2) => t1.canCastTo(t2)
-      case _ => false
-    }
+        case TSet(t2) => t1.canCastTo(t2)
+        case _ => false
+      }
     case TDict(k1, v1) => t match {
-      case TDict(k2, v2) => k1.canCastTo(k2) && v1.canCastTo(v2)
-      case _ => false
-    }
+        case TDict(k2, v2) => k1.canCastTo(k2) && v1.canCastTo(v2)
+        case _ => false
+      }
     case _ => this == t
   }
 }

@@ -33,7 +33,7 @@ object InferType {
       case MakeNDArray(data, shape, _, _) =>
         TNDArray(tcoerce[TIterable](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case StreamBufferedAggregate(_, _, newKey, _, _, aggSignatures, _) =>
-        val tupleFieldTypes = TTuple(aggSignatures.map(_ => TBinary):_*)
+        val tupleFieldTypes = TTuple(aggSignatures.map(_ => TBinary): _*)
         TStream(newKey.typ.asInstanceOf[TStruct].insertFields(IndexedSeq(("agg", tupleFieldTypes))))
       case _: ArrayLen => TInt32
       case _: StreamIota => TStream(TInt32)
@@ -107,7 +107,7 @@ object InferType {
       case ToDict(a) =>
         val elt = tcoerce[TBaseStruct](tcoerce[TStream](a.typ).elementType)
         TDict(elt.types(0), elt.types(1))
-      case ta@ToArray(a) =>
+      case ta @ ToArray(a) =>
         val elt = tcoerce[TStream](a.typ).elementType
         TArray(elt)
       case CastToArray(a) =>
@@ -156,7 +156,12 @@ object InferType {
       case StreamFold2(_, _, _, _, result) => result.typ
       case StreamDistribute(child, pivots, pathPrefix, _, _) =>
         val keyType = pivots.typ.asInstanceOf[TContainer].elementType
-        TArray(TStruct(("interval", TInterval(keyType)), ("fileName", TString), ("numElements", TInt32), ("numBytes", TInt64)))
+        TArray(TStruct(
+          ("interval", TInterval(keyType)),
+          ("fileName", TString),
+          ("numElements", TInt32),
+          ("numBytes", TInt64),
+        ))
       case StreamWhiten(stream, _, _, _, _, _, _, _) =>
         stream.typ
       case StreamScan(a, zero, accumName, valueName, body) =>
@@ -172,7 +177,8 @@ object InferType {
           "locus" -> childType.fieldType("locus"),
           "alleles" -> childType.fieldType("alleles"),
           "mean" -> TFloat64,
-          "centered_length_rec" -> TFloat64))
+          "centered_length_rec" -> TFloat64,
+        ))
       case RunAgg(body, result, _) =>
         result.typ
       case RunAggScan(_, _, _, _, result, _) =>
@@ -203,7 +209,7 @@ object InferType {
       case NDArraySlice(nd, slices) =>
         val childTyp = tcoerce[TNDArray](nd.typ)
         val slicesTyp = tcoerce[TTuple](slices.typ)
-        val tuplesOnly = slicesTyp.types.collect { case x: TTuple => x}
+        val tuplesOnly = slicesTyp.types.collect { case x: TTuple => x }
         val remainingDims = Nat(tuplesOnly.length)
         TNDArray(childTyp.elementType, remainingDims)
       case NDArrayFilter(nd, _) =>
@@ -261,7 +267,7 @@ object InferType {
         val tbs = tcoerce[TStruct](old.typ)
         val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
         fieldOrder.map { fds =>
-          assert(fds.length == s.size, s"${fds} != ${s.types.toIndexedSeq}")
+          assert(fds.length == s.size, s"$fds != ${s.types.toIndexedSeq}")
           TStruct(fds.map(f => f -> s.fieldType(f)): _*)
         }.getOrElse(s)
       case GetField(o, name) =>
@@ -289,7 +295,8 @@ object InferType {
       case BlockMatrixWrite(_, writer) => writer.loweredTyp
       case _: BlockMatrixMultiWrite => TVoid
       case TableGetGlobals(child) => child.typ.globalType
-      case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
+      case TableCollect(child) =>
+        TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
       case TableToValueApply(child, function) => function.typ(child.typ)
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)

@@ -1,15 +1,15 @@
 package is.hail.lir
 
-import java.io.PrintWriter
-
 import is.hail.utils._
+
+import java.io.ByteArrayOutputStream
+import java.io.PrintWriter
+import java.nio.charset.StandardCharsets
+import scala.collection.mutable
+
 import org.objectweb.asm.{ClassReader, ClassVisitor, ClassWriter, Label}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
-
-import scala.collection.mutable
-import java.io.ByteArrayOutputStream
-import java.nio.charset.StandardCharsets
 
 object Emit {
   def emitMethod(cv: ClassVisitor, m: Method, debugInformation: Boolean): Int = {
@@ -49,12 +49,11 @@ object Emit {
       }
     }
 
-    def getLocalIndex(l: Local): Int = {
+    def getLocalIndex(l: Local): Int =
       l match {
         case p: Parameter => parameterIndex(p.i)
         case _ => localIndex(l)
       }
-    }
 
     var maxStack = 0
     var curLineNumber = -1
@@ -87,7 +86,12 @@ object Emit {
 
           setLineNumber(x.lineNumber)
           mv.visitMethodInsn(
-            INVOKESPECIAL, x.ctor.owner, x.ctor.name, x.ctor.desc, x.ctor.isInterface)
+            INVOKESPECIAL,
+            x.ctor.owner,
+            x.ctor.name,
+            x.ctor.desc,
+            x.ctor.isInterface,
+          )
           instructionCount += 3
           return
         case _ =>
@@ -114,7 +118,12 @@ object Emit {
           mv.visitJumpInsn(GOTO, labels(x.L))
         case x: SwitchX =>
           assert(x.Lcases.nonEmpty)
-          mv.visitTableSwitchInsn(0, x.Lcases.length - 1, labels(x.Ldefault), x.Lcases.map(labels): _*)
+          mv.visitTableSwitchInsn(
+            0,
+            x.Lcases.length - 1,
+            labels(x.Ldefault),
+            x.Lcases.map(labels): _*
+          )
         case x: ReturnX =>
           if (x.children.length == 0)
             mv.visitInsn(RETURN)
@@ -132,10 +141,20 @@ object Emit {
           mv.visitTypeInsn(x.op, x.ti.iname)
         case x: MethodX =>
           mv.visitMethodInsn(
-            x.op, x.method.owner, x.method.name, x.method.desc, x.method.isInterface)
+            x.op,
+            x.method.owner,
+            x.method.name,
+            x.method.desc,
+            x.method.isInterface,
+          )
         case x: MethodStmtX =>
           mv.visitMethodInsn(
-            x.op, x.method.owner, x.method.name, x.method.desc, x.method.isInterface)
+            x.op,
+            x.method.owner,
+            x.method.name,
+            x.method.desc,
+            x.method.isInterface,
+          )
         case x: LdcX =>
           mv.visitLdcInsn(x.a)
         case x: GetFieldX =>
@@ -163,20 +182,18 @@ object Emit {
     mv.visitLabel(start)
 
     emitBlock(m.entry)
-    for (b <- blocks) {
+    for (b <- blocks)
       if (b ne m.entry)
         emitBlock(b)
-    }
 
     mv.visitLabel(end)
 
-    for (l <- locals) {
+    for (l <- locals)
       if (!l.isInstanceOf[Parameter]) {
         val n = localIndex(l)
         val name = if (l.name == null) s"local$n" else l.name
         mv.visitLocalVariable(name, l.ti.desc, null, start, end, n)
       }
-    }
 
     mv.visitMaxs(maxStack, nLocals)
 
@@ -189,19 +206,18 @@ object Emit {
     cv.visit(V1_8, ACC_PUBLIC, c.name, null, c.superName, c.interfaces.toArray)
     c.sourceFile.foreach(cv.visitSource(_, null))
 
-    for (f <- c.fields) {
+    for (f <- c.fields)
       f match {
         case f: Field => cv.visitField(ACC_PUBLIC, f.name, f.ti.desc, null, null)
         case f: StaticField => cv.visitField(ACC_PUBLIC | ACC_STATIC, f.name, f.ti.desc, null, null)
       }
-    }
 
     for (m <- c.methods) {
       val instructionCount = emitMethod(cv, m, c.sourceFile.isDefined)
       if (logMethodSizes) {
-        log.info(s"instruction count: $instructionCount: ${ c.name }.${ m.name }")
+        log.info(s"instruction count: $instructionCount: ${c.name}.${m.name}")
         if (instructionCount > 8000)
-          log.warn(s"big method: $instructionCount: ${ c.name }.${ m.name }")
+          log.warn(s"big method: $instructionCount: ${c.name}.${m.name}")
       }
     }
 
@@ -209,28 +225,29 @@ object Emit {
   }
 
   def apply(c: Classx[_], print: Option[PrintWriter]): Array[Byte] = {
-    val bytes = try {
-      val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
+    val bytes =
+      try {
+        val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
 
-      emitClass(c, cw, logMethodSizes = true)
+        emitClass(c, cw, logMethodSizes = true)
 
-      val b = cw.toByteArray
-      // For efficiency, the ClassWriter does no checking, and may generate invalid
-      // bytecode. This will verify the generated class file, printing errors
-      // to System.out.
-      // This next line should always be commented out!
+        val b = cw.toByteArray
+        // For efficiency, the ClassWriter does no checking, and may generate invalid
+        // bytecode. This will verify the generated class file, printing errors
+        // to System.out.
+        // This next line should always be commented out!
 //      CheckClassAdapter.verify(new ClassReader(b), false, new PrintWriter(System.err))
-      b
-    } catch {
-      case e: Exception =>
-        val buffer = new ByteArrayOutputStream()
-        val trace = new TraceClassVisitor(new PrintWriter(buffer))
-        val check = new CheckClassAdapter(trace)
-        val classJVMByteCodeAsEscapedStr = buffer.toString(StandardCharsets.UTF_8.name())
-        log.error(s"lir exception ${e}:\n" + classJVMByteCodeAsEscapedStr)
-        emitClass(c, check, logMethodSizes = false)
-        throw e
-    }
+        b
+      } catch {
+        case e: Exception =>
+          val buffer = new ByteArrayOutputStream()
+          val trace = new TraceClassVisitor(new PrintWriter(buffer))
+          val check = new CheckClassAdapter(trace)
+          val classJVMByteCodeAsEscapedStr = buffer.toString(StandardCharsets.UTF_8.name())
+          log.error(s"lir exception $e:\n" + classJVMByteCodeAsEscapedStr)
+          emitClass(c, check, logMethodSizes = false)
+          throw e
+      }
     print.foreach { pw =>
       val cr = new ClassReader(bytes)
       val tcv = new TraceClassVisitor(null, new Textifier, pw)

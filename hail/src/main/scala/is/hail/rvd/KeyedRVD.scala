@@ -2,9 +2,9 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.sparkextras._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.TInterval
-import is.hail.sparkextras._
 import is.hail.utils._
 
 import scala.collection.generic.Growable
@@ -19,19 +19,23 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     if (!(kType isIsomorphicTo right.kType))
       fatal(
         s"""Incompatible join keys. Keys must have same length and types, in order:
-           | Left join key type: ${ kType.toString }
-           | Right join key type: ${ right.kType.toString }
-         """.stripMargin)
+           | Left join key type: ${kType.toString}
+           | Right join key type: ${right.kType.toString}
+         """.stripMargin
+      )
   }
 
   private def checkLeftIntervalJoinCompatability(right: KeyedRVD) {
-    if (!(kType.size == 1 && right.kType.size == 1
-      && kType.types(0) == right.kType.types(0).asInstanceOf[TInterval].pointType))
+    if (
+      !(kType.size == 1 && right.kType.size == 1
+        && kType.types(0) == right.kType.types(0).asInstanceOf[TInterval].pointType)
+    )
       fatal(
         s"""Incompatible join keys in left interval join:
-           | Left join key type: ${ kType.toString }
-           | Right join key type: ${ right.kType.toString }
-         """.stripMargin)
+           | Left join key type: ${kType.toString}
+           | Right join key type: ${right.kType.toString}
+         """.stripMargin
+      )
   }
 
   // 'joinedType.key' must be the join key, followed by the remaining left key,
@@ -43,7 +47,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     joinType: String,
     joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
     joinedType: RVDType,
-    ctx: ExecuteContext
+    ctx: ExecuteContext,
   ): RVD = {
     checkJoinCompatability(right)
 
@@ -56,14 +60,16 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
         case "outer" => RVDPartitioner.generate(
-          sm,
-          kType.fieldNames,
-          realType.kType.virtualType,
-          leftPart.rangeBounds ++ rightPart.rangeBounds)
+            sm,
+            kType.fieldNames,
+            realType.kType.virtualType,
+            leftPart.rangeBounds ++ rightPart.rangeBounds,
+          )
       }
     }
     val repartitionedLeft = rvd.repartition(ctx, newPartitioner)
-    val compute: (OrderedRVIterator, OrderedRVIterator, Iterable[RegionValue] with Growable[RegionValue]) => Iterator[JoinedRegionValue] =
+    val compute
+      : (OrderedRVIterator, OrderedRVIterator, Iterable[RegionValue] with Growable[RegionValue]) => Iterator[JoinedRegionValue] =
       (joinType: @unchecked) match {
         case "inner" => _.innerJoin(_, _)
         case "left" => _.leftJoin(_, _)
@@ -77,7 +83,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     repartitionedLeft.alignAndZipPartitions(
       joinedType.copy(key = joinedType.key.take(realType.key.length)),
       right.rvd,
-      key
+      key,
     ) { (ctx, leftIt, rightIt) =>
       val sideBuffer = ctx.freshRegion()
       joiner(
@@ -85,14 +91,19 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
         compute(
           OrderedRVIterator(lTyp, leftIt, ctx, sm),
           OrderedRVIterator(rTyp, rightIt, ctx, sm),
-          new RegionValueArrayBuffer(rRowPType, sideBuffer, sm)))
+          new RegionValueArrayBuffer(rRowPType, sideBuffer, sm),
+        ),
+      )
     }.extendKeyPreservesPartitioning(ctx, joinedType.key)
   }
 
   def orderedLeftIntervalJoin(
     executeContext: ExecuteContext,
     right: KeyedRVD,
-    joiner: PStruct => (RVDType, (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue])
+    joiner: PStruct => (
+      RVDType,
+      (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue],
+    ),
   ): RVD = {
     checkLeftIntervalJoinCompatability(right)
 
@@ -101,22 +112,25 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val sm = executeContext.stateManager
     rvd.intervalAlignAndZipPartitions(executeContext, right.rvd) {
-      t: PStruct => {
+      t: PStruct =>
         val (newTyp, f) = joiner(t)
 
-        (newTyp, (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-          f(
-            ctx,
-            OrderedRVIterator(lTyp, it, ctx, sm)
-              .leftIntervalJoin(OrderedRVIterator(rTyp, intervals, ctx, sm))))
-      }
+        (
+          newTyp,
+          (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+            f(
+              ctx,
+              OrderedRVIterator(lTyp, it, ctx, sm)
+                .leftIntervalJoin(OrderedRVIterator(rTyp, intervals, ctx, sm)),
+            ),
+        )
     }
   }
 
   def orderedLeftIntervalJoinDistinct(
     executeContext: ExecuteContext,
     right: KeyedRVD,
-    joiner: PStruct => (RVDType, (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue])
+    joiner: PStruct => (RVDType, (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue]),
   ): RVD = {
     checkLeftIntervalJoinCompatability(right)
 
@@ -125,22 +139,25 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val sm = executeContext.stateManager
     rvd.intervalAlignAndZipPartitions(executeContext, right.rvd) {
-      t: PStruct => {
+      t: PStruct =>
         val (newTyp, f) = joiner(t)
 
-        (newTyp, (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-          f(
-            ctx,
-            OrderedRVIterator(lTyp, it, ctx, sm)
-              .leftIntervalJoinDistinct(OrderedRVIterator(rTyp, intervals, ctx, sm))))
-      }
+        (
+          newTyp,
+          (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+            f(
+              ctx,
+              OrderedRVIterator(lTyp, it, ctx, sm)
+                .leftIntervalJoinDistinct(OrderedRVIterator(rTyp, intervals, ctx, sm)),
+            ),
+        )
     }
   }
 
   def orderedLeftJoinDistinct(
     right: KeyedRVD,
     joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
-    joinedType: RVDType
+    joinedType: RVDType,
   ): RVD = {
     checkJoinCompatability(right)
     val lTyp = virtType
@@ -150,17 +167,23 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     rvd.alignAndZipPartitions(
       joinedType,
       right.rvd,
-      key
+      key,
     ) { (ctx, leftIt, rightIt) =>
       joiner(
         ctx,
-        OrderedRVIterator(lTyp, leftIt, ctx, sm).leftJoinDistinct(OrderedRVIterator(rTyp, rightIt, ctx, sm)))
+        OrderedRVIterator(lTyp, leftIt, ctx, sm).leftJoinDistinct(OrderedRVIterator(
+          rTyp,
+          rightIt,
+          ctx,
+          sm,
+        )),
+      )
     }
   }
 
   def orderedMerge(
     right: KeyedRVD,
-    ctx: ExecuteContext
+    ctx: ExecuteContext,
   ): RVD = {
     checkJoinCompatability(right)
     require(this.realType.rowType == right.realType.rowType)
@@ -170,7 +193,9 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
         this.realType.rowType,
         ContextRDD.union(
           rvd.sparkContext,
-          Seq(this.rvd.crdd, right.rvd.crdd)))
+          Seq(this.rvd.crdd, right.rvd.crdd),
+        ),
+      )
 
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
       right.rvd.partitioner.coarsenedRangeBounds(key)
@@ -184,7 +209,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     repartitionedLeft.alignAndZipPartitions(
       this.virtType,
       right.rvd,
-      key
+      key,
     ) { (ctx, leftIt, rightIt) =>
       OrderedRVIterator(lType, leftIt, ctx, sm)
         .merge(OrderedRVIterator(rType, rightIt, ctx, sm))

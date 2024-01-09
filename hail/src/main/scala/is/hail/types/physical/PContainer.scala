@@ -69,7 +69,12 @@ abstract class PContainer extends PIterable {
 
   def initialize(aoff: Long, length: Int, setMissing: Boolean = false)
 
-  def stagedInitialize(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Unit
+  def stagedInitialize(
+    cb: EmitCodeBuilder,
+    aoff: Code[Long],
+    length: Code[Int],
+    setMissing: Boolean = false,
+  ): Unit
 
   def zeroes(region: Region, length: Int): Long
 
@@ -91,10 +96,10 @@ abstract class PContainer extends PIterable {
 }
 
 object PContainer {
-  def unsafeSetElementMissing(cb: EmitCodeBuilder, p: PContainer, aoff: Code[Long], i: Code[Int]): Unit = {
+  def unsafeSetElementMissing(cb: EmitCodeBuilder, p: PContainer, aoff: Code[Long], i: Code[Int])
+    : Unit =
     if (p.elementType.required)
       cb._fatal("Missing element at index ", i.toS, s" of ptype ${p.elementType.asIdent}'.")
     else
       p.setElementMissing(cb, aoff, i)
-  }
 }

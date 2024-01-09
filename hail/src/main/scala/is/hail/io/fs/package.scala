@@ -16,5 +16,7 @@ package object fs {
   def outputStreamToPositionedDataOutputStream(os: OutputStream): PositionedDataOutputStream =
     new WrappedPositionedDataOutputStream(
       new WrappedPositionOutputStream(
-        os))
+        os
+      )
+    )
 }

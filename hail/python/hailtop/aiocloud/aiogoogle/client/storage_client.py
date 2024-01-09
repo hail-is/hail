@@ -638,8 +638,9 @@ class GoogleStorageAsyncFS(AsyncFS):
     def valid_url(url: str) -> bool:
         return url.startswith('gs://')
 
-    def parse_url(self, url: str) -> GoogleStorageAsyncFSURL:
-        return GoogleStorageAsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> GoogleStorageAsyncFSURL:
+        return GoogleStorageAsyncFSURL(*GoogleStorageAsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:

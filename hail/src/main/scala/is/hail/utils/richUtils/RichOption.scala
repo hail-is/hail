@@ -5,5 +5,7 @@ class RichOption[T](val o: Option[T]) extends AnyVal {
 
   override def toString: String = o.toString
 
-  def liftedZip[U](other: Option[U]): Option[(T, U)] = o.flatMap { val1 => other.map(val2 => (val1, val2)) }
+  def liftedZip[U](other: Option[U]): Option[(T, U)] = o.flatMap { val1 =>
+    other.map(val2 => (val1, val2))
+  }
 }

@@ -1,13 +1,13 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.{BooleanInfo, TypeInfo, Value}
-import is.hail.types.physical.stypes.{EmitType, SType, SValue, SingleCodeType}
+import is.hail.types.physical.stypes.{EmitType, SingleCodeType, SType, SValue}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastSeq
 
 import scala.language.existentials
 
-sealed trait ParamType  {
+sealed trait ParamType {
   def nCodes: Int
 }
 

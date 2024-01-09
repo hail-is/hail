@@ -12,7 +12,7 @@ class BufferedAggregatorIterator[T, V, U, K](
   makeKey: T => K,
   sequence: (T, V) => Unit,
   serializeAndCleanup: V => U,
-  bufferSize: Int
+  bufferSize: Int,
 ) extends Iterator[(K, U)] {
 
   private val fb = it.toFlipbookIterator
@@ -22,18 +22,17 @@ class BufferedAggregatorIterator[T, V, U, K](
   private val buffer = new util.LinkedHashMap[K, V](
     (bufferSize / BufferedAggregatorIterator.loadFactor).toInt + 1,
     BufferedAggregatorIterator.loadFactor,
-    true) {
-    override def removeEldestEntry(eldest: util.Map.Entry[K, V]): Boolean = {
+    true,
+  ) {
+    override def removeEldestEntry(eldest: util.Map.Entry[K, V]): Boolean =
       if (size() > bufferSize) {
         popped = eldest
         true
       } else false
-    }
   }
 
-  def hasNext: Boolean = {
+  def hasNext: Boolean =
     fb.isValid || buffer.size() > 0
-  }
 
   def next(): (K, U) = {
     if (!hasNext)
