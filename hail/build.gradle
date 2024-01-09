@@ -11,6 +11,8 @@ plugins {
   id 'com.github.johnrengelman.shadow' version '8.1.1'
   id "de.undercouch.download" version "5.4.0"
   id 'eclipse'
+  id  "com.diffplug.spotless" version "6.13.0"
+  id 'io.github.cosmicsilence.scalafix' version '0.2.0'
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
@@ -108,6 +110,14 @@ configurations {
     }
 
     testImplementation.extendsFrom shadow
+}
+
+
+spotless {
+    scala {
+        // run scalafmt on all scala source files
+        scalafmt('3.7.17').configFile('.scalafmt.conf').scalaMajorVersion(scalaMajorVersion)
+    }
 }
 
 dependencies {

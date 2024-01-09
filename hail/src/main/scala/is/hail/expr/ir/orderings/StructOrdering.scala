@@ -11,7 +11,7 @@ object StructOrdering {
     t2: SBaseStruct,
     ecb: EmitClassBuilder[_],
     sortOrders: Array[SortOrder] = null,
-    missingFieldsEqual: Boolean = true
+    missingFieldsEqual: Boolean = true,
   ): CodeOrdering = new CodeOrdering {
 
     override val type1: SBaseStruct = t1
@@ -20,9 +20,12 @@ object StructOrdering {
     require(sortOrders == null || sortOrders.size == t1.size)
 
     private[this] def fieldOrdering(i: Int, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
-      ecb.getOrderingFunction(t1.fieldTypes(i), t2.fieldTypes(i),
+      ecb.getOrderingFunction(
+        t1.fieldTypes(i),
+        t2.fieldTypes(i),
         if (sortOrders == null) Ascending else sortOrders(i),
-        op)
+        op,
+      )
 
     override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
       val lhs = x.asBaseStruct

@@ -1135,7 +1135,7 @@ backend.close()
 
 
 def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient, remote_tmpdir: str):
-    DOMAIN = os.environ['HAIL_DOMAIN']
+    DOMAIN = os.environ['HAIL_PRODUCTION_DOMAIN']
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
     script = f'''import hailtop.batch as hb
@@ -1156,7 +1156,12 @@ backend.close()
             f'''
 python3 -c \'{script}\'''',
         ],
-        env={'HAIL_DOMAIN': DOMAIN, 'HAIL_DEFAULT_NAMESPACE': 'default', 'HAIL_LOCATION': 'external'},
+        env={
+            'HAIL_DOMAIN': DOMAIN,
+            'HAIL_DEFAULT_NAMESPACE': 'default',
+            'HAIL_LOCATION': 'external',
+            'HAIL_BASE_PATH': '',
+        },
     )
     b.submit()
     status = j.wait()

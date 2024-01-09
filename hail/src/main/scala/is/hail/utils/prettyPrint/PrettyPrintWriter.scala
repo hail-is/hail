@@ -1,10 +1,9 @@
 package is.hail.utils.prettyPrint
 
-import java.io.{StringWriter, Writer}
-import java.util.ArrayDeque
-
 import is.hail.utils.BoxedArrayBuilder
 
+import java.io.{StringWriter, Writer}
+import java.util.ArrayDeque
 import scala.annotation.tailrec
 
 object Doc {
@@ -45,7 +44,9 @@ object Doc {
         printNode(node, false)
       } else {
         pendingGroups.getLast.contents += node
-        while (!pendingGroups.isEmpty && globalPos - pendingGroups.getFirst.start > remainingInLine) {
+        while (
+          !pendingGroups.isEmpty && globalPos - pendingGroups.getFirst.start > remainingInLine
+        ) {
           val head = pendingGroups.removeFirst()
           head.end = globalPos
           printNode(head, false)
@@ -119,12 +120,11 @@ object Doc {
         pendingCloses -= 1
       }
 
-    def openGroups(): Unit = {
+    def openGroups(): Unit =
       while (pendingOpens > 0) {
         pendingGroups.addLast(GroupN(new BoxedArrayBuilder[ScannedNode](), globalPos, -1))
         pendingOpens -= 1
       }
-    }
 
     try {
       while (currentNode != null) {
@@ -153,7 +153,7 @@ object Doc {
       closeGroups()
     } catch {
       case _: MaxLinesExceeded =>
-        // 'maxLines' have been printed, so break out of the loop and stop printing.
+      // 'maxLines' have been printed, so break out of the loop and stop printing.
     }
   }
 }
@@ -175,12 +175,17 @@ private[prettyPrint] case class Group(body: Doc) extends Doc
 private[prettyPrint] case class Indent(i: Int, body: Doc) extends Doc
 private[prettyPrint] case class Concat(it: Iterable[Doc]) extends Doc
 
-private[prettyPrint] abstract class ScannedNode
+abstract private[prettyPrint] class ScannedNode
 private[prettyPrint] case class TextN(t: String) extends ScannedNode
 private[prettyPrint] case class LineN(indentation: Int, ifFlat: String) extends ScannedNode
-private[prettyPrint] case class GroupN(contents: BoxedArrayBuilder[ScannedNode], start: Int, var end: Int) extends ScannedNode
 
-private[prettyPrint] abstract class KontNode
+private[prettyPrint] case class GroupN(
+  contents: BoxedArrayBuilder[ScannedNode],
+  start: Int,
+  var end: Int,
+) extends ScannedNode
+
+abstract private[prettyPrint] class KontNode
 private[prettyPrint] case object PopGroupK extends KontNode
 private[prettyPrint] case class UnindentK(indent: Int) extends KontNode
 private[prettyPrint] case class ConcatK(kont: Iterator[Doc]) extends KontNode

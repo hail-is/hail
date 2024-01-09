@@ -8,14 +8,14 @@ import is.hail.types.virtual.TCall.representation
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.{classTag, ClassTag}
 
 object TLocus {
-  val representation: TStruct = {
+  val representation: TStruct =
     TStruct(
       "contig" -> TString,
-      "position" -> TInt32)
-  }
+      "position" -> TInt32,
+    )
 
   def schemaFromRG(rg: Option[String], required: Boolean = false): Type = rg match {
     // must match tlocus.schema_from_rg
@@ -35,9 +35,11 @@ case class TLocus(rgName: String) extends Type {
     sb.append(prettyIdentifier(rgName))
     sb.append('>')
   }
+
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = Locus.gen(sm.referenceGenomes(rgName))
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
+    Locus.gen(sm.referenceGenomes(rgName))
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
@@ -46,7 +48,8 @@ case class TLocus(rgName: String) extends Type {
 
   lazy val representation: TStruct = TLocus.representation
 
-  def locusOrdering(sm: HailStateManager): Ordering[Locus] = sm.referenceGenomes(rgName).locusOrdering
+  def locusOrdering(sm: HailStateManager): Ordering[Locus] =
+    sm.referenceGenomes(rgName).locusOrdering
 
   override def unify(concrete: Type): Boolean = concrete match {
     case TLocus(crgName) => rgName == crgName

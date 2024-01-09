@@ -15,8 +15,8 @@ class LoggerOutputStream(logger: Logger, level: Level) extends OutputStream {
       level match {
         case Level.TRACE => logger.trace(line)
         case Level.DEBUG => logger.debug(line)
-        case Level.INFO  => logger.info(line)
-        case Level.WARN  => logger.warn(line)
+        case Level.INFO => logger.info(line)
+        case Level.WARN => logger.warn(line)
         case Level.ERROR => logger.error(line)
       }
       buffer.reset()
