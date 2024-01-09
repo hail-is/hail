@@ -1290,6 +1290,7 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
+              --doctest-continue-on-failure \
               --ignore=$HAIL_LOCATION/test \
               --ignore=$HAIL_LOCATION/docs/conf.py \
               --ignore=$HAIL_LOCATION/docs/doctest_write_data.py \
@@ -3166,6 +3167,7 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
+              --doctest-continue-on-failure \
               --ignore=docs/cookbook/files/ \
               --timeout=120 \
               --ignore=docs/conf.py \
