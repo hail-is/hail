@@ -43,21 +43,21 @@ class FileStatus(abc.ABC):
 
     @abc.abstractmethod
     def time_created(self) -> datetime.datetime:
-        '''The time the object was created in seconds since the epcoh, UTC.
+        """The time the object was created in seconds since the epcoh, UTC.
 
         Some filesystems do not support creation time. In that case, an error is raised.
 
-        '''
+        """
 
     @abc.abstractmethod
     def time_modified(self) -> datetime.datetime:
-        '''The time the object was last modified in seconds since the epoch, UTC.
+        """The time the object was last modified in seconds since the epoch, UTC.
 
         The meaning of modification time is cloud-defined. In some clouds, it is the creation
         time. In some clouds, it is the more recent of the creation time or the time of the most
         recent metadata modification.
 
-        '''
+        """
 
     @abc.abstractmethod
     async def __getitem__(self, key: str) -> Any:
@@ -156,8 +156,8 @@ class AsyncFS(abc.ABC):
 
     @staticmethod
     def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
-        '''Part size when copying using multi-part uploads.  The part size of
-        the destination filesystem is used.'''
+        """Part size when copying using multi-part uploads.  The part size of
+        the destination filesystem is used."""
         return 128 * 1024 * 1024
 
     @staticmethod

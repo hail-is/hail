@@ -682,6 +682,7 @@ class MatrixTable(ExprContainer):
             A MatrixTable assembled from inputs whose rows are keyed by `row_idx`
             and columns are keyed by `col_idx`.
         """
+
         # General idea: build a `Table` representation matching that returned by
         # `MatrixTable.localize_entries` and then call `_unlocalize_entries`. In
         # this form, the column table is bundled with the globals and the entries
@@ -3416,7 +3417,6 @@ class MatrixTable(ExprContainer):
         entry_exprs={},
         global_exprs={},
     ) -> 'MatrixTable':
-
         all_names = list(itertools.chain(row_exprs.keys(), col_exprs.keys(), entry_exprs.keys(), global_exprs.keys()))
         uids = {k: Env.get_uid() for k in all_names}
 
@@ -3441,9 +3441,9 @@ class MatrixTable(ExprContainer):
             keep = keep.union(set(mt.col_key))
 
         keep = keep.union(uids.values())
-        return mt.drop(*(f for f in mt._fields if f not in keep)).rename(
-            {uid: original for original, uid in uids.items()}
-        )
+        return mt.drop(*(f for f in mt._fields if f not in keep)).rename({
+            uid: original for original, uid in uids.items()
+        })
 
     def _process_joins(self, *exprs) -> 'MatrixTable':
         return process_joins(self, exprs)
@@ -4512,13 +4512,9 @@ class MatrixTable(ExprContainer):
             else:
                 return col_key
 
-        t = t.annotate(
-            **{
-                fmt(f, col_keys[i]): t[entries_uid][i][j]
-                for i in range(len(col_keys))
-                for j, f in enumerate(self.entry)
-            }
-        )
+        t = t.annotate(**{
+            fmt(f, col_keys[i]): t[entries_uid][i][j] for i in range(len(col_keys)) for j, f in enumerate(self.entry)
+        })
         t = t.drop(cols_uid, entries_uid)
 
         return t

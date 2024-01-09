@@ -253,7 +253,7 @@ async def test_read_range_end_exclusive_empty_file(filesystem: Tuple[asyncio.Sem
 
 @pytest.mark.asyncio
 async def test_read_range_end_inclusive_empty_file_should_error(
-    filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]
+    filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL],
 ):
     _, fs, base = filesystem
 

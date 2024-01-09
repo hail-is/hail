@@ -106,17 +106,15 @@ def simulate_phenotypes(
     mt = annotate_all(
         mt=mt,
         global_exprs={
-            'ldscsim': hl.struct(
-                **{
-                    'h2': h2[0] if len(h2) == 1 else h2,
-                    **({} if pi == [None] else {'pi': pi}),
-                    **({} if rg == [None] else {'rg': rg[0] if len(rg) == 1 else rg}),
-                    **({} if annot is None else {'is_annot_inf': True}),
-                    **({} if popstrat is None else {'is_popstrat_inf': True}),
-                    **({} if popstrat_var is None else {'popstrat_var': popstrat_var}),
-                    'exact_h2': exact_h2,
-                }
-            )
+            'ldscsim': hl.struct(**{
+                'h2': h2[0] if len(h2) == 1 else h2,
+                **({} if pi == [None] else {'pi': pi}),
+                **({} if rg == [None] else {'rg': rg[0] if len(rg) == 1 else rg}),
+                **({} if annot is None else {'is_annot_inf': True}),
+                **({} if popstrat is None else {'is_popstrat_inf': True}),
+                **({} if popstrat_var is None else {'popstrat_var': popstrat_var}),
+                'exact_h2': exact_h2,
+            })
         },
     )
     mt = _clean_fields(mt, uid)
@@ -596,9 +594,9 @@ def normalize_genotypes(genotype):
     """
     uid = Env.get_uid(base=100)
     mt = genotype._indices.source
-    mt = mt.annotate_entries(
-        **{'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is hl.dtype('call') else genotype}
-    )
+    mt = mt.annotate_entries(**{
+        'gt_' + uid: genotype.n_alt_alleles() if genotype.dtype is hl.dtype('call') else genotype
+    })
     mt = mt.annotate_rows(**{'gt_stats_' + uid: hl.agg.stats(mt['gt_' + uid])})
     # TODO: Add MAF filter to remove invariant SNPs?
     mt = mt.annotate_entries(norm_gt=(mt['gt_' + uid] - mt['gt_stats_' + uid].mean) / mt['gt_stats_' + uid].stdev)

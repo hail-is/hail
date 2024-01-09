@@ -42,19 +42,19 @@ async def migrate(database_name, db, mysql_cnf_file, i, migration):
             await check_shell(f'python3 {script}')
         else:
             await check_shell(
-                f'''
+                f"""
 mysql --defaults-extra-file={mysql_cnf_file} <{script}
-'''
+"""
             )
 
         await db.just_execute(
-            f'''
+            f"""
 UPDATE `{database_name}_migration_version`
 SET version = %s;
 
 INSERT INTO `{database_name}_migrations` (version, name, script_sha1)
 VALUES (%s, %s, %s);
-''',
+""",
             (to_version, to_version, name, script_sha1),
         )
     else:
@@ -74,7 +74,7 @@ async def create_migration_tables(db: Database, database_name: str):
     rows = [row async for row in rows]
     if len(rows) == 0:
         await db.just_execute(
-            f'''
+            f"""
 CREATE TABLE `{database_name}_migration_version` (
   `version` BIGINT NOT NULL
 ) ENGINE = InnoDB;
@@ -86,7 +86,7 @@ CREATE TABLE `{database_name}_migrations` (
   `script_sha1` VARCHAR(40),
   PRIMARY KEY (`version`)
 ) ENGINE = InnoDB;
-'''
+"""
         )
 
 
@@ -103,9 +103,9 @@ async def async_main():
 
     admin_secret_name = f'sql-{database_name}-admin-config'
     out, _ = await check_shell_output(
-        f'''
+        f"""
 kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
-'''
+"""
     )
     admin_secret = json.loads(out)
 
@@ -166,17 +166,17 @@ async def _create_database():
         existing_user = await db.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE user=%s', (mysql_username,))
         if existing_user is not None:
             await db.just_execute(
-                f'''
+                f"""
                 GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
-                '''
+                """
             )
             return
 
         await db.just_execute(
-            f'''
+            f"""
             CREATE USER '{mysql_username}'@'%' IDENTIFIED BY '{mysql_password}';
             GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
-            '''
+            """
         )
 
         await _write_user_config(
@@ -233,14 +233,14 @@ async def _write_user_config(namespace: str, database_name: str, user: str, conf
     print(f'creating secret {secret_name}')
     from_files = ' '.join(f'--from-file={f}' for f in files)
     await check_shell(
-        f'''
+        f"""
 kubectl -n {shq(namespace)} create secret generic \
         {shq(secret_name)} \
         {from_files} \
         --save-config --dry-run=client \
         -o yaml \
         | kubectl -n {shq(namespace)} apply -f -
-'''
+"""
     )
 
 
@@ -259,9 +259,9 @@ async def _shutdown():
         for s in shutdowns:
             assert s['kind'] == 'Deployment'
             await check_shell(
-                f'''
+                f"""
 kubectl -n {s["namespace"]} delete --ignore-not-found=true deployment {s["name"]}
-'''
+"""
             )
 
     did_shutdown = True

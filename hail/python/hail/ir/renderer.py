@@ -6,16 +6,13 @@ from collections import namedtuple
 
 class Renderable(object):
     @abc.abstractmethod
-    def render_head(self, r: 'Renderer') -> str:
-        ...
+    def render_head(self, r: 'Renderer') -> str: ...
 
     @abc.abstractmethod
-    def render_tail(self, r: 'Renderer') -> str:
-        ...
+    def render_tail(self, r: 'Renderer') -> str: ...
 
     @abc.abstractmethod
-    def render_children(self, r: 'Renderer') -> Sequence['Renderable']:
-        ...
+    def render_children(self, r: 'Renderer') -> Sequence['Renderable']: ...
 
 
 class RenderableStr(Renderable):

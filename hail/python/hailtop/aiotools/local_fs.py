@@ -82,9 +82,7 @@ class LocalMultiPartCreate(MultiPartCreate):
         self._path = path
         self._num_parts = num_parts
 
-    async def create_part(
-        self, number: int, start: int, size_hint: Optional[int] = None
-    ):  # pylint: disable=unused-argument
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None):  # pylint: disable=unused-argument
         assert 0 <= number < self._num_parts
         f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
         f.seek(start)
@@ -274,7 +272,10 @@ class LocalAsyncFS(AsyncFS):
         return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
     async def multi_part_create(
-        self, sema: asyncio.Semaphore, url: str, num_parts: int  # pylint: disable=unused-argument
+        self,
+        sema: asyncio.Semaphore,
+        url: str,
+        num_parts: int,  # pylint: disable=unused-argument
     ) -> MultiPartCreate:
         # create an empty file
         # will be opened r+b to write the parts

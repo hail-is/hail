@@ -228,14 +228,12 @@ def king(call_expr, *, block_size=None):
     is_hom_var = Env.get_uid()
     is_defined = Env.get_uid()
     mt = mt.unfilter_entries()
-    mt = mt.select_entries(
-        **{
-            is_hom_ref: hl.float(hl.or_else(mt[call].is_hom_ref(), 0)),
-            is_het: hl.float(hl.or_else(mt[call].is_het(), 0)),
-            is_hom_var: hl.float(hl.or_else(mt[call].is_hom_var(), 0)),
-            is_defined: hl.float(hl.is_defined(mt[call])),
-        }
-    )
+    mt = mt.select_entries(**{
+        is_hom_ref: hl.float(hl.or_else(mt[call].is_hom_ref(), 0)),
+        is_het: hl.float(hl.or_else(mt[call].is_het(), 0)),
+        is_hom_var: hl.float(hl.or_else(mt[call].is_hom_var(), 0)),
+        is_defined: hl.float(hl.is_defined(mt[call])),
+    })
     ref = hl.linalg.BlockMatrix.from_entry_expr(mt[is_hom_ref], block_size=block_size)
     het = hl.linalg.BlockMatrix.from_entry_expr(mt[is_het], block_size=block_size)
     var = hl.linalg.BlockMatrix.from_entry_expr(mt[is_hom_var], block_size=block_size)

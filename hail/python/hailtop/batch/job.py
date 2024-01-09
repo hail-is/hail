@@ -878,10 +878,10 @@ class BashJob(Job):
         code_path = f'{job_path}/code.sh'
         code = self._batch.read_input(code_path)
 
-        wrapper_command = f'''
+        wrapper_command = f"""
 chmod u+x {code}
 source {code}
-'''
+"""
         wrapper_command = self._interpolate_command(wrapper_command)
         self._wrapper_code.append(wrapper_command)
 
@@ -1219,10 +1219,10 @@ class PythonJob(Job):
             json_write, str_write, repr_write = [
                 ''
                 if not output
-                else f'''
+                else f"""
         with open('{output}', 'w') as out:
             out.write({formatter}(result) + '\\n')
-'''
+"""
                 for output, formatter in [(result._json, "json.dumps"), (result._str, "str"), (result._repr, "repr")]
             ]
 

@@ -218,16 +218,14 @@ class Tests(unittest.TestCase):
         ped = hl.Pedigree.read(resource('mendel.fam'))
         men, fam, ind, var = hl.mendel_errors(mt['GT'], ped)
 
-        to_keep = hl.set(
-            [
-                (hl.Locus("1", 1), ['C', 'CT']),
-                (hl.Locus("1", 2), ['C', 'T']),
-                (hl.Locus("X", 1), ['C', 'T']),
-                (hl.Locus("X", 3), ['C', 'T']),
-                (hl.Locus("Y", 1), ['C', 'T']),
-                (hl.Locus("Y", 3), ['C', 'T']),
-            ]
-        )
+        to_keep = hl.set([
+            (hl.Locus("1", 1), ['C', 'CT']),
+            (hl.Locus("1", 2), ['C', 'T']),
+            (hl.Locus("X", 1), ['C', 'T']),
+            (hl.Locus("X", 3), ['C', 'T']),
+            (hl.Locus("Y", 1), ['C', 'T']),
+            (hl.Locus("Y", 3), ['C', 'T']),
+        ])
         var = var.filter(to_keep.contains((var.locus, var.alleles)))
         var = var.order_by('locus')
         var = var.select('locus', 'alleles', 'errors')

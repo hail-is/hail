@@ -34,11 +34,11 @@ class AzureUserCredentials(CloudUserCredentials):
 
     def blobfuse_credentials(self, account: str, container: str) -> str:
         # https://github.com/Azure/azure-storage-fuse
-        return f'''
+        return f"""
 accountName {account}
 authType SPN
 servicePrincipalClientId {self.username}
 servicePrincipalClientSecret {self.password}
 servicePrincipalTenantId {self._credentials['tenant']}
 containerName {container}
-'''
+"""

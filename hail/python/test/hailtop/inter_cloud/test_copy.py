@@ -493,7 +493,7 @@ async def test_file_and_directory_error_with_slash_empty_file(
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_for_google_non_recursive(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]
+    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
 ):
     _, fs, bases = router_filesystem
 
@@ -553,7 +553,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file(
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_only_for_google_non_recursive(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]
+    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
 ):
     sema, fs, bases = router_filesystem
 
@@ -601,7 +601,7 @@ async def test_file_and_directory_error_with_slash_empty_file_only(
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_only_google_non_recursive(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]
+    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
 ):
     _, fs, bases = router_filesystem
 

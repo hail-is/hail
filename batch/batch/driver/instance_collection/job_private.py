@@ -51,13 +51,13 @@ class JobPrivateInstanceManager(InstanceCollection):
         log.info(f'initializing {jpim}')
 
         async for record in db.select_and_fetchall(
-            '''
+            """
 SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
 FROM instances
 INNER JOIN instances_free_cores_mcpu
 ON instances.name = instances_free_cores_mcpu.name
 WHERE removed = 0 AND inst_coll = %s;
-''',
+""",
             (jpim.name,),
         ):
             jpim.add_instance(Instance.from_record(app, jpim, record))
@@ -135,7 +135,7 @@ WHERE removed = 0 AND inst_coll = %s;
         worker_max_idle_time_secs,
     ):
         await self.db.just_execute(
-            '''
+            """
 UPDATE inst_colls
 SET boot_disk_size_gb = %s,
     max_instances = %s,
@@ -144,7 +144,7 @@ SET boot_disk_size_gb = %s,
     autoscaler_loop_period_secs = %s,
     worker_max_idle_time_secs = %s
 WHERE name = %s;
-''',
+""",
             (
                 boot_disk_size_gb,
                 max_instances,
@@ -177,7 +177,7 @@ WHERE name = %s;
         max_records = 300
 
         async for record in self.db.select_and_fetchall(
-            '''
+            """
 SELECT jobs.*, batches.format_version, batches.userdata, batches.user, attempts.instance_name, time_ready
 FROM batches
 INNER JOIN jobs ON batches.id = jobs.batch_id
@@ -191,7 +191,7 @@ WHERE batches.state = 'running'
   AND instances.`state` = 'active'
 ORDER BY instances.time_activated ASC
 LIMIT %s;
-''',
+""",
             (self.name, max_records),
         ):
             batch_id = record['batch_id']
@@ -241,7 +241,7 @@ LIMIT %s;
         allocating_users_by_total_jobs = sortedcontainers.SortedSet(key=lambda user: user_total_jobs[user])
 
         records = self.db.execute_and_fetchall(
-            '''
+            """
 SELECT user,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs,
@@ -250,7 +250,7 @@ FROM user_inst_coll_resources
 WHERE inst_coll = %s
 GROUP BY user
 HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
-''',
+""",
             (self.name,),
         )
 
@@ -350,17 +350,17 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         async def user_runnable_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
-                '''
+                """
 SELECT batches.id, job_groups_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
 FROM batches
 LEFT JOIN job_groups_cancelled
        ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 async for record in self.db.select_and_fetchall(
-                    '''
+                    """
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
@@ -370,7 +370,7 @@ WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND jobs.in
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
 LIMIT %s;
-''',
+""",
                     (batch['id'], self.name, remaining.value),
                 ):
                     record['batch_id'] = batch['id']
@@ -380,7 +380,7 @@ LIMIT %s;
                     yield record
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                        '''
+                        """
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
@@ -390,7 +390,7 @@ WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND jobs.in
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
 LIMIT %s
-''',
+""",
                         (batch['id'], self.name, remaining.value),
                     ):
                         record['batch_id'] = batch['id']

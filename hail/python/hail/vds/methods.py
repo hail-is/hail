@@ -59,7 +59,6 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     dr = dr.filter(dr._variant_defined)
 
     def coalesce_join(ref, var):
-
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 
@@ -256,12 +255,10 @@ def sample_qc(
     if 'GT' not in vmt.entry:
         vmt = vmt.annotate_entries(GT=hl.vds.lgt_to_gt(vmt.LGT, vmt.LA))
 
-    vmt = vmt.annotate_rows(
-        **{
-            variant_ac: hl.agg.call_stats(vmt.GT, vmt.alleles).AC,
-            variant_atypes: vmt.alleles[1:].map(lambda alt: allele_type(vmt.alleles[0], alt)),
-        }
-    )
+    vmt = vmt.annotate_rows(**{
+        variant_ac: hl.agg.call_stats(vmt.GT, vmt.alleles).AC,
+        variant_atypes: vmt.alleles[1:].map(lambda alt: allele_type(vmt.alleles[0], alt)),
+    })
 
     bound_exprs = {}
 
@@ -327,26 +324,23 @@ def sample_qc(
     result_struct = hl.rbind(
         hl.struct(**bound_exprs),
         lambda x: hl.rbind(
-            hl.struct(
-                **{
-                    'gq_dp_exprs': gq_dp_exprs,
-                    'n_het': x.n_het,
-                    'n_hom_var': x.n_hom_var,
-                    'n_non_ref': x.n_het + x.n_hom_var,
-                    'n_singleton': x.n_singleton,
-                    'n_singleton_ti': x.n_singleton_ti,
-                    'n_singleton_tv': x.n_singleton_tv,
-                    'n_snp': (
-                        x.allele_type_counts[allele_ints['Transition']]
-                        + x.allele_type_counts[allele_ints['Transversion']]
-                    ),
-                    'n_insertion': x.allele_type_counts[allele_ints['Insertion']],
-                    'n_deletion': x.allele_type_counts[allele_ints['Deletion']],
-                    'n_transition': x.allele_type_counts[allele_ints['Transition']],
-                    'n_transversion': x.allele_type_counts[allele_ints['Transversion']],
-                    'n_star': x.allele_type_counts[allele_ints['Star']],
-                }
-            ),
+            hl.struct(**{
+                'gq_dp_exprs': gq_dp_exprs,
+                'n_het': x.n_het,
+                'n_hom_var': x.n_hom_var,
+                'n_non_ref': x.n_het + x.n_hom_var,
+                'n_singleton': x.n_singleton,
+                'n_singleton_ti': x.n_singleton_ti,
+                'n_singleton_tv': x.n_singleton_tv,
+                'n_snp': (
+                    x.allele_type_counts[allele_ints['Transition']] + x.allele_type_counts[allele_ints['Transversion']]
+                ),
+                'n_insertion': x.allele_type_counts[allele_ints['Insertion']],
+                'n_deletion': x.allele_type_counts[allele_ints['Deletion']],
+                'n_transition': x.allele_type_counts[allele_ints['Transition']],
+                'n_transversion': x.allele_type_counts[allele_ints['Transversion']],
+                'n_star': x.allele_type_counts[allele_ints['Star']],
+            }),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
                 r_ti_tv_singleton=divide_null(hl.float64(s.n_singleton_ti), s.n_singleton_tv),
@@ -601,9 +595,10 @@ def impute_sex_chromosome_ploidy(
     calling_intervals = calling_intervals.checkpoint(new_temp_file(extension='ht'))
 
     interval = calling_intervals.key[0]
-    (any_bad_intervals, chrs_represented) = calling_intervals.aggregate(
-        (hl.agg.any(interval.start.contig != interval.end.contig), hl.agg.collect_as_set(interval.start.contig))
-    )
+    (any_bad_intervals, chrs_represented) = calling_intervals.aggregate((
+        hl.agg.any(interval.start.contig != interval.end.contig),
+        hl.agg.collect_as_set(interval.start.contig),
+    ))
     if any_bad_intervals:
         raise ValueError(
             "'impute_sex_chromosome_ploidy' does not support calling intervals that span chromosome boundaries"

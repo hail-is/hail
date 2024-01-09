@@ -132,14 +132,12 @@ async def test_hailctl_takes_precedence_1():
     await check_exec_output('hailctl', 'config', 'set', 'gcs_requester_pays/project', 'hailctl_project', echo=True)
 
     actual = get_gcs_requester_pays_configuration()
-    assert actual == 'hailctl_project', str(
-        (
-            configuration_of(ConfigVariable.GCS_REQUESTER_PAYS_PROJECT, None, None),
-            configuration_of(ConfigVariable.GCS_REQUESTER_PAYS_BUCKETS, None, None),
-            get_spark_conf_gcs_requester_pays_configuration(),
-            open('/Users/dking/.config/hail/config.ini', 'r').readlines(),
-        )
-    )
+    assert actual == 'hailctl_project', str((
+        configuration_of(ConfigVariable.GCS_REQUESTER_PAYS_PROJECT, None, None),
+        configuration_of(ConfigVariable.GCS_REQUESTER_PAYS_BUCKETS, None, None),
+        get_spark_conf_gcs_requester_pays_configuration(),
+        open('/Users/dking/.config/hail/config.ini', 'r').readlines(),
+    ))
 
 
 @pytest.mark.asyncio

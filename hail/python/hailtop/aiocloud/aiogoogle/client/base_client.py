@@ -15,7 +15,7 @@ class GoogleBaseClient(CloudBaseClient):
         *,
         session: Optional[GoogleSession] = None,
         rate_limit: Optional[RateLimit] = None,
-        **kwargs
+        **kwargs,
     ):
         if session is None:
             session = GoogleSession(**kwargs)

@@ -421,13 +421,11 @@ def start(
 
     # print underlying gcloud command
     print(
-        ''.join(
-            [
-                ' '.join(shq(x) for x in cmd[:5]),
-                ' \\\n    ',
-                ' \\\n    '.join(shq(x) for x in cmd[5:]),
-            ]
-        )
+        ''.join([
+            ' '.join(shq(x) for x in cmd[:5]),
+            ' \\\n    ',
+            ' \\\n    '.join(shq(x) for x in cmd[5:]),
+        ])
     )
 
     # spin up cluster

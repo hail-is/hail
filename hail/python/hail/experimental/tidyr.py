@@ -89,7 +89,7 @@ def spread(ht, field, value, key=None) -> Table:
                 hl.rbind(hl.agg.take(ht[value], 1), lambda take: hl.if_else(hl.len(take) > 0, take[0], 'NA')),
             )
             for fv in field_vals
-        }
+        },
     )
 
     ht_tmp = new_temp_file()

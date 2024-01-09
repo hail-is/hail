@@ -498,9 +498,7 @@ class AzureAsyncFS(AsyncFS):
         client = self.get_blob_client(self.parse_url(url))
         return AzureReadableStream(client, url, offset=start, length=length)
 
-    async def create(
-        self, url: str, *, retry_writes: bool = True
-    ) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
+    async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         return AzureCreateManager(self.get_blob_client(self.parse_url(url)))
 
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:

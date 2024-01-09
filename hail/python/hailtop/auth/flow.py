@@ -113,7 +113,7 @@ class GoogleFlow(Flow):
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials.id_token,  # type: ignore
-            google.auth.transport.requests.Request()  # type: ignore
+            google.auth.transport.requests.Request(),  # type: ignore
         )
         email = token['email']
         return FlowResult(email, email, token.get('hd'), token)

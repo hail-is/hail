@@ -225,23 +225,19 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixEntriesTable(matrix_read),
             ir.MatrixRowsTable(matrix_read),
             ir.TableParallelize(
-                ir.MakeStruct(
-                    [
-                        ('rows', ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a': None}, {'a': 5}, {'a': -3}])),
-                        ('global', ir.MakeStruct([])),
-                    ]
-                ),
+                ir.MakeStruct([
+                    ('rows', ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a': None}, {'a': 5}, {'a': -3}])),
+                    ('global', ir.MakeStruct([])),
+                ]),
                 None,
             ),
             ir.TableMapRows(
                 ir.TableKeyBy(table_read, []),
-                ir.MakeStruct(
-                    [
-                        ('a', ir.GetField(ir.Ref('row', table_read_row_type), 'f32')),
-                        ('b', ir.F64(-2.11)),
-                        ('c', ir.ApplyScanOp('Collect', [], [ir.I32(0)])),
-                    ]
-                ),
+                ir.MakeStruct([
+                    ('a', ir.GetField(ir.Ref('row', table_read_row_type), 'f32')),
+                    ('b', ir.F64(-2.11)),
+                    ('c', ir.ApplyScanOp('Collect', [], [ir.I32(0)])),
+                ]),
             ),
             ir.TableMapGlobals(table_read, ir.MakeStruct([('foo', ir.NA(hl.tarray(hl.tint32)))])),
             ir.TableRange(100, 10),

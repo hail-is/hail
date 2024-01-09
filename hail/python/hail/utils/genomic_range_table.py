@@ -52,12 +52,10 @@ def genomic_range_table(n: int, n_partitions: Optional[int] = None, reference_ge
     return hl.Table._generate(
         contexts=idx_bounds,
         partitions=[
-            hl.Interval(
-                **{
-                    endpoint: hl.Struct(locus=reference_genome.locus_from_global_position(idx))
-                    for endpoint, idx in [('start', lo), ('end', hi)]
-                }
-            )
+            hl.Interval(**{
+                endpoint: hl.Struct(locus=reference_genome.locus_from_global_position(idx))
+                for endpoint, idx in [('start', lo), ('end', hi)]
+            })
             for (lo, hi) in idx_bounds
         ],
         rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(

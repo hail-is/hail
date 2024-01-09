@@ -29,12 +29,10 @@ class TypeChecker(object):
         pass
 
     @abc.abstractmethod
-    def check(self, x, caller, param):
-        ...
+    def check(self, x, caller, param): ...
 
     @abc.abstractmethod
-    def expects(self):
-        ...
+    def expects(self): ...
 
     def format(self, arg):
         return f"{extract(type(arg))}: {arg}"
@@ -593,8 +591,7 @@ def arg_check(arg, function_name: str, arg_name: str, checker: TypeChecker):
         return checker.check(arg, function_name, arg_name)
     except TypecheckFailure as e:
         raise TypeError(
-            "{fname}: parameter '{argname}': "
-            "expected {expected}, found {found}".format(
+            "{fname}: parameter '{argname}': " "expected {expected}, found {found}".format(
                 fname=function_name, argname=arg_name, expected=checker.expects(), found=checker.format(arg)
             )
         ) from e
@@ -605,8 +602,7 @@ def args_check(arg, function_name: str, arg_name: str, index: int, total_varargs
         return checker.check(arg, function_name, arg_name)
     except TypecheckFailure as e:
         raise TypeError(
-            "{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
-            "expected {expected}, found {found}".format(
+            "{fname}: parameter '*{argname}' (arg {idx} of {tot}): " "expected {expected}, found {found}".format(
                 fname=function_name,
                 argname=arg_name,
                 idx=index,
@@ -622,8 +618,7 @@ def kwargs_check(arg, function_name: str, kwarg_name: str, checker: TypeChecker)
         return checker.check(arg, function_name, kwarg_name)
     except TypecheckFailure as e:
         raise TypeError(
-            "{fname}: keyword argument '{argname}': "
-            "expected {expected}, found {found}".format(
+            "{fname}: keyword argument '{argname}': " "expected {expected}, found {found}".format(
                 fname=function_name, argname=kwarg_name, expected=checker.expects(), found=checker.format(arg)
             )
         ) from e

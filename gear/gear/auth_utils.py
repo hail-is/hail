@@ -10,10 +10,10 @@ async def insert_user(db, spec):
     assert all(k in spec for k in ('state', 'username'))
 
     return await db.execute_insertone(
-        f'''
+        f"""
 INSERT INTO users ({', '.join(spec.keys())})
 VALUES ({', '.join([f'%({k})s' for k in spec.keys()])})
-''',
+""",
         spec,
     )
 

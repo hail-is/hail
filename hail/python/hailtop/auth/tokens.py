@@ -21,13 +21,13 @@ def session_id_decode_from_str(session_id_str: str) -> bytes:
 class NotLoggedInError(Exception):
     def __init__(self, ns_arg):
         super().__init__()
-        self.message = f'''
+        self.message = f"""
 You are not authenticated.  Please log in with:
 
   $ hailctl auth login {ns_arg}
 
 to obtain new credentials.
-'''
+"""
 
     def __str__(self):
         return self.message

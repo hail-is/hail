@@ -385,18 +385,16 @@ class Tests(unittest.TestCase):
         initial_vep_dtype = hail_vep_result.vep.dtype
         hail_vep_result = hail_vep_result.annotate_rows(
             vep=hail_vep_result.vep.annotate(
-                input=hl.str('\t').join(
-                    [
-                        hail_vep_result.locus.contig,
-                        hl.str(hail_vep_result.locus.position),
-                        ".",
-                        hail_vep_result.alleles[0],
-                        hail_vep_result.alleles[1],
-                        ".",
-                        ".",
-                        "GT",
-                    ]
-                )
+                input=hl.str('\t').join([
+                    hail_vep_result.locus.contig,
+                    hl.str(hail_vep_result.locus.position),
+                    ".",
+                    hail_vep_result.alleles[0],
+                    hail_vep_result.alleles[1],
+                    ".",
+                    ".",
+                    "GT",
+                ])
             )
         )
         hail_vep_result = hail_vep_result.rows().select('vep')
@@ -445,18 +443,16 @@ class Tests(unittest.TestCase):
         hail_vep_result = hl.vep(loftee_variants)
         hail_vep_result = hail_vep_result.annotate(
             vep=hail_vep_result.vep.annotate(
-                input=hl.str('\t').join(
-                    [
-                        hail_vep_result.locus.contig,
-                        hl.str(hail_vep_result.locus.position),
-                        ".",
-                        hail_vep_result.alleles[0],
-                        hail_vep_result.alleles[1],
-                        ".",
-                        ".",
-                        "GT",
-                    ]
-                )
+                input=hl.str('\t').join([
+                    hail_vep_result.locus.contig,
+                    hl.str(hail_vep_result.locus.position),
+                    ".",
+                    hail_vep_result.alleles[0],
+                    hail_vep_result.alleles[1],
+                    ".",
+                    ".",
+                    "GT",
+                ])
             )
         )
         hail_vep_result = hail_vep_result.select('vep')

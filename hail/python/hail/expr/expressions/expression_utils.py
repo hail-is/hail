@@ -86,7 +86,6 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
 
     if aggregations:
         if aggregation_axes:
-
             # the expected axes of aggregated expressions are the expected axes + axes aggregated over
             expected_agg_axes = expected_axes.union(aggregation_axes)
 

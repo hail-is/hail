@@ -588,7 +588,7 @@ def escape_str(s, backticked=False):
                 if backticked:
                     sb.write('"')
                 else:
-                    sb.write('\\\"')
+                    sb.write('\\"')
             elif ch == '`':
                 if backticked:
                     sb.write("\\`")
