@@ -1,13 +1,19 @@
 package is.hail.stats
 
-import breeze.linalg._
-import breeze.numerics._
 import is.hail.annotations.RegionValueBuilder
 import is.hail.types.virtual._
 import is.hail.utils.fatal
 
+import breeze.linalg._
+import breeze.numerics._
+
 object LogisticRegressionTest {
-  val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> LogisticScoreTest, "firth" -> LogisticFirthTest)
+  val tests = Map(
+    "wald" -> WaldTest,
+    "lrt" -> LikelihoodRatioTest,
+    "score" -> LogisticScoreTest,
+    "firth" -> LogisticFirthTest,
+  )
 }
 
 abstract class GLMTest extends Serializable {
@@ -17,7 +23,7 @@ abstract class GLMTest extends Serializable {
     nullFit: GLMFit,
     link: String,
     maxIter: Int,
-    tol: Double
+    tol: Double,
   ): GLMTestResult[GLMStats]
 
   val schema: TStruct
@@ -36,13 +42,16 @@ class GLMTestResult[+T <: GLMStats](val stats: Option[T], private val size: Int)
   }
 }
 
-class GLMTestResultWithFit[T <: GLMStats](override val stats: Option[T], private val size: Int, val fitStats: GLMFit) extends GLMTestResult[T](stats, size) {
+class GLMTestResultWithFit[T <: GLMStats](
+  override val stats: Option[T],
+  private val size: Int,
+  val fitStats: GLMFit,
+) extends GLMTestResult[T](stats, size) {
   override def addToRVB(rvb: RegionValueBuilder) {
     super.addToRVB(rvb)
     fitStats.addToRVB(rvb)
   }
 }
-
 
 object WaldTest extends GLMTest {
   val schema: TStruct = TStruct(
@@ -50,7 +59,8 @@ object WaldTest extends GLMTest {
     ("standard_error", TFloat64),
     ("z_stat", TFloat64),
     ("p_value", TFloat64),
-    ("fit", GLMFit.schema))
+    ("fit", GLMFit.schema),
+  )
 
   def test(
     X: DenseMatrix[Double],
@@ -58,7 +68,7 @@ object WaldTest extends GLMTest {
     nullFit: GLMFit,
     link: String,
     maxIter: Int,
-    tol: Double
+    tol: Double,
   ): GLMTestResultWithFit[WaldStats] = {
     require(nullFit.fisher.isDefined)
 
@@ -67,7 +77,7 @@ object WaldTest extends GLMTest {
       case "poisson" => new PoissonRegressionModel(X, y)
       case _ => fatal("link must be logistic or poisson")
     }
-    val fit = model.fit(Some(nullFit), maxIter=maxIter, tol=tol)
+    val fit = model.fit(Some(nullFit), maxIter = maxIter, tol = tol)
 
     val waldStats = if (fit.converged) {
       try {
@@ -87,7 +97,12 @@ object WaldTest extends GLMTest {
   }
 }
 
-case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends GLMStats {
+case class WaldStats(
+  b: DenseVector[Double],
+  se: DenseVector[Double],
+  z: DenseVector[Double],
+  p: DenseVector[Double],
+) extends GLMStats {
   def addToRVB(rvb: RegionValueBuilder): Unit = {
     rvb.addDouble(b(-1))
     rvb.addDouble(se(-1))
@@ -96,13 +111,13 @@ case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVe
   }
 }
 
-
 object LikelihoodRatioTest extends GLMTest {
   val schema = TStruct(
     ("beta", TFloat64),
     ("chi_sq_stat", TFloat64),
     ("p_value", TFloat64),
-    ("fit", GLMFit.schema))
+    ("fit", GLMFit.schema),
+  )
 
   def test(
     X: DenseMatrix[Double],
@@ -110,7 +125,7 @@ object LikelihoodRatioTest extends GLMTest {
     nullFit: GLMFit,
     link: String,
     maxIter: Int,
-    tol: Double
+    tol: Double,
   ): GLMTestResultWithFit[LikelihoodRatioStats] = {
     val m = X.cols
     val m0 = nullFit.b.length
@@ -119,7 +134,7 @@ object LikelihoodRatioTest extends GLMTest {
       case "poisson" => new PoissonRegressionModel(X, y)
       case _ => fatal("link must be logistic or poisson")
     }
-    val fit = model.fit(Some(nullFit), maxIter=maxIter, tol=tol)
+    val fit = model.fit(Some(nullFit), maxIter = maxIter, tol = tol)
 
     val lrStats =
       if (fit.converged) {
@@ -147,7 +162,8 @@ object LogisticFirthTest extends GLMTest {
     ("beta", TFloat64),
     ("chi_sq_stat", TFloat64),
     ("p_value", TFloat64),
-    ("fit", GLMFit.schema))
+    ("fit", GLMFit.schema),
+  )
 
   def test(
     X: DenseMatrix[Double],
@@ -155,20 +171,20 @@ object LogisticFirthTest extends GLMTest {
     nullFit: GLMFit,
     link: String,
     maxIter: Int,
-    tol: Double
+    tol: Double,
   ): GLMTestResultWithFit[FirthStats] = {
     require(link == "logistic")
 
     val m = X.cols
     val m0 = nullFit.b.length
     val model = new LogisticRegressionModel(X, y)
-    val nullFitFirth = model.fitFirth(nullFit.b, maxIter=maxIter, tol=tol)
+    val nullFitFirth = model.fitFirth(nullFit.b, maxIter = maxIter, tol = tol)
 
     if (nullFitFirth.converged) {
       val nullFitFirthb = DenseVector.zeros[Double](m)
       nullFitFirthb(0 until m0) := nullFitFirth.b
 
-      val fitFirth = model.fitFirth(nullFitFirthb, maxIter=maxIter, tol=tol)
+      val fitFirth = model.fitFirth(nullFitFirthb, maxIter = maxIter, tol = tol)
 
       val firthStats =
         if (fitFirth.converged) {
@@ -185,7 +201,6 @@ object LogisticFirthTest extends GLMTest {
   }
 }
 
-
 case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends GLMStats {
   def addToRVB(rvb: RegionValueBuilder): Unit = {
     rvb.addDouble(b(-1))
@@ -194,12 +209,11 @@ case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends G
   }
 }
 
-
 object LogisticScoreTest extends GLMTest {
   val schema: TStruct = TStruct(
     ("chi_sq_stat", TFloat64),
-    ("p_value", TFloat64))
-
+    ("p_value", TFloat64),
+  )
 
   def test(
     X: DenseMatrix[Double],
@@ -207,7 +221,7 @@ object LogisticScoreTest extends GLMTest {
     nullFit: GLMFit,
     link: String,
     maxIter: Int,
-    tol: Double
+    tol: Double,
   ): GLMTestResult[ScoreStats] = {
     require(link == "logistic")
     require(nullFit.score.isDefined && nullFit.fisher.isDefined)
@@ -250,7 +264,6 @@ object LogisticScoreTest extends GLMTest {
   }
 }
 
-
 case class ScoreStats(chi2: Double, p: Double) extends GLMStats {
   def addToRVB(rvb: RegionValueBuilder): Unit = {
     rvb.addDouble(chi2)
@@ -258,15 +271,14 @@ case class ScoreStats(chi2: Double, p: Double) extends GLMStats {
   }
 }
 
-
 abstract class GeneralLinearModel {
   def bInterceptOnly(): DenseVector[Double]
 
   def fit(optNullFit: Option[GLMFit], maxIter: Int, tol: Double): GLMFit
 }
 
-
-class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) extends GeneralLinearModel {
+class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
+    extends GeneralLinearModel {
   require(y.length == X.rows)
 
   val n: Int = X.rows
@@ -361,13 +373,18 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
         val sqrtW = sqrt(mu *:* (1d - mu))
         val QR = qr.reduced(X(::, *) *:* sqrtW)
         val h = QR.q(*, ::).map(r => r dot r)
-        val deltaB = TriSolve(QR.r(0 until m0, 0 until m0), QR.q(::, 0 until m0).t * (((y - mu) + (h *:* (0.5 - mu))) /:/ sqrtW))
+        val deltaB = TriSolve(
+          QR.r(0 until m0, 0 until m0),
+          QR.q(::, 0 until m0).t * (((y - mu) + (h *:* (0.5 - mu))) /:/ sqrtW),
+        )
 
         if (deltaB(0).isNaN) {
           exploded = true
         } else if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
-          logLkhd = sum(breeze.numerics.log((y *:* mu) + ((1d - y) *:* (1d - mu)))) + sum(log(abs(diag(QR.r))))
+          logLkhd = sum(breeze.numerics.log((y *:* mu) + ((1d - y) *:* (1d - mu)))) + sum(
+            log(abs(diag(QR.r)))
+          )
         } else {
           b += deltaB
         }
@@ -385,7 +402,8 @@ object GLMFit {
   val schema: Type = TStruct(
     ("n_iterations", TInt32),
     ("converged", TBoolean),
-    ("exploded", TBoolean))
+    ("exploded", TBoolean),
+  )
 }
 
 case class GLMFit(
@@ -395,7 +413,8 @@ case class GLMFit(
   logLkhd: Double,
   nIter: Int,
   converged: Boolean,
-  exploded: Boolean) {
+  exploded: Boolean,
+) {
 
   def addToRVB(rvb: RegionValueBuilder): Unit = {
     rvb.startStruct()

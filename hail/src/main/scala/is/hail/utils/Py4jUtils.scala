@@ -2,8 +2,9 @@ package is.hail.utils
 
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.io.fs.{FS, FileListEntry, FileStatus, SeekableDataInputStream}
+import is.hail.io.fs.{FileListEntry, FileStatus, FS, SeekableDataInputStream}
 import is.hail.types.virtual.Type
+
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
@@ -72,21 +73,24 @@ trait Py4jUtils {
       "is_link" -> JBool(fs.isSymlink),
       "modification_time" ->
         (if (fs.getModificationTime != null)
-          JString(
-            new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ").format(
-              new java.util.Date(fs.getModificationTime)))
-        else
-          JNull),
+           JString(
+             new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ").format(
+               new java.util.Date(fs.getModificationTime)
+             )
+           )
+         else
+           JNull),
       "owner" -> (
         if (fs.getOwner != null)
           JString(fs.getOwner)
         else
-          JNull))
+          JNull
+      ),
+    )
   }
 
-  private def fileListEntryToJson(fs: FileListEntry): JObject = {
+  private def fileListEntryToJson(fs: FileListEntry): JObject =
     JObject(fileStatusToJson(fs).obj :+ ("is_dir" -> JBool(fs.isDirectory)))
-  }
 
   private val kilo: Long = 1024
   private val mega: Long = kilo * 1024
@@ -106,9 +110,8 @@ trait Py4jUtils {
       formatDigits(bytes, tera) + "T"
   }
 
-  private def formatDigits(n: Long, factor: Long): String = {
+  private def formatDigits(n: Long, factor: Long): String =
     "%.1f".format(n / factor.toDouble)
-  }
 
   def readFile(fs: FS, path: String, buffSize: Int): HadoopSeekablePyReader =
     new HadoopSeekablePyReader(fs.fileListEntry(path), fs.openNoCompression(path), buffSize)
@@ -171,7 +174,8 @@ class HadoopPyReader(in: InputStream, buffSize: Int) {
   }
 }
 
-class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream, buffSize: Int) extends HadoopPyReader(in, buffSize) {
+class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream, buffSize: Int)
+    extends HadoopPyReader(in, buffSize) {
   def seek(pos: Long, whence: Int): Long = {
     // whence corresponds to python arguments to seek
     // it is validated in python

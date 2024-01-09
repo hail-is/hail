@@ -12,7 +12,8 @@ import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePoin
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
-class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) extends AggregatorState {
+class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_])
+    extends AggregatorState {
   val eltPType = eltType.canonicalPType
 
   private val r: ThisFieldRef[Region] = kb.genFieldThisRef[Region]()
@@ -27,24 +28,31 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
   def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.if_(region.isNull, {
-      cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
-    })
+    cb.if_(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
+  override def load(
+    cb: EmitCodeBuilder,
+    regionLoader: (EmitCodeBuilder, Value[Region]) => Unit,
+    src: Value[Long],
+  ): Unit = {
     regionLoader(cb, r)
     cb.assign(maxSize, Region.loadInt(maxSizeOffset(src)))
     builder.loadFrom(cb, builderStateOffset(src))
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.if_(region.isValid,
-      {
+  override def store(
+    cb: EmitCodeBuilder,
+    regionStorer: (EmitCodeBuilder, Value[Region]) => Unit,
+    dest: Value[Long],
+  ): Unit = {
+    cb.if_(
+      region.isValid, {
         regionStorer(cb, region)
         cb += region.invalidate()
         cb += Region.storeInt(maxSizeOffset(dest), maxSize)
         builder.storeTo(cb, builderStateOffset(dest))
-      })
+      },
+    )
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
@@ -59,38 +67,35 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
       builder.deserialize(codec)(cb, ib)
   }
 
-
   def init(cb: EmitCodeBuilder, _maxSize: Code[Int]): Unit = {
     cb.assign(maxSize, _maxSize)
     builder.initialize(cb)
   }
 
-  def seqOp(cb: EmitCodeBuilder, elt: EmitCode): Unit = {
-    cb.if_(builder.size < maxSize,
+  def seqOp(cb: EmitCodeBuilder, elt: EmitCode): Unit =
+    cb.if_(
+      builder.size < maxSize,
       elt.toI(cb)
-        .consume(cb,
-          builder.setMissing(cb),
-          sc => builder.append(cb, sc)))
-  }
+        .consume(cb, builder.setMissing(cb), sc => builder.append(cb, sc)),
+    )
 
   def combine(cb: EmitCodeBuilder, other: TakeRVAS): Unit = {
     val j = kb.genFieldThisRef[Int]()
     cb.assign(j, 0)
-    cb.while_((builder.size < maxSize) && (j < other.builder.size),
-      {
+    cb.while_(
+      (builder.size < maxSize) && (j < other.builder.size), {
         other.builder.loadElement(cb, j).toI(cb)
-          .consume(cb,
-            builder.setMissing(cb),
-            sc => builder.append(cb, sc))
+          .consume(cb, builder.setMissing(cb), sc => builder.append(cb, sc))
         cb.assign(j, j + 1)
-      })
+      },
+    )
   }
 
-  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerValue = {
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray)
+    : SIndexablePointerValue =
     resType.constructFromElements(cb, region, builder.size, deepCopy = true) { (cb, idx) =>
       builder.loadElement(cb, idx).toI(cb)
     }
-  }
 
   def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb.assign(maxSize, Region.loadInt(maxSizeOffset(src)))
@@ -111,9 +116,10 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     assert(init.length == 1)
     val Array(sizeTriplet) = init
     sizeTriplet.toI(cb)
-      .consume(cb,
+      .consume(
+        cb,
         cb += Code._fatal[Unit](s"argument 'n' for 'hl.agg.take' may not be missing"),
-        sc => state.init(cb, sc.asInt.value)
+        sc => state.init(cb, sc.asInt.value),
       )
   }
 
@@ -122,10 +128,10 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     state.seqOp(cb, elt)
   }
 
-  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TakeRVAS, other: TakeRVAS): Unit = state.combine(cb, other)
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TakeRVAS, other: TakeRVAS)
+    : Unit = state.combine(cb, other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =
     // deepCopy is handled by state.resultArray
     IEmitCode.present(cb, state.resultArray(cb, region, resultPType))
-  }
 }

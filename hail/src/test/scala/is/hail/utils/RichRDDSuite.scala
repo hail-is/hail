@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import is.hail.{HailSuite, TestUtils}
+
 import org.testng.annotations.Test
 
 class RichRDDSuite extends HailSuite {
@@ -24,17 +25,23 @@ class RichRDDSuite extends HailSuite {
     assert(read(shardHeaders + "/part-00001") sameElements header +: Array(data(1)))
 
     val separateHeader = ctx.createTmpPath("separateHeader", "gz")
-    r.writeTable(ctx, separateHeader, Some(header), exportType = ExportType.PARALLEL_SEPARATE_HEADER)
+    r.writeTable(
+      ctx,
+      separateHeader,
+      Some(header),
+      exportType = ExportType.PARALLEL_SEPARATE_HEADER,
+    )
 
     assert(read(separateHeader + "/header.gz") sameElements Array(header))
     assert(read(separateHeader + "/part-00000.gz") sameElements Array(data(0)))
     assert(read(separateHeader + "/part-00001.gz") sameElements Array(data(1)))
 
-
     val merged = ctx.createTmpPath("merged", ".gz")
-    val mergeList = Array(separateHeader + "/header.gz",
+    val mergeList = Array(
+      separateHeader + "/header.gz",
       separateHeader + "/part-00000.gz",
-      separateHeader + "/part-00001.gz").map(x => fs.fileStatus(x))
+      separateHeader + "/part-00001.gz",
+    ).map(x => fs.fileStatus(x))
     fs.copyMergeList(mergeList, merged, deleteSource = false)
 
     assert(read(merged) sameElements read(concatenated))

@@ -1,8 +1,9 @@
 package is.hail.utils
 
-import Math.signum
 import scala.collection.mutable
 import scala.reflect.ClassTag
+
+import Math.signum
 
 class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Double = null) {
   private var ts: Array[T] = new Array[T](minimumCapacity)
@@ -32,11 +33,13 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
   def nonEmpty: Boolean = next != 0
 
   override def toString(): String =
-    s"values: ${ ts.slice(0, next): IndexedSeq[T] }; ranks: ${ ranks.slice(0, next): IndexedSeq[Long] }"
+    s"values: ${ts.slice(0, next): IndexedSeq[T]}; ranks: ${ranks.slice(0, next): IndexedSeq[Long]}"
 
   def insert(t: T, r: Long) {
     if (m.contains(t))
-      throw new RuntimeException(s"key $t already exists with priority ${ ranks(m(t)) }, cannot add it again with priority $r")
+      throw new RuntimeException(
+        s"key $t already exists with priority ${ranks(m(t))}, cannot add it again with priority $r"
+      )
     maybeGrow()
     put(next, t, r)
     bubbleUp(next)
@@ -175,9 +178,19 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
       val leftChild = (current << 1) + 1
       val rightChild = (current << 1) + 2
 
-      if (leftChild < next && (ranks(leftChild) > ranks(largest) || isLeftFavoredTie(leftChild, largest)))
+      if (
+        leftChild < next && (ranks(leftChild) > ranks(largest) || isLeftFavoredTie(
+          leftChild,
+          largest,
+        ))
+      )
         largest = leftChild
-      if (rightChild < next && (ranks(rightChild) > ranks(largest) || isLeftFavoredTie(rightChild, largest)))
+      if (
+        rightChild < next && (ranks(rightChild) > ranks(largest) || isLeftFavoredTie(
+          rightChild,
+          largest,
+        ))
+      )
         largest = rightChild
 
       if (largest != current) {
@@ -212,8 +225,10 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
   }
 
   private def assertHeapProperty(child: Int, parent: Int) {
-    assert(ranks(child) <= ranks(parent),
-      s"heap property violated at parent $parent, child $child: ${ ts(parent) }:${ ranks(parent) } < ${ ts(child) }:${ ranks(child) }")
+    assert(
+      ranks(child) <= ranks(parent),
+      s"heap property violated at parent $parent, child $child: ${ts(parent)}:${ranks(parent)} < ${ts(child)}:${ranks(child)}",
+    )
   }
 
 }

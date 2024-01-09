@@ -2,62 +2,87 @@ package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
-import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.expr.ir._
-import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.physical.{PArray, PStruct}
-import is.hail.types.virtual.TStruct
 import is.hail.types.{RTable, TableType, VirtualTypeWithReq}
+import is.hail.types.physical.{PArray, PStruct}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.virtual.TStruct
 import is.hail.utils.FastSeq
-import org.apache.spark.rdd.RDD
-import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
-import org.json4s.JValue
+
 import org.json4s.JsonAST.JString
+import org.json4s.JValue
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
+import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
+import org.apache.spark.rdd.RDD
+
 case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader {
-  lazy val fullType: TableType = TableType(rvd.rowType, rvd.typ.key, globals.typ.asInstanceOf[TStruct])
+  lazy val fullType: TableType =
+    TableType(rvd.rowType, rvd.typ.key, globals.typ.asInstanceOf[TStruct])
 
   override def pathsUsed: Seq[String] = Seq()
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableExecuteIntermediate = {
+  override def toExecuteIntermediate(
+    ctx: ExecuteContext,
+    requestedType: TableType,
+    dropRows: Boolean,
+  ): TableExecuteIntermediate = {
     assert(!dropRows)
-    val (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) = Compile[AsmFunction1RegionLong](
-      ctx, FastSeq(), FastSeq(classInfo[Region]), LongInfo, PruneDeadFields.upcast(ctx, globals, requestedType.globalType))
+    val (Some(PTypeReferenceSingleCodeType(globType: PStruct)), f) =
+      Compile[AsmFunction1RegionLong](
+        ctx,
+        FastSeq(),
+        FastSeq(classInfo[Region]),
+        LongInfo,
+        PruneDeadFields.upcast(ctx, globals, requestedType.globalType),
+      )
     val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
 
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbAddr), globType)
 
     val rowEmitType = SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType))
-    val (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), rowF) = Compile[AsmFunction2RegionLongLong](
-      ctx, FastSeq(("row", rowEmitType)), FastSeq(classInfo[Region], LongInfo), LongInfo,
-      PruneDeadFields.upcast(ctx, In(0, rowEmitType),
-        requestedType.rowType))
+    val (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), rowF) =
+      Compile[AsmFunction2RegionLongLong](
+        ctx,
+        FastSeq(("row", rowEmitType)),
+        FastSeq(classInfo[Region], LongInfo),
+        LongInfo,
+        PruneDeadFields.upcast(ctx, In(0, rowEmitType), requestedType.rowType),
+      )
 
     val fsBc = ctx.fsBc
-    TableExecuteIntermediate(TableValue(ctx, requestedType, globRow, rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
-      val partF = rowF(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), ctx.partitionRegion)
-      it.map { elt => partF(ctx.r, elt) }
-    }))
+    TableExecuteIntermediate(TableValue(
+      ctx,
+      requestedType,
+      globRow,
+      rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
+        val partF = rowF(
+          theHailClassLoaderForSparkWorkers,
+          fsBc.value,
+          SparkTaskContext.get(),
+          ctx.partitionRegion,
+        )
+        it.map(elt => partF(ctx.r, elt))
+      },
+    ))
   }
 
   override def isDistinctlyKeyed: Boolean = false
 
-  def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+  def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq.subset(requestedType.rowType, rt.rowType)
-  }
 
-  def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
+  def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
-  }
 
   override def toJValue: JValue = JString("RVDTableReader")
 
@@ -68,10 +93,9 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     RVDToTableStage(rvd, globals)
       .upcast(ctx, requestedType)
-  }
 }
 
 object RVDToTableStage {
@@ -81,7 +105,7 @@ object RVDToTableStage {
       partitioner = rvd.partitioner,
       dependency = TableStageDependency.fromRVD(rvd),
       contexts = StreamRange(0, rvd.getNumPartitions, 1),
-      body = ReadPartition(_, rvd.rowType, PartitionRVDReader(rvd, "__dummy_uid"))
+      body = ReadPartition(_, rvd.rowType, PartitionRVDReader(rvd, "__dummy_uid")),
     )
   }
 }
@@ -89,26 +113,37 @@ object RVDToTableStage {
 object TableStageToRVD {
   def apply(ctx: ExecuteContext, _ts: TableStage): (BroadcastRow, RVD) = {
 
-    val ts = TableStage(letBindings = _ts.letBindings,
+    val ts = TableStage(
+      letBindings = _ts.letBindings,
       broadcastVals = _ts.broadcastVals,
       globals = _ts.globals,
       partitioner = _ts.partitioner,
       dependency = _ts.dependency,
-      contexts = mapIR(_ts.contexts) { c => MakeStruct(FastSeq("context" -> c)) },
-      partition = { ctx: Ref => _ts.partition(GetField(ctx, "context")) })
+      contexts = mapIR(_ts.contexts)(c => MakeStruct(FastSeq("context" -> c))),
+      partition = { ctx: Ref => _ts.partition(GetField(ctx, "context")) },
+    )
 
     val sparkContext = ctx.backend
       .asSpark("TableStageToRVD")
       .sc
 
     val globalsAndBroadcastVals =
-      Let(ts.letBindings, MakeStruct(FastSeq(
-        "globals" -> ts.globals,
-        "broadcastVals" -> MakeStruct(ts.broadcastVals),
-        "contexts" -> ToArray(ts.contexts))
-      ))
+      Let(
+        ts.letBindings,
+        MakeStruct(FastSeq(
+          "globals" -> ts.globals,
+          "broadcastVals" -> MakeStruct(ts.broadcastVals),
+          "contexts" -> ToArray(ts.contexts),
+        )),
+      )
 
-    val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastSeq(), FastSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
+    val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](
+      ctx,
+      FastSeq(),
+      FastSeq(classInfo[Region]),
+      LongInfo,
+      globalsAndBroadcastVals,
+    )
     val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
 
     val globPType = gbPType.fieldType("globals").asInstanceOf[PStruct]
@@ -117,8 +152,10 @@ object TableStageToRVD {
     val bcValsPType = gbPType.fieldType("broadcastVals")
 
     val bcValsSpec = TypedCodecSpec(bcValsPType, BufferSpec.wireSpec)
-    val encodedBcVals = sparkContext.broadcast(bcValsSpec.encodeValue(ctx, bcValsPType, gbPType.loadField(gbAddr, 1)))
-    val (decodedBcValsPType: PStruct, makeBcDec) = bcValsSpec.buildDecoder(ctx, bcValsPType.virtualType)
+    val encodedBcVals =
+      sparkContext.broadcast(bcValsSpec.encodeValue(ctx, bcValsPType, gbPType.loadField(gbAddr, 1)))
+    val (decodedBcValsPType: PStruct, makeBcDec) =
+      bcValsSpec.buildDecoder(ctx, bcValsPType.virtualType)
 
     val contextsPType = gbPType.fieldType("contexts").asInstanceOf[PArray]
     val contextPType = contextsPType.elementType
@@ -126,7 +163,8 @@ object TableStageToRVD {
     val contextsAddr = gbPType.loadField(gbAddr, 2)
     val nContexts = contextsPType.loadLength(contextsAddr)
 
-    val (decodedContextPType: PStruct, makeContextDec) = contextSpec.buildDecoder(ctx, contextPType.virtualType)
+    val (decodedContextPType: PStruct, makeContextDec) =
+      contextSpec.buildDecoder(ctx, contextPType.virtualType)
 
     val makeContextEnc = contextSpec.buildEncoder(ctx, contextPType)
     val encodedContexts = Array.tabulate(nContexts) { i =>
@@ -140,11 +178,20 @@ object TableStageToRVD {
 
     val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableStageToRVD(
       ctx,
-      decodedContextPType, decodedBcValsPType,
+      decodedContextPType,
+      decodedBcValsPType,
       Let(
-        ts.broadcastVals.map(_._1).map(bcVal => bcVal -> GetField(In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))), bcVal)),
-        ts.partition(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType))))
-      )
+        ts.broadcastVals.map(_._1).map(bcVal =>
+          bcVal -> GetField(
+            In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))),
+            bcVal,
+          )
+        ),
+        ts.partition(In(
+          0,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType)),
+        )),
+      ),
     )
 
     val fsBc = ctx.fsBc
@@ -157,11 +204,24 @@ object TableStageToRVD {
 
     val crdd = ContextRDD.weaken(rdd)
       .cflatMap { case (rvdContext, (encodedContext, idx)) =>
-        val decodedContext = makeContextDec(new ByteArrayInputStream(encodedContext), theHailClassLoaderForSparkWorkers)
+        val decodedContext = makeContextDec(
+          new ByteArrayInputStream(encodedContext),
+          theHailClassLoaderForSparkWorkers,
+        )
           .readRegionValue(rvdContext.partitionRegion)
-        val decodedBroadcastVals = makeBcDec(new ByteArrayInputStream(encodedBcVals.value), theHailClassLoaderForSparkWorkers)
+        val decodedBroadcastVals = makeBcDec(
+          new ByteArrayInputStream(encodedBcVals.value),
+          theHailClassLoaderForSparkWorkers,
+        )
           .readRegionValue(rvdContext.partitionRegion)
-        makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, SparkTaskContext.get(), rvdContext, decodedContext, decodedBroadcastVals)
+        makeIterator(
+          theHailClassLoaderForSparkWorkers,
+          fsBc.value,
+          SparkTaskContext.get(),
+          rvdContext,
+          decodedContext,
+          decodedBroadcastVals,
+        )
           .map(_.longValue())
       }
 
@@ -175,12 +235,11 @@ class TableStageToRDD(
   fsBc: BroadcastValue[FS],
   sc: SparkContext,
   @transient private val collection: Array[Array[Byte]],
-  deps: Seq[Dependency[_]])
-  extends RDD[(Array[Byte], Int)](sc, deps) {
+  deps: Seq[Dependency[_]],
+) extends RDD[(Array[Byte], Int)](sc, deps) {
 
-  override def getPartitions: Array[Partition] = {
+  override def getPartitions: Array[Partition] =
     Array.tabulate(collection.length)(i => TableStageToRDDPartition(collection(i), i))
-  }
 
   override def compute(partition: Partition, context: TaskContext): Iterator[(Array[Byte], Int)] = {
     val sp = partition.asInstanceOf[TableStageToRDDPartition]

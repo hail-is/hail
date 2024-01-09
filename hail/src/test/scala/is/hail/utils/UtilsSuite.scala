@@ -3,31 +3,32 @@ package is.hail.utils
 import is.hail.HailSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
-import org.apache.spark.storage.StorageLevel
-import org.testng.annotations.Test
-import org.apache.hadoop
-import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 import scala.collection.mutable.ArrayBuffer
+
+import org.apache.hadoop
+import org.apache.spark.storage.StorageLevel
+import org.sparkproject.guava.util.concurrent.MoreExecutors
+import org.testng.annotations.Test
 
 class UtilsSuite extends HailSuite {
   @Test def testD_==() {
     assert(D_==(1, 1))
-    assert(D_==(1, 1 + 1E-7))
-    assert(!D_==(1, 1 + 1E-5))
-    assert(D_==(1E10, 1E10 + 1))
-    assert(!D_==(1E-10, 2E-10))
+    assert(D_==(1, 1 + 1e-7))
+    assert(!D_==(1, 1 + 1e-5))
+    assert(D_==(1e10, 1e10 + 1))
+    assert(!D_==(1e-10, 2e-10))
     assert(D_==(0.0, 0.0))
-    assert(D_!=(1E-307, 0.0))
-    assert(D_==(1E-308, 0.0))
-    assert(D_==(1E-320, -1E-320))
+    assert(D_!=(1e-307, 0.0))
+    assert(D_==(1e-308, 0.0))
+    assert(D_==(1e-320, -1e-320))
   }
 
   @Test def testFlushDouble() {
-    assert(flushDouble(8.0E-308) == 8.0E-308)
-    assert(flushDouble(-8.0E-308) == -8.0E-308)
-    assert(flushDouble(8.0E-309) == 0.0)
-    assert(flushDouble(-8.0E-309) == 0.0)
+    assert(flushDouble(8.0e-308) == 8.0e-308)
+    assert(flushDouble(-8.0e-308) == -8.0e-308)
+    assert(flushDouble(8.0e-309) == 0.0)
+    assert(flushDouble(-8.0e-309) == 0.0)
     assert(flushDouble(0.0) == 0.0)
   }
 
@@ -67,9 +68,10 @@ class UtilsSuite extends HailSuite {
   }
 
   @Test def testPairRDDNoDup() {
-    val answer1 = Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))
-    val pairRDD1 = sc.parallelize(Array(1, 2, 3, 4)).map { i => (i, i * i) }
-    val pairRDD2 = sc.parallelize(Array(1, 2, 3, 4, 1, 2, 3, 4)).map { i => (i, i) }
+    val answer1 =
+      Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))
+    val pairRDD1 = sc.parallelize(Array(1, 2, 3, 4)).map(i => (i, i * i))
+    val pairRDD2 = sc.parallelize(Array(1, 2, 3, 4, 1, 2, 3, 4)).map(i => (i, i))
     val join = pairRDD1.leftOuterJoin(pairRDD2.distinct)
 
     assert(join.collect().sortBy(t => t._1) sameElements answer1)
@@ -90,19 +92,21 @@ class UtilsSuite extends HailSuite {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
     val partFileNames = fs.glob("src/test/resources/part-*")
-      .sortBy { fileListEntry =>
-        getPartNumber(fileListEntry.getPath)
-      }.map(_.getPath.split("/").last)
+      .sortBy(fileListEntry => getPartNumber(fileListEntry.getPath)).map(_.getPath.split(
+        "/"
+      ).last)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }
 
   @Test def storageLevelStringTest() = {
     val sls = List(
-      "NONE", "DISK_ONLY", "DISK_ONLY_2", "MEMORY_ONLY", "MEMORY_ONLY_2", "MEMORY_ONLY_SER", "MEMORY_ONLY_SER_2",
-      "MEMORY_AND_DISK", "MEMORY_AND_DISK_2", "MEMORY_AND_DISK_SER", "MEMORY_AND_DISK_SER_2", "OFF_HEAP")
+      "NONE", "DISK_ONLY", "DISK_ONLY_2", "MEMORY_ONLY", "MEMORY_ONLY_2", "MEMORY_ONLY_SER",
+      "MEMORY_ONLY_SER_2",
+      "MEMORY_AND_DISK", "MEMORY_AND_DISK_2", "MEMORY_AND_DISK_SER", "MEMORY_AND_DISK_SER_2",
+      "OFF_HEAP")
 
-    sls.foreach { sl => StorageLevel.fromString(sl) }
+    sls.foreach(sl => StorageLevel.fromString(sl))
   }
 
   @Test def testDictionaryOrdering() {
@@ -119,9 +123,10 @@ class UtilsSuite extends HailSuite {
   }
 
   @Test def testCollectAsSet() {
-    Prop.forAll(Gen.buildableOf[Array](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) { case (values, parts) =>
-      val rdd = sc.parallelize(values, numSlices = parts)
-      rdd.collectAsSet() == rdd.collect().toSet
+    Prop.forAll(Gen.buildableOf[Array](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) {
+      case (values, parts) =>
+        val rdd = sc.parallelize(values, numSlices = parts)
+        rdd.collectAsSet() == rdd.collect().toSet
     }.check()
   }
 
@@ -205,13 +210,10 @@ class UtilsSuite extends HailSuite {
     val (failures, successes) =
       runAll[F, Int](
         MoreExecutors.sameThreadExecutor()
-      )(
-        { case (acc, (_, index)) => acc :+ index }
-      )(
+      ) { case (acc, (_, index)) => acc :+ index }(
         new ArrayBuffer[Int](2)
       )(
-        for {k <- 0 until 4}
-          yield (() => if (k % 2 == 0) k else throw new Exception(), k)
+        for { k <- 0 until 4 } yield (() => if (k % 2 == 0) k else throw new Exception(), k)
       )
 
     assert(failures == Seq(1, 3))

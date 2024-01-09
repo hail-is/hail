@@ -1,7 +1,8 @@
 package is.hail.linalg
 
-import is.hail.check.Arbitrary.arbitrary
 import is.hail.check.{Gen, Prop}
+import is.hail.check.Arbitrary.arbitrary
+
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -16,9 +17,9 @@ class RowPartitionerSuite extends TestNGSuite {
     assert(rp.numPartitions == 8)
     assert((0 until 10).forall(i => keyPart(i) == rp.getPartition(i.toLong)))
   }
-  
+
   @Test def testFindInterval() {
-    def naiveFindInterval(a: Array[Long], key: Long): Int = {  
+    def naiveFindInterval(a: Array[Long], key: Long): Int = {
       if (a.length == 0 || key < a(0))
         -1
       else if (key >= a(a.length - 1))
@@ -32,16 +33,15 @@ class RowPartitionerSuite extends TestNGSuite {
     }
 
     val moreKeys = Array(Long.MinValue, -1000L, -1L, 0L, 1L, 1000L, Long.MaxValue)
-    
+
     val g = for {
       a0 <- Gen.buildableOf[Array](arbitrary[Long])
       a = a0.sorted
     } yield {
       val len = a.length
-      for {key <- a ++ moreKeys} {
+      for { key <- a ++ moreKeys }
         if (key > a(0) && key < a(len - 1))
           assert(RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key))
-      }
       true
     }
     Prop.forAll(g).check()

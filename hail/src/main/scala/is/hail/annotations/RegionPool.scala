@@ -25,9 +25,13 @@ object RegionPool {
   }
 }
 
-final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
+final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, threadID: Long)
+    extends AutoCloseable {
   log.info(s"RegionPool: initialized for thread $threadID: $threadName")
-  protected[annotations] val freeBlocks: Array[LongArrayBuilder] = Array.fill[LongArrayBuilder](4)(new LongArrayBuilder(8))
+
+  protected[annotations] val freeBlocks: Array[LongArrayBuilder] =
+    Array.fill[LongArrayBuilder](4)(new LongArrayBuilder(8))
+
   protected[annotations] val regions = new BoxedArrayBuilder[RegionMemory]()
   private[this] val freeRegions = new BoxedArrayBuilder[RegionMemory]()
   private[this] val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
@@ -38,25 +42,25 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] val chunkCache = new ChunkCache(Memory.malloc, Memory.free)
   private[this] val maxSize = RegionPool.maxRegionPoolSize
 
-  def addJavaObject(): Unit = {
+  def addJavaObject(): Unit =
     numJavaObjects += 1
-  }
 
-  def removeJavaObjects(n: Int): Unit = {
+  def removeJavaObjects(n: Int): Unit =
     numJavaObjects -= n
-  }
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
   def getHighestTotalUsage: Long = highestTotalUsage
   def getUsage: (Int, Int) = chunkCache.getUsage()
 
-  private[annotations] def decrementAllocatedBytes(toSubtract: Long): Unit = totalAllocatedBytes -= toSubtract
+  private[annotations] def decrementAllocatedBytes(toSubtract: Long): Unit =
+    totalAllocatedBytes -= toSubtract
 
   def closeAndThrow(msg: String): Unit = {
     close()
     fatal(msg)
   }
+
   private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
@@ -67,17 +71,18 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       highestTotalUsage = totalAllocatedBytes
       if (totalAllocatedBytes > maxSize) {
         val inBlocks = bytesInBlocks()
-        closeAndThrow(s"Hail off-heap memory exceeded maximum threshold: limit ${ formatSpace(maxSize) }, allocated ${ formatSpace(totalAllocatedBytes) }\n"
-          + s"Report: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / "
-          + s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, "
-          + s"$numJavaObjects current java objects, thread $threadID: $threadName")
+        closeAndThrow(
+          s"Hail off-heap memory exceeded maximum threshold: limit ${formatSpace(maxSize)}, allocated ${formatSpace(totalAllocatedBytes)}\n"
+            + s"Report: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / "
+            + s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, "
+            + s"$numJavaObjects current java objects, thread $threadID: $threadName"
+        )
       }
     }
   }
 
-  protected[annotations] def reclaim(memory: RegionMemory): Unit = {
+  protected[annotations] def reclaim(memory: RegionMemory): Unit =
     freeRegions += memory
-  }
 
   protected[annotations] def getBlock(size: Int): Long = {
     val pool = freeBlocks(size)
@@ -92,16 +97,14 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     }
   }
 
-  protected[annotations] def getChunk(size: Long): (Long, Long) = {
+  protected[annotations] def getChunk(size: Long): (Long, Long) =
     chunkCache.getChunk(this, size)
-  }
 
-  protected[annotations] def freeChunks(ab: LongArrayBuilder, totalSize: Long): Unit = {
+  protected[annotations] def freeChunks(ab: LongArrayBuilder, totalSize: Long): Unit =
     chunkCache.freeChunksToCache(ab)
-  }
-  protected[annotations] def freeChunk(chunkPointer: Long): Unit = {
+
+  protected[annotations] def freeChunk(chunkPointer: Long): Unit =
     chunkCache.freeChunkToCache(chunkPointer)
-  }
 
   protected[annotations] def getMemory(size: Int): RegionMemory = {
     if (freeRegions.size > 0) {
@@ -130,7 +133,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def numFreeBlocks(): Int = freeBlocks.map(_.size).sum
 
-  def bytesInBlocks(): Long = Region.SIZES.zip(blocks).map { case (size, block) => size * block }.sum[Long]
+  def bytesInBlocks(): Long = Region.SIZES.zip(blocks).map { case (size, block) =>
+    size * block
+  }.sum[Long]
 
   def logStats(context: String): Unit = {
     val nFree = this.numFreeRegions()
@@ -143,16 +148,19 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       s"""Region count for $context
          |    regions: $nRegions active, $nFree free
          |     blocks: $nBlocks
-         |       free: ${ freeBlockCounts.mkString(", ") }
-         |       used: ${ usedBlockCounts.mkString(", ") }""".stripMargin)
+         |       free: ${freeBlockCounts.mkString(", ")}
+         |       used: ${usedBlockCounts.mkString(", ")}""".stripMargin
+    )
   }
 
   def report(context: String): Unit = {
     val inBlocks = bytesInBlocks()
 
-    log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
-      s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
-      s"$numJavaObjects current java objects, thread $threadID: $threadName")
+    log.info(
+      s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
+        s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
+        s"$numJavaObjects current java objects, thread $threadID: $threadName"
+    )
 //    log.info("-----------STACK_TRACES---------")
 //    val stacks: String = regions.result().toIndexedSeq.flatMap(r => r.stackTrace.map((r.getTotalChunkMemory(), _))).foldLeft("")((a: String, b) => a + "\n" + b.toString())
 //    log.info(stacks)
@@ -160,8 +168,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   }
 
   def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
-  def scopedSmallRegion[T](f: Region => T): T = using(Region(Region.SMALL, pool=this))(f)
-  def scopedTinyRegion[T](f: Region => T): T = using(Region(Region.TINY, pool=this))(f)
+  def scopedSmallRegion[T](f: Region => T): T = using(Region(Region.SMALL, pool = this))(f)
+  def scopedTinyRegion[T](f: Region => T): T = using(Region(Region.TINY, pool = this))(f)
 
   override def finalize(): Unit = close()
 
@@ -194,7 +202,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     chunkCache.freeAll(pool = this)
     if (totalAllocatedBytes != 0) {
       val msg = s"RegionPool: total allocated bytes not 0 after closing! total allocated: " +
-        s"$totalAllocatedBytes (${ readableBytes(totalAllocatedBytes) })"
+        s"$totalAllocatedBytes (${readableBytes(totalAllocatedBytes)})"
       if (strictMemoryCheck)
         fatal(msg)
       else

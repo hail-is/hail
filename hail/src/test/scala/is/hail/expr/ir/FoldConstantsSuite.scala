@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.types.virtual.{TFloat64, TInt32, TRNGState, TTuple}
+
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
@@ -23,13 +24,12 @@ class FoldConstantsSuite extends HailSuite {
       AggLet("x", I32(1), I32(1), false),
       AggLet("x", I32(1), I32(1), true),
       ApplyAggOp(Sum())(I64(1)),
-      ApplyScanOp(Sum())(I64(1))
-      ).map(x => Array[Any](x))
+      ApplyScanOp(Sum())(I64(1)),
+    ).map(x => Array[Any](x))
   }
 
   @Test def testAggNodesConstruction(): Unit = aggNodes()
 
-  @Test(dataProvider = "aggNodes") def testAggNodesDoNotFold(node: IR): Unit = {
+  @Test(dataProvider = "aggNodes") def testAggNodesDoNotFold(node: IR): Unit =
     assert(FoldConstants(ctx, node) == node)
-  }
 }

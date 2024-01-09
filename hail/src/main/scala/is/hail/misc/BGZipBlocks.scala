@@ -1,12 +1,12 @@
 package is.hail.misc
 
-import java.io.InputStream
-
 import is.hail.io.compress.BGzipInputStream
 import is.hail.io.fs.FS
 
+import java.io.InputStream
+
 object BGZipBlocks {
-  //Print block starts of block gzip (bgz) file
+  // Print block starts of block gzip (bgz) file
   def apply(fs: FS, file: String) {
     var buf = new Array[Byte](64 * 1024)
 
