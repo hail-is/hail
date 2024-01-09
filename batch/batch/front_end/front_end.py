@@ -782,7 +782,8 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
-    return await _create_jobs(userdata, job_specs, batch_id, 1, None, app)
+    job_group_in_update_to_absolute_id_mapping = {}
+    return await _create_jobs(userdata, job_specs, batch_id, 1, job_group_in_update_to_absolute_id_mapping, app)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
@@ -798,7 +799,26 @@ async def create_jobs_for_update(request: web.Request, userdata: UserData) -> we
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_specs = await json_request(request)
-    return await _create_jobs(userdata, job_specs, batch_id, update_id, None, app)
+    job_group_in_update_to_absolute_id_mapping = {}
+    return await _create_jobs(userdata, job_specs, batch_id, update_id, job_group_in_update_to_absolute_id_mapping, app)
+
+
+@routes.post('/api/v2alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
+@auth.authenticated_users_only()
+@add_metadata_to_request
+async def create_jobs_for_update_v2(request: web.Request, userdata: UserData) -> web.Response:
+    app = request.app
+
+    if app['frozen']:
+        log.info('ignoring batch create request; batch is frozen')
+        raise web.HTTPServiceUnavailable()
+
+    batch_id = int(request.match_info['batch_id'])
+    update_id = int(request.match_info['update_id'])
+    body = await json_request(request)
+    job_specs = body['bunch']
+    job_group_in_update_to_absolute_id_mapping = body['job_group_id_mapping']
+    return await _create_jobs(userdata, job_specs, batch_id, update_id, job_group_in_update_to_absolute_id_mapping, app)
 
 
 NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
@@ -963,7 +983,7 @@ async def _create_jobs(
     job_specs: List[Dict[str, Any]],
     batch_id: int,
     update_id: int,
-    start_job_group_id: Optional[int],
+    job_group_in_update_to_absolute_id_mapping: Dict[int, int],
     app: web.Application,
 ) -> web.Response:
     db: Database = app['db']
@@ -1032,8 +1052,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         if absolute_job_group_id is not None:
             job_group_id = absolute_job_group_id
         else:
-            assert start_job_group_id is not None
-            job_group_id = start_job_group_id + in_update_job_group_id - 1
+            job_group_id = job_group_in_update_to_absolute_id_mapping[in_update_job_group_id]
 
         spec['job_group_id'] = job_group_id
 
@@ -1450,10 +1469,11 @@ async def create_batch_fast(request, userdata):
     job_group_specs = batch_and_bunch.get('job_groups', [])
 
     start_job_group_id = await _create_job_groups(db, batch_id, user, job_group_specs)
+    job_group_in_update_to_absolute_id_mapping = {idx: start_job_group_id + idx - 1 for idx in range(len(job_group_specs))}
 
     update_id, _ = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], user, db)
     try:
-        await _create_jobs(userdata, bunch, batch_id, update_id, start_job_group_id, app)
+        await _create_jobs(userdata, bunch, batch_id, update_id, job_group_in_update_to_absolute_id_mapping, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return json_response({'id': batch_id})
@@ -1610,6 +1630,8 @@ async def update_batch_fast(request, userdata):
     job_group_specs = update_and_bunch.get('job_groups', [])
 
     start_job_group_id = await _create_job_groups(db, batch_id, user, job_group_specs)
+    job_group_in_update_to_absolute_id_mapping = {idx: start_job_group_id + idx - 1
+                                                  for idx in range(len(job_group_specs))}
 
     try:
         validate_batch_update(update_spec)
@@ -1621,7 +1643,7 @@ async def update_batch_fast(request, userdata):
     )
 
     try:
-        await _create_jobs(userdata, bunch, batch_id, update_id, start_job_group_id, app)
+        await _create_jobs(userdata, bunch, batch_id, update_id, job_group_in_update_to_absolute_id_mapping, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
             return json_response({'update_id': update_id, 'start_job_id': start_job_id})

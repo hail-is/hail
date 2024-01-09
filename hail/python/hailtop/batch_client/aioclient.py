@@ -1104,11 +1104,12 @@ class Batch:
             start_job_group_id = int(start_job_group_id)
         return start_job_group_id
 
-    async def _submit_jobs(self, update_id: int, byte_job_specs: List[bytes], n_jobs: int, progress_task: BatchProgressBarTask):
+    async def _submit_jobs(self, update_id: int, job_group_id_mapping: Dict[int, int], byte_job_specs: List[bytes], n_jobs: int, progress_task: BatchProgressBarTask):
         self._raise_if_not_created()
         assert len(byte_job_specs) > 0, byte_job_specs
 
         b = bytearray()
+        b.extend(b'{"bunch":')
         b.append(ord('['))
 
         i = 0
@@ -1120,16 +1121,18 @@ class Batch:
             i += 1
 
         b.append(ord(']'))
+        b.extend(b',"job_group_id_mapping":')
+        b.extend(orjson.dumps(job_group_id_mapping))
+        b.append(ord('}'))
 
         await self._client._post(
-            f'/api/v1alpha/batches/{self.id}/updates/{update_id}/jobs/create',
+            f'/api/v2alpha/batches/{self.id}/updates/{update_id}/jobs/create',
             data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
         )
         progress_task.update(n_jobs)
 
     def _batch_spec(self):
-        n_jobs = len(self._jobs)
-        batch_spec = {'billing_project': self._client.billing_project, 'n_jobs': n_jobs, 'token': self.token}
+        batch_spec = {'billing_project': self._client.billing_project, 'token': self.token}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
         if self._callback:
@@ -1138,15 +1141,12 @@ class Batch:
             batch_spec['cancel_after_n_failures'] = self._cancel_after_n_failures
         return batch_spec
 
-    async def _open_batch(self) -> Optional[int]:
+    async def _open_batch(self):
         self._raise_if_created()
         batch_spec = self._batch_spec()
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
         self._id = batch_json['id']
-        update_id = batch_json['update_id']
-        if update_id is None:
-            assert batch_spec['n_jobs'] == 0
-        return update_id
+        assert batch_json['update_id'] is None
 
     def _update_spec(self) -> dict:
         update_token = secrets.token_urlsafe(32)
@@ -1165,12 +1165,13 @@ class Batch:
 
     async def _submit_job_bunches(self,
                                   update_id: int,
+                                  job_group_id_mapping: Dict[int, int],
                                   byte_job_specs_bunches: List[List[bytes]],
                                   bunch_sizes: List[int],
                                   progress_task: BatchProgressBarTask):
         self._raise_if_not_created()
         await bounded_gather(
-            *[functools.partial(self._submit_jobs, update_id, bunch, size, progress_task)
+            *[functools.partial(self._submit_jobs, update_id, job_group_id_mapping, bunch, size, progress_task)
               for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
               ],
             parallelism=6,
@@ -1180,21 +1181,29 @@ class Batch:
     async def _submit_job_group_bunches(self,
                                         byte_job_group_specs_bunches: List[List[bytes]],
                                         bunch_sizes: List[int],
-                                        progress_task: BatchProgressBarTask):
+                                        progress_task: BatchProgressBarTask) -> Dict[int, int]:
         self._raise_if_not_created()
         job_group_offset = 0
+        job_group_unsubmitted_to_submitted_id_mapping = {}
         for bunch, size in zip(byte_job_group_specs_bunches, bunch_sizes):
             start_job_group_id = await self._submit_job_groups(bunch, size, progress_task)
             for jg in self._job_groups[job_group_offset:job_group_offset + size]:
                 assert start_job_group_id is not None
+                in_update_id = jg._job_group_id
                 jg._submit(start_job_group_id)
+                absolute_id = jg._job_group_id
+                job_group_unsubmitted_to_submitted_id_mapping[in_update_id] = absolute_id
                 job_group_offset += size
+        return job_group_unsubmitted_to_submitted_id_mapping
 
     async def _submit(self,
                       max_bunch_bytesize: int,
                       max_bunch_size: int,
                       disable_progress_bar: bool,
                       progress: BatchProgressBar) -> Tuple[Optional[int], Optional[int]]:
+        start_job_id = None
+        start_job_group_id = None
+
         n_jobs = len(self._jobs)
         job_specs = [j.to_spec_dict() for j in self._jobs]
         byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
@@ -1208,15 +1217,14 @@ class Batch:
         with progress.with_task('submit job groups', total=n_job_groups,
                                 disable=(disable_progress_bar or n_job_group_bunches < 100)) as job_group_progress_task:
             with progress.with_task('submit job bunches', total=n_jobs, disable=(disable_progress_bar or n_job_bunches < 100)) as job_progress_task:
-                if not self.is_created:
-                    if n_job_bunches == 0 and n_job_group_bunches == 0:
-                        await self._open_batch()
-                        log.info(f'created batch {self.id}')
-                        return (None, None)
-                    if ((n_job_bunches <= 1 and n_job_group_bunches <= 1) and
-                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and (len(byte_job_specs_bunches[0]) + len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
-                            (n_job_bunches == 1 and n_job_group_bunches == 0) or
-                            (n_job_bunches == 0 and n_job_group_bunches == 1))):
+                if ((n_job_bunches <= 1 and n_job_group_bunches <= 1) and
+                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and (len(byte_job_specs_bunches[0]) + len(
+                            byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
+                         (n_job_bunches == 1 and n_job_group_bunches == 0) or
+                         (n_job_bunches == 0 and n_job_group_bunches == 1))):
+                    self._submission_info = BatchSubmissionInfo(used_fast_path=True)
+
+                    if not self.is_created:
                         await self._create_fast(byte_job_specs_bunches[0] if n_job_bunches == 1 else [],
                                                 job_bunch_sizes[0] if n_job_bunches == 1 else 0,
                                                 byte_job_group_specs_bunches[0] if n_job_group_bunches == 1 else [],
@@ -1225,50 +1233,37 @@ class Batch:
                                                 job_group_progress_task)
                         start_job_id = 1
                         start_job_group_id = 1
+                        log.info(f'created batch {self.id}')
                     else:
-                        update_id = await self._open_batch()
-                        assert update_id is not None
-
-                        start_job_group_id = None
-                        if len(self._job_groups) > 0:
-                            await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-                            job_specs = [j.to_spec_dict() for j in self._jobs]
-                            byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
-
-                        await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
-                        start_job_id = await self._commit_update(update_id)
-                        self._submission_info = BatchSubmissionInfo(used_fast_path=False)
-                        assert start_job_id == 1
-                    log.info(f'created batch {self.id}')
-                else:
-                    if n_job_bunches == 0 and n_job_group_bunches == 0:
-                        log.warning('Tried to submit an update with 0 jobs and 0 job groups. Doing nothing.')
-                        return (None, None)
-                    if ((n_job_bunches <= 1 and n_job_group_bunches <= 1) and
-                        ((n_job_bunches == 1 and n_job_group_bunches == 1 and (len(byte_job_specs_bunches[0]) + len(byte_job_group_specs_bunches[0]) <= max_bunch_bytesize)) or
-                            (n_job_bunches == 1 and n_job_group_bunches == 0) or
-                            (n_job_bunches == 0 and n_job_group_bunches == 1))):
                         start_job_id, start_job_group_id = await self._update_fast(byte_job_specs_bunches[0] if n_job_bunches == 1 else [],
                                                                                    job_bunch_sizes[0] if n_job_bunches == 1 else 0,
                                                                                    byte_job_group_specs_bunches[0] if n_job_group_bunches == 1 else [],
                                                                                    job_group_bunch_sizes[0] if n_job_group_bunches == 1 else 0,
                                                                                    job_progress_task,
                                                                                    job_group_progress_task)
-                    else:
+                        log.info(f'updated batch {self.id}')
+                else:
+                    self._submission_info = BatchSubmissionInfo(used_fast_path=False)
+
+                    if not self.is_created:
+                        await self._open_batch()
+
+                    job_group_id_mapping = None
+                    if len(self._job_groups) > 0:
+                        job_group_id_mapping = await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
+
+                    if len(self._jobs) > 0:
                         update_id = await self._create_update()
-                        assert update_id is not None
-
-                        start_job_group_id = None
-                        if len(self._job_groups) > 0:
-                            await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-                            job_specs = [j.to_spec_dict() for j in self._jobs]
-                            byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
-
-                        await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
+                        await self._submit_job_bunches(update_id, job_group_id_mapping, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                         start_job_id = await self._commit_update(update_id)
-                        self._submission_info = BatchSubmissionInfo(used_fast_path=False)
-                    log.info(f'updated batch {self.id}')
-                return (start_job_id, start_job_group_id)
+
+                    if not self.is_created:
+                        assert start_job_id == 1
+                        log.info(f'created batch {self.id}')
+                    else:
+                        log.info(f'updated batch {self.id}')
+
+            return (start_job_id, start_job_group_id)
 
     MAX_BUNCH_BYTESIZE = 1024 * 1024
     MAX_BUNCH_SIZE = 1024
