@@ -1,7 +1,7 @@
 import base64
 import os
 import tempfile
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import aiohttp
 import orjson
@@ -32,7 +32,6 @@ class GCPWorkerAPI(CloudWorkerAPI):
         self.zone = zone
         self._google_session = session
         self._compute_client = aiogoogle.GoogleComputeClient(project, session=session)
-        self._job_credentials: Dict[Tuple[int, int], aiogoogle.GoogleServiceAccountCredentials] = {}
         self._gcsfuse_credential_files: Dict[str, str] = {}
 
     @property
@@ -57,13 +56,6 @@ class GCPWorkerAPI(CloudWorkerAPI):
     def get_cloud_async_fs(self) -> aiogoogle.GoogleStorageAsyncFS:
         return aiogoogle.GoogleStorageAsyncFS(session=self._google_session)
 
-    def register_job_credentials(self, job_id: Tuple[int, int], credentials: Dict[str, str]) -> None:
-        key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
-        self._job_credentials[job_id] = aiogoogle.GoogleServiceAccountCredentials(key)
-
-    async def remove_job_credentials(self, job_id: Tuple[int, int]) -> None:
-        await self._job_credentials.pop(job_id).close()
-
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         token_dict = await retry_transient_errors(
             session.post_read_json,
@@ -74,29 +66,31 @@ class GCPWorkerAPI(CloudWorkerAPI):
         access_token = token_dict['access_token']
         return {'username': 'oauth2accesstoken', 'password': access_token}
 
-    async def user_container_registry_credentials(self, job_id: Tuple[int, int]) -> ContainerRegistryCredentials:
-        access_token = await self._job_credentials[job_id].access_token()
+    async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
+        key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
+        async with aiogoogle.GoogleServiceAccountCredentials(key) as sa_credentials:
+            access_token = await sa_credentials.access_token()
         return {'username': 'oauth2accesstoken', 'password': access_token}
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
 
-    def _write_gcsfuse_credentials(self, job_id: Tuple[int, int], mount_base_path_data: str) -> str:
+    def _write_gcsfuse_credentials(self, credentials: Dict[str, str], mount_base_path_data: str) -> str:
         if mount_base_path_data not in self._gcsfuse_credential_files:
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
-                credsfile.write(orjson.dumps(self._job_credentials[job_id].key).decode('utf-8'))
+                credsfile.write(credentials['key.json'])
                 self._gcsfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._gcsfuse_credential_files[mount_base_path_data]
 
     async def _mount_cloudfuse(
         self,
-        job_id: Tuple[int, int],
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
     ):  # pylint: disable=unused-argument
 
-        fuse_credentials_path = self._write_gcsfuse_credentials(job_id, mount_base_path_data)
+        fuse_credentials_path = self._write_gcsfuse_credentials(credentials, mount_base_path_data)
 
         bucket = config['bucket']
         assert bucket

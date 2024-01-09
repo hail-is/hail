@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, List, Tuple, TypedDict
+from typing import Dict, List, TypedDict
 
 from hailtop import httpx
 from hailtop.aiotools.fs import AsyncFS
@@ -31,19 +31,13 @@ class CloudWorkerAPI(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def register_job_credentials(self, job_id: Tuple[int, int], credentials: Dict[str, str]):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    async def remove_job_credentials(self, job_id: Tuple[int, int]):
-        raise NotImplementedError
-
-    @abc.abstractmethod
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def user_container_registry_credentials(self, job_id: Tuple[int, int]) -> ContainerRegistryCredentials:
+    async def user_container_registry_credentials(
+        self, user_credentials: Dict[str, str]
+    ) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -53,7 +47,7 @@ class CloudWorkerAPI(abc.ABC):
     @abc.abstractmethod
     async def _mount_cloudfuse(
         self,
-        job_id: Tuple[int, int],
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
@@ -62,7 +56,7 @@ class CloudWorkerAPI(abc.ABC):
 
     async def mount_cloudfuse(
         self,
-        job_id: Tuple[int, int],
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
@@ -70,7 +64,7 @@ class CloudWorkerAPI(abc.ABC):
         tries = 0
         while True:
             try:
-                return await self._mount_cloudfuse(job_id, mount_base_path_data, mount_base_path_tmp, config)
+                return await self._mount_cloudfuse(credentials, mount_base_path_data, mount_base_path_tmp, config)
             except CalledProcessError:
                 tries += 1
                 if tries == 5:

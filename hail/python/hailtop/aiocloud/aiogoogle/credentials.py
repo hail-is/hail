@@ -125,6 +125,12 @@ class GoogleCredentials(CloudCredentials):
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         raise NotImplementedError
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        await self.close()
+
     async def close(self):
         await self._http_session.close()
 
