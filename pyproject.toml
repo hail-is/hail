@@ -1,8 +1,3 @@
-[tool.black]
-line-length = 120
-skip-string-normalization = true
-force-exclude = 'makeTestInfoScore.py|datasets|sql|\.mypy'
-
 [tool.ruff]
 line-length = 120
 select = ["F", "E", "W", "I", "PL", "RUF"]
@@ -39,6 +34,10 @@ known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "we
 "devbin/**/*" = ["ALL"]
 "docker/**/*" = ["ALL"]
 "query/**/*" = ["ALL"]
+
+[tool.ruff.format]
+preview = true
+quote-style = "preserve"
 
 [pytest]
 timeout = 120
