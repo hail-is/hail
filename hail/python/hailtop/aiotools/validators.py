@@ -1,5 +1,4 @@
-import asyncio
-
+from hailtop.hail_event_loop import hail_event_loop
 from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from textwrap import dedent
@@ -17,7 +16,9 @@ def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: 
     :class:`ValueError`
         If one of the validation steps fails.
     """
-    return asyncio.run(_async_validate_file(uri, router_async_fs, validate_scheme=validate_scheme))
+    return hail_event_loop().run_until_complete(
+        _async_validate_file(uri, router_async_fs, validate_scheme=validate_scheme)
+    )
 
 
 async def _async_validate_file(

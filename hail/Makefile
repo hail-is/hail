@@ -27,7 +27,7 @@ JAVAC ?= javac
 JAR ?= jar
 endif
 
-PYTEST_TARGET ?= test/hail
+PYTEST_TARGET ?= test/hail test/hailtop
 PYTEST_INTER_CLOUD_TARGET ?= test/hailtop/inter_cloud
 
 # not perfect, not robust to simdpp changes, but probably fine
