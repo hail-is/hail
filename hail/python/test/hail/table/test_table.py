@@ -541,8 +541,6 @@ class Tests(unittest.TestCase):
         )
         assert ht4.count() == 5
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_table(50, n_partitions=8)
         intervals = hl.utils.range_table(25)
@@ -560,8 +558,6 @@ class Tests(unittest.TestCase):
             )
         )
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_product_join_long_key(self):
         left = hl.utils.range_table(50, n_partitions=8)
         intervals = hl.utils.range_table(25)

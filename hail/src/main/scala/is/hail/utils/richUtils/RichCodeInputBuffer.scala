@@ -82,7 +82,8 @@ class RichCodeInputBuffer(
       Code.memoize(toOff, "ib_ready_bytes_to") { toOff =>
         Code.memoize(ib, "ib_ready_bytes_in") { ib =>
           Code((0 until n).map(i =>
-            Region.storeByte(toOff.get + i.toLong, ib.readByte())))
+            Region.storeByte(toOff.get + i.toLong, ib.readByte())
+          ))
         }
       }
     else

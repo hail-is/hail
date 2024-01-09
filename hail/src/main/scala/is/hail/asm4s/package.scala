@@ -1,18 +1,19 @@
 package is.hail
 
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.tree._
-
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
+
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.tree._
 
 package asm4s {
 
   // lifted from https://github.com/milessabin/shapeless
   @scala.annotation.implicitAmbiguous("${A} must not be equal to ${B}")
   sealed abstract class =!=[A, B] extends Serializable
+
   object =!= {
-    implicit def refl[A, B]: A =!= B = new=!=[A, B] {}
+    implicit def refl[A, B]: A =!= B = new =!=[A, B] {}
     implicit def ambig1[A]: A =!= A = ???
     implicit def ambig2[A]: A =!= A = ???
   }
@@ -43,7 +44,7 @@ package asm4s {
   }
 
   class ClassInfo[C](className: String) extends TypeInfo[C] {
-    val desc = s"L${ className.replace(".", "/") };"
+    val desc = s"L${className.replace(".", "/")};"
     override val iname = className.replace(".", "/")
     val loadOp = ALOAD
     val storeOp = ASTORE
@@ -57,7 +58,7 @@ package asm4s {
   }
 
   class ArrayInfo[T](implicit val tti: TypeInfo[T]) extends TypeInfo[Array[T]] {
-    val desc = s"[${ tti.desc }"
+    val desc = s"[${tti.desc}"
     override val iname = desc.replace(".", "/")
     val loadOp = ALOAD
     val storeOp = ASTORE
@@ -72,10 +73,9 @@ package asm4s {
 }
 
 package object asm4s {
-  lazy val theHailClassLoaderForSparkWorkers = {
+  lazy val theHailClassLoaderForSparkWorkers =
     // FIXME: how do I ensure this is only created in Spark workers?
     new HailClassLoader(getClass().getClassLoader())
-  }
 
   def genName(tag: String, baseName: String): String = lir.genName(tag, baseName)
 
@@ -199,7 +199,6 @@ package object asm4s {
     val astoreOp = FASTORE
     val returnOp = FRETURN
 
-
     def newArray() = new IntInsnNode(NEWARRAY, T_FLOAT)
 
     override def uninitializedValue: Value[_] = const(0f)
@@ -284,12 +283,13 @@ package object asm4s {
 
   implicit def toCodeString(c: Code[String]): CodeString = new CodeString(c)
 
-  implicit def toCodeArray[T](c: Code[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
+  implicit def toCodeArray[T](c: Code[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] =
+    new CodeArray(c)
 
-  implicit def toCodeObject[T <: AnyRef : ClassTag](c: Code[T]): CodeObject[T] =
+  implicit def toCodeObject[T <: AnyRef: ClassTag](c: Code[T]): CodeObject[T] =
     new CodeObject(c)
 
-  implicit def toCodeNullable[T >: Null : TypeInfo](c: Code[T]): CodeNullable[T] =
+  implicit def toCodeNullable[T >: Null: TypeInfo](c: Code[T]): CodeNullable[T] =
     new CodeNullable(c)
 
   implicit def indexedSeqValueToCode[T](v: IndexedSeq[Value[T]]): IndexedSeq[Code[T]] = v.map(_.get)
@@ -308,13 +308,16 @@ package object asm4s {
 
   implicit def valueToCodeString(f: Value[String]): CodeString = new CodeString(f.get)
 
-  implicit def valueToCodeObject[T <: AnyRef](f: Value[T])(implicit tct: ClassTag[T]): CodeObject[T] = new CodeObject(f.get)
+  implicit def valueToCodeObject[T <: AnyRef](f: Value[T])(implicit tct: ClassTag[T])
+    : CodeObject[T] = new CodeObject(f.get)
 
-  implicit def valueToCodeArray[T](c: Value[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(c)
+  implicit def valueToCodeArray[T](c: Value[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] =
+    new CodeArray(c)
 
   implicit def valueToCodeBoolean(f: Value[Boolean]): CodeBoolean = new CodeBoolean(f.get)
 
-  implicit def valueToCodeNullable[T >: Null : TypeInfo](c: Value[T]): CodeNullable[T] = new CodeNullable(c)
+  implicit def valueToCodeNullable[T >: Null: TypeInfo](c: Value[T]): CodeNullable[T] =
+    new CodeNullable(c)
 
   implicit def toCode[T](f: Settable[T]): Code[T] = f.load()
 
@@ -330,13 +333,16 @@ package object asm4s {
 
   implicit def toCodeString(f: Settable[String]): CodeString = new CodeString(f.load())
 
-  implicit def toCodeArray[T](f: Settable[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(f.load())
+  implicit def toCodeArray[T](f: Settable[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] =
+    new CodeArray(f.load())
 
   implicit def toCodeBoolean(f: Settable[Boolean]): CodeBoolean = new CodeBoolean(f.load())
 
-  implicit def toCodeObject[T <: AnyRef : ClassTag](f: Settable[T]): CodeObject[T] = new CodeObject[T](f.load())
+  implicit def toCodeObject[T <: AnyRef: ClassTag](f: Settable[T]): CodeObject[T] =
+    new CodeObject[T](f.load())
 
-  implicit def toCodeNullable[T >: Null : TypeInfo](f: Settable[T]): CodeNullable[T] = new CodeNullable[T](f.load())
+  implicit def toCodeNullable[T >: Null: TypeInfo](f: Settable[T]): CodeNullable[T] =
+    new CodeNullable[T](f.load())
 
   implicit def toLocalRefInt(f: LocalRef[Int]): LocalRefInt = new LocalRefInt(f)
 

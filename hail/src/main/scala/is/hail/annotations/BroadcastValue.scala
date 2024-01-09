@@ -1,19 +1,22 @@
 package is.hail.annotations
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.EncodedLiteral
+import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct}
-import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
-import is.hail.utils.{ArrayOfByteArrayOutputStream, formatSpace, log}
+import is.hail.utils.{formatSpace, log, ArrayOfByteArrayOutputStream}
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
+
 import org.apache.spark.sql.Row
 
 case class SerializableRegionValue(
-  encodedValue: Array[Array[Byte]], t: PType,
-  makeDecoder: (InputStream, HailClassLoader) => Decoder
+  encodedValue: Array[Array[Byte]],
+  t: PType,
+  makeDecoder: (InputStream, HailClassLoader) => Decoder,
 ) {
   def readRegionValue(r: Region, theHailClassLoader: HailClassLoader): Long = {
     val dec = makeDecoder(new ArrayOfByteArrayInputStream(encodedValue), theHailClassLoader)
@@ -69,7 +72,9 @@ trait BroadcastRegionValue {
         if (broadcasted == null) {
           val arrays = encodeToByteArrays(theHailClassLoader)
           val totalSize = arrays.map(_.length).sum
-          log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
+          log.info(
+            s"BroadcastRegionValue.broadcast: broadcasting ${arrays.length} byte arrays of total size $totalSize (${formatSpace(totalSize)}"
+          )
           val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
           broadcasted = ctx.backend.broadcast(srv)
         }
@@ -83,17 +88,16 @@ trait BroadcastRegionValue {
   def safeJavaValue: Any
 
   override def equals(obj: Any): Boolean = obj match {
-    case b: BroadcastRegionValue => t == b.t && (ctx eq b.ctx) && t.unsafeOrdering(ctx.stateManager).compare(value, b.value) == 0
+    case b: BroadcastRegionValue =>
+      t == b.t && (ctx eq b.ctx) && t.unsafeOrdering(ctx.stateManager).compare(value, b.value) == 0
     case _ => false
   }
 
   override def hashCode(): Int = javaValue.hashCode()
 }
 
-case class BroadcastRow(ctx: ExecuteContext,
-  value: RegionValue,
-  t: PStruct
-) extends BroadcastRegionValue {
+case class BroadcastRow(ctx: ExecuteContext, value: RegionValue, t: PStruct)
+    extends BroadcastRegionValue {
 
   def javaValue: UnsafeRow = UnsafeRow.readBaseStruct(t, value.region, value.offset)
 
@@ -104,20 +108,24 @@ case class BroadcastRow(ctx: ExecuteContext,
     if (t == newT)
       return this
 
-    BroadcastRow(ctx,
-      RegionValue(value.region, newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false)),
-      newT)
+    BroadcastRow(
+      ctx,
+      RegionValue(
+        value.region,
+        newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false),
+      ),
+      newT,
+    )
   }
 
-  def toEncodedLiteral(theHailClassLoader: HailClassLoader): EncodedLiteral = {
+  def toEncodedLiteral(theHailClassLoader: HailClassLoader): EncodedLiteral =
     EncodedLiteral(encoding, encodeToByteArrays(theHailClassLoader))
-  }
 }
 
 case class BroadcastIndexedSeq(
   ctx: ExecuteContext,
   value: RegionValue,
-  t: PArray
+  t: PArray,
 ) extends BroadcastRegionValue {
 
   def safeJavaValue: IndexedSeq[Row] = SafeRow.read(t, value).asInstanceOf[IndexedSeq[Row]]
@@ -129,8 +137,13 @@ case class BroadcastIndexedSeq(
     if (t == newT)
       return this
 
-    BroadcastIndexedSeq(ctx,
-      RegionValue(value.region, newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false)),
-      newT)
+    BroadcastIndexedSeq(
+      ctx,
+      RegionValue(
+        value.region,
+        newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false),
+      ),
+      newT,
+    )
   }
 }

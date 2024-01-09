@@ -1,10 +1,10 @@
 package is.hail.utils
 
 import java.time.DayOfWeek
-import java.util.Locale
+import java.time.chrono.{ChronoLocalDate, Chronology}
 import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder, TextStyle}
 import java.time.temporal.{ChronoField, WeekFields}
-import java.time.chrono.{ChronoLocalDate, Chronology}
+import java.util.Locale
 
 object DateFormatUtils {
   def parseDateFormat(str: String, locale: Locale): DateTimeFormatter = {
@@ -43,7 +43,7 @@ object DateFormatUtils {
         case 's' => fmt.appendValue(ChronoField.INSTANT_SECONDS)
         case 'T' => alternating("H:M:S")
         case 't' => char('\t')
-        case 'U' => fmt.appendValue(SUNDAY_START_ALWAYS.weekOfYear(), 2) //Sunday first day
+        case 'U' => fmt.appendValue(SUNDAY_START_ALWAYS.weekOfYear(), 2) // Sunday first day
         case 'u' => fmt.appendValue(WeekFields.ISO.dayOfWeek()) // 1-7, starts on Monday
         case 'V' => fmt.appendValue(WeekFields.ISO.weekOfWeekBasedYear(), 2)
         case 'v' => alternating("e-b-Y")
@@ -53,7 +53,8 @@ object DateFormatUtils {
         case 'Z' => fmt.appendZoneId()
         case 'z' => fmt.appendOffsetId()
         case 'E' | 'O' => char(c) // Python just keeps these two letters for whatever reason.
-        case 'C' | 'c' | 'G' | 'g' | 'w'| 'X' | 'x' => throw new HailException(s"Currently unsupported time formatting character: $c")
+        case 'C' | 'c' | 'G' | 'g' | 'w' | 'X' | 'x' =>
+          throw new HailException(s"Currently unsupported time formatting character: $c")
         case d => fatal(s"invalid time format descriptor: $d")
       }
     }

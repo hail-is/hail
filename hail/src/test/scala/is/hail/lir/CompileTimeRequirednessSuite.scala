@@ -3,6 +3,7 @@ package is.hail.lir
 import is.hail.HailSuite
 import is.hail.asm4s._
 import is.hail.utils._
+
 import org.testng.annotations.Test
 
 class CompileTimeRequirednessSuite extends HailSuite {

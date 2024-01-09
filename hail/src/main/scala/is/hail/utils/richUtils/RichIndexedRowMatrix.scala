@@ -1,15 +1,16 @@
 package is.hail.utils.richUtils
 
-import org.apache.spark._
-import org.apache.spark.rdd.RDD
-import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.linalg._
 import is.hail.utils._
+
+import breeze.linalg.{DenseMatrix => BDM}
+import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
+import org.apache.spark.rdd.RDD
 
 object RichIndexedRowMatrix {
-  private def seqOp(gp: GridPartitioner)
-    (block: Array[Double], row: (Int, Int, Int, Array[Double])): Array[Double] = {
+  private def seqOp(gp: GridPartitioner)(block: Array[Double], row: (Int, Int, Int, Array[Double]))
+    : Array[Double] = {
 
     val (i, j, ii, rowSegment) = row
     val nRowsInBlock = gp.blockRowNRows(i)
@@ -69,14 +70,17 @@ class RichIndexedRowMatrix(indexedRowMatrix: IndexedRowMatrix) {
     }.aggregateByKey(null: Array[Double], gp)(seqOp(gp), combOp)
       .mapValuesWithKey { case ((i, j), data) =>
         new BDM[Double](gp.blockRowNRows(i), gp.blockColNCols(j), data)
-    }
+      }
 
     new BlockMatrix(new EmptyPartitionIsAZeroMatrixRDD(blocks), blockSize, nRows, nCols)
   }
 }
 
 private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double])])
-    extends RDD[((Int, Int), BDM[Double])](blocks.sparkContext, Seq[Dependency[_]](new OneToOneDependency(blocks))) {
+    extends RDD[((Int, Int), BDM[Double])](
+      blocks.sparkContext,
+      Seq[Dependency[_]](new OneToOneDependency(blocks)),
+    ) {
   @transient val gp: GridPartitioner = (blocks.partitioner: @unchecked) match {
     case Some(p: GridPartitioner) => p
   }
@@ -99,4 +103,8 @@ private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double
     Some(gp)
 }
 
-private class BlockPartition(val index: Int, val blockCoordinates: (Int, Int), val blockDims: (Int, Int)) extends Partition {}
+private class BlockPartition(
+  val index: Int,
+  val blockCoordinates: (Int, Int),
+  val blockDims: (Int, Int),
+) extends Partition {}

@@ -1,16 +1,17 @@
 package is.hail.services
 
-import java.io.{File, FileInputStream}
-import java.net._
-
-import is.hail.utils._
 import is.hail.services.tls._
+import is.hail.utils._
+
 import org.json4s._
 import org.json4s.jackson.JsonMethods
+
+import java.io.{File, FileInputStream}
+import java.net._
+import scala.util.Random
+
 import org.apache.http.client.methods._
 import org.apache.log4j.Logger
-
-import scala.util.Random
 
 object DeployConfig {
   private[this] val log = Logger.getLogger("DeployConfig")
@@ -18,9 +19,8 @@ object DeployConfig {
   private[this] lazy val default: DeployConfig = fromConfigFile()
   private[this] var _get: DeployConfig = null
 
-  def set(x: DeployConfig) = {
+  def set(x: DeployConfig) =
     _get = x
-  }
 
   def get(): DeployConfig = {
     if (_get == null) {
@@ -36,7 +36,7 @@ object DeployConfig {
       file = System.getenv("HAIL_DEPLOY_CONFIG_FILE")
 
     if (file == null) {
-      val fromHome = s"${ System.getenv("HOME") }/.hail/deploy-config.json"
+      val fromHome = s"${System.getenv("HOME")}/.hail/deploy-config.json"
       if (new File(fromHome).exists())
         file = fromHome
     }
@@ -48,9 +48,7 @@ object DeployConfig {
     }
 
     if (file != null) {
-      using(new FileInputStream(file)) { in =>
-        fromConfig(JsonMethods.parse(in))
-      }
+      using(new FileInputStream(file))(in => fromConfig(JsonMethods.parse(in)))
     } else
       fromConfig("external", "default", "hail.is")
   }
@@ -60,37 +58,36 @@ object DeployConfig {
     fromConfig(
       (config \ "location").extract[String],
       (config \ "default_namespace").extract[String],
-      (config \ "domain").extract[Option[String]].getOrElse("hail.is"))
+      (config \ "domain").extract[Option[String]].getOrElse("hail.is"),
+    )
   }
 
-  def fromConfig(location: String, defaultNamespace: String, domain: String): DeployConfig = {
+  def fromConfig(location: String, defaultNamespace: String, domain: String): DeployConfig =
     new DeployConfig(
       sys.env.getOrElse(toEnvVarName("location"), location),
       sys.env.getOrElse(toEnvVarName("default_namespace"), defaultNamespace),
-      sys.env.getOrElse(toEnvVarName("domain"), domain))
-  }
+      sys.env.getOrElse(toEnvVarName("domain"), domain),
+    )
 
-  private[this] def toEnvVarName(s: String): String = {
+  private[this] def toEnvVarName(s: String): String =
     "HAIL_" + s.toUpperCase
-  }
 }
 
 class DeployConfig(
   val location: String,
   val defaultNamespace: String,
-  val domain: String) {
+  val domain: String,
+) {
   import DeployConfig._
 
-  def scheme(baseScheme: String = "http"): String = {
+  def scheme(baseScheme: String = "http"): String =
     if (location == "external" || location == "k8s")
       baseScheme + "s"
     else
       baseScheme
-  }
 
-  def getServiceNamespace(service: String): String = {
+  def getServiceNamespace(service: String): String =
     defaultNamespace
-  }
 
   def domain(service: String): String = {
     val ns = getServiceNamespace(service)
@@ -118,7 +115,6 @@ class DeployConfig(
       s"/$ns/$service"
   }
 
-  def baseUrl(service: String, baseScheme: String = "http"): String = {
-    s"${ scheme(baseScheme) }://${ domain(service) }${ basePath(service) }"
-  }
+  def baseUrl(service: String, baseScheme: String = "http"): String =
+    s"${scheme(baseScheme)}://${domain(service)}${basePath(service)}"
 }

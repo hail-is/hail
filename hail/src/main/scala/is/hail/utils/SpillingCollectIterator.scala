@@ -3,13 +3,15 @@ package is.hail.utils
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.fs.FS
-import org.apache.spark.rdd.RDD
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.{classTag, ClassTag}
+
+import org.apache.spark.rdd.RDD
 
 object SpillingCollectIterator {
-  def apply[T: ClassTag](localTmpdir: String, fs: FS, rdd: RDD[T], sizeLimit: Int): SpillingCollectIterator[T] = {
+  def apply[T: ClassTag](localTmpdir: String, fs: FS, rdd: RDD[T], sizeLimit: Int)
+    : SpillingCollectIterator[T] = {
     val nPartitions = rdd.partitions.length
     val x = new SpillingCollectIterator(localTmpdir, fs, nPartitions, sizeLimit)
     val ctc = classTag[T]
@@ -17,12 +19,18 @@ object SpillingCollectIterator {
       rdd,
       (_, it: Iterator[T]) => it.toArray(ctc),
       0 until nPartitions,
-      x.append _)
+      x.append _,
+    )
     x
   }
 }
 
-class SpillingCollectIterator[T: ClassTag] private (localTmpdir: String, fs: FS, nPartitions: Int, sizeLimit: Int) extends Iterator[T] {
+class SpillingCollectIterator[T: ClassTag] private (
+  localTmpdir: String,
+  fs: FS,
+  nPartitions: Int,
+  sizeLimit: Int,
+) extends Iterator[T] {
   private[this] val files: Array[(String, Long)] = new Array(nPartitions)
   private[this] val buf: Array[Array[T]] = new Array(nPartitions)
   private[this] var _size: Long = 0L
@@ -34,7 +42,8 @@ class SpillingCollectIterator[T: ClassTag] private (localTmpdir: String, fs: FS,
     buf(partition) = a
     _size += a.length
     if (_size > sizeLimit) {
-      val file = ExecuteContext.createTmpPathNoCleanup(localTmpdir, s"spilling-collect-iterator-$partition")
+      val file =
+        ExecuteContext.createTmpPathNoCleanup(localTmpdir, s"spilling-collect-iterator-$partition")
       log.info(s"spilling partition $partition to $file")
       using(fs.createNoCompression(file)) { os =>
         var k = 0
@@ -95,4 +104,3 @@ class SpillingCollectIterator[T: ClassTag] private (localTmpdir: String, fs: FS,
     it.next
   }
 }
-

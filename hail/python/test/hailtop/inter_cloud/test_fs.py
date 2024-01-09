@@ -515,7 +515,7 @@ async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Sem
     status = await fs.statfile(file)
 
     if isinstance(fs, RouterAsyncFS):
-        is_local = isinstance(fs._get_fs(file), LocalAsyncFS)
+        is_local = isinstance(await fs._get_fs(file), LocalAsyncFS)
     else:
         is_local = isinstance(fs, LocalAsyncFS)
 

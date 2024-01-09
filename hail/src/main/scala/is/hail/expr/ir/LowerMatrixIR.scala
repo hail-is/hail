@@ -15,39 +15,46 @@ object LowerMatrixIR {
   def apply(ctx: ExecuteContext, ir: IR): IR = {
     val ab = new BoxedArrayBuilder[(String, IR)]
     val l1 = lower(ctx, ir, ab)
-    ab.result().foldRight[IR](l1) { case ((ident, value), body) => RelationalLet(ident, value, body) }
+    ab.result().foldRight[IR](l1) { case ((ident, value), body) =>
+      RelationalLet(ident, value, body)
+    }
   }
 
   def apply(ctx: ExecuteContext, tir: TableIR): TableIR = {
     val ab = new BoxedArrayBuilder[(String, IR)]
     val l1 = lower(ctx, tir, ab)
-    ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
+    ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
+      RelationalLetTable(ident, value, body)
+    }
   }
 
   def apply(ctx: ExecuteContext, mir: MatrixIR): TableIR = {
     val ab = new BoxedArrayBuilder[(String, IR)]
 
     val l1 = lower(ctx, mir, ab)
-    ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
+    ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
+      RelationalLetTable(ident, value, body)
+    }
   }
 
   def apply(ctx: ExecuteContext, bmir: BlockMatrixIR): BlockMatrixIR = {
     val ab = new BoxedArrayBuilder[(String, IR)]
 
     val l1 = lower(ctx, bmir, ab)
-    ab.result().foldRight[BlockMatrixIR](l1) { case ((ident, value), body) => RelationalLetBlockMatrix(ident, value, body) }
+    ab.result().foldRight[BlockMatrixIR](l1) { case ((ident, value), body) =>
+      RelationalLetBlockMatrix(ident, value, body)
+    }
   }
-
 
   private[this] def lowerChildren(
     ctx: ExecuteContext,
     ir: BaseIR,
-    ab: BoxedArrayBuilder[(String, IR)]
+    ab: BoxedArrayBuilder[(String, IR)],
   ): BaseIR = {
     ir.mapChildren {
       case tir: TableIR => lower(ctx, tir, ab)
       case mir: MatrixIR => throw new RuntimeException(s"expect specialized lowering rule for " +
-        s"${ ir.getClass.getName }\n  Found MatrixIR child $mir")
+          s"${ir.getClass.getName}\n  Found MatrixIR child $mir")
       case bmir: BlockMatrixIR => lower(ctx, bmir, ab)
       case vir: IR => lower(ctx, vir, ab)
     }
@@ -59,7 +66,8 @@ object LowerMatrixIR {
   def globals(tir: TableIR): IR =
     SelectFields(
       Ref("global", tir.typ.globalType),
-      tir.typ.globalType.fieldNames.diff(FastSeq(colsFieldName)))
+      tir.typ.globalType.fieldNames.diff(FastSeq(colsFieldName)),
+    )
 
   def nCols(tir: TableIR): IR = ArrayLen(colVals(tir))
 
@@ -69,8 +77,10 @@ object LowerMatrixIR {
   import is.hail.expr.ir.DeprecatedIRBuilder._
 
   def matrixSubstEnv(child: MatrixIR): BindingEnv[IRProxy] = {
-    val e = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
-      "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*))
+    val e = Env[IRProxy](
+      "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
+      "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*),
+    )
     BindingEnv(e, agg = Some(e), scan = Some(e))
   }
 
@@ -80,16 +90,20 @@ object LowerMatrixIR {
   }
 
   def matrixSubstEnvIR(child: MatrixIR, lowered: TableIR): BindingEnv[IR] = {
-    val e = Env[IR]("global" -> SelectFields(Ref("global", lowered.typ.globalType), child.typ.globalType.fieldNames),
-      "va" -> SelectFields(Ref("row", lowered.typ.rowType), child.typ.rowType.fieldNames))
+    val e = Env[IR](
+      "global" -> SelectFields(
+        Ref("global", lowered.typ.globalType),
+        child.typ.globalType.fieldNames,
+      ),
+      "va" -> SelectFields(Ref("row", lowered.typ.rowType), child.typ.rowType.fieldNames),
+    )
     BindingEnv(e, agg = Some(e), scan = Some(e))
   }
-
 
   private[this] def lower(
     ctx: ExecuteContext,
     mir: MatrixIR,
-    ab: BoxedArrayBuilder[(String, IR)]
+    ab: BoxedArrayBuilder[(String, IR)],
   ): TableIR = {
     val lowered = mir match {
       case RelationalLetMatrixTable(name, value, body) =>
@@ -102,24 +116,32 @@ object LowerMatrixIR {
         TableMapRows(
           lc,
           bindIR(GetField(row, entries)) { entries =>
-            If(IsNA(entries),
+            If(
+              IsNA(entries),
               Die("missing entry array unsupported in 'to_matrix_table_row_major'", row.typ),
-              bindIRs(ArrayLen(entries), ArrayLen(GetField(glob, cols))) { case Seq(entriesLen, colsLen) =>
-                If(entriesLen cne colsLen,
-                  Die(
-                    strConcat(
-                      Str("length mismatch between entry array and column array in 'to_matrix_table_row_major': "),
-                      invoke("str", TString, entriesLen),
-                      Str(" entries, "),
-                      invoke("str", TString, colsLen),
-                      Str(" cols, at "),
-                      invoke("str", TString, SelectFields(row, child.typ.key))
-                    ), row.typ, -1),
-                  row
-                )
-              }
+              bindIRs(ArrayLen(entries), ArrayLen(GetField(glob, cols))) {
+                case Seq(entriesLen, colsLen) =>
+                  If(
+                    entriesLen cne colsLen,
+                    Die(
+                      strConcat(
+                        Str(
+                          "length mismatch between entry array and column array in 'to_matrix_table_row_major': "
+                        ),
+                        invoke("str", TString, entriesLen),
+                        Str(" entries, "),
+                        invoke("str", TString, colsLen),
+                        Str(" cols, at "),
+                        invoke("str", TString, SelectFields(row, child.typ.key)),
+                      ),
+                      row.typ,
+                      -1,
+                    ),
+                    row,
+                  )
+              },
             )
-          }
+          },
         ).rename(Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
 
       case MatrixToMatrixApply(child, function) =>
@@ -131,12 +153,18 @@ object LowerMatrixIR {
 
         if (colMap.nonEmpty) {
           val newColsType = TArray(child.typ.colType.rename(colMap))
-          t = t.mapGlobals('global.castRename(t.typ.globalType.insertFields(FastSeq((colsFieldName, newColsType)))))
+          t = t.mapGlobals('global.castRename(t.typ.globalType.insertFields(FastSeq((
+            colsFieldName,
+            newColsType,
+          )))))
         }
 
         if (entryMap.nonEmpty) {
           val newEntriesType = TArray(child.typ.entryType.rename(entryMap))
-          t = t.mapRows('row.castRename(t.typ.rowType.insertFields(FastSeq((entriesFieldName, newEntriesType)))))
+          t = t.mapRows('row.castRename(t.typ.rowType.insertFields(FastSeq((
+            entriesFieldName,
+            newEntriesType,
+          )))))
         }
 
         t
@@ -151,14 +179,16 @@ object LowerMatrixIR {
       case MatrixFilterCols(child, pred) =>
         lower(ctx, child, ab)
           .mapGlobals('global.insertFields('newColIdx ->
-            irRange(0, 'global (colsField).len)
+            irRange(0, 'global(colsField).len)
               .filter('i ~>
-                (let(sa = 'global (colsField)('i))
+                (let(sa = 'global(colsField)('i))
                   in subst(lower(ctx, pred, ab), matrixGlobalSubstEnv(child))))))
-          .mapRows('row.insertFields(entriesField -> 'global ('newColIdx).map('i ~> 'row (entriesField)('i))))
+          .mapRows('row.insertFields(
+            entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))
+          ))
           .mapGlobals('global
             .insertFields(colsField ->
-              'global ('newColIdx).map('i ~> 'global (colsField)('i)))
+              'global('newColIdx).map('i ~> 'global(colsField)('i)))
             .dropFields('newColIdx))
 
       case MatrixAnnotateRowsTable(child, table, root, product) =>
@@ -171,30 +201,45 @@ object LowerMatrixIR {
       case MatrixChooseCols(child, oldIndices) =>
         lower(ctx, child, ab)
           .mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32)))
-          .mapRows('row.insertFields(entriesField -> 'global ('newColIdx).map('i ~> 'row (entriesField)('i))))
+          .mapRows('row.insertFields(
+            entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))
+          ))
           .mapGlobals('global
-            .insertFields(colsField -> 'global ('newColIdx).map('i ~> 'global (colsField)('i)))
+            .insertFields(colsField -> 'global('newColIdx).map('i ~> 'global(colsField)('i)))
             .dropFields('newColIdx))
 
       case MatrixAnnotateColsTable(child, table, root) =>
         val col = Symbol(genUID())
-        val colKey = makeStruct(table.typ.key.zip(child.typ.colKey).map { case (tk, mck) => Symbol(tk) -> col(Symbol(mck)) }: _*)
+        val colKey = makeStruct(table.typ.key.zip(child.typ.colKey).map { case (tk, mck) =>
+          Symbol(tk) -> col(Symbol(mck))
+        }: _*)
         lower(ctx, child, ab)
-          .mapGlobals(let(__dictfield = lower(ctx, table, ab)
-            .keyBy(FastSeq())
-            .collect()
-            .apply('rows)
-            .arrayStructToDict(table.typ.key)) {
+          .mapGlobals(let(__dictfield =
+            lower(ctx, table, ab)
+              .keyBy(FastSeq())
+              .collect()
+              .apply('rows)
+              .arrayStructToDict(table.typ.key)
+          ) {
             'global.insertFields(colsField ->
-              'global (colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", table.typ.valueType, colKey))))
+              'global(colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke(
+                "get",
+                table.typ.valueType,
+                colKey,
+              ))))
           })
 
       case MatrixMapGlobals(child, newGlobals) =>
         lower(ctx, child, ab)
           .mapGlobals(
-            subst(lower(ctx, newGlobals, ab), BindingEnv(Env[IRProxy](
-              "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))))
-              .insertFields(colsField -> 'global (colsField)))
+            subst(
+              lower(ctx, newGlobals, ab),
+              BindingEnv(Env[IRProxy](
+                "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*)
+              )),
+            )
+              .insertFields(colsField -> 'global(colsField))
+          )
 
       case MatrixMapRows(child, newRow) =>
         def liftScans(ir: IR): IRProxy = {
@@ -204,7 +249,7 @@ object LowerMatrixIR {
               builder += ((s, a))
               Ref(s, a.typ)
 
-            case a@AggFold(zero, seqOp, combOp, accumName, otherAccumName, true) =>
+            case a @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, true) =>
               val s = genUID()
               builder += ((s, a))
               Ref(s, a.typ)
@@ -232,7 +277,7 @@ object LowerMatrixIR {
               val liftedBody = lift(body, ab)
               val aggs = ab.result()
 
-              val aggIR = AggGroupBy(a,  MakeStruct(aggs), true)
+              val aggIR = AggGroupBy(a, MakeStruct(aggs), true)
               val uid = Ref(genUID(), aggIR.typ)
               builder += (uid.name -> aggIR)
               val valueUID = genUID()
@@ -242,7 +287,7 @@ object LowerMatrixIR {
                 Let(
                   (valueUID -> GetField(eltUID, "value")) +:
                     aggs.map { case (name, _) => name -> GetField(Ref(valueUID, valueType), name) },
-                  MakeTuple.ordered(FastSeq(GetField(eltUID, "key"), liftedBody))
+                  MakeTuple.ordered(FastSeq(GetField(eltUID, "key"), liftedBody)),
                 )
               })
 
@@ -251,7 +296,8 @@ object LowerMatrixIR {
               val liftedBody = lift(body, ab)
 
               val aggs = ab.result()
-              val aggIR = AggArrayPerElement(a, elementName, indexName, MakeStruct(aggs), knownLength, true)
+              val aggIR =
+                AggArrayPerElement(a, elementName, indexName, MakeStruct(aggs), knownLength, true)
               val uid = Ref(genUID(), aggIR.typ)
               builder += (uid.name -> aggIR)
 
@@ -266,7 +312,10 @@ object LowerMatrixIR {
               val structResult = MakeStruct(aggs)
               val uid = genUID()
               builder += (uid -> AggLet(name, value, structResult, true))
-              Let(aggs.map { case (name, _) => name -> GetField(Ref(uid, structResult.typ), name) }, liftedBody)
+              Let(
+                aggs.map { case (name, _) => name -> GetField(Ref(uid, structResult.typ), name) },
+                liftedBody,
+              )
 
             case _ =>
               MapIR(lift(_, builder))(ir)
@@ -284,16 +333,17 @@ object LowerMatrixIR {
             irRange(0, 'row(entriesField).len)
               .filter('i ~> !'row(entriesField)('i).isNA)
               .streamAgg('i ~>
-                (aggLet(sa = 'global(colsField)('i),
-                  g = 'row(entriesField)('i))
+                (aggLet(sa = 'global(colsField)('i), g = 'row(entriesField)('i))
                   in b0))
           } else
             irToProxy(b0)
 
           let.applyDynamicNamed("apply")((scanResultRef.name, scanStruct))(
-            scans.foldLeft[IRProxy](b1) { case (acc, (name, _)) => let.applyDynamicNamed("apply")((name, GetField(scanResultRef, name)))(acc) })
+            scans.foldLeft[IRProxy](b1) { case (acc, (name, _)) =>
+              let.applyDynamicNamed("apply")((name, GetField(scanResultRef, name)))(acc)
+            }
+          )
         }
-
 
         val lc = lower(ctx, child, ab)
         lc.mapRows(let(n_cols = 'global(colsField).len) {
@@ -304,7 +354,11 @@ object LowerMatrixIR {
       case MatrixMapCols(child, newCol, _) =>
         val loweredChild = lower(ctx, child, ab)
 
-        def lift(ir: IR, scanBindings: BoxedArrayBuilder[(String, IR)], aggBindings: BoxedArrayBuilder[(String, IR)]): IR = ir match {
+        def lift(
+          ir: IR,
+          scanBindings: BoxedArrayBuilder[(String, IR)],
+          aggBindings: BoxedArrayBuilder[(String, IR)],
+        ): IR = ir match {
           case a: ApplyScanOp =>
             val s = genUID()
             scanBindings += ((s, a))
@@ -315,7 +369,7 @@ object LowerMatrixIR {
             aggBindings += ((s, a))
             Ref(s, a.typ)
 
-          case a@AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+          case a @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
             val s = genUID()
             if (isScan) {
               scanBindings += ((s, a))
@@ -364,12 +418,15 @@ object LowerMatrixIR {
             val valueType = elementType.types(1)
             ToDict(mapIR(ToStream(uid)) { eltUID =>
               MakeTuple.ordered(
-                FastSeq(GetField(eltUID, "key"),
+                FastSeq(
+                  GetField(eltUID, "key"),
                   Let(
                     (valueUID -> GetField(eltUID, "value")) +:
-                      aggs.map { case (name, _) => name -> GetField(Ref(valueUID, valueType), name) },
-                    liftedBody
-                  )
+                      aggs.map { case (name, _) =>
+                        name -> GetField(Ref(valueUID, valueType), name)
+                      },
+                    liftedBody,
+                  ),
                 )
               )
             })
@@ -381,7 +438,8 @@ object LowerMatrixIR {
               else (lift(body, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
-            val aggIR = AggArrayPerElement(a, elementName, indexName, MakeStruct(aggs), knownLength, isScan)
+            val aggIR =
+              AggArrayPerElement(a, elementName, indexName, MakeStruct(aggs), knownLength, isScan)
             val uid = Ref(genUID(), aggIR.typ)
             builder += (uid.name -> aggIR)
             ToArray(mapIR(ToStream(uid)) { eltUID =>
@@ -411,7 +469,11 @@ object LowerMatrixIR {
         val scanBuilder = new BoxedArrayBuilder[(String, IR)]
         val aggBuilder = new BoxedArrayBuilder[(String, IR)]
 
-        val b0 = lift(Subst(lower(ctx, newCol, ab), matrixSubstEnvIR(child, loweredChild)), scanBuilder, aggBuilder)
+        val b0 = lift(
+          Subst(lower(ctx, newCol, ab), matrixSubstEnvIR(child, loweredChild)),
+          scanBuilder,
+          aggBuilder,
+        )
         val aggs = aggBuilder.result()
         val scans = scanBuilder.result()
 
@@ -420,7 +482,10 @@ object LowerMatrixIR {
 
         val noOp: (IRProxy => IRProxy, IRProxy => IRProxy) = (identity[IRProxy], identity[IRProxy])
 
-        val (aggOutsideTransformer: (IRProxy => IRProxy), aggInsideTransformer: (IRProxy => IRProxy)) = if (aggs.isEmpty)
+        val (
+          aggOutsideTransformer: (IRProxy => IRProxy),
+          aggInsideTransformer: (IRProxy => IRProxy),
+        ) = if (aggs.isEmpty)
           noOp
         else {
           val aggStruct = MakeStruct(aggs)
@@ -429,36 +494,61 @@ object LowerMatrixIR {
             aggLet(va = 'row.selectFields(child.typ.rowType.fieldNames: _*)) {
               makeStruct(
                 ('count, applyAggOp(Count(), FastSeq(), FastSeq())),
-                ('array_aggs, irRange(0, 'global(colsField).len)
-                  .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
-                    let(sa = 'global(colsField)('__result_idx)) {
-                      aggLet(sa = 'global(colsField)('__element_idx),
-                        g = 'row(entriesField)('__element_idx)) {
-                        aggFilter(!'g.isNA, aggStruct)
+                (
+                  'array_aggs,
+                  irRange(0, 'global(colsField).len)
+                    .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
+                      let(sa = 'global(colsField)('__result_idx)) {
+                        aggLet(
+                          sa = 'global(colsField)('__element_idx),
+                          g = 'row(entriesField)('__element_idx),
+                        ) {
+                          aggFilter(!'g.isNA, aggStruct)
+                        }
                       }
-                    })))
-            })
+                    ),
+                ),
+              )
+            }
+          )
 
           val ident = genUID()
           ab += ((ident, aggResult))
 
           val aggResultRef = Ref(genUID(), aggResult.typ)
-          val aggResultElementRef = Ref(genUID(), aggResult.typ.asInstanceOf[TStruct]
-            .fieldType("array_aggs")
-            .asInstanceOf[TArray].elementType)
+          val aggResultElementRef = Ref(
+            genUID(),
+            aggResult.typ.asInstanceOf[TStruct]
+              .fieldType("array_aggs")
+              .asInstanceOf[TArray].elementType,
+          )
 
-          val bindResult: IRProxy => IRProxy = let.applyDynamicNamed("apply")((aggResultRef.name, irToProxy(RelationalRef(ident, aggResult.typ)))).apply(_)
+          val bindResult: IRProxy => IRProxy = let.applyDynamicNamed("apply")((
+            aggResultRef.name,
+            irToProxy(RelationalRef(ident, aggResult.typ)),
+          )).apply(_)
           val bodyResult: IRProxy => IRProxy = (x: IRProxy) =>
-            let.applyDynamicNamed("apply")((aggResultRef.name, irToProxy(RelationalRef(ident, aggResult.typ))))
-              .apply(let(n_rows = Symbol(aggResultRef.name)('count), array_aggs = Symbol(aggResultRef.name)('array_aggs)) {
+            let.applyDynamicNamed("apply")((
+              aggResultRef.name,
+              irToProxy(RelationalRef(ident, aggResult.typ)),
+            ))
+              .apply(let(
+                n_rows = Symbol(aggResultRef.name)('count),
+                array_aggs = Symbol(aggResultRef.name)('array_aggs),
+              ) {
                 let.applyDynamicNamed("apply")((aggResultElementRef.name, 'array_aggs(idx))) {
-                  aggs.foldLeft[IRProxy](x) { case (acc, (name, _)) => let.applyDynamicNamed("apply")((name, GetField(aggResultElementRef, name)))(acc) }
+                  aggs.foldLeft[IRProxy](x) { case (acc, (name, _)) =>
+                    let.applyDynamicNamed("apply")((name, GetField(aggResultElementRef, name)))(acc)
+                  }
                 }
               })
           (bindResult, bodyResult)
         }
 
-        val (scanOutsideTransformer: (IRProxy => IRProxy), scanInsideTransformer: (IRProxy => IRProxy)) = if (scans.isEmpty)
+        val (
+          scanOutsideTransformer: (IRProxy => IRProxy),
+          scanInsideTransformer: (IRProxy => IRProxy),
+        ) = if (scans.isEmpty)
           noOp
         else {
           val scanStruct = MakeStruct(scans)
@@ -466,33 +556,41 @@ object LowerMatrixIR {
           val scanResultArray = ToArray(StreamAggScan(
             ToStream(GetField(Ref("global", loweredChild.typ.globalType), colsFieldName)),
             "sa",
-            scanStruct))
+            scanStruct,
+          ))
 
           val scanResultRef = Ref(genUID(), scanResultArray.typ)
-          val scanResultElementRef = Ref(genUID(), scanResultArray.typ.asInstanceOf[TArray].elementType)
+          val scanResultElementRef =
+            Ref(genUID(), scanResultArray.typ.asInstanceOf[TArray].elementType)
 
-          val bindResult: IRProxy => IRProxy = let.applyDynamicNamed("apply")((scanResultRef.name, scanResultArray)).apply(_)
+          val bindResult: IRProxy => IRProxy =
+            let.applyDynamicNamed("apply")((scanResultRef.name, scanResultArray)).apply(_)
           val bodyResult: IRProxy => IRProxy = (x: IRProxy) =>
-            let.applyDynamicNamed("apply")((scanResultElementRef.name, ArrayRef(scanResultRef, idx)))(
+            let.applyDynamicNamed("apply")((
+              scanResultElementRef.name,
+              ArrayRef(scanResultRef, idx),
+            ))(
               scans.foldLeft[IRProxy](x) { case (acc, (name, _)) =>
                 let.applyDynamicNamed("apply")((name, GetField(scanResultElementRef, name)))(acc)
-              })
+              }
+            )
           (bindResult, bodyResult)
         }
 
         loweredChild.mapGlobals('global.insertFields(colsField ->
-          aggOutsideTransformer(scanOutsideTransformer(irRange(0, 'global(colsField).len).map(idxSym ~> let(__cols_array = 'global(colsField), sa = '__cols_array(idxSym)) {
-            aggInsideTransformer(scanInsideTransformer(b0))
-          })))
-        ))
+          aggOutsideTransformer(scanOutsideTransformer(irRange(0, 'global(colsField).len).map(
+            idxSym ~> let(__cols_array = 'global(colsField), sa = '__cols_array(idxSym)) {
+              aggInsideTransformer(scanInsideTransformer(b0))
+            }
+          )))))
 
       case MatrixFilterEntries(child, pred) =>
         val lc = lower(ctx, child, ab)
-          lc.mapRows('row.insertFields(entriesField ->
-          irRange(0, 'global (colsField).len).map {
+        lc.mapRows('row.insertFields(entriesField ->
+          irRange(0, 'global(colsField).len).map {
             'i ~>
-              let(g = 'row (entriesField)('i)) {
-                irIf(let(sa = 'global (colsField)('i))
+              let(g = 'row(entriesField)('i)) {
+                irIf(let(sa = 'global(colsField)('i))
                   in !subst(lower(ctx, pred, ab), matrixSubstEnv(child))) {
                   NA(child.typ.entryType)
                 } {
@@ -511,7 +609,9 @@ object LowerMatrixIR {
           else
             irIf('row(entries).isNA) {
               irRange(0, 'global(cols).len)
-                .map('a ~> irToProxy(MakeStruct(right.typ.entryType.fieldNames.map(f => (f, NA(right.typ.entryType.fieldType(f)))))))
+                .map('a ~> irToProxy(MakeStruct(right.typ.entryType.fieldNames.map(f =>
+                  (f, NA(right.typ.entryType.fieldType(f)))
+                ))))
             } {
               'row(entries)
             }
@@ -522,12 +622,14 @@ object LowerMatrixIR {
             .mapGlobals('global
               .insertFields(Symbol(rightCols) -> 'global(colsField))
               .selectFields(rightCols)),
-          joinType)
+          joinType,
+        )
           .mapRows('row
             .insertFields(entriesField ->
               makeArray(
                 handleMissingEntriesArray(entriesField, colsField),
-                handleMissingEntriesArray(Symbol(rightEntries), Symbol(rightCols)))
+                handleMissingEntriesArray(Symbol(rightEntries), Symbol(rightCols)),
+              )
                 .flatMap('a ~> 'a))
             .dropFields(Symbol(rightEntries)))
           .mapGlobals('global
@@ -543,21 +645,32 @@ object LowerMatrixIR {
           loweredChild,
           InsertFields(
             Ref("row", rt),
-            FastSeq((entriesFieldName, ToArray(StreamZip(
-              FastSeq(
-                ToStream(GetField(Ref("row", rt), entriesFieldName)),
-                ToStream(GetField(Ref("global", gt), colsFieldName))),
-              FastSeq("g", "sa"),
-              Subst(lower(ctx, newEntries, ab), BindingEnv(Env(
-                "global" -> SelectFields(Ref("global", gt), child.typ.globalType.fieldNames),
-                "va" -> SelectFields(Ref("row", rt), child.typ.rowType.fieldNames)))),
-              ArrayZipBehavior.AssumeSameLength
-            )))))
+            FastSeq((
+              entriesFieldName,
+              ToArray(StreamZip(
+                FastSeq(
+                  ToStream(GetField(Ref("row", rt), entriesFieldName)),
+                  ToStream(GetField(Ref("global", gt), colsFieldName)),
+                ),
+                FastSeq("g", "sa"),
+                Subst(
+                  lower(ctx, newEntries, ab),
+                  BindingEnv(Env(
+                    "global" -> SelectFields(Ref("global", gt), child.typ.globalType.fieldNames),
+                    "va" -> SelectFields(Ref("row", rt), child.typ.rowType.fieldNames),
+                  )),
+                ),
+                ArrayZipBehavior.AssumeSameLength,
+              )),
+            )),
+          ),
         )
 
-      case MatrixRepartition(child, n, shuffle) => TableRepartition(lower(ctx, child, ab), n, shuffle)
+      case MatrixRepartition(child, n, shuffle) =>
+        TableRepartition(lower(ctx, child, ab), n, shuffle)
 
-      case MatrixFilterIntervals(child, intervals, keep) => TableFilterIntervals(lower(ctx, child, ab), intervals, keep)
+      case MatrixFilterIntervals(child, intervals, keep) =>
+        TableFilterIntervals(lower(ctx, child, ab), intervals, keep)
 
       case MatrixUnionRows(children) =>
         // FIXME: this should check that all children have the same column keys.
@@ -572,12 +685,16 @@ object LowerMatrixIR {
       case MatrixRowsTail(child, n) => TableTail(lower(ctx, child, ab), n)
 
       case MatrixColsHead(child, n) => lower(ctx, child, ab)
-        .mapGlobals('global.insertFields(colsField -> 'global (colsField).arraySlice(0, Some(n), 1)))
-        .mapRows('row.insertFields(entriesField -> 'row (entriesField).arraySlice(0, Some(n), 1)))
+          .mapGlobals('global.insertFields(colsField -> 'global(colsField).arraySlice(
+            0,
+            Some(n),
+            1,
+          )))
+          .mapRows('row.insertFields(entriesField -> 'row(entriesField).arraySlice(0, Some(n), 1)))
 
       case MatrixColsTail(child, n) => lower(ctx, child, ab)
-        .mapGlobals('global.insertFields(colsField -> 'global (colsField).arraySlice(-n, None, 1)))
-        .mapRows('row.insertFields(entriesField -> 'row (entriesField).arraySlice(-n, None, 1)))
+          .mapGlobals('global.insertFields(colsField -> 'global(colsField).arraySlice(-n, None, 1)))
+          .mapRows('row.insertFields(entriesField -> 'row(entriesField).arraySlice(-n, None, 1)))
 
       case MatrixExplodeCols(child, path) =>
         val loweredChild = lower(ctx, child, ab)
@@ -586,81 +703,90 @@ object LowerMatrixIR {
         val nestedIdx = Symbol(genUID())
         val colElementUID1 = Symbol(genUID())
 
-
-        val nestedRefs = path.init.scanLeft('global (colsField)(colIdx): IRProxy)((irp, name) => irp(Symbol(name)))
+        val nestedRefs =
+          path.init.scanLeft('global(colsField)(colIdx): IRProxy)((irp, name) => irp(Symbol(name)))
         val postExplodeSelector = path.zip(nestedRefs).zipWithIndex.foldRight[IRProxy](nestedIdx) {
           case (((field, ref), i), arg) =>
             ref.insertFields(Symbol(field) ->
               (if (i == nestedRefs.length - 1)
-                ref(Symbol(field)).toArray(arg)
-              else
-                arg))
+                 ref(Symbol(field)).toArray(arg)
+               else
+                 arg))
         }
 
-        val arrayIR = path.foldLeft[IRProxy](colElementUID1) { case (irp, fieldName) => irp(Symbol(fieldName)) }
+        val arrayIR = path.foldLeft[IRProxy](colElementUID1) { case (irp, fieldName) =>
+          irp(Symbol(fieldName))
+        }
         loweredChild
-          .mapGlobals('global.insertFields(lengths -> 'global (colsField).map({
+          .mapGlobals('global.insertFields(lengths -> 'global(colsField).map({
             colElementUID1 ~> arrayIR.len.orElse(0)
           })))
           .mapGlobals('global.insertFields(colsField ->
-            irRange(0, 'global (colsField).len, 1)
+            irRange(0, 'global(colsField).len, 1)
               .flatMap({
                 colIdx ~>
-                  irRange(0, 'global (lengths)(colIdx), 1)
+                  irRange(0, 'global(lengths)(colIdx), 1)
                     .map({
                       nestedIdx ~> postExplodeSelector
                     })
               })))
           .mapRows('row.insertFields(entriesField ->
-            irRange(0, 'row (entriesField).len, 1)
+            irRange(0, 'row(entriesField).len, 1)
               .flatMap(colIdx ~>
-                irRange(0, 'global (lengths)(colIdx), 1).map(Symbol(genUID()) ~> 'row (entriesField)(colIdx)))))
+                irRange(0, 'global(lengths)(colIdx), 1).map(
+                  Symbol(genUID()) ~> 'row(entriesField)(colIdx)
+                ))))
           .mapGlobals('global.dropFields(lengths))
 
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
-
         val substEnv = matrixSubstEnv(child)
         val eeSub = subst(lower(ctx, entryExpr, ab), substEnv)
         val reSub = subst(lower(ctx, rowExpr, ab), substEnv)
         lower(ctx, child, ab)
           .aggregateByKey(
-            reSub.insertFields(entriesField -> irRange(0, 'global (colsField).len)
-              .aggElements('__element_idx, '__result_idx, Some('global (colsField).len))(
-                let(sa = 'global (colsField)('__result_idx)) {
-                  aggLet(sa = 'global (colsField)('__element_idx),
-                    g = 'row (entriesField)('__element_idx)) {
+            reSub.insertFields(entriesField -> irRange(0, 'global(colsField).len)
+              .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
+                let(sa = 'global(colsField)('__result_idx)) {
+                  aggLet(
+                    sa = 'global(colsField)('__element_idx),
+                    g = 'row(entriesField)('__element_idx),
+                  ) {
                     aggFilter(!'g.isNA, eeSub)
                   }
-                })))
+                }
+              ))
+          )
 
       case MatrixCollectColsByKey(child) =>
         lower(ctx, child, ab)
           .mapGlobals('global.insertFields('newColIdx ->
-            irRange(0, 'global (colsField).len).map {
+            irRange(0, 'global(colsField).len).map {
               'i ~>
-                makeTuple('global (colsField)('i).selectFields(child.typ.colKey: _*),
-                  'i)
+                makeTuple('global(colsField)('i).selectFields(child.typ.colKey: _*), 'i)
             }.groupByKey.toArray))
           .mapRows('row.insertFields(entriesField ->
-            'global ('newColIdx).map {
+            'global('newColIdx).map {
               'kv ~>
                 makeStruct(child.typ.entryType.fieldNames.map { s =>
-                  (Symbol(s), 'kv ('value).map {
-                    'i ~> 'row (entriesField)('i)(Symbol(s))
-                  })
+                  (
+                    Symbol(s),
+                    'kv('value).map {
+                      'i ~> 'row(entriesField)('i)(Symbol(s))
+                    },
+                  )
                 }: _*)
             }))
           .mapGlobals('global
             .insertFields(colsField ->
-              'global ('newColIdx).map {
+              'global('newColIdx).map {
                 'kv ~>
-                  'kv ('key).insertFields(
+                  'kv('key).insertFields(
                     child.typ.colValueStruct.fieldNames.map { s =>
-                      (Symbol(s), 'kv ('value).map('i ~> 'global (colsField)('i)(Symbol(s))))
-                    }: _*)
+                      (Symbol(s), 'kv('value).map('i ~> 'global(colsField)('i)(Symbol(s))))
+                    }: _*
+                  )
               })
-            .dropFields('newColIdx)
-          )
+            .dropFields('newColIdx))
 
       case MatrixExplodeRows(child, path) => TableExplode(lower(ctx, child, ab), path)
 
@@ -676,69 +802,77 @@ object LowerMatrixIR {
         val keyMap = Symbol(genUID())
         val aggElementIdx = Symbol(genUID())
 
-        val e1 = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
-          "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*))
+        val e1 = Env[IRProxy](
+          "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
+          "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*),
+        )
         val e2 = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))
         val ceSub = subst(lower(ctx, colExpr, ab), BindingEnv(e2, agg = Some(e1)))
         val eeSub = subst(lower(ctx, entryExpr, ab), BindingEnv(e1, agg = Some(e1)))
 
         lower(ctx, child, ab)
           .mapGlobals('global.insertFields(keyMap ->
-            let(__cols_field = 'global (colsField)) {
+            let(__cols_field = 'global(colsField)) {
               irRange(0, '__cols_field.len)
-                .map(originalColIdx ~> let(__cols_field_element = '__cols_field (originalColIdx)) {
-                  makeStruct('key -> '__cols_field_element.selectFields(colKey: _*), 'value -> originalColIdx)
+                .map(originalColIdx ~> let(__cols_field_element = '__cols_field(originalColIdx)) {
+                  makeStruct(
+                    'key -> '__cols_field_element.selectFields(colKey: _*),
+                    'value -> originalColIdx,
+                  )
                 })
                 .groupByKey
                 .toArray
             }))
           .mapRows('row.insertFields(entriesField ->
-            let(__entries = 'row (entriesField), __key_map = 'global (keyMap)) {
+            let(__entries = 'row(entriesField), __key_map = 'global(keyMap)) {
               irRange(0, '__key_map.len)
-                .map(newColIdx1 ~> '__key_map (newColIdx1)
+                .map(newColIdx1 ~> '__key_map(newColIdx1)
                   .apply('value)
                   .streamAgg(aggElementIdx ~>
-                    aggLet(g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
+                    aggLet(g = '__entries(aggElementIdx), sa = 'global(colsField)(aggElementIdx)) {
                       aggFilter(!'g.isNA, eeSub)
                     }))
             }))
           .mapGlobals(
             'global.insertFields(colsField ->
-              let(__key_map = 'global (keyMap)) {
+              let(__key_map = 'global(keyMap)) {
                 irRange(0, '__key_map.len)
                   .map(newColIdx2 ~>
                     concatStructs(
-                      '__key_map (newColIdx2)('key),
-                      '__key_map (newColIdx2)('value)
-                        .streamAgg(colsAggIdx ~> aggLet(sa = 'global (colsField)(colsAggIdx)) {
+                      '__key_map(newColIdx2)('key),
+                      '__key_map(newColIdx2)('value)
+                        .streamAgg(colsAggIdx ~> aggLet(sa = 'global(colsField)(colsAggIdx)) {
                           ceSub
-                        })
+                        }),
                     ))
-              }
-            ).dropFields(keyMap))
+              }).dropFields(keyMap)
+          )
 
       case MatrixLiteral(_, tl) => tl
     }
 
     if (!mir.typ.isCompatibleWith(lowered.typ))
-      throw new RuntimeException(s"Lowering changed type:\n  BEFORE: ${ Pretty(ctx, mir) }\n    ${ mir.typ }\n    ${ mir.typ.canonicalTableType}\n  AFTER: ${ Pretty(ctx, lowered) }\n    ${ lowered.typ }")
+      throw new RuntimeException(
+        s"Lowering changed type:\n  BEFORE: ${Pretty(ctx, mir)}\n    ${mir.typ}\n    ${mir.typ.canonicalTableType}\n  AFTER: ${Pretty(ctx, lowered)}\n    ${lowered.typ}"
+      )
     lowered
   }
-
 
   private[this] def lower(
     ctx: ExecuteContext,
     tir: TableIR,
-    ab: BoxedArrayBuilder[(String, IR)]
+    ab: BoxedArrayBuilder[(String, IR)],
   ): TableIR = {
     val lowered = tir match {
       case CastMatrixToTable(child, entries, cols) =>
         lower(ctx, child, ab)
           .mapRows('row.selectFields(child.typ.rowType.fieldNames ++ Array(entriesFieldName): _*))
-          .mapGlobals('global.selectFields(child.typ.globalType.fieldNames ++ Array(colsFieldName):  _*))
+          .mapGlobals('global.selectFields(
+            child.typ.globalType.fieldNames ++ Array(colsFieldName): _*
+          ))
           .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
 
-      case x@MatrixEntriesTable(child) =>
+      case x @ MatrixEntriesTable(child) =>
         val lc = lower(ctx, child, ab)
 
         if (child.typ.rowKey.nonEmpty && child.typ.colKey.nonEmpty) {
@@ -750,43 +884,59 @@ object LowerMatrixIR {
           val values = Symbol(genUID())
           lc
             .mapGlobals('global.insertFields(oldColIdx ->
-              irRange(0, 'global (colsField).len)
-                .map(lambdaIdx1 ~> makeStruct('key -> 'global (colsField)(lambdaIdx1).selectFields(child.typ.colKey: _*), 'value -> lambdaIdx1))
+              irRange(0, 'global(colsField).len)
+                .map(lambdaIdx1 ~> makeStruct(
+                  'key -> 'global(colsField)(lambdaIdx1).selectFields(child.typ.colKey: _*),
+                  'value -> lambdaIdx1,
+                ))
                 .sort(ascending = true, onKey = true)
                 .map(lambdaIdx1 ~> lambdaIdx1('value))))
-            .aggregateByKey(makeStruct(values -> applyAggOp(Collect(), seqOpArgs = FastSeq('row.selectFields(lc.typ.valueType.fieldNames: _*)))))
+            .aggregateByKey(makeStruct(values -> applyAggOp(
+              Collect(),
+              seqOpArgs = FastSeq('row.selectFields(lc.typ.valueType.fieldNames: _*)),
+            )))
             .mapRows('row.dropFields(values).insertFields(toExplode ->
-              'global (oldColIdx)
-                .flatMap(lambdaIdx1 ~> 'row (values)
+              'global(oldColIdx)
+                .flatMap(lambdaIdx1 ~> 'row(values)
                   .filter(lambdaIdx2 ~> !lambdaIdx2(entriesField)(lambdaIdx1).isNA)
-                  .map(lambdaIdx3 ~> let(__col = 'global (colsField)(lambdaIdx1), __entry = lambdaIdx3(entriesField)(lambdaIdx1)) {
+                  .map(lambdaIdx3 ~> let(
+                    __col = 'global(colsField)(lambdaIdx1),
+                    __entry = lambdaIdx3(entriesField)(lambdaIdx1),
+                  ) {
                     makeStruct(
-                      child.typ.rowValueStruct.fieldNames.map(Symbol(_)).map(f => f -> lambdaIdx3(f)) ++
-                        child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col (f)) ++
-                        child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry (f)): _*
+                      child.typ.rowValueStruct.fieldNames.map(Symbol(_)).map(f =>
+                        f -> lambdaIdx3(f)
+                      ) ++
+                        child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col(f)) ++
+                        child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry(f)): _*
                     )
                   }))))
-
             .explode(toExplode)
             .mapRows(makeStruct(x.typ.rowType.fieldNames.map { f =>
               val fd = Symbol(f)
-              (fd, if (child.typ.rowKey.contains(f)) 'row (fd) else 'row (toExplode) (fd)) }: _*))
+              (fd, if (child.typ.rowKey.contains(f)) 'row(fd) else 'row(toExplode)(fd))
+            }: _*))
             .mapGlobals('global.dropFields(colsField, oldColIdx))
             .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = true)
         } else {
           val colIdx = Symbol(genUID())
           val lambdaIdx = Symbol(genUID())
           val result = lc
-            .mapRows('row.insertFields(colIdx -> irRange(0, 'global (colsField).len)
-              .filter(lambdaIdx ~> !'row (entriesField)(lambdaIdx).isNA)))
+            .mapRows('row.insertFields(colIdx -> irRange(0, 'global(colsField).len)
+              .filter(lambdaIdx ~> !'row(entriesField)(lambdaIdx).isNA)))
             .explode(colIdx)
-            .mapRows(let(__col_struct = 'global (colsField)('row (colIdx)),
-              __entry_struct = 'row (entriesField)('row (colIdx))) {
-              val newFields = child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col_struct (f)) ++
-                child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry_struct (f))
+            .mapRows(let(
+              __col_struct = 'global(colsField)('row(colIdx)),
+              __entry_struct = 'row(entriesField)('row(colIdx)),
+            ) {
+              val newFields =
+                child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col_struct(f)) ++
+                  child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry_struct(f))
 
-              'row.dropFields(entriesField, colIdx).insertFieldsList(newFields,
-                ordering = Some(x.typ.rowType.fieldNames.toFastSeq))
+              'row.dropFields(entriesField, colIdx).insertFieldsList(
+                newFields,
+                ordering = Some(x.typ.rowType.fieldNames.toFastSeq),
+              )
             })
             .mapGlobals('global.dropFields(colsField))
           if (child.typ.colKey.isEmpty)
@@ -799,9 +949,16 @@ object LowerMatrixIR {
 
       case MatrixToTableApply(child, function) =>
         val loweredChild = lower(ctx, child, ab)
-        TableToTableApply(loweredChild,
+        TableToTableApply(
+          loweredChild,
           function.lower()
-            .getOrElse(WrappedMatrixToTableFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)))
+            .getOrElse(WrappedMatrixToTableFunction(
+              function,
+              colsFieldName,
+              entriesFieldName,
+              child.typ.colKey,
+            )),
+        )
 
       case MatrixRowsTable(child) =>
         lower(ctx, child, ab)
@@ -812,16 +969,18 @@ object LowerMatrixIR {
         val colKey = child.typ.colKey
         let(__cols_and_globals = lower(ctx, child, ab).getGlobals) {
           val sortedCols = if (colKey.isEmpty)
-            '__cols_and_globals (colsField)
+            '__cols_and_globals(colsField)
           else
-            '__cols_and_globals (colsField).map { '__cols_element ~>
-              makeStruct(
-                // key struct
-                '_1 -> '__cols_element.selectFields(colKey: _*),
-                '_2 -> '__cols_element)
+            '__cols_and_globals(colsField).map {
+              '__cols_element ~>
+                makeStruct(
+                  // key struct
+                  '_1 -> '__cols_element.selectFields(colKey: _*),
+                  '_2 -> '__cols_element,
+                )
             }.sort(true, onKey = true)
               .map {
-                'elt ~> 'elt ('_2)
+                'elt ~> 'elt('_2)
               }
           makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
         }.parallelize(None).keyBy(child.typ.colKey)
@@ -836,7 +995,7 @@ object LowerMatrixIR {
   private[this] def lower(
     ctx: ExecuteContext,
     bmir: BlockMatrixIR,
-    ab: BoxedArrayBuilder[(String, IR)]
+    ab: BoxedArrayBuilder[(String, IR)],
   ): BlockMatrixIR = {
     val lowered = bmir match {
       case noMatrixChildren => lowerChildren(ctx, noMatrixChildren, ab).asInstanceOf[BlockMatrixIR]
@@ -848,38 +1007,61 @@ object LowerMatrixIR {
   private[this] def lower(
     ctx: ExecuteContext,
     ir: IR,
-    ab: BoxedArrayBuilder[(String, IR)]
+    ab: BoxedArrayBuilder[(String, IR)],
   ): IR = {
     val lowered = ir match {
-      case MatrixToValueApply(child, function) => TableToValueApply(lower(ctx, child, ab), function.lower()
-        .getOrElse(WrappedMatrixToValueFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)))
+      case MatrixToValueApply(child, function) => TableToValueApply(
+          lower(ctx, child, ab),
+          function.lower()
+            .getOrElse(WrappedMatrixToValueFunction(
+              function,
+              colsFieldName,
+              entriesFieldName,
+              child.typ.colKey,
+            )),
+        )
       case MatrixWrite(child, writer) =>
-        TableWrite(lower(ctx, child, ab), WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey))
+        TableWrite(
+          lower(ctx, child, ab),
+          WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey),
+        )
       case MatrixMultiWrite(children, writer) =>
-        TableMultiWrite(children.map(lower(ctx, _, ab)), WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey))
+        TableMultiWrite(
+          children.map(lower(ctx, _, ab)),
+          WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey),
+        )
       case MatrixCount(child) =>
         lower(ctx, child, ab)
           .aggregate(makeTuple(applyAggOp(Count(), FastSeq(), FastSeq()), 'global(colsField).len))
       case MatrixAggregate(child, query) =>
         val lc = lower(ctx, child, ab)
         val idx = Symbol(genUID())
-        TableAggregate(lc,
+        TableAggregate(
+          lc,
           aggExplodeIR(
             filterIR(
               zip2(
                 ToStream(GetField(Ref("row", lc.typ.rowType), entriesFieldName)),
                 ToStream(GetField(Ref("global", lc.typ.globalType), colsFieldName)),
-                ArrayZipBehavior.AssertSameLength
+                ArrayZipBehavior.AssertSameLength,
               ) { case (e, c) =>
                 MakeTuple.ordered(FastSeq(e, c))
-              }) { filterTuple =>
-              ApplyUnaryPrimOp(Bang, IsNA(GetTupleElement(filterTuple, 0)))
-            }) { explodedTuple =>
-            AggLet("g", GetTupleElement(explodedTuple, 0),
-              AggLet("sa", GetTupleElement(explodedTuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),
-                isScan = false),
-              isScan = false)
-          })
+              }
+            )(filterTuple => ApplyUnaryPrimOp(Bang, IsNA(GetTupleElement(filterTuple, 0))))
+          ) { explodedTuple =>
+            AggLet(
+              "g",
+              GetTupleElement(explodedTuple, 0),
+              AggLet(
+                "sa",
+                GetTupleElement(explodedTuple, 1),
+                Subst(query, matrixSubstEnvIR(child, lc)),
+                isScan = false,
+              ),
+              isScan = false,
+            )
+          },
+        )
       case _ => lowerChildren(ctx, ir, ab).asInstanceOf[IR]
     }
     assertTypeUnchanged(ir, lowered)
@@ -888,6 +1070,8 @@ object LowerMatrixIR {
 
   private[this] def assertTypeUnchanged(original: BaseIR, lowered: BaseIR) {
     if (lowered.typ != original.typ)
-      fatal(s"lowering changed type:\n  before: ${ original.typ }\n after: ${ lowered.typ }\n  ${ original.getClass.getName } => ${ lowered.getClass.getName }")
+      fatal(
+        s"lowering changed type:\n  before: ${original.typ}\n after: ${lowered.typ}\n  ${original.getClass.getName} => ${lowered.getClass.getName}"
+      )
   }
 }

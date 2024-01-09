@@ -1966,8 +1966,6 @@ class Table(ExprContainer):
                         return t
 
                 if is_interval:
-                    if all_matches:
-                        hl.utils.no_service_backend('interval join with all_matches=True')
                     left = Table(ir.TableIntervalJoin(left._tir, self._tir, uid, all_matches))
                 else:
                     left = Table(ir.TableLeftJoinRightDistinct(left._tir, self._tir, uid))

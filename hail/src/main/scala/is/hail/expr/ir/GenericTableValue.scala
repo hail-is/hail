@@ -10,26 +10,28 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
+import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
+import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SStackStruct, SStackStructValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamValue, primitive}
+import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue, SStream, SStreamValue}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
-import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TInt32, TInt64, TStruct, TTuple, Type}
-import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
 import is.hail.utils._
+
+import org.json4s.{Extraction, JValue}
+import org.json4s.JsonAST.{JObject, JString}
+
+import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{Partition, TaskContext}
-import org.json4s.JsonAST.{JObject, JString}
-import org.json4s.{Extraction, JValue}
 
 class PartitionIteratorLongReader(
   rowType: TStruct,
   override val uidFieldName: String,
   override val contextType: TStruct,
   bodyPType: TStruct => PStruct,
-  body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]
+  body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long],
 ) extends PartitionReader {
   assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
@@ -51,7 +53,8 @@ class PartitionIteratorLongReader(
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
     context: EmitCode,
-    requestedType: TStruct): IEmitCode = {
+    requestedType: TStruct,
+  ): IEmitCode = {
 
     val insertUID: Boolean = requestedType.hasField(uidFieldName) && !rowType.hasField(uidFieldName)
 
@@ -63,11 +66,13 @@ class PartitionIteratorLongReader(
     val eltPType = bodyPType(concreteType)
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
-      Array(EmitType(SInt64, true), EmitType(SInt64, true)))
+      Array(EmitType(SInt64, true), EmitType(SInt64, true)),
+    )
 
     context.toI(cb).map(cb) { case _ctxStruct: SBaseStructValue =>
       val ctxStruct = cb.memoizeField(_ctxStruct, "ctxStruct")
-      val partIdx = cb.memoizeField(_ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt.value.toL)
+      val partIdx =
+        cb.memoizeField(_ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt.value.toL)
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
       val region = mb.genFieldThisRef[Region]("pilr_region")
       val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")
@@ -79,32 +84,53 @@ class PartitionIteratorLongReader(
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
           val ctxJavaValue = UtilFunctions.svalueToJavaValue(cb, partitionRegion, ctxStruct)
-          cb.assign(it, cb.emb.getObject(body(requestedType))
-            .invoke[java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, Iterator[java.lang.Long]](
-              "apply", region, cb.emb.getHailClassLoader, cb.emb.getFS, ctxJavaValue))
+          cb.assign(
+            it,
+            cb.emb.getObject(body(requestedType))
+              .invoke[
+                java.lang.Object,
+                java.lang.Object,
+                java.lang.Object,
+                java.lang.Object,
+                Iterator[java.lang.Long],
+              ](
+                "apply",
+                region,
+                cb.emb.getHailClassLoader,
+                cb.emb.getFS,
+                ctxJavaValue,
+              ),
+          )
         }
 
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.if_(!it.get.hasNext,
-            cb.goto(LendOfStream))
+          cb.if_(!it.get.hasNext, cb.goto(LendOfStream))
           cb.assign(rv, Code.longValue(it.get.next()))
           cb.assign(rowIdx, rowIdx + 1L)
 
-
           cb.goto(LproduceElementDone)
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb,
-          if (insertUID) {
-            val uid = EmitValue.present(
-              new SStackStructValue(uidSType, Array(
-                EmitValue.present(primitive(partIdx)),
-                EmitValue.present(primitive(rowIdx)))))
-            eltPType.loadCheapSCode(cb, rv)._insert(requestedType, uidFieldName -> uid)
-          } else {
-            eltPType.loadCheapSCode(cb, rv)
-          }))
+        override val element: EmitCode = EmitCode.fromI(mb)(cb =>
+          IEmitCode.present(
+            cb,
+            if (insertUID) {
+              val uid = EmitValue.present(
+                new SStackStructValue(
+                  uidSType,
+                  Array(
+                    EmitValue.present(primitive(partIdx)),
+                    EmitValue.present(primitive(rowIdx)),
+                  ),
+                )
+              )
+              eltPType.loadCheapSCode(cb, rv)._insert(requestedType, uidFieldName -> uid)
+            } else {
+              eltPType.loadCheapSCode(cb, rv)
+            },
+          )
+        )
 
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
@@ -113,21 +139,23 @@ class PartitionIteratorLongReader(
     }
   }
 
-  def toJValue: JValue = {
+  def toJValue: JValue =
     JObject(
       "category" -> JString("PartitionIteratorLongReader"),
       "fullRowType" -> Extraction.decompose(fullRowType)(PartitionReader.formats),
       "uidFieldName" -> JString(uidFieldName),
-      "contextType" -> Extraction.decompose(contextType)(PartitionReader.formats))
-  }
+      "contextType" -> Extraction.decompose(contextType)(PartitionReader.formats),
+    )
 }
 
 abstract class LoweredTableReaderCoercer {
-  def coerce(ctx: ExecuteContext,
+  def coerce(
+    ctx: ExecuteContext,
     globals: IR,
     contextType: Type,
     contexts: IndexedSeq[Any],
-    body: IR => IR): TableStage
+    body: IR => IR,
+  ): TableStage
 }
 
 class GenericTableValue(
@@ -138,14 +166,17 @@ class GenericTableValue(
   val contextType: TStruct,
   var contexts: IndexedSeq[Any],
   val bodyPType: TStruct => PStruct,
-  val body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]) {
+  val body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long],
+) {
 
   assert(fullTableType.rowType.hasField(uidFieldName), s"uid=$uidFieldName, t=$fullTableType")
   assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
   private var ltrCoercer: LoweredTableReaderCoercer = _
-  private def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any): LoweredTableReaderCoercer = {
+
+  private def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any)
+    : LoweredTableReaderCoercer = {
     if (ltrCoercer == null) {
       ltrCoercer = LoweredTableReader.makeCoercer(
         ctx,
@@ -158,19 +189,27 @@ class GenericTableValue(
         bodyPType,
         body,
         context,
-        cacheKey)
+        cacheKey,
+      )
     }
     ltrCoercer
   }
 
-  def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any): TableStage = {
+  def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any)
+    : TableStage = {
     val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
-    val requestedBody: (IR) => (IR) = (ctx: IR) => ReadPartition(ctx,
-      requestedType.rowType,
-      new PartitionIteratorLongReader(
-        fullTableType.rowType, uidFieldName, contextType,
-        (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
-        (requestedType: Type) => body(requestedType.asInstanceOf[TStruct])))
+    val requestedBody: (IR) => (IR) = (ctx: IR) =>
+      ReadPartition(
+        ctx,
+        requestedType.rowType,
+        new PartitionIteratorLongReader(
+          fullTableType.rowType,
+          uidFieldName,
+          contextType,
+          (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
+          (requestedType: Type) => body(requestedType.asInstanceOf[TStruct]),
+        ),
+      )
     var p: RVDPartitioner = null
     partitioner match {
       case Some(partitioner) =>

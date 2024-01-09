@@ -11,9 +11,8 @@ import scala.reflect.{ClassTag, _}
 case object TInt64 extends TIntegral {
   def _toPretty = "Int64"
 
-  override def pyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit =
     sb.append("int64")
-  }
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Long]
 

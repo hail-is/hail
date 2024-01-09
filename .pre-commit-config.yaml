@@ -15,6 +15,7 @@ repos:
         language: system
         types: [python]
         require_serial: true
+        exclude: hail/python/(hail|test)
         stages:
           - pre-push
   - repo: https://github.com/pre-commit/pre-commit-hooks

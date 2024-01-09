@@ -3,38 +3,41 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
-import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.{PBinary, PType}
+import is.hail.types.physical.stypes.{SSettable, SType, SValue}
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
-
 
 final case class SBinaryPointer(pType: PBinary) extends SBinary {
   require(!pType.required)
 
   override lazy val virtualType: Type = pType.virtualType
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
+
+  override def _coerceOrCopy(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): SValue =
     new SBinaryPointerValue(this, pType.store(cb, region, value, deepCopy))
-  }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Value[Long]): SValue = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Value[Long]): SValue =
     if (pt == this.pType)
       new SBinaryPointerValue(this, addr)
     else
       coerceOrCopy(cb, region, pt.loadCheapSCode(cb, addr), deepCopy = false)
-  }
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SBinaryPointerSettable = {
-    val IndexedSeq(a: Settable[Long@unchecked]) = settables
+    val IndexedSeq(a: Settable[Long @unchecked]) = settables
     assert(a.ti == LongInfo)
     new SBinaryPointerSettable(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SBinaryPointerValue = {
-    val IndexedSeq(a: Value[Long@unchecked]) = values
+    val IndexedSeq(a: Value[Long @unchecked]) = values
     assert(a.ti == LongInfo)
     new SBinaryPointerValue(this, a)
   }
@@ -50,7 +53,7 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
 
 class SBinaryPointerValue(
   val st: SBinaryPointer,
-  val a: Value[Long]
+  val a: Value[Long],
 ) extends SBinaryValue {
   private val pt: PBinary = st.pType
 
@@ -75,7 +78,7 @@ object SBinaryPointerSettable {
 
 final class SBinaryPointerSettable(
   st: SBinaryPointer,
-  override val a: Settable[Long]
+  override val a: Settable[Long],
 ) extends SBinaryPointerValue(st, a) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a)
 
