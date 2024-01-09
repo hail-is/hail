@@ -268,8 +268,8 @@ object GenericLines {
     allowSerialRead: Boolean,
     filePerPartition: Boolean = false,
   ): GenericLines = {
-    val fileSTatuses = fileStatuses0.zipWithIndex.filter(_._1.getLen > 0)
-    val totalSize = fileSTatuses.map(_._1.getLen).sum
+    val fileStatuses = fileStatuses0.zipWithIndex.filter(_._1.getLen > 0)
+    val totalSize = fileStatuses.map(_._1.getLen).sum
 
     var totalPartitions = nPartitions match {
       case Some(nPartitions) => nPartitions
@@ -284,7 +284,7 @@ object GenericLines {
       case None =>
     }
 
-    val contexts = fileSTatuses.flatMap { case (fileListEntry, fileNum) =>
+    val contexts = fileStatuses.flatMap { case (fileListEntry, fileNum) =>
       val size = fileListEntry.getLen
       val codec = fs.getCodecFromPath(fileListEntry.getPath, gzAsBGZ)
 
