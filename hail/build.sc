@@ -38,7 +38,7 @@ def javaVersion: T[String] = T.input {
 }
 
 def sparkVersion: T[String] = T.input {
-  Result.Success(T.ctx().env.getOrElse("SPARK_VERSION", "3.3.0"))
+  Result.Success(T.ctx().env.getOrElse("SPARK_VERSION", "3.5.0"))
 }
 
 def debugMode: T[Boolean] = T.input {
@@ -79,6 +79,10 @@ object Deps {
   }
 
   object Breeze {
+    // WARNING WARNING WARNING
+    // Before changing the breeze version review:
+    // - https://hail.zulipchat.com/#narrow/stream/123011-Hail-Query-Dev/topic/new.20spark.20ndarray.20failures/near/41645
+    // - https://github.com/hail-is/hail/pull/11555
     val core = ivy"org.scalanlp::breeze:1.1"
     val natives = ivy"org.scalanlp::breeze-natives:1.1"
   }
@@ -210,8 +214,8 @@ object main extends RootModule with HailScalaModule { outer =>
   override def compileIvyDeps: T[Agg[Dep]] = Agg(
     Deps.log4j,
     Deps.hadoopClient,
-    Deps.Spark.core(),
-    Deps.Spark.mllib(),
+    Deps.Spark.core().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
+    Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Breeze.core,
   )
 
