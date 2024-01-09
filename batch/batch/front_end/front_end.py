@@ -1469,7 +1469,9 @@ async def create_batch_fast(request, userdata):
     job_group_specs = batch_and_bunch.get('job_groups', [])
 
     start_job_group_id = await _create_job_groups(db, batch_id, user, job_group_specs)
-    job_group_in_update_to_absolute_id_mapping = {idx: start_job_group_id + idx - 1 for idx in range(len(job_group_specs))}
+    job_group_in_update_to_absolute_id_mapping = {
+        idx: start_job_group_id + idx - 1 for idx in range(len(job_group_specs))
+    }
 
     update_id, _ = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], user, db)
     try:
@@ -1630,8 +1632,9 @@ async def update_batch_fast(request, userdata):
     job_group_specs = update_and_bunch.get('job_groups', [])
 
     start_job_group_id = await _create_job_groups(db, batch_id, user, job_group_specs)
-    job_group_in_update_to_absolute_id_mapping = {idx: start_job_group_id + idx - 1
-                                                  for idx in range(len(job_group_specs))}
+    job_group_in_update_to_absolute_id_mapping = {
+        idx: start_job_group_id + idx - 1 for idx in range(len(job_group_specs))
+    }
 
     try:
         validate_batch_update(update_spec)

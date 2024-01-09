@@ -40,13 +40,6 @@ class InUpdateJobId(int):
     pass
 
 
-class JobSpec:
-    def __init__(self,
-                 job: 'Job',
-):
-        self.job = job
-
-
 class Job:
     @staticmethod
     def _get_error(job_status, task):
@@ -988,7 +981,7 @@ class Batch:
             b.extend(spec)
         b.append(ord(']'))
         b.extend(b',"batch":')
-        b.extend(json.dumps(self._batch_spec()).encode('utf-8'))
+        b.extend(json.dumps(self._batch_spec(len(self._jobs))).encode('utf-8'))
         b.append(ord('}'))
         resp = await self._client._post(
             '/api/v1alpha/batches/create-fast',
@@ -1131,8 +1124,8 @@ class Batch:
         )
         progress_task.update(n_jobs)
 
-    def _batch_spec(self):
-        batch_spec = {'billing_project': self._client.billing_project, 'token': self.token}
+    def _batch_spec(self, n_jobs: int):
+        batch_spec = {'billing_project': self._client.billing_project, 'n_jobs': n_jobs, 'token': self.token}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
         if self._callback:
@@ -1143,7 +1136,7 @@ class Batch:
 
     async def _open_batch(self):
         self._raise_if_created()
-        batch_spec = self._batch_spec()
+        batch_spec = self._batch_spec(n_jobs=0)
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
         self._id = batch_json['id']
         assert batch_json['update_id'] is None
@@ -1200,10 +1193,7 @@ class Batch:
                       max_bunch_bytesize: int,
                       max_bunch_size: int,
                       disable_progress_bar: bool,
-                      progress: BatchProgressBar) -> Tuple[Optional[int], Optional[int]]:
-        start_job_id = None
-        start_job_group_id = None
-
+                      progress: BatchProgressBar):
         n_jobs = len(self._jobs)
         job_specs = [j.to_spec_dict() for j in self._jobs]
         byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
@@ -1242,6 +1232,14 @@ class Batch:
                                                                                    job_progress_task,
                                                                                    job_group_progress_task)
                         log.info(f'updated batch {self.id}')
+
+                    for jg in self._job_groups:
+                        assert start_job_group_id is not None
+                        jg._submit(start_job_group_id)
+
+                    for j in self._jobs:
+                        assert start_job_id is not None
+                        j._submit(start_job_id)
                 else:
                     self._submission_info = BatchSubmissionInfo(used_fast_path=False)
 
@@ -1256,14 +1254,15 @@ class Batch:
                         update_id = await self._create_update()
                         await self._submit_job_bunches(update_id, job_group_id_mapping, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
                         start_job_id = await self._commit_update(update_id)
+                        for j in self._jobs:
+                            assert start_job_id is not None
+                            j._submit(start_job_id)
 
                     if not self.is_created:
                         assert start_job_id == 1
                         log.info(f'created batch {self.id}')
                     else:
                         log.info(f'updated batch {self.id}')
-
-            return (start_job_id, start_job_group_id)
 
     MAX_BUNCH_BYTESIZE = 1024 * 1024
     MAX_BUNCH_SIZE = 1024
@@ -1279,22 +1278,12 @@ class Batch:
         assert max_bunch_size > 0
 
         if progress:
-            start_job_id, start_job_group_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress)
+            await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress)
         else:
             with BatchProgressBar(disable=disable_progress_bar) as progress2:
-                start_job_id, start_job_group_id = await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress2)
+                await self._submit(max_bunch_bytesize, max_bunch_size, disable_progress_bar, progress2)
 
         assert self.is_created
-
-        for jg in self._job_groups:
-            if start_job_group_id is None:
-                assert jg.is_submitted, jg
-            else:
-                jg._submit(start_job_group_id)
-
-        for j in self._jobs:
-            assert start_job_id is not None
-            j._submit(start_job_id)
 
         self._job_groups = []
         self._job_group_idx = 0
