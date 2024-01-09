@@ -6,16 +6,8 @@ from ..expressions import Expression, ExpressionException, expr_any
 from ...ir import MakeTuple
 
 
-@typecheck(caller=str,
-           expr=Expression,
-           expected_indices=Indices,
-           aggregation_axes=setof(str),
-           broadcast=bool)
-def analyze(caller: str,
-            expr: Expression,
-            expected_indices: Indices,
-            aggregation_axes: Set = set(),
-            broadcast=True):
+@typecheck(caller=str, expr=Expression, expected_indices=Indices, aggregation_axes=setof(str), broadcast=bool)
+def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregation_axes: Set = set(), broadcast=True):
     from hail.utils import warning, error
 
     indices = expr._indices
@@ -35,19 +27,20 @@ def analyze(caller: str,
             if inds.source is not expected_source:
                 bad_refs.append(name)
         errors.append(
-            ExpressionException("'{caller}': source mismatch\n"
-                                "  Expected an expression from source {expected}\n"
-                                "  Found expression derived from source {actual}\n"
-                                "  Problematic field(s): {bad_refs}\n\n"
-                                "  This error is commonly caused by chaining methods together:\n"
-                                "    >>> ht.distinct().select(ht.x)\n\n"
-                                "  Correct usage:\n"
-                                "    >>> ht = ht.distinct()\n"
-                                "    >>> ht = ht.select(ht.x)".format(
-                                    caller=caller,
-                                    expected=expected_source,
-                                    actual=source,
-                                    bad_refs=list(bad_refs))))
+            ExpressionException(
+                "'{caller}': source mismatch\n"
+                "  Expected an expression from source {expected}\n"
+                "  Found expression derived from source {actual}\n"
+                "  Problematic field(s): {bad_refs}\n\n"
+                "  This error is commonly caused by chaining methods together:\n"
+                "    >>> ht.distinct().select(ht.x)\n\n"
+                "  Correct usage:\n"
+                "    >>> ht = ht.distinct()\n"
+                "    >>> ht = ht.select(ht.x)".format(
+                    caller=caller, expected=expected_source, actual=source, bad_refs=list(bad_refs)
+                )
+            )
+        )
 
     # check for stray indices by subtracting expected axes from observed
     if broadcast:
@@ -71,19 +64,25 @@ def analyze(caller: str,
                     bad_refs.append((name, inds))
 
         assert len(bad_refs) > 0
-        errors.append(ExpressionException(
-            "scope violation: '{caller}' expects an expression {strictness}indexed by {expected}"
-            "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}{agg}".format(
-                caller=caller,
-                strictness=strictness,
-                expected=list(expected_axes),
-                axes=list(indices.axes),
-                stray=list(unexpected_axes),
-                fields=''.join("\n        '{}' (indices {})".format(name, list(inds.axes)) for name, inds in bad_refs),
-                agg='' if (unexpected_axes - aggregation_axes) else
-                "\n    '{}' supports aggregation over axes {}, "
-                "so these fields may appear inside an aggregator function.".format(caller, list(aggregation_axes))
-            )))
+        errors.append(
+            ExpressionException(
+                "scope violation: '{caller}' expects an expression {strictness}indexed by {expected}"
+                "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}{agg}".format(
+                    caller=caller,
+                    strictness=strictness,
+                    expected=list(expected_axes),
+                    axes=list(indices.axes),
+                    stray=list(unexpected_axes),
+                    fields=''.join(
+                        "\n        '{}' (indices {})".format(name, list(inds.axes)) for name, inds in bad_refs
+                    ),
+                    agg=''
+                    if (unexpected_axes - aggregation_axes)
+                    else "\n    '{}' supports aggregation over axes {}, "
+                    "so these fields may appear inside an aggregator function.".format(caller, list(aggregation_axes)),
+                )
+            )
+        )
 
     if aggregations:
         if aggregation_axes:
@@ -108,17 +107,21 @@ def analyze(caller: str,
 
                     assert len(bad_refs) > 0
 
-                    errors.append(ExpressionException(
-                        "scope violation: '{caller}' supports aggregation over indices {expected}"
-                        "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}".format(
-                            caller=caller,
-                            expected=list(aggregation_axes),
-                            axes=list(agg_axes),
-                            stray=list(unexpected_agg_axes),
-                            fields=''.join("\n        '{}' (indices {})".format(
-                                name, list(inds.axes)) for name, inds in bad_refs)
+                    errors.append(
+                        ExpressionException(
+                            "scope violation: '{caller}' supports aggregation over indices {expected}"
+                            "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}".format(
+                                caller=caller,
+                                expected=list(aggregation_axes),
+                                axes=list(agg_axes),
+                                stray=list(unexpected_agg_axes),
+                                fields=''.join(
+                                    "\n        '{}' (indices {})".format(name, list(inds.axes))
+                                    for name, inds in bad_refs
+                                ),
+                            )
                         )
-                    ))
+                    )
         else:
             errors.append(ExpressionException("'{}' does not support aggregation".format(caller)))
 
@@ -147,6 +150,7 @@ def eval_timed(expression):
     """
 
     from hail.utils.java import Env
+
     analyze('eval', expression, Indices(expression._indices.source))
     if expression._indices.source is None:
         ir_type = expression._ir.typ
@@ -227,9 +231,8 @@ def _get_refs(expr: Expression, builder: Dict[str, Indices]) -> None:
     from hail.ir import GetField, TopLevelReference
 
     for ir in expr._ir.search(
-            lambda a: (isinstance(a, GetField)
-                       and not a.name.startswith('__uid')
-                       and isinstance(a.o, TopLevelReference))):
+        lambda a: (isinstance(a, GetField) and not a.name.startswith('__uid') and isinstance(a.o, TopLevelReference))
+    ):
         src = expr._indices.source
         builder[ir.name] = src._indices_from_ref[ir.o.name]
 
@@ -261,63 +264,59 @@ def get_refs(*exprs: Expression) -> Dict[str, Indices]:
     return builder
 
 
-@typecheck(caller=str,
-           expr=Expression)
+@typecheck(caller=str, expr=Expression)
 def matrix_table_source(caller, expr):
     from hail import MatrixTable
+
     source = expr._indices.source
     if not isinstance(source, MatrixTable):
         raise ValueError(
             "{}: Expect an expression of 'MatrixTable', found {}".format(
-                caller,
-                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+                caller, "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'
+            )
+        )
     return source
 
 
-@typecheck(caller=str,
-           expr=Expression)
+@typecheck(caller=str, expr=Expression)
 def table_source(caller, expr):
     from hail import Table
+
     source = expr._indices.source
     if not isinstance(source, Table):
         raise ValueError(
             "{}: Expect an expression of 'Table', found {}".format(
-                caller,
-                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+                caller, "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'
+            )
+        )
     return source
 
 
 @typecheck(caller=str, expr=Expression)
 def raise_unless_entry_indexed(caller, expr):
     if expr._indices.source is None:
-        raise ExpressionException(f"{caller}: expression must be entry-indexed"
-                                  f", found no indices (no source)"
-                                  )
+        raise ExpressionException(f"{caller}: expression must be entry-indexed" f", found no indices (no source)")
     if expr._indices != expr._indices.source._entry_indices:
-        raise ExpressionException(f"{caller}: expression must be entry-indexed"
-                                  f", found indices {list(expr._indices.axes)}."
-                                  )
+        raise ExpressionException(
+            f"{caller}: expression must be entry-indexed" f", found indices {list(expr._indices.axes)}."
+        )
 
 
 @typecheck(caller=str, expr=Expression)
 def raise_unless_row_indexed(caller, expr):
     if expr._indices.source is None:
-        raise ExpressionException(f"{caller}: expression must be row-indexed"
-                                  f", found no indices (no source)."
-                                  )
+        raise ExpressionException(f"{caller}: expression must be row-indexed" f", found no indices (no source).")
     if expr._indices != expr._indices.source._row_indices:
-        raise ExpressionException(f"{caller}: expression must be row-indexed"
-                                  f", found indices {list(expr._indices.axes)}."
-                                  )
+        raise ExpressionException(
+            f"{caller}: expression must be row-indexed" f", found indices {list(expr._indices.axes)}."
+        )
 
 
 @typecheck(caller=str, expr=Expression)
 def raise_unless_column_indexed(caller, expr):
     if expr._indices.source is None:
-        raise ExpressionException(f"{caller}: expression must be column-indexed"
-                                  f", found no indices (no source)."
-                                  )
+        raise ExpressionException(f"{caller}: expression must be column-indexed" f", found no indices (no source).")
     if expr._indices != expr._indices.source._col_indices:
-        raise ExpressionException(f"{caller}: expression must be column-indexed"
-                                  f", found indices ({list(expr._indices.axes)})."
-                                  )
+        raise ExpressionException(
+            f"{caller}: expression must be column-indexed" f", found indices ({list(expr._indices.axes)})."
+        )

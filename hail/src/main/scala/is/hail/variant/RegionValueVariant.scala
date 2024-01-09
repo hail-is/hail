@@ -56,7 +56,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
       var i = 0
       while (i < nAlleles) {
         if (taa.isElementDefined(allelesOffset, i))
-         cachedAlleles(i) = allelePType.loadString(taa.loadElement(allelesOffset, i))
+          cachedAlleles(i) = allelePType.loadString(taa.loadElement(allelesOffset, i))
         i += 1
       }
     }

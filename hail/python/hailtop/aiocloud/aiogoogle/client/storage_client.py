@@ -1,6 +1,5 @@
 import os
-from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
-                    List, Coroutine, ClassVar)
+from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List, Coroutine, ClassVar
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -10,12 +9,19 @@ import urllib.parse
 import aiohttp
 import datetime
 from hailtop import timex
-from hailtop.utils import (
-    secret_alnum_string, OnlineBoundedGather2,
-    TransientError, retry_transient_errors)
-from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-                                 AsyncFSURL, AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
-                                 UnexpectedEOFError)
+from hailtop.utils import secret_alnum_string, OnlineBoundedGather2, TransientError, retry_transient_errors
+from hailtop.aiotools.fs import (
+    FileStatus,
+    FileListEntry,
+    ReadableStream,
+    WritableStream,
+    AsyncFS,
+    AsyncFSURL,
+    AsyncFSFactory,
+    FileAndDirectoryError,
+    MultiPartCreate,
+    UnexpectedEOFError,
+)
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
 from .base_client import GoogleBaseClient
@@ -45,22 +51,24 @@ class PageIterator:
     async def __anext__(self):
         if self._page is None:
             assert 'pageToken' not in self._request_params
-            self._page = await retry_transient_errors(self._client.get, self._path, params=self._request_params, **self._request_kwargs)
+            self._page = await retry_transient_errors(
+                self._client.get, self._path, params=self._request_params, **self._request_kwargs
+            )
             return self._page
 
         next_page_token = self._page.get('nextPageToken')
         if next_page_token is not None:
             self._request_params['pageToken'] = next_page_token
-            self._page = await retry_transient_errors(self._client.get, self._path, params=self._request_params, **self._request_kwargs)
+            self._page = await retry_transient_errors(
+                self._client.get, self._path, params=self._request_params, **self._request_kwargs
+            )
             return self._page
 
         raise StopAsyncIteration
 
 
 class InsertObjectStream(WritableStream):
-    def __init__(self,
-                 it: FeedableAsyncIterable[bytes],
-                 request_task: asyncio.Task[aiohttp.ClientResponse]):
+    def __init__(self, it: FeedableAsyncIterable[bytes], request_task: asyncio.Task[aiohttp.ClientResponse]):
         super().__init__()
         self._it = it
         self._request_task = request_task
@@ -104,10 +112,9 @@ class _TaskManager:
         self._task = asyncio.create_task(self._coro)
         return self._task
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         assert self._task is not None
 
         if not self._task.done():
@@ -166,12 +173,11 @@ class ResumableInsertObjectStream(WritableStream):
             # https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
 
             # note: this retries
-            async with await self._session.put(self._session_url,
-                                               headers={
-                                                   'Content-Length': '0',
-                                                   'Content-Range': f'bytes */{total_size_str}'
-                                               },
-                                               raise_for_status=False) as resp:
+            async with await self._session.put(
+                self._session_url,
+                headers={'Content-Length': '0', 'Content-Range': f'bytes */{total_size_str}'},
+                raise_for_status=False,
+            ) as resp:
                 if resp.status >= 200 and resp.status < 300:
                     assert self._closed
                     assert total_size is not None
@@ -213,15 +219,15 @@ class ResumableInsertObjectStream(WritableStream):
         # https://cloud.google.com/storage/docs/performing-resumable-uploads#chunked-upload
         it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
         async with _TaskManager(
-                self._session.put(self._session_url,
-                                  data=aiohttp.AsyncIterablePayload(it),
-                                  headers={
-                                      'Content-Length': f'{n}',
-                                      'Content-Range': range
-                                  },
-                                  raise_for_status=False,
-                                  retry=False),
-                closable=True) as put_task:
+            self._session.put(
+                self._session_url,
+                data=aiohttp.AsyncIterablePayload(it),
+                headers={'Content-Length': f'{n}', 'Content-Range': range},
+                raise_for_status=False,
+                retry=False,
+            ),
+            closable=True,
+        ) as put_task:
             with self._write_buffer.chunks(n) as chunks:
                 for chunk in chunks:
                     async with _TaskManager(it.feed(chunk)) as feed_task:
@@ -307,8 +313,7 @@ class GetObjectStream(ReadableStream):
 
 
 class GoogleStorageClient(GoogleBaseClient):
-    def __init__(self, gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
-                 **kwargs):
+    def __init__(self, gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None, **kwargs):
         if 'timeout' not in kwargs and 'http_session' not in kwargs:
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
@@ -352,10 +357,11 @@ class GoogleStorageClient(GoogleBaseClient):
         if upload_type == 'media':
             it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
             kwargs['data'] = aiohttp.AsyncIterablePayload(it)
-            request_task = asyncio.create_task(self._session.post(
-                f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
-                retry=False,
-                **kwargs))
+            request_task = asyncio.create_task(
+                self._session.post(
+                    f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', retry=False, **kwargs
+                )
+            )
             return InsertObjectStream(it, request_task)
 
         # Write using resumable uploads.  See:
@@ -364,8 +370,7 @@ class GoogleStorageClient(GoogleBaseClient):
         chunk_size = kwargs.get('bufsize', 8 * 1024 * 1024)
 
         async with await self._session.post(
-            f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
-            **kwargs
+            f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', **kwargs
         ) as resp:
             session_url = resp.headers['Location']
         return ResumableInsertObjectStream(self._session, session_url, chunk_size)
@@ -383,7 +388,8 @@ class GoogleStorageClient(GoogleBaseClient):
 
         try:
             resp = await self._session.get(
-                f'https://storage.googleapis.com/storage/v1/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
+                f'https://storage.googleapis.com/storage/v1/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs
+            )
             return GetObjectStream(resp)
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -416,9 +422,7 @@ class GoogleStorageClient(GoogleBaseClient):
             raise ValueError(f'too many components in compose, maximum of 32: {n}')
         assert 'json' not in kwargs
         assert 'body' not in kwargs
-        kwargs['json'] = {
-            'sourceObjects': [{'name': name} for name in names]
-        }
+        kwargs['json'] = {'sourceObjects': [{'name': name} for name in names]}
         self._update_params_with_user_project(kwargs, bucket)
         await self.post(f'/b/{bucket}/o/{urllib.parse.quote(destination, safe="")}/compose', **kwargs)
 
@@ -504,11 +508,11 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     def _part_name(self, number: int) -> str:
         return self._tmp_name(f'part-{number}')
 
-    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> WritableStream:  # pylint: disable=unused-argument
+    async def create_part(
+        self, number: int, start: int, size_hint: Optional[int] = None
+    ) -> WritableStream:  # pylint: disable=unused-argument
         part_name = self._part_name(number)
-        params = {
-            'uploadType': 'media'
-        }
+        params = {'uploadType': 'media'}
         return await self._fs._storage_client.insert_object(self._bucket, part_name, params=params)
 
     async def __aenter__(self) -> 'GoogleStorageMultiPartCreate':
@@ -517,10 +521,9 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     async def _compose(self, names: List[str], dest_name: str):
         await self._fs._storage_client.compose(self._bucket, names, dest_name)
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         async with OnlineBoundedGather2(self._sema) as pool:
             try:
                 if exc_val is not None:
@@ -542,7 +545,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                         chunk_size = q
                         if i < r:
                             chunk_size += 1
-                        chunks.append(names[p:p + chunk_size])
+                        chunks.append(names[p : p + chunk_size])
                         p += chunk_size
                         i += 1
                     assert p == n
@@ -550,10 +553,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                     chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
 
-                    chunk_tasks = [
-                        pool.call(tree_compose, c, n)
-                        for c, n in zip(chunks, chunk_names)
-                    ]
+                    chunk_tasks = [pool.call(tree_compose, c, n) for c, n in zip(chunks, chunk_names)]
 
                     await pool.wait(chunk_tasks)
 
@@ -562,9 +562,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                     for name in chunk_names:
                         await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{name}')
 
-                await tree_compose(
-                    [self._part_name(i) for i in range(self._num_parts)],
-                    self._dest_name)
+                await tree_compose([self._part_name(i) for i in range(self._num_parts)], self._dest_name)
             finally:
                 await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}')
 
@@ -600,10 +598,13 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
 class GoogleStorageAsyncFS(AsyncFS):
     schemes: ClassVar[Set[str]] = {'gs'}
 
-    def __init__(self, *,
-                 storage_client: Optional[GoogleStorageClient] = None,
-                 bucket_allow_list: Optional[List[str]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        *,
+        storage_client: Optional[GoogleStorageClient] = None,
+        bucket_allow_list: Optional[List[str]] = None,
+        **kwargs,
+    ):
         if not storage_client:
             storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
@@ -635,8 +636,9 @@ class GoogleStorageAsyncFS(AsyncFS):
     def valid_url(url: str) -> bool:
         return url.startswith('gs://')
 
-    def parse_url(self, url: str) -> GoogleStorageAsyncFSURL:
-        return GoogleStorageAsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> GoogleStorageAsyncFSURL:
+        return GoogleStorageAsyncFSURL(*GoogleStorageAsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
@@ -648,14 +650,14 @@ class GoogleStorageAsyncFS(AsyncFS):
         if scheme != 'gs':
             raise ValueError(f'invalid scheme, expected gs: {scheme}')
 
-        rest = url[(colon_index + 1):]
+        rest = url[(colon_index + 1) :]
         if not rest.startswith('//'):
             raise ValueError(f'Google Cloud Storage URI must be of the form: gs://bucket/path, found: {url}')
 
         end_of_bucket = rest.find('/', 2)
         if end_of_bucket != -1:
             bucket = rest[2:end_of_bucket]
-            name = rest[(end_of_bucket + 1):]
+            name = rest[(end_of_bucket + 1) :]
         else:
             bucket = rest[2:]
             name = ''
@@ -672,21 +674,16 @@ class GoogleStorageAsyncFS(AsyncFS):
         if length is not None:
             assert length >= 1
             range_str += str(start + length - 1)
-        return await self._storage_client.get_object(
-            bucket, name, headers={'Range': range_str})
+        return await self._storage_client.get_object(bucket, name, headers={'Range': range_str})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self.get_bucket_and_name(url)
-        params = {
-            'uploadType': 'resumable' if retry_writes else 'media'
-        }
+        params = {'uploadType': 'resumable' if retry_writes else 'media'}
         return await self._storage_client.insert_object(bucket, name, params=params)
 
     async def multi_part_create(
-            self,
-            sema: asyncio.Semaphore,
-            url: str,
-            num_parts: int) -> GoogleStorageMultiPartCreate:
+        self, sema: asyncio.Semaphore, url: str, num_parts: int
+    ) -> GoogleStorageMultiPartCreate:
         return GoogleStorageMultiPartCreate(sema, self, url, num_parts)
 
     async def staturl(self, url: str) -> str:
@@ -709,9 +706,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def _listfiles_recursive(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
-        params = {
-            'prefix': name
-        }
+        params = {'prefix': name}
         async for page in await self._storage_client.list_objects(bucket, params=params):
             prefixes = page.get('prefixes')
             assert not prefixes
@@ -723,11 +718,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
-        params = {
-            'prefix': name,
-            'delimiter': '/',
-            'includeTrailingDelimiter': 'true'
-        }
+        params = {'prefix': name, 'delimiter': '/', 'includeTrailingDelimiter': 'true'}
         async for page in await self._storage_client.list_objects(bucket, params=params):
             prefixes = page.get('prefixes')
             if prefixes:
@@ -740,11 +731,9 @@ class GoogleStorageAsyncFS(AsyncFS):
                 for item in page['items']:
                     yield GoogleStorageFileListEntry(bucket, item['name'], item)
 
-    async def listfiles(self,
-                        url: str,
-                        recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True
-                        ) -> AsyncIterator[FileListEntry]:
+    async def listfiles(
+        self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
+    ) -> AsyncIterator[FileListEntry]:
         bucket, name = self.get_bucket_and_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
@@ -802,12 +791,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def isdir(self, url: str) -> bool:
         bucket, name = self.get_bucket_and_name(url)
         assert not name or name.endswith('/'), name
-        params = {
-            'prefix': name,
-            'delimiter': '/',
-            'includeTrailingDelimiter': 'true',
-            'maxResults': 1
-        }
+        params = {'prefix': name, 'delimiter': '/', 'includeTrailingDelimiter': 'true', 'maxResults': 1}
         async for page in await self._storage_client.list_objects(bucket, params=params):
             prefixes = page.get('prefixes')
             items = page.get('items')
@@ -831,13 +815,10 @@ class GoogleStorageAsyncFS(AsyncFS):
 
 class GoogleStorageAsyncFSFactory(AsyncFSFactory[GoogleStorageAsyncFS]):
     def from_credentials_data(self, credentials_data: dict) -> GoogleStorageAsyncFS:
-        return GoogleStorageAsyncFS(
-            credentials=GoogleCredentials.from_credentials_data(credentials_data))
+        return GoogleStorageAsyncFS(credentials=GoogleCredentials.from_credentials_data(credentials_data))
 
     def from_credentials_file(self, credentials_file: str) -> GoogleStorageAsyncFS:
-        return GoogleStorageAsyncFS(
-            credentials=GoogleCredentials.from_file(credentials_file))
+        return GoogleStorageAsyncFS(credentials=GoogleCredentials.from_file(credentials_file))
 
     def from_default_credentials(self) -> GoogleStorageAsyncFS:
-        return GoogleStorageAsyncFS(
-            credentials=GoogleCredentials.default_credentials())
+        return GoogleStorageAsyncFS(credentials=GoogleCredentials.default_credentials())

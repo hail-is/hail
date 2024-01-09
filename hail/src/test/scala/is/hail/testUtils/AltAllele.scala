@@ -1,7 +1,8 @@
 package is.hail.testUtils
 
-import org.apache.spark.sql.Row
 import org.json4s._
+
+import org.apache.spark.sql.Row
 
 case class AltAllele(ref: String, alt: String) {
   require(ref != alt, "ref was equal to alt")

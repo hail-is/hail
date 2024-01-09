@@ -11,12 +11,11 @@ case class Nat(n: Int) extends NatBase {
 
   override def clear() {}
 
-  override def unify(concrete: NatBase): Boolean = {
+  override def unify(concrete: NatBase): Boolean =
     concrete match {
       case Nat(cN) => cN == n
       case _ => false
     }
-  }
 
   override def subst(): NatBase = this
 }
@@ -29,8 +28,7 @@ case class NatVariable(var nat: NatBase = null) extends NatBase {
   override def unify(concrete: NatBase): Boolean = {
     if (nat != null) {
       nat.unify(concrete)
-    }
-    else {
+    } else {
       nat = concrete
       true
     }

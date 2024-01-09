@@ -1,16 +1,17 @@
 package is.hail.check
 
-import breeze.linalg.DenseMatrix
-import breeze.storage.Zero
 import is.hail.check.Arbitrary.arbitrary
 import is.hail.utils.roundWithConstantSum
-import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
 import scala.language.higherKinds
 import scala.math.Numeric.Implicits._
 import scala.reflect.ClassTag
+
+import breeze.linalg.DenseMatrix
+import breeze.storage.Zero
+import org.apache.commons.math3.random._
 
 object Parameters {
   val default = Parameters(new RandomDataGenerator(), 1000, 10)
@@ -29,7 +30,8 @@ object Gen {
   val nonExtremeDouble: Gen[Double] = oneOfGen(
     oneOf(1e30, -1.0, -1e-30, 0.0, 1e-30, 1.0, 1e30),
     choose(-100.0, 100.0),
-    choose(-1e150, 1e150))
+    choose(-1e150, 1e150),
+  )
 
   def squareOfAreaAtMostSize: Gen[(Int, Int)] =
     nCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
@@ -38,14 +40,27 @@ object Gen {
     nonEmptyNCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
 
   def nCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
-    Gen { (p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size) }
+    Gen((p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size))
 
   def nonEmptyNCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
-    Gen { (p: Parameters) => nCubeOfVolumeAtMost(p.rng, n, p.size).map(x => if (x == 0) 1 else x).toArray }
+    Gen { (p: Parameters) =>
+      nCubeOfVolumeAtMost(p.rng, n, p.size).map(x => if (x == 0) 1 else x).toArray
+    }
 
-  def partition[T](rng: RandomDataGenerator, size: T, parts: Int, f: (RandomDataGenerator, T) => T)(implicit tn: Numeric[T], tct: ClassTag[T]): Array[T] = {
+  def partition[T](
+    rng: RandomDataGenerator,
+    size: T,
+    parts: Int,
+    f: (RandomDataGenerator, T) => T,
+  )(implicit
+    tn: Numeric[T],
+    tct: ClassTag[T],
+  ): Array[T] = {
     import tn.mkOrderingOps
-    assert(size >= tn.zero, s"size must be greater than or equal to 0. Found $size. tn.zero=${ tn.zero }.")
+    assert(
+      size >= tn.zero,
+      s"size must be greater than or equal to 0. Found $size. tn.zero=${tn.zero}.",
+    )
 
     if (parts == 0)
       return Array()
@@ -70,29 +85,26 @@ object Gen {
   def partition(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] =
     partition(rng, size, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
 
-  /**
-    * Picks a number of bins, n, from a BetaBinomial(alpha, beta), then takes
-    * {@code size} balls and places them into n bins according to a
-    * dirichlet-multinomial distribution with all alpha_i equal to n.
-    *
-    **/
-  def partitionBetaDirichlet(rng: RandomDataGenerator, size: Int, alpha: Double, beta: Double): Array[Int] =
+  /** Picks a number of bins, n, from a BetaBinomial(alpha, beta), then takes {@code size} balls and
+    * places them into n bins according to a dirichlet-multinomial distribution with all alpha_i
+    * equal to n.
+    */
+  def partitionBetaDirichlet(rng: RandomDataGenerator, size: Int, alpha: Double, beta: Double)
+    : Array[Int] =
     partitionDirichlet(rng, size, sampleBetaBinomial(rng, size, alpha, beta))
 
-  /**
-    * Takes {@code size} balls and places them into {@code parts} bins according
-    * to a dirichlet-multinomial distribution with alpha_n equal to {@code
-    * parts} for all n. The outputs of this function tend towards uniformly
-    * distributed balls, i.e. vectors close to the center of the simplex in
-    * {@code parts} dimensions.
-    *
-    **/
+  /** Takes {@code size} balls and places them into {@code parts} bins according to a
+    * dirichlet-multinomial distribution with alpha_n equal to {@code parts} for all n. The outputs
+    * of this function tend towards uniformly distributed balls, i.e. vectors close to the center of
+    * the simplex in {@code parts} dimensions.
+    */
   def partitionDirichlet(rng: RandomDataGenerator, size: Int, parts: Int): Array[Int] = {
     val simplexVector = sampleDirichlet(rng, Array.fill(parts)(parts.toDouble))
     roundWithConstantSum(simplexVector.map((x: Double) => x * size).toArray)
   }
 
-  def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int, alpha: Int = 1): Array[Int] = {
+  def nCubeOfVolumeAtMost(rng: RandomDataGenerator, n: Int, size: Int, alpha: Int = 1)
+    : Array[Int] = {
     val sizeOfSum = math.log(size)
     val simplexVector = sampleDirichlet(rng, Array.fill(n)(alpha.toDouble))
     roundWithConstantSum(simplexVector.map((x: Double) => x * sizeOfSum).toArray)
@@ -106,32 +118,52 @@ object Gen {
   }
 
   def partition(parts: Int, sum: Int): Gen[Array[Int]] =
-    Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail)) }
+    Gen { p =>
+      partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
+    }
 
   def partition(parts: Int, sum: Long): Gen[Array[Long]] =
-    Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Long) => rng.nextLong(0, avail)) }
+    Gen { p =>
+      partition(
+        p.rng,
+        sum,
+        parts,
+        (rng: RandomDataGenerator, avail: Long) => rng.nextLong(0, avail),
+      )
+    }
 
   def partition(parts: Int, sum: Double): Gen[Array[Double]] =
-    Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Double) => rng.nextUniform(0, avail)) }
+    Gen { p =>
+      partition(
+        p.rng,
+        sum,
+        parts,
+        (rng: RandomDataGenerator, avail: Double) => rng.nextUniform(0, avail),
+      )
+    }
 
   def partitionSize(parts: Int): Gen[Array[Int]] =
-    Gen { p => partitionDirichlet(p.rng, p.size, parts) }
+    Gen(p => partitionDirichlet(p.rng, p.size, parts))
 
-  def size: Gen[Int] = Gen { p => p.size }
+  def size: Gen[Int] = Gen(p => p.size)
 
   val printableChars = (0 to 127).map(_.toChar).filter(!_.isControl).toArray
+
   val identifierLeadingChars = (0 to 127).map(_.toChar)
     .filter(c => c == '_' || c.isLetter)
+
   val identifierChars = (0 to 127).map(_.toChar)
     .filter(c => c == '_' || c.isLetterOrDigit)
+
   val plinkSafeStartOfIdentifierChars = (0 to 127).map(_.toChar)
     .filter(c => c.isLetter)
+
   val plinkSafeChars = (0 to 127).map(_.toChar)
     .filter(c => c.isLetterOrDigit)
 
   def apply[T](gen: (Parameters) => T): Gen[T] = new Gen[T](gen)
 
-  def const[T](x: T): Gen[T] = Gen { (p: Parameters) => x }
+  def const[T](x: T): Gen[T] = Gen((p: Parameters) => x)
 
   def coin(p: Double = 0.5): Gen[Boolean] = {
     require(0.0 < p)
@@ -141,28 +173,24 @@ object Gen {
 
   def oneOfSeq[T](xs: Seq[T]): Gen[T] = {
     assert(xs.nonEmpty)
-    Gen { (p: Parameters) =>
-      xs(p.rng.getRandomGenerator.nextInt(xs.length))
-    }
+    Gen((p: Parameters) => xs(p.rng.getRandomGenerator.nextInt(xs.length)))
   }
 
   def oneOfGen[T](gs: Gen[T]*): Gen[T] = {
     assert(gs.nonEmpty)
-    Gen { (p: Parameters) =>
-      gs(p.rng.getRandomGenerator.nextInt(gs.length))(p)
-    }
+    Gen((p: Parameters) => gs(p.rng.getRandomGenerator.nextInt(gs.length))(p))
   }
 
   def oneOf[T](xs: T*): Gen[T] = oneOfSeq(xs)
 
   def choose(min: Int, max: Int): Gen[Int] = {
     assert(max >= min)
-    Gen { (p: Parameters) => p.rng.nextInt(min, max) }
+    Gen((p: Parameters) => p.rng.nextInt(min, max))
   }
 
   def choose(min: Long, max: Long): Gen[Long] = {
     assert(max >= min)
-    Gen { (p: Parameters) => p.rng.nextLong(min, max) }
+    Gen((p: Parameters) => p.rng.nextLong(min, max))
   }
 
   def choose(min: Float, max: Float): Gen[Float] = Gen { (p: Parameters) =>
@@ -184,7 +212,8 @@ object Gen {
   def nextCoin(p: Double) =
     choose(0.0, 1.0).map(_ < p)
 
-  private def sampleBetaBinomial(rng: RandomDataGenerator, n: Int, alpha: Double, beta: Double): Int =
+  private def sampleBetaBinomial(rng: RandomDataGenerator, n: Int, alpha: Double, beta: Double)
+    : Int =
     rng.nextBinomial(n, rng.nextBeta(alpha, beta))
 
   def nextBetaBinomial(n: Int, alpha: Double, beta: Double): Gen[Int] = Gen { p =>
@@ -230,47 +259,50 @@ object Gen {
 
   def subset[T](s: Set[T]): Gen[Set[T]] = Gen.parameterized { p =>
     Gen.choose(0.0, 1.0).map(cutoff =>
-      s.filter(_ => p.rng.getRandomGenerator.nextDouble <= cutoff))
+      s.filter(_ => p.rng.getRandomGenerator.nextDouble <= cutoff)
+    )
   }
 
-  def sequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+  def sequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]])
+    : Gen[C[T]] =
     Gen { (p: Parameters) =>
       val b = cbf()
-      gs.foreach { g => b += g(p) }
+      gs.foreach(g => b += g(p))
       b.result()
     }
 
-  def denseMatrix[T : ClassTag : Zero : Arbitrary](): Gen[DenseMatrix[T]] = for {
+  def denseMatrix[T: ClassTag: Zero: Arbitrary](): Gen[DenseMatrix[T]] = for {
     (l, w) <- Gen.nonEmptySquareOfAreaAtMostSize
     m <- denseMatrix(l, w)
   } yield m
 
-  def denseMatrix[T : ClassTag : Zero : Arbitrary](n: Int, m: Int): Gen[DenseMatrix[T]] =
+  def denseMatrix[T: ClassTag: Zero: Arbitrary](n: Int, m: Int): Gen[DenseMatrix[T]] =
     denseMatrix[T](n, m, arbitrary[T])
 
-  def denseMatrix[T : ClassTag : Zero](n: Int, m: Int, g: Gen[T]): Gen[DenseMatrix[T]] = Gen { (p: Parameters) =>
-    DenseMatrix.fill[T](n, m)(g.resize(p.size / (n * m))(p))
-  }
+  def denseMatrix[T: ClassTag: Zero](n: Int, m: Int, g: Gen[T]): Gen[DenseMatrix[T]] =
+    Gen((p: Parameters) => DenseMatrix.fill[T](n, m)(g.resize(p.size / (n * m))(p)))
 
-  def twoMultipliableDenseMatrices[T : ClassTag : Zero : Arbitrary](): Gen[(DenseMatrix[T], DenseMatrix[T])] =
+  def twoMultipliableDenseMatrices[T: ClassTag: Zero: Arbitrary]()
+    : Gen[(DenseMatrix[T], DenseMatrix[T])] =
     twoMultipliableDenseMatrices(arbitrary[T])
 
-  def twoMultipliableDenseMatrices[T : ClassTag : Zero](g: Gen[T]): Gen[(DenseMatrix[T], DenseMatrix[T])] = for {
+  def twoMultipliableDenseMatrices[T: ClassTag: Zero](g: Gen[T])
+    : Gen[(DenseMatrix[T], DenseMatrix[T])] = for {
     Array(rows, inner, columns) <- Gen.nonEmptyNCubeOfVolumeAtMostSize(3)
     l <- denseMatrix(rows, inner, g)
     r <- denseMatrix(inner, columns, g)
   } yield (l, r)
 
-  /**
-    * In general, for any Traversable type T and any Monad M, we may convert an {@code F[M[T]]} to an {@code M[F[T]]} by
-    * choosing to perform the actions in the order defined by the traversable. With {@code Gen} we must also consider
-    * the distribution of size. {@code uniformSequence} distributes the size uniformly across all elements of the
-    * traversable.
-    *
-    **/
-  def uniformSequence[C[_], T](gs: Traversable[Gen[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] = {
+  /** In general, for any Traversable type T and any Monad M, we may convert an {@code F[M[T]]} to
+    * an {@code M[F[T]]} by choosing to perform the actions in the order defined by the traversable.
+    * With {@code Gen} we must also consider the distribution of size. {@code uniformSequence}
+    * distributes the size uniformly across all elements of the traversable.
+    */
+  def uniformSequence[C[_], T](
+    gs: Traversable[Gen[T]]
+  )(implicit cbf: CanBuildFrom[Nothing, T, C[T]]
+  ): Gen[C[T]] =
     partitionSize(gs.size).map(resizeMany(gs, _)).flatMap(sequence[C, T])
-  }
 
   private def resizeMany[T](gs: Traversable[Gen[T]], partition: Array[Int]): Iterable[Gen[T]] =
     (gs.toIterable, partition).zipped.map((gen, size) => gen.resize(size))
@@ -287,11 +319,15 @@ object Gen {
 
   def buildableOf[C[_]] = buildableOfInstance.asInstanceOf[BuildableOf[C]]
 
-  implicit def buildableOfFromElements[C[_], T](implicit g: Gen[T], cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
+  implicit def buildableOfFromElements[C[_], T](
+    implicit g: Gen[T],
+    cbf: CanBuildFrom[Nothing, T, C[T]],
+  ): Gen[C[T]] =
     buildableOf[C](g)
 
   sealed trait BuildableOf2[C[_, _]] {
-    def apply[T, U](g: Gen[(T, U)])(implicit cbf: CanBuildFrom[Nothing, (T, U), C[T, U]]): Gen[C[T, U]] =
+    def apply[T, U](g: Gen[(T, U)])(implicit cbf: CanBuildFrom[Nothing, (T, U), C[T, U]])
+      : Gen[C[T, U]] =
       unsafeBuildableOf(g)
   }
 
@@ -301,7 +337,9 @@ object Gen {
 
   private val buildableOfAlpha = 3
   private val buildableOfBeta = 6
-  private def unsafeBuildableOf[C, T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C]): Gen[C] =
+
+  private def unsafeBuildableOf[C, T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C])
+    : Gen[C] =
     Gen { (p: Parameters) =>
       val b = cbf()
       if (p.size == 0)
@@ -309,7 +347,12 @@ object Gen {
       else {
         // scale up a bit by log, so that we can spread out a bit more with
         // higher sizes
-        val part = partitionBetaDirichlet(p.rng, p.size, buildableOfAlpha, buildableOfBeta * math.log(p.size + 0.01))
+        val part = partitionBetaDirichlet(
+          p.rng,
+          p.size,
+          buildableOfAlpha,
+          buildableOfBeta * math.log(p.size + 0.01),
+        )
         val s = part.length
         for (i <- 0 until s)
           b += g(p.copy(size = part(i)))
@@ -326,7 +369,12 @@ object Gen {
         else {
           // scale up a bit by log, so that we can spread out a bit more with
           // higher sizes
-          val part = partitionBetaDirichlet(p.rng, p.size, buildableOfAlpha, buildableOfBeta * math.log(p.size + 0.01))
+          val part = partitionBetaDirichlet(
+            p.rng,
+            p.size,
+            buildableOfAlpha,
+            buildableOfBeta * math.log(p.size + 0.01),
+          )
           val s = part.length
           val t = mutable.Set.empty[T]
           for (i <- 0 until s)
@@ -341,29 +389,34 @@ object Gen {
 
   def distinctBuildableOf[C[_]] = distinctBuildableOfInstance.asInstanceOf[DistinctBuildableOf[C]]
 
-  /**
-    * This function terminates with probability equal to the probability of {@code g} generating {@code min} distinct
-    * elements in finite time.
+  /** This function terminates with probability equal to the probability of {@code g} generating
+    * {@code min} distinct elements in finite time.
     */
   sealed trait DistinctBuildableOfAtLeast[C[_]] {
     def apply[T](min: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] = {
       Gen { (p: Parameters) =>
         val b = cbf()
         if (p.size < min) {
-          throw new RuntimeException(s"Size (${ p.size }) is too small for buildable of size at least $min")
+          throw new RuntimeException(
+            s"Size (${p.size}) is too small for buildable of size at least $min"
+          )
         } else if (p.size == 0)
           b.result()
         else {
           // scale up a bit by log, so that we can spread out a bit more with
           // higher sizes
-          val s = min + sampleBetaBinomial(p.rng, p.size - min, buildableOfAlpha, buildableOfBeta * math.log((p.size - min) + 0.01))
+          val s = min + sampleBetaBinomial(
+            p.rng,
+            p.size - min,
+            buildableOfAlpha,
+            buildableOfBeta * math.log((p.size - min) + 0.01),
+          )
           val part = partitionDirichlet(p.rng, p.size, s)
           val t = mutable.Set.empty[T]
           for (i <- 0 until s) {
             var element = g.resize(part(i))(p)
-            while (t.contains(element)) {
+            while (t.contains(element))
               element = g.resize(part(i))(p)
-            }
             t += element
           }
           b ++= t
@@ -375,7 +428,8 @@ object Gen {
 
   private object distinctBuildableOfAtLeastInstance extends DistinctBuildableOfAtLeast[Nothing]
 
-  def distinctBuildableOfAtLeast[C[_]] = distinctBuildableOfAtLeastInstance.asInstanceOf[DistinctBuildableOfAtLeast[C]]
+  def distinctBuildableOfAtLeast[C[_]] =
+    distinctBuildableOfAtLeastInstance.asInstanceOf[DistinctBuildableOfAtLeast[C]]
 
   sealed trait BuildableOfN[C[_]] {
     def apply[T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
@@ -410,7 +464,8 @@ object Gen {
 
   private object distinctBuildableOfNInstance extends DistinctBuildableOfN[Nothing]
 
-  def distinctBuildableOfN[C[_]] = distinctBuildableOfNInstance.asInstanceOf[DistinctBuildableOfN[C]]
+  def distinctBuildableOfN[C[_]] =
+    distinctBuildableOfNInstance.asInstanceOf[DistinctBuildableOfN[C]]
 
   def randomOneOf[T](rng: RandomDataGenerator, is: IndexedSeq[T]): T = {
     assert(is.nonEmpty)
@@ -423,7 +478,10 @@ object Gen {
   def plinkSafeIdentifier: Gen[String] =
     identifierGen(plinkSafeStartOfIdentifierChars, plinkSafeChars)
 
-  private def identifierGen(leadingCharacter: IndexedSeq[Char], trailingCharacters: IndexedSeq[Char]): Gen[String] = Gen { p =>
+  private def identifierGen(
+    leadingCharacter: IndexedSeq[Char],
+    trailingCharacters: IndexedSeq[Char],
+  ): Gen[String] = Gen { p =>
     val s = 1 + p.rng.getRandomGenerator.nextInt(11)
     val b = new StringBuilder()
     b += randomOneOf(p.rng, leadingCharacter)
@@ -439,18 +497,17 @@ object Gen {
       None
   }
 
-  def nonnegInt: Gen[Int] = Gen { p =>
-    p.rng.getRandomGenerator.nextInt() & Int.MaxValue
-  }
+  def nonnegInt: Gen[Int] = Gen(p => p.rng.getRandomGenerator.nextInt() & Int.MaxValue)
 
   def posInt: Gen[Int] = Gen { (p: Parameters) =>
     p.rng.getRandomGenerator.nextInt(Int.MaxValue - 1) + 1
   }
 
   def interestingPosInt: Gen[Int] = oneOfGen(
-      oneOf(1, 2, Int.MaxValue - 1, Int.MaxValue),
-      choose(1, 100),
-      posInt)
+    oneOf(1, 2, Int.MaxValue - 1, Int.MaxValue),
+    choose(1, 100),
+    posInt,
+  )
 
   def zip[T1](g1: Gen[T1]): Gen[T1] = g1
 
@@ -467,7 +524,8 @@ object Gen {
     z <- g3.resize(s3)
   } yield (x, y, z)
 
-  def zip[T1, T2, T3, T4](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], g4: Gen[T4]): Gen[(T1, T2, T3, T4)] = for {
+  def zip[T1, T2, T3, T4](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], g4: Gen[T4])
+    : Gen[(T1, T2, T3, T4)] = for {
     Array(s1, s2, s3, s4) <- partitionSize(4)
     x <- g1.resize(s1)
     y <- g2.resize(s2)
@@ -475,9 +533,9 @@ object Gen {
     w <- g4.resize(s4)
   } yield (x, y, z, w)
 
-  def parameterized[T](f: (Parameters => Gen[T])) = Gen { p => f(p)(p) }
+  def parameterized[T](f: (Parameters => Gen[T])) = Gen(p => f(p)(p))
 
-  def sized[T](f: (Int) => Gen[T]): Gen[T] = Gen { (p: Parameters) => f(p.size)(p) }
+  def sized[T](f: (Int) => Gen[T]): Gen[T] = Gen((p: Parameters) => f(p.size)(p))
 
   def applyGen[T, S](gf: Gen[(T) => S], gx: Gen[T]): Gen[S] = Gen { p =>
     val f = gf(p)
@@ -492,15 +550,11 @@ class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
 
   def sample(): T = apply(Parameters.default)
 
-  def map[U](f: (T) => U): Gen[U] = Gen { p => f(apply(p)) }
+  def map[U](f: (T) => U): Gen[U] = Gen(p => f(apply(p)))
 
-  def flatMap[U](f: (T) => Gen[U]): Gen[U] = Gen { p =>
-    f(apply(p))(p)
-  }
+  def flatMap[U](f: (T) => Gen[U]): Gen[U] = Gen(p => f(apply(p))(p))
 
-  def resize(newSize: Int): Gen[T] = Gen { (p: Parameters) =>
-    apply(p.copy(size = newSize))
-  }
+  def resize(newSize: Int): Gen[T] = Gen((p: Parameters) => apply(p.copy(size = newSize)))
 
   // FIXME should be non-strict
   def withFilter(f: (T) => Boolean): Gen[T] = Gen { (p: Parameters) =>

@@ -1,10 +1,19 @@
+import asyncio
 import hashlib
 import os
-
 import pytest
 
 
-def pytest_collection_modifyitems(config, items):
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.get_event_loop()
+    try:
+        yield loop
+    finally:
+        loop.close()
+
+
+def pytest_collection_modifyitems(items):
     n_splits = int(os.environ.get('HAIL_RUN_IMAGE_SPLITS', '1'))
     split_index = int(os.environ.get('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))
     if n_splits <= 1:

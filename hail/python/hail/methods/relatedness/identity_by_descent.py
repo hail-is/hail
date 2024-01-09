@@ -11,11 +11,7 @@ from hail.linalg import BlockMatrix
 from hail.utils.java import Env
 
 
-@typecheck(dataset=MatrixTable,
-           maf=nullable(expr_float64),
-           bounded=bool,
-           min=nullable(numeric),
-           max=nullable(numeric))
+@typecheck(dataset=MatrixTable, maf=nullable(expr_float64), bounded=bool, min=nullable(numeric), max=nullable(numeric))
 def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> Table:
     """Compute matrix of identity-by-descent estimates.
 
@@ -105,13 +101,18 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     dataset = require_biallelic(dataset, 'ibd')
 
     if isinstance(Env.backend(), SparkBackend):
-        return Table(ir.MatrixToTableApply(dataset._mir, {
-            'name': 'IBD',
-            'mafFieldName': '__maf' if maf is not None else None,
-            'bounded': bounded,
-            'min': min,
-            'max': max,
-        })).persist()
+        return Table(
+            ir.MatrixToTableApply(
+                dataset._mir,
+                {
+                    'name': 'IBD',
+                    'mafFieldName': '__maf' if maf is not None else None,
+                    'bounded': bounded,
+                    'min': min,
+                    'max': max,
+                },
+            )
+        ).persist()
 
     min = min or 0
     max = max or 1
@@ -143,31 +144,41 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     q = 1 - p
 
     dataset = dataset.annotate_rows(
-        _e00=(2 * (p ** 2) * (q ** 2) * ((X - 1) / X) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))),
-        _e10=(4 * (p ** 3) * q * ((X - 1) / X) * ((X - 2) / X) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
-              + 4 * p * (q ** 3) * ((Y - 1) / X) * ((Y - 2) / X) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))),
-        _e20=((p ** 4) * ((X - 1) / X) * ((X - 2) / X) * ((X - 3) / X) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
-              + (q ** 4) * ((Y - 1) / Y) * ((Y - 2) / Y) * ((Y - 3) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
-              + 4 * (p ** 2) * (q ** 2) * ((X - 1) / X) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))),
-        _e11=(2 * (p ** 2) * q * ((X - 1) / X) * (T / (T - 1)) * (T / (T - 2))
-              + 2 * p * (q ** 2) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2))),
-        _e21=((p ** 3) * ((X - 1) / X) * ((X - 2) / X) * (T / (T - 1)) * (T / (T - 2))
-              + (q ** 3) * ((Y - 1) / Y) * ((Y - 2) / Y) * (T / (T - 1)) * (T / (T - 2))
-              + (p ** 2) * q * ((X - 1) / X) * (T / (T - 1)) * (T / (T - 2))
-              + p * (q ** 2) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2))),
-        _e22=(T / 2)
+        _e00=(2 * (p**2) * (q**2) * ((X - 1) / X) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))),
+        _e10=(
+            4 * (p**3) * q * ((X - 1) / X) * ((X - 2) / X) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
+            + 4 * p * (q**3) * ((Y - 1) / Y) * ((Y - 2) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
+        ),
+        _e20=(
+            (p**4) * ((X - 1) / X) * ((X - 2) / X) * ((X - 3) / X) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
+            + (q**4) * ((Y - 1) / Y) * ((Y - 2) / Y) * ((Y - 3) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
+            + 4 * (p**2) * (q**2) * ((X - 1) / X) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2)) * (T / (T - 3))
+        ),
+        _e11=(
+            2 * (p**2) * q * ((X - 1) / X) * (T / (T - 1)) * (T / (T - 2))
+            + 2 * p * (q**2) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2))
+        ),
+        _e21=(
+            (p**3) * ((X - 1) / X) * ((X - 2) / X) * (T / (T - 1)) * (T / (T - 2))
+            + (q**3) * ((Y - 1) / Y) * ((Y - 2) / Y) * (T / (T - 1)) * (T / (T - 2))
+            + (p**2) * q * ((X - 1) / X) * (T / (T - 1)) * (T / (T - 2))
+            + p * (q**2) * ((Y - 1) / Y) * (T / (T - 1)) * (T / (T - 2))
+        ),
+        _e22=1,
     )
 
     dataset = dataset.checkpoint(hl.utils.new_temp_file())
 
-    expectations = dataset.aggregate_rows(hl.struct(
-        e00=hl.agg.sum(dataset._e00),
-        e10=hl.agg.sum(dataset._e10),
-        e20=hl.agg.sum(dataset._e20),
-        e11=hl.agg.sum(dataset._e11),
-        e21=hl.agg.sum(dataset._e21),
-        e22=hl.agg.sum(dataset._e22)
-    ))
+    expectations = dataset.aggregate_rows(
+        hl.struct(
+            e00=hl.agg.sum(dataset._e00),
+            e10=hl.agg.sum(dataset._e10),
+            e20=hl.agg.sum(dataset._e20),
+            e11=hl.agg.sum(dataset._e11),
+            e21=hl.agg.sum(dataset._e21),
+            e22=hl.agg.sum(dataset._e22),
+        )
+    )
 
     IS_HOM_REF = BlockMatrix.from_entry_expr(dataset.is_hom_ref).checkpoint(hl.utils.new_temp_file())
     IS_HET = BlockMatrix.from_entry_expr(dataset.is_het).checkpoint(hl.utils.new_temp_file())
@@ -204,15 +215,25 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     result = z0.join(z1.join(z2).join(ibs0).join(ibs1).join(ibs2))
 
     def bound_result(_ibd):
-        return (hl.case()
-                .when(_ibd.Z0 > 1, hl.struct(Z0=hl.float(1), Z1=hl.float(0), Z2=hl.float(0)))
-                .when(_ibd.Z1 > 1, hl.struct(Z0=hl.float(0), Z1=hl.float(1), Z2=hl.float(0)))
-                .when(_ibd.Z2 > 1, hl.struct(Z0=hl.float(0), Z1=hl.float(0), Z2=hl.float(1)))
-                .when(_ibd.Z0 < 0, hl.struct(Z0=hl.float(0), Z1=_ibd.Z1 / (_ibd.Z1 + _ibd.Z2), Z2=_ibd.Z2 / (_ibd.Z1 + _ibd.Z2)))
-                .when(_ibd.Z1 < 0, hl.struct(Z0=_ibd.Z0 / (_ibd.Z0 + _ibd.Z2), Z1=hl.float(0), Z2=_ibd.Z2 / (_ibd.Z0 + _ibd.Z2)))
-                .when(_ibd.Z2 < 0, hl.struct(Z0=_ibd.Z0 / (_ibd.Z0 + _ibd.Z1), Z1=_ibd.Z1 / (_ibd.Z0 + _ibd.Z1), Z2=hl.float(0)))
-                .default(_ibd)
-                )
+        return (
+            hl.case()
+            .when(_ibd.Z0 > 1, hl.struct(Z0=hl.float(1), Z1=hl.float(0), Z2=hl.float(0)))
+            .when(_ibd.Z1 > 1, hl.struct(Z0=hl.float(0), Z1=hl.float(1), Z2=hl.float(0)))
+            .when(_ibd.Z2 > 1, hl.struct(Z0=hl.float(0), Z1=hl.float(0), Z2=hl.float(1)))
+            .when(
+                _ibd.Z0 < 0,
+                hl.struct(Z0=hl.float(0), Z1=_ibd.Z1 / (_ibd.Z1 + _ibd.Z2), Z2=_ibd.Z2 / (_ibd.Z1 + _ibd.Z2)),
+            )
+            .when(
+                _ibd.Z1 < 0,
+                hl.struct(Z0=_ibd.Z0 / (_ibd.Z0 + _ibd.Z2), Z1=hl.float(0), Z2=_ibd.Z2 / (_ibd.Z0 + _ibd.Z2)),
+            )
+            .when(
+                _ibd.Z2 < 0,
+                hl.struct(Z0=_ibd.Z0 / (_ibd.Z0 + _ibd.Z1), Z1=_ibd.Z1 / (_ibd.Z0 + _ibd.Z1), Z2=hl.float(0)),
+            )
+            .default(_ibd)
+        )
 
     result = result.annotate(ibd=hl.struct(Z0=result.Z0, Z1=result.Z1, Z2=result.Z2))
     result = result.drop('Z0', 'Z1', 'Z2')
@@ -222,9 +243,6 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     result = result.filter((result.i < result.j) & (min <= result.ibd.PI_HAT) & (result.ibd.PI_HAT <= max))
 
     samples = hl.literal(dataset.s.collect())
-    result = result.key_by(
-        i=samples[hl.int32(result.i)],
-        j=samples[hl.int32(result.j)]
-    )
+    result = result.key_by(i=samples[hl.int32(result.i)], j=samples[hl.int32(result.j)])
 
     return result.persist()

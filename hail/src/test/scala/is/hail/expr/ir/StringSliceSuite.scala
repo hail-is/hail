@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.types.virtual.TString
 import is.hail.utils._
-import is.hail.{ExecStrategy, HailSuite}
+
 import org.testng.annotations.Test
 
 class StringSliceSuite extends HailSuite {
@@ -11,7 +12,7 @@ class StringSliceSuite extends HailSuite {
 
   @Test def unicodeSlicingSlicesCodePoints() {
     val poopEmoji = "\uD83D\uDCA9"
-    val s = s"abc${ poopEmoji }def"
+    val s = s"abc${poopEmoji}def"
 
     // FIXME: The replacement character for slicing halfway into a
     // 2-codepoint-wide character differs between UTF8 and UTF16.
@@ -20,7 +21,7 @@ class StringSliceSuite extends HailSuite {
     val replacementCharacter = "?"
 
     assertEvalsTo(invoke("slice", TString, Str(s), I32(0), I32(4)), s"abc$replacementCharacter")
-    assertEvalsTo(invoke("slice", TString, Str(s), I32(4), I32(8)), s"${ replacementCharacter }def")
+    assertEvalsTo(invoke("slice", TString, Str(s), I32(4), I32(8)), s"${replacementCharacter}def")
     assertEvalsTo(invoke("slice", TString, Str(s), I32(0), I32(5)), s"abc$poopEmoji")
   }
 
@@ -44,10 +45,12 @@ class StringSliceSuite extends HailSuite {
   @Test def substringMatchesJavaStringSubstring() {
     assertEvalsTo(
       invoke("substring", TString, Str("abc"), I32(0), I32(2)),
-      "abc".substring(0, 2))
+      "abc".substring(0, 2),
+    )
     assertEvalsTo(
       invoke("substring", TString, Str("foobarbaz"), I32(3), I32(5)),
-      "foobarbaz".substring(3, 5))
+      "foobarbaz".substring(3, 5),
+    )
   }
 
   @Test def isStrict() {
@@ -127,10 +130,18 @@ class StringSliceSuite extends HailSuite {
     assertEvalsTo(invoke("index", TString, In(0, TString), I32(-3)), FastSeq("Baz" -> TString), "B")
 
     interceptFatal("string index out of bounds") {
-      assertEvalsTo(invoke("index", TString, In(0, TString), I32(3)), FastSeq("Baz" -> TString), "B")
+      assertEvalsTo(
+        invoke("index", TString, In(0, TString), I32(3)),
+        FastSeq("Baz" -> TString),
+        "B",
+      )
     }
     interceptFatal("string index out of bounds") {
-      assertEvalsTo(invoke("index", TString, In(0, TString), I32(-4)), FastSeq("Baz" -> TString), "B")
+      assertEvalsTo(
+        invoke("index", TString, In(0, TString), I32(-4)),
+        FastSeq("Baz" -> TString),
+        "B",
+      )
     }
   }
 }

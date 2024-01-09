@@ -11,9 +11,7 @@ class AzureResourcesClient(AzureBaseClient):
 
     async def _list_resources(self, filter: Optional[str] = None) -> AsyncGenerator[Any, None]:
         # https://docs.microsoft.com/en-us/rest/api/resources/resources/list
-        params = {
-            'api-version': '2021-04-01'
-        }
+        params = {'api-version': '2021-04-01'}
         if filter is not None:
             params['$filter'] = filter
         return self._paged_get('/resources', params=params)

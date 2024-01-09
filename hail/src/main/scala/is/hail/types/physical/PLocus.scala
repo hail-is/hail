@@ -21,5 +21,11 @@ abstract class PLocus extends PType {
 
   def positionType: PInt32
 
-  def unstagedStoreLocus(sm: HailStateManager, addr: Long, contig: String, position: Int, region: Region): Unit
+  def unstagedStoreLocus(
+    sm: HailStateManager,
+    addr: Long,
+    contig: String,
+    position: Int,
+    region: Region,
+  ): Unit
 }

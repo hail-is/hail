@@ -88,7 +88,6 @@ class PositionScaleGenomic(PositionScale):
 
 
 class PositionScaleContinuous(PositionScale):
-
     def __init__(self, axis=None, name=None, breaks=None, labels=None, transformation="identity"):
         super().__init__(axis, name, breaks, labels)
         self.transformation = transformation
@@ -190,8 +189,7 @@ class ScaleDiscrete(Scale):
             mapping = dict(zip(categories, values))
         else:
             raise TypeError(
-                "Expected scale values to be a Mapping or list, but received a(n) "
-                f"{type(values)}: {values}."
+                "Expected scale values to be a Mapping or list, but received a(n) " f"{type(values)}: {values}."
             )
 
         def transform(df):
@@ -212,7 +210,6 @@ class ScaleDiscreteManual(ScaleDiscrete):
 
 
 class ScaleColorContinuous(ScaleContinuous):
-
     def create_local_transformer(self, groups_of_dfs):
         overall_min = None
         overall_max = None

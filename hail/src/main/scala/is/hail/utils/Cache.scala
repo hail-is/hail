@@ -11,11 +11,11 @@ class Cache[K, V](capacity: Int) {
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = size() > capacity
   }
 
-  def get(k: K): Option[V] = synchronized { Option(m.get(k)) }
+  def get(k: K): Option[V] = synchronized(Option(m.get(k)))
 
-  def +=(p: (K, V)): Unit = synchronized { m.put(p._1, p._2) }
+  def +=(p: (K, V)): Unit = synchronized(m.put(p._1, p._2))
 
-  def size: Int = synchronized { m.size() }
+  def size: Int = synchronized(m.size())
 }
 
 class LongToRegionValueCache(capacity: Int) extends Closeable {

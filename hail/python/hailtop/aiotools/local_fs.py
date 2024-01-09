@@ -1,5 +1,4 @@
-from typing import (Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator, Callable, Dict, List,
-                    ClassVar, Iterator)
+from typing import Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator, Callable, Dict, List, ClassVar, Iterator
 from types import TracebackType
 import os
 import os.path
@@ -12,9 +11,17 @@ from contextlib import AbstractContextManager
 import urllib.parse
 
 from ..utils import blocking_to_async, OnlineBoundedGather2
-from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS, AsyncFSURL,
-                 ReadableStream, WritableStream, blocking_readable_stream_to_async,
-                 blocking_writable_stream_to_async)
+from .fs import (
+    FileStatus,
+    FileListEntry,
+    MultiPartCreate,
+    AsyncFS,
+    AsyncFSURL,
+    ReadableStream,
+    WritableStream,
+    blocking_readable_stream_to_async,
+    blocking_writable_stream_to_async,
+)
 
 
 class LocalStatFileStatus(FileStatus):
@@ -29,8 +36,7 @@ class LocalStatFileStatus(FileStatus):
         raise ValueError('LocalFS does not support time created.')
 
     def time_modified(self) -> datetime.datetime:
-        return datetime.datetime.fromtimestamp(self._stat_result.st_mtime,
-                                               tz=datetime.timezone.utc)
+        return datetime.datetime.fromtimestamp(self._stat_result.st_mtime, tz=datetime.timezone.utc)
 
     async def __getitem__(self, key: str) -> Any:
         raise KeyError(key)
@@ -76,8 +82,9 @@ class LocalMultiPartCreate(MultiPartCreate):
         self._path = path
         self._num_parts = num_parts
 
-    async def create_part(self, number: int, start: int,
-                          size_hint: Optional[int] = None):  # pylint: disable=unused-argument
+    async def create_part(
+        self, number: int, start: int, size_hint: Optional[int] = None
+    ):  # pylint: disable=unused-argument
         assert 0 <= number < self._num_parts
         f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
         f.seek(start)
@@ -86,10 +93,9 @@ class LocalMultiPartCreate(MultiPartCreate):
     async def __aenter__(self) -> 'LocalMultiPartCreate':
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         if exc_val:
             try:
                 await self._fs.remove(self._path)
@@ -230,8 +236,9 @@ class LocalAsyncFS(AsyncFS):
     def valid_url(url: str) -> bool:
         return url.startswith('file://') or '://' not in url
 
-    def parse_url(self, url: str) -> LocalAsyncFSURL:
-        return LocalAsyncFSURL(self._get_path(url))
+    @staticmethod
+    def parse_url(url: str) -> LocalAsyncFSURL:
+        return LocalAsyncFSURL(LocalAsyncFS._get_path(url))
 
     @staticmethod
     def _get_path(url):
@@ -244,9 +251,10 @@ class LocalAsyncFS(AsyncFS):
         if parsed.netloc:
             if parsed.netloc != 'localhost':
                 raise ValueError(
-                    f"invalid file URL: {url}, invalid netloc: expected localhost or empty, got {parsed.netloc}")
+                    f"invalid file URL: {url}, invalid netloc: expected localhost or empty, got {parsed.netloc}"
+                )
             prefix += parsed.netloc
-        return url[len(prefix):]
+        return url[len(prefix) :]
 
     async def open(self, url: str) -> ReadableStream:
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')
@@ -266,10 +274,8 @@ class LocalAsyncFS(AsyncFS):
         return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
     async def multi_part_create(
-            self,
-            sema: asyncio.Semaphore,  # pylint: disable=unused-argument
-            url: str,
-            num_parts: int) -> MultiPartCreate:
+        self, sema: asyncio.Semaphore, url: str, num_parts: int  # pylint: disable=unused-argument
+    ) -> MultiPartCreate:
         # create an empty file
         # will be opened r+b to write the parts
         async with await self.create(url):
@@ -294,10 +300,9 @@ class LocalAsyncFS(AsyncFS):
     # Traceback (most recent call last):
     #   File "<stdin>", line 1, in <module>
     # AttributeError: module 'posix' has no attribute 'ScandirIterator'
-    async def _listfiles_recursive(self,
-                                   url: str,
-                                   entries: AbstractContextManager[Iterator[os.DirEntry]]
-                                   ) -> AsyncIterator[FileListEntry]:
+    async def _listfiles_recursive(
+        self, url: str, entries: AbstractContextManager[Iterator[os.DirEntry]]
+    ) -> AsyncIterator[FileListEntry]:
         async for file in self._listfiles_flat(url, entries):
             if await file.is_file():
                 yield file
@@ -308,19 +313,16 @@ class LocalAsyncFS(AsyncFS):
                 async for subfile in self._listfiles_recursive(new_url, new_entries):
                     yield subfile
 
-    async def _listfiles_flat(self,
-                              url: str,
-                              entries: AbstractContextManager[Iterator[os.DirEntry]]
-                              ) -> AsyncIterator[FileListEntry]:
+    async def _listfiles_flat(
+        self, url: str, entries: AbstractContextManager[Iterator[os.DirEntry]]
+    ) -> AsyncIterator[FileListEntry]:
         with entries as it:
             for entry in it:
                 yield LocalFileListEntry(self._thread_pool, url, entry)
 
-    async def listfiles(self,
-                        url: str,
-                        recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True
-                        ) -> AsyncIterator[FileListEntry]:
+    async def listfiles(
+        self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
+    ) -> AsyncIterator[FileListEntry]:
         del exclude_trailing_slash_files  # such files do not exist on local file systems
         path = self._get_path(url)
         entries = await blocking_to_async(self._thread_pool, os.scandir, path)
@@ -359,10 +361,9 @@ class LocalAsyncFS(AsyncFS):
         path = self._get_path(url)
         return await blocking_to_async(self._thread_pool, os.rmdir, path)
 
-    async def rmtree(self,
-                     sema: Optional[asyncio.Semaphore],
-                     url: str,
-                     listener: Optional[Callable[[int], None]] = None) -> None:
+    async def rmtree(
+        self, sema: Optional[asyncio.Semaphore], url: str, listener: Optional[Callable[[int], None]] = None
+    ) -> None:
         path = self._get_path(url)
         if listener is None:
             listener = lambda _: None
@@ -375,9 +376,7 @@ class LocalAsyncFS(AsyncFS):
             await self.remove(path)
             listener(-1)
 
-        async def rm_dir(pool: OnlineBoundedGather2,
-                         contents_tasks: List[asyncio.Task],
-                         path: str):
+        async def rm_dir(pool: OnlineBoundedGather2, contents_tasks: List[asyncio.Task], path: str):
             assert listener is not None
             listener(1)
             if contents_tasks:
@@ -389,10 +388,8 @@ class LocalAsyncFS(AsyncFS):
                             raise exceptions[0]
                         finally:
                             raise_them_all(exceptions[1:])
-                excs = [exc
-                        for t in contents_tasks
-                        for exc in [t.exception()]
-                        if exc is not None]
+
+                excs = [exc for t in contents_tasks for exc in [t.exception()] if exc is not None]
                 raise_them_all(excs)
             await self.rmdir(path)
             listener(-1)
@@ -400,17 +397,14 @@ class LocalAsyncFS(AsyncFS):
         async with OnlineBoundedGather2(sema) as pool:
             contents_tasks_by_dir: Dict[str, List[asyncio.Task]] = {}
             for dirpath, dirnames, filenames in os.walk(path, topdown=False):
+
                 def rm_dir_or_symlink(path: str):
                     if os.path.islink(path):
                         return pool.call(rm_file, path)
                     return pool.call(rm_dir, pool, contents_tasks_by_dir.get(path, []), path)
 
-                contents_tasks = [
-                    pool.call(rm_file, os.path.join(dirpath, filename))
-                    for filename in filenames
-                ] + [
-                    rm_dir_or_symlink(os.path.join(dirpath, dirname))
-                    for dirname in dirnames
+                contents_tasks = [pool.call(rm_file, os.path.join(dirpath, filename)) for filename in filenames] + [
+                    rm_dir_or_symlink(os.path.join(dirpath, dirname)) for dirname in dirnames
                 ]
                 contents_tasks_by_dir[dirpath] = contents_tasks
             await rm_dir(pool, contents_tasks_by_dir.get(path, []), path)

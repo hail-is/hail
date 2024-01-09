@@ -92,8 +92,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: good_signature_5("1", 2, 2))
         self.assertRaises(TypeError, lambda: good_signature_5(("1", 5, 10), ("2", 10, 20)))
 
-        @typecheck(x=int, y=str, z=sequenceof(sized_tupleof(str, int, int)),
-                   args=int)
+        @typecheck(x=int, y=str, z=sequenceof(sized_tupleof(str, int, int)), args=int)
         def good_signature_6(x, y, z, *args):
             pass
 
@@ -141,10 +140,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: f(['abc']))
 
     def test_nested(self):
-        @typecheck(
-            x=int,
-            y=oneof(nullable(str), sequenceof(sequenceof(dictof(oneof(str, int), anytype))))
-        )
+        @typecheck(x=int, y=oneof(nullable(str), sequenceof(sequenceof(dictof(oneof(str, int), anytype)))))
         def f(x, y):
             pass
 
@@ -224,10 +220,10 @@ class Tests(unittest.TestCase):
         self.assertRaises(TypeError, lambda: foo.bar(2))
 
     def test_coercion(self):
-        @typecheck(a=transformed((int, lambda x: 'int'),
-                                 (str, lambda x: 'str')),
-                   b=sequenceof(dictof(str, transformed((int, lambda x: 'int'),
-                                                        (str, lambda x: 'str')))))
+        @typecheck(
+            a=transformed((int, lambda x: 'int'), (str, lambda x: 'str')),
+            b=sequenceof(dictof(str, transformed((int, lambda x: 'int'), (str, lambda x: 'str')))),
+        )
         def foo(a, b):
             return a, b
 
@@ -276,7 +272,10 @@ class Tests(unittest.TestCase):
         def f(a, b='5', c=[10], *d, **e):
             pass
 
-        f(1, 'a', )
+        f(
+            1,
+            'a',
+        )
         f(1, foo={})
         f(1, 'a', foo={})
         f(1, c=[25, 2])

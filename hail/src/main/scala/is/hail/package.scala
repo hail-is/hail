@@ -6,9 +6,9 @@ package object hail {
 
   private object HailBuildInfo {
 
-    import java.util.Properties
-
     import is.hail.utils._
+
+    import java.util.Properties
 
     val (
       hail_build_user: String,
@@ -16,7 +16,8 @@ package object hail {
       hail_branch: String,
       hail_build_date: String,
       hail_spark_version: String,
-      hail_pip_version: String) = {
+      hail_pip_version: String,
+    ) = {
 
       loadFromResource[(String, String, String, String, String, String)]("build-info.properties") {
         (is: InputStream) =>
@@ -29,8 +30,8 @@ package object hail {
             props.getProperty("branch", unknownProp),
             props.getProperty("date", unknownProp),
             props.getProperty("sparkVersion", unknownProp),
-            props.getProperty("hailPipVersion", unknownProp)
-            )
+            props.getProperty("hailPipVersion", unknownProp),
+          )
       }
     }
   }

@@ -2,24 +2,44 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.types.physical.{typeToTypeInfo, PType}
 import is.hail.types.physical.stypes.SingleCodeType
-import is.hail.types.physical.{PType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils.BoxedArrayBuilder
 
 import scala.reflect.ClassTag
 
-class StagedArrayBuilder(cb: EmitCodeBuilder, val elt: SingleCodeType, val eltRequired: Boolean, len: Int) {
+class StagedArrayBuilder(
+  cb: EmitCodeBuilder,
+  val elt: SingleCodeType,
+  val eltRequired: Boolean,
+  len: Int,
+) {
 
   def mb = cb.emb
   val ti: TypeInfo[_] = elt.ti
 
   val ref: Value[Any] = coerce[Any](ti match {
-    case BooleanInfo => mb.genLazyFieldThisRef[BooleanMissingArrayBuilder](Code.newInstance[BooleanMissingArrayBuilder, Int](len), "zab")
-    case IntInfo => mb.genLazyFieldThisRef[IntMissingArrayBuilder](Code.newInstance[IntMissingArrayBuilder, Int](len), "iab")
-    case LongInfo => mb.genLazyFieldThisRef[LongMissingArrayBuilder](Code.newInstance[LongMissingArrayBuilder, Int](len), "jab")
-    case FloatInfo => mb.genLazyFieldThisRef[FloatMissingArrayBuilder](Code.newInstance[FloatMissingArrayBuilder, Int](len), "fab")
-    case DoubleInfo => mb.genLazyFieldThisRef[DoubleMissingArrayBuilder](Code.newInstance[DoubleMissingArrayBuilder, Int](len), "dab")
+    case BooleanInfo => mb.genLazyFieldThisRef[BooleanMissingArrayBuilder](
+        Code.newInstance[BooleanMissingArrayBuilder, Int](len),
+        "zab",
+      )
+    case IntInfo => mb.genLazyFieldThisRef[IntMissingArrayBuilder](
+        Code.newInstance[IntMissingArrayBuilder, Int](len),
+        "iab",
+      )
+    case LongInfo => mb.genLazyFieldThisRef[LongMissingArrayBuilder](
+        Code.newInstance[LongMissingArrayBuilder, Int](len),
+        "jab",
+      )
+    case FloatInfo => mb.genLazyFieldThisRef[FloatMissingArrayBuilder](
+        Code.newInstance[FloatMissingArrayBuilder, Int](len),
+        "fab",
+      )
+    case DoubleInfo => mb.genLazyFieldThisRef[DoubleMissingArrayBuilder](
+        Code.newInstance[DoubleMissingArrayBuilder, Int](len),
+        "dab",
+      )
     case ti => throw new RuntimeException(s"unsupported typeinfo found: $ti")
   })
 
@@ -30,11 +50,14 @@ class StagedArrayBuilder(cb: EmitCodeBuilder, val elt: SingleCodeType, val eltRe
   ensureCapacity(cb, len)
 
   def add(cb: EmitCodeBuilder, x: Code[_]): Unit = cb.append(ti match {
-    case BooleanInfo => coerce[BooleanMissingArrayBuilder](ref).invoke[Boolean, Unit]("add", coerce[Boolean](x))
+    case BooleanInfo =>
+      coerce[BooleanMissingArrayBuilder](ref).invoke[Boolean, Unit]("add", coerce[Boolean](x))
     case IntInfo => coerce[IntMissingArrayBuilder](ref).invoke[Int, Unit]("add", coerce[Int](x))
     case LongInfo => coerce[LongMissingArrayBuilder](ref).invoke[Long, Unit]("add", coerce[Long](x))
-    case FloatInfo => coerce[FloatMissingArrayBuilder](ref).invoke[Float, Unit]("add", coerce[Float](x))
-    case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Double, Unit]("add", coerce[Double](x))
+    case FloatInfo =>
+      coerce[FloatMissingArrayBuilder](ref).invoke[Float, Unit]("add", coerce[Float](x))
+    case DoubleInfo =>
+      coerce[DoubleMissingArrayBuilder](ref).invoke[Double, Unit]("add", coerce[Double](x))
   })
 
   def apply(i: Code[Int]): Code[_] = ti match {
@@ -46,11 +69,22 @@ class StagedArrayBuilder(cb: EmitCodeBuilder, val elt: SingleCodeType, val eltRe
   }
 
   def update(cb: EmitCodeBuilder, i: Code[Int], x: Code[_]): Unit = cb.append(ti match {
-    case BooleanInfo => coerce[BooleanMissingArrayBuilder](ref).invoke[Int, Boolean, Unit]("update", i, coerce[Boolean](x))
-    case IntInfo => coerce[IntMissingArrayBuilder](ref).invoke[Int, Int, Unit]("update", i, coerce[Int](x))
-    case LongInfo => coerce[LongMissingArrayBuilder](ref).invoke[Int, Long, Unit]("update", i, coerce[Long](x))
-    case FloatInfo => coerce[FloatMissingArrayBuilder](ref).invoke[Int, Float, Unit]("update", i, coerce[Float](x))
-    case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
+    case BooleanInfo => coerce[BooleanMissingArrayBuilder](ref).invoke[Int, Boolean, Unit](
+        "update",
+        i,
+        coerce[Boolean](x),
+      )
+    case IntInfo =>
+      coerce[IntMissingArrayBuilder](ref).invoke[Int, Int, Unit]("update", i, coerce[Int](x))
+    case LongInfo =>
+      coerce[LongMissingArrayBuilder](ref).invoke[Int, Long, Unit]("update", i, coerce[Long](x))
+    case FloatInfo =>
+      coerce[FloatMissingArrayBuilder](ref).invoke[Int, Float, Unit]("update", i, coerce[Float](x))
+    case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double, Unit](
+        "update",
+        i,
+        coerce[Double](x),
+      )
   })
 
   def addMissing(cb: EmitCodeBuilder): Unit =
@@ -73,9 +107,8 @@ class StagedArrayBuilder(cb: EmitCodeBuilder, val elt: SingleCodeType, val eltRe
   def clear(cb: EmitCodeBuilder): Unit =
     cb += coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
 
-  def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Value[Int]): IEmitCode = {
+  def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Value[Int]): IEmitCode =
     IEmitCode(cb, isMissing(i), elt.loadToSValue(cb, cb.memoizeAny(apply(i), ti)))
-  }
 }
 
 sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
@@ -108,10 +141,11 @@ sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
     size_ = n
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 }
 
-final class IntMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class IntMissingArrayBuilder(initialCapacity: Int)
+    extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Int] = new Array[Int](initialCapacity)
 
   def apply(i: Int): Int = {
@@ -170,7 +204,8 @@ final class IntMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBui
   }
 }
 
-final class LongMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class LongMissingArrayBuilder(initialCapacity: Int)
+    extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Long] = new Array[Long](initialCapacity)
 
   def apply(i: Int): Long = {
@@ -229,7 +264,8 @@ final class LongMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBu
   }
 }
 
-final class FloatMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class FloatMissingArrayBuilder(initialCapacity: Int)
+    extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Float] = new Array[Float](initialCapacity)
 
   def apply(i: Int): Float = {
@@ -288,7 +324,8 @@ final class FloatMissingArrayBuilder(initialCapacity: Int) extends MissingArrayB
   }
 }
 
-final class DoubleMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class DoubleMissingArrayBuilder(initialCapacity: Int)
+    extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Double] = new Array[Double](initialCapacity)
 
   def apply(i: Int): Double = {
@@ -347,7 +384,8 @@ final class DoubleMissingArrayBuilder(initialCapacity: Int) extends MissingArray
   }
 }
 
-final class BooleanMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class BooleanMissingArrayBuilder(initialCapacity: Int)
+    extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Boolean] = new Array[Boolean](initialCapacity)
 
   def apply(i: Int): Boolean = {
@@ -443,13 +481,12 @@ final class ByteArrayArrayBuilder(initialCapacity: Int) {
     b(i) = x
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 
   def result(): Array[Array[Byte]] = b.slice(0, size_)
 }
 
-
-final class LongArrayBuilder(initialCapacity: Int= 16) {
+final class LongArrayBuilder(initialCapacity: Int = 16) {
 
   var size_ : Int = 0
   var b: Array[Long] = new Array[Long](initialCapacity)
@@ -502,7 +539,7 @@ final class LongArrayBuilder(initialCapacity: Int= 16) {
     b(i) = x
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 
   def result(): Array[Long] = b.slice(0, size_)
 
@@ -511,6 +548,7 @@ final class LongArrayBuilder(initialCapacity: Int= 16) {
     if (b.length > initialCapacity)
       b = new Array[Long](initialCapacity)
   }
+
   def appendFrom(ab2: LongArrayBuilder): Unit = {
     ensureCapacity(size_ + ab2.size_)
     System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
@@ -581,7 +619,7 @@ final class IntArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 
   def result(): Array[Int] = b.slice(0, size_)
 
@@ -590,6 +628,7 @@ final class IntArrayBuilder(initialCapacity: Int = 16) {
     if (b.length > initialCapacity)
       b = new Array[Int](initialCapacity)
   }
+
   def appendFrom(ab2: IntArrayBuilder): Unit = {
     ensureCapacity(size_ + ab2.size_)
     System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
@@ -660,7 +699,7 @@ final class DoubleArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 
   def result(): Array[Double] = b.slice(0, size_)
 
@@ -669,6 +708,7 @@ final class DoubleArrayBuilder(initialCapacity: Int = 16) {
     if (b.length > initialCapacity)
       b = new Array[Double](initialCapacity)
   }
+
   def appendFrom(ab2: DoubleArrayBuilder): Unit = {
     ensureCapacity(size_ + ab2.size_)
     System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
@@ -738,7 +778,7 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 
   def result(): Array[Byte] = b.slice(0, size_)
 
@@ -747,6 +787,7 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
     if (b.length > initialCapacity)
       b = new Array[Byte](initialCapacity)
   }
+
   def appendFrom(ab2: ByteArrayBuilder): Unit = {
     ensureCapacity(size_ + ab2.size_)
     System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
@@ -798,7 +839,7 @@ final class BooleanArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 
   def result(): Array[Boolean] = b.slice(0, size_)
 
@@ -807,6 +848,7 @@ final class BooleanArrayBuilder(initialCapacity: Int = 16) {
     if (b.length > initialCapacity)
       b = new Array[Boolean](initialCapacity)
   }
+
   def appendFrom(ab2: BooleanArrayBuilder): Unit = {
     ensureCapacity(size_ + ab2.size_)
     System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
@@ -857,7 +899,7 @@ final class StringArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 
   def result(): Array[String] = {
     val a = new Array[String](size_)
@@ -870,6 +912,7 @@ final class StringArrayBuilder(initialCapacity: Int = 16) {
     if (b.length > initialCapacity)
       b = new Array[String](initialCapacity)
   }
+
   def appendFrom(ab2: StringArrayBuilder): Unit = {
     ensureCapacity(size_ + ab2.size_)
     System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
@@ -921,7 +964,7 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
     b(i) = x
   }
 
-  def clear() {  size_ = 0 }
+  def clear() { size_ = 0 }
 
   def result(): Array[T] = b.slice(0, size_)
 
@@ -930,6 +973,7 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
     if (b.length > initialCapacity)
       b = new Array[T](initialCapacity)
   }
+
   def appendFrom(ab2: AnyRefArrayBuilder[T]): Unit = {
     ensureCapacity(size_ + ab2.size_)
     System.arraycopy(ab2.b, 0, b, size_, ab2.size_)

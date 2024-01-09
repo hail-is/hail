@@ -4,6 +4,7 @@ from enum import Enum
 import yaml
 
 from typing import Optional, List
+from shlex import quote as shq
 
 from . import gcloud
 from .cluster_config import ClusterConfig
@@ -317,9 +318,7 @@ def start(
 
     conf.extend_flag(
         'properties',
-        {
-            "spark:spark.driver.memory": f"{jvm_heap_size_gib(master_machine_type, master_memory_fraction)}g"
-        },
+        {"spark:spark.driver.memory": f"{jvm_heap_size_gib(master_machine_type, master_memory_fraction)}g"},
     )
     conf.flags['master-machine-type'] = master_machine_type
     conf.flags['master-boot-disk-size'] = '{}GB'.format(master_boot_disk_size)
@@ -421,7 +420,15 @@ def start(
     cmd.extend(pass_through_args)
 
     # print underlying gcloud command
-    print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
+    print(
+        ''.join(
+            [
+                ' '.join(shq(x) for x in cmd[:5]),
+                ' \\\n    ',
+                ' \\\n    '.join(shq(x) for x in cmd[5:]),
+            ]
+        )
+    )
 
     # spin up cluster
     if not dry_run:

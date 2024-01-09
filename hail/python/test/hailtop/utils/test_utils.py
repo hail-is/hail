@@ -1,5 +1,12 @@
-from hailtop.utils import (partition, url_basename, url_join, url_scheme,
-                           url_and_params, parse_docker_image_reference, grouped)
+from hailtop.utils import (
+    partition,
+    url_basename,
+    url_join,
+    url_scheme,
+    url_and_params,
+    parse_docker_image_reference,
+    grouped,
+)
 from hailtop.utils.utils import digits_needed, unzip, filter_none, flatten
 
 
@@ -20,8 +27,14 @@ def test_partition_uneven_big():
 
 
 def test_partition_toofew():
-    assert list(partition(6, range(3))) == [range(0, 1), range(1, 2), range(2, 3),
-                                            range(3, 3), range(3, 3), range(3, 3)]
+    assert list(partition(6, range(3))) == [
+        range(0, 1),
+        range(1, 2),
+        range(2, 3),
+        range(3, 3),
+        range(3, 3),
+        range(3, 3),
+    ]
 
 
 def test_url_basename():
@@ -42,10 +55,12 @@ def test_url_scheme():
     assert url_scheme('https://hail.is/path/to') == 'https'
     assert url_scheme('/path/to') == ''
 
+
 def test_url_and_params():
     assert url_and_params('https://example.com/') == ('https://example.com/', {})
     assert url_and_params('https://example.com/foo?') == ('https://example.com/foo', {})
     assert url_and_params('https://example.com/foo?a=b&c=d') == ('https://example.com/foo', {'a': 'b', 'c': 'd'})
+
 
 def test_parse_docker_image_reference():
     x = parse_docker_image_reference('animage')
@@ -131,54 +146,63 @@ def test_parse_docker_image_reference():
 
 def test_grouped_size_0_groups_9_elements():
     try:
-        list(grouped(0, [1,2,3,4,5,6,7,8,9]))
+        list(grouped(0, [1, 2, 3, 4, 5, 6, 7, 8, 9]))
     except ValueError:
         pass
     else:
         assert False
 
+
 def test_grouped_size_1_groups_9_elements():
-    actual = list(grouped(1, [1,2,3,4,5,6,7,8,9]))
+    actual = list(grouped(1, [1, 2, 3, 4, 5, 6, 7, 8, 9]))
     expected = [[1], [2], [3], [4], [5], [6], [7], [8], [9]]
     assert actual == expected
 
+
 def test_grouped_size_5_groups_9_elements():
-    actual = list(grouped(5, [1,2,3,4,5,6,7,8,9]))
+    actual = list(grouped(5, [1, 2, 3, 4, 5, 6, 7, 8, 9]))
     expected = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
     assert actual == expected
 
+
 def test_grouped_size_3_groups_0_elements():
-    actual = list(grouped(3,[]))
+    actual = list(grouped(3, []))
     expected = []
     assert actual == expected
 
+
 def test_grouped_size_2_groups_1_elements():
-    actual = list(grouped(2,[1]))
+    actual = list(grouped(2, [1]))
     expected = [[1]]
     assert actual == expected
 
+
 def test_grouped_size_1_groups_0_elements():
-    actual = list(grouped(1,[0]))
+    actual = list(grouped(1, [0]))
     expected = [[0]]
     assert actual == expected
 
+
 def test_grouped_size_1_groups_5_elements():
-    actual = list(grouped(1,['abc', 'def', 'ghi', 'jkl', 'mno']))
+    actual = list(grouped(1, ['abc', 'def', 'ghi', 'jkl', 'mno']))
     expected = [['abc'], ['def'], ['ghi'], ['jkl'], ['mno']]
     assert actual == expected
 
+
 def test_grouped_size_2_groups_5_elements():
-    actual = list(grouped(2,['abc', 'def', 'ghi', 'jkl', 'mno']))
+    actual = list(grouped(2, ['abc', 'def', 'ghi', 'jkl', 'mno']))
     expected = [['abc', 'def'], ['ghi', 'jkl'], ['mno']]
     assert actual == expected
 
+
 def test_grouped_size_3_groups_6_elements():
-    actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', '']))
+    actual = list(grouped(3, ['abc', 'def', 'ghi', 'jkl', 'mno', '']))
     expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', '']]
     assert actual == expected
 
+
 def test_grouped_size_3_groups_7_elements():
-    actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', 'pqr', 'stu']))
+    actual = list(grouped(3, ['abc', 'def', 'ghi', 'jkl', 'mno', 'pqr', 'stu']))
     expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', 'pqr'], ['stu']]
     assert actual == expected
 
@@ -207,7 +231,14 @@ def test_filter_none():
     assert filter_none([None, []]) == [[]]
     assert filter_none([0, []]) == [0, []]
     assert filter_none([1, 2, [None]]) == [1, 2, [None]]
-    assert filter_none([1, 3.5, 2, 4,]) == [1, 3.5, 2, 4]
+    assert filter_none(
+        [
+            1,
+            3.5,
+            2,
+            4,
+        ]
+    ) == [1, 3.5, 2, 4]
     assert filter_none([1, 2, 3.0, None, 5]) == [1, 2, 3.0, 5]
     assert filter_none(['a', 'b', 'c', None]) == ['a', 'b', 'c']
     assert filter_none([None, [None, [None, [None]]]]) == [[None, [None, [None]]]]
@@ -222,5 +253,22 @@ def test_flatten():
     assert flatten([['a', 'b', 'c'], ['d', 'e']]) == ['a', 'b', 'c', 'd', 'e']
     assert flatten([[['a'], ['b']], [[1, 2, 3], [4, 5]]]) == [['a'], ['b'], [1, 2, 3], [4, 5]]
     assert flatten([['apples'], ['bannanas'], ['oranges']]) == ['apples', 'bannanas', 'oranges']
-    assert flatten([['apple', 'bannana'], ['a', 'b', 'c'], [1, 2, 3, 4]]) == ['apple', 'bannana', 'a', 'b', 'c', 1, 2, 3, 4]
-    assert flatten([['apples'], [''], ['bannanas'], [''], ['oranges'], ['']]) == ['apples', '', 'bannanas', '', 'oranges', '']
+    assert flatten([['apple', 'bannana'], ['a', 'b', 'c'], [1, 2, 3, 4]]) == [
+        'apple',
+        'bannana',
+        'a',
+        'b',
+        'c',
+        1,
+        2,
+        3,
+        4,
+    ]
+    assert flatten([['apples'], [''], ['bannanas'], [''], ['oranges'], ['']]) == [
+        'apples',
+        '',
+        'bannanas',
+        '',
+        'oranges',
+        '',
+    ]

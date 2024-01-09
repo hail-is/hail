@@ -5,7 +5,7 @@ object PartitionCounts {
   case class PCSubsetOffset(
     finalIndex: Int,
     nKeep: Long,
-    nDrop: Long
+    nDrop: Long,
   )
 
   def getPCSubsetOffset(n: Long, pcs: Iterator[Long]): Option[PCSubsetOffset] = {
@@ -46,8 +46,10 @@ object PartitionCounts {
 
   def incrementalPCSubsetOffset(
     n: Long,
-    partIndices: IndexedSeq[Int]
-  )(computePCs: IndexedSeq[Int] => IndexedSeq[Long]): PCSubsetOffset = {
+    partIndices: IndexedSeq[Int],
+  )(
+    computePCs: IndexedSeq[Int] => IndexedSeq[Long]
+  ): PCSubsetOffset = {
     var nLeft = n
     var nPartsScanned = 0
     var lastIdx = -1

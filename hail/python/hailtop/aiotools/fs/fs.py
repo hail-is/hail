@@ -1,5 +1,18 @@
-from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable, TypeVar,
-                    Generic, List, Awaitable, Union, Tuple)
+from typing import (
+    Any,
+    AsyncContextManager,
+    Optional,
+    Type,
+    Set,
+    AsyncIterator,
+    Callable,
+    TypeVar,
+    Generic,
+    List,
+    Awaitable,
+    Union,
+    Tuple,
+)
 from typing_extensions import ParamSpec
 from types import TracebackType
 import abc
@@ -14,7 +27,9 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
-async def with_exception(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> Union[Tuple[T, None], Tuple[None, Exception]]:
+async def with_exception(
+    f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs
+) -> Union[Tuple[T, None], Tuple[None, Exception]]:
     try:
         return (await f(*args, **kwargs)), None
     except Exception as e:
@@ -79,7 +94,9 @@ class FileListEntry(abc.ABC):
 
 class MultiPartCreate(abc.ABC):
     @abc.abstractmethod
-    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:
+    async def create_part(
+        self, number: int, start: int, size_hint: Optional[int] = None
+    ) -> AsyncContextManager[WritableStream]:
         pass
 
     @abc.abstractmethod
@@ -87,10 +104,9 @@ class MultiPartCreate(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         pass
 
 
@@ -139,12 +155,19 @@ class AsyncFS(abc.ABC):
         pass
 
     @staticmethod
+    def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
+        '''Part size when copying using multi-part uploads.  The part size of
+        the destination filesystem is used.'''
+        return 128 * 1024 * 1024
+
+    @staticmethod
     @abc.abstractmethod
     def valid_url(url: str) -> bool:
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def parse_url(self, url: str) -> AsyncFSURL:
+    def parse_url(url: str) -> AsyncFSURL:
         pass
 
     @abc.abstractmethod
@@ -179,11 +202,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def multi_part_create(
-            self,
-            sema: asyncio.Semaphore,
-            url: str,
-            num_parts: int) -> MultiPartCreate:
+    async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
         pass
 
     @abc.abstractmethod
@@ -199,10 +218,9 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def listfiles(self,
-                        url: str,
-                        recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True) -> AsyncIterator[FileListEntry]:
+    async def listfiles(
+        self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
+    ) -> AsyncIterator[FileListEntry]:
         pass
 
     @abc.abstractmethod
@@ -213,7 +231,8 @@ class AsyncFS(abc.ABC):
         assert not url.endswith('/')
 
         [(is_file, isfile_exc), (is_dir, isdir_exc)] = await asyncio.gather(
-            with_exception(self.isfile, url), with_exception(self.isdir, url + '/'))
+            with_exception(self.isfile, url), with_exception(self.isdir, url + '/')
+        )
         # raise exception deterministically
         if isfile_exc:
             raise isfile_exc
@@ -248,10 +267,9 @@ class AsyncFS(abc.ABC):
         except FileNotFoundError:
             pass
 
-    async def rmtree(self,
-                     sema: Optional[asyncio.Semaphore],
-                     url: str,
-                     listener: Optional[Callable[[int], None]] = None) -> None:
+    async def rmtree(
+        self, sema: Optional[asyncio.Semaphore], url: str, listener: Optional[Callable[[int], None]] = None
+    ) -> None:
         if listener is None:
             listener = lambda _: None
         if sema is None:
@@ -310,16 +328,10 @@ class AsyncFS(abc.ABC):
     async def __aenter__(self) -> 'AsyncFS':
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         await self.close()
-
-    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
-        '''Part size when copying using multi-part uploads.  The part size of
-        the destination filesystem is used.'''
-        return 128 * 1024 * 1024
 
 
 T = TypeVar('T', bound=AsyncFS)

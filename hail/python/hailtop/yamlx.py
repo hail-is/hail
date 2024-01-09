@@ -10,10 +10,7 @@ def yaml_dump_multiline_str_as_literal_block(dumper, data):
 class HailDumper(yaml.SafeDumper):
     @property
     def yaml_representers(self):
-        return {
-            **super().yaml_representers,
-            str: yaml_dump_multiline_str_as_literal_block
-        }
+        return {**super().yaml_representers, str: yaml_dump_multiline_str_as_literal_block}
 
 
 def dump(data) -> str:

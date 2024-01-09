@@ -1,6 +1,7 @@
 package is.hail.stats
 
 import is.hail.utils._
+
 import org.apache.commons.math3.util.CombinatoricsUtils.factorialLog
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
@@ -14,13 +15,17 @@ class LeveneHaldaneSuite extends TestNGSuite {
       val nB = 2 * n - nA
       val nAA = (nA - nAB) / 2
       val nBB = (nB - nAB) / 2
-      math.exp(nAB * math.log(2) + factorialLog(n) - (factorialLog(nAA) + factorialLog(nAB) + factorialLog(nBB)) - (factorialLog(2 * n) - (factorialLog(nA) + factorialLog(nB))))
+      math.exp(nAB * math.log(2) + factorialLog(n) - (factorialLog(nAA) + factorialLog(
+        nAB
+      ) + factorialLog(nBB)) - (factorialLog(2 * n) - (factorialLog(nA) + factorialLog(nB))))
     }
   }
 
-  //  val examples = List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431), (1526, 430), (10000,1500))
+  /* val examples = List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431),
+   * (1526, 430), (10000,1500)) */
   // The above is commented out because ain't nobody got time for that.
-  val examples = List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431), (1526, 430))
+  val examples =
+    List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431), (1526, 430))
 
   @Test def pmfTest() {
 
@@ -40,7 +45,7 @@ class LeveneHaldaneSuite extends TestNGSuite {
       val LH = LeveneHaldane(n, nA)
       D_==(LH.probability(LH.mode), (nA % 2 to nA by 2).map(LH.probability).max)
     }
-    examples foreach {e => assert(test(e))}
+    examples foreach { e => assert(test(e)) }
   }
 
   @Test def meanTest() {
@@ -48,9 +53,12 @@ class LeveneHaldaneSuite extends TestNGSuite {
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
       val LH = LeveneHaldane(n, nA)
-      D_==(LH.getNumericalMean, (LH.getSupportLowerBound to LH.getSupportUpperBound).map(i => i * LH.probability(i)).sum)
+      D_==(
+        LH.getNumericalMean,
+        (LH.getSupportLowerBound to LH.getSupportUpperBound).map(i => i * LH.probability(i)).sum,
+      )
     }
-    examples foreach {e => assert(test(e))}
+    examples foreach { e => assert(test(e)) }
   }
 
   @Test def varianceTest() {
@@ -58,9 +66,12 @@ class LeveneHaldaneSuite extends TestNGSuite {
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
       val LH = LeveneHaldane(n, nA)
-      D_==(LH.getNumericalVariance + LH.getNumericalMean * LH.getNumericalMean, (LH.getSupportLowerBound to LH.getSupportUpperBound).map(i => i * i * LH.probability(i)).sum)
+      D_==(
+        LH.getNumericalVariance + LH.getNumericalMean * LH.getNumericalMean,
+        (LH.getSupportLowerBound to LH.getSupportUpperBound).map(i => i * i * LH.probability(i)).sum,
+      )
     }
-    examples foreach {e => assert(test(e))}
+    examples foreach { e => assert(test(e)) }
   }
 
   @Test def exactTestsTest() {
@@ -68,17 +79,27 @@ class LeveneHaldaneSuite extends TestNGSuite {
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
       val LH = LeveneHaldane(n, nA)
-      (-2 to nA + 2).forall(nAB => (
-        D_==(LH.leftMidP(nAB) + LH.rightMidP(nAB), 1.0)
-          && D_==(LH.leftMidP(nAB),
-                           0.5 * LH.probability(nAB) + (0 to nAB - 1).map(LH.probability).sum)
-          && D_==(LH.exactMidP(nAB),
-                           {val p0 = LH.probability(nAB)
-                             (0 to nA).map(LH.probability).filter(D_<(_, p0, tolerance = 1.0E-12)).sum + 0.5 * (0 to nA).map(LH.probability).filter(D_==(_, p0, tolerance = 1.0E-12)).sum
-          })
-        ))
+      (-2 to nA + 2).forall(nAB =>
+        (
+          D_==(LH.leftMidP(nAB) + LH.rightMidP(nAB), 1.0)
+            && D_==(
+              LH.leftMidP(nAB),
+              0.5 * LH.probability(nAB) + (0 to nAB - 1).map(LH.probability).sum,
+            )
+            && D_==(
+              LH.exactMidP(nAB), {
+                val p0 = LH.probability(nAB)
+                (0 to nA).map(LH.probability).filter(
+                  D_<(_, p0, tolerance = 1.0e-12)
+                ).sum + 0.5 * (0 to nA).map(LH.probability).filter(
+                  D_==(_, p0, tolerance = 1.0e-12)
+                ).sum
+              },
+            )
+        )
+      )
     }
-    examples foreach {e => assert(test(e))}
+    examples foreach { e => assert(test(e)) }
   }
 
 }

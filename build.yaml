@@ -472,9 +472,15 @@ steps:
       set -ex
 
       # k8s deploy config
+      {% if default_ns.name == "default" %}
       cat > deploy-config.json <<EOF
       {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
       EOF
+      {% else %}
+      cat > deploy-config.json <<EOF
+      {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"internal.{{ global.domain }}","base_path":"/{{ default_ns.name }}"}
+      EOF
+      {% endif %}
       kubectl -n {{ default_ns.name }} create secret generic deploy-config \
               --from-file=./deploy-config.json \
               --save-config --dry-run=client -o yaml \
@@ -1872,9 +1878,9 @@ steps:
                          --retry 3 \
                          --retry-delay 5 \
                          -XPOST)
-      hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
+      hailctl auth copy-paste-login "$COPY_PASTE_TOKEN"
 
-      if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
+      if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN"
       then
           echo "reusing a token should not work, but did"
           exit 1
@@ -1888,14 +1894,14 @@ steps:
                          -XPOST)
       python3 -c '
       from hailtop.auth import copy_paste_login;
-      copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+      copy_paste_login("'$COPY_PASTE_TOKEN'")
       '
 
       python3 -c '
       from hailtop.auth import copy_paste_login;
       import aiohttp
       try:
-          copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+          copy_paste_login("'$COPY_PASTE_TOKEN'")
           print("reusing a token should not work, but did")
           sys.exit(1)
       except aiohttp.client_exceptions.ClientResponseError as exc:
@@ -1945,7 +1951,7 @@ steps:
       import aiohttp
       from hailtop.auth import copy_paste_login;
       try:
-          copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+          copy_paste_login("'$COPY_PASTE_TOKEN'")
           print("using an expired token should not work, but did")
           sys.exit(1)
       except aiohttp.client_exceptions.ClientResponseError as exc:
@@ -2717,7 +2723,7 @@ steps:
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_TOKEN="{{ token }}"
       export HAIL_CLOUD="{{ global.cloud }}"
-      export HAIL_DOMAIN="{{ global.domain }}"
+      export HAIL_PRODUCTION_DOMAIN="{{ global.domain }}"
       export HAIL_GPU_IMAGE="{{ gpu_image.image }}"
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
 

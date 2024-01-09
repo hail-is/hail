@@ -13,16 +13,13 @@ class SemanticVersionSuite extends TestNGSuite {
       SemanticVersion(1, 3, 0),
       SemanticVersion(1, 3, 1),
       SemanticVersion(2, 0, 0),
-      SemanticVersion(2, 0, 1))
+      SemanticVersion(2, 0, 1),
+    )
 
     versions.zipWithIndex.foreach { case (v, i) =>
-      (0 until i).foreach { j =>
-        assert(v > versions(j))
-      }
+      (0 until i).foreach(j => assert(v > versions(j)))
 
-      (i + 1 until versions.length).foreach { j =>
-        assert(v < versions(j))
-      }
+      (i + 1 until versions.length).foreach(j => assert(v < versions(j)))
     }
   }
 }

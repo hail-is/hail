@@ -1,11 +1,11 @@
 package is.hail.io.fs
 
+import java.io.FileInputStream
+
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
-
-import java.io.FileInputStream
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
   @BeforeClass
@@ -24,7 +24,8 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
       new GoogleStorageFS()
     } else {
       new GoogleStorageFS(
-        Some(new String(IOUtils.toByteArray(new FileInputStream(gac)))))
+        Some(new String(IOUtils.toByteArray(new FileInputStream(gac))))
+      )
     }
   }
 
@@ -33,9 +34,8 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
 
     val unqualifiedFileName = "not-gs://bucket/path"
-    try {
+    try
       fs.makeQualified(unqualifiedFileName)
-    }
     catch {
       case _: IllegalArgumentException =>
         return

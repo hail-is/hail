@@ -1,12 +1,11 @@
 package is.hail.io.fs
 
+import java.io.FileInputStream
+
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
-
-import java.io.FileInputStream
-
 
 class AzureStorageFSSuite extends TestNGSuite with FSSuite {
   @BeforeClass
@@ -22,11 +21,11 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
   lazy val fs = {
     val aac = System.getenv("AZURE_APPLICATION_CREDENTIALS")
     if (aac == null) {
-    new AzureStorageFS()
-    }
-    else {
+      new AzureStorageFS()
+    } else {
       new AzureStorageFS(
-        Some(new String(IOUtils.toByteArray(new FileInputStream(aac)))))
+        Some(new String(IOUtils.toByteArray(new FileInputStream(aac))))
+      )
     }
   }
 
@@ -35,9 +34,8 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
     assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
 
     val unqualifiedFileName = "https://account/container/path"
-    try {
+    try
       fs.makeQualified(unqualifiedFileName)
-    }
     catch {
       case _: IllegalArgumentException =>
         return

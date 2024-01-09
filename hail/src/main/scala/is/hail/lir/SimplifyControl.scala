@@ -5,9 +5,8 @@ import is.hail.utils.UnionFind
 import scala.collection.mutable
 
 object SimplifyControl {
-  def apply(m: Method): Unit = {
+  def apply(m: Method): Unit =
     new SimplifyControl(m).simplify()
-  }
 }
 
 class SimplifyControl(m: Method) {
@@ -107,16 +106,17 @@ class SimplifyControl(m: Method) {
     val blocks = m.findBlocks()
 
     val u = new UnionFind(blocks.length)
-    blocks.indices.foreach { i =>
-      u.makeSet(i)
-    }
+    blocks.indices.foreach(i => u.makeSet(i))
 
     for (b <- blocks) {
-      if (b.first != null &&
-        b.first.isInstanceOf[GotoX]) {
+      if (
+        b.first != null &&
+        b.first.isInstanceOf[GotoX]
+      ) {
         u.union(
           blocks.index(b),
-          blocks.index(b.first.asInstanceOf[GotoX].L))
+          blocks.index(b.first.asInstanceOf[GotoX].L),
+        )
       }
     }
 
@@ -131,8 +131,7 @@ class SimplifyControl(m: Method) {
       val last = b.last.asInstanceOf[ControlX]
       var i = 0
       while (i < last.targetArity()) {
-        last.setTarget(i,
-          rootFinalTarget(u.find(blocks.index(last.target(i)))))
+        last.setTarget(i, rootFinalTarget(u.find(blocks.index(last.target(i)))))
         i += 1
       }
     }
@@ -158,11 +157,11 @@ class SimplifyControl(m: Method) {
 
     assert(m.findBlocks().forall { b =>
       !b.first.isInstanceOf[GotoX] &&
-        (b.last match {
-          case i: IfX => i.Ltrue ne i.Lfalse
-          case g: GotoX => g.L.uses.size > 1 || (g.L eq m.entry)
-          case _ => true
-        })
+      (b.last match {
+        case i: IfX => i.Ltrue ne i.Lfalse
+        case g: GotoX => g.L.uses.size > 1 || (g.L eq m.entry)
+        case _ => true
+      })
     })
   }
 }

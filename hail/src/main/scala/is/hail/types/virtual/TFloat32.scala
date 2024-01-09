@@ -12,19 +12,21 @@ import scala.reflect.{ClassTag, _}
 case object TFloat32 extends TNumeric {
   def _toPretty = "Float32"
 
-  override def pyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit =
     sb.append("float32")
-  }
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Float]
 
   override def _showStr(a: Annotation): String = "%.02e".format(a.asInstanceOf[Float])
 
-  override def str(a: Annotation): String = if (a == null) "NA" else "%.5e".format(a.asInstanceOf[Float])
+  override def str(a: Annotation): String =
+    if (a == null) "NA" else "%.5e".format(a.asInstanceOf[Float])
 
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = arbitrary[Double].map(_.toFloat)
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
+    arbitrary[Double].map(_.toFloat)
 
-  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
+  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
+    : Boolean =
     a1 == a2 || (a1 != null && a2 != null && {
       val f1 = a1.asInstanceOf[Float]
       val f2 = a2.asInstanceOf[Float]

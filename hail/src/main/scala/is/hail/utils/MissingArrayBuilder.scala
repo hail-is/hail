@@ -37,9 +37,8 @@ final class MissingArrayBuilder[@specialized T](initialCapacity: Int)(implicit t
     }
   }
 
-  def clear(): Unit = {
+  def clear(): Unit =
     size_ = 0
-  }
 
   def +=(x: T) {
     ensureCapacity(size_ + 1)
