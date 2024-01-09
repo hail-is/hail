@@ -107,7 +107,7 @@ def transformDosage(dx):
         l1 = int((w0 + w1) * 32768 / sumDx + 0.5) - l0
         l2 = 32768 - l0 - l1
     except:
-        print dx
+        print(dx)
         sys.exit()
     return [l0 / 32768.0, l1 / 32768.0, l2 / 32768.0]
 
