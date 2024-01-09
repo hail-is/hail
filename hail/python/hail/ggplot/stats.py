@@ -103,6 +103,7 @@ class StatBin(Stat):
         self.bins = bins
 
     def get_precomputes(self, mapping):
+
         precomputes = {}
         if self.min_val is None:
             precomputes["min_val"] = hl.agg.min(mapping.x)

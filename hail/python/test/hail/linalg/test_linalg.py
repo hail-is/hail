@@ -51,7 +51,7 @@ def _assert_close(a, b):
 
 
 def _assert_rectangles_eq(expected, rect_path, export_rects, binary=False):
-    for i, r in enumerate(export_rects):
+    for (i, r) in enumerate(export_rects):
         piece_path = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
 
         with hl.current_backend().fs.open(piece_path, mode='rb' if binary else 'r') as file:

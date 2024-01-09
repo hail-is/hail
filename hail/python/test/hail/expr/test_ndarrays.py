@@ -14,7 +14,7 @@ def assert_ndarrays(asserter, exprs_and_expecteds):
     evaled_exprs = hl.eval(expr_tuple)
 
     evaled_and_expected = zip(evaled_exprs, expecteds)
-    for idx, (evaled, expected) in enumerate(evaled_and_expected):
+    for (idx, (evaled, expected)) in enumerate(evaled_and_expected):
         assert asserter(evaled, expected), f"NDArray comparison {idx} failed, got: {evaled}, expected: {expected}"
 
 
@@ -27,6 +27,7 @@ def assert_ndarrays_almost_eq(*expr_and_expected):
 
 
 def test_ndarray_ref():
+
     scalar = 5.0
     np_scalar = np.array(scalar)
     h_scalar = hl.nd.array(scalar)
@@ -402,6 +403,7 @@ def test_ndarray_map1():
 
 
 def test_ndarray_map2():
+
     a = 2.0
     b = 3.0
     x = np.array([a, b])

@@ -59,6 +59,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     dr = dr.filter(dr._variant_defined)
 
     def coalesce_join(ref, var):
+
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 

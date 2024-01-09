@@ -29,6 +29,7 @@ def test_lgt_to_gt():
 
 
 def test_lgt_to_gt_invalid():
+
     c1 = hl.call(1, 1)
     c2 = hl.call(1, 1, phased=True)
     assert hl.eval(hl.vds.lgt_to_gt(c1, [0, 17495])) == hl.Call([17495, 17495])
