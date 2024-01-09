@@ -1,14 +1,14 @@
-from typing import AsyncIterator
 import os
-import pytest
 import subprocess as sp
 import tempfile
+from typing import AsyncIterator
+
+import pytest
 
 from hailtop import pip_version
 from hailtop.batch import Batch, LocalBackend, ResourceGroup
 from hailtop.batch.resource import JobResourceFile
 from hailtop.batch.utils import concatenate
-
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
@@ -110,13 +110,13 @@ def test_single_job_with_nonsense_shell(batch):
     b = batch
     j = b.new_job(shell='/bin/ajdsfoijasidojf')
     j.image(DOCKER_ROOT_IMAGE)
-    j.command(f'printf "hello"')
+    j.command('printf "hello"')
     with pytest.raises(Exception):
         b.run()
 
     b = batch
     j = b.new_job(shell='/bin/nonexistent')
-    j.command(f'printf "hello"')
+    j.command('printf "hello"')
     with pytest.raises(Exception):
         b.run()
 
@@ -124,9 +124,9 @@ def test_single_job_with_nonsense_shell(batch):
 def test_single_job_with_intermediate_failure(batch):
     b = batch
     j = b.new_job()
-    j.command(f'echoddd "hello"')
+    j.command('echoddd "hello"')
     j2 = b.new_job()
-    j2.command(f'echo "world"')
+    j2.command('echo "world"')
 
     with pytest.raises(Exception):
         b.run()
@@ -216,7 +216,7 @@ def test_resource_group_get_all_mentioned_dependent_jobs(batch):
     b = batch
     j = b.new_job()
     j.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
-    j.command(f"cat")
+    j.command("cat")
     j2 = b.new_job()
     j2.command(f"cat {j.foo}")
 

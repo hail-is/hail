@@ -1,31 +1,25 @@
-from typing import AsyncIterator, List, Tuple
 import asyncio
 import inspect
-import secrets
-
-import pytest
 import os
+import secrets
+from configparser import ConfigParser
 from shlex import quote as shq
-import uuid
-import re
-import orjson
+from typing import AsyncIterator, Tuple
 
-import hailtop.fs as hfs
+import orjson
+import pytest
+
 import hailtop.batch_client.client as bc
 from hailtop import pip_version
-from hailtop.batch import Batch, ServiceBackend, ResourceGroup
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.batch import Batch, ResourceGroup, ServiceBackend
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
-from hailtop.utils import grouped, async_to_blocking, secret_alnum_string
-from hailtop.config import get_remote_tmpdir, configuration_of
-from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.test_utils import skip_in_azure
-from hailtop.httpx import ClientResponseError
-
-from configparser import ConfigParser
-from hailtop.config import get_user_config, user_config
+from hailtop.config import configuration_of, get_remote_tmpdir, get_user_config, user_config
 from hailtop.config.variables import ConfigVariable
-
+from hailtop.httpx import ClientResponseError
+from hailtop.test_utils import skip_in_azure
+from hailtop.utils import grouped, secret_alnum_string
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
@@ -312,7 +306,7 @@ def test_cloudfuse_fails_with_io_mount_point(fs: RouterAsyncFS, backend: Service
     b = batch(backend)
     j = b.new_job()
     j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-    j.cloudfuse(bucket, f'/io', read_only=True)
+    j.cloudfuse(bucket, '/io', read_only=True)
 
     try:
         b.run()
@@ -344,8 +338,8 @@ def test_cloudfuse_implicit_dirs(fs: RouterAsyncFS, backend: ServiceBackend, upl
 
     b = batch(backend)
     j = b.new_job()
-    j.command(f'cat ' + os.path.join('/cloudfuse', object_name))
-    j.cloudfuse(bucket_name, f'/cloudfuse', read_only=True)
+    j.command('cat ' + os.path.join('/cloudfuse', object_name))
+    j.cloudfuse(bucket_name, '/cloudfuse', read_only=True)
 
     res = b.run()
     assert res
@@ -376,7 +370,7 @@ async def test_cloudfuse_submount_in_io_doesnt_rm_bucket(
     b = batch(backend)
     j = b.new_job()
     j.cloudfuse(bucket, '/io/cloudfuse')
-    j.command(f'ls /io/cloudfuse/')
+    j.command('ls /io/cloudfuse/')
     res = b.run()
     assert res
     res_status = res.status()
@@ -406,8 +400,8 @@ def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(
 
     b = batch(backend, requester_pays_project=REQUESTER_PAYS_PROJECT)
     j = b.new_job()
-    j.command(f'ls /fuse-bucket')
-    j.cloudfuse(bucket, f'/fuse-bucket', read_only=True)
+    j.command('ls /fuse-bucket')
+    j.cloudfuse(bucket, '/fuse-bucket', read_only=True)
 
     res = b.run()
     assert res
@@ -444,7 +438,7 @@ def test_benchmark_lookalike_workflow(backend: ServiceBackend, output_tmpdir):
         j.command(f'echo "bar" >> {j.ofile}')
         jobs.append(j)
 
-    combine = b.new_job(f'combine_output').cpu(0.25)
+    combine = b.new_job('combine_output').cpu(0.25)
     for _ in grouped(arg_max(), jobs):
         combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
     b.write_output(combine.ofile, os.path.join(output_tmpdir, 'pipeline_benchmark_test.txt'))
@@ -477,7 +471,7 @@ def test_single_job_with_shell(backend: ServiceBackend):
 def test_single_job_with_nonsense_shell(backend: ServiceBackend):
     b = batch(backend)
     j = b.new_job(shell='/bin/ajdsfoijasidojf')
-    j.command(f'echo "hello"')
+    j.command('echo "hello"')
     res = b.run()
     assert res
     res_status = res.status()
@@ -487,9 +481,9 @@ def test_single_job_with_nonsense_shell(backend: ServiceBackend):
 def test_single_job_with_intermediate_failure(backend: ServiceBackend):
     b = batch(backend)
     j = b.new_job()
-    j.command(f'echoddd "hello"')
+    j.command('echoddd "hello"')
     j2 = b.new_job()
-    j2.command(f'echo "world"')
+    j2.command('echo "world"')
 
     res = b.run()
     assert res
@@ -1059,7 +1053,7 @@ def test_non_spot_job(backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
+    assert not res.get_job(1).status()['spec']['resources']['preemptible']
 
 
 def test_spot_unspecified_job(backend: ServiceBackend):
@@ -1068,7 +1062,7 @@ def test_spot_unspecified_job(backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+    assert res.get_job(1).status()['spec']['resources']['preemptible']
 
 
 def test_spot_true_job(backend: ServiceBackend):
@@ -1078,7 +1072,7 @@ def test_spot_true_job(backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+    assert res.get_job(1).status()['spec']['resources']['preemptible']
 
 
 def test_non_spot_batch(backend: ServiceBackend):
@@ -1092,9 +1086,9 @@ def test_non_spot_batch(backend: ServiceBackend):
     j3.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
-    assert res.get_job(2).status()['spec']['resources']['preemptible'] == False
-    assert res.get_job(3).status()['spec']['resources']['preemptible'] == True
+    assert not res.get_job(1).status()['spec']['resources']['preemptible']
+    assert not res.get_job(2).status()['spec']['resources']['preemptible']
+    assert res.get_job(3).status()['spec']['resources']['preemptible']
 
 
 def test_local_file_paths_error(backend: ServiceBackend):
