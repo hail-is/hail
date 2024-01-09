@@ -43,134 +43,8 @@ class InUpdateJobId(int):
 class JobSpec:
     def __init__(self,
                  job: 'Job',
-                 process: dict,
-                 env: Optional[Dict[str, str]] = None,
-                 port: Optional[int] = None,
-                 resources: Optional[dict] = None,
-                 secrets: Optional[dict] = None,
-                 service_account: Optional[str] = None,
-                 attributes: Optional[Dict[str, str]] = None,
-                 parents: Optional[List['Job']] = None,
-                 input_files: Optional[List[Tuple[str, str]]] = None,
-                 output_files: Optional[List[Tuple[str, str]]] = None,
-                 always_run: bool = False,
-                 always_copy_output: bool = False,
-                 timeout: Optional[Union[int, float]] = None,
-                 cloudfuse: Optional[List[Tuple[str, str, bool]]] = None,
-                 requester_pays_project: Optional[str] = None,
-                 mount_tokens: bool = False,
-                 network: Optional[str] = None,
-                 unconfined: bool = False,
-                 user_code: Optional[str] = None,
-                 regions: Optional[List[str]] = None):
+):
         self.job = job
-        self.process = process
-        self.env = env
-        self.port = port
-        self.resources = resources
-        self.secrets = secrets
-        self.service_account = service_account
-        self.attributes = attributes
-        self.parents = parents or []
-        self.input_files = input_files
-        self.output_files = output_files
-        self.always_run = always_run
-        self.always_copy_output = always_copy_output
-        self.timeout = timeout
-        self.cloudfuse = cloudfuse
-        self.requester_pays_project = requester_pays_project
-        self.mount_tokens = mount_tokens
-        self.network = network
-        self.unconfined = unconfined
-        self.user_code = user_code
-        self.regions = regions
-
-    def to_dict(self):
-        self.job._raise_if_submitted()
-
-        absolute_parent_ids = []
-        in_update_parent_ids = []
-        foreign_batches: List[Job] = []
-        invalid_job_ids = []
-        for parent in self.parents:
-            if not parent.is_submitted:
-                assert isinstance(parent._job_id, InUpdateJobId)
-                if parent._batch != self.job._batch:
-                    foreign_batches.append(parent)
-                elif not 0 < parent._job_id < self.job._job_id:
-                    invalid_job_ids.append(parent._job_id)
-                else:
-                    in_update_parent_ids.append(parent._job_id)
-            elif not self.job._batch.is_created or parent._batch.id != self.job.batch_id:
-                foreign_batches.append(parent)
-            else:
-                absolute_parent_ids.append(parent._job_id)
-
-        error_msg = []
-        if len(foreign_batches) != 0:
-            error_msg.append(
-                'Found {} parents from another batch:\n{}'.format(
-                    str(len(foreign_batches)), "\n".join([str(j) for j in foreign_batches])
-                )
-            )
-        if len(invalid_job_ids) != 0:
-            error_msg.append(
-                'Found {} parents with invalid job ids:\n{}'.format(
-                    str(len(invalid_job_ids)), "\n".join([str(j) for j in invalid_job_ids])
-                )
-            )
-        if error_msg:
-            raise ValueError("\n".join(error_msg))
-
-        job_spec = {
-            'always_run': self.always_run,
-            'always_copy_output': self.always_copy_output,
-            'job_id': self.job._job_id,
-            'absolute_parent_ids': absolute_parent_ids,
-            'in_update_parent_ids': in_update_parent_ids,
-            'process': self.process,
-        }
-
-        if self.env:
-            job_spec['env'] = [{'name': k, 'value': v} for (k, v) in self.env.items()]
-        if self.port is not None:
-            job_spec['port'] = self.port
-        if self.resources:
-            job_spec['resources'] = self.resources
-        if self.secrets:
-            job_spec['secrets'] = self.secrets
-        if self.service_account:
-            job_spec['service_account'] = self.service_account
-        if self.timeout:
-            job_spec['timeout'] = self.timeout
-        if self.attributes:
-            job_spec['attributes'] = self.attributes
-        if self.input_files:
-            job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in self.input_files]
-        if self.output_files:
-            job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in self.output_files]
-        if self.cloudfuse:
-            job_spec['cloudfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
-                                     for (bucket, mount_path, read_only) in self.cloudfuse]
-        if self.requester_pays_project:
-            job_spec['requester_pays_project'] = self.requester_pays_project
-        if self.mount_tokens:
-            job_spec['mount_tokens'] = self.mount_tokens
-        if self.network:
-            job_spec['network'] = self.network
-        if self.unconfined:
-            job_spec['unconfined'] = self.unconfined
-        if self.user_code:
-            job_spec['user_code'] = self.user_code
-        if self.regions:
-            job_spec['regions'] = self.regions
-
-        if self.job._job_group.is_submitted:
-            job_spec['absolute_job_group_id'] = self.job._job_group._job_group_id
-        else:
-            job_spec['in_update_job_group_id'] = self.job._job_group._job_group_id
-
-        return job_spec
 
 
 class Job:
@@ -312,19 +186,60 @@ class Job:
         return Job(batch, job_group, AbsoluteJobId(job_id), _status=_status)
 
     @staticmethod
-    def unsubmitted_job(batch: 'Batch', job_group: 'JobGroup', job_id: int):
-        return Job(batch, job_group, InUpdateJobId(job_id))
+    def unsubmitted_job(batch: 'Batch', job_group: 'JobGroup', job_id: int, **kwargs):
+        return Job(batch, job_group, InUpdateJobId(job_id), **kwargs)
 
     def __init__(self,
                  batch: 'Batch',
                  job_group: 'JobGroup',
                  job_id: Union[AbsoluteJobId, InUpdateJobId],
                  *,
-                 _status: Optional[GetJobResponseV1Alpha] = None):
+                 _status: Optional[GetJobResponseV1Alpha] = None,
+                 process: Optional[dict] = None,
+                 env: Optional[Dict[str, str]] = None,
+                 port: Optional[int] = None,
+                 resources: Optional[dict] = None,
+                 secrets: Optional[dict] = None,
+                 service_account: Optional[str] = None,
+                 attributes: Optional[Dict[str, str]] = None,
+                 parents: Optional[List['Job']] = None,
+                 input_files: Optional[List[Tuple[str, str]]] = None,
+                 output_files: Optional[List[Tuple[str, str]]] = None,
+                 always_run: bool = False,
+                 always_copy_output: bool = False,
+                 timeout: Optional[Union[int, float]] = None,
+                 cloudfuse: Optional[List[Tuple[str, str, bool]]] = None,
+                 requester_pays_project: Optional[str] = None,
+                 mount_tokens: bool = False,
+                 network: Optional[str] = None,
+                 unconfined: bool = False,
+                 user_code: Optional[str] = None,
+                 regions: Optional[List[str]] = None):
         self._batch = batch
         self._job_group = job_group
         self._job_id = job_id
         self._status = _status
+
+        self._process = process
+        self._env = env
+        self._port = port
+        self._resources = resources
+        self._secrets = secrets
+        self._service_account = service_account
+        self._attributes = attributes
+        self._parents = parents or []
+        self._input_files = input_files
+        self._output_files = output_files
+        self._always_run = always_run
+        self._always_copy_output = always_copy_output
+        self._timeout = timeout
+        self._cloudfuse = cloudfuse
+        self._requester_pays_project = requester_pays_project
+        self._mount_tokens = mount_tokens
+        self._network = network
+        self._unconfined = unconfined
+        self._user_code = user_code
+        self._regions = regions
 
     def _raise_if_not_submitted(self):
         if not self.is_submitted:
@@ -439,6 +354,91 @@ class Job:
         resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/attempts')
         return await resp.json()
 
+    def to_spec_dict(self):
+        absolute_parent_ids = []
+        in_update_parent_ids = []
+        foreign_batches: List[Job] = []
+        invalid_job_ids = []
+        for parent in self._parents:
+            if not parent.is_submitted:
+                assert isinstance(parent._job_id, InUpdateJobId)
+                if parent._batch != self._batch:
+                    foreign_batches.append(parent)
+                elif not 0 < parent._job_id < self._job_id:
+                    invalid_job_ids.append(parent._job_id)
+                else:
+                    in_update_parent_ids.append(parent._job_id)
+            elif not self._batch.is_created or parent._batch.id != self.batch_id:
+                foreign_batches.append(parent)
+            else:
+                absolute_parent_ids.append(parent._job_id)
+
+        error_msg = []
+        if len(foreign_batches) != 0:
+            error_msg.append(
+                'Found {} parents from another batch:\n{}'.format(
+                    str(len(foreign_batches)), "\n".join([str(j) for j in foreign_batches])
+                )
+            )
+        if len(invalid_job_ids) != 0:
+            error_msg.append(
+                'Found {} parents with invalid job ids:\n{}'.format(
+                    str(len(invalid_job_ids)), "\n".join([str(j) for j in invalid_job_ids])
+                )
+            )
+        if error_msg:
+            raise ValueError("\n".join(error_msg))
+
+        job_spec = {
+            'always_run': self._always_run,
+            'always_copy_output': self._always_copy_output,
+            'job_id': self._job_id,
+            'absolute_parent_ids': absolute_parent_ids,
+            'in_update_parent_ids': in_update_parent_ids,
+            'process': self._process,
+        }
+
+        if self._env:
+            job_spec['env'] = [{'name': k, 'value': v} for (k, v) in self._env.items()]
+        if self._port is not None:
+            job_spec['port'] = self._port
+        if self._resources:
+            job_spec['resources'] = self._resources
+        if self._secrets:
+            job_spec['secrets'] = self._secrets
+        if self._service_account:
+            job_spec['service_account'] = self._service_account
+        if self._timeout:
+            job_spec['timeout'] = self._timeout
+        if self.attributes:
+            job_spec['attributes'] = self.attributes
+        if self._input_files:
+            job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in self._input_files]
+        if self._output_files:
+            job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in self._output_files]
+        if self._cloudfuse:
+            job_spec['cloudfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
+                                     for (bucket, mount_path, read_only) in self._cloudfuse]
+        if self._requester_pays_project:
+            job_spec['requester_pays_project'] = self._requester_pays_project
+        if self._mount_tokens:
+            job_spec['mount_tokens'] = self._mount_tokens
+        if self._network:
+            job_spec['network'] = self._network
+        if self._unconfined:
+            job_spec['unconfined'] = self._unconfined
+        if self._user_code:
+            job_spec['user_code'] = self._user_code
+        if self._regions:
+            job_spec['regions'] = self._regions
+
+        if self._job_group.is_submitted:
+            job_spec['absolute_job_group_id'] = self._job_group._job_group_id
+        else:
+            job_spec['in_update_job_group_id'] = self._job_group._job_group_id
+
+        return job_spec
+
 
 class AbsoluteJobGroupId(int):
     pass
@@ -456,56 +456,31 @@ class JobGroupNotSubmittedError(Exception):
     pass
 
 
-class JobGroupSpec:
-    def __init__(self,
-                 job_group: 'JobGroup',
-                 parent_job_group: 'JobGroup',
-                 attributes: Optional[dict] = None,
-                 callback: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None):
-        self.job_group = job_group
-        self.parent_job_group = parent_job_group
-        self.attributes = attributes
-        self.callback = callback
-        self.cancel_after_n_failures = cancel_after_n_failures
-
-    def to_dict(self) -> dict:
-        spec: Dict[str, Any] = {
-            'job_group_id': self.job_group._job_group_id,
-        }
-        if self.attributes is not None:
-            spec['attributes'] = self.attributes
-        if self.callback is not None:
-            spec['callback'] = self.callback
-        if self.cancel_after_n_failures is not None:
-            spec['cancel_after_n_failures'] = self.cancel_after_n_failures
-        if self.parent_job_group.is_submitted:
-            spec['absolute_parent_id'] = self.parent_job_group._job_group_id
-        else:
-            spec['in_update_parent_id'] = self.parent_job_group._job_group_id
-        return spec
-
-
 class JobGroup:
     def __init__(self,
                  batch: 'Batch',
                  job_group_id: Union[AbsoluteJobGroupId, InUpdateJobGroupId],
                  *,
+                 parent_job_group: Optional['JobGroup'] = None,
+                 callback: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None,
+                 cancel_after_n_failures: Optional[int] = None,
                  last_known_status: Optional[dict] = None,
                  ):
         self._batch = batch
         self._job_group_id = job_group_id
 
-        attributes = attributes or {}
-        self._name = attributes.get('name')
+        self._name = attributes.get('name') if attributes is not None else None
 
+        self._parent_job_group = parent_job_group
+        self._callback = callback
         self._attributes = attributes
+        self._cancel_after_n_failures = cancel_after_n_failures
         self._last_known_status = last_known_status
 
     def _submit(self, in_update_start_job_group_id: int):
         self._raise_if_submitted()
-        self._job_group_id = AbsoluteJobId(in_update_start_job_group_id + self._job_group_id - 1)
+        self._job_group_id = AbsoluteJobGroupId(in_update_start_job_group_id + self._job_group_id - 1)
 
     def _raise_if_not_submitted(self):
         if not self.is_submitted:
@@ -679,6 +654,23 @@ class JobGroup:
         with BatchProgressBar(disable=disable_progress_bar) as progress2:
             return await self._wait(description, progress2, disable_progress_bar)
 
+    def to_spec_dict(self) -> dict:
+        spec: Dict[str, Any] = {'job_group_id': self._job_group_id}
+        if self._attributes is not None:
+            spec['attributes'] = self._attributes
+        if self._callback is not None:
+            spec['callback'] = self._callback
+        if self._cancel_after_n_failures is not None:
+            spec['cancel_after_n_failures'] = self._cancel_after_n_failures
+
+        assert self._parent_job_group is not None
+        if self._parent_job_group.is_submitted:
+            spec['absolute_parent_id'] = self._parent_job_group._job_group_id
+        else:
+            spec['in_update_parent_id'] = self._parent_job_group._job_group_id
+
+        return spec
+
 
 class BatchSubmissionInfo:
     def __init__(self, used_fast_path: Optional[bool] = None):
@@ -722,11 +714,9 @@ class Batch:
         self._last_known_status = last_known_status
 
         self._job_idx = 0
-        self._job_specs: List[JobSpec] = []
         self._jobs: List[Job] = []
 
         self._job_group_idx = 0
-        self._job_group_specs: List[JobGroupSpec] = []
         self._job_groups: List[JobGroup] = []
 
         self._root_job_group = JobGroup(self, AbsoluteJobGroupId(ROOT_JOB_GROUP_ID))
@@ -768,20 +758,13 @@ class Batch:
                           callback: Optional[str] = None,
                           cancel_after_n_failures: Optional[int] = None) -> JobGroup:
         self._job_group_idx += 1
-
         jg = JobGroup(self,
                       InUpdateJobGroupId(self._job_group_idx),
-                      attributes=attributes)
-
-        jg_spec = JobGroupSpec(jg,
-                               parent_job_group,
-                               attributes=attributes,
-                               callback=callback,
-                               cancel_after_n_failures=cancel_after_n_failures)
-
+                      parent_job_group=parent_job_group,
+                      attributes=attributes,
+                      callback=callback,
+                      cancel_after_n_failures=cancel_after_n_failures)
         self._job_groups.append(jg)
-        self._job_group_specs.append(jg_spec)
-
         return jg
 
     async def cancel(self):
@@ -947,30 +930,29 @@ class Batch:
                     regions: Optional[List[str]] = None
                     ) -> Job:
         self._job_idx += 1
-
-        j = Job.unsubmitted_job(self, job_group, self._job_idx)
-        job_spec = JobSpec(j,
-                           process=process,
-                           env=env,
-                           port=port,
-                           resources=resources,
-                           secrets=secrets,
-                           service_account=service_account,
-                           attributes=attributes,
-                           parents=parents,
-                           input_files=input_files,
-                           output_files=output_files,
-                           always_run=always_run,
-                           always_copy_output=always_copy_output,
-                           timeout=timeout,
-                           cloudfuse=cloudfuse,
-                           requester_pays_project=requester_pays_project,
-                           mount_tokens=mount_tokens,
-                           network=network,
-                           unconfined=unconfined,
-                           user_code=user_code,
-                           regions=regions)
-        self._job_specs.append(job_spec)
+        j = Job.unsubmitted_job(self,
+                                job_group,
+                                self._job_idx,
+                                process=process,
+                                env=env,
+                                port=port,
+                                resources=resources,
+                                secrets=secrets,
+                                service_account=service_account,
+                                attributes=attributes,
+                                parents=parents,
+                                input_files=input_files,
+                                output_files=output_files,
+                                always_run=always_run,
+                                always_copy_output=always_copy_output,
+                                timeout=timeout,
+                                cloudfuse=cloudfuse,
+                                requester_pays_project=requester_pays_project,
+                                mount_tokens=mount_tokens,
+                                network=network,
+                                unconfined=unconfined,
+                                user_code=user_code,
+                                regions=regions)
         self._jobs.append(j)
         return j
 
@@ -982,8 +964,6 @@ class Batch:
                            job_progress_task: BatchProgressBarTask,
                            job_group_progress_task: BatchProgressBarTask):
         self._raise_if_created()
-        assert n_jobs == len(self._job_specs)
-        assert n_job_groups == len(self._job_group_specs)
         b = bytearray()
         b.extend(b'{"bunch":')
         b.append(ord('['))
@@ -1021,8 +1001,6 @@ class Batch:
                            job_progress_task: BatchProgressBarTask,
                            job_group_progress_task: BatchProgressBarTask) -> Tuple[int, Optional[int]]:
         self._raise_if_not_created()
-        assert n_jobs == len(self._job_specs)
-        assert n_job_groups == len(self._job_group_specs)
         b = bytearray()
         b.extend(b'{"bunch":')
         b.append(ord('['))
@@ -1142,7 +1120,7 @@ class Batch:
         progress_task.update(n_jobs)
 
     def _batch_spec(self):
-        n_jobs = len(self._job_specs)
+        n_jobs = len(self._jobs)
         batch_spec = {'billing_project': self._client.billing_project, 'n_jobs': n_jobs, 'token': self.token}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
@@ -1210,12 +1188,12 @@ class Batch:
                       disable_progress_bar: bool,
                       progress: BatchProgressBar) -> Tuple[Optional[int], Optional[int]]:
         n_jobs = len(self._jobs)
-        job_specs = [spec.to_dict() for spec in self._job_specs]
+        job_specs = [j.to_spec_dict() for j in self._jobs]
         byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
         n_job_bunches = len(byte_job_specs_bunches)
 
         n_job_groups = len(self._job_groups)
-        job_group_specs = [spec.to_dict() for spec in self._job_group_specs]
+        job_group_specs = [jg.to_spec_dict() for jg in self._job_groups]
         byte_job_group_specs_bunches, job_group_bunch_sizes = self._create_bunches(job_group_specs, max_bunch_bytesize, max_bunch_size)
         n_job_group_bunches = len(byte_job_group_specs_bunches)
 
@@ -1246,8 +1224,7 @@ class Batch:
                         start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-                            # we need to recompute the specs now that the job group ID is absolute
-                            job_specs = [spec.to_dict() for spec in self._job_specs]
+                            job_specs = [j.to_spec_dict() for j in self._jobs]
                             byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
 
                         await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
@@ -1276,8 +1253,7 @@ class Batch:
                         start_job_group_id = None
                         if len(self._job_groups) > 0:
                             await self._submit_job_group_bunches(byte_job_group_specs_bunches, job_group_bunch_sizes, job_group_progress_task)
-                            # we need to recompute the specs now that the job group ID is absolute
-                            job_specs = [spec.to_dict() for spec in self._job_specs]
+                            job_specs = [j.to_spec_dict() for j in self._jobs]
                             byte_job_specs_bunches, job_bunch_sizes = self._create_bunches(job_specs, max_bunch_bytesize, max_bunch_size)
 
                         await self._submit_job_bunches(update_id, byte_job_specs_bunches, job_bunch_sizes, job_progress_task)
@@ -1317,11 +1293,9 @@ class Batch:
             assert start_job_id is not None
             j._submit(start_job_id)
 
-        self._job_group_specs = []
         self._job_groups = []
         self._job_group_idx = 0
 
-        self._job_specs = []
         self._jobs = []
         self._job_idx = 0
 
