@@ -153,10 +153,9 @@ class GoogleHailMetadataServer(HailMetadataServer[aiogoogle.GoogleServiceAccount
 
     def _container_credentials(self, request: web.Request) -> Dict[str, aiogoogle.GoogleServiceAccountCredentials]:
         assert request.remote
-        try:
-            credentials = self._ip_container_credentials[request.remote]
-        except KeyError:
+        if request.remote not in self._ip_container_credentials:
             raise web.HTTPBadRequest()
+        credentials = self._ip_container_credentials[request.remote]
         return {'default': credentials, credentials.email: credentials}
 
     def _user_credentials(self, request: web.Request) -> aiogoogle.GoogleServiceAccountCredentials:
@@ -209,7 +208,7 @@ class GoogleHailMetadataServer(HailMetadataServer[aiogoogle.GoogleServiceAccount
     async def configure_response(self, request: web.Request, handler):
         credentials = self._container_credentials(request)
         gsa = request.match_info.get('gsa', 'default')
-        if gsa not in credentials.keys():
+        if gsa not in credentials:
             raise web.HTTPBadRequest()
 
         response = await handler(request)
