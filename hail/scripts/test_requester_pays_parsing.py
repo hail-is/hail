@@ -35,7 +35,6 @@ async def unset_hailctl():
     )
 
 
-@pytest.mark.asyncio
 async def test_no_configuration():
     with open(SPARK_CONF_PATH, 'w'):
         pass
@@ -46,7 +45,6 @@ async def test_no_configuration():
     assert actual is None
 
 
-@pytest.mark.asyncio
 async def test_no_project_is_error():
     with open(SPARK_CONF_PATH, 'w') as f:
         f.write('spark.hadoop.fs.gs.requester.pays.mode AUTO\n')
@@ -57,7 +55,6 @@ async def test_no_project_is_error():
         get_gcs_requester_pays_configuration()
 
 
-@pytest.mark.asyncio
 async def test_auto_with_project():
     with open(SPARK_CONF_PATH, 'w') as f:
         f.write('spark.hadoop.fs.gs.requester.pays.project.id my_project\n')
@@ -69,7 +66,6 @@ async def test_auto_with_project():
     assert actual == 'my_project'
 
 
-@pytest.mark.asyncio
 async def test_custom_no_buckets():
     with open(SPARK_CONF_PATH, 'w') as f:
         f.write('spark.hadoop.fs.gs.requester.pays.project.id my_project\n')
@@ -81,7 +77,6 @@ async def test_custom_no_buckets():
         get_gcs_requester_pays_configuration()
 
 
-@pytest.mark.asyncio
 async def test_custom_with_buckets():
     with open(SPARK_CONF_PATH, 'w') as f:
         f.write('spark.hadoop.fs.gs.requester.pays.project.id my_project\n')
@@ -94,7 +89,6 @@ async def test_custom_with_buckets():
     assert actual == ('my_project', ['abc', 'def'])
 
 
-@pytest.mark.asyncio
 async def test_disabled():
     with open(SPARK_CONF_PATH, 'w') as f:
         f.write('spark.hadoop.fs.gs.requester.pays.project.id my_project\n')
@@ -107,7 +101,6 @@ async def test_disabled():
     assert actual is None
 
 
-@pytest.mark.asyncio
 async def test_enabled():
     with open(SPARK_CONF_PATH, 'w') as f:
         f.write('spark.hadoop.fs.gs.requester.pays.project.id my_project\n')
@@ -120,7 +113,6 @@ async def test_enabled():
     assert actual == 'my_project'
 
 
-@pytest.mark.asyncio
 async def test_hailctl_takes_precedence_1():
     await unset_hailctl()
 
@@ -142,7 +134,6 @@ async def test_hailctl_takes_precedence_1():
     )
 
 
-@pytest.mark.asyncio
 async def test_hailctl_takes_precedence_2():
     await unset_hailctl()
 

@@ -42,9 +42,6 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
         return AzureDisk(disk_name, instance_name, size_in_gb, mount_path)
 
-    def get_cloud_async_fs(self) -> aioazure.AzureAsyncFS:
-        return aioazure.AzureAsyncFS(credentials=self.azure_credentials)
-
     def user_credentials(self, credentials: Dict[str, str]) -> AzureUserCredentials:
         return AzureUserCredentials(credentials)
 

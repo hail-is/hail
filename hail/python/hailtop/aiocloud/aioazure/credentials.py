@@ -62,6 +62,15 @@ class RefreshTokenCredential(AsyncTokenCredential):
 
 class AzureCredentials(CloudCredentials):
     @staticmethod
+    def from_file_or_default(
+        credentials_file: Optional[str] = None,
+        scopes: Optional[List[str]] = None,
+    ) -> 'AzureCredentials':
+        if credentials_file:
+            return AzureCredentials.from_file(credentials_file, scopes=scopes)
+        return AzureCredentials.default_credentials(scopes=scopes)
+
+    @staticmethod
     def from_credentials_data(credentials: dict, scopes: Optional[List[str]] = None):
         if 'refreshToken' in credentials:
             return AzureCredentials(

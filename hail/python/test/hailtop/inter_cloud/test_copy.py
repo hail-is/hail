@@ -41,7 +41,8 @@ async def router_filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, A
 
     with ThreadPoolExecutor() as thread_pool:
         async with RouterAsyncFS(
-            filesystems=[LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(), S3AsyncFS(thread_pool), AzureAsyncFS()]
+            local_kwargs={'thread_pool': thread_pool},
+            s3_kwargs={'thread_pool': thread_pool},
         ) as fs:
             file_base = f'/tmp/{token}/'
             await fs.mkdir(file_base)

@@ -149,9 +149,9 @@ class AsyncFS(abc.ABC):
     FILE = 'file'
     DIR = 'dir'
 
-    @property
+    @staticmethod
     @abc.abstractmethod
-    def schemes(self) -> Set[str]:
+    def schemes() -> Set[str]:
         pass
 
     @staticmethod

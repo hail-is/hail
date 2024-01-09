@@ -1,17 +1,4 @@
-from typing import (
-    Any,
-    AsyncIterator,
-    BinaryIO,
-    cast,
-    AsyncContextManager,
-    Dict,
-    List,
-    Optional,
-    Set,
-    Tuple,
-    Type,
-    ClassVar,
-)
+from typing import Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional, Set, Tuple, Type
 from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -336,8 +323,6 @@ class S3AsyncFSURL(AsyncFSURL):
 
 
 class S3AsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'s3'}
-
     def __init__(
         self,
         thread_pool: Optional[ThreadPoolExecutor] = None,
@@ -352,6 +337,10 @@ class S3AsyncFS(AsyncFS):
             max_pool_connections=max_pool_connections,
         )
         self._s3 = boto3.client('s3', config=config)
+
+    @staticmethod
+    def schemes() -> Set[str]:
+        return {'s3'}
 
     @staticmethod
     def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
