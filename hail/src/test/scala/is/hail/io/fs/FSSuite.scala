@@ -1,5 +1,6 @@
 package is.hail.io.fs
 
+import is.hail.{HailSuite, TestUtils}
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
@@ -8,6 +9,7 @@ import is.hail.utils._
 import java.io.FileNotFoundException
 
 import org.apache.commons.io.IOUtils
+import org.apache.hadoop.fs.FileAlreadyExistsException
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -37,17 +39,27 @@ trait FSSuite extends TestNGSuite {
   def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] =
     pathsRelRoot(fsResourcesRoot, statuses)
 
-  @Test def testExists(): Unit = {
-    assert(fs.exists(r("/a")))
-
-    assert(fs.exists(r("/zzz")))
-    assert(!fs.exists(r("/z"))) // prefix
-
+  @Test def testExistsOnDirectory(): Unit = {
     assert(fs.exists(r("/dir")))
     assert(fs.exists(r("/dir/")))
 
     assert(!fs.exists(r("/does_not_exist")))
     assert(!fs.exists(r("/does_not_exist_dir/")))
+  }
+
+  @Test def testExistsOnFile(): Unit = {
+    assert(fs.exists(r("/a")))
+
+    assert(fs.exists(r("/zzz")))
+    assert(!fs.exists(r("/z"))) // prefix
+  }
+
+  @Test def testFileStatusOnFile(): Unit = {
+    // file
+    val f = r("/a")
+    val s = fs.fileStatus(f)
+    assert(s.getPath == f)
+    assert(s.getLen == 12)
   }
 
   @Test def testFileListEntryOnFile(): Unit = {
@@ -58,6 +70,13 @@ trait FSSuite extends TestNGSuite {
     assert(s.isFile)
     assert(!s.isDirectory)
     assert(s.getLen == 12)
+  }
+
+  @Test def testFileStatusOnDirIsFailure(): Unit = {
+    val f = r("/dir")
+    TestUtils.interceptException[FileNotFoundException](r("/dir"))(
+      fs.fileStatus(r("/dir"))
+    )
   }
 
   @Test def testFileListEntryOnDir(): Unit = {
@@ -193,6 +212,20 @@ trait FSSuite extends TestNGSuite {
     val statuses = fs.glob(root)
     // empty with respect to root (self)
     assert(pathsRelRoot(root, statuses) == Set(""))
+  }
+
+  @Test def testFileEndingWithPeriod: Unit = {
+    val f = fs.makeQualified(t())
+    fs.touch(f + "/foo.")
+    val statuses = fs.listDirectory(f)
+    assert(statuses.length == 1, statuses)
+    val status = statuses(0)
+    if (this.isInstanceOf[AzureStorageFSSuite]) {
+      // https://github.com/Azure/azure-sdk-for-java/issues/36674
+      assert(status.getPath == f + "/foo")
+    } else {
+      assert(status.getPath == f + "/foo.")
+    }
   }
 
   @Test def testGlobRootWithSlash(): Unit = {
@@ -436,6 +469,169 @@ trait FSSuite extends TestNGSuite {
       assert(is.read() == 1.toByte)
     }
   }
+
+  @Test def fileAndDirectoryIsError(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x/file")
+    try {
+      fs.touch(s"$d/x")
+      fs.fileListEntry(s"$d/x")
+      assert(false)
+    } catch {
+      /* Hadoop, in particular, errors when you touch an object whose name is a prefix of another
+       * object. */
+      case exc: FileAndDirectoryException
+          if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
+      case exc: FileNotFoundException if exc.getMessage() == s"$d/x (Is a directory)" =>
+    }
+  }
+
+  @Test def testETag(): Unit = {
+    val etag = fs.eTag(s"$fsResourcesRoot/a")
+    if (fs.parseUrl(fsResourcesRoot).toString.startsWith("file:")) {
+      // only the local file system should lack etags.
+      assert(etag.isEmpty)
+    } else {
+      assert(etag.nonEmpty)
+    }
+  }
+
+  @Test def fileAndDirectoryIsErrorEvenIfPrefixedFileIsNotLexicographicallyFirst(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x")
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    // fs.touch(s"$d/x%") // Azure dislikes %'s
+    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
+    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98) */
+    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+    try {
+      fs.touch(s"$d/x/file")
+      fs.fileListEntry(s"$d/x")
+      assert(false)
+    } catch {
+      /* Hadoop, in particular, errors when you touch an object whose name is a prefix of another
+       * object. */
+      case exc: FileAndDirectoryException
+          if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
+      case exc: FileAlreadyExistsException
+          if exc.getMessage() == s"Destination exists and is not a directory: $d/x" =>
+    }
+  }
+
+  @Test def fileListEntrySeesDirectoryEvenIfPrefixedFileIsNotLexicographicallyFirst(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    // fs.touch(s"$d/x%") // Azure dislikes %'s
+    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
+    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98) */
+    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+    fs.touch(s"$d/x/file")
+
+    val fle = fs.fileListEntry(s"$d/x")
+    assert(fle.isDirectory)
+    assert(!fle.isFile)
+  }
+
+  @Test def fileListEntrySeesFileEvenWithPeersPreceedingThePositionOfANonPresentDirectoryEntry()
+    : Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.touch(s"$d/x")
+    // fs.touch(s"$d/x ") // Hail does not support spaces in path names
+    fs.touch(s"$d/x!")
+    fs.touch(s"$d/x${'"'}")
+    fs.touch(s"$d/x#")
+    fs.touch(s"$d/x$$")
+    // fs.touch(s"$d/x%") // Azure dislikes %'s
+    // java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern
+    //     at java.net.URLDecoder.decode(URLDecoder.java:187)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.decode(Utility.java:88)
+    //     at is.hail.shadedazure.com.azure.storage.common.Utility.urlDecode(Utility.java:55)
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:238) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.specialized.BlobAsyncClientBase.<init>(BlobAsyncClientBase.java:202) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobAsyncClient.<init>(BlobAsyncClient.java:154) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:194) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerAsyncClient.getBlobAsyncClient(BlobContainerAsyncClient.java:172) */
+    /* at
+     * is.hail.shadedazure.com.azure.storage.blob.BlobContainerClient.getBlobClient(BlobContainerClient.java:98) */
+    //     at is.hail.io.fs.AzureStorageFS.$anonfun$getBlobClient$1(AzureStorageFS.scala:255)
+    fs.touch(s"$d/x&")
+    fs.touch(s"$d/x'")
+    fs.touch(s"$d/x)")
+    fs.touch(s"$d/x(")
+    fs.touch(s"$d/x*")
+    fs.touch(s"$d/x+")
+    fs.touch(s"$d/x,")
+    fs.touch(s"$d/x-")
+    // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
+
+    val fle = fs.fileListEntry(s"$d/x")
+    assert(!fle.isDirectory)
+    assert(fle.isFile)
+    assert(fle.getPath == fs.parseUrl(s"$d/x").toString)
+  }
 }
 
 class HadoopFSSuite extends HailSuite with FSSuite {
@@ -445,9 +641,4 @@ class HadoopFSSuite extends HailSuite with FSSuite {
     "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
 
   override lazy val tmpdir: String = ctx.tmpdir
-
-  @Test def testETag(): Unit = {
-    val etag = fs.eTag(s"$fsResourcesRoot/a")
-    assert(etag.isEmpty)
-  }
 }

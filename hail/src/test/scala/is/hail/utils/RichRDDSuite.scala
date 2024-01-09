@@ -41,7 +41,7 @@ class RichRDDSuite extends HailSuite {
       separateHeader + "/header.gz",
       separateHeader + "/part-00000.gz",
       separateHeader + "/part-00001.gz",
-    ).flatMap((x: String) => fs.glob(x))
+    ).map(x => fs.fileStatus(x))
     fs.copyMergeList(mergeList, merged, deleteSource = false)
 
     assert(read(merged) sameElements read(concatenated))

@@ -19,7 +19,7 @@ import is.hail.utils._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
-import java.io.InputStream
+import java.io.{FileNotFoundException, InputStream}
 import java.lang.ThreadLocal
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -376,10 +376,12 @@ case class ReferenceGenome(
 
     val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
-    if (!fs.exists(fastaFile))
-      fatal(s"FASTA file '$fastaFile' does not exist or you do not have access.")
-    if (!fs.exists(indexFile))
-      fatal(s"FASTA index file '$indexFile' does not exist or you do not have access.")
+    if (!fs.isFile(fastaFile))
+      fatal(s"FASTA file '$fastaFile' does not exist, is not a file, or you do not have access.")
+    if (!fs.isFile(indexFile))
+      fatal(
+        s"FASTA index file '$indexFile' does not exist, is not a file, or you do not have access."
+      )
     fastaFilePath = fastaFile
     fastaIndexPath = indexFile
 
@@ -458,10 +460,10 @@ case class ReferenceGenome(
     val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
 
-    if (!fs.exists(chainFile))
-      fatal(s"Chain file '$chainFile' does not exist.")
+    if (!fs.isFile(chainFile))
+      fatal(s"Chain file '$chainFile' does not exist, is not a file, or you do not have access.")
 
-    val chainFilePath = fs.fileListEntry(chainFile).getPath
+    val chainFilePath = fs.parseUrl(chainFile).toString
     val lo = LiftOver(fs, chainFilePath)
     val destRG = ctx.getReference(destRGName)
     lo.checkChainFile(this, destRG)
@@ -502,7 +504,7 @@ case class ReferenceGenome(
     // since removeLiftover updates both maps, so we don't check to see if liftoverMap has
     // keys that are not in chainFiles
     for ((destRGName, chainFile) <- chainFiles) {
-      val chainFilePath = fs.fileListEntry(chainFile).getPath
+      val chainFilePath = fs.parseUrl(chainFile).toString
       liftoverMap.get(destRGName) match {
         case Some(lo) if lo.chainFile == chainFilePath => // do nothing
         case _ => liftoverMap += destRGName -> LiftOver(fs, chainFilePath)
@@ -511,8 +513,8 @@ case class ReferenceGenome(
 
     // add sequence
     if (fastaFilePath != null) {
-      val fastaPath = fs.fileListEntry(fastaFilePath).getPath
-      val indexPath = fs.fileListEntry(fastaIndexPath).getPath
+      val fastaPath = fs.parseUrl(fastaFilePath).toString
+      val indexPath = fs.parseUrl(fastaIndexPath).toString
       if (
         fastaReaderCfg == null || fastaReaderCfg.fastaFile != fastaPath || fastaReaderCfg.indexFile != indexPath
       ) {
@@ -644,10 +646,12 @@ object ReferenceGenome {
     val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
 
-    if (!fs.exists(fastaFile))
-      fatal(s"FASTA file '$fastaFile' does not exist.")
-    if (!fs.exists(indexFile))
-      fatal(s"FASTA index file '$indexFile' does not exist.")
+    if (!fs.isFile(fastaFile))
+      fatal(s"FASTA file '$fastaFile' does not exist, is not a file, or you do not have access.")
+    if (!fs.isFile(indexFile))
+      fatal(
+        s"FASTA index file '$indexFile' does not exist, is not a file, or you do not have access."
+      )
 
     val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
 
@@ -673,23 +677,28 @@ object ReferenceGenome {
   }
 
   def readReferences(fs: FS, path: String): Array[ReferenceGenome] = {
-    if (fs.exists(path)) {
-      val refs = fs.listDirectory(path)
-      val rgs = mutable.Set[ReferenceGenome]()
-      refs.foreach { fileSystem =>
-        val rgPath = fileSystem.getPath.toString
-        val rg = using(fs.open(rgPath))(read)
-        val name = rg.name
-        if (!rgs.contains(rg) && !hailReferences.contains(name))
-          rgs += rg
+    val refs =
+      try
+        fs.listDirectory(path)
+      catch {
+        case exc: FileNotFoundException =>
+          return Array()
       }
-      rgs.toArray
-    } else Array()
+
+    val rgs = mutable.Set[ReferenceGenome]()
+    refs.foreach { fileSystem =>
+      val rgPath = fileSystem.getPath.toString
+      val rg = using(fs.open(rgPath))(read)
+      val name = rg.name
+      if (!rgs.contains(rg) && !hailReferences.contains(name))
+        rgs += rg
+    }
+    rgs.toArray
   }
 
   def writeReference(fs: FS, path: String, rg: ReferenceGenome) {
     val rgPath = path + "/" + rg.name + ".json.gz"
-    if (!hailReferences.contains(rg.name) && !fs.exists(rgPath))
+    if (!hailReferences.contains(rg.name) && !fs.isFile(rgPath))
       rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
   }
 

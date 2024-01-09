@@ -345,6 +345,7 @@ class SemanticHashSuite extends HailSuite {
       override def glob(url: FakeURL): Array[FileListEntry] =
         Array(new FileListEntry {
           override def getPath: String = url.getPath
+          override def getActualUrl(): String = url.getPath
           override def getModificationTime: lang.Long = ???
           override def getLen: Long = ???
           override def isDirectory: Boolean = ???

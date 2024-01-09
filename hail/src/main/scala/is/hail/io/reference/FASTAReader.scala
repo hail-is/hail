@@ -61,9 +61,9 @@ object FASTAReader {
       fs.copyRecode(indexFile, localIndexFile)
     }
 
-    if (!fs.exists(localFastaFile))
+    if (!fs.isFile(localFastaFile))
       fatal(s"Error while copying FASTA file to local file system. Did not find '$localFastaFile'.")
-    if (!fs.exists(localIndexFile))
+    if (!fs.isFile(localIndexFile))
       fatal(
         s"Error while copying FASTA index file to local file system. Did not find '$localIndexFile'."
       )

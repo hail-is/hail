@@ -56,6 +56,8 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   def glob(url: URL): Array[FileListEntry] = url.fs.glob(url.url)
 
+  def fileStatus(url: URL): FileStatus = url.fs.fileStatus(url.url)
+
   def fileListEntry(url: URL): FileListEntry = url.fs.fileListEntry(url.url)
 
   override def eTag(url: URL): Option[String] = url.fs.eTag(url.url)

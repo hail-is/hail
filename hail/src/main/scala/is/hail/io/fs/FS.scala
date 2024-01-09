@@ -18,6 +18,7 @@ import scala.io.Source
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
+import org.apache.log4j.Logger
 
 trait Positioned {
   def getPosition: Long
@@ -62,29 +63,54 @@ trait FSURL {
   def getPath: String
 }
 
-trait FileListEntry {
+trait FileStatus {
   def getPath: String
+  def getActualUrl: String
   def getModificationTime: java.lang.Long
   def getLen: Long
-  def isDirectory: Boolean
   def isSymlink: Boolean
-  def isFile: Boolean
   def getOwner: String
+  def isFileOrFileAndDirectory: Boolean = true
+}
+
+trait FileListEntry extends FileStatus {
+  def isFile: Boolean
+  def isDirectory: Boolean
+  override def isFileOrFileAndDirectory: Boolean = isFile
+}
+
+class BlobStorageFileStatus(
+  actualUrl: String,
+  modificationTime: java.lang.Long,
+  size: Long,
+) extends FileStatus {
+  // NB: it is called getPath but it *must* return the URL *with* the scheme.
+  def getPath: String =
+    dropTrailingSlash(
+      actualUrl
+    ) // getPath is a backwards compatible method: in the past, Hail dropped trailing slashes
+  def getActualUrl: String = actualUrl
+  def getModificationTime: java.lang.Long = modificationTime
+  def getLen: Long = size
+  def isSymlink: Boolean = false
+  def getOwner: String = null
 }
 
 class BlobStorageFileListEntry(
-  path: String,
+  actualUrl: String,
   modificationTime: java.lang.Long,
   size: Long,
   isDir: Boolean,
-) extends FileListEntry {
-  def getPath: String = path
-  def getModificationTime: java.lang.Long = modificationTime
-  def getLen: Long = size
+) extends BlobStorageFileStatus(
+      actualUrl,
+      modificationTime,
+      size,
+    ) with FileListEntry {
   def isDirectory: Boolean = isDir
   def isFile: Boolean = !isDir
-  def isSymlink: Boolean = false
-  def getOwner: String = null
+  override def isFileOrFileAndDirectory = isFile
+  override def toString: String = s"BSFLE($actualUrl $modificationTime $size $isDir)"
+
 }
 
 trait CompressionCodec {
@@ -105,6 +131,8 @@ object BGZipCompressionCodec extends CompressionCodec {
 
   def makeOutputStream(os: OutputStream): OutputStream = new BGzipOutputStream(os)
 }
+
+class FileAndDirectoryException(message: String) extends RuntimeException(message)
 
 object FSUtil {
   def dropTrailingSlash(path: String): String = {
@@ -265,10 +293,14 @@ object FS {
       new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration())),
     ))
   }
+
+  private val log = Logger.getLogger(getClass.getName())
 }
 
 trait FS extends Serializable {
   type URL <: FSURL
+
+  import FS.log
 
   def parseUrl(filename: String): URL
 
@@ -378,7 +410,7 @@ trait FS extends Serializable {
 
   def glob(url: URL): Array[FileListEntry]
 
-  def globWithPrefix(prefix: URL, path: String) = {
+  def globWithPrefix(prefix: URL, path: String): Array[FileListEntry] = {
     val components =
       if (path == "")
         Array.empty[String]
@@ -429,6 +461,84 @@ trait FS extends Serializable {
 
   /** Return the file's HTTP etag, if the underlying file system supports etags. */
   def eTag(url: URL): Option[String]
+
+  final def fileStatus(filename: String): FileStatus = fileStatus(parseUrl(filename))
+
+  def fileStatus(url: URL): FileStatus
+
+  protected def fileListEntryFromIterator(
+    url: URL,
+    it: Iterator[FileListEntry],
+  ): FileListEntry = {
+    val urlStr = url.toString
+    val noSlash = dropTrailingSlash(urlStr)
+    val withSlash = noSlash + "/"
+
+    var continue = it.hasNext
+    var fileFle: FileListEntry = null
+    var trailingSlashFle: FileListEntry = null
+    var dirFle: FileListEntry = null
+    while (continue) {
+      val fle = it.next()
+
+      if (fle.isFile) {
+        if (fle.getActualUrl == noSlash) {
+          fileFle = fle
+        } else if (fle.getActualUrl == withSlash) {
+          // This is a *blob* whose name has a trailing slash e.g. "gs://bucket/object/". Users
+          // really ought to avoid creating these.
+          trailingSlashFle = fle
+        }
+      } else if (fle.isDirectory && dropTrailingSlash(fle.getActualUrl) == noSlash) {
+        // In Google, "directory" entries always have a trailing slash.
+        //
+        // In Azure, "directory" entries never have a trailing slash.
+        dirFle = fle
+      }
+
+      continue =
+        it.hasNext && (fle.getActualUrl <= withSlash) // cloud storage APIs return blobs in alphabetical order, so we need not keep searching after withSlash
+    }
+
+    if (fileFle != null) {
+      if (dirFle != null) {
+        if (trailingSlashFle != null) {
+          throw new FileAndDirectoryException(
+            s"${url.toString} appears twice as a file (once with and once without a trailing slash) and once as a directory."
+          )
+        } else {
+          throw new FileAndDirectoryException(
+            s"${url.toString} appears as both file ${fileFle.getActualUrl} and directory ${dirFle.getActualUrl}."
+          )
+        }
+      } else {
+        if (trailingSlashFle != null) {
+          log.warn(
+            s"Two blobs exist matching ${url.toString}: once with and once without a trailing slash. We will return the one without a trailing slash."
+          )
+        }
+        fileFle
+      }
+    } else {
+      if (dirFle != null) {
+        if (trailingSlashFle != null) {
+          log.warn(
+            s"A blob with a literal trailing slash exists as well as blobs with that prefix. We will treat this as a directory. ${url.toString}"
+          )
+        }
+        dirFle
+      } else {
+        if (trailingSlashFle != null) {
+          throw new FileNotFoundException(
+            s"A blob with a literal trailing slash exists. These are sometimes uses to indicate empty directories. " +
+              s"Hail does not support this behavior. This folder is treated as if it does not exist. ${url.toString}"
+          )
+        } else {
+          throw new FileNotFoundException(url.toString)
+        }
+      }
+    }
+  }
 
   final def fileListEntry(filename: String): FileListEntry = fileListEntry(parseUrl(filename))
 
@@ -492,13 +602,13 @@ trait FS extends Serializable {
 
   final def getFileSize(filename: String): Long = getFileSize(parseUrl(filename))
 
-  def getFileSize(url: URL): Long = fileListEntry(url).getLen
+  def getFileSize(url: URL): Long = fileStatus(url).getLen
 
   final def isFile(filename: String): Boolean = isFile(parseUrl(filename))
 
   final def isFile(url: URL): Boolean =
     try
-      fileListEntry(url).isFile
+      fileStatus(url).isFileOrFileAndDirectory
     catch {
       case _: FileNotFoundException => false
     }
@@ -601,21 +711,22 @@ trait FS extends Serializable {
     else if (!header && headerFileListEntry.nonEmpty)
       fatal(s"Found unexpected header file")
 
-    val partFileListEntries = partFilesOpt match {
+    val partFileStatuses: Array[_ <: FileStatus] = partFilesOpt match {
       case None => glob(sourceFolder + "/part-*")
-      case Some(files) => files.map(f => fileListEntry(sourceFolder + "/" + f)).toArray
+      case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
     }
-    val sortedPartFileListEntries =
-      partFileListEntries.sortBy(fs => getPartNumber(new hadoop.fs.Path(fs.getPath).getName))
-    if (sortedPartFileListEntries.length != numPartFilesExpected)
-      fatal(
-        s"Expected $numPartFilesExpected part files but found ${sortedPartFileListEntries.length}"
-      )
 
-    val filesToMerge = headerFileListEntry ++ sortedPartFileListEntries
+    val sortedPartFileStatuses = partFileStatuses.sortBy { fileStatus =>
+      getPartNumber(fileStatus.getPath)
+    }
+
+    if (sortedPartFileStatuses.length != numPartFilesExpected)
+      fatal(s"Expected $numPartFilesExpected part files but found ${sortedPartFileStatuses.length}")
+
+    val filesToMerge: Array[FileStatus] = headerFileListEntry ++ sortedPartFileStatuses
 
     info(s"merging ${filesToMerge.length} files totalling " +
-      s"${readableBytes(sortedPartFileListEntries.map(_.getLen).sum)}...")
+      s"${readableBytes(filesToMerge.map(_.getLen).sum)}...")
 
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
@@ -631,22 +742,22 @@ trait FS extends Serializable {
   }
 
   def copyMergeList(
-    srcFileListEntries: Array[FileListEntry],
+    srcFileStatuses: Array[_ <: FileStatus],
     destFilename: String,
     deleteSource: Boolean = true,
   ) {
     val codec = Option(getCodecFromPath(destFilename))
     val isBGzip = codec.exists(_ == BGZipCompressionCodec)
 
-    require(srcFileListEntries.forall {
-      fileListEntry => fileListEntry.getPath != destFilename && fileListEntry.isFile
+    require(srcFileStatuses.forall {
+      fileStatus => fileStatus.getPath != destFilename && fileStatus.isFileOrFileAndDirectory
     })
 
     using(createNoCompression(destFilename)) { os =>
       var i = 0
-      while (i < srcFileListEntries.length) {
-        val fileListEntry = srcFileListEntries(i)
-        val lenAdjust: Long = if (isBGzip && i < srcFileListEntries.length - 1)
+      while (i < srcFileStatuses.length) {
+        val fileListEntry = srcFileStatuses(i)
+        val lenAdjust: Long = if (isBGzip && i < srcFileStatuses.length - 1)
           -28
         else
           0
@@ -658,19 +769,17 @@ trait FS extends Serializable {
     }
 
     if (deleteSource) {
-      srcFileListEntries.foreach { fileListEntry =>
-        delete(fileListEntry.getPath.toString, recursive = true)
-      }
+      srcFileStatuses.foreach(fileStatus => delete(fileStatus.getPath, recursive = true))
     }
   }
 
   def concatenateFiles(sourceNames: Array[String], destFilename: String): Unit = {
-    val fileListEntries = sourceNames.map(fileListEntry(_))
+    val fileStatuses = sourceNames.map(fileStatus(_))
 
-    info(s"merging ${fileListEntries.length} files totalling " +
-      s"${readableBytes(fileListEntries.map(_.getLen).sum)}...")
+    info(s"merging ${fileStatuses.length} files totalling " +
+      s"${readableBytes(fileStatuses.map(_.getLen).sum)}...")
 
-    val (_, timing) = time(copyMergeList(fileListEntries, destFilename, deleteSource = false))
+    val (_, timing) = time(copyMergeList(fileStatuses, destFilename, deleteSource = false))
 
     info(s"while writing:\n    $destFilename\n  merge time: ${formatTime(timing)}")
   }
