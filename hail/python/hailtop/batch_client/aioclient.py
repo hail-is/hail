@@ -322,14 +322,15 @@ class JobGroupNotSubmittedError(Exception):
 
 
 class JobGroup:
-    def __init__(self,
-                 batch: 'Batch',
-                 job_group_id: Union[AbsoluteJobGroupId, InUpdateJobGroupId],
-                 *,
-                 attributes: Optional[dict] = None,
-                 callback: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None,
-                 ):
+    def __init__(
+        self,
+        batch: 'Batch',
+        job_group_id: Union[AbsoluteJobGroupId, InUpdateJobGroupId],
+        *,
+        attributes: Optional[dict] = None,
+        callback: Optional[str] = None,
+        cancel_after_n_failures: Optional[int] = None,
+    ):
         self._batch = batch
         self._job_group_id = job_group_id
 
@@ -384,11 +385,12 @@ class JobGroup:
         self._raise_if_not_submitted()
         await self._client._patch(f'/api/v1alpha/batches/{self.batch_id}/job-groups/{self.job_group_id}/cancel')
 
-    async def jobs(self,
-                   q: Optional[str] = None,
-                   version: Optional[int] = None,
-                   recursive: bool = False,
-                   ) -> AsyncIterator[JobListEntryV1Alpha]:
+    async def jobs(
+        self,
+        q: Optional[str] = None,
+        version: Optional[int] = None,
+        recursive: bool = False,
+    ) -> AsyncIterator[JobListEntryV1Alpha]:
         self._raise_if_not_submitted()
         if version is None:
             version = 1
@@ -399,11 +401,10 @@ class JobGroup:
                 params['q'] = q
             if last_job_id is not None:
                 params['last_job_id'] = last_job_id
-            resp = await self._client._get(f'/api/v{version}alpha/batches/{self.batch_id}/job-groups/{self.job_group_id}/jobs', params=params)
-            body = cast(
-                GetJobsResponseV1Alpha,
-                await resp.json()
+            resp = await self._client._get(
+                f'/api/v{version}alpha/batches/{self.batch_id}/job-groups/{self.job_group_id}/jobs', params=params
             )
+            body = cast(GetJobsResponseV1Alpha, await resp.json())
             for job in body['jobs']:
                 yield job
             last_job_id = body.get('last_job_id')
@@ -441,11 +442,12 @@ class JobGroup:
         return self._last_known_status
 
     # FIXME Error if this is called while in a job within the same job group
-    async def _wait(self,
-                    description: str,
-                    progress: BatchProgressBar,
-                    disable_progress_bar: bool,
-                    ) -> Dict[str, Any]:
+    async def _wait(
+        self,
+        description: str,
+        progress: BatchProgressBar,
+        disable_progress_bar: bool,
+    ) -> Dict[str, Any]:
         self._raise_if_not_submitted()
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{self.batch_id}')
@@ -457,27 +459,22 @@ class JobGroup:
         else:
             description += url
 
-        with progress.with_task(description,
-                                total=status['n_jobs'],
-                                disable=disable_progress_bar) as progress_task:
+        with progress.with_task(description, total=status['n_jobs'], disable=disable_progress_bar) as progress_task:
             while True:
                 status = await self.status()
                 progress_task.update(None, total=status['n_jobs'], completed=status['n_completed'])
                 if status['complete']:
                     return status
-                j = random.randrange(math.floor(1.1 ** i))
+                j = random.randrange(math.floor(1.1**i))
                 await asyncio.sleep(0.100 * j)
                 # max 44.5s
                 if i < 64:
                     i = i + 1
 
     # FIXME Error if this is called while in a job within the same job group
-    async def wait(self,
-                   *,
-                   disable_progress_bar: bool = False,
-                   description: str = '',
-                   progress: Optional[BatchProgressBar] = None
-                   ) -> Dict[str, Any]:
+    async def wait(
+        self, *, disable_progress_bar: bool = False, description: str = '', progress: Optional[BatchProgressBar] = None
+    ) -> Dict[str, Any]:
         self._raise_if_not_submitted()
         if description:
             description += ': '
@@ -562,10 +559,7 @@ class Batch:
         self._raise_if_not_created()
         await self._root_job_group.cancel()
 
-    def jobs(self,
-             q: Optional[str] = None,
-             version: Optional[int] = None
-             ) -> AsyncIterator[JobListEntryV1Alpha]:
+    def jobs(self, q: Optional[str] = None, version: Optional[int] = None) -> AsyncIterator[JobListEntryV1Alpha]:
         self._raise_if_not_created()
         return self._root_job_group.jobs(q, version, recursive=True)
 
@@ -613,12 +607,9 @@ class Batch:
         return self._last_known_status
 
     # FIXME Error if this is called while within a job of the same Batch
-    async def _wait(self,
-                    description: str,
-                    progress: BatchProgressBar,
-                    disable_progress_bar: bool,
-                    starting_job: int
-                    ) -> Dict[str, Any]:
+    async def _wait(
+        self, description: str, progress: BatchProgressBar, disable_progress_bar: bool, starting_job: int
+    ) -> Dict[str, Any]:
         self._raise_if_not_created()
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{self.id}')
@@ -628,28 +619,31 @@ class Batch:
             description += f'[link={url}]{self.id}[/link]'
         else:
             description += url
-        with progress.with_task(description,
-                                total=status['n_jobs'] - starting_job + 1,
-                                disable=disable_progress_bar) as progress_task:
+        with progress.with_task(
+            description, total=status['n_jobs'] - starting_job + 1, disable=disable_progress_bar
+        ) as progress_task:
             while True:
                 status = await self.status()
-                progress_task.update(None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1)
+                progress_task.update(
+                    None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1
+                )
                 if status['complete']:
                     return status
-                j = random.randrange(math.floor(1.1 ** i))
+                j = random.randrange(math.floor(1.1**i))
                 await asyncio.sleep(0.100 * j)
                 # max 44.5s
                 if i < 64:
                     i = i + 1
 
     # FIXME Error if this is called while in a job within the same Batch
-    async def wait(self,
-                   *,
-                   disable_progress_bar: bool = False,
-                   description: str = '',
-                   progress: Optional[BatchProgressBar] = None,
-                   starting_job: int = 1,
-                   ) -> Dict[str, Any]:
+    async def wait(
+        self,
+        *,
+        disable_progress_bar: bool = False,
+        description: str = '',
+        progress: Optional[BatchProgressBar] = None,
+        starting_job: int = 1,
+    ) -> Dict[str, Any]:
         self._raise_if_not_created()
         if description:
             description += ': '
@@ -658,10 +652,11 @@ class Batch:
         with BatchProgressBar(disable=disable_progress_bar) as progress2:
             return await self._wait(description, progress2, disable_progress_bar, starting_job)
 
-    async def debug_info(self,
-                         _jobs_query_string: Optional[str] = None,
-                         _max_jobs: Optional[int] = None,
-                         ) -> BatchDebugInfo:
+    async def debug_info(
+        self,
+        _jobs_query_string: Optional[str] = None,
+        _max_jobs: Optional[int] = None,
+    ) -> BatchDebugInfo:
         self._raise_if_not_created()
         batch_status = await self.status()
         jobs = []

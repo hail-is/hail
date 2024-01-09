@@ -121,10 +121,7 @@ class JobGroup:
     def cancel(self):
         return async_to_blocking(self._async_job_group.cancel())
 
-    def jobs(self,
-             q: Optional[str] = None,
-             version: Optional[int] = None,
-             recursive: bool = False):
+    def jobs(self, q: Optional[str] = None, version: Optional[int] = None, recursive: bool = False):
         return ait_to_blocking(self._async_job_group.jobs(q, version, recursive))
 
     # {
