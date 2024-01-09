@@ -175,6 +175,26 @@ class RequirednessSuite extends HailSuite {
     // test bindings
     nodes += Array(bindIR(nestedarray(required, optional, optional)) { v => ArrayRef(v, I32(0)) },
       PCanonicalArray(PInt32(optional), optional))
+    nodes += {
+      val arr = array(required, required)
+      val elemType = TIterable.elementType(arr.typ)
+      Array(
+        Let(
+          FastSeq(
+            iruid(0) -> int(optional),
+            iruid(1) -> arr,
+            iruid(2) -> ToStream(Ref(iruid(1), arr.typ)),
+            iruid(4) -> StreamMap(Ref(iruid(2), TStream(elemType)), iruid(3),
+              ApplyBinaryPrimOp(Multiply(), Ref(iruid(3), elemType), Ref(iruid(0), elemType))
+            ),
+            iruid(5) -> ToArray(Ref(iruid(4), TStream(elemType))),
+            iruid(6) -> int(required)
+          ),
+          ArrayRef(Ref(iruid(5), arr.typ), Ref(iruid(6), TInt32))
+        ),
+        pint(optional)
+      )
+    }
     // filter
     nodes += Array(StreamFilter(stream(optional, optional), "x", Ref("x", TInt32).ceq(0)),
       EmitType(SStream(EmitType(SInt32, optional)), optional))
@@ -200,9 +220,12 @@ class RequirednessSuite extends HailSuite {
     // TailLoop
     val param1 = Ref(genUID(), tarray)
     val param2 = Ref(genUID(), TInt32)
-    val loop = TailLoop("loop", FastSeq(
-      param1.name -> array(required, required),
-      param2.name -> int(required)),
+    val loop = TailLoop(
+      "loop",
+      FastSeq(
+        param1.name -> array(required, required),
+        param2.name -> int(required)),
+      tnestedarray,
       If(False(), // required
         MakeArray(FastSeq(param1), tnestedarray), // required
         If(param2 <= I32(1), // possibly missing
@@ -213,6 +236,15 @@ class RequirednessSuite extends HailSuite {
             array(optional, required),
             int(optional)), tnestedarray))))
     nodes += Array(loop, PCanonicalArray(PCanonicalArray(PInt32(optional), optional), optional))
+    // Switch
+    for ((x, d, cs, r) <- Array(
+      (required, required, FastSeq(required), required),
+      (optional, required, FastSeq(required), optional),
+      (required, optional, FastSeq(required), optional),
+      (required, required, FastSeq(optional), optional),
+    )) {
+      nodes += Array(Switch(int(x), int(d), cs.map(int)), PInt32(r))
+    }
     // ArrayZip
     val s1 = Ref(genUID(), TInt32)
     val s2 = Ref(genUID(), TInt32)
@@ -483,7 +515,7 @@ class RequirednessSuite extends HailSuite {
 
   @Test def sharedNodesWorkCorrectly(): Unit = {
     val n1 = Ref("foo", TInt32)
-    val n2 = Let("foo", I32(1), MakeStruct(FastSeq("a" -> n1, "b" -> n1)))
+    val n2 = Let(FastSeq("foo" -> I32(1)), MakeStruct(FastSeq("a" -> n1, "b" -> n1)))
     val node = InsertFields(n2, FastSeq("c" -> GetField(n2, "a"), "d" -> GetField(n2, "b")))
     val res = Requiredness.apply(node, ctx)
     val actual = tcoerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)

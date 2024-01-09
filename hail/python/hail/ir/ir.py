@@ -1,5 +1,6 @@
 from typing import Callable, Optional, TypeVar, cast
 from typing_extensions import ParamSpec
+import base64
 import copy
 import json
 from collections import defaultdict
@@ -7,12 +8,40 @@ from collections import defaultdict
 from hailtop.hail_decorator import decorator
 
 import hail
-from hail.expr.types import HailType, hail_type, tint32, tint64, \
-    tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
-    tstruct, ttuple, tinterval, tvoid, trngstate, tlocus, tcall
+from hail.expr.types import (
+    HailType,
+    hail_type,
+    tint32,
+    tint64,
+    tfloat32,
+    tfloat64,
+    tstr,
+    tbool,
+    tarray,
+    tstream,
+    tndarray,
+    tset,
+    tdict,
+    tstruct,
+    ttuple,
+    tinterval,
+    tvoid,
+    trngstate,
+    tlocus,
+    tcall,
+)
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
-from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
-    sized_tupleof, nullable, tupleof, anytype, func_spec
+from hail.typecheck import (
+    typecheck,
+    typecheck_method,
+    sequenceof,
+    numeric,
+    sized_tupleof,
+    nullable,
+    tupleof,
+    anytype,
+    func_spec,
+)
 from hail.utils.java import Env, HailUserError
 from hail.utils.jsonx import dump_json
 from hail.utils.misc import escape_str, parsable_strings, escape_id
@@ -239,9 +268,7 @@ class If(IR):
         self.needs_randomness_handling = cnsq.needs_randomness_handling or altr.needs_randomness_handling
 
     def _handle_randomness(self, create_uids):
-        return If(self.cond,
-                  self.cnsq.handle_randomness(create_uids),
-                  self.altr.handle_randomness(create_uids))
+        return If(self.cond, self.cnsq.handle_randomness(create_uids), self.altr.handle_randomness(create_uids))
 
     @typecheck_method(cond=IR, cnsq=IR, altr=IR)
     def copy(self, cond, cnsq, altr):
@@ -251,7 +278,7 @@ class If(IR):
         self.cond.compute_type(env, agg_env, deep_typecheck)
         self.cnsq.compute_type(env, agg_env, deep_typecheck)
         self.altr.compute_type(env, agg_env, deep_typecheck)
-        assert (self.cnsq.typ == self.altr.typ)
+        assert self.cnsq.typ == self.altr.typ
         return self.cnsq.typ
 
     def renderable_new_block(self, i):
@@ -290,6 +317,10 @@ class Let(IR):
 
     def _handle_randomness(self, create_uids):
         return Let(self.name, self.value, self.body.handle_randomness(create_uids))
+
+    @property
+    def might_be_stream(self):
+        return self.body.might_be_stream
 
     @typecheck_method(value=IR, body=IR)
     def copy(self, value, body):
@@ -390,10 +421,12 @@ class Ref(IR):
         if create_uids:
             elt = Env.get_uid()
             uid = Env.get_uid()
-            return StreamZip([self, StreamIota(I32(0), I32(1))],
-                             [elt, uid],
-                             pack_uid(Cast(Ref(uid, tint32), tint64), Ref(elt, self.typ.element_type)),
-                             'TakeMinLength')
+            return StreamZip(
+                [self, StreamIota(I32(0), I32(1))],
+                [elt, uid],
+                pack_uid(Cast(Ref(uid, tint32), tint64), Ref(elt, self.typ.element_type)),
+                'TakeMinLength',
+            )
         else:
             tuple, uid, elt = unpack_uid(self.typ)
             return StreamMap(self, tuple, elt)
@@ -449,7 +482,7 @@ class TailLoop(IR):
         return TailLoop(self.name, [(n, v) for (n, _), v in zip(self.params, params)], body)
 
     def head_str(self):
-        return f'{escape_id(self.name)} ({" ".join([escape_id(n) for n, _ in self.params])})'
+        return f'{escape_id(self.name)} ({" ".join([escape_id(n) for n, _ in self.params])}) {self.body.typ._parsable_string()}'
 
     def _eq(self, other):
         return self.name == other.name
@@ -488,7 +521,7 @@ class Recur(IR):
         return Recur(self.name, args, self.return_type)
 
     def head_str(self):
-        return f'{escape_id(self.name)} {self.return_type._parsable_string()}'
+        return f'{escape_id(self.name)}'
 
     def _eq(self, other):
         return other.name == self.name
@@ -749,8 +782,9 @@ class StreamIota(IR):
 
     @typecheck_method(start=IR, step=IR)
     def copy(self, start, step):
-        return StreamIota(start, step,
-                          requires_memory_management_per_element=self.requires_memory_management_per_element)
+        return StreamIota(
+            start, step, requires_memory_management_per_element=self.requires_memory_management_per_element
+        )
 
     def head_str(self):
         return f'{self.requires_memory_management_per_element}'
@@ -762,10 +796,17 @@ class StreamIota(IR):
 
 
 class StreamRange(IR):
-    @typecheck_method(start=IR, stop=IR, step=IR, requires_memory_management_per_element=bool,
-                      error_id=nullable(int), stack_trace=nullable(str))
-    def __init__(self, start, stop, step, requires_memory_management_per_element=False,
-                 error_id=None, stack_trace=None):
+    @typecheck_method(
+        start=IR,
+        stop=IR,
+        step=IR,
+        requires_memory_management_per_element=bool,
+        error_id=nullable(int),
+        stack_trace=nullable(str),
+    )
+    def __init__(
+        self, start, stop, step, requires_memory_management_per_element=False, error_id=None, stack_trace=None
+    ):
         super().__init__(start, stop, step)
         self.start = start
         self.stop = stop
@@ -804,8 +845,8 @@ class StreamGrouped(IR):
         self.needs_randomness_handling = stream.needs_randomness_handling
 
     def _handle_randomness(self, create_uids):
-        assert(not create_uids)
-        assert(self.stream.needs_randomness_handling)
+        assert not create_uids
+        assert self.stream.needs_randomness_handling
         self.stream.handle_randomness(False)
 
     @typecheck_method(stream=IR, group_size=IR)
@@ -885,7 +926,7 @@ class NDArrayReshape(IR):
 class NDArrayMap(IR):
     @typecheck_method(nd=IR, name=str, body=IR)
     def __init__(self, nd, name, body):
-        assert(not body.uses_randomness)
+        assert not body.uses_randomness
         super().__init__(nd, body)
         self.nd = nd
         self.name = name
@@ -922,7 +963,9 @@ class NDArrayMap(IR):
 
 
 class NDArrayMap2(IR):
-    @typecheck_method(left=IR, right=IR, lname=str, rname=str, body=IR, error_id=nullable(int), stack_trace=nullable(str))
+    @typecheck_method(
+        left=IR, right=IR, lname=str, rname=str, body=IR, error_id=nullable(int), stack_trace=nullable(str)
+    )
     def __init__(self, left, right, lname, rname, body, error_id=None, stack_trace=None):
         super().__init__(left, right, body)
         self.right = right
@@ -943,8 +986,7 @@ class NDArrayMap2(IR):
         return f'{self._error_id} {escape_id(self.lname)} {escape_id(self.rname)}'
 
     def _eq(self, other):
-        return self.lname == other.lname and \
-            self.rname == other.rname
+        return self.lname == other.lname and self.rname == other.rname
 
     @property
     def bound_variables(self):
@@ -1003,8 +1045,7 @@ class NDArraySlice(IR):
         self.nd.compute_type(env, agg_env, deep_typecheck)
         self.slices.compute_type(env, agg_env, deep_typecheck)
 
-        return tndarray(self.nd.typ.element_type,
-                        len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
+        return tndarray(self.nd.typ.element_type, len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
 
 
 class NDArrayReindex(IR):
@@ -1078,8 +1119,8 @@ class NDArrayMatMul(IR):
 
         ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.left.typ.ndim, self.right.typ.ndim)
         from hail.expr.expressions import unify_types
-        return tndarray(unify_types(self.left.typ.element_type,
-                                    self.right.typ.element_type), ndim)
+
+        return tndarray(unify_types(self.left.typ.element_type, self.right.typ.element_type), ndim)
 
 
 class NDArrayQR(IR):
@@ -1198,8 +1239,7 @@ class NDArrayConcat(IR):
         return self.axis
 
     def _eq(self, other):
-        return other.nds == self.nds and \
-            other.axis == self.axis
+        return other.nds == self.nds and other.axis == self.axis
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.nds.compute_type(env, agg_env, deep_typecheck)
@@ -1356,7 +1396,12 @@ class ToStream(IR):
         uid = Env.get_uid()
         elt = Env.get_uid()
         iota = StreamIota(I32(0), I32(1))
-        return StreamZip([self, iota], [elt, uid], MakeTuple([Cast(Ref(uid, tint32), tint64), Ref(elt, self.typ.element_type)]), 'TakeMinLength')
+        return StreamZip(
+            [self, iota],
+            [elt, uid],
+            MakeTuple([Cast(Ref(uid, tint32), tint64), Ref(elt, self.typ.element_type)]),
+            'TakeMinLength',
+        )
 
     @typecheck_method(a=IR)
     def copy(self, a):
@@ -1371,13 +1416,9 @@ class ToStream(IR):
 
 
 class StreamZipJoinProducers(IR):
-    @typecheck_method(contexts=IR,
-                      ctx_name=str,
-                      make_producer=IR,
-                      key=sequenceof(str),
-                      cur_key=str,
-                      cur_vals=str,
-                      join_f=IR)
+    @typecheck_method(
+        contexts=IR, ctx_name=str, make_producer=IR, key=sequenceof(str), cur_key=str, cur_vals=str, join_f=IR
+    )
     def __init__(self, contexts, ctx_name, make_producer, key, cur_key, cur_vals, join_f):
         super().__init__(contexts, make_producer, join_f)
         self.contexts = contexts
@@ -1395,12 +1436,14 @@ class StreamZipJoinProducers(IR):
     @typecheck_method(new_ir=IR)
     def copy(self, *new_irs):
         assert len(new_irs) == 3
-        return StreamZipJoinProducers(new_irs[0], self.ctx_name, new_irs[1],
-                                      self.key, self.cur_key, self.cur_vals, new_irs[2])
+        return StreamZipJoinProducers(
+            new_irs[0], self.ctx_name, new_irs[1], self.key, self.cur_key, self.cur_vals, new_irs[2]
+        )
 
     def head_str(self):
-        return '({}) {} {} {}'.format(' '.join([escape_id(x) for x in self.key]), self.ctx_name,
-                                      self.cur_key, self.cur_vals)
+        return '({}) {} {} {}'.format(
+            ' '.join([escape_id(x) for x in self.key]), self.ctx_name, self.cur_key, self.cur_vals
+        )
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.contexts.compute_type(env, agg_env, deep_typecheck)
@@ -1454,7 +1497,9 @@ class StreamZipJoin(IR):
         return StreamZipJoin(new_irs[:-1], self.key, self.cur_key, self.cur_vals, new_irs[-1])
 
     def head_str(self):
-        return '{} ({}) {} {}'.format(len(self.streams), ' '.join([escape_id(x) for x in self.key]), self.cur_key, self.cur_vals)
+        return '{} ({}) {} {}'.format(
+            len(self.streams), ' '.join([escape_id(x) for x in self.key]), self.cur_key, self.cur_vals
+        )
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         for stream in self.streams:
@@ -1539,8 +1584,7 @@ class GroupByKey(IR):
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.collection.compute_type(env, agg_env, deep_typecheck)
-        return tdict(self.collection.typ.element_type.types[0],
-                     tarray(self.collection.typ.element_type.types[1]))
+        return tdict(self.collection.typ.element_type.types[0], tarray(self.collection.typ.element_type.types[1]))
 
 
 uid_field_name = '__uid'
@@ -1567,7 +1611,7 @@ def pad_uid(uid, type, tag=None):
     padding = padded - size
     if tag is not None:
         padding -= 1
-    assert(padding >= 0)
+    assert padding >= 0
     if size == 1:
         fields = (uid,)
     else:
@@ -1600,11 +1644,11 @@ def unpack_uid(stream_type, name=None):
     tuple_type = stream_type.element_type
     tuple = Ref(name or Env.get_uid(), tuple_type)
     if isinstance(tuple_type, tstruct):
-        return \
-            tuple.name, \
-            GetField(tuple, uid_field_name), \
-            SelectFields(tuple, [field for field in tuple_type.fields if
-                                 not field == uid_field_name])
+        return (
+            tuple.name,
+            GetField(tuple, uid_field_name),
+            SelectFields(tuple, [field for field in tuple_type.fields if not field == uid_field_name]),
+        )
     else:
         return tuple.name, GetTupleElement(tuple, 0), GetTupleElement(tuple, 1)
 
@@ -1618,9 +1662,9 @@ def pack_to_structs(stream):
         return stream
     uid = Env.get_uid()
     elt = Ref(uid, stream.typ.element_type)
-    return StreamMap(stream, uid, InsertFields(GetTupleElement(elt, 1),
-                                               [(uid_field_name, GetTupleElement(elt, 0))],
-                                               None))
+    return StreamMap(
+        stream, uid, InsertFields(GetTupleElement(elt, 1), [(uid_field_name, GetTupleElement(elt, 0))], None)
+    )
 
 
 def with_split_rng_state(ir, split, is_scan=None) -> 'BaseIR':
@@ -1669,7 +1713,7 @@ class StreamMap(IR):
             return StreamMap(a, self.name, self.body)
 
         if isinstance(self.typ.element_type, tstream):
-            assert(self.body.uses_randomness and not create_uids)
+            assert self.body.uses_randomness and not create_uids
             a = self.a.handle_randomness(False)
             uid = Env.get_uid()
             elt = Env.get_uid()
@@ -1680,7 +1724,7 @@ class StreamMap(IR):
             # There are occations when handle_randomness is called twice on a
             # `StreamMap`: once with `create_uids=False` and the second time
             # with `True`. In these cases, we only need to propagate the uid.
-            assert(create_uids)
+            assert create_uids
             _, uid, _ = unpack_uid(self.a.typ, self.name)
             new_body = pack_uid(uid, self.body)
             return StreamMap(self.a, self.name, new_body)
@@ -1726,8 +1770,14 @@ class StreamMap(IR):
 
 
 class StreamZip(IR):
-    @typecheck_method(streams=sequenceof(IR), names=sequenceof(str), body=IR, behavior=str,
-                      error_id=nullable(int), stack_trace=nullable(str))
+    @typecheck_method(
+        streams=sequenceof(IR),
+        names=sequenceof(str),
+        body=IR,
+        behavior=str,
+        error_id=nullable(int),
+        stack_trace=nullable(str),
+    )
     def __init__(self, streams, names, body, behavior, error_id=None, stack_trace=None):
         super().__init__(*streams, body)
         self.streams = streams
@@ -1738,7 +1788,9 @@ class StreamZip(IR):
         self._stack_trace = stack_trace
         if error_id is None or stack_trace is None:
             self.save_error_info()
-        self.needs_randomness_handling = any(stream.needs_randomness_handling for stream in streams) or body.uses_randomness
+        self.needs_randomness_handling = (
+            any(stream.needs_randomness_handling for stream in streams) or body.uses_randomness
+        )
 
     def _handle_randomness(self, create_uids):
         if not self.body.uses_randomness and not create_uids:
@@ -1759,14 +1811,19 @@ class StreamZip(IR):
                 new_body = pack_uid(uid, new_body)
             return StreamZip(new_streams, tuples, new_body, self.behavior, self._error_id, self._stack_trace)
 
-        new_streams = [self.streams[0].handle_randomness(True), *(stream.handle_randomness(False) for stream in self.streams[1:])]
+        new_streams = [
+            self.streams[0].handle_randomness(True),
+            *(stream.handle_randomness(False) for stream in self.streams[1:]),
+        ]
         tuple, uid, elt = unpack_uid(new_streams[0].typ)
         new_body = Let(self.names[0], elt, self.body)
         if self.body.uses_randomness:
             new_body = with_split_rng_state(new_body, uid)
         if create_uids:
             new_body = pack_uid(uid, new_body)
-        return StreamZip(new_streams, [tuple, *self.names[1:]], new_body, self.behavior, self._error_id, self._stack_trace)
+        return StreamZip(
+            new_streams, [tuple, *self.names[1:]], new_body, self.behavior, self._error_id, self._stack_trace
+        )
 
     @typecheck_method(children=IR)
     def copy(self, *children):
@@ -1790,7 +1847,10 @@ class StreamZip(IR):
 
     def renderable_bindings(self, i, default_value=None):
         if i == len(self.names):
-            return {name: default_value if default_value is not None else a.typ.element_type for name, a in zip(self.names, self.streams)}
+            return {
+                name: default_value if default_value is not None else a.typ.element_type
+                for name, a in zip(self.names, self.streams)
+            }
         else:
             return {}
 
@@ -1929,8 +1989,7 @@ class StreamFold(IR):
         return f'{escape_id(self.accum_name)} {escape_id(self.value_name)}'
 
     def _eq(self, other):
-        return other.accum_name == self.accum_name and \
-            other.value_name == self.value_name
+        return other.accum_name == self.accum_name and other.value_name == self.value_name
 
     @property
     def bound_variables(self):
@@ -1985,8 +2044,7 @@ class StreamScan(IR):
         return f'{escape_id(self.accum_name)} {escape_id(self.value_name)}'
 
     def _eq(self, other):
-        return other.accum_name == self.accum_name and \
-            other.value_name == self.value_name
+        return other.accum_name == self.accum_name and other.value_name == self.value_name
 
     @property
     def bound_variables(self):
@@ -2009,8 +2067,19 @@ class StreamScan(IR):
 
 
 class StreamWhiten(IR):
-    @typecheck_method(stream=IR, new_chunk=str, prev_window=str, vec_size=int, window_size=int, chunk_size=int, block_size=int, normalize_after_whiten=bool)
-    def __init__(self, stream, new_chunk, prev_window, vec_size, window_size, chunk_size, block_size, normalize_after_whiten):
+    @typecheck_method(
+        stream=IR,
+        new_chunk=str,
+        prev_window=str,
+        vec_size=int,
+        window_size=int,
+        chunk_size=int,
+        block_size=int,
+        normalize_after_whiten=bool,
+    )
+    def __init__(
+        self, stream, new_chunk, prev_window, vec_size, window_size, chunk_size, block_size, normalize_after_whiten
+    ):
         super().__init__(stream)
         self.stream = stream
         self.new_chunk = new_chunk
@@ -2023,19 +2092,30 @@ class StreamWhiten(IR):
 
     @typecheck_method(stream=IR)
     def copy(self, stream):
-        return StreamWhiten(stream, self.new_chunk, self.prev_window, self.vec_size, self.window_size, self.chunk_size, self.block_size, self.normalize_after_whiten)
+        return StreamWhiten(
+            stream,
+            self.new_chunk,
+            self.prev_window,
+            self.vec_size,
+            self.window_size,
+            self.chunk_size,
+            self.block_size,
+            self.normalize_after_whiten,
+        )
 
     def head_str(self):
         return f'{escape_id(self.new_chunk)} {escape_id(self.prev_window)} {self.vec_size} {self.window_size} {self.chunk_size} {self.block_size} {self.normalize_after_whiten}'
 
     def _eq(self, other):
-        return other.new_chunk == self.new_chunk and \
-            other.prev_window == self.prev_window and \
-            other.vec_size == self.vec_size and \
-            other.window_size == self.window_size and \
-            other.chunk_size == self.chunk_size and \
-            other.block_size == self.block_size and \
-            other.normalize_after_whiten == self.normalize_after_whiten
+        return (
+            other.new_chunk == self.new_chunk
+            and other.prev_window == self.prev_window
+            and other.vec_size == self.vec_size
+            and other.window_size == self.window_size
+            and other.chunk_size == self.chunk_size
+            and other.block_size == self.block_size
+            and other.normalize_after_whiten == self.normalize_after_whiten
+        )
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.stream._compute_type(env, agg_env, deep_typecheck)
@@ -2043,7 +2123,9 @@ class StreamWhiten(IR):
 
 
 class StreamJoinRightDistinct(IR):
-    @typecheck_method(left=IR, right=IR, l_key=sequenceof(str), r_key=sequenceof(str), l_name=str, r_name=str, join=IR, join_type=str)
+    @typecheck_method(
+        left=IR, right=IR, l_key=sequenceof(str), r_key=sequenceof(str), l_name=str, r_name=str, join=IR, join_type=str
+    )
     def __init__(self, left, right, l_key, r_key, l_name, r_name, join, join_type):
         super().__init__(left, right, join)
         self.left = left
@@ -2054,13 +2136,17 @@ class StreamJoinRightDistinct(IR):
         self.r_name = r_name
         self.join = join
         self.join_type = join_type
-        self.needs_randomness_handling = left.needs_randomness_handling or right.needs_randomness_handling or join.uses_randomness
+        self.needs_randomness_handling = (
+            left.needs_randomness_handling or right.needs_randomness_handling or join.uses_randomness
+        )
 
     def _handle_randomness(self, create_uids):
         if not self.join.uses_randomness and not create_uids:
             left = self.left.handle_randomness(False)
             right = self.right.handle_randomness(False)
-            return StreamJoinRightDistinct(left, right, self.l_key, self.r_key, self.l_name, self.r_name, self.join, self.join_type)
+            return StreamJoinRightDistinct(
+                left, right, self.l_key, self.r_key, self.l_name, self.r_name, self.join, self.join_type
+            )
 
         if self.join_type == 'left' or self.join_type == 'inner':
             left = pack_to_structs(self.left.handle_randomness(True))
@@ -2089,7 +2175,9 @@ class StreamJoinRightDistinct(IR):
 
     @typecheck_method(left=IR, right=IR, join=IR)
     def copy(self, left, right, join):
-        return StreamJoinRightDistinct(left, right, self.l_key, self.r_key, self.l_name, self.r_name, join, self.join_type)
+        return StreamJoinRightDistinct(
+            left, right, self.l_key, self.r_key, self.l_name, self.r_name, join, self.join_type
+        )
 
     def head_str(self):
         return '({}) ({}) {} {} {}'.format(
@@ -2097,12 +2185,11 @@ class StreamJoinRightDistinct(IR):
             ' '.join([escape_id(x) for x in self.r_key]),
             self.l_name,
             self.r_name,
-            self.join_type)
+            self.join_type,
+        )
 
     def _eq(self, other):
-        return other.l_name == self.l_name and \
-            other.r_name == self.r_name and \
-            other.join_type == self.join_type
+        return other.l_name == self.l_name and other.r_name == self.r_name and other.join_type == self.join_type
 
     @property
     def bound_variables(self):
@@ -2111,11 +2198,9 @@ class StreamJoinRightDistinct(IR):
     def renderable_bindings(self, i, default_value=None):
         if i == 2:
             if default_value is None:
-                return {self.l_name: self.left.typ.element_type,
-                        self.r_name: self.right.typ.element_type}
+                return {self.l_name: self.left.typ.element_type, self.r_name: self.right.typ.element_type}
             else:
-                return {self.l_name: default_value,
-                        self.r_name: default_value}
+                return {self.l_name: default_value, self.r_name: default_value}
         else:
             return {}
 
@@ -2399,12 +2484,17 @@ class AggArrayPerElement(IR):
         return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan} False'
 
     def _eq(self, other):
-        return self.element_name == other.element_name and self.index_name == other.index_name and self.is_scan == other.is_scan
+        return (
+            self.element_name == other.element_name
+            and self.index_name == other.index_name
+            and self.is_scan == other.is_scan
+        )
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.array.compute_type(agg_env, None, deep_typecheck)
-        self.agg_ir.compute_type(_env_bind(env, self.bindings(1)),
-                                 _env_bind(agg_env, self.agg_bindings(1)), deep_typecheck)
+        self.agg_ir.compute_type(
+            _env_bind(env, self.bindings(1)), _env_bind(agg_env, self.agg_bindings(1)), deep_typecheck
+        )
         return tarray(self.agg_ir.typ)
 
     @property
@@ -2467,16 +2557,15 @@ def lookup_aggregator_return_type(name, init_args, seq_args):
                 p.clear()
             for p in seq_params:
                 p.clear()
-            if (all(p.unify(a) for p, a in zip(init_params, init_args))
-                    and all(p.unify(a) for p, a in zip(seq_params, seq_args))):
+            if all(p.unify(a) for p, a in zip(init_params, init_args)) and all(
+                p.unify(a) for p, a in zip(seq_params, seq_args)
+            ):
                 return ret_type.subst()
     raise KeyError(f'aggregator {name}({ ",".join([str(t) for t in seq_args]) }) not found')
 
 
 class BaseApplyAggOp(IR):
-    @typecheck_method(agg_op=str,
-                      init_op_args=sequenceof(IR),
-                      seq_op_args=sequenceof(IR))
+    @typecheck_method(agg_op=str, init_op_args=sequenceof(IR), seq_op_args=sequenceof(IR))
     def __init__(self, agg_op, init_op_args, seq_op_args):
         super().__init__(*init_op_args, *seq_op_args)
         self.agg_op = agg_op
@@ -2486,7 +2575,7 @@ class BaseApplyAggOp(IR):
     def copy(self, *args):
         new_instance = self.__class__
         n_seq_op_args = len(self.seq_op_args)
-        init_op_args = args[:len(self.init_op_args)]
+        init_op_args = args[: len(self.init_op_args)]
         seq_op_args = args[-n_seq_op_args:]
         return new_instance(self.agg_op, init_op_args, seq_op_args)
 
@@ -2498,10 +2587,7 @@ class BaseApplyAggOp(IR):
         return f'({self._ir_name()} {self.agg_op} '
 
     def render_children(self, r):
-        return [
-            ParensRenderer(self.init_op_args),
-            ParensRenderer(self.seq_op_args)
-        ]
+        return [ParensRenderer(self.init_op_args), ParensRenderer(self.seq_op_args)]
 
     @property
     def aggregations(self):
@@ -2509,15 +2595,15 @@ class BaseApplyAggOp(IR):
         return [self]
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and \
-            other.agg_op == self.agg_op and \
-            other.init_op_args == self.init_op_args and \
-            other.seq_op_args == self.seq_op_args
+        return (
+            isinstance(other, self.__class__)
+            and other.agg_op == self.agg_op
+            and other.init_op_args == self.init_op_args
+            and other.seq_op_args == self.seq_op_args
+        )
 
     def __hash__(self):
-        return hash(tuple([self.agg_op,
-                           tuple(self.init_op_args),
-                           tuple(self.seq_op_args)]))
+        return hash(tuple([self.agg_op, tuple(self.init_op_args), tuple(self.seq_op_args)]))
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         for a in self.init_op_args:
@@ -2526,9 +2612,8 @@ class BaseApplyAggOp(IR):
             a.compute_type(agg_env, None, deep_typecheck)
 
         return lookup_aggregator_return_type(
-            self.agg_op,
-            [a.typ for a in self.init_op_args],
-            [a.typ for a in self.seq_op_args])
+            self.agg_op, [a.typ for a in self.init_op_args], [a.typ for a in self.seq_op_args]
+        )
 
     def renderable_new_block(self, i: int) -> bool:
         return i == 0
@@ -2544,9 +2629,7 @@ class BaseApplyAggOp(IR):
 
 
 class ApplyAggOp(BaseApplyAggOp):
-    @typecheck_method(agg_op=str,
-                      init_op_args=sequenceof(IR),
-                      seq_op_args=sequenceof(IR))
+    @typecheck_method(agg_op=str, init_op_args=sequenceof(IR), seq_op_args=sequenceof(IR))
     def __init__(self, agg_op, init_op_args, seq_op_args):
         super().__init__(agg_op, init_op_args, seq_op_args)
 
@@ -2555,9 +2638,7 @@ class ApplyAggOp(BaseApplyAggOp):
 
 
 class ApplyScanOp(BaseApplyAggOp):
-    @typecheck_method(agg_op=str,
-                      init_op_args=sequenceof(IR),
-                      seq_op_args=sequenceof(IR))
+    @typecheck_method(agg_op=str, init_op_args=sequenceof(IR), seq_op_args=sequenceof(IR))
     def __init__(self, agg_op, init_op_args, seq_op_args):
         super().__init__(agg_op, init_op_args, seq_op_args)
 
@@ -2654,8 +2735,7 @@ class MakeStruct(IR):
         return [InsertFields.IFRenderField(escape_id(f), x) for f, x in self.fields]
 
     def __eq__(self, other):
-        return isinstance(other, MakeStruct) \
-            and other.fields == self.fields
+        return isinstance(other, MakeStruct) and other.fields == self.fields
 
     def __hash__(self):
         return hash(tuple(self.fields))
@@ -2712,7 +2792,7 @@ class SelectedTopLevelReference(SelectFields):
     def _compute_type(self, env, agg_env, deep_typecheck):
         if deep_typecheck:
             self.ref.compute_type(env, agg_env, deep_typecheck)
-            assert(self.ref.typ._select_fields(self._typ.fields) == self._typ)
+            assert self.ref.typ._select_fields(self._typ.fields) == self._typ
         return self._typ
 
 
@@ -2775,16 +2855,17 @@ class InsertFields(IR):
     def render_children(self, r):
         return [
             self.old,
-            hail.ir.RenderableStr(
-                'None' if self.field_order is None else parsable_strings(self.field_order)),
-            *(InsertFields.IFRenderField(escape_id(f), x) for f, x in self.fields)
+            hail.ir.RenderableStr('None' if self.field_order is None else parsable_strings(self.field_order)),
+            *(InsertFields.IFRenderField(escape_id(f), x) for f, x in self.fields),
         ]
 
     def __eq__(self, other):
-        return isinstance(other, InsertFields) and \
-            other.old == self.old and \
-            other.fields == self.fields and \
-            other.field_order == self.field_order
+        return (
+            isinstance(other, InsertFields)
+            and other.old == self.old
+            and other.fields == self.fields
+            and other.field_order == self.field_order
+        )
 
     def __hash__(self):
         return hash((self.old, tuple(self.fields), tuple(self.field_order) if self.field_order else None))
@@ -2850,7 +2931,7 @@ class ProjectedTopLevelReference(GetField):
     def _compute_type(self, env, agg_env, deep_typecheck):
         if deep_typecheck:
             self.ref.compute_type(env, agg_env, deep_typecheck)
-            assert(self.ref.typ[self.field] == self._typ)
+            assert self.ref.typ[self.field] == self._typ
         return self._typ
 
 
@@ -2996,9 +3077,23 @@ def udf(*param_types: HailType) -> Callable[[Callable[P, T]], Callable[P, T]]:
 
 
 class Apply(IR):
-    @typecheck_method(function=str, return_type=hail_type, args=IR,
-                      error_id=nullable(int), stack_trace=nullable(str), type_args=tupleof(hail_type))
-    def __init__(self, function, return_type, *args, type_args=(), error_id=None, stack_trace=None,):
+    @typecheck_method(
+        function=str,
+        return_type=hail_type,
+        args=IR,
+        error_id=nullable(int),
+        stack_trace=nullable(str),
+        type_args=tupleof(hail_type),
+    )
+    def __init__(
+        self,
+        function,
+        return_type,
+        *args,
+        type_args=(),
+        error_id=None,
+        stack_trace=None,
+    ):
         super().__init__(*args)
         self.function = function
         self.return_type = return_type
@@ -3010,16 +3105,25 @@ class Apply(IR):
             self.save_error_info()
 
     def copy(self, *args):
-        return Apply(self.function, self.return_type, *args, type_args=self.type_args, error_id=self._error_id, stack_trace=self._stack_trace,)
+        return Apply(
+            self.function,
+            self.return_type,
+            *args,
+            type_args=self.type_args,
+            error_id=self._error_id,
+            stack_trace=self._stack_trace,
+        )
 
     def head_str(self):
         type_args = "(" + " ".join([a._parsable_string() for a in self.type_args]) + ")"
         return f'{self._error_id} {escape_id(self.function)} {type_args} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
-        return other.function == self.function and \
-            other.type_args == self.type_args and \
-            other.return_type == self.return_type
+        return (
+            other.function == self.function
+            and other.type_args == self.type_args
+            and other.return_type == self.return_type
+        )
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         for arg in self.args:
@@ -3045,9 +3149,11 @@ class ApplySeeded(IR):
         return f'{escape_id(self.function)} {self.static_rng_uid} {self.return_type._parsable_string()}'
 
     def _eq(self, other):
-        return other.function == self.function and \
-            other.static_rng_uid == self.static_rng_uid and \
-            other.return_type == self.return_type
+        return (
+            other.function == self.function
+            and other.static_rng_uid == self.static_rng_uid
+            and other.return_type == self.return_type
+        )
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         for arg in self.args:
@@ -3129,8 +3235,7 @@ class TableCollect(IR):
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.child.compute_type(deep_typecheck)
-        return tstruct(**{'rows': tarray(self.child.typ.row_type),
-                          'global': self.child.typ.global_type})
+        return tstruct(**{'rows': tarray(self.child.typ.row_type), 'global': self.child.typ.global_type})
 
 
 class TableAggregate(IR):
@@ -3251,8 +3356,21 @@ class PartitionReader(object):
 class GVCFPartitionReader(PartitionReader):
 
     entries_field_name = '__entries'
-    def __init__(self, header, call_fields, entry_float_type, array_elements_required, rg, contig_recoding,
-                 skip_invalid_loci, filter, find, replace, uid_field):
+
+    def __init__(
+        self,
+        header,
+        call_fields,
+        entry_float_type,
+        array_elements_required,
+        rg,
+        contig_recoding,
+        skip_invalid_loci,
+        filter,
+        find,
+        replace,
+        uid_field,
+    ):
         self.header = header
         self.call_fields = call_fields
         self.entry_float_type = entry_float_type
@@ -3266,49 +3384,59 @@ class GVCFPartitionReader(PartitionReader):
         self.uid_field = uid_field
 
     def with_uid_field(self, uid_field):
-        return GVCFPartitionReader(self.header,
-                                   self.call_fields,
-                                   self.entry_float_type,
-                                   self.array_elements_required,
-                                   self.rg,
-                                   self.contig_recoding,
-                                   self.skip_invalid_loci,
-                                   self.filter,
-                                   self.find,
-                                   self.replace,
-                                   uid_field)
+        return GVCFPartitionReader(
+            self.header,
+            self.call_fields,
+            self.entry_float_type,
+            self.array_elements_required,
+            self.rg,
+            self.contig_recoding,
+            self.skip_invalid_loci,
+            self.filter,
+            self.find,
+            self.replace,
+            uid_field,
+        )
 
     def render(self):
-        return escape_str(json.dumps({"name": "GVCFPartitionReader",
-                                      "header": {"name": "VCFHeaderInfo", **self.header},
-                                      "callFields": list(self.call_fields),
-                                      "entryFloatType": "Float64" if self.entry_float_type == tfloat64 else "Float32",
-                                      "arrayElementsRequired": self.array_elements_required,
-                                      "rg": self.rg.name if self.rg is not None else None,
-                                      "contigRecoding": self.contig_recoding,
-                                      "filterAndReplace": {
-                                          "name": "TextInputFilterAndReplace",
-                                          "filter": self.filter,
-                                          "find": self.find,
-                                          "replace": self.replace,
-                                      },
-                                      "skipInvalidLoci": self.skip_invalid_loci,
-                                      "entriesFieldName": GVCFPartitionReader.entries_field_name,
-                                      "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy'}))
+        return escape_str(
+            json.dumps(
+                {
+                    "name": "GVCFPartitionReader",
+                    "header": {"name": "VCFHeaderInfo", **self.header},
+                    "callFields": list(self.call_fields),
+                    "entryFloatType": "Float64" if self.entry_float_type == tfloat64 else "Float32",
+                    "arrayElementsRequired": self.array_elements_required,
+                    "rg": self.rg.name if self.rg is not None else None,
+                    "contigRecoding": self.contig_recoding,
+                    "filterAndReplace": {
+                        "name": "TextInputFilterAndReplace",
+                        "filter": self.filter,
+                        "find": self.find,
+                        "replace": self.replace,
+                    },
+                    "skipInvalidLoci": self.skip_invalid_loci,
+                    "entriesFieldName": GVCFPartitionReader.entries_field_name,
+                    "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy',
+                }
+            )
+        )
 
     def _eq(self, other):
-        return isinstance(other, GVCFPartitionReader) \
-               and self.header == other.header \
-               and self.call_fields == other.call_fields \
-               and self.entry_float_type == other.entry_float_type \
-               and self.array_elements_required == other.array_elements_required \
-               and self.rg == other.rg \
-               and self.contig_recoding == other.contig_recoding \
-               and self.skip_invalid_loci == other.skip_invalid_loci \
-               and self.filter == other.filter \
-               and self.find == other.find \
-               and self.replace == other.replace \
-               and self.uid_field == other.uid_field
+        return (
+            isinstance(other, GVCFPartitionReader)
+            and self.header == other.header
+            and self.call_fields == other.call_fields
+            and self.entry_float_type == other.entry_float_type
+            and self.array_elements_required == other.array_elements_required
+            and self.rg == other.rg
+            and self.contig_recoding == other.contig_recoding
+            and self.skip_invalid_loci == other.skip_invalid_loci
+            and self.filter == other.filter
+            and self.find == other.find
+            and self.replace == other.replace
+            and self.uid_field == other.uid_field
+        )
 
     def row_type(self):
         if self.uid_field is not None:
@@ -3331,15 +3459,20 @@ class GVCFPartitionReader(PartitionReader):
                 return tarray(subst_format(name, t.element_type))
             return t
 
-        return tstruct(locus=tstruct(contig=tstr, position=tint32) if self.rg is None else tlocus(self.rg),
-                       alleles=tarray(tstr),
-                       rsid=tstr,
-                       qual=tfloat64,
-                       filters=tset(tstr),
-                       info=tstruct(**{k: parse_type(v) for k, v in self.header['infoFields']}),
-                       **{GVCFPartitionReader.entries_field_name: tarray(
-                           tstruct(**{k: subst_format(k, parse_type(v)) for k, v in self.header['formatFields']}))},
-                       **uid_fd)
+        return tstruct(
+            locus=tstruct(contig=tstr, position=tint32) if self.rg is None else tlocus(self.rg),
+            alleles=tarray(tstr),
+            rsid=tstr,
+            qual=tfloat64,
+            filters=tset(tstr),
+            info=tstruct(**{k: parse_type(v) for k, v in self.header['infoFields']}),
+            **{
+                GVCFPartitionReader.entries_field_name: tarray(
+                    tstruct(**{k: subst_format(k, parse_type(v)) for k, v in self.header['formatFields']})
+                )
+            },
+            **uid_fd,
+        )
 
 
 class PartitionNativeIntervalReader(PartitionReader):
@@ -3352,13 +3485,22 @@ class PartitionNativeIntervalReader(PartitionReader):
         return PartitionNativeIntervalReader(self.path, self.table_row_type, uid_field)
 
     def render(self):
-        return escape_str(json.dumps({"name": "PartitionNativeIntervalReader",
-                                      "path": self.path,
-                                      "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy'}))
+        return escape_str(
+            json.dumps(
+                {
+                    "name": "PartitionNativeIntervalReader",
+                    "path": self.path,
+                    "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy',
+                }
+            )
+        )
 
     def _eq(self, other):
-        return isinstance(other,
-                          PartitionNativeIntervalReader) and self.path == other.path and self.uid_field == other.uid_field
+        return (
+            isinstance(other, PartitionNativeIntervalReader)
+            and self.path == other.path
+            and self.uid_field == other.uid_field
+        )
 
     def row_type(self):
         if self.uid_field is None:
@@ -3623,8 +3765,7 @@ class BlockMatrixToValueApply(IR):
 
 
 class Literal(IR):
-    @typecheck_method(typ=hail_type,
-                      value=anytype)
+    @typecheck_method(typ=hail_type, value=anytype)
     def __init__(self, typ, value):
         super(Literal, self).__init__()
         self._typ: HailType = typ
@@ -3637,8 +3778,34 @@ class Literal(IR):
         return f'{self._typ._parsable_string()} {dump_json(self._typ._convert_to_json_na(self.value))}'
 
     def _eq(self, other):
-        return other._typ == self._typ and \
-            other.value == self.value
+        return other._typ == self._typ and other.value == self.value
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return self._typ
+
+
+class EncodedLiteral(IR):
+    @typecheck_method(typ=hail_type, value=anytype, encoded_value=nullable(str))
+    def __init__(self, typ, value, *, encoded_value=None):
+        super(EncodedLiteral, self).__init__()
+        self._typ: HailType = typ
+        self._value = value
+        self._encoded_value = encoded_value
+
+    @property
+    def encoded_value(self):
+        if self._encoded_value is None:
+            self._encoded_value = base64.b64encode(self._typ._to_encoding(self._value)).decode('utf-8')
+        return self._encoded_value
+
+    def copy(self):
+        return EncodedLiteral(self._typ, self._value, encoded_value=self._encoded_value)
+
+    def head_str(self):
+        return f'{self._typ._parsable_string()} "{self.encoded_value}"'
+
+    def _eq(self, other):
+        return other._typ == self._typ and other.encoded_value == self.encoded_value
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         return self._typ
@@ -3661,10 +3828,9 @@ class LiftMeOut(IR):
 class Join(IR):
     _idx = 0
 
-    @typecheck_method(virtual_ir=IR,
-                      temp_vars=sequenceof(str),
-                      join_exprs=sequenceof(anytype),
-                      join_func=func_spec(1, anytype))
+    @typecheck_method(
+        virtual_ir=IR, temp_vars=sequenceof(str), join_exprs=sequenceof(anytype), join_func=func_spec(1, anytype)
+    )
     def __init__(self, virtual_ir, temp_vars, join_exprs, join_func):
         super(Join, self).__init__(virtual_ir)
         self.virtual_ir = virtual_ir
@@ -3677,10 +3843,7 @@ class Join(IR):
     def copy(self, virtual_ir):
         # FIXME: This is pretty fucked, Joins should probably be tracked on Expression?
         new_instance = self.__class__
-        new_instance = new_instance(virtual_ir,
-                                    self.temp_vars,
-                                    self.join_exprs,
-                                    self.join_func)
+        new_instance = new_instance(virtual_ir, self.temp_vars, self.join_exprs, self.join_func)
         new_instance.idx = self.idx
         return new_instance
 
@@ -3711,6 +3874,7 @@ class JavaIRSharedReference:
 
     def __del__(self):
         from hail.backend.py4j_backend import Py4JBackend
+
         if Env._hc:
             backend = Env.backend()
             assert isinstance(backend, Py4JBackend)
@@ -3750,71 +3914,59 @@ def subst(ir, env, agg_env):
     if isinstance(ir, Ref):
         return env.get(ir.name, ir)
     elif isinstance(ir, Let):
-        return Let(ir.name,
-                   _subst(ir.value),
-                   _subst(ir.body, delete(env, ir.name)))
+        return Let(ir.name, _subst(ir.value), _subst(ir.body, delete(env, ir.name)))
     elif isinstance(ir, AggLet):
-        return AggLet(ir.name,
-                      _subst(ir.value, agg_env, {}),
-                      _subst(ir.body, delete(env, ir.name)),
-                      ir.is_scan)
+        return AggLet(ir.name, _subst(ir.value, agg_env, {}), _subst(ir.body, delete(env, ir.name)), ir.is_scan)
     elif isinstance(ir, StreamMap):
-        return StreamMap(_subst(ir.a),
-                         ir.name,
-                         _subst(ir.body, delete(env, ir.name)))
+        return StreamMap(_subst(ir.a), ir.name, _subst(ir.body, delete(env, ir.name)))
     elif isinstance(ir, StreamFilter):
-        return StreamFilter(_subst(ir.a),
-                            ir.name,
-                            _subst(ir.body, delete(env, ir.name)))
+        return StreamFilter(_subst(ir.a), ir.name, _subst(ir.body, delete(env, ir.name)))
     elif isinstance(ir, StreamFlatMap):
-        return StreamFlatMap(_subst(ir.a),
-                             ir.name,
-                             _subst(ir.body, delete(env, ir.name)))
+        return StreamFlatMap(_subst(ir.a), ir.name, _subst(ir.body, delete(env, ir.name)))
     elif isinstance(ir, StreamFold):
-        return StreamFold(_subst(ir.a),
-                          _subst(ir.zero),
-                          ir.accum_name,
-                          ir.value_name,
-                          _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
+        return StreamFold(
+            _subst(ir.a),
+            _subst(ir.zero),
+            ir.accum_name,
+            ir.value_name,
+            _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)),
+        )
     elif isinstance(ir, StreamScan):
-        return StreamScan(_subst(ir.a),
-                          _subst(ir.zero),
-                          ir.accum_name,
-                          ir.value_name,
-                          _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
+        return StreamScan(
+            _subst(ir.a),
+            _subst(ir.zero),
+            ir.accum_name,
+            ir.value_name,
+            _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)),
+        )
     elif isinstance(ir, StreamFor):
-        return StreamFor(_subst(ir.a),
-                         ir.value_name,
-                         _subst(ir.body, delete(env, ir.value_name)))
+        return StreamFor(_subst(ir.a), ir.value_name, _subst(ir.body, delete(env, ir.value_name)))
     elif isinstance(ir, AggFilter):
-        return AggFilter(_subst(ir.cond, agg_env),
-                         _subst(ir.agg_ir, agg_env),
-                         ir.is_scan)
+        return AggFilter(_subst(ir.cond, agg_env), _subst(ir.agg_ir, agg_env), ir.is_scan)
     elif isinstance(ir, AggExplode):
-        return AggExplode(_subst(ir.s, agg_env),
-                          ir.name,
-                          _subst(ir.agg_body, delete(agg_env, ir.name), delete(agg_env, ir.name)),
-                          ir.is_scan)
+        return AggExplode(
+            _subst(ir.s, agg_env),
+            ir.name,
+            _subst(ir.agg_body, delete(agg_env, ir.name), delete(agg_env, ir.name)),
+            ir.is_scan,
+        )
     elif isinstance(ir, AggGroupBy):
-        return AggGroupBy(_subst(ir.key, agg_env),
-                          _subst(ir.agg_ir, agg_env),
-                          ir.is_scan)
+        return AggGroupBy(_subst(ir.key, agg_env), _subst(ir.agg_ir, agg_env), ir.is_scan)
     elif isinstance(ir, ApplyAggOp):
         subst_init_op_args = [x.map_ir(lambda x: _subst(x)) for x in ir.init_op_args]
         subst_seq_op_args = [subst(x, agg_env, {}) for x in ir.seq_op_args]
-        return ApplyAggOp(ir.agg_op,
-                          subst_init_op_args,
-                          subst_seq_op_args)
+        return ApplyAggOp(ir.agg_op, subst_init_op_args, subst_seq_op_args)
     elif isinstance(ir, AggFold):
         subst_seq_op = subst(ir.seq_op, agg_env, {})
         return AggFold(ir.zero, subst_seq_op, ir.comb_op, ir.accum_name, ir.other_accum_name, ir.is_scan)
     elif isinstance(ir, AggArrayPerElement):
-        return AggArrayPerElement(_subst(ir.array, agg_env),
-                                  ir.element_name,
-                                  ir.index_name,
-                                  _subst(ir.agg_ir, delete(env, ir.index_name),
-                                         delete(agg_env, ir.element_name)),
-                                  ir.is_scan)
+        return AggArrayPerElement(
+            _subst(ir.array, agg_env),
+            ir.element_name,
+            ir.index_name,
+            _subst(ir.agg_ir, delete(env, ir.index_name), delete(agg_env, ir.element_name)),
+            ir.is_scan,
+        )
     else:
         assert isinstance(ir, IR)
         return ir.map_ir(lambda x: _subst(x))

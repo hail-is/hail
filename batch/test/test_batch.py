@@ -1128,7 +1128,6 @@ backend.close()
     j = b.create_job(
         HAIL_GENETICS_HAILTOP_IMAGE,
         ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
-        mount_tokens=True,
     )
     b.submit()
     status = j.wait()
@@ -1136,7 +1135,7 @@ backend.close()
 
 
 def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient, remote_tmpdir: str):
-    DOMAIN = os.environ['HAIL_DOMAIN']
+    DOMAIN = os.environ['HAIL_PRODUCTION_DOMAIN']
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
     script = f'''import hailtop.batch as hb
@@ -1157,8 +1156,12 @@ backend.close()
             f'''
 python3 -c \'{script}\'''',
         ],
-        env={'HAIL_DOMAIN': DOMAIN, 'HAIL_DEFAULT_NAMESPACE': 'default', 'HAIL_LOCATION': 'external'},
-        mount_tokens=True,
+        env={
+            'HAIL_DOMAIN': DOMAIN,
+            'HAIL_DEFAULT_NAMESPACE': 'default',
+            'HAIL_LOCATION': 'external',
+            'HAIL_BASE_PATH': '',
+        },
     )
     b.submit()
     status = j.wait()
@@ -1440,7 +1443,7 @@ def test_gpu_accesibility_g2(client: BatchClient):
     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
     j = b.create_job(
         os.environ['HAIL_GPU_IMAGE'],
-        ['python', '-c', 'import torch; assert torch.cuda.is_available()'],
+        ['python3', '-c', 'import torch; assert torch.cuda.is_available()'],
         resources=resources,
     )
     b.submit()

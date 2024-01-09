@@ -50,8 +50,7 @@ object CanLowerEfficiently {
         case t: TableHead =>
         case t: TableTail =>
         case t: TableJoin =>
-        case TableIntervalJoin(_, _, _, true) => fail("TableIntervalJoin with \"product=true\" has no lowered implementation")
-        case TableIntervalJoin(_, _, _, false) =>
+        case _: TableIntervalJoin =>
         case t: TableLeftJoinRightDistinct =>
         case t: TableMapPartitions =>
         case t: TableMapRows =>
@@ -79,7 +78,7 @@ object CanLowerEfficiently {
         case x: BlockMatrixCollect => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
         case x: BlockMatrixToValueApply => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
 
-        case mmr: MatrixMultiWrite => fail(s"no lowering for MatrixMultiWrite")
+        case _: MatrixMultiWrite =>
 
         case TableCount(_) =>
         case TableToValueApply(_, ForceCountTable()) =>

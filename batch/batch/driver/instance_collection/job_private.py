@@ -351,10 +351,10 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         async def user_runnable_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
+SELECT batches.id, job_groups_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
 FROM batches
-LEFT JOIN batches_cancelled
-       ON batches.id = batches_cancelled.id
+LEFT JOIN job_groups_cancelled
+       ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),

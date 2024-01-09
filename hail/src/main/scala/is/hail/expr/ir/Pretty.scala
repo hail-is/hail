@@ -178,17 +178,15 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         else
           "<literal value>")
     case EncodedLiteral(codec, _) => single(codec.encodedVirtualType.parsableString())
-    case Let(name, _, _) if !elideBindings => single(prettyIdentifier(name))
+    case Let(bindings, _) if !elideBindings => bindings.map(b => text(prettyIdentifier(b._1)))
     case AggLet(name, _, _, isScan) => if (elideBindings)
       single(Pretty.prettyBooleanLiteral(isScan))
     else
       FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
-    case TailLoop(name, args, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastSeq))
-    case Recur(name, _, t) => if (elideBindings)
-      single(t.parsableString())
-    else
-      FastSeq(prettyIdentifier(name), t.parsableString())
+    case TailLoop(name, args, returnType, _) if !elideBindings =>
+      FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastSeq), returnType.parsableString())
+    case Recur(name, _, t) if !elideBindings =>
+      FastSeq(prettyIdentifier(name))
 //    case Ref(name, t) if t != null => FastSeq(prettyIdentifier(name), t.parsableString())  // For debug purposes
     case Ref(name, _) => single(prettyIdentifier(name))
     case RelationalRef(name, t) => if (elideBindings)
@@ -241,6 +239,17 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), joinType)
     else
       FastSeq(prettyIdentifiers(lKey), prettyIdentifiers(rKey), prettyIdentifier(l), prettyIdentifier(r), joinType)
+    case StreamLeftIntervalJoin(_, _, lKeyFieldName, rIntrvlName, lEltName, rEltName, _) =>
+      val builder = new BoxedArrayBuilder[Doc](if (elideBindings) 2 else 4)
+      builder += prettyIdentifier(lKeyFieldName)
+      builder += prettyIdentifier(rIntrvlName)
+
+      if (!elideBindings) {
+        builder += prettyIdentifier(lEltName)
+        builder += prettyIdentifier(rEltName)
+      }
+
+      builder.underlying()
     case StreamFor(_, valueName, _) if !elideBindings => single(prettyIdentifier(valueName))
     case StreamAgg(a, name, query) if !elideBindings => single(prettyIdentifier(name))
     case StreamAggScan(a, name, query) if !elideBindings => single(prettyIdentifier(name))
@@ -276,7 +285,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case NDArrayInv(_, errorID) => single(s"$errorID")
     case ArraySort(_, l, r, _) if !elideBindings => FastSeq(prettyIdentifier(l), prettyIdentifier(r))
     case ArrayRef(_,_, errorID) => single(s"$errorID")
-    case ApplyIR(function, typeArgs, _, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
+    case ApplyIR(function, typeArgs, _, _, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
     case Apply(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case ApplySeeded(function, _, rngState, staticUID, t) => FastSeq(prettyIdentifier(function), staticUID.toString, t.parsableString())
     case ApplySpecial(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
@@ -414,12 +423,14 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         prettyStrings(entryKV.map(_._1)), prettyStrings(entryKV.map(_._2)))
     case TableFilterIntervals(child, intervals, keep) =>
       FastSeq(
+        child.typ.keyType.parsableString(),
         prettyStringLiteral(Serialization.write(
           JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.keyType)))
         )(RelationalSpec.formats)),
         Pretty.prettyBooleanLiteral(keep))
     case MatrixFilterIntervals(child, intervals, keep) =>
       FastSeq(
+        child.typ.rowType.parsableString(),
         prettyStringLiteral(Serialization.write(
           JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.rowKeyStruct)))
         )(RelationalSpec.formats)),
@@ -492,7 +503,9 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(String, String)]] = ir match {
       case If(_, _, _) =>
         if (i > 0) Some(FastSeq()) else None
-      case TailLoop(name, args, body) => if (i == args.length)
+      case _: Switch =>
+        if (i > 0) Some(FastSeq()) else None
+      case TailLoop(name, args, _, body) => if (i == args.length)
         Some(args.map { case (name, ir) => name -> "loopvar" } :+
           name -> "loop") else None
       case StreamMap(a, name, _) =>
@@ -531,6 +544,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         if (i == 1) Some(FastSeq(name -> "elt")) else None
       case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) =>
         if (i == 2) Some(Array(l -> "l_elt", r -> "r_elt")) else None
+      case StreamLeftIntervalJoin(_, _, _, _, l, r, _) =>
+        if (i == 2) Some(Array(l -> "l_elt", r -> "r_elts")) else None
       case ArraySort(a, left, right, _) =>
         if (i == 1) Some(Array(left -> "l", right -> "r")) else None
       case AggArrayPerElement(_, elementName, indexName, _, _, _) =>
@@ -665,9 +680,13 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     }
 
     def pretty(ir: BaseIR, bindings: Env[String]): (Doc, Doc) = ir match {
-      case Let(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
-        val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
+      case Let(binds, body) =>
+        val (valueDoc, newBindings) =
+          binds.foldLeft((empty, bindings)) { case ((valueDoc, bindings), (name, value)) =>
+            val (doc, ident) = prettyWithIdent(value, bindings, "%")
+            (concat(valueDoc, doc), bindings.bind(name, ident))
+          }
+        val (bodyPre, bodyHead) = pretty(body, newBindings)
         (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLet(name, value, body) =>
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")

@@ -29,19 +29,18 @@ from hailtop.httpx import ClientResponseError
 from configparser import ConfigParser
 from hailtop.config import get_user_config, user_config
 from hailtop.config.variables import ConfigVariable
-from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from _pytest.monkeypatch import MonkeyPatch
 
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
+REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
 
 class LocalTests(unittest.TestCase):
     def batch(self, requester_pays_project=None):
-        return Batch(backend=LocalBackend(),
-                     requester_pays_project=requester_pays_project)
+        return Batch(backend=LocalBackend(), requester_pays_project=requester_pays_project)
 
     def read(self, file):
         with open(file, 'r') as f:
@@ -52,8 +51,7 @@ class LocalTests(unittest.TestCase):
         assert self.read(file1).rstrip() == self.read(file2).rstrip()
 
     def test_read_input_and_write_output(self):
-        with tempfile.NamedTemporaryFile('w') as input_file, \
-                tempfile.NamedTemporaryFile('w') as output_file:
+        with tempfile.NamedTemporaryFile('w') as input_file, tempfile.NamedTemporaryFile('w') as output_file:
             input_file.write('abc')
             input_file.flush()
 
@@ -65,10 +63,11 @@ class LocalTests(unittest.TestCase):
             self.assert_same_file(input_file.name, output_file.name)
 
     def test_read_input_group(self):
-        with tempfile.NamedTemporaryFile('w') as input_file1, \
-                tempfile.NamedTemporaryFile('w') as input_file2, \
-                tempfile.NamedTemporaryFile('w') as output_file1, \
-                tempfile.NamedTemporaryFile('w') as output_file2:
+        with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
+            'w'
+        ) as input_file2, tempfile.NamedTemporaryFile('w') as output_file1, tempfile.NamedTemporaryFile(
+            'w'
+        ) as output_file2:
 
             input_file1.write('abc')
             input_file2.write('123')
@@ -76,8 +75,7 @@ class LocalTests(unittest.TestCase):
             input_file2.flush()
 
             b = self.batch()
-            input = b.read_input_group(in1=input_file1.name,
-                                       in2=input_file2.name)
+            input = b.read_input_group(in1=input_file1.name, in2=input_file2.name)
 
             b.write_output(input.in1, output_file1.name)
             b.write_output(input.in2, output_file2.name)
@@ -87,13 +85,12 @@ class LocalTests(unittest.TestCase):
             self.assert_same_file(input_file2.name, output_file2.name)
 
     def test_write_resource_group(self):
-        with tempfile.NamedTemporaryFile('w') as input_file1, \
-                tempfile.NamedTemporaryFile('w') as input_file2, \
-                tempfile.TemporaryDirectory() as output_dir:
+        with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
+            'w'
+        ) as input_file2, tempfile.TemporaryDirectory() as output_dir:
 
             b = self.batch()
-            input = b.read_input_group(in1=input_file1.name,
-                                       in2=input_file2.name)
+            input = b.read_input_group(in1=input_file1.name, in2=input_file2.name)
 
             b.write_output(input, output_dir + '/foo')
             b.run()
@@ -148,8 +145,7 @@ class LocalTests(unittest.TestCase):
         self.assertRaises(Exception, b.run)
 
     def test_single_job_w_input(self):
-        with tempfile.NamedTemporaryFile('w') as input_file, \
-                tempfile.NamedTemporaryFile('w') as output_file:
+        with tempfile.NamedTemporaryFile('w') as input_file, tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'abc'
             input_file.write(msg)
             input_file.flush()
@@ -164,9 +160,9 @@ class LocalTests(unittest.TestCase):
             assert self.read(output_file.name) == msg
 
     def test_single_job_w_input_group(self):
-        with tempfile.NamedTemporaryFile('w') as input_file1, \
-                tempfile.NamedTemporaryFile('w') as input_file2, \
-                tempfile.NamedTemporaryFile('w') as output_file:
+        with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
+            'w'
+        ) as input_file2, tempfile.NamedTemporaryFile('w') as output_file:
             msg1 = 'abc'
             msg2 = '123'
 
@@ -176,8 +172,7 @@ class LocalTests(unittest.TestCase):
             input_file2.flush()
 
             b = self.batch()
-            input = b.read_input_group(in1=input_file1.name,
-                                       in2=input_file2.name)
+            input = b.read_input_group(in1=input_file1.name, in2=input_file2.name)
             j = b.new_job()
             j.command(f'cat {input.in1} {input.in2} > {j.ofile}')
             j.command(f'cat {input}.in1 {input}.in2')
@@ -208,8 +203,7 @@ class LocalTests(unittest.TestCase):
 
     def test_resource_group_get_all_inputs(self):
         b = self.batch()
-        input = b.read_input_group(fasta="foo",
-                                   idx="bar")
+        input = b.read_input_group(fasta="foo", idx="bar")
         j = b.new_job()
         j.command(f"cat {input.fasta}")
         assert input.fasta in j._inputs
@@ -305,10 +299,17 @@ class LocalTests(unittest.TestCase):
                 j.command(f'echo "{i}" > {j.ofile}')
 
             merger = b.new_job()
-            merger.command('cat {files} > {ofile}'.format(files=' '.join([j.ofile for j in sorted(b.select_jobs('foo'),
-                                                                                                  key=lambda x: x.name,  # type: ignore
-                                                                                                  reverse=True)]),
-                                                          ofile=merger.ofile))
+            merger.command(
+                'cat {files} > {ofile}'.format(
+                    files=' '.join(
+                        [
+                            j.ofile
+                            for j in sorted(b.select_jobs('foo'), key=lambda x: x.name, reverse=True)  # type: ignore
+                        ]
+                    ),
+                    ofile=merger.ofile,
+                )
+            )
 
             b.write_output(merger.ofile, output_file.name)
             b.run()
@@ -332,8 +333,9 @@ class LocalTests(unittest.TestCase):
         assert in1._value.endswith('.txt.bgz.foo')
 
     def test_file_name_space(self):
-        with tempfile.NamedTemporaryFile('w', prefix="some file name with (foo) spaces") as input_file, \
-                tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file:
+        with tempfile.NamedTemporaryFile(
+            'w', prefix="some file name with (foo) spaces"
+        ) as input_file, tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file:
 
             input_file.write('abc')
             input_file.flush()
@@ -517,7 +519,10 @@ class ServiceTests(unittest.TestCase):
                 storage_account, container_name = match.groups()
             else:
                 assert remote_tmpdir.startswith('https://')
-                match = re.fullmatch('https://(?P<storage_account>[^/]+).blob.core.windows.net/(?P<container_name>[^/]+).*', remote_tmpdir)
+                match = re.fullmatch(
+                    'https://(?P<storage_account>[^/]+).blob.core.windows.net/(?P<container_name>[^/]+).*',
+                    remote_tmpdir,
+                )
                 assert match
                 storage_account, container_name = match.groups()
             self.bucket = f'{storage_account}/{container_name}'
@@ -528,12 +533,7 @@ class ServiceTests(unittest.TestCase):
         self.cloud_output_path = f'/batch-tests/{token}'
         self.cloud_output_dir = f'{self.remote_tmpdir}{self.cloud_output_path}'
 
-        in_cluster_key_file = '/test-gsa-key/key.json'
-        if not os.path.exists(in_cluster_key_file):
-            in_cluster_key_file = None
-
-        self.router_fs = RouterAsyncFS(gcs_kwargs={'gcs_requester_pays_configuration': 'hail-vdc', 'credentials_file': in_cluster_key_file},
-                                       azure_kwargs={'credential_file': in_cluster_key_file})
+        self.router_fs = RouterAsyncFS()
 
         if not self.sync_exists(f'{self.remote_tmpdir}batch-tests/resources/hello.txt'):
             self.sync_write(f'{self.remote_tmpdir}batch-tests/resources/hello.txt', b'hello world')
@@ -553,11 +553,13 @@ class ServiceTests(unittest.TestCase):
 
     def batch(self, **kwargs):
         name_of_test_method = inspect.stack()[1][3]
-        return Batch(name=name_of_test_method,
-                     backend=self.backend,
-                     default_image=DOCKER_ROOT_IMAGE,
-                     attributes={'foo': 'a', 'bar': 'b'},
-                     **kwargs)
+        return Batch(
+            name=name_of_test_method,
+            backend=self.backend,
+            default_image=DOCKER_ROOT_IMAGE,
+            attributes={'foo': 'a', 'bar': 'b'},
+            **kwargs,
+        )
 
     def test_single_task_no_io(self):
         b = self.batch()
@@ -669,10 +671,14 @@ class ServiceTests(unittest.TestCase):
             j.command(f'echo "{i}" > {j.ofile}')
 
         merger = b.new_job()
-        merger.command('cat {files} > {ofile}'.format(files=' '.join([j.ofile for j in sorted(b.select_jobs('foo'),
-                                                                                              key=lambda x: x.name,  # type: ignore
-                                                                                              reverse=True)]),
-                                                      ofile=merger.ofile))
+        merger.command(
+            'cat {files} > {ofile}'.format(
+                files=' '.join(
+                    [j.ofile for j in sorted(b.select_jobs('foo'), key=lambda x: x.name, reverse=True)]  # type: ignore
+                ),
+                ofile=merger.ofile,
+            )
+        )
 
         res = b.run()
         res_status = res.status()
@@ -784,7 +790,8 @@ class ServiceTests(unittest.TestCase):
 
     @skip_in_azure
     def test_fuse_requester_pays(self):
-        b = self.batch(requester_pays_project='hail-vdc')
+        assert REQUESTER_PAYS_PROJECT
+        b = self.batch(requester_pays_project=REQUESTER_PAYS_PROJECT)
         j = b.new_job()
         j.cloudfuse('hail-test-requester-pays-fds32', '/fuse-bucket')
         j.command('cat /fuse-bucket/hello')
@@ -794,8 +801,9 @@ class ServiceTests(unittest.TestCase):
 
     @skip_in_azure
     def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(self):
+        assert REQUESTER_PAYS_PROJECT
         assert self.bucket
-        b = self.batch(requester_pays_project='hail-vdc')
+        b = self.batch(requester_pays_project=REQUESTER_PAYS_PROJECT)
         j = b.new_job()
         j.command(f'ls /fuse-bucket')
         j.cloudfuse(self.bucket, f'/fuse-bucket', read_only=True)
@@ -806,7 +814,8 @@ class ServiceTests(unittest.TestCase):
 
     @skip_in_azure
     def test_requester_pays(self):
-        b = self.batch(requester_pays_project='hail-vdc')
+        assert REQUESTER_PAYS_PROJECT
+        b = self.batch(requester_pays_project=REQUESTER_PAYS_PROJECT)
         input = b.read_input('gs://hail-test-requester-pays-fds32/hello')
         j = b.new_job()
         j.command(f'cat {input}')
@@ -922,8 +931,7 @@ class ServiceTests(unittest.TestCase):
     def test_python_job_w_resource_group_unpack_individually(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
-        head.declare_resource_group(count={'r5': '{root}.r5',
-                                           'r3': '{root}.r3'})
+        head.declare_resource_group(count={'r5': '{root}.r5', 'r3': '{root}.r3'})
         assert isinstance(head.count, ResourceGroup)
 
         head.command(f'echo "5" > {head.count.r5}')
@@ -963,6 +971,7 @@ class ServiceTests(unittest.TestCase):
         def write(path):
             with open(path, 'w') as f:
                 f.write('foo')
+
         head = b.new_python_job()
         head.call(write, head.ofile)
 
@@ -979,8 +988,7 @@ class ServiceTests(unittest.TestCase):
     def test_python_job_w_resource_group_unpack_jointly(self):
         b = self.batch(default_python_image=PYTHON_DILL_IMAGE)
         head = b.new_job()
-        head.declare_resource_group(count={'r5': '{root}.r5',
-                                           'r3': '{root}.r3'})
+        head.declare_resource_group(count={'r5': '{root}.r5', 'r3': '{root}.r3'})
         assert isinstance(head.count, ResourceGroup)
 
         head.command(f'echo "5" > {head.count.r5}')
@@ -1112,6 +1120,7 @@ class ServiceTests(unittest.TestCase):
 
         def qob_in_batch():
             import hail as hl
+
             hl.utils.range_table(10).write(tmp_ht_path, overwrite=True)
 
         j = bb.new_python_job()
@@ -1454,8 +1463,12 @@ class ServiceTests(unittest.TestCase):
                 func()
             assert exception_msg in str(e.value)
 
-        def _test_raises_no_bucket_error(remote_tmpdir, arg = None):
-            _test_raises(ClientResponseError, no_bucket_error, lambda: ServiceBackend(remote_tmpdir=remote_tmpdir, gcs_bucket_allow_list=arg))
+        def _test_raises_no_bucket_error(remote_tmpdir, arg=None):
+            _test_raises(
+                ClientResponseError,
+                no_bucket_error,
+                lambda: ServiceBackend(remote_tmpdir=remote_tmpdir, gcs_bucket_allow_list=arg),
+            )
 
         def _test_raises_cold_error(func):
             _test_raises(ValueError, cold_error, func)
@@ -1478,15 +1491,19 @@ class ServiceTests(unittest.TestCase):
         # hailctl config, allowlisted nonexistent buckets don't error
         base_config = get_user_config()
         local_config = ConfigParser()
-        local_config.read_dict({
-            **{
-                section: {key: val for key, val in base_config[section].items()}
-                for section in base_config.sections()
-            },
-            **{"gcs": {"bucket_allow_list": f"{fake_bucket1},{fake_bucket2}"}}
-        })
+        local_config.read_dict(
+            {
+                **{
+                    section: {key: val for key, val in base_config[section].items()}
+                    for section in base_config.sections()
+                },
+                **{"gcs": {"bucket_allow_list": f"{fake_bucket1},{fake_bucket2}"}},
+            }
+        )
+
         def _get_user_config():
             return local_config
+
         self.monkeypatch.setattr(user_config, "get_user_config", _get_user_config)
         ServiceBackend(remote_tmpdir=fake_uri1)
         ServiceBackend(remote_tmpdir=fake_uri2)

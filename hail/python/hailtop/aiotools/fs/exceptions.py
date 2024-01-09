@@ -1,4 +1,3 @@
-
 class UnexpectedEOFError(Exception):
     pass
 

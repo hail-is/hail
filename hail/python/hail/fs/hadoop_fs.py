@@ -12,7 +12,9 @@ from hailtop.fs.stat_result import FileType, FileListEntry, FileStatus
 def _file_status_scala_to_python(file_status: Dict[str, Any]) -> FileStatus:
     dt = dateutil.parser.isoparse(file_status['modification_time'])
     mtime = time.mktime(dt.timetuple())
-    return FileStatus(path=file_status['path'], owner=file_status['owner'], size=file_status['size'], modification_time=mtime)
+    return FileStatus(
+        path=file_status['path'], owner=file_status['owner'], size=file_status['size'], modification_time=mtime
+    )
 
 
 def _file_list_entry_scala_to_python(file_list_entry: Dict[str, Any]) -> FileListEntry:
@@ -24,11 +26,13 @@ def _file_list_entry_scala_to_python(file_list_entry: Dict[str, Any]) -> FileLis
         typ = FileType.SYMLINK
     else:
         typ = FileType.FILE
-    return FileListEntry(path=file_list_entry['path'],
-                         owner=file_list_entry['owner'],
-                         size=file_list_entry['size'],
-                         typ=typ,
-                         modification_time=mtime)
+    return FileListEntry(
+        path=file_list_entry['path'],
+        owner=file_list_entry['owner'],
+        size=file_list_entry['size'],
+        typ=typ,
+        modification_time=mtime,
+    )
 
 
 class HadoopFS(FS):
@@ -46,11 +50,15 @@ class HadoopFS(FS):
     def _open(self, path: str, mode: str = 'r', buffer_size: int = 8192, use_codec: bool = False):
         handle: Union[io.BufferedReader, io.BufferedWriter]
         if 'r' in mode:
-            handle = io.BufferedReader(HadoopReader(self, path, buffer_size, use_codec=use_codec), buffer_size=buffer_size)
+            handle = io.BufferedReader(
+                HadoopReader(self, path, buffer_size, use_codec=use_codec), buffer_size=buffer_size
+            )
         elif 'w' in mode:
             handle = io.BufferedWriter(HadoopWriter(self, path, use_codec=use_codec), buffer_size=buffer_size)
         elif 'x' in mode:
-            handle = io.BufferedWriter(HadoopWriter(self, path, exclusive=True, use_codec=use_codec), buffer_size=buffer_size)
+            handle = io.BufferedWriter(
+                HadoopWriter(self, path, exclusive=True, use_codec=use_codec), buffer_size=buffer_size
+            )
 
         if 'b' in mode:
             return handle
@@ -86,8 +94,9 @@ class HadoopFS(FS):
         return _file_list_entry_scala_to_python(file_list_entry_dict)
 
     def ls(self, path: str) -> List[FileListEntry]:
-        return [_file_list_entry_scala_to_python(fle)
-                for fle in json.loads(self._utils_package_object.ls(self._jfs, path))]
+        return [
+            _file_list_entry_scala_to_python(st) for st in json.loads(self._utils_package_object.ls(self._jfs, path))
+        ]
 
     def mkdir(self, path: str) -> None:
         return self._jfs.mkDir(path)

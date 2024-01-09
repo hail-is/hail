@@ -970,6 +970,64 @@ class TableIRSuite extends HailSuite {
     )
   }
 
+  @Test def testTableIntervalJoin(): Unit = {
+    val intervals: IndexedSeq[Interval] =
+      for {
+        (start, end, includesStart, includesEnd) <- FastSeq(
+          (1, 6, true, false),
+          (2, 2, false, false),
+          (3, 5, true, true),
+          (4, 6, true, true),
+          (6, 7, false, true)
+        )
+      } yield Interval(
+        IntervalEndpoint(start, if (includesStart) -1 else 1),
+        IntervalEndpoint(end, if (includesEnd) 1 else -1)
+      )
+
+    val left =
+      TableKeyBy(
+        TableParallelize(MakeStruct(FastSeq(
+          "rows" -> Literal(TArray(TStruct("a" -> TInt32)), (0 until 9).map(Row(_))),
+          "global" -> MakeStruct(FastSeq("left" -> Str("globals")))
+        ))),
+        FastSeq("a"),
+        isSorted = true
+      )
+
+    val right =
+      TableKeyBy(
+        TableParallelize(MakeStruct(FastSeq(
+          "rows" -> Literal(
+            TArray(TStruct("interval" -> TInterval(TInt32), "b" -> TInt32)),
+            intervals.zipWithIndex.map { case (i, idx) => Row(i, idx) }
+          ),
+          "global" -> MakeStruct(FastSeq("bye" -> I32(-1)))
+        ))),
+        FastSeq("interval"),
+        isSorted = true
+      )
+
+    val join = TableIntervalJoin(left, right, "rights", product = true)
+
+    assertEvalsTo(collect(join),
+      Row(
+        FastSeq(
+          Row(0, FastSeq()),
+          Row(1, FastSeq(Row(0))),
+          Row(2, FastSeq(Row(0))),
+          Row(3, FastSeq(Row(2), Row(0))),
+          Row(4, FastSeq(Row(2), Row(0), Row(3))),
+          Row(5, FastSeq(Row(2), Row(0), Row(3))),
+          Row(6, FastSeq(Row(3))),
+          Row(7, FastSeq(Row(4))),
+          Row(8, FastSeq())
+        ),
+        Row("globals")
+      )
+    )
+  }
+
   @Test def testTableKeyByAndAggregate(): Unit = {
     val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())

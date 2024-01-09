@@ -155,7 +155,7 @@ object StagedBGENReader {
         val pc = requestedType.field("locus").typ match {
           case TLocus(rg) =>
             val pt = SCanonicalLocusPointer(PCanonicalLocus(rg))
-            pt.pType.constructFromPositionAndString(cb, region, contigRecoded, position)
+            pt.pType.constructFromContigAndPosition(cb, region, contigRecoded, position)
           case t: TStruct =>
             val contig = SJavaString.constructFromString(cb, region, contigRecoded)
             SStackStruct.constructFromArgs(cb, region, t,
@@ -193,7 +193,7 @@ object StagedBGENReader {
         structFieldCodes += EmitCode.present(cb.emb, primitive(fileIdx))
 
       cb.assign(dataSize, cbfis.invoke[Int]("readInt"))
-      requestedType.fieldOption(LowerMatrixIR.entriesFieldName) match {
+      requestedType.selfField(LowerMatrixIR.entriesFieldName) match {
         case None =>
           cb += Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
         case Some(t) =>
@@ -385,7 +385,7 @@ object StagedBGENReader {
               .concat(nExpectedBytesProbs.toS)
               .concat("'.")))
 
-          cb.invokeVoid(memoMB)
+          cb.invokeVoid(memoMB, cb.this_)
 
           val (pushElement, finish) = entriesArrayType.constructFromFunctions(cb, region, nSamples, deepCopy = false)
 
@@ -424,7 +424,7 @@ object StagedBGENReader {
 
       cb.define(Lfinish)
     }
-    cb.invokeVoid(emb, region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding)
+    cb.invokeVoid(emb, cb.this_, region, cbfis, nSamples, fileIdx, compression, skipInvalidLoci, contigRecoding)
     out
   }
 
@@ -522,7 +522,7 @@ object BGENFunctions extends RegistryFunctions {
           "alleles" -> PCanonicalArray(PCanonicalString(true), true),
           "offset" -> PInt64Required)
         val bufferSct = SingleCodeType.fromSType(rowPType.sType)
-        val buffer = new StagedArrayBuilder(bufferSct, true, mb, 8)
+        val buffer = new StagedArrayBuilder(cb, bufferSct, true, 8)
         val currSize = cb.newLocal[Int]("currSize", 0)
 
         val spec = TypedCodecSpec(
@@ -553,7 +553,7 @@ object BGENFunctions extends RegistryFunctions {
           cb += ob.invoke[Unit]("close")
 
           cb.assign(groupIndex, groupIndex + 1)
-          cb += buffer.clear
+          buffer.clear(cb)
           cb.assign(currSize, 0)
         }
 
@@ -569,7 +569,7 @@ object BGENFunctions extends RegistryFunctions {
             cb.if_(currSize ceq bufferSize, {
               dumpBuffer(cb)
             })
-            cb += buffer.add(bufferSct.coerceSCode(cb, row, er.region, false).code)
+            buffer.add(cb, bufferSct.coerceSCode(cb, row, er.region, false).code)
             cb.assign(currSize, currSize + 1)
             cb.assign(nWritten, nWritten + 1)
           })
@@ -596,7 +596,7 @@ object BGENFunctions extends RegistryFunctions {
               "()V",
               false,
               UnitInfo,
-              FastSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+              FastSeq(lir.load(ctor.mb.this_.asInstanceOf[LocalRef[_]].l))))
           cb += new VCode(L, L, null)
 
           val path = cb.memoize(ctor.getCodeParam[String](1))

@@ -19,6 +19,20 @@
 
 /*! normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css */
 
+#hail-navbar #survey {
+    font-size: 0.875rem;
+    text-decoration: underline;
+    text-transform: none;
+}
+
+@media only screen and (max-width: 1000px) and (min-width: 767px) {
+    #hail-navbar #survey {
+	text-align: center;
+	font-size: 50%;
+	max-width: 100px;
+    }
+}
+
 #hail-navbar {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; /* necessary to prevent font override in docs*/
@@ -59,6 +73,7 @@
   flex-direction: row;
   flex: 1;
   border-color: inherit;
+  align-items: center;
 }
 
 #hail-navbar a {
@@ -185,6 +200,20 @@ input[type="search"]::placeholder {
     min-width: 400px!important;
   }
 
+  #hail-navbar #survey {
+      padding: 12px 18px;
+      padding-top: 24px;
+      display: block;
+      text-align: center;
+      width: 100vw;
+      font-size: 100%;
+  }
+
+  // Restore this after we remove the #survey
+  // #hail-navbar #hail-navbar-collapse .nav-item:first-child {
+  //   padding-top: 24px;
+  // }
+
   #hail-navbar #hail-menu .nav-item {
     padding: 12px 18px;
   }
@@ -214,10 +243,6 @@ input[type="search"]::placeholder {
     height: 100vh;
     left: 0px;
     z-index: 999;
-  }
-
-  #hail-navbar #hail-navbar-collapse .nav-item:first-child {
-    padding-top: 24px;
   }
 
   #hail-navbar #hail-menu {

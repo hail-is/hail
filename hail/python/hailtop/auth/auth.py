@@ -1,4 +1,5 @@
 from typing import Any, Optional, Dict, Tuple, List
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
 import os
@@ -34,38 +35,53 @@ class IdentityProviderSpec:
 
 
 class HailCredentials(CloudCredentials):
-    def __init__(self, tokens: Tokens, cloud_credentials: Optional[CloudCredentials], namespace: str, authorize_target: bool):
+    def __init__(
+        self,
+        tokens: Tokens,
+        cloud_credentials: Optional[CloudCredentials],
+        deploy_config: DeployConfig,
+        authorize_target: bool,
+    ):
         self._tokens = tokens
         self._cloud_credentials = cloud_credentials
-        self._namespace = namespace
+        self._deploy_config = deploy_config
         self._authorize_target = authorize_target
 
-    async def auth_headers(self) -> Dict[str, str]:
+    async def auth_headers_with_expiration(self) -> Tuple[Dict[str, str], Optional[float]]:
         headers = {}
+        expiration = None
         if self._authorize_target:
-            token = await self._get_idp_access_token_or_hail_token(self._namespace)
+            token, expiration = await self._get_idp_access_token_or_hail_token(self._deploy_config.default_namespace())
             headers['Authorization'] = f'Bearer {token}'
-        if get_deploy_config().location() == 'external' and self._namespace != 'default':
+        if get_deploy_config().location() == 'external' and self._deploy_config.default_namespace() != 'default':
             # We prefer an extant hail token to an access token for the internal auth token
             # during development of the idp access token feature because the production auth
             # is not yet configured to accept access tokens. This can be changed to always prefer
             # an idp access token when this change is in production.
-            token = await self._get_hail_token_or_idp_access_token('default')
+            token, internal_expiration = await self._get_hail_token_or_idp_access_token('default')
+            if internal_expiration:
+                if not expiration:
+                    expiration = internal_expiration
+                else:
+                    expiration = min(expiration, internal_expiration)
             headers['X-Hail-Internal-Authorization'] = f'Bearer {token}'
-        return headers
+        return headers, expiration
 
-    async def access_token(self) -> str:
-        return await self._get_idp_access_token_or_hail_token(self._namespace)
+    async def access_token_with_expiration(self) -> Tuple[str, Optional[float]]:
+        return await self._get_idp_access_token_or_hail_token(self._deploy_config.default_namespace())
 
-    async def _get_idp_access_token_or_hail_token(self, namespace: str) -> str:
+    async def _get_idp_access_token_or_hail_token(self, namespace: str) -> Tuple[str, Optional[float]]:
         if self._cloud_credentials is not None:
-            return await self._cloud_credentials.access_token()
-        return self._tokens.namespace_token_or_error(namespace)
+            return await self._cloud_credentials.access_token_with_expiration()
+        return self._tokens.namespace_token_with_expiration_or_error(namespace)
 
-    async def _get_hail_token_or_idp_access_token(self, namespace: str) -> str:
+    async def _get_hail_token_or_idp_access_token(self, namespace: str) -> Tuple[str, Optional[float]]:
         if self._cloud_credentials is None:
-            return self._tokens.namespace_token_or_error(namespace)
-        return self._tokens.namespace_token(namespace) or await self._cloud_credentials.access_token()
+            return self._tokens.namespace_token_with_expiration_or_error(namespace)
+        return (
+            self._tokens.namespace_token_with_expiration(namespace)
+            or await self._cloud_credentials.access_token_with_expiration()
+        )
 
     async def close(self):
         if self._cloud_credentials:
@@ -82,13 +98,17 @@ def hail_credentials(
     *,
     tokens_file: Optional[str] = None,
     cloud_credentials_file: Optional[str] = None,
-    namespace: Optional[str] = None,
-    authorize_target: bool = True
+    deploy_config: Optional[DeployConfig] = None,
+    authorize_target: bool = True,
 ) -> HailCredentials:
     tokens = get_tokens(tokens_file)
-    deploy_config = get_deploy_config()
-    ns = namespace or deploy_config.default_namespace()
-    return HailCredentials(tokens, get_cloud_credentials_scoped_for_hail(credentials_file=cloud_credentials_file), ns, authorize_target=authorize_target)
+    deploy_config = deploy_config or get_deploy_config()
+    return HailCredentials(
+        tokens,
+        get_cloud_credentials_scoped_for_hail(credentials_file=cloud_credentials_file),
+        deploy_config,
+        authorize_target=authorize_target,
+    )
 
 
 def get_cloud_credentials_scoped_for_hail(credentials_file: Optional[str] = None) -> Optional[CloudCredentials]:
@@ -108,7 +128,9 @@ def get_cloud_credentials_scoped_for_hail(credentials_file: Optional[str] = None
 
     assert spec.idp == IdentityProvider.MICROSOFT
     if spec.oauth2_credentials is not None:
-        return AzureCredentials.from_credentials_data(spec.oauth2_credentials, scopes=[spec.oauth2_credentials['userOauthScope']])
+        return AzureCredentials.from_credentials_data(
+            spec.oauth2_credentials, scopes=[spec.oauth2_credentials['userOauthScope']]
+        )
 
     if 'HAIL_AZURE_OAUTH_SCOPE' in os.environ:
         scopes = [os.environ["HAIL_AZURE_OAUTH_SCOPE"]]
@@ -132,21 +154,6 @@ def load_identity_spec() -> Optional[IdentityProviderSpec]:
     return None
 
 
-async def deploy_config_and_headers_from_namespace(namespace: Optional[str] = None, *, authorize_target: bool = True) -> Tuple[DeployConfig, Dict[str, str], str]:
-    deploy_config = get_deploy_config()
-
-    if namespace is not None:
-        deploy_config = deploy_config.with_default_namespace(namespace)
-    else:
-        namespace = deploy_config.default_namespace()
-
-
-    async with hail_credentials(namespace=namespace, authorize_target=authorize_target) as credentials:
-        headers = await credentials.auth_headers()
-
-    return (deploy_config, headers, namespace)
-
-
 async def async_get_userinfo():
     deploy_config = get_deploy_config()
     userinfo_url = deploy_config.url('auth', '/api/v1alpha/userinfo')
@@ -166,36 +173,36 @@ def get_userinfo():
     return async_to_blocking(async_get_userinfo())
 
 
-def copy_paste_login(copy_paste_token: str, namespace: Optional[str] = None):
-    return async_to_blocking(async_copy_paste_login(copy_paste_token, namespace))
+def copy_paste_login(copy_paste_token: str) -> str:
+    return async_to_blocking(async_copy_paste_login(copy_paste_token))
 
 
-async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str] = None):
-    deploy_config, headers, namespace = await deploy_config_and_headers_from_namespace(namespace, authorize_target=False)
-    async with httpx.client_session(headers=headers) as session:
+async def async_copy_paste_login(copy_paste_token: str) -> str:
+    deploy_config = get_deploy_config()
+    async with httpx.client_session() as session:
         data = await retry_transient_errors(
             session.post_read_json,
             deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-            params={'copy_paste_token': copy_paste_token}
+            params={'copy_paste_token': copy_paste_token},
         )
     token = data['token']
     username = data['username']
 
     tokens = get_tokens()
-    tokens[namespace] = token
+    tokens[deploy_config.default_namespace()] = token
     dot_hail_dir = os.path.expanduser('~/.hail')
     if not os.path.exists(dot_hail_dir):
         os.mkdir(dot_hail_dir, mode=0o700)
     tokens.write()
 
-    return namespace, username
+    return username
 
 
 async def async_logout():
     deploy_config = get_deploy_config()
 
     # Logout any legacy auth tokens that might still exist
-    auth_ns = deploy_config.service_ns('auth')
+    auth_ns = deploy_config.default_namespace()
     tokens = get_tokens()
     if auth_ns in tokens:
         await logout_deprecated_token_credentials(deploy_config, tokens[auth_ns])
@@ -230,20 +237,22 @@ async def logout_oauth2_credentials(identity_spec: IdentityProviderSpec):
         await AzureFlow.logout_installed_app(identity_spec.oauth2_credentials)
 
 
-def get_user(username: str, namespace: Optional[str] = None) -> dict:
-    return async_to_blocking(async_get_user(username, namespace))
+@asynccontextmanager
+async def hail_session(**session_kwargs):
+    async with hail_credentials() as credentials:
+        async with Session(credentials=credentials, **session_kwargs) as session:
+            yield session
 
 
-async def async_get_user(username: str, namespace: Optional[str] = None) -> dict:
-    deploy_config, headers, _ = await deploy_config_and_headers_from_namespace(namespace)
+def get_user(username: str) -> dict:
+    return async_to_blocking(async_get_user(username))
 
-    async with httpx.client_session(
-            timeout=aiohttp.ClientTimeout(total=30),
-            headers=headers) as session:
-        return await retry_transient_errors(
-            session.get_read_json,
-            deploy_config.url('auth', f'/api/v1alpha/users/{username}')
-        )
+
+async def async_get_user(username: str) -> dict:
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=30)) as session:
+        url = get_deploy_config().url('auth', f'/api/v1alpha/users/{username}')
+        async with await session.get(url) as resp:
+            return await resp.json()
 
 
 async def async_create_user(
@@ -253,11 +262,7 @@ async def async_create_user(
     is_service_account: bool,
     hail_identity: Optional[str],
     hail_credentials_secret_name: Optional[str],
-    *,
-    namespace: Optional[str] = None
 ):
-    deploy_config, headers, _ = await deploy_config_and_headers_from_namespace(namespace)
-
     body = {
         'login_id': login_id,
         'is_developer': is_developer,
@@ -266,26 +271,16 @@ async def async_create_user(
         'hail_credentials_secret_name': hail_credentials_secret_name,
     }
 
-    async with httpx.client_session(
-            timeout=aiohttp.ClientTimeout(total=30),
-            headers=headers) as session:
-        await retry_transient_errors(
-            session.post,
-            deploy_config.url('auth', f'/api/v1alpha/users/{username}/create'),
-            json=body
-        )
+    url = get_deploy_config().url('auth', f'/api/v1alpha/users/{username}/create')
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=30)) as session:
+        await session.post(url, json=body)
 
 
-def delete_user(username: str, namespace: Optional[str] = None):
-    return async_to_blocking(async_delete_user(username, namespace=namespace))
+def delete_user(username: str):
+    return async_to_blocking(async_delete_user(username))
 
 
-async def async_delete_user(username: str, namespace: Optional[str] = None):
-    deploy_config, headers, _ = await deploy_config_and_headers_from_namespace(namespace)
-    async with httpx.client_session(
-            timeout=aiohttp.ClientTimeout(total=300),
-            headers=headers) as session:
-        await retry_transient_errors(
-            session.delete,
-            deploy_config.url('auth', f'/api/v1alpha/users/{username}')
-        )
+async def async_delete_user(username: str):
+    url = get_deploy_config().url('auth', f'/api/v1alpha/users/{username}')
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=300)) as session:
+        await session.delete(url)

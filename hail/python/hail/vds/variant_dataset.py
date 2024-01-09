@@ -11,9 +11,15 @@ import json
 extra_ref_globals_file = 'extra_reference_globals.json'
 
 
-def read_vds(path, *, intervals=None, n_partitions=None,
-             _assert_reference_type=None, _assert_variant_type=None,
-             _warn_no_ref_block_max_length=True) -> 'VariantDataset':
+def read_vds(
+    path,
+    *,
+    intervals=None,
+    n_partitions=None,
+    _assert_reference_type=None,
+    _assert_variant_type=None,
+    _warn_no_ref_block_max_length=True,
+) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
     Parameters
@@ -44,10 +50,12 @@ def read_vds(path, *, intervals=None, n_partitions=None,
                 metadata = json.load(f)
                 vds.reference_data = vds.reference_data.annotate_globals(**metadata)
         elif _warn_no_ref_block_max_length:
-            warning("You are reading a VDS written with an older version of Hail."
-                    "\n  Hail now supports much faster interval filters on VDS, but you'll need to run either"
-                    "\n  `hl.vds.truncate_reference_blocks(vds, ...)` and write a copy (see docs) or patch the"
-                    "\n  existing VDS in place with `hl.vds.store_ref_block_max_length(vds_path)`.")
+            warning(
+                "You are reading a VDS written with an older version of Hail."
+                "\n  Hail now supports much faster interval filters on VDS, but you'll need to run either"
+                "\n  `hl.vds.truncate_reference_blocks(vds, ...)` and write a copy (see docs) or patch the"
+                "\n  existing VDS in place with `hl.vds.store_ref_block_max_length(vds_path)`."
+            )
 
     return vds
 
@@ -115,24 +123,23 @@ class VariantDataset:
         return os.path.join(base, 'variant_data')
 
     @staticmethod
-    def from_merged_representation(mt,
-                                   *,
-                                   ref_block_fields=(),
-                                   infer_ref_block_fields: bool = True,
-                                   is_split=False):
+    def from_merged_representation(mt, *, ref_block_fields=(), infer_ref_block_fields: bool = True, is_split=False):
         """Create a VariantDataset from a sparse MatrixTable containing variant and reference data."""
 
         if 'END' not in mt.entry:
             raise ValueError("VariantDataset.from_merged_representation: expect field 'END' in matrix table entry")
 
         if 'LA' not in mt.entry and not is_split:
-            raise ValueError("VariantDataset.from_merged_representation: expect field 'LA' in matrix table entry."
-                             "\n  If this dataset is already split into biallelics, use `is_split=True` to permit a conversion"
-                             " with no LA field.")
+            raise ValueError(
+                "VariantDataset.from_merged_representation: expect field 'LA' in matrix table entry."
+                "\n  If this dataset is already split into biallelics, use `is_split=True` to permit a conversion"
+                " with no LA field."
+            )
 
         if 'GT' not in mt.entry and 'LGT' not in mt.entry:
             raise ValueError(
-                "VariantDataset.from_merged_representation: expect field 'LGT' or 'GT' in matrix table entry")
+                "VariantDataset.from_merged_representation: expect field 'LGT' or 'GT' in matrix table entry"
+            )
 
         n_rows_to_use = 100
         info(f"inferring reference block fields from missingness patterns in first {n_rows_to_use} rows")
@@ -142,9 +149,13 @@ class VariantDataset:
         if infer_ref_block_fields:
             mt_head = mt.head(n_rows=n_rows_to_use)
             for k, any_present in zip(
-                    list(mt_head.entry),
-                    mt_head.aggregate_entries(hl.agg.filter(hl.is_defined(mt_head.END), tuple(
-                        hl.agg.any(hl.is_defined(mt_head[x])) for x in mt_head.entry)))):
+                list(mt_head.entry),
+                mt_head.aggregate_entries(
+                    hl.agg.filter(
+                        hl.is_defined(mt_head.END), tuple(hl.agg.any(hl.is_defined(mt_head[x])) for x in mt_head.entry)
+                    )
+                ),
+            ):
                 if any_present:
                     used_ref_block_fields.add(k)
 
@@ -156,15 +167,24 @@ class VariantDataset:
         if 'LA' in used_ref_block_fields:
             used_ref_block_fields.remove('LA')
 
-        info("Including the following fields in reference block table:" + "".join(
-            f"\n  {k!r}" for k in mt.entry if k in used_ref_block_fields))
+        info(
+            "Including the following fields in reference block table:"
+            + "".join(f"\n  {k!r}" for k in mt.entry if k in used_ref_block_fields)
+        )
 
-        rmt = mt.filter_entries(hl.case()
-                                .when(hl.is_missing(mt.END), False)
-                                .when(hl.is_defined(mt.END) & mt[gt_field].is_hom_ref(), True)
-                                .or_error(hl.str('cannot create VDS from merged representation -'
-                                                 ' found END field with non-reference genotype at ')
-                                          + hl.str(mt.locus) + hl.str(' / ') + hl.str(mt.col_key[0])))
+        rmt = mt.filter_entries(
+            hl.case()
+            .when(hl.is_missing(mt.END), False)
+            .when(hl.is_defined(mt.END) & mt[gt_field].is_hom_ref(), True)
+            .or_error(
+                hl.str(
+                    'cannot create VDS from merged representation -' ' found END field with non-reference genotype at '
+                )
+                + hl.str(mt.locus)
+                + hl.str(' / ')
+                + hl.str(mt.col_key[0])
+            )
+        )
         rmt = rmt.select_entries(*(x for x in rmt.entry if x in used_ref_block_fields))
         rmt = rmt.filter_rows(hl.agg.count() > 0)
 
@@ -219,31 +239,32 @@ class VariantDataset:
             raise ValueError(f'VDS.validate: {msg}')
 
         rd_row_key = rd.row_key.dtype
-        if (not isinstance(rd_row_key, hl.tstruct)
-                or len(rd_row_key) != 1
-                or not rd_row_key.fields[0] == 'locus'
-                or not isinstance(rd_row_key.types[0], hl.tlocus)):
+        if (
+            not isinstance(rd_row_key, hl.tstruct)
+            or len(rd_row_key) != 1
+            or not rd_row_key.fields[0] == 'locus'
+            or not isinstance(rd_row_key.types[0], hl.tlocus)
+        ):
             error(f"expect reference data to have a single row key 'locus' of type locus, found {rd_row_key}")
 
         vd_row_key = vd.row_key.dtype
-        if (not isinstance(vd_row_key, hl.tstruct)
-                or len(vd_row_key) != 2
-                or not vd_row_key.fields == ('locus', 'alleles')
-                or not isinstance(vd_row_key.types[0], hl.tlocus)
-                or vd_row_key.types[1] != hl.tarray(hl.tstr)):
+        if (
+            not isinstance(vd_row_key, hl.tstruct)
+            or len(vd_row_key) != 2
+            or not vd_row_key.fields == ('locus', 'alleles')
+            or not isinstance(vd_row_key.types[0], hl.tlocus)
+            or vd_row_key.types[1] != hl.tarray(hl.tstr)
+        ):
             error(
-                f"expect variant data to have a row key {{'locus': locus<rg>, alleles: array<str>}}, found {vd_row_key}")
+                f"expect variant data to have a row key {{'locus': locus<rg>, alleles: array<str>}}, found {vd_row_key}"
+            )
 
         rd_col_key = rd.col_key.dtype
-        if (not isinstance(rd_col_key, hl.tstruct)
-                or len(rd_row_key) != 1
-                or rd_col_key.types[0] != hl.tstr):
+        if not isinstance(rd_col_key, hl.tstruct) or len(rd_row_key) != 1 or rd_col_key.types[0] != hl.tstr:
             error(f"expect reference data to have a single col key of type string, found {rd_col_key}")
 
         vd_col_key = vd.col_key.dtype
-        if (not isinstance(vd_col_key, hl.tstruct)
-                or len(vd_col_key) != 1
-                or vd_col_key.types[0] != hl.tstr):
+        if not isinstance(vd_col_key, hl.tstruct) or len(vd_col_key) != 1 or vd_col_key.types[0] != hl.tstr:
             error(f"expect variant data to have a single col key of type string, found {vd_col_key}")
 
         if 'END' not in rd.entry or rd.END.dtype != hl.tint32:
@@ -255,14 +276,16 @@ class VariantDataset:
             var_cols = vd.col_key.collect()
             if len(ref_cols) != len(var_cols):
                 error(
-                    f"mismatch in number of columns: reference data has {ref_cols} columns, variant data has {var_cols} columns")
+                    f"mismatch in number of columns: reference data has {ref_cols} columns, variant data has {var_cols} columns"
+                )
 
             if ref_cols != var_cols:
                 first_mismatch = 0
-                while (ref_cols[first_mismatch] == var_cols[first_mismatch]):
+                while ref_cols[first_mismatch] == var_cols[first_mismatch]:
                     first_mismatch += 1
                 error(
-                    f"mismatch in columns keys: ref={ref_cols[first_mismatch]}, var={var_cols[first_mismatch]} at position {first_mismatch}")
+                    f"mismatch in columns keys: ref={ref_cols[first_mismatch]}, var={var_cols[first_mismatch]} at position {first_mismatch}"
+                )
 
             # check locus distinctness
             n_rd_rows = rd.count_rows()
@@ -272,18 +295,23 @@ class VariantDataset:
                 error(f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci')
 
             # check END field
-            (missing_end, end_before_position) = rd.aggregate_entries((
-                hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
-                hl.agg.filter(rd.END < rd.locus.position, hl.agg.take((rd.row_key, rd.col_key), 5)),
-            ))
+            (missing_end, end_before_position) = rd.aggregate_entries(
+                (
+                    hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
+                    hl.agg.filter(rd.END < rd.locus.position, hl.agg.take((rd.row_key, rd.col_key), 5)),
+                )
+            )
 
             if missing_end:
                 error(
-                    'found records in reference data with missing END field\n  ' + '\n  '.join(
-                        str(x) for x in missing_end))
+                    'found records in reference data with missing END field\n  '
+                    + '\n  '.join(str(x) for x in missing_end)
+                )
             if end_before_position:
-                error('found records in reference data with END before locus position\n  ' + '\n  '.join(
-                    str(x) for x in end_before_position))
+                error(
+                    'found records in reference data with END before locus position\n  '
+                    + '\n  '.join(str(x) for x in end_before_position)
+                )
 
     def _same(self, other: 'VariantDataset'):
         return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)
@@ -310,7 +338,9 @@ class VariantDataset:
 
         # if some mts have max ref len but not all, drop it
         if all_ref_max:
-            new_ref_mt = hl.MatrixTable.union_rows(*mts).annotate_globals(**{fd: hl.max([mt.index_globals()[fd] for mt in mts])})
+            new_ref_mt = hl.MatrixTable.union_rows(*mts).annotate_globals(
+                **{fd: hl.max([mt.index_globals()[fd] for mt in mts])}
+            )
         else:
             if any_ref_max:
                 mts = [mt.drop(fd) if fd in mt.globals else mt for mt in mts]

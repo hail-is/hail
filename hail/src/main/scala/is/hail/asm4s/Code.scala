@@ -435,7 +435,7 @@ object Code {
   }
 
   def checkcast[T](v: Code[_])(implicit tti: TypeInfo[T]): Code[T] =
-    Code(v, lir.checkcast(tti.iname))
+    Code(v, lir.checkcast(tti))
 
   def boxBoolean(cb: Code[Boolean]): Code[java.lang.Boolean] = Code.newInstance[java.lang.Boolean, Boolean](cb)
 
@@ -1221,7 +1221,7 @@ class Invokeable[T, S](tcls: Class[T],
       val t = new lir.Local(null, s"invoke_$name", sti)
       var r = lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)
       if (concreteReturnType != sct.runtimeClass)
-        r = lir.checkcast(Type.getInternalName(sct.runtimeClass), r)
+        r = lir.checkcast(sti, r)
       end.append(lir.store(t, r))
       new VCode(start, end, lir.load(t))
     }
@@ -1244,7 +1244,7 @@ object Value {
   }
 }
 
-trait Value[+T] { self =>
+trait Value[+T] {
   def get: Code[T]
 }
 
@@ -1267,7 +1267,7 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
 
   override def get: Code[T] =
     CodeBuilder.scopedCode(null) { cb =>
-      cb.if_(!present, cb += setm.invoke(cb) )
+      cb.if_(!present, cb += cb.invoke(setm, this.cb.this_))
       value
     }
 }
@@ -1275,9 +1275,9 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
 class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settable[T] {
   def name: String = f.name
 
-  def get: Code[T] = f.get(cb._this)
+  def get: Code[T] = f.get(cb.this_)
 
-  def store(rhs: Code[T]): Code[Unit] = f.put(cb._this, rhs)
+  def store(rhs: Code[T]): Code[Unit] = f.put(cb.this_, rhs)
 }
 
 class StaticFieldRef[T: TypeInfo](f: StaticField[T]) extends Settable[T] {

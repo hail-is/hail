@@ -70,10 +70,10 @@ class PruneSuite extends HailSuite {
     }
   }
 
-  def checkRebuild[T <: BaseIR](
-    ir: T,
-    requestedType: BaseType,
-    f: (T, T) => Boolean = (left: T, right: T) => left == right) {
+  def checkRebuild[T <: BaseIR](ir: T,
+                                requestedType: BaseType,
+                                f: (T, T) => Boolean = (left: T, right: T) => left == right
+                               ): Unit = {
     val irCopy = ir.deepCopy()
     val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
     val rebuilt = (irCopy match {
@@ -158,7 +158,7 @@ class PruneSuite extends HailSuite {
       split.tail.foreach { field =>
         ir = GetField(ir, field)
       }
-      let = Let(genUID(), ir, let)
+      let = Let(FastSeq(genUID() -> ir), let)
     }
     let
   }
@@ -181,7 +181,7 @@ class PruneSuite extends HailSuite {
       split.tail.foreach { field =>
         ir = GetField(ir, field)
       }
-      let = Let(genUID(), ir, let)
+      let = Let(FastSeq(genUID() -> ir), let)
     }
     let
   }
@@ -576,6 +576,13 @@ class PruneSuite extends HailSuite {
       Array(TBoolean, justA, justA))
   }
 
+  @Test def testSwitchMemo(): Unit =
+    checkMemo(
+      Switch(I32(0), ref, FastSeq(ref)),
+      justA,
+      Array(TInt32, justA, justA)
+    )
+
   @Test def testCoalesceMemo() {
     checkMemo(Coalesce(FastSeq(ref, ref)),
       justA,
@@ -583,8 +590,8 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testLetMemo() {
-    checkMemo(Let("foo", ref, Ref("foo", ref.typ)), justA, Array(justA, null))
-    checkMemo(Let("foo", ref, True()), TBoolean, Array(empty, null))
+    checkMemo(Let(FastSeq("foo" -> ref), Ref("foo", ref.typ)), justA, Array(justA, null))
+    checkMemo(Let(FastSeq("foo" -> ref), True()), TBoolean, Array(empty, null))
   }
 
   @Test def testAggLetMemo() {
@@ -647,20 +654,33 @@ class PruneSuite extends HailSuite {
       checkMemo(StreamZip(
         FastSeq(st, a2, a3),
         FastSeq("foo", "bar", "baz"),
-        Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
+        Let(
+          FastSeq(
+            "foo1" -> GetField(Ref("foo", ref.typ), "b"),
+            "bar2" -> GetField(Ref("bar", ref.typ), "a")
+          ),
+          False()
+        ), b
+      ),
         TStream(TBoolean), Array(TStream(justB), TStream(justA), TStream(empty), null))
     }
 
     checkMemo(StreamZip(
       FastSeq(st, a2, a3),
       FastSeq("foo", "bar", "baz"),
-      Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
+      Let(
+        FastSeq(
+          "foo1" -> GetField(Ref("foo", ref.typ), "b"),
+          "bar2" -> GetField(Ref("bar", ref.typ), "a")
+        ),
+        False()
+      ),
       ArrayZipBehavior.AssumeSameLength),
       TStream(TBoolean), Array(TStream(justB), TStream(justA), null, null))
   }
 
   @Test def testStreamFilterMemo() {
-    checkMemo(StreamFilter(st, "foo", Let("foo2", GetField(Ref("foo", ref.typ), "b"), False())),
+    checkMemo(StreamFilter(st, "foo", Let(FastSeq("foo2" -> GetField(Ref("foo", ref.typ), "b")), False())),
       TStream(empty), Array(TStream(justB), null))
     checkMemo(StreamFilter(st, "foo", False()),
       TStream(empty), Array(TStream(empty), null))
@@ -698,6 +718,43 @@ class PruneSuite extends HailSuite {
         TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
         TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
         TStruct("b" -> TInt32, "d" -> TInt32)))
+  }
+
+  @Test def testStreamLeftIntervalJoin(): Unit = {
+    val leftElemType = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
+    val rightElemType = TStruct("interval" -> TInterval(TInt32), "ignored" -> TVoid)
+
+    val join =
+      StreamLeftIntervalJoin(
+        MakeStream(FastSeq(), TStream(leftElemType)),
+        MakeStream(FastSeq(), TStream(rightElemType)),
+        leftElemType.fieldNames.head,
+        "interval",
+        "lname",
+        "rname",
+        InsertFields(
+          Ref("lname", leftElemType),
+          FastSeq("intervals" -> Ref("rname", TArray(rightElemType)))
+        )
+      )
+
+    val prunedLElemType = leftElemType.deleteKey("b")
+    val prunedRElemType = rightElemType.deleteKey("ignored")
+    val requestedElemType = prunedLElemType.insertFields(
+      FastSeq("intervals" -> TArray(prunedRElemType))
+    )
+
+    checkMemo(join, TStream(requestedElemType), Array(
+      TStream(prunedLElemType),
+      TStream(prunedRElemType),
+      requestedElemType
+    ))
+
+    checkRebuild[StreamLeftIntervalJoin](join, TStream(requestedElemType), { (_, pruned) =>
+      pruned.left.typ == TStream(prunedLElemType) &&
+        pruned.right.typ == TStream(prunedRElemType) &&
+        pruned.body.typ == requestedElemType
+    })
   }
 
   @Test def testStreamForMemo() {
@@ -1159,6 +1216,14 @@ class PruneSuite extends HailSuite {
       })
   }
 
+  @Test def testSwitchRebuild(): Unit =
+    checkRebuild[IR](Switch(I32(0), NA(ts), FastSeq(NA(ts))), subsetTS("b"), {
+      case (_, Switch(_, default, cases)) =>
+        default.typ == subsetTS("b") &&
+          cases(0).typ == subsetTS("b")
+      }
+    )
+
   @Test def testCoalesceRebuild() {
     checkRebuild(Coalesce(FastSeq(NA(ts), NA(ts))), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
@@ -1167,10 +1232,10 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testLetRebuild() {
-    checkRebuild(Let("x", NA(ts), Ref("x", ts)), subsetTS("b"),
+    checkRebuild(Let(FastSeq("x" -> NA(ts)), Ref("x", ts)), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[Let]
-        ir.value.typ == subsetTS("b")
+        ir.bindings.head._2.typ == subsetTS("b")
       })
   }
 
@@ -1248,14 +1313,26 @@ class PruneSuite extends HailSuite {
       checkRebuild(StreamZip(
         FastSeq(st, a2, a3),
         FastSeq("foo", "bar", "baz"),
-        Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())), b),
+        Let(
+          FastSeq(
+            "foo1" -> GetField(Ref("foo", ref.typ), "b"),
+            "bar2" -> GetField(Ref("bar", ref.typ), "a")
+          ),
+          False()
+        ), b),
         TStream(TBoolean),
         (_: BaseIR, r: BaseIR) => r.asInstanceOf[StreamZip].as.length == 3)
     }
     checkRebuild(StreamZip(
       FastSeq(st, a2, a3),
       FastSeq("foo", "bar", "baz"),
-      Let("foo1", GetField(Ref("foo", ref.typ), "b"), Let("bar2", GetField(Ref("bar", ref.typ), "a"), False())),
+      Let(
+        FastSeq(
+          "foo1" -> GetField(Ref("foo", ref.typ), "b"),
+          "bar2" -> GetField(Ref("bar", ref.typ), "a")
+        ),
+        False()
+      ),
       ArrayZipBehavior.AssumeSameLength),
       TStream(TBoolean),
       (_: BaseIR, r: BaseIR) => r.asInstanceOf[StreamZip].as.length == 2)

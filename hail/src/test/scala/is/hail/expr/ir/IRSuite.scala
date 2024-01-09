@@ -17,6 +17,7 @@ import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
+import is.hail.types.virtual.TIterable.elementType
 import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq, tcoerce}
 import is.hail.utils.{FastSeq, _}
@@ -576,29 +577,46 @@ class IRSuite extends HailSuite {
     assertEvalsTo(If(True(), NA(TInt32), I32(7)), null)
   }
 
+  @DataProvider(name="SwitchEval")
+  def switchEvalRules: Array[Array[Any]] =
+    Array(
+      Array(I32(-1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
+      Array(I32(0), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), 0),
+      Array(I32(1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MaxValue),
+      Array(I32(2), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
+      Array(NA(TInt32), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), null),
+      Array(I32(-1), NA(TInt32), FastSeq(0, Int.MaxValue).map(I32), null),
+      Array(I32(0), NA(TInt32), FastSeq(NA(TInt32), I32(0)), null),
+    )
+
+  @Test(dataProvider = "SwitchEval")
+  def testSwitch(x: IR, default: IR, cases: IndexedSeq[IR], result: Any): Unit =
+    assertEvalsTo(Switch(x, default, cases), result)
+
   @Test def testLet() {
-    assertEvalsTo(Let("v", I32(5), Ref("v", TInt32)), 5)
-    assertEvalsTo(Let("v", NA(TInt32), Ref("v", TInt32)), null)
-    assertEvalsTo(Let("v", I32(5), NA(TInt32)), null)
-    assertEvalsTo(ToArray(StreamMap(Let("v", I32(5), StreamRange(0, Ref("v", TInt32), 1)), "x", Ref("x", TInt32) + I32(2))),
-      FastSeq(2, 3, 4, 5, 6))
+    assertEvalsTo(Let(FastSeq("v" -> I32(5)), Ref("v", TInt32)), 5)
+    assertEvalsTo(Let(FastSeq("v" -> NA(TInt32)), Ref("v", TInt32)), null)
+    assertEvalsTo(Let(FastSeq("v" -> I32(5)), NA(TInt32)), null)
     assertEvalsTo(
-      ToArray(StreamMap(Let("q", I32(2),
-      StreamMap(Let("v", Ref("q", TInt32) + I32(3),
+      ToArray(mapIR(Let(FastSeq("v" -> I32(5)), StreamRange(0, Ref("v", TInt32), 1))) { x => x + I32(2) }),
+      FastSeq(2, 3, 4, 5, 6)
+    )
+    assertEvalsTo(
+      ToArray(StreamMap(Let(FastSeq("q" -> I32(2)),
+      StreamMap(Let(FastSeq("v" -> (Ref("q", TInt32) + I32(3))),
         StreamRange(0, Ref("v", TInt32), 1)),
         "x", Ref("x", TInt32) + Ref("q", TInt32))),
         "y", Ref("y", TInt32) + I32(3))),
       FastSeq(5, 6, 7, 8, 9))
 
     // test let binding streams
-    assertEvalsTo(Let("s", MakeStream(IndexedSeq(I32(0), I32(5)), TStream(TInt32)), ToArray(Ref("s", TStream(TInt32)))),
-                  FastSeq(0, 5))
-    assertEvalsTo(Let("s", NA(TStream(TInt32)), ToArray(Ref("s", TStream(TInt32)))),
-                  null)
+    assertEvalsTo(Let(FastSeq("s" -> MakeStream(IndexedSeq(I32(0), I32(5)), TStream(TInt32))), ToArray(Ref("s", TStream(TInt32)))),
+      FastSeq(0, 5))
+    assertEvalsTo(Let(FastSeq("s" -> NA(TStream(TInt32))), ToArray(Ref("s", TStream(TInt32)))),
+      null)
     assertEvalsTo(
-      ToArray(Let("s",
-                  MakeStream(IndexedSeq(I32(0), I32(5)), TStream(TInt32)),
-                  StreamTake(Ref("s", TStream(TInt32)), I32(1)))),
+      ToArray(Let(FastSeq("s" -> MakeStream(IndexedSeq(I32(0), I32(5)), TStream(TInt32))),
+        StreamTake(Ref("s", TStream(TInt32)), I32(1)))),
       FastSeq(0))
   }
 
@@ -1544,7 +1562,7 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(ToArray(StreamMap(a, "a", ApplyBinaryPrimOp(Add(), Ref("a", TInt32), I32(1)))), FastSeq(4, null, 8))
 
-    assertEvalsTo(ToArray(Let("a", I32(5),
+    assertEvalsTo(ToArray(Let(FastSeq("a" -> I32(5)),
       StreamMap(a, "a", Ref("a", TInt32)))),
       FastSeq(3, null, 7))
   }
@@ -1588,14 +1606,14 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(ToArray(StreamFlatMap(StreamRange(I32(0), I32(3), I32(1)), "i", ToStream(ArrayRef(ToArray(a), Ref("i", TInt32))))), FastSeq(7, null, 2))
 
-    assertEvalsTo(ToArray(Let("a", I32(5), StreamFlatMap(a, "a", ToStream(Ref("a", ta))))), FastSeq(7, null, 2))
+    assertEvalsTo(ToArray(Let(FastSeq("a" -> I32(5)), StreamFlatMap(a, "a", ToStream(Ref("a", ta))))), FastSeq(7, null, 2))
 
     val b = MakeStream(FastSeq(
       MakeArray(FastSeq(I32(7), I32(0)), ta),
       NA(ta),
       MakeArray(FastSeq(I32(2)), ta)),
       tsa)
-    assertEvalsTo(ToArray(Let("a", I32(5), StreamFlatMap(b, "b", ToStream(Ref("b", ta))))), FastSeq(7, 0, 2))
+    assertEvalsTo(ToArray(Let(FastSeq("a" -> I32(5)), StreamFlatMap(b, "b", ToStream(Ref("b", ta))))), FastSeq(7, 0, 2))
 
     val st = MakeStream(FastSeq(I32(1), I32(5), I32(2), NA(TInt32)), TStream(TInt32))
     val expected = FastSeq(-1, 0, -1, 0, 1, 2, 3, 4, -1, 0, 1)
@@ -1854,12 +1872,29 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(0, 0)), 2.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(0, 1)), 3.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastSeq(1, 0)), 2.0)
+
+    val vectorWithEmpty = NDArrayMap2(
+      NDArrayReindex(vectorRowMajor, FastSeq(1, 0)),
+      makeNDArray(FastSeq(), FastSeq(0, 2), True()),
+      "v", "m",
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
+    assertEvalsTo(NDArrayShape(vectorWithEmpty), Row(0L, 2L))
+
+    val colVectorWithEmpty = NDArrayMap2(
+      colVector,
+      makeNDArray(FastSeq(), FastSeq(2, 0), True()),
+      "v", "m",
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64), Ref("m", TFloat64)), ErrorIDs.NO_ERROR)
+    assertEvalsTo(NDArrayShape(colVectorWithEmpty), Row(2L, 0L))
   }
 
-  @Test(enabled = false) def testNDArrayAgg() {
+  @Test def testNDArrayAgg() {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-    val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
+    val empty = makeNDArrayRef(NDArrayAgg(makeNDArray(IndexedSeq(), IndexedSeq(0, 5), true), IndexedSeq(0, 1)), IndexedSeq())
+    assertEvalsTo(empty, 0.0)
+
+    val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq())
     assertEvalsTo(three, 3.0)
 
     val zero = makeNDArrayRef(NDArrayAgg(vectorRowMajor, IndexedSeq(0)), IndexedSeq.empty)
@@ -1965,19 +2000,21 @@ class IRSuite extends HailSuite {
     val joinF = { (l: IR, r: IR) =>
       def getL(field: String): IR = GetField(Ref("_left", l.typ), field)
       def getR(field: String): IR = GetField(Ref("_right", r.typ), field)
-      Let("_right", r,
-          Let("_left", l,
-              MakeStruct(
-                (lKeys, rKeys).zipped.map { (lk, rk) => lk -> Coalesce(IndexedSeq(getL(lk), getR(rk))) }
-                  ++ tcoerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
-                  f.name -> GetField(Ref("_left", l.typ), f.name)
-                } ++ tcoerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
-                  f.name -> GetField(Ref("_right", r.typ), f.name)
-                })))
+
+      Let(FastSeq("_right" -> r, "_left" -> l),
+        MakeStruct(
+          (lKeys, rKeys).zipped.map { (lk, rk) => lk -> Coalesce(IndexedSeq(getL(lk), getR(rk))) }
+            ++ tcoerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
+            f.name -> GetField(Ref("_left", l.typ), f.name)
+          } ++ tcoerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
+            f.name -> GetField(Ref("_right", r.typ), f.name)
+          }
+        )
+      )
     }
     ToArray(StreamJoin.apply(left, right, lKeys, rKeys, "_l", "_r",
-                     joinF(Ref("_l", tcoerce[TStream](left.typ).elementType), Ref("_r", tcoerce[TStream](right.typ).elementType)),
-                     joinType, requiresMemoryManagement = false, rightKeyIsDistinct = rightDistinct))
+      joinF(Ref("_l", tcoerce[TStream](left.typ).elementType), Ref("_r", tcoerce[TStream](right.typ).elementType)),
+      joinType, requiresMemoryManagement = false, rightKeyIsDistinct = rightDistinct))
   }
 
   @Test def testStreamZipJoin() {
@@ -2370,9 +2407,7 @@ class IRSuite extends HailSuite {
   @Test def testArrayAggContexts() {
     implicit val execStrats = ExecStrategy.compileOnly
 
-    val ir = Let(
-      "x",
-      In(0, TInt32) * In(0, TInt32), // multiply to prevent forwarding
+    val ir = Let(FastSeq("x" -> (In(0, TInt32) * In(0, TInt32))), // multiply to prevent forwarding
       StreamAgg(
         StreamRange(I32(0), I32(10), I32(1)),
         "elt",
@@ -2713,8 +2748,9 @@ class IRSuite extends HailSuite {
       CastRename(NA(TStruct("a" -> TInt32)), TStruct("b" -> TInt32)),
       NA(TInt32), IsNA(i),
       If(b, i, j),
+      Switch(i, j, 0 until 7 map I32),
       Coalesce(FastSeq(i, I32(1))),
-      Let("v", i, v),
+      Let(FastSeq("v" -> i), v),
       AggLet("v", i, collect(v), false) -> (_.createAgg),
       Ref("x", TInt32) -> (_.bindEval("x", TInt32)),
       ApplyBinaryPrimOp(Add(), i, j),
@@ -2732,12 +2768,12 @@ class IRSuite extends HailSuite {
       NDArrayAgg(nd, FastSeq(0)),
       NDArrayWrite(nd, Str("/path/to/ndarray")),
       NDArrayMatMul(nd, nd, ErrorIDs.NO_ERROR),
-      NDArraySlice(nd, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1))),
-                                         MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1)))))),
+      NDArraySlice(nd, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(I64(0), I64(2), I64(1))),
+                                         MakeTuple.ordered(FastSeq(I64(0), I64(2), I64(1)))))),
       NDArrayFilter(nd, FastSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))),
       ArrayRef(a, i) -> Array(a),
       ArrayLen(a) -> Array(a),
-      RNGSplit(rngState, MakeTuple.ordered(FastSeq(I64(1), MakeTuple.ordered(FastSeq(I64(2), I64(3)))))),
+      RNGSplit(rngState, MakeTuple.ordered(FastSeq(I64(1), I64(2), I64(3)))),
       StreamLen(st) -> Array(st),
       StreamRange(I32(0), I32(5), I32(1)),
       StreamRange(I32(0), I32(5), I32(1)),
@@ -2747,8 +2783,8 @@ class IRSuite extends HailSuite {
       ToArray(st) -> Array(st),
       CastToArray(NA(TSet(TInt32))),
       ToStream(a) -> Array(a),
-      LowerBoundOnOrderedCollection(a, i, onKey = true) -> Array(a),
-      GroupByKey(da) -> Array(da),
+      LowerBoundOnOrderedCollection(a, i, onKey = false) -> Array(a),
+      GroupByKey(std) -> Array(std),
       StreamTake(st, I32(10)) -> Array(st),
       StreamDrop(st, I32(10)) -> Array(st),
       StreamTakeWhile(st, "v", v < I32(5)) -> Array(st),
@@ -2760,22 +2796,34 @@ class IRSuite extends HailSuite {
       StreamFold(st, I32(0), "x", "v", v) -> Array(st),
       StreamFold2(StreamFold(st, I32(0), "x", "v", v)) -> Array(st),
       StreamScan(st, I32(0), "x", "v", v) -> Array(st),
-      StreamWhiten(whitenStream, "newChunk", "prevWindow", 0, 0, 0, 0, false) -> Array(whitenStream),
+      StreamWhiten(whitenStream, "newChunk", "prevWindow", 1, 1, 1, 1, false) -> Array(whitenStream),
       StreamJoinRightDistinct(
         StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
         FastSeq("x"), FastSeq("x"), "l", "r", I32(1), "left"),
+      {
+        val left = StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32))))
+        val right = ToStream(Literal(
+          TArray(TStruct("a" -> TInterval(TInt32))),
+          FastSeq(Row(Interval(IntervalEndpoint(0, -1), IntervalEndpoint(1, 1))))
+        ))
+        val lref = Ref("lname", elementType(left.typ))
+        val rref = Ref("rname", TArray(elementType(right.typ)))
+        StreamLeftIntervalJoin(left, right, "x", "a", lref.name, rref.name,
+          InsertFields(lref, FastSeq("join" -> rref))
+        )
+      },
       StreamFor(st, "v", Void()) -> Array(st),
       StreamAgg(st, "x", ApplyAggOp(FastSeq.empty, FastSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)) -> Array(st),
       StreamAggScan(st, "x", ApplyScanOp(FastSeq.empty, FastSeq(Cast(Ref("x", TInt32), TInt64)), sumSig)) -> Array(st),
       RunAgg(Begin(FastSeq(
         InitOp(0, FastSeq(Begin(FastSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
-        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(), pSumSig)), groupSignature))),
+        SeqOp(0, FastSeq(I32(1), SeqOp(0, FastSeq(I64(1)), pSumSig)), groupSignature))),
         AggStateValue(0, groupSignature.state), FastSeq(groupSignature.state)),
       RunAggScan(StreamRange(I32(0), I32(1), I32(1)),
         "foo",
         InitOp(0, FastSeq(Begin(FastSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
-        SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(), pSumSig)), groupSignature),
+        SeqOp(0, FastSeq(Ref("foo", TInt32), SeqOp(0, FastSeq(I64(1)), pSumSig)), groupSignature),
         AggStateValue(0, groupSignature.state),
         FastSeq(groupSignature.state)),
       AggFilter(True(), I32(0), false) -> (_.createAgg),
@@ -2811,7 +2859,7 @@ class IRSuite extends HailSuite {
       TableCount(table),
       MatrixCount(mt),
       TableGetGlobals(table),
-      TableCollect(table),
+      TableCollect(TableKeyBy(table, FastSeq())),
       TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))),
       TableToValueApply(table, ForceCountTable()),
       MatrixToValueApply(mt, ForceCountMatrixTable()),
@@ -2838,14 +2886,14 @@ class IRSuite extends HailSuite {
         MakeStream(FastSeq(), TStream(TStruct())), NA(TString),
         PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), IndexedSeq(), "path", None, None)),
       WriteMetadata(
-        NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
+        Begin(FastSeq()),
         RelationalWriter("path", overwrite = false, None)),
       ReadValue(Str("foo"), ETypeValueReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default)), TStruct("foo" -> TInt32)),
       WriteValue(I32(1), Str("foo"), ETypeValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default))),
       WriteValue(I32(1), Str("foo"), ETypeValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default)), Some(Str("/tmp/uid/part"))),
       LiftMeOut(I32(1)),
       RelationalLet("x", I32(0), I32(0)),
-      TailLoop("y", IndexedSeq("x" -> I32(0)), Recur("y", FastSeq(I32(4)), TInt32))
+      TailLoop("y", IndexedSeq("x" -> I32(0)), TInt32, Recur("y", FastSeq(I32(4)), TInt32))
       )
     val emptyEnv = BindingEnv.empty[Type]
     irs.map { case (ir, bind) => Array(ir, bind(emptyEnv)) }
@@ -3058,11 +3106,11 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR, refMap: BindingEnv[Type]) {
-    val env = IRParserEnvironment(ctx, refMap = refMap)
+    val env = IRParserEnvironment(ctx)
 
     val s = Pretty.sexprStyle(x, elideLiterals = false)
 
-    val x2 = IRParser.parse_value_ir(s, env)
+    val x2 = IRParser.parse_value_ir(s, env, refMap)
 
     assert(x2 == x)
   }
@@ -3280,6 +3328,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val triangleSum: IR = TailLoop("f",
       FastSeq("x" -> In(0, TInt32), "accum" -> In(1, TInt32)),
+      TInt32,
       If(Ref("x", TInt32) <= I32(0),
         Ref("accum", TInt32),
         Recur("f",
@@ -3297,9 +3346,11 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.compileOnly
     val triangleSum: IR = TailLoop("f1",
       FastSeq("x" -> In(0, TInt32), "accum" -> I32(0)),
+      TInt32,
       If(Ref("x", TInt32) <= I32(0),
         TailLoop("f2",
           FastSeq("x2" -> Ref("accum", TInt32), "accum2" -> I32(0)),
+          TInt32,
           If(Ref("x2", TInt32) <= I32(0),
             Ref("accum2", TInt32),
             Recur("f2",
@@ -3323,6 +3374,7 @@ class IRSuite extends HailSuite {
 
     val ndSum: IR = TailLoop("f",
       FastSeq("x" -> In(0, TInt32), "accum" -> In(1, ndType)),
+      ndType,
       If(Ref("x", TInt32) <= I32(0),
         Ref("accum", ndType),
         Recur("f",
@@ -3349,8 +3401,8 @@ class IRSuite extends HailSuite {
   @Test def testHasIRSharing(): Unit = {
     val r = Ref("x", TInt32)
     val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
-    assert(HasIRSharing(ir1))
-    assert(!HasIRSharing(ir1.deepCopy()))
+    assert(HasIRSharing(ctx)(ir1))
+    assert(!HasIRSharing(ctx)(ir1.deepCopy()))
   }
 
   @Test def freeVariablesAggScanBindingEnv(): Unit = {
@@ -3409,10 +3461,10 @@ class IRSuite extends HailSuite {
     val writer = ETypeValueWriter(spec)
     val reader = ETypeValueReader(spec)
     val prefix = ctx.createTmpPath("test-read-write-value-dist")
-    val readArray = Let("files",
+    val readArray = Let(FastSeq("files" ->
       CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
         "ctx", "globals",
-        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), writer), NA(TString), "test"),
+        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), writer), NA(TString), "test")),
       StreamMap(ToStream(Ref("files", TArray(TString))), "filename",
         ReadValue(Ref("filename", TString), reader, pt.virtualType)))
     for (v <- Array(value, null)) {

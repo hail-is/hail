@@ -53,7 +53,7 @@ class ETypeSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val arg1 = inPType.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](1))
       val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
-      cb.invokeVoid(enc, arg1, arg2)
+      cb.invokeVoid(enc, cb.this_, arg1, arg2)
       Code._empty
     }
 
@@ -71,7 +71,7 @@ class ETypeSuite extends HailSuite {
     val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
     val dec = eType.buildDecoderMethod(outPType.virtualType, fb2.apply_method.ecb)
     fb2.emitWithBuilder[Long] { cb =>
-      val decoded = cb.invokeSCode(dec, regArg, ibArg)
+      val decoded = cb.invokeSCode(dec, cb.this_, regArg, ibArg)
       outPType.store(cb, regArg, decoded, deepCopy = false)
     }
 

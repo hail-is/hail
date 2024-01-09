@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.utils.StackSafe._
 
 class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
@@ -10,11 +11,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
     normFunction(count)
   }
 
-  def apply(ir: IR, env: Env[String]): IR = apply(ir.noSharing, BindingEnv(env))
+  def apply(ctx: ExecuteContext, ir: IR, env: Env[String]): IR =
+    normalizeIR(ir.noSharing(ctx), BindingEnv(env)).run().asInstanceOf[IR]
 
-  def apply(ir: IR, env: BindingEnv[String]): IR = normalizeIR(ir.noSharing, env).run().asInstanceOf[IR]
+  def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[String]): IR =
+    normalizeIR(ir.noSharing(ctx), env).run().asInstanceOf[IR]
 
-  def apply(ir: BaseIR): BaseIR = normalizeIR(ir.noSharing, BindingEnv(agg=Some(Env.empty), scan=Some(Env.empty))).run()
+  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    normalizeIR(ir.noSharing(ctx), BindingEnv(agg=Some(Env.empty), scan=Some(Env.empty))).run()
 
   private def normalizeIR(ir: BaseIR, env: BindingEnv[String], context: Array[String] = Array()): StackFrame[BaseIR] = {
 
@@ -25,12 +29,23 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       call(normalizeIR(next, env, context :+ ir.getClass().getName()).asInstanceOf[StackFrame[IR]])
 
     ir match {
-      case Let(name, value, body) =>
-        val newName = gen()
+      case Let(bindings, body) =>
+        val newBindings: Array[(String, IR)] =
+          Array.ofDim(bindings.length)
+
         for {
-          newValue <- normalize(value)
-          newBody <- normalize(body, env.bindEval(name, newName))
-        } yield Let(newName, newValue, newBody)
+          (env, _) <- bindings.foldLeft(done((env, 0))) {
+            case (get, (name, value)) =>
+              for {
+                (env, idx) <- get
+                newValue <- normalize(value, env)
+                newName = gen()
+                _ = newBindings(idx) = newName -> newValue
+              } yield (env.bindEval(name, newName), idx + 1)
+          }
+          newBody <- normalize(body, env)
+        } yield Let(newBindings, newBody)
+
       case Ref(name, typ) =>
         val newName = env.eval.lookupOption(name) match {
           case Some(n) => n
@@ -63,14 +78,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newValue <- normalize(value, valueEnv)
           newBody <- normalize(body, bodyEnv)
         } yield AggLet(newName, newValue, newBody, isScan)
-      case TailLoop(name, args, body) =>
+      case TailLoop(name, args, resultType, body) =>
         val newFName = gen()
         val newNames = Array.tabulate(args.length)(i => gen())
         val (names, values) = args.unzip
         for {
           newValues <- values.mapRecur(v => normalize(v))
           newBody <- normalize(body, env.copy(eval = env.eval.bind(names.zip(newNames) :+ name -> newFName: _*)))
-        } yield TailLoop(newFName, newNames.zip(newValues), newBody)
+        } yield TailLoop(newFName, newNames.zip(newValues), resultType, newBody)
       case ArraySort(a, left, right, lessThan) =>
         val newLeft = gen()
         val newRight = gen()
@@ -106,6 +121,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           newMakeProducer <- normalize(makeProducer, env.bindEval(ctxName -> newCtxName))
           newJoinF <- normalize(joinF, env.bindEval(curKey -> newCurKey, curVals -> newCurVals))
         } yield StreamZipJoinProducers(newCtxs, newCtxName, newMakeProducer, key, newCurKey, newCurVals, newJoinF)
+      case StreamLeftIntervalJoin(left, right, lKeyNames, rIntrvlName, lEltName, rEltName, body) =>
+        val newLName = gen()
+        val newRName = gen()
+        for {
+          newL <- normalize(left)
+          newR <- normalize(right)
+          newB <- normalize(body, env.bindEval(lEltName -> newLName, rEltName -> newRName))
+        } yield StreamLeftIntervalJoin(newL, newR, lKeyNames, rIntrvlName, newLName, newRName, newB)
       case StreamFilter(a, name, body) =>
         val newName = gen()
         for {

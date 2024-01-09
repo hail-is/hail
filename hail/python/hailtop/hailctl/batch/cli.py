@@ -146,12 +146,11 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
 
         if job is not None:
             assert job._status
-            print(make_formatter(output)([
-                cast(
-                    Dict[str, Any],  # https://stackoverflow.com/q/71986632/6823256
-                    job._status
+            print(
+                make_formatter(output)(
+                    [cast(Dict[str, Any], job._status)]  # https://stackoverflow.com/q/71986632/6823256
                 )
-            ]))
+            )
         else:
             print(f"Job with ID {job_id} on batch {batch_id} not found")
 
@@ -160,7 +159,9 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
 def submit(
     ctx: typer.Context,
     script: str,
-    arguments: Ann[Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')] = None,
+    arguments: Ann[
+        Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
+    ] = None,
     files: Ann[
         Optional[List[str]], Opt(help='Files or directories to add to the working directory of the job.')
     ] = None,
@@ -180,7 +181,5 @@ def submit(
 
 
 @app.command('init', help='Initialize a Hail Batch environment.')
-def initialize(
-        verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
-):
-    asyncio.get_event_loop().run_until_complete(async_basic_initialize(verbose=verbose))
+def initialize(verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False):
+    asyncio.run(async_basic_initialize(verbose=verbose))

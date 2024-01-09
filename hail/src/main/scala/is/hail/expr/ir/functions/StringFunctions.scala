@@ -125,7 +125,7 @@ object StringFunctions extends RegistryFunctions {
           sv.forEachDefined(cb) { case (cb, idx, sc) => cb += (m(idx) = sc.asString.loadString(cb)) }
           m
         }
-        cb.newLocal[Array[String]]("missing_arr", cb.invokeCode(mb, missingSV))
+        cb.newLocal[Array[String]]("missing_arr", cb.invokeCode(mb, cb.this_, missingSV))
     }
 
     // lazy field reused across calls to split functions
@@ -249,25 +249,32 @@ object StringFunctions extends RegistryFunctions {
       val len = Ref(genUID(), TInt32)
       val s = Ref(genUID(), TInt32)
       val e = Ref(genUID(), TInt32)
-      Let(len.name, invoke("length", TInt32, str),
-        Let(s.name, softBounds(start, len),
-          Let(e.name, softBounds(end, len),
-            invoke("substring", TString, str, s, If(e < s, s, e)))))
+      Let(
+        FastSeq(
+          len.name -> invoke("length", TInt32, str),
+          s.name -> softBounds(start, len),
+          e.name -> softBounds(end, len),
+        ),
+        invoke("substring", TString, str, s, If(e < s, s, e))
+      )
     }
 
     registerIR2("index", TString, TInt32, TString) { (_, s, i, errorID) =>
       val len = Ref(genUID(), TInt32)
       val idx = Ref(genUID(), TInt32)
-      Let(len.name, invoke("length", TInt32, s),
-        Let(idx.name,
-          If((i < -len) || (i >= len),
+      Let(
+        FastSeq(
+          len.name -> invoke("length", TInt32, s),
+          idx.name -> If((i < -len) || (i >= len),
             Die(invoke("concat", TString,
               Str("string index out of bounds: "),
               invoke("concat", TString,
                 invoke("str", TString, i),
                 invoke("concat", TString, Str(" / "), invoke("str", TString, len)))), TInt32, errorID),
-            If(i < 0, i + len, i)),
-          invoke("substring", TString, s, idx, idx + 1)))
+            If(i < 0, i + len, i))
+        ),
+          invoke("substring", TString, s, idx, idx + 1)
+      )
     }
 
     registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start, _) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }

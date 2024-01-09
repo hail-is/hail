@@ -373,7 +373,7 @@ class BatchStateQuery(Query):
             condition = "(`state` = 'running')"
             args = []
         elif self.state == BatchState.CANCELLED:
-            condition = '(batches_cancelled.id IS NOT NULL)'
+            condition = '(job_groups_cancelled.id IS NOT NULL)'
             args = []
         elif self.state == BatchState.FAILURE:
             condition = '(n_failed > 0)'
@@ -457,7 +457,7 @@ class BatchQuotedExactMatchQuery(Query):
     def query(self) -> Tuple[str, List[str]]:
         sql = '''
 ((batches.id) IN
- (SELECT batch_id FROM batch_attributes
+ (SELECT batch_id FROM job_group_attributes
   WHERE `key` = %s OR `value` = %s))
 '''
         return (sql, [self.term, self.term])
@@ -480,7 +480,7 @@ class BatchUnquotedPartialMatchQuery(Query):
     def query(self) -> Tuple[str, List[str]]:
         sql = '''
 ((batches.id) IN
- (SELECT batch_id FROM batch_attributes
+ (SELECT batch_id FROM job_group_attributes
   WHERE `key` LIKE %s OR `value` LIKE %s))
 '''
         escaped_term = f'%{self.term}%'
@@ -507,7 +507,7 @@ class BatchKeywordQuery(Query):
             value = f'%{value}%'
         sql = f'''
 ((batches.id) IN
- (SELECT batch_id FROM batch_attributes
+ (SELECT batch_id FROM job_group_attributes
   WHERE `key` = %s AND `value` {op} %s))
         '''
         return (sql, [self.key, value])

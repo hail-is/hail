@@ -9,6 +9,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, HailException, Interval}
 import is.hail.{ExecStrategy, HailSuite}
+import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.scalatest.Matchers._
 import org.testng.annotations.Test
@@ -20,7 +21,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidContextsType: Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(contexts = Some(Str("oh noes :'(")))
+      mkTableGen(contexts = Some(Str("oh noes :'("))).typecheck()
     }
 
     ex.getMessage should include("contexts")
@@ -31,7 +32,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidGlobalsType: Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(globals = Some(Str("oh noes :'(")), body = Some(MakeStream(IndexedSeq(), TStream(TStruct()))))
+      mkTableGen(globals = Some(Str("oh noes :'(")), body = Some(MakeStream(IndexedSeq(), TStream(TStruct())))).typecheck()
     }
     ex.getMessage should include("globals")
     ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
@@ -41,7 +42,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidBodyType: Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(body = Some(Str("oh noes :'(")))
+      mkTableGen(body = Some(Str("oh noes :'("))).typecheck()
     }
     ex.getMessage should include("body")
     ex.getMessage should include(s"Expected: ${classOf[TStream].getName}")
@@ -51,7 +52,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidBodyElementType: Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(body = Some(MakeStream(IndexedSeq(Str("oh noes :'(")), TStream(TString))))
+      mkTableGen(body = Some(MakeStream(IndexedSeq(Str("oh noes :'(")), TStream(TString)))).typecheck()
     }
     ex.getMessage should include("body.elementType")
     ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
@@ -61,7 +62,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidPartitionerKeyType: Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(partitioner = Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32))))
+      mkTableGen(partitioner = Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))).typecheck()
     }
     ex.getMessage should include("partitioner")
   }
@@ -69,7 +70,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithTooLongPartitionerKeyType: Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(partitioner = Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32))))
+      mkTableGen(partitioner = Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))).typecheck()
     }
     ex.getMessage should include("partitioner")
   }
@@ -116,11 +117,11 @@ class TableGenSuite extends HailSuite {
       errorId = Some(errorId)
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
-    val ex = intercept[HailException] {
+    val ex = intercept[SparkException] {
       ExecuteContext.scoped() { ctx =>
         loweredExecute(ctx, lowered, Env.empty, FastSeq(), None)
       }
-    }
+    }.getCause.asInstanceOf[HailException]
 
     ex.errorId shouldBe errorId
     ex.getMessage should include("TableGen: Unexpected key in partition")

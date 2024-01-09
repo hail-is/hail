@@ -67,11 +67,11 @@ class Canceller:
 
         self.task_manager = aiotools.BackgroundTaskManager()
 
-    def shutdown(self):
+    async def shutdown_and_wait(self):
         try:
-            self.task_manager.shutdown()
+            await self.task_manager.shutdown_and_wait()
         finally:
-            self.async_worker_pool.shutdown()
+            await self.async_worker_pool.shutdown_and_wait()
 
     async def cancel_cancelled_ready_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
@@ -96,10 +96,10 @@ HAVING n_cancelled_ready_jobs > 0;
         async def user_cancelled_ready_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled
+SELECT batches.id, job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM batches
-LEFT JOIN batches_cancelled
-       ON batches.id = batches_cancelled.id
+LEFT JOIN job_groups_cancelled
+       ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
@@ -186,8 +186,8 @@ HAVING n_cancelled_creating_jobs > 0;
                 '''
 SELECT batches.id
 FROM batches
-INNER JOIN batches_cancelled
-        ON batches.id = batches_cancelled.id
+INNER JOIN job_groups_cancelled
+        ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
@@ -283,8 +283,8 @@ HAVING n_cancelled_running_jobs > 0;
                 '''
 SELECT batches.id
 FROM batches
-INNER JOIN batches_cancelled
-        ON batches.id = batches_cancelled.id
+INNER JOIN job_groups_cancelled
+        ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),

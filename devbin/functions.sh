@@ -135,6 +135,35 @@ knodes() {
     done
 }
 
+kscale() {
+    local usage="Use like kscale <namespace> down or kscale <namespace> up"
+    if [ -z "$1" ]; then
+        echo $usage
+        return
+    fi
+    local namespace=$1
+    if [[ "$namespace" == "default" ]]; then
+        echo "ERROR: kscale should only be used for dev namespaces"
+        return
+    fi
+
+    case "$2" in
+        up)
+            local replicas=1
+            ;;
+        down)
+            local replicas=0
+            ;;
+        *)
+            echo $usage
+            return
+            ;;
+    esac
+
+    kubectl -n $namespace scale deployments --all --replicas=$replicas
+    kubectl -n $namespace scale statefulsets --all --replicas=$replicas
+}
+
 download-secret() {
     # download-secret secret-name namespace
     #

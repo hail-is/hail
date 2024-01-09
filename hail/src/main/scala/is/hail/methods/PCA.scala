@@ -90,9 +90,9 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       ContextRDD.empty()
     val rvd = RVD.coerce(ctx, RVDType(rowType, mv.typ.rowKey), crdd)
 
-    val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64), "eigenvalues")
-    val (globalScoreType, f3) = mv.typ.colKeyStruct.insert(TArray(TFloat64), "scores")
-    val (newGlobalType, f2) = t1.insert(TArray(globalScoreType), "scores")
+    val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64), FastSeq("eigenvalues"))
+    val (globalScoreType, f3) = mv.typ.colKeyStruct.insert(TArray(TFloat64), FastSeq("scores"))
+    val (newGlobalType, f2) = t1.insert(TArray(globalScoreType), FastSeq("scores"))
 
     val data =
       if (!svd.V.isTransposed)

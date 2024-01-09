@@ -99,8 +99,8 @@ object IRFunctionRegistry {
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
     val body = IRParser.parse_value_ir(
       bodyStr,
-      IRParserEnvironment(ctx, refMap, Map())
-    )
+      IRParserEnvironment(ctx, Map()),
+      refMap)
 
     userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
     addIR(
@@ -132,7 +132,7 @@ object IRFunctionRegistry {
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type]
   ): Option[JVMFunction] = {
-    jvmRegistry.lift(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq }.getOrElse(FastSeq()) match {
+    jvmRegistry.get(name).map { fs => fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq }.getOrElse(FastSeq()) match {
       case Seq() => None
       case Seq(f) => Some(f)
       case _ => fatal(s"Multiple functions found that satisfy $name(${ valueParameterTypes.mkString(",") }).")
@@ -147,7 +147,7 @@ object IRFunctionRegistry {
   ): JVMFunction = {
     jvmRegistry.lift(name) match {
       case None =>
-        fatal(s"no functions found with the name ${name}")
+        fatal(s"no functions found with the signature $name(${valueParameterTypes.mkString(", ")}): $returnType")
       case Some(functions) =>
         functions.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq match {
           case Seq() =>
@@ -196,7 +196,7 @@ object IRFunctionRegistry {
   def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[IRFunctionImplementation] = {
     val validIR: Option[IRFunctionImplementation] = lookupIR(name, returnType, typeParameters, arguments).map {
       case ((_, _, _, inline), conversion) => (typeParametersPassed, args, errorID) =>
-        val x = ApplyIR(name, typeParametersPassed, args, errorID)
+        val x = ApplyIR(name, typeParametersPassed, args, returnType, errorID)
         x.conversion = conversion
         x.inline = inline
         x
@@ -237,7 +237,8 @@ object IRFunctionRegistry {
     UtilFunctions,
     ExperimentalFunctions,
     ReferenceGenomeFunctions,
-    BGENFunctions
+    BGENFunctions,
+    ApproxCDFFunctions
   ).foreach(_.registerAll())
 
   def dumpFunctions(): Unit = {
@@ -723,6 +724,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
   override def computeReturnEmitType(returnType: Type, valueParameterTypes: Seq[EmitType]): EmitType = {
     EmitType(computeStrictReturnEmitType(returnType, valueParameterTypes.map(_.st)), valueParameterTypes.forall(_.required))
   }
+
   def computeStrictReturnEmitType(returnType: Type, valueParameterTypes: Seq[SType]): SType =
     MissingnessObliviousJVMFunction.returnSType(missingnessObliviousComputeReturnType)(returnType, valueParameterTypes)
 
@@ -745,9 +747,9 @@ abstract class UnseededMissingnessObliviousJVMFunction (
     assert(unified, name)
     val methodbuilder = cb.genEmitMethod(name, FastSeq[ParamType](typeInfo[Region], typeInfo[Int]) ++ args.map(_.paramType), rpt.paramType)
     methodbuilder.emitSCode(cb => apply(EmitRegion.default(methodbuilder),
-      cb,
-      rpt,
-      typeParameters,
+          cb,
+          rpt,
+          typeParameters,
       methodbuilder.getCodeParam[Int](2),
       (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3)): _*))
     methodbuilder

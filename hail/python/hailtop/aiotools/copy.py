@@ -9,12 +9,13 @@ from concurrent.futures import ThreadPoolExecutor
 from rich.progress import Progress, TaskID
 
 from ..utils.utils import sleep_before_try
-from ..utils.rich_progress_bar import RichProgressBar, make_listener
+from ..utils.rich_progress_bar import CopyToolProgressBar, make_listener
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
 
 try:
     import uvloop
+
     uvloop_install = uvloop.install
 except ImportError as e:
     if not sys.platform.startswith('win32'):
@@ -66,15 +67,16 @@ class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
                     self.task.cancel()
 
 
-async def copy(*,
-               max_simultaneous_transfers: Optional[int] = None,
-               local_kwargs: Optional[dict] = None,
-               gcs_kwargs: Optional[dict] = None,
-               azure_kwargs: Optional[dict] = None,
-               s3_kwargs: Optional[dict] = None,
-               transfers: List[Transfer],
-               verbose: bool = False,
-               ) -> None:
+async def copy(
+    *,
+    max_simultaneous_transfers: Optional[int] = None,
+    local_kwargs: Optional[dict] = None,
+    gcs_kwargs: Optional[dict] = None,
+    azure_kwargs: Optional[dict] = None,
+    s3_kwargs: Optional[dict] = None,
+    transfers: List[Transfer],
+    verbose: bool = False,
+) -> None:
     with ThreadPoolExecutor() as thread_pool:
         if max_simultaneous_transfers is None:
             max_simultaneous_transfers = 75
@@ -90,19 +92,20 @@ async def copy(*,
         if 'max_pool_connections' not in s3_kwargs:
             s3_kwargs['max_pool_connections'] = max_simultaneous_transfers * 2
 
-        async with RouterAsyncFS(local_kwargs=local_kwargs,
-                                 gcs_kwargs=gcs_kwargs,
-                                 azure_kwargs=azure_kwargs,
-                                 s3_kwargs=s3_kwargs) as fs:
-            with RichProgressBar(transient=True, disable=not verbose) as progress:
+        async with RouterAsyncFS(
+            local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
+        ) as fs:
+            with CopyToolProgressBar(transient=True, disable=not verbose) as progress:
                 initial_simultaneous_transfers = 10
-                parallelism_tid = progress.add_task(description='parallelism',
-                                                    completed=initial_simultaneous_transfers,
-                                                    total=max_simultaneous_transfers,
-                                                    visible=verbose)
-                async with GrowingSempahore(initial_simultaneous_transfers,
-                                            max_simultaneous_transfers,
-                                            (progress, parallelism_tid)) as sema:
+                parallelism_tid = progress.add_task(
+                    description='parallelism',
+                    completed=initial_simultaneous_transfers,
+                    total=max_simultaneous_transfers,
+                    visible=verbose,
+                )
+                async with GrowingSempahore(
+                    initial_simultaneous_transfers, max_simultaneous_transfers, (progress, parallelism_tid)
+                ) as sema:
                     file_tid = progress.add_task(description='files', total=0, visible=verbose)
                     bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
                     copy_report = await Copier.copy(
@@ -110,7 +113,8 @@ async def copy(*,
                         sema,
                         transfers,
                         files_listener=make_listener(progress, file_tid),
-                        bytes_listener=make_listener(progress, bytes_tid))
+                        bytes_listener=make_listener(progress, bytes_tid),
+                    )
                 if verbose:
                     copy_report.summarize()
 
@@ -122,15 +126,16 @@ def make_transfer(json_object: Dict[str, str]) -> Transfer:
     return Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR)
 
 
-async def copy_from_dict(*,
-                         max_simultaneous_transfers: Optional[int] = None,
-                         local_kwargs: Optional[dict] = None,
-                         gcs_kwargs: Optional[dict] = None,
-                         azure_kwargs: Optional[dict] = None,
-                         s3_kwargs: Optional[dict] = None,
-                         files: List[Dict[str, str]],
-                         verbose: bool = False,
-                         ) -> None:
+async def copy_from_dict(
+    *,
+    max_simultaneous_transfers: Optional[int] = None,
+    local_kwargs: Optional[dict] = None,
+    gcs_kwargs: Optional[dict] = None,
+    azure_kwargs: Optional[dict] = None,
+    s3_kwargs: Optional[dict] = None,
+    files: List[Dict[str, str]],
+    verbose: bool = False,
+) -> None:
     transfers = [make_transfer(json_object) for json_object in files]
     await copy(
         max_simultaneous_transfers=max_simultaneous_transfers,
@@ -145,15 +150,25 @@ async def copy_from_dict(*,
 
 async def main() -> None:
     parser = argparse.ArgumentParser(description='Hail copy tool')
-    parser.add_argument('requester_pays_project', type=str,
-                        help='a JSON string indicating the Google project to which to charge egress costs')
-    parser.add_argument('files', type=str, nargs='?',
-                        help='a JSON array of JSON objects indicating from where and to where to copy files. If empty or "-", read the array from standard input instead')
-    parser.add_argument('--max-simultaneous-transfers', type=int,
-                        help='The limit on the number of simultaneous transfers. Large files are uploaded as multiple transfers. This parameter sets an upper bound on the number of open source and destination files.')
-    parser.add_argument('-v', '--verbose', action='store_const',
-                        const=True, default=False,
-                        help='show logging information')
+    parser.add_argument(
+        'requester_pays_project',
+        type=str,
+        help='a JSON string indicating the Google project to which to charge egress costs',
+    )
+    parser.add_argument(
+        'files',
+        type=str,
+        nargs='?',
+        help='a JSON array of JSON objects indicating from where and to where to copy files. If empty or "-", read the array from standard input instead',
+    )
+    parser.add_argument(
+        '--max-simultaneous-transfers',
+        type=int,
+        help='The limit on the number of simultaneous transfers. Large files are uploaded as multiple transfers. This parameter sets an upper bound on the number of open source and destination files.',
+    )
+    parser.add_argument(
+        '-v', '--verbose', action='store_const', const=True, default=False, help='show logging information'
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -170,7 +185,7 @@ async def main() -> None:
         max_simultaneous_transfers=args.max_simultaneous_transfers,
         gcs_kwargs=gcs_kwargs,
         files=files,
-        verbose=args.verbose
+        verbose=args.verbose,
     )
 
 

@@ -21,7 +21,6 @@ def touch(filename):
 
 @qobtest
 class Tests(unittest.TestCase):
-
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
@@ -79,7 +78,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.hadoop_exists(resource('./some/foo/bar.txt')))
 
         with hadoop_open(resource('./some/foo/bar.txt')) as f:
-            assert(f.read() == test_text)
+            assert f.read() == test_text
 
         hl.current_backend().fs.rmtree(resource('./some'))
 
@@ -129,7 +128,10 @@ class Tests(unittest.TestCase):
         except ValueError as err:
             assert f'glob pattern only allowed in path (e.g. not in bucket): {glob_in_bucket_url}' in err.args[0]
         except FatalError as err:
-            assert f"Invalid GCS bucket name 'glob*{bucket}': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
+            assert (
+                f"Invalid GCS bucket name 'glob*{bucket}': bucket name must contain only 'a-z0-9_.-' characters."
+                in err.args[0]
+            )
         else:
             assert False
 
@@ -254,8 +256,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(s.annotate(), s)
         self.assertEqual(s.annotate(x=5), Struct(a=1, b=2, c=3, x=5))
-        self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}),
-                         Struct(a=5, b=2, c=3, x=10, y=15))
+        self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}), Struct(a=5, b=2, c=3, x=10, y=15))
 
     def test_expr_exception_results_in_hail_user_error(self):
         df = range_table(10)
@@ -296,7 +297,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(escape_id("123abc"), "`123abc`")
 
     def test_frozen_dict(self):
-        self.assertEqual(frozendict({1:2, 4:7}), frozendict({1:2, 4:7}))
+        self.assertEqual(frozendict({1: 2, 4: 7}), frozendict({1: 2, 4: 7}))
         my_frozen_dict = frozendict({"a": "apple", "h": "hail"})
         self.assertEqual(my_frozen_dict["a"], "apple")
 
@@ -310,24 +311,18 @@ class Tests(unittest.TestCase):
             my_frozen_dict["a"] = "b"
 
     def test_json_encoder(self):
-        self.assertEqual(
-            json.dumps(frozendict({"foo": "bar"}), cls=hl.utils.JSONEncoder),
-            '{"foo": "bar"}'
-        )
+        self.assertEqual(json.dumps(frozendict({"foo": "bar"}), cls=hl.utils.JSONEncoder), '{"foo": "bar"}')
 
-        self.assertEqual(
-            json.dumps(Struct(foo="bar"), cls=hl.utils.JSONEncoder),
-            '{"foo": "bar"}'
-        )
+        self.assertEqual(json.dumps(Struct(foo="bar"), cls=hl.utils.JSONEncoder), '{"foo": "bar"}')
 
         self.assertEqual(
             json.dumps(Interval(start=1, end=10), cls=hl.utils.JSONEncoder),
-            '{"start": 1, "end": 10, "includes_start": true, "includes_end": false}'
+            '{"start": 1, "end": 10, "includes_start": true, "includes_end": false}',
         )
 
         self.assertEqual(
             json.dumps(hl.Locus(1, 100, "GRCh38"), cls=hl.utils.JSONEncoder),
-            '{"contig": "1", "position": 100, "reference_genome": "GRCh38"}'
+            '{"contig": "1", "position": 100, "reference_genome": "GRCh38"}',
         )
 
 
@@ -358,39 +353,41 @@ def glob_tests_directory(init_hail):
 
 
 def test_hadoop_ls_folder_glob(glob_tests_directory):
-    expected = [glob_tests_directory + '/abc/ghi/123',
-                glob_tests_directory + '/abc/jkl/123']
+    expected = [glob_tests_directory + '/abc/ghi/123', glob_tests_directory + '/abc/jkl/123']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/*/123')]
     assert set(actual) == set(expected)
 
+
 def test_hadoop_ls_prefix_folder_glob_qmarks(glob_tests_directory):
-    expected = [glob_tests_directory + '/abc/ghi/78',
-                glob_tests_directory + '/abc/jkl/78']
+    expected = [glob_tests_directory + '/abc/ghi/78', glob_tests_directory + '/abc/jkl/78']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/*/??')]
     assert set(actual) == set(expected)
 
 
 def test_hadoop_ls_two_folder_globs(glob_tests_directory):
-    expected = [glob_tests_directory + '/abc/ghi/123',
-                glob_tests_directory + '/abc/jkl/123',
-                glob_tests_directory + '/def/ghi/123',
-                glob_tests_directory + '/def/jkl/123']
+    expected = [
+        glob_tests_directory + '/abc/ghi/123',
+        glob_tests_directory + '/abc/jkl/123',
+        glob_tests_directory + '/def/ghi/123',
+        glob_tests_directory + '/def/jkl/123',
+    ]
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/*/*/123')]
     assert set(actual) == set(expected)
 
 
 def test_hadoop_ls_two_folder_globs_and_two_qmarks(glob_tests_directory):
-    expected = [glob_tests_directory + '/abc/ghi/78',
-                glob_tests_directory + '/abc/jkl/78',
-                glob_tests_directory + '/def/ghi/78',
-                glob_tests_directory + '/def/jkl/78']
+    expected = [
+        glob_tests_directory + '/abc/ghi/78',
+        glob_tests_directory + '/abc/jkl/78',
+        glob_tests_directory + '/def/ghi/78',
+        glob_tests_directory + '/def/jkl/78',
+    ]
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/*/*/??')]
     assert set(actual) == set(expected)
 
 
 def test_hadoop_ls_one_folder_glob_and_qmarks_in_multiple_components(glob_tests_directory):
-    expected = [glob_tests_directory + '/abc/ghi/78',
-                glob_tests_directory + '/def/ghi/78']
+    expected = [glob_tests_directory + '/abc/ghi/78', glob_tests_directory + '/def/ghi/78']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/*/?h?/??')]
     assert set(actual) == set(expected)
 
@@ -408,33 +405,28 @@ def test_hadoop_ls_size_one_groups(glob_tests_directory):
 
 
 def test_hadoop_ls_component_with_only_groups(glob_tests_directory):
-    expected = [glob_tests_directory + '/abc/ghi/123',
-                glob_tests_directory + '/abc/ghi/!23',
-                glob_tests_directory + '/abc/ghi/?23',
-                glob_tests_directory + '/abc/ghi/456',
-                glob_tests_directory + '/abc/ghi/78']
+    expected = [
+        glob_tests_directory + '/abc/ghi/123',
+        glob_tests_directory + '/abc/ghi/!23',
+        glob_tests_directory + '/abc/ghi/?23',
+        glob_tests_directory + '/abc/ghi/456',
+        glob_tests_directory + '/abc/ghi/78',
+    ]
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/[g][h][i]/*')]
     assert set(actual) == set(expected)
 
 
 def test_hadoop_ls_negated_group(glob_tests_directory):
-    expected = [glob_tests_directory + '/abc/ghi/!23',
-                glob_tests_directory + '/abc/ghi/?23']
+    expected = [glob_tests_directory + '/abc/ghi/!23', glob_tests_directory + '/abc/ghi/?23']
     actual = [x['path'] for x in hl.hadoop_ls(glob_tests_directory + '/abc/ghi/[!1]23')]
     assert set(actual) == set(expected)
 
 
 def test_struct_rich_comparison():
     """Asserts comparisons between structs and struct expressions are symmetric"""
-    struct = hl.Struct(
-        locus=hl.Locus(contig=10, position=60515, reference_genome='GRCh37'),
-        alleles=['C', 'T']
-    )
+    struct = hl.Struct(locus=hl.Locus(contig=10, position=60515, reference_genome='GRCh37'), alleles=['C', 'T'])
 
-    expr = hl.struct(
-        locus=hl.locus(contig='10', pos=60515, reference_genome='GRCh37'),
-        alleles=['C', 'T']
-    )
+    expr = hl.struct(locus=hl.locus(contig='10', pos=60515, reference_genome='GRCh37'), alleles=['C', 'T'])
 
     assert hl.eval(struct == expr) and hl.eval(expr == struct)
     assert hl.eval(struct >= expr) and hl.eval(expr >= struct)

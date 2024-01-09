@@ -65,12 +65,14 @@ chmod +x NVIDIA-Linux-x86_64-530.30.02.run
 apt-get --yes install nvidia-container-toolkit
 nvidia-ctk runtime configure --runtime=docker
 
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+bash add-google-cloud-ops-agent-repo.sh --also-install --version=2.*.*
+
 # avoid "unable to get current user home directory: os/user lookup failed"
 export HOME=/root
 
 docker-credential-gcr configure-docker --include-artifact-registry
 docker pull {{ global.docker_root_image }}
-
 
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp

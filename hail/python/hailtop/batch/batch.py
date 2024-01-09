@@ -1,7 +1,7 @@
 import os
 import warnings
 import re
-from typing import Callable, Optional, Dict, Union, List, Any, Set, Literal, overload
+from typing import Callable, Optional, Dict, Union, List, Any, Set
 from io import BytesIO
 import dill
 
@@ -10,6 +10,7 @@ from hailtop.aiotools import AsyncFS
 from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.batch_client.client as _bc
+import hailtop.batch_client.aioclient as _aiobc
 from hailtop.config import ConfigVariable, configuration_of
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
@@ -113,7 +114,7 @@ class Batch:
         return uid
 
     @staticmethod
-    def from_batch_id(batch_id: int, *args, **kwargs):
+    def from_batch_id(batch_id: int, *args, **kwargs) -> 'Batch':
         """
         Create a Batch from an existing batch id.
 
@@ -137,26 +138,32 @@ class Batch:
         -------
         A Batch object that can append jobs to an existing batch.
         """
+        return async_to_blocking(Batch._async_from_batch_id(batch_id, *args, **kwargs))
+
+    @staticmethod
+    async def _async_from_batch_id(batch_id: int, *args, **kwargs) -> 'Batch':
         b = Batch(*args, **kwargs)
         assert isinstance(b._backend, _backend.ServiceBackend)
-        b._batch_handle = b._backend._batch_client.get_batch(batch_id)
+        b._async_batch = await (await b._backend._batch_client()).get_batch(batch_id)
         return b
 
-    def __init__(self,
-                 name: Optional[str] = None,
-                 backend: Optional[_backend.Backend] = None,
-                 attributes: Optional[Dict[str, str]] = None,
-                 requester_pays_project: Optional[str] = None,
-                 default_image: Optional[str] = None,
-                 default_memory: Optional[Union[int, str]] = None,
-                 default_cpu: Optional[Union[float, int, str]] = None,
-                 default_storage: Optional[Union[int, str]] = None,
-                 default_timeout: Optional[Union[float, int]] = None,
-                 default_shell: Optional[str] = None,
-                 default_python_image: Optional[str] = None,
-                 default_spot: Optional[bool] = None,
-                 project: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        backend: Optional[Union[_backend.LocalBackend, _backend.ServiceBackend]] = None,
+        attributes: Optional[Dict[str, str]] = None,
+        requester_pays_project: Optional[str] = None,
+        default_image: Optional[str] = None,
+        default_memory: Optional[Union[int, str]] = None,
+        default_cpu: Optional[Union[float, int, str]] = None,
+        default_storage: Optional[Union[int, str]] = None,
+        default_timeout: Optional[Union[float, int]] = None,
+        default_shell: Optional[str] = None,
+        default_python_image: Optional[str] = None,
+        default_spot: Optional[bool] = None,
+        project: Optional[str] = None,
+        cancel_after_n_failures: Optional[int] = None,
+    ):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -196,7 +203,8 @@ class Batch:
         if project is not None:
             warnings.warn(
                 'The project argument to Batch is deprecated, please instead use the google_project argument to '
-                'ServiceBackend. Use of this argument may trigger warnings from aiohttp about unclosed objects.')
+                'ServiceBackend. Use of this argument may trigger warnings from aiohttp about unclosed objects.'
+            )
         self._DEPRECATED_project = project
         self._DEPRECATED_fs: Optional[RouterAsyncFS] = None
 
@@ -205,7 +213,7 @@ class Batch:
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
 
-        self._batch_handle: Optional[_bc.Batch] = None
+        self._async_batch: Optional[_aiobc.Batch] = None
 
     @property
     def _unsubmitted_jobs(self):
@@ -237,13 +245,9 @@ class Batch:
 
         return code_input_file
 
-    async def _serialize_python_functions_to_input_files(
-        self, path: str, dry_run: bool = False
-    ) -> None:
+    async def _serialize_python_functions_to_input_files(self, path: str, dry_run: bool = False) -> None:
         for function_id, function in self._python_function_defs.items():
-            file = await self._serialize_python_to_input_file(
-                path, "functions", function_id, function, dry_run
-            )
+            file = await self._serialize_python_to_input_file(path, "functions", function_id, function, dry_run)
             self._python_function_files[function_id] = file
 
     def _unique_job_token(self, n=5):
@@ -261,20 +265,18 @@ class Batch:
             return self._DEPRECATED_fs
         return self._backend._fs
 
-    def new_job(self,
-                name: Optional[str] = None,
-                attributes: Optional[Dict[str, str]] = None,
-                shell: Optional[str] = None) -> job.BashJob:
+    def new_job(
+        self, name: Optional[str] = None, attributes: Optional[Dict[str, str]] = None, shell: Optional[str] = None
+    ) -> job.BashJob:
         """
         Alias for :meth:`.Batch.new_bash_job`
         """
 
         return self.new_bash_job(name, attributes, shell)
 
-    def new_bash_job(self,
-                     name: Optional[str] = None,
-                     attributes: Optional[Dict[str, str]] = None,
-                     shell: Optional[str] = None) -> job.BashJob:
+    def new_bash_job(
+        self, name: Optional[str] = None, attributes: Optional[Dict[str, str]] = None, shell: Optional[str] = None
+    ) -> job.BashJob:
         """
         Initialize a :class:`.BashJob` object with default memory, storage,
         image, and CPU settings (defined in :class:`.Batch`) upon batch creation.
@@ -325,9 +327,7 @@ class Batch:
         self._jobs.append(j)
         return j
 
-    def new_python_job(self,
-                       name: Optional[str] = None,
-                       attributes: Optional[Dict[str, str]] = None) -> job.PythonJob:
+    def new_python_job(self, name: Optional[str] = None, attributes: Optional[Dict[str, str]] = None) -> job.PythonJob:
         """
         Initialize a new :class:`.PythonJob` object with default
         Python image, memory, storage, and CPU settings (defined in :class:`.Batch`)
@@ -603,20 +603,28 @@ class Batch:
 
         if not isinstance(resource, _resource.Resource):
             raise BatchException(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
-        if (isinstance(resource, _resource.JobResourceFile)
-                and isinstance(resource._source, job.BashJob)
-                and resource not in resource._source._mentioned):
+        if (
+            isinstance(resource, _resource.JobResourceFile)
+            and isinstance(resource._source, job.BashJob)
+            and resource not in resource._source._mentioned
+        ):
             name = resource._source._resources_inverse[resource]
-            raise BatchException(f"undefined resource '{name}'\n"
-                                 f"Hint: resources must be defined within the "
-                                 f"job methods 'command' or 'declare_resource_group'")
-        if (isinstance(resource, _resource.PythonResult)
-                and isinstance(resource._source, job.PythonJob)
-                and resource not in resource._source._mentioned):
+            raise BatchException(
+                f"undefined resource '{name}'\n"
+                f"Hint: resources must be defined within the "
+                f"job methods 'command' or 'declare_resource_group'"
+            )
+        if (
+            isinstance(resource, _resource.PythonResult)
+            and isinstance(resource._source, job.PythonJob)
+            and resource not in resource._source._mentioned
+        ):
             name = resource._source._resources_inverse[resource]
-            raise BatchException(f"undefined resource '{name}'\n"
-                                 f"Hint: resources must be bound as a result "
-                                 f"using the PythonJob 'call' method")
+            raise BatchException(
+                f"undefined resource '{name}'\n"
+                f"Hint: resources must be bound as a result "
+                f"using the PythonJob 'call' method"
+            )
 
         if isinstance(self._backend, _backend.LocalBackend):
             dest_scheme = url_scheme(dest)
@@ -649,15 +657,10 @@ class Batch:
 
         return [job for job in self._jobs if job.name is not None and re.match(pattern, job.name) is not None]
 
-    @overload
-    def run(self, dry_run: Literal[False] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> _bc.Batch: ...
-    @overload
-    def run(self, dry_run: Literal[True] = ..., verbose: bool = ..., delete_scratch_on_exit: bool = ..., **backend_kwargs: Any) -> None: ...
-    def run(self,
-            dry_run: bool = False,
-            verbose: bool = False,
-            delete_scratch_on_exit: bool = True,
-            **backend_kwargs: Any) -> Optional[_bc.Batch]:
+    # Do not try to overload this based on dry_run. LocalBackend.run also returns None.
+    def run(
+        self, dry_run: bool = False, verbose: bool = False, delete_scratch_on_exit: bool = True, **backend_kwargs: Any
+    ) -> Optional[_bc.Batch]:
         """
         Execute a batch.
 
@@ -683,7 +686,12 @@ class Batch:
         backend_kwargs:
             See :meth:`.Backend._run` for backend-specific arguments.
         """
+        return async_to_blocking(self._async_run(dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))  # type: ignore
 
+    # Do not try to overload this based on dry_run. LocalBackend.run also returns None.
+    async def _async_run(
+        self, dry_run: bool = False, verbose: bool = False, delete_scratch_on_exit: bool = True, **backend_kwargs: Any
+    ) -> Optional[_bc.Batch]:
         seen = set()
         ordered_jobs = []
 
@@ -709,13 +717,14 @@ class Batch:
                     raise BatchException("cycle detected in dependency graph")
 
         self._jobs = ordered_jobs
-        run_result = self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
+        run_result = await self._backend._async_run(
+            self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs
+        )  # pylint: disable=assignment-from-no-return
         if self._DEPRECATED_fs is not None:
             # best effort only because this is deprecated
-            async_to_blocking(self._DEPRECATED_fs.close())
+            await self._DEPRECATED_fs.close()
             self._DEPRECATED_fs = None
         return run_result
-
 
     def __str__(self):
         return self._uid

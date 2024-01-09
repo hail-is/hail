@@ -70,7 +70,7 @@ def copy_test_configurations():
                                 'dest_basename': dest_basename,
                                 'treat_dest_as': treat_dest_as,
                                 'src_trailing_slash': src_trailing_slash,
-                                'dest_trailing_slash': dest_trailing_slash
+                                'dest_trailing_slash': dest_trailing_slash,
                             }
 
 
@@ -157,4 +157,4 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main())

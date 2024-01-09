@@ -1212,11 +1212,11 @@ class ParseLineContext(
   val fileNum: Int,
   val entriesName: String
 ) {
-  val entryType: TStruct = rowType.fieldOption(entriesName) match {
+  val entryType: TStruct = rowType.selfField(entriesName) match {
     case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
     case None => TStruct.empty
   }
-  val infoSignature = rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
+  val infoSignature = rowType.selfField("info").map(_.typ.asInstanceOf[TStruct]).orNull
   val hasQual = rowType.hasField("qual")
   val hasFilters = rowType.hasField("filters")
   val hasEntryFields = entryType.size > 0
@@ -1693,7 +1693,7 @@ object MatrixVCFReader {
         val localFilterAndReplace = params.filterAndReplace
 
         val fsConfigBC = backend.broadcast(fs.getConfiguration())
-        val (err, _) = backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes).zipWithIndex, "load_vcf_parse_header", None) { (bytes, htc, _, fs) =>
+        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), "load_vcf_parse_header", None) { (bytes, htc, _, fs) =>
           val fsConfig = fsConfigBC.value
           fs.setConfiguration(fsConfig)
           val file = new String(bytes)
@@ -1735,8 +1735,6 @@ object MatrixVCFReader {
 
           bytes
         }
-
-        err.foreach(throw _)
       }
     }
 
@@ -1744,7 +1742,7 @@ object MatrixVCFReader {
 
     LoadVCF.warnDuplicates(sampleIDs)
 
-    new MatrixVCFReader(params, fileListEntries, referenceGenome, header1)
+    new MatrixVCFReader(params.copy(files = fileListEntries.map(_.getPath)), fileListEntries, referenceGenome, header1)
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixVCFReader = {

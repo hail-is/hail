@@ -84,8 +84,7 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt.filter_cols((mt.s != "C1048::HG02024") & (mt.s != "HG00255")), t)
 
         with self.assertRaisesRegex(FatalError, 'invalid sample IDs'):
-            (hl.import_vcf([resource('sample.vcf'), t])
-             ._force_count_rows())
+            (hl.import_vcf([resource('sample.vcf'), t])._force_count_rows())
 
     def test_filter(self):
         mt = hl.import_vcf(resource('malformed.vcf'), filter='rs685723')
@@ -101,15 +100,14 @@ class VCFTests(unittest.TestCase):
 
     def test_haploid(self):
         expected = hl.Table.parallelize(
-            [hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02024",
-                       GT = hl.call(0, 0), AD = [10, 0], GQ = 44),
-             hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02025",
-                       GT = hl.call(1), AD = [0, 6], GQ = 70),
-             hl.struct(locus = hl.locus("X", 16061250), s = "C1046::HG02024",
-                       GT = hl.call(2, 2), AD = [0, 0, 11], GQ = 33),
-             hl.struct(locus = hl.locus("X", 16061250), s = "C1046::HG02025",
-                       GT = hl.call(2), AD = [0, 0, 9], GQ = 24)],
-            key=['locus', 's'])
+            [
+                hl.struct(locus=hl.locus("X", 16050036), s="C1046::HG02024", GT=hl.call(0, 0), AD=[10, 0], GQ=44),
+                hl.struct(locus=hl.locus("X", 16050036), s="C1046::HG02025", GT=hl.call(1), AD=[0, 6], GQ=70),
+                hl.struct(locus=hl.locus("X", 16061250), s="C1046::HG02024", GT=hl.call(2, 2), AD=[0, 0, 11], GQ=33),
+                hl.struct(locus=hl.locus("X", 16061250), s="C1046::HG02025", GT=hl.call(2), AD=[0, 0, 9], GQ=24),
+            ],
+            key=['locus', 's'],
+        )
 
         mt = hl.import_vcf(resource('haploid.vcf'))
         entries = mt.entries()
@@ -119,15 +117,38 @@ class VCFTests(unittest.TestCase):
 
     def test_call_fields(self):
         expected = hl.Table.parallelize(
-            [hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02024",
-                       GT = hl.call(0, 0), GTA = hl.missing(hl.tcall), GTZ = hl.call(0, 1)),
-             hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02025",
-                       GT = hl.call(1), GTA = hl.missing(hl.tcall), GTZ = hl.call(0)),
-             hl.struct(locus = hl.locus("X", 16061250), s = "C1046::HG02024",
-                       GT = hl.call(2, 2), GTA = hl.call(2, 1), GTZ = hl.call(1, 1)),
-             hl.struct(locus = hl.locus("X", 16061250), s = "C1046::HG02025",
-                       GT = hl.call(2), GTA = hl.missing(hl.tcall), GTZ = hl.call(1))],
-            key=['locus', 's'])
+            [
+                hl.struct(
+                    locus=hl.locus("X", 16050036),
+                    s="C1046::HG02024",
+                    GT=hl.call(0, 0),
+                    GTA=hl.missing(hl.tcall),
+                    GTZ=hl.call(0, 1),
+                ),
+                hl.struct(
+                    locus=hl.locus("X", 16050036),
+                    s="C1046::HG02025",
+                    GT=hl.call(1),
+                    GTA=hl.missing(hl.tcall),
+                    GTZ=hl.call(0),
+                ),
+                hl.struct(
+                    locus=hl.locus("X", 16061250),
+                    s="C1046::HG02024",
+                    GT=hl.call(2, 2),
+                    GTA=hl.call(2, 1),
+                    GTZ=hl.call(1, 1),
+                ),
+                hl.struct(
+                    locus=hl.locus("X", 16061250),
+                    s="C1046::HG02025",
+                    GT=hl.call(2),
+                    GTA=hl.missing(hl.tcall),
+                    GTZ=hl.call(1),
+                ),
+            ],
+            key=['locus', 's'],
+        )
 
         mt = hl.import_vcf(resource('generic.vcf'), call_fields=['GT', 'GTA', 'GTZ'])
         entries = mt.entries()
@@ -137,9 +158,10 @@ class VCFTests(unittest.TestCase):
 
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
-            hl.import_vcf(resource('sample2.vcf'),
-                          reference_genome=hl.get_reference('GRCh38'),
-                          contig_recoding={"22": "chr22"}))
+            hl.import_vcf(
+                resource('sample2.vcf'), reference_genome=hl.get_reference('GRCh38'), contig_recoding={"22": "chr22"}
+            )
+        )
 
         vcf_table = vcf.rows()
         self.assertTrue(vcf_table.all(vcf_table.locus.contig == "chr22"))
@@ -150,8 +172,7 @@ class VCFTests(unittest.TestCase):
         assert mt._same(hl.import_vcf(resource('3var.vcf.bgz')))
 
     def test_import_vcf_no_reference_specified(self):
-        vcf = hl.import_vcf(resource('sample2.vcf'),
-                            reference_genome=None)
+        vcf = hl.import_vcf(resource('sample2.vcf'), reference_genome=None)
         self.assertEqual(vcf.locus.dtype, hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(vcf.count_rows(), 735)
 
@@ -162,10 +183,14 @@ class VCFTests(unittest.TestCase):
     def test_import_vcf_flags_are_defined(self):
         # issue 3277
         t = hl.import_vcf(resource('sample.vcf')).rows()
-        self.assertTrue(t.all(hl.is_defined(t.info.NEGATIVE_TRAIN_SITE) &
-                              hl.is_defined(t.info.POSITIVE_TRAIN_SITE) &
-                              hl.is_defined(t.info.DB) &
-                              hl.is_defined(t.info.DS)))
+        self.assertTrue(
+            t.all(
+                hl.is_defined(t.info.NEGATIVE_TRAIN_SITE)
+                & hl.is_defined(t.info.POSITIVE_TRAIN_SITE)
+                & hl.is_defined(t.info.DB)
+                & hl.is_defined(t.info.DS)
+            )
+        )
 
     def test_import_vcf_can_import_float_array_format(self):
         mt = hl.import_vcf(resource('floating_point_array.vcf'))
@@ -179,38 +204,82 @@ class VCFTests(unittest.TestCase):
 
     def test_import_vcf_can_import_negative_numbers(self):
         mt = hl.import_vcf(resource('negative_format_fields.vcf'))
-        self.assertTrue(mt.aggregate_entries(hl.agg.all(mt.negative_int == -1) &
-                                             hl.agg.all(mt.negative_float == -1.5) &
-                                             hl.agg.all(mt.negative_int_array == [-1, -2]) &
-                                             hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
+        self.assertTrue(
+            mt.aggregate_entries(
+                hl.agg.all(mt.negative_int == -1)
+                & hl.agg.all(mt.negative_float == -1.5)
+                & hl.agg.all(mt.negative_int_array == [-1, -2])
+                & hl.agg.all(mt.negative_float_array == [-0.5, -1.5])
+            )
+        )
 
     def test_import_vcf_missing_info_field_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
         mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
-        expected = hl.Table.parallelize([{'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'],
-                                          'FOO': [1, None], 'BAR': [2, None, None]},
-                                         {'locus': hl.Locus('X', 16061250), 'alleles': ['T', 'A', 'C'],
-                                          'FOO': [None, 2, None], 'BAR': [None, 1.0, None]}],
-                                        hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr),
-                                                   FOO=hl.tarray(hl.tint), BAR=hl.tarray(hl.tfloat64)),
-                                        key=['locus', 'alleles'])
+        expected = hl.Table.parallelize(
+            [
+                {'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'], 'FOO': [1, None], 'BAR': [2, None, None]},
+                {
+                    'locus': hl.Locus('X', 16061250),
+                    'alleles': ['T', 'A', 'C'],
+                    'FOO': [None, 2, None],
+                    'BAR': [None, 1.0, None],
+                },
+            ],
+            hl.tstruct(
+                locus=hl.tlocus('GRCh37'),
+                alleles=hl.tarray(hl.tstr),
+                FOO=hl.tarray(hl.tint),
+                BAR=hl.tarray(hl.tfloat64),
+            ),
+            key=['locus', 'alleles'],
+        )
         self.assertTrue(mt.rows()._same(expected))
 
     def test_import_vcf_missing_format_field_elements(self):
         mt = hl.import_vcf(resource('missingFormatArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
         mt = mt.select_rows().select_entries('AD', 'PL')
 
-        expected = hl.Table.parallelize([{'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'], 's': 'C1046::HG02024',
-                                          'AD': [None, None], 'PL': [0, None, 180]},
-                                         {'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'], 's': 'C1046::HG02025',
-                                          'AD': [None, 6], 'PL': [70, None]},
-                                         {'locus': hl.Locus('X', 16061250), 'alleles': ['T', 'A', 'C'], 's': 'C1046::HG02024',
-                                          'AD': [0, 0, None], 'PL': [396, None, None, 33, None, 0]},
-                                         {'locus': hl.Locus('X', 16061250), 'alleles': ['T', 'A', 'C'], 's': 'C1046::HG02025',
-                                          'AD': [0, 0, 9], 'PL': [None, None, None]}],
-                                        hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr), s=hl.tstr,
-                                                   AD=hl.tarray(hl.tint), PL=hl.tarray(hl.tint)),
-                                        key=['locus', 'alleles', 's'])
+        expected = hl.Table.parallelize(
+            [
+                {
+                    'locus': hl.Locus('X', 16050036),
+                    'alleles': ['A', 'C'],
+                    's': 'C1046::HG02024',
+                    'AD': [None, None],
+                    'PL': [0, None, 180],
+                },
+                {
+                    'locus': hl.Locus('X', 16050036),
+                    'alleles': ['A', 'C'],
+                    's': 'C1046::HG02025',
+                    'AD': [None, 6],
+                    'PL': [70, None],
+                },
+                {
+                    'locus': hl.Locus('X', 16061250),
+                    'alleles': ['T', 'A', 'C'],
+                    's': 'C1046::HG02024',
+                    'AD': [0, 0, None],
+                    'PL': [396, None, None, 33, None, 0],
+                },
+                {
+                    'locus': hl.Locus('X', 16061250),
+                    'alleles': ['T', 'A', 'C'],
+                    's': 'C1046::HG02025',
+                    'AD': [0, 0, 9],
+                    'PL': [None, None, None],
+                },
+            ],
+            hl.tstruct(
+                locus=hl.tlocus('GRCh37'),
+                alleles=hl.tarray(hl.tstr),
+                s=hl.tstr,
+                AD=hl.tarray(hl.tint),
+                PL=hl.tarray(hl.tint),
+            ),
+            key=['locus', 'alleles', 's'],
+        )
 
         self.assertTrue(mt.entries()._same(expected))
 
@@ -221,8 +290,7 @@ class VCFTests(unittest.TestCase):
         with_flags(no_whole_stage_codegen="1")(_vcf_unsorted_alleles)()
 
     def test_import_vcf_skip_invalid_loci(self):
-        mt = hl.import_vcf(resource('skip_invalid_loci.vcf'), reference_genome='GRCh37',
-                           skip_invalid_loci=True)
+        mt = hl.import_vcf(resource('skip_invalid_loci.vcf'), reference_genome='GRCh37', skip_invalid_loci=True)
         self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
@@ -235,7 +303,7 @@ class VCFTests(unittest.TestCase):
     def test_import_vcf_dosages_as_doubles_or_floats(self):
         mt = hl.import_vcf(resource('small-ds.vcf'))
         self.assertEqual(hl.expr.expressions.typed_expressions.Float64Expression, type(mt.entry.DS))
-        mt32 = hl.import_vcf(resource('small-ds.vcf'),  entry_float_type=hl.tfloat32)
+        mt32 = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tfloat32)
         self.assertEqual(hl.expr.expressions.typed_expressions.Float32Expression, type(mt32.entry.DS))
         mt_result = mt.annotate_entries(DS32=mt32.index_entries(mt.row_key, mt.col_key).DS)
         compare = mt_result.annotate_entries(
@@ -256,8 +324,7 @@ class VCFTests(unittest.TestCase):
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
         vcf_metadata = hl.get_vcf_metadata(resource('sample.vcf.bgz'))
-        with TemporaryFilename(suffix='.vcf') as sample_vcf, \
-             TemporaryFilename(suffix='.vcf') as no_sample_vcf:
+        with TemporaryFilename(suffix='.vcf') as sample_vcf, TemporaryFilename(suffix='.vcf') as no_sample_vcf:
             hl.export_vcf(dataset, sample_vcf, metadata=vcf_metadata)
             dataset_imported = hl.import_vcf(sample_vcf)
             self.assertTrue(dataset._same(dataset_imported))
@@ -276,11 +343,12 @@ class VCFTests(unittest.TestCase):
         meta = hl.get_vcf_metadata(resource("sample.vcf"))
         meta["info"]["AF"]["Description"] = 'foo "bar" \\'
         with TemporaryFilename(suffix='.vcf') as test_vcf:
-             hl.export_vcf(ds, test_vcf, metadata=meta)
-             af_lines = [
-                 line for line in hl.current_backend().fs.open(test_vcf).read().split('\n')
-                 if line.startswith("##INFO=<ID=AF")
-             ]
+            hl.export_vcf(ds, test_vcf, metadata=meta)
+            af_lines = [
+                line
+                for line in hl.current_backend().fs.open(test_vcf).read().split('\n')
+                if line.startswith("##INFO=<ID=AF")
+            ]
         assert len(af_lines) == 1, af_lines
         line = af_lines[0]
         assert line.startswith("##INFO=<") and line.endswith(">"), line
@@ -313,9 +381,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt._same(mt2))
 
     def test_export_sites_only_from_table(self):
-        mt = hl.import_vcf(resource('sample.vcf.bgz'))\
-            .select_entries()\
-            .filter_cols(False)
+        mt = hl.import_vcf(resource('sample.vcf.bgz')).select_entries().filter_cols(False)
 
         tmp = new_temp_file(extension="vcf")
         hl.export_vcf(mt.rows(), tmp)
@@ -324,10 +390,11 @@ class VCFTests(unittest.TestCase):
     def test_export_vcf_invalid_info_types(self):
         ds = hl.import_vcf(resource("sample.vcf"))
         ds = ds.annotate_rows(
-            info=ds.info.annotate(arr_bool=hl.missing(hl.tarray(hl.tbool)),
-                                  arr_arr_i32=hl.missing(hl.tarray(hl.tarray(hl.tint32)))))
-        with pytest.raises(FatalError) as exp, \
-                TemporaryFilename(suffix='.vcf') as export_path:
+            info=ds.info.annotate(
+                arr_bool=hl.missing(hl.tarray(hl.tbool)), arr_arr_i32=hl.missing(hl.tarray(hl.tarray(hl.tint32)))
+            )
+        )
+        with pytest.raises(FatalError) as exp, TemporaryFilename(suffix='.vcf') as export_path:
             hl.export_vcf(ds, export_path)
         msg = '''VCF does not support the type(s) for the following INFO field(s):
 \t'arr_bool': 'array<bool>'.
@@ -337,11 +404,8 @@ class VCFTests(unittest.TestCase):
 
     def test_export_vcf_invalid_format_types(self):
         ds = hl.import_vcf(resource("sample.vcf"))
-        ds = ds.annotate_entries(
-            boolean=hl.missing(hl.tbool),
-            arr_arr_i32=hl.missing(hl.tarray(hl.tarray(hl.tint32))))
-        with pytest.raises(FatalError) as exp, \
-                TemporaryFilename(suffix='.vcf') as export_path:
+        ds = ds.annotate_entries(boolean=hl.missing(hl.tbool), arr_arr_i32=hl.missing(hl.tarray(hl.tarray(hl.tint32))))
+        with pytest.raises(FatalError) as exp, TemporaryFilename(suffix='.vcf') as export_path:
             hl.export_vcf(ds, export_path)
         msg = '''VCF does not support the type(s) for the following FORMAT field(s):
 \t'boolean': 'bool'.
@@ -352,24 +416,42 @@ class VCFTests(unittest.TestCase):
     def import_gvcfs_sample_vcf(self, path):
         parts_type = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus('GRCh37'))))
         parts = [
-            hl.Interval(start=hl.Struct(locus=hl.Locus('20', 1)),
-                        end=hl.Struct(locus=hl.Locus('20', 13509135)),
-                        includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('20', 13509136)),
-                        end=hl.Struct(locus=hl.Locus('20', 16493533)),
-                        includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('20', 16493534)),
-                        end=hl.Struct(locus=hl.Locus('20', 20000000)),
-                        includes_end=True)
+            hl.Interval(
+                start=hl.Struct(locus=hl.Locus('20', 1)),
+                end=hl.Struct(locus=hl.Locus('20', 13509135)),
+                includes_end=True,
+            ),
+            hl.Interval(
+                start=hl.Struct(locus=hl.Locus('20', 13509136)),
+                end=hl.Struct(locus=hl.Locus('20', 16493533)),
+                includes_end=True,
+            ),
+            hl.Interval(
+                start=hl.Struct(locus=hl.Locus('20', 16493534)),
+                end=hl.Struct(locus=hl.Locus('20', 20000000)),
+                includes_end=True,
+            ),
         ]
         parts_str = json.dumps(parts_type._convert_to_json(parts))
-        vir = ir.MatrixVCFReader(path=path, call_fields=['PGT'], entry_float_type=hl.tfloat64,
-                                 header_file=None, block_size=None, min_partitions=None,
-                                 reference_genome='default', contig_recoding=None,
-                                 array_elements_required=True, skip_invalid_loci=False,
-                                 force_bgz=False, force_gz=False, filter=None, find_replace=None,
-                                 n_partitions=None, _partitions_json=parts_str,
-                                 _partitions_type=parts_type)
+        vir = ir.MatrixVCFReader(
+            path=path,
+            call_fields=['PGT'],
+            entry_float_type=hl.tfloat64,
+            header_file=None,
+            block_size=None,
+            min_partitions=None,
+            reference_genome='default',
+            contig_recoding=None,
+            array_elements_required=True,
+            skip_invalid_loci=False,
+            force_bgz=False,
+            force_gz=False,
+            filter=None,
+            find_replace=None,
+            n_partitions=None,
+            _partitions_json=parts_str,
+            _partitions_type=parts_type,
+        )
 
         vcf1 = hl.import_vcf(path)
         vcf2 = hl.MatrixTable(ir.MatrixRead(vir))
@@ -410,6 +492,7 @@ class VCFTests(unittest.TestCase):
 
     def test_import_gvcfs_long_line(self):
         import bz2
+
         fs = hl.current_backend().fs
         path = resource('gvcfs/long_line.g.vcf.gz')
         vcf = hl.import_vcf(path, force_bgz=True)
@@ -429,25 +512,26 @@ class VCFTests(unittest.TestCase):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
     def _test_vcf_parser_golden_master(self, vcf_path, rg):
-        vcf = hl.import_vcf(
-            vcf_path,
-            reference_genome=rg,
-            array_elements_required=False,
-            force_bgz=True)
+        vcf = hl.import_vcf(vcf_path, reference_genome=rg, array_elements_required=False, force_bgz=True)
         mt = hl.read_matrix_table(vcf_path + '.mt')
         self.assertTrue(mt._same(vcf))
 
     def test_combiner_works(self):
         from hail.vds.combiner.combine import transform_gvcf, combine_variant_datasets
+
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
         vdses = []
         for path in paths:
             mt = hl.import_vcf(path, reference_genome='GRCh38', array_elements_required=False, force_bgz=True)
-            mt = transform_gvcf(mt.annotate_rows(info=mt.info.annotate(
-                MQ_DP=hl.missing(hl.tint32),
-                VarDP=hl.missing(hl.tint32),
-                QUALapprox=hl.missing(hl.tint32))), reference_entry_fields_to_keep=[])
+            mt = transform_gvcf(
+                mt.annotate_rows(
+                    info=mt.info.annotate(
+                        MQ_DP=hl.missing(hl.tint32), VarDP=hl.missing(hl.tint32), QUALapprox=hl.missing(hl.tint32)
+                    )
+                ),
+                reference_entry_fields_to_keep=[],
+            )
             vdses.append(mt)
         comb = combine_variant_datasets(vdses)
         assert comb.reference_data._force_count_rows() == 458646
@@ -455,6 +539,7 @@ class VCFTests(unittest.TestCase):
 
     def test_haploid_combiner_ok(self):
         from hail.vds.combiner.combine import transform_gvcf
+
         # make a combiner table
         mt = hl.utils.range_matrix_table(2, 1)
         mt = mt.annotate_cols(s='S01')
@@ -476,21 +561,27 @@ class VCFTests(unittest.TestCase):
 
     def test_combiner_parse_allele_specific_annotations(self):
         from hail.vds.combiner.combine import parse_allele_specific_fields
-        infos = hl.array([
-            hl.struct(
-                AS_QUALapprox="|1171|",
-                AS_SB_TABLE="0,0|30,27|0,0",
-                AS_VarDP="0|57|0",
-                AS_RAW_MQ="0.00|15100.00|0.00",
-                AS_RAW_MQRankSum="|0.0,1|NaN",
-                AS_RAW_ReadPosRankSum="|0.7,1|NaN"),
-            hl.struct(
-                AS_QUALapprox="|1171|",
-                AS_SB_TABLE="0,0|30,27|0,0",
-                AS_VarDP="0|57|0",
-                AS_RAW_MQ="0.00|15100.00|0.00",
-                AS_RAW_MQRankSum="|NaN|NaN",
-                AS_RAW_ReadPosRankSum="|NaN|NaN")])
+
+        infos = hl.array(
+            [
+                hl.struct(
+                    AS_QUALapprox="|1171|",
+                    AS_SB_TABLE="0,0|30,27|0,0",
+                    AS_VarDP="0|57|0",
+                    AS_RAW_MQ="0.00|15100.00|0.00",
+                    AS_RAW_MQRankSum="|0.0,1|NaN",
+                    AS_RAW_ReadPosRankSum="|0.7,1|NaN",
+                ),
+                hl.struct(
+                    AS_QUALapprox="|1171|",
+                    AS_SB_TABLE="0,0|30,27|0,0",
+                    AS_VarDP="0|57|0",
+                    AS_RAW_MQ="0.00|15100.00|0.00",
+                    AS_RAW_MQRankSum="|NaN|NaN",
+                    AS_RAW_ReadPosRankSum="|NaN|NaN",
+                ),
+            ]
+        )
 
         output = hl.eval(infos.map(lambda info: parse_allele_specific_fields(info, False)))
         expected = [
@@ -500,14 +591,17 @@ class VCFTests(unittest.TestCase):
                 AS_VarDP=[0, 57, 0],
                 AS_RAW_MQ=[0.00, 15100.00, 0.00],
                 AS_RAW_MQRankSum=[None, (0.0, 1), None],
-                AS_RAW_ReadPosRankSum=[None, (0.7, 1), None]),
+                AS_RAW_ReadPosRankSum=[None, (0.7, 1), None],
+            ),
             hl.Struct(
                 AS_QUALapprox=[None, 1171, None],
                 AS_SB_TABLE=[[0, 0], [30, 27], [0, 0]],
                 AS_VarDP=[0, 57, 0],
                 AS_RAW_MQ=[0.00, 15100.00, 0.00],
                 AS_RAW_MQRankSum=[None, None, None],
-                AS_RAW_ReadPosRankSum=[None, None, None])]
+                AS_RAW_ReadPosRankSum=[None, None, None],
+            ),
+        ]
         assert output == expected
 
     def test_flag_at_eol(self):
@@ -516,11 +610,12 @@ class VCFTests(unittest.TestCase):
         assert mt._force_count_rows() == 1
 
     def test_missing_float_entries(self):
-        vcf = hl.import_vcf(resource('noglgp.vcf'), array_elements_required=False,
-                            reference_genome='GRCh38')
+        vcf = hl.import_vcf(resource('noglgp.vcf'), array_elements_required=False, reference_genome='GRCh38')
         gl_gp = vcf.aggregate_entries(hl.agg.collect(hl.struct(GL=vcf.GL, GP=vcf.GP)))
-        assert gl_gp == [hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
-                         hl.Struct(GL=[None, None, None], GP=[None, None, None])]
+        assert gl_gp == [
+            hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
+            hl.Struct(GL=[None, None, None], GP=[None, None, None]),
+        ]
 
     def test_same_bgzip(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
@@ -530,6 +625,7 @@ class VCFTests(unittest.TestCase):
 
     def test_vcf_parallel_separate_header_export(self):
         fs = hl.current_backend().fs
+
         def concat_files(outpath, inpaths):
             with fs.open(outpath, 'wb') as outfile:
                 for path in inpaths:
@@ -542,8 +638,7 @@ class VCFTests(unittest.TestCase):
         stat = fs.stat(f)
         assert stat
         assert stat.is_dir()
-        shard_paths = [info.path for info in fs.ls(f)
-                       if os.path.splitext(info.path)[-1] == '.bgz']
+        shard_paths = [info.path for info in fs.ls(f) if os.path.splitext(info.path)[-1] == '.bgz']
         assert shard_paths
         shard_paths.sort()
         nf = new_temp_file(extension='vcf.bgz')
@@ -626,11 +721,13 @@ class VCFTests(unittest.TestCase):
         with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('20\t13029920'):
-                    expected = "GT:AD:DP:GQ:PL\t1/1:0,6:6:18:234,18,0\t1/1:0,4:4:12:159,12,0\t" \
-                               "1/1:0,4:4:12:163,12,0\t1/1:0,12:12:36:479,36,0\t" \
-                               "1/1:0,4:4:12:149,12,0\t1/1:0,6:6:18:232,18,0\t" \
-                               "1/1:0,6:6:18:242,18,0\t1/1:0,3:3:9:119,9,0\t1/1:0,9:9:27:374,27,0" \
-                               "\t./.:1,0:1\t1/1:0,3:3:9:133,9,0"
+                    expected = (
+                        "GT:AD:DP:GQ:PL\t1/1:0,6:6:18:234,18,0\t1/1:0,4:4:12:159,12,0\t"
+                        "1/1:0,4:4:12:163,12,0\t1/1:0,12:12:36:479,36,0\t"
+                        "1/1:0,4:4:12:149,12,0\t1/1:0,6:6:18:232,18,0\t"
+                        "1/1:0,6:6:18:242,18,0\t1/1:0,3:3:9:119,9,0\t1/1:0,9:9:27:374,27,0"
+                        "\t./.:1,0:1\t1/1:0,3:3:9:133,9,0"
+                    )
                     assert expected in line
                     break
             else:
@@ -654,7 +751,7 @@ class VCFTests(unittest.TestCase):
         metadata = {
             'filter': {'LowQual': {'Description': 'Low quality'}},
             'format': {'GT': {'Description': 'Genotype call.', 'Number': 'foo'}},
-            'fakeField': {}
+            'fakeField': {},
         }
         hl.export_vcf(mt, f, metadata=metadata)
 
@@ -677,7 +774,6 @@ class VCFTests(unittest.TestCase):
     def test_invalid_info_fields(self):
         t = new_temp_file(extension='vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
-
 
         with mock.patch("hail.methods.impex.warning", autospec=True) as warning:
             hl.export_vcf(mt, t)
@@ -707,17 +803,25 @@ class PLINKTests(unittest.TestCase):
 
     def test_export_import_plink_same(self):
         mt = get_dataset()
-        mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
-                            cm_position=15.0)
-        mt = mt.select_cols(fam_id=hl.missing(hl.tstr), pat_id=hl.missing(hl.tstr), mat_id=hl.missing(hl.tstr),
-                            is_female=hl.missing(hl.tbool), is_case=hl.missing(hl.tbool))
+        mt = mt.select_rows(
+            rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
+            cm_position=15.0,
+        )
+        mt = mt.select_cols(
+            fam_id=hl.missing(hl.tstr),
+            pat_id=hl.missing(hl.tstr),
+            mat_id=hl.missing(hl.tstr),
+            is_female=hl.missing(hl.tbool),
+            is_case=hl.missing(hl.tbool),
+        )
         mt = mt.select_entries('GT')
 
         bfile = new_temp_file(prefix='test_import_export_plink')
         hl.export_plink(mt, bfile, ind_id=mt.s, cm_position=mt.cm_position)
 
-        mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
-                                      a2_reference=True, reference_genome='GRCh37', n_partitions=8)
+        mt_imported = hl.import_plink(
+            bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=True, reference_genome='GRCh37', n_partitions=8
+        )
         self.assertTrue(mt._same(mt_imported))
         self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.cm_position == 15.0)))
 
@@ -741,24 +845,26 @@ class PLINKTests(unittest.TestCase):
         hl.export_plink(mt, bfile, ind_id=mt.s)
 
         def get_data(a2_reference):
-            mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim',
-                                          bfile + '.fam', a2_reference=a2_reference)
-            return (hl.variant_qc(mt_imported)
-                    .rows()
-                    .key_by('rsid'))
+            mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam', a2_reference=a2_reference)
+            return hl.variant_qc(mt_imported).rows().key_by('rsid')
 
         a2 = get_data(a2_reference=True)
         a1 = get_data(a2_reference=False)
 
-        j = (a2.annotate(a1_alleles=a1[a2.rsid].alleles, a1_vqc=a1[a2.rsid].variant_qc)
-             .rename({'variant_qc': 'a2_vqc', 'alleles': 'a2_alleles'}))
+        j = a2.annotate(a1_alleles=a1[a2.rsid].alleles, a1_vqc=a1[a2.rsid].variant_qc).rename(
+            {'variant_qc': 'a2_vqc', 'alleles': 'a2_alleles'}
+        )
 
-        self.assertTrue(j.all((j.a1_alleles[0] == j.a2_alleles[1]) &
-                              (j.a1_alleles[1] == j.a2_alleles[0]) &
-                              (j.a1_vqc.n_not_called == j.a2_vqc.n_not_called) &
-                              (j.a1_vqc.n_het == j.a2_vqc.n_het) &
-                              (j.a1_vqc.homozygote_count[0] == j.a2_vqc.homozygote_count[1]) &
-                              (j.a1_vqc.homozygote_count[1] == j.a2_vqc.homozygote_count[0])))
+        self.assertTrue(
+            j.all(
+                (j.a1_alleles[0] == j.a2_alleles[1])
+                & (j.a1_alleles[1] == j.a2_alleles[0])
+                & (j.a1_vqc.n_not_called == j.a2_vqc.n_not_called)
+                & (j.a1_vqc.n_het == j.a2_vqc.n_het)
+                & (j.a1_vqc.homozygote_count[0] == j.a2_vqc.homozygote_count[1])
+                & (j.a1_vqc.homozygote_count[1] == j.a2_vqc.homozygote_count[0])
+            )
+        )
 
     def test_import_plink_same_locus(self):
         mt = hl.balding_nichols_model(n_populations=2, n_samples=10, n_variants=100)
@@ -786,28 +892,30 @@ class PLINKTests(unittest.TestCase):
 
     def test_import_plink_contig_recoding_w_reference(self):
         vcf = hl.split_multi_hts(
-            hl.import_vcf(resource('sample2.vcf'),
-                          reference_genome=hl.get_reference('GRCh38'),
-                          contig_recoding={"22": "chr22"}))
+            hl.import_vcf(
+                resource('sample2.vcf'), reference_genome=hl.get_reference('GRCh38'), contig_recoding={"22": "chr22"}
+            )
+        )
 
         bfile = new_temp_file(prefix='sample_plink')
         hl.export_plink(vcf, bfile)
 
         plink = hl.import_plink(
-            bfile + '.bed', bfile + '.bim', bfile + '.fam',
+            bfile + '.bed',
+            bfile + '.bim',
+            bfile + '.fam',
             a2_reference=True,
             contig_recoding={'chr22': '22'},
-            reference_genome='GRCh37').rows()
+            reference_genome='GRCh37',
+        ).rows()
         self.assertTrue(plink.all(plink.locus.contig == "22"))
         self.assertEqual(vcf.count_rows(), plink.count())
         self.assertTrue(plink.locus.dtype, hl.tlocus('GRCh37'))
 
     def test_import_plink_no_reference_specified(self):
         bfile = resource('fastlmmTest')
-        plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
-                                reference_genome=None)
-        self.assertEqual(plink.locus.dtype,
-                         hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam', reference_genome=None)
+        self.assertEqual(plink.locus.dtype, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
     def test_import_plink_and_ignore_rows(self):
         bfile = doctest_resource('ldsc')
@@ -815,19 +923,24 @@ class PLINKTests(unittest.TestCase):
         self.assertEqual(plink.aggregate_cols(hl.agg.count()), 489)
 
     def test_import_plink_skip_invalid_loci(self):
-        mt = hl.import_plink(resource('skip_invalid_loci.bed'),
-                             resource('skip_invalid_loci.bim'),
-                             resource('skip_invalid_loci.fam'),
-                             reference_genome='GRCh37',
-                             skip_invalid_loci=True,
-                             contig_recoding={'chr1': '1'})
+        mt = hl.import_plink(
+            resource('skip_invalid_loci.bed'),
+            resource('skip_invalid_loci.bim'),
+            resource('skip_invalid_loci.fam'),
+            reference_genome='GRCh37',
+            skip_invalid_loci=True,
+            contig_recoding={'chr1': '1'},
+        )
         self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-            (hl.import_plink(resource('skip_invalid_loci.bed'),
-                            resource('skip_invalid_loci.bim'),
-                            resource('skip_invalid_loci.fam'))
-             ._force_count_rows())
+            (
+                hl.import_plink(
+                    resource('skip_invalid_loci.bed'),
+                    resource('skip_invalid_loci.bim'),
+                    resource('skip_invalid_loci.fam'),
+                )._force_count_rows()
+            )
 
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     def test_export_plink(self):
@@ -836,6 +949,7 @@ class PLINKTests(unittest.TestCase):
 
         # permute columns so not in alphabetical order!
         import random
+
         indices = list(range(mt.count_cols()))
         random.shuffle(indices)
         mt = mt.choose_cols(indices)
@@ -855,9 +969,18 @@ class PLINKTests(unittest.TestCase):
             hl.hadoop_copy(hl_output + '.bim', local_hl_output + '.bim')
             hl.hadoop_copy(hl_output + '.fam', local_hl_output + '.fam')
 
-        run_command(["plink", "--vcf", local_split_vcf_file,
-                     "--make-bed", "--out", plink_output,
-                     "--const-fid", "--keep-allele-order"])
+        run_command(
+            [
+                "plink",
+                "--vcf",
+                local_split_vcf_file,
+                "--make-bed",
+                "--out",
+                plink_output,
+                "--const-fid",
+                "--keep-allele-order",
+            ]
+        )
 
         data = []
         with open(uri_path(plink_output + ".bim")) as file:
@@ -869,9 +992,9 @@ class PLINKTests(unittest.TestCase):
         with open(plink_output + ".bim", 'w') as f:
             f.writelines(data)
 
-        run_command(["plink", "--bfile", plink_output,
-                     "--bmerge", local_hl_output, "--merge-mode",
-                     "6", "--out", merge_output])
+        run_command(
+            ["plink", "--bfile", plink_output, "--bmerge", local_hl_output, "--merge-mode", "6", "--out", merge_output]
+        )
 
         same = True
         with open(merge_output + ".diff") as f:
@@ -885,62 +1008,73 @@ class PLINKTests(unittest.TestCase):
 
     def test_export_plink_default_arguments(self):
         ds = get_dataset()
-        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
-                       'f4': 'is_female', 'f5': 'pheno'}
-        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
-                       'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id', 'f4': 'is_female', 'f5': 'pheno'}
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position', 'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
 
         out1 = new_temp_file()
         hl.export_plink(ds, out1)
-        fam1 = (hl.import_table(out1 + '.fam', no_header=True, impute=False, missing="")
-                .rename(fam_mapping))
-        bim1 = (hl.import_table(out1 + '.bim', no_header=True, impute=False)
-                .rename(bim_mapping))
+        fam1 = hl.import_table(out1 + '.fam', no_header=True, impute=False, missing="").rename(fam_mapping)
+        bim1 = hl.import_table(out1 + '.bim', no_header=True, impute=False).rename(bim_mapping)
 
-        self.assertTrue(fam1.all((fam1.fam_id == "0") & (fam1.pat_id == "0") &
-                                 (fam1.mat_id == "0") & (fam1.is_female == "0") &
-                                 (fam1.pheno == "NA")))
-        self.assertTrue(bim1.all((bim1.varid == bim1.contig + ":" + bim1.position + ":" + bim1.a2 + ":" + bim1.a1) &
-                                 (bim1.cm_position == "0.0")))
+        self.assertTrue(
+            fam1.all(
+                (fam1.fam_id == "0")
+                & (fam1.pat_id == "0")
+                & (fam1.mat_id == "0")
+                & (fam1.is_female == "0")
+                & (fam1.pheno == "NA")
+            )
+        )
+        self.assertTrue(
+            bim1.all(
+                (bim1.varid == bim1.contig + ":" + bim1.position + ":" + bim1.a2 + ":" + bim1.a1)
+                & (bim1.cm_position == "0.0")
+            )
+        )
 
     def test_export_plink_non_default_arguments(self):
         ds = get_dataset()
-        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
-                       'f4': 'is_female', 'f5': 'pheno'}
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id', 'f4': 'is_female', 'f5': 'pheno'}
 
         out2 = new_temp_file()
-        hl.export_plink(ds, out2, ind_id=ds.s, fam_id=ds.s, pat_id="nope",
-                        mat_id="nada", is_female=True, pheno=False)
-        fam2 = (hl.import_table(out2 + '.fam', no_header=True, impute=False, missing="")
-                .rename(fam_mapping))
+        hl.export_plink(ds, out2, ind_id=ds.s, fam_id=ds.s, pat_id="nope", mat_id="nada", is_female=True, pheno=False)
+        fam2 = hl.import_table(out2 + '.fam', no_header=True, impute=False, missing="").rename(fam_mapping)
 
-        self.assertTrue(fam2.all((fam2.fam_id == fam2.ind_id) & (fam2.pat_id == "nope") &
-                                 (fam2.mat_id == "nada") & (fam2.is_female == "2") &
-                                 (fam2.pheno == "1")))
+        self.assertTrue(
+            fam2.all(
+                (fam2.fam_id == fam2.ind_id)
+                & (fam2.pat_id == "nope")
+                & (fam2.mat_id == "nada")
+                & (fam2.is_female == "2")
+                & (fam2.pheno == "1")
+            )
+        )
 
     def test_export_plink_quantitative_phenotype(self):
         ds = get_dataset()
-        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
-                       'f4': 'is_female', 'f5': 'pheno'}
-        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
-                       'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
+        fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id', 'f4': 'is_female', 'f5': 'pheno'}
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position', 'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
         out3 = new_temp_file()
         hl.export_plink(ds, out3, ind_id=ds.s, pheno=hl.float64(hl.len(ds.s)))
-        fam3 = (hl.import_table(out3 + '.fam', no_header=True, impute=False, missing="")
-                .rename(fam_mapping))
+        fam3 = hl.import_table(out3 + '.fam', no_header=True, impute=False, missing="").rename(fam_mapping)
 
-        self.assertTrue(fam3.all((fam3.fam_id == "0") & (fam3.pat_id == "0") &
-                                 (fam3.mat_id == "0") & (fam3.is_female == "0") &
-                                 (fam3.pheno != "0") & (fam3.pheno != "NA")))
+        self.assertTrue(
+            fam3.all(
+                (fam3.fam_id == "0")
+                & (fam3.pat_id == "0")
+                & (fam3.mat_id == "0")
+                & (fam3.is_female == "0")
+                & (fam3.pheno != "0")
+                & (fam3.pheno != "NA")
+            )
+        )
 
     def test_export_plink_non_default_bim_arguments(self):
         ds = get_dataset()
-        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position',
-                       'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
+        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position', 'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
         out4 = new_temp_file()
         hl.export_plink(ds, out4, varid="hello", cm_position=100)
-        bim4 = (hl.import_table(out4 + '.bim', no_header=True, impute=False)
-                .rename(bim_mapping))
+        bim4 = hl.import_table(out4 + '.bim', no_header=True, impute=False).rename(bim_mapping)
 
         self.assertTrue(bim4.all((bim4.varid == "hello") & (bim4.cm_position == "100.0")))
 
@@ -964,38 +1098,47 @@ class PLINKTests(unittest.TestCase):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
 
     def test_contig_recoding_defaults(self):
-        hl.import_plink(resource('sex_mt_contigs.bed'),
-                        resource('sex_mt_contigs.bim'),
-                        resource('sex_mt_contigs.fam'),
-                        reference_genome='GRCh37')
+        hl.import_plink(
+            resource('sex_mt_contigs.bed'),
+            resource('sex_mt_contigs.bim'),
+            resource('sex_mt_contigs.fam'),
+            reference_genome='GRCh37',
+        )
 
-        hl.import_plink(resource('sex_mt_contigs.bed'),
-                        resource('sex_mt_contigs.bim'),
-                        resource('sex_mt_contigs.fam'),
-                        reference_genome='GRCh38')
+        hl.import_plink(
+            resource('sex_mt_contigs.bed'),
+            resource('sex_mt_contigs.bim'),
+            resource('sex_mt_contigs.fam'),
+            reference_genome='GRCh38',
+        )
 
-        rg_random = hl.ReferenceGenome("random", ['1', '23', '24', '25', '26'],
-                                       {'1': 10, '23': 10, '24': 10, '25': 10, '26': 10})
+        rg_random = hl.ReferenceGenome(
+            "random", ['1', '23', '24', '25', '26'], {'1': 10, '23': 10, '24': 10, '25': 10, '26': 10}
+        )
 
-        hl.import_plink(resource('sex_mt_contigs.bed'),
-                        resource('sex_mt_contigs.bim'),
-                        resource('sex_mt_contigs.fam'),
-                        reference_genome='random')
+        hl.import_plink(
+            resource('sex_mt_contigs.bed'),
+            resource('sex_mt_contigs.bim'),
+            resource('sex_mt_contigs.fam'),
+            reference_genome='random',
+        )
 
     def test_export_plink_struct_locus(self):
         mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.key_rows_by(locus=hl.struct(contig=hl.str(mt.row_idx), position=mt.row_idx), alleles=['A', 'T']).select_rows()
+        mt = mt.key_rows_by(
+            locus=hl.struct(contig=hl.str(mt.row_idx), position=mt.row_idx), alleles=['A', 'T']
+        ).select_rows()
         mt = mt.key_cols_by(s=hl.str(mt.col_idx)).select_cols()
         mt = mt.annotate_entries(GT=hl.call(0, 0))
 
         out = new_temp_file()
 
         hl.export_plink(mt, out)
-        mt2 = hl.import_plink(
-            bed=out + '.bed',
-            bim=out + '.bim',
-            fam=out + '.fam',
-            reference_genome=None).select_rows().select_cols()
+        mt2 = (
+            hl.import_plink(bed=out + '.bed', bim=out + '.bim', fam=out + '.fam', reference_genome=None)
+            .select_rows()
+            .select_cols()
+        )
         assert mt._same(mt2)
 
 
@@ -1017,17 +1160,14 @@ class PLINKTests(unittest.TestCase):
 # qctool -g random-c-disjoint.gen -s random.sample -og random-c-disjoint.bgen -bgen-bits 8
 def generate_random_gen():
     mt = hl.utils.range_matrix_table(30, 10)
-    mt = (mt.annotate_rows(locus = hl.locus('20', mt.row_idx + 1),
-                           alleles = ['A', 'G'])
-          .key_rows_by('locus', 'alleles'))
-    mt = (mt.annotate_cols(s = hl.str(mt.col_idx))
-          .key_cols_by('s'))
+    mt = mt.annotate_rows(locus=hl.locus('20', mt.row_idx + 1), alleles=['A', 'G']).key_rows_by('locus', 'alleles')
+    mt = mt.annotate_cols(s=hl.str(mt.col_idx)).key_cols_by('s')
     # using totally random values leads rounding differences where
     # identical GEN values get rounded differently, leading to
     # differences in the GT call between import_{gen, bgen}
-    mt = mt.annotate_entries(a = hl.int32(hl.rand_unif(0.0, 255.0)))
-    mt = mt.annotate_entries(b = hl.int32(hl.rand_unif(0.0, 255.0 - mt.a)))
-    mt = mt.transmute_entries(GP = hl.array([mt.a, mt.b, 255.0 - mt.a - mt.b]) / 255.0)
+    mt = mt.annotate_entries(a=hl.int32(hl.rand_unif(0.0, 255.0)))
+    mt = mt.annotate_entries(b=hl.int32(hl.rand_unif(0.0, 255.0 - mt.a)))
+    mt = mt.transmute_entries(GP=hl.array([mt.a, mt.b, 255.0 - mt.a - mt.b]) / 255.0)
     # 20% missing
     mt = mt.filter_entries(hl.rand_bool(0.8))
     hl.export_gen(mt, 'random', precision=4)
@@ -1045,37 +1185,36 @@ class BGENTests(unittest.TestCase):
             hl.export_gen(mt, tmp_path)
 
     def test_import_bgen_dosage_entry(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=['dosage'])
+        bgen = hl.import_bgen(resource('example.8bits.bgen'), entry_fields=['dosage'])
         self.assertEqual(bgen.entry.dtype, hl.tstruct(dosage=hl.tfloat64))
         self.assertEqual(bgen.count_rows(), 199)
         self.assertEqual(bgen._force_count_rows(), 199)
 
     def test_import_bgen_GT_GP_entries(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=['GT', 'GP'],
-                              sample_file=resource('example.sample'))
+        bgen = hl.import_bgen(
+            resource('example.8bits.bgen'), entry_fields=['GT', 'GP'], sample_file=resource('example.sample')
+        )
         self.assertEqual(bgen.entry.dtype, hl.tstruct(GT=hl.tcall, GP=hl.tarray(hl.tfloat64)))
 
     def test_import_bgen_no_entries(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=[],
-                              sample_file=resource('example.sample'))
+        bgen = hl.import_bgen(resource('example.8bits.bgen'), entry_fields=[], sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct())
 
     def test_import_bgen_no_reference(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=['GT', 'GP', 'dosage'],
-                              index_file_map={resource('example.8bits.bgen'): resource('example.8bits.bgen-NO-REFERENCE-GENOME.idx2')})
+        bgen = hl.import_bgen(
+            resource('example.8bits.bgen'),
+            entry_fields=['GT', 'GP', 'dosage'],
+            index_file_map={resource('example.8bits.bgen'): resource('example.8bits.bgen-NO-REFERENCE-GENOME.idx2')},
+        )
         assert bgen.locus.dtype == hl.tstruct(contig=hl.tstr, position=hl.tint32)
         assert bgen.count_rows() == 199
 
     def test_import_bgen_skip_invalid_loci_does_not_error_with_invalid_loci(self):
         # Note: the skip_invalid_loci.bgen has 16-bit probabilities, and Hail
         # will crash if the genotypes are decoded
-        mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
-                            entry_fields=[],
-                            sample_file=resource('skip_invalid_loci.sample'))
+        mt = hl.import_bgen(
+            resource('skip_invalid_loci.bgen'), entry_fields=[], sample_file=resource('skip_invalid_loci.sample')
+        )
         assert mt.rows().count() == 3
 
     def test_import_bgen_errors_with_invalid_loci(self):
@@ -1083,36 +1222,28 @@ class BGENTests(unittest.TestCase):
             hl.current_backend().fs.copy(resource('skip_invalid_loci.bgen'), f)
             with pytest.raises(FatalError, match='Invalid locus'):
                 hl.index_bgen(f)
-                mt = hl.import_bgen(f,
-                                    entry_fields=[],
-                                    sample_file=resource('skip_invalid_loci.sample'))
+                mt = hl.import_bgen(f, entry_fields=[], sample_file=resource('skip_invalid_loci.sample'))
                 mt.rows().count()
 
     def test_import_bgen_gavin_example(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
 
         sample_file = resource('example.sample')
-        genmt = hl.import_gen(resource('example.gen'), sample_file,
-                              contig_recoding=recoding,
-                              reference_genome="GRCh37")
+        genmt = hl.import_gen(resource('example.gen'), sample_file, contig_recoding=recoding, reference_genome="GRCh37")
 
         bgen_file = resource('example.8bits.bgen')
         bgenmt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file)
-        self.assertTrue(
-            bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
+        self.assertTrue(bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     def test_import_bgen_random(self):
         sample_file = resource('random.sample')
         genmt = hl.import_gen(resource('random.gen'), sample_file)
 
         bgenmt = hl.import_bgen(resource('random.bgen'), ['GT', 'GP'], sample_file)
-        self.assertTrue(
-            bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
+        self.assertTrue(bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     def test_parallel_import(self):
-        mt = hl.import_bgen(resource('parallelBgenExport.bgen'),
-                            ['GT', 'GP'],
-                            resource('parallelBgenExport.sample'))
+        mt = hl.import_bgen(resource('parallelBgenExport.bgen'), ['GT', 'GP'], resource('parallelBgenExport.sample'))
         self.assertEqual(mt.count(), (16, 10))
 
     def test_import_bgen_dosage_and_gp_dosage_function_agree(self):
@@ -1123,44 +1254,31 @@ class BGENTests(unittest.TestCase):
 
         bgenmt = hl.import_bgen(bgen_file, ['GP', 'dosage'], sample_file)
         et = bgenmt.entries()
-        et = et.transmute(gp_dosage = hl.gp_dosage(et.GP))
-        self.assertTrue(et.all(
-            (hl.is_missing(et.dosage) & hl.is_missing(et.gp_dosage)) |
-            (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
+        et = et.transmute(gp_dosage=hl.gp_dosage(et.GP))
+        self.assertTrue(
+            et.all((hl.is_missing(et.dosage) & hl.is_missing(et.gp_dosage)) | (hl.abs(et.dosage - et.gp_dosage) < 1e-6))
+        )
 
     def test_import_bgen_row_fields(self):
-        default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
-                                            entry_fields=['dosage'])
-        self.assertEqual(default_row_fields.row.dtype,
-                         hl.tstruct(locus=hl.tlocus('GRCh37'),
-                                    alleles=hl.tarray(hl.tstr),
-                                    rsid=hl.tstr,
-                                    varid=hl.tstr))
-        no_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
-                                       entry_fields=['dosage'],
-                                       _row_fields=[])
-        self.assertEqual(no_row_fields.row.dtype,
-                         hl.tstruct(locus=hl.tlocus('GRCh37'),
-                                    alleles=hl.tarray(hl.tstr)))
-        varid_only = hl.import_bgen(resource('example.8bits.bgen'),
-                                    entry_fields=['dosage'],
-                                    _row_fields=['varid'])
-        self.assertEqual(varid_only.row.dtype,
-                         hl.tstruct(locus=hl.tlocus('GRCh37'),
-                                    alleles=hl.tarray(hl.tstr),
-                                    varid=hl.tstr))
-        rsid_only = hl.import_bgen(resource('example.8bits.bgen'),
-                                   entry_fields=['dosage'],
-                                   _row_fields=['rsid'])
-        self.assertEqual(rsid_only.row.dtype,
-                         hl.tstruct(locus=hl.tlocus('GRCh37'),
-                                    alleles=hl.tarray(hl.tstr),
-                                    rsid=hl.tstr))
+        default_row_fields = hl.import_bgen(resource('example.8bits.bgen'), entry_fields=['dosage'])
+        self.assertEqual(
+            default_row_fields.row.dtype,
+            hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr), rsid=hl.tstr, varid=hl.tstr),
+        )
+        no_row_fields = hl.import_bgen(resource('example.8bits.bgen'), entry_fields=['dosage'], _row_fields=[])
+        self.assertEqual(no_row_fields.row.dtype, hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr)))
+        varid_only = hl.import_bgen(resource('example.8bits.bgen'), entry_fields=['dosage'], _row_fields=['varid'])
+        self.assertEqual(
+            varid_only.row.dtype, hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr), varid=hl.tstr)
+        )
+        rsid_only = hl.import_bgen(resource('example.8bits.bgen'), entry_fields=['dosage'], _row_fields=['rsid'])
+        self.assertEqual(
+            rsid_only.row.dtype, hl.tstruct(locus=hl.tlocus('GRCh37'), alleles=hl.tarray(hl.tstr), rsid=hl.tstr)
+        )
 
         self.assertTrue(default_row_fields.drop('varid')._same(rsid_only))
         self.assertTrue(default_row_fields.drop('rsid')._same(varid_only))
-        self.assertTrue(
-            default_row_fields.drop('varid', 'rsid')._same(no_row_fields))
+        self.assertTrue(default_row_fields.drop('varid', 'rsid')._same(no_row_fields))
 
     def test_import_bgen_variant_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
@@ -1180,20 +1298,21 @@ class BGENTests(unittest.TestCase):
             hl.Struct(locus=hl.Locus('1', 2001), alleles=alleles),
             hl.Struct(locus=hl.Locus('1', 4000), alleles=alleles),
             hl.Struct(locus=hl.Locus('1', 10000), alleles=alleles),
-            hl.Struct(locus=hl.Locus('1', 10000), alleles=alleles), # Duplicated variant
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=alleles),  # Duplicated variant
             hl.Struct(locus=hl.Locus('1', 100001), alleles=alleles),
         ]
 
-        part_1 = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                n_partitions=1, # forcing seek to be called
-                                variants=desired_variants)
+        part_1 = hl.import_bgen(
+            bgen_file, ['GT'], n_partitions=1, variants=desired_variants  # forcing seek to be called
+        )
         self.assertEqual(part_1.rows().key_by('locus', 'alleles').select().collect(), expected_result)
 
-        part_199 = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                n_partitions=199, # forcing each variant to be its own partition for testing duplicates work properly
-                                variants=desired_variants)
+        part_199 = hl.import_bgen(
+            bgen_file,
+            ['GT'],
+            n_partitions=199,  # forcing each variant to be its own partition for testing duplicates work properly
+            variants=desired_variants,
+        )
         self.assertEqual(part_199.rows().key_by('locus', 'alleles').select().collect(), expected_result)
 
         everything = hl.import_bgen(bgen_file, ['GT'])
@@ -1211,12 +1330,10 @@ class BGENTests(unittest.TestCase):
 
         expected_result = [
             hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),
-            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']) # Duplicated variant
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),  # Duplicated variant
         ]
 
-        data = hl.import_bgen(bgen_file,
-                              ['GT'],
-                              variants=desired_loci)
+        data = hl.import_bgen(bgen_file, ['GT'], variants=desired_loci)
         assert data.rows().key_by('locus', 'alleles').select().collect() == expected_result
 
     def test_import_bgen_locus_filtering_from_struct_expression(self):
@@ -1227,12 +1344,10 @@ class BGENTests(unittest.TestCase):
 
         expected_result = [
             hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),
-            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']) # Duplicated variant
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),  # Duplicated variant
         ]
 
-        data = hl.import_bgen(bgen_file,
-                              ['GT'],
-                              variants=desired_loci)
+        data = hl.import_bgen(bgen_file, ['GT'], variants=desired_loci)
         assert data.rows().key_by('locus', 'alleles').select().collect() == expected_result
 
     def test_import_bgen_variant_filtering_from_exprs(self):
@@ -1243,10 +1358,9 @@ class BGENTests(unittest.TestCase):
 
         desired_variants = hl.struct(locus=everything.locus, alleles=everything.alleles)
 
-        actual = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                n_partitions=10,
-                                variants=desired_variants) # filtering with everything
+        actual = hl.import_bgen(
+            bgen_file, ['GT'], n_partitions=10, variants=desired_variants
+        )  # filtering with everything
 
         self.assertTrue(everything._same(actual))
 
@@ -1256,15 +1370,11 @@ class BGENTests(unittest.TestCase):
         everything = hl.import_bgen(bgen_file, ['GT'])
         self.assertEqual(everything.count(), (199, 500))
 
-        actual_struct = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                variants=hl.struct(locus=everything.locus))
+        actual_struct = hl.import_bgen(bgen_file, ['GT'], variants=hl.struct(locus=everything.locus))
 
         self.assertTrue(everything._same(actual_struct))
 
-        actual_locus = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                variants=everything.locus)
+        actual_locus = hl.import_bgen(bgen_file, ['GT'], variants=everything.locus)
 
         self.assertTrue(everything._same(actual_locus))
 
@@ -1276,39 +1386,32 @@ class BGENTests(unittest.TestCase):
 
         desired_variants = everything.rows()
 
-        actual = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                n_partitions=10,
-                                variants=desired_variants) # filtering with everything
+        actual = hl.import_bgen(
+            bgen_file, ['GT'], n_partitions=10, variants=desired_variants
+        )  # filtering with everything
 
         self.assertTrue(everything._same(actual))
 
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
-        desired_loci = hl.Table.parallelize([{'locus': hl.Locus('1', 10000)}],
-                                            schema=hl.tstruct(locus=hl.tlocus()),
-                                            key='locus')
+        desired_loci = hl.Table.parallelize(
+            [{'locus': hl.Locus('1', 10000)}], schema=hl.tstruct(locus=hl.tlocus()), key='locus'
+        )
 
         expected_result = [
             hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),
-            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G'])  # Duplicated variant
+            hl.Struct(locus=hl.Locus('1', 10000), alleles=['A', 'G']),  # Duplicated variant
         ]
 
-        result = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                variants=desired_loci)
+        result = hl.import_bgen(bgen_file, ['GT'], variants=desired_loci)
 
-        self.assertEqual(result.rows().key_by('locus', 'alleles').select().collect(),
-                        expected_result)
+        self.assertEqual(result.rows().key_by('locus', 'alleles').select().collect(), expected_result)
 
     def test_import_bgen_empty_variant_filter(self):
         bgen_file = resource('example.8bits.bgen')
 
-        actual = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                n_partitions=10,
-                                variants=[])
+        actual = hl.import_bgen(bgen_file, ['GT'], n_partitions=10, variants=[])
         self.assertEqual(actual.count_rows(), 0)
 
         nothing = hl.import_bgen(bgen_file, ['GT']).filter_rows(False)
@@ -1316,22 +1419,16 @@ class BGENTests(unittest.TestCase):
 
         desired_variants = hl.struct(locus=nothing.locus, alleles=nothing.alleles)
 
-        actual = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                n_partitions=10,
-                                variants=desired_variants)
+        actual = hl.import_bgen(bgen_file, ['GT'], n_partitions=10, variants=desired_variants)
         self.assertEqual(actual.count_rows(), 0)
 
     # FIXME testing block_size (in MB) requires large BGEN
     def test_n_partitions(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=['dosage'],
-                              n_partitions=210)
-        self.assertEqual(bgen.n_partitions(), 199) # only 199 variants in the file
+        bgen = hl.import_bgen(resource('example.8bits.bgen'), entry_fields=['dosage'], n_partitions=210)
+        self.assertEqual(bgen.n_partitions(), 199)  # only 199 variants in the file
 
     def test_drop(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=['dosage'])
+        bgen = hl.import_bgen(resource('example.8bits.bgen'), entry_fields=['dosage'])
 
         dr = bgen.filter_rows(False)
         self.assertEqual(dr._force_count_rows(), 0)
@@ -1343,9 +1440,9 @@ class BGENTests(unittest.TestCase):
 
     def test_index_multiple_bgen_files_does_not_fail_and_is_importable(self):
         original_bgen_files = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
-        with hl.TemporaryFilename(suffix='.bgen') as f, \
-             hl.TemporaryFilename(suffix='.bgen') as g, \
-             hl.TemporaryFilename(suffix='.bgen') as h:
+        with hl.TemporaryFilename(suffix='.bgen') as f, hl.TemporaryFilename(suffix='.bgen') as g, hl.TemporaryFilename(
+            suffix='.bgen'
+        ) as h:
             newly_indexed_bgen_files = [f, g, h]
             for source, temp in zip(original_bgen_files, newly_indexed_bgen_files):
                 hl.current_backend().fs.copy(source, temp)
@@ -1371,14 +1468,10 @@ class BGENTests(unittest.TestCase):
             hl.Struct(locus=hl.Locus('20', 12), alleles=alleles),
         ]
 
-        actual = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                n_partitions=10,
-                                variants=desired_variants)
+        actual = hl.import_bgen(bgen_file, ['GT'], n_partitions=10, variants=desired_variants)
         assert actual.count_rows() == 6
 
-        everything = hl.import_bgen(bgen_file,
-                                    ['GT'])
+        everything = hl.import_bgen(bgen_file, ['GT'])
         assert everything.count() == (30, 10)
 
         expected = everything.filter_rows(hl.set(desired_variants).contains(everything.row_key))
@@ -1387,8 +1480,14 @@ class BGENTests(unittest.TestCase):
 
     def test_multiple_files_disjoint(self):
         sample_file = resource('random.sample')
-        bgen_file = [resource('random-b-disjoint.bgen'), resource('random-c-disjoint.bgen'), resource('random-a-disjoint.bgen')]
-        with pytest.raises(FatalError, match='Each BGEN file must contain a region of the genome disjoint from other files'):
+        bgen_file = [
+            resource('random-b-disjoint.bgen'),
+            resource('random-c-disjoint.bgen'),
+            resource('random-a-disjoint.bgen'),
+        ]
+        with pytest.raises(
+            FatalError, match='Each BGEN file must contain a region of the genome disjoint from other files'
+        ):
             hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, n_partitions=3)
 
     def test_multiple_references_throws_error(self):
@@ -1397,13 +1496,15 @@ class BGENTests(unittest.TestCase):
         bgen_file2 = resource('random-c.bgen')
 
         with pytest.raises(FatalError, match='Found multiple reference genomes were specified in the BGEN index files'):
-            hl.import_bgen([bgen_file1, bgen_file2],
-                           ['GT'],
-                           sample_file=sample_file,
-                           index_file_map={
-                               resource('random-b.bgen'): resource('random-b.bgen-NO-REFERENCE-GENOME.idx2'),
-                               resource('random-c.bgen'): resource('random-c.bgen.idx2'),
-                           })
+            hl.import_bgen(
+                [bgen_file1, bgen_file2],
+                ['GT'],
+                sample_file=sample_file,
+                index_file_map={
+                    resource('random-b.bgen'): resource('random-b.bgen-NO-REFERENCE-GENOME.idx2'),
+                    resource('random-c.bgen'): resource('random-c.bgen.idx2'),
+                },
+            )
 
     def test_old_index_file_throws_error(self):
         sample_file = resource('random.sample')
@@ -1432,12 +1533,8 @@ class BGENTests(unittest.TestCase):
 
         with hl.TemporaryDirectory(suffix='.idx2', ensure_exists=False) as index_file:
             index_file_map = {bgen_file: index_file}
-            hl.index_bgen(bgen_file,
-                          index_file_map=index_file_map)
-            mt = hl.import_bgen(bgen_file,
-                                ['GT', 'GP'],
-                                sample_file,
-                                index_file_map=index_file_map)
+            hl.index_bgen(bgen_file, index_file_map=index_file_map)
+            mt = hl.import_bgen(bgen_file, ['GT', 'GP'], sample_file, index_file_map=index_file_map)
             assert mt.count() == (30, 10)
 
     def test_index_bgen_errors_when_index_file_has_wrong_extension(self):
@@ -1449,53 +1546,44 @@ class BGENTests(unittest.TestCase):
                 hl.index_bgen(bgen_file, index_file_map=index_file_map)
 
     def test_export_bgen(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=['GP'],
-                              sample_file=resource('example.sample'))
+        bgen = hl.import_bgen(
+            resource('example.8bits.bgen'), entry_fields=['GP'], sample_file=resource('example.sample')
+        )
 
         with hl.TemporaryDirectory(ensure_exists=False) as tmpdir:
             tmp = tmpdir + '/dataset'
             hl.export_bgen(bgen, tmp)
             hl.index_bgen(tmp + '.bgen')
-            bgen2 = hl.import_bgen(tmp + '.bgen',
-                                   entry_fields=['GP'],
-                                   sample_file=tmp + '.sample')
+            bgen2 = hl.import_bgen(tmp + '.bgen', entry_fields=['GP'], sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
 
     def test_export_bgen_zstd(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=['GP'],
-                              sample_file=resource('example.sample'))
+        bgen = hl.import_bgen(
+            resource('example.8bits.bgen'), entry_fields=['GP'], sample_file=resource('example.sample')
+        )
         with hl.TemporaryDirectory(prefix='zstd', ensure_exists=False) as tmpdir:
             tmp = tmpdir + '/dataset'
             hl.export_bgen(bgen, tmp, compression_codec='zstd')
             hl.index_bgen(tmp + '.bgen')
-            bgen2 = hl.import_bgen(tmp + '.bgen',
-                                   entry_fields=['GP'],
-                                   sample_file=tmp + '.sample')
+            bgen2 = hl.import_bgen(tmp + '.bgen', entry_fields=['GP'], sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
 
     def test_export_bgen_parallel(self):
-        bgen = hl.import_bgen(resource('example.8bits.bgen'),
-                              entry_fields=['GP'],
-                              sample_file=resource('example.sample'),
-                              n_partitions=3)
+        bgen = hl.import_bgen(
+            resource('example.8bits.bgen'), entry_fields=['GP'], sample_file=resource('example.sample'), n_partitions=3
+        )
         with hl.TemporaryDirectory(ensure_exists=False) as tmpdir:
             tmp = tmpdir + '/dataset'
             hl.export_bgen(bgen, tmp, parallel='header_per_shard')
             hl.index_bgen(tmp + '.bgen')
-            bgen2 = hl.import_bgen(tmp + '.bgen',
-                                   entry_fields=['GP'],
-                                   sample_file=tmp + '.sample')
+            bgen2 = hl.import_bgen(tmp + '.bgen', entry_fields=['GP'], sample_file=tmp + '.sample')
             assert bgen._same(bgen2)
 
             fs = hl.current_backend().fs
 
             with fs.open(f'{tmp}.bgen/shard-manifest.txt') as lines:
                 manifest_files = [os.path.join(f'{tmp}.bgen/', line.strip()) for line in lines]
-            bgen3 = hl.import_bgen(manifest_files,
-                                   entry_fields=['GP'],
-                                   sample_file=tmp + '.sample')
+            bgen3 = hl.import_bgen(manifest_files, entry_fields=['GP'], sample_file=tmp + '.sample')
             assert bgen._same(bgen3)
 
     def test_export_bgen_from_vcf(self):
@@ -1503,19 +1591,22 @@ class BGENTests(unittest.TestCase):
 
         with hl.TemporaryDirectory(ensure_exists=False) as tmpdir:
             tmp = tmpdir + '/dataset'
-            hl.export_bgen(mt, tmp,
-                           gp=hl.or_missing(
-                               hl.is_defined(mt.GT),
-                               hl.map(lambda i: hl.if_else(mt.GT.unphased_diploid_gt_index() == i, 1.0, 0.0),
-                                      hl.range(0, hl.triangle(hl.len(mt.alleles))))))
-
+            hl.export_bgen(
+                mt,
+                tmp,
+                gp=hl.or_missing(
+                    hl.is_defined(mt.GT),
+                    hl.map(
+                        lambda i: hl.if_else(mt.GT.unphased_diploid_gt_index() == i, 1.0, 0.0),
+                        hl.range(0, hl.triangle(hl.len(mt.alleles))),
+                    ),
+                ),
+            )
 
             hl.index_bgen(tmp + '.bgen')
-            bgen2 = hl.import_bgen(tmp + '.bgen',
-                                   entry_fields=['GT'],
-                                   sample_file=tmp + '.sample')
+            bgen2 = hl.import_bgen(tmp + '.bgen', entry_fields=['GT'], sample_file=tmp + '.sample')
             mt = mt.select_entries('GT').select_rows().select_cols()
-            bgen2 = bgen2.unfilter_entries().select_rows() # drop varid, rsid
+            bgen2 = bgen2.unfilter_entries().select_rows()  # drop varid, rsid
             assert bgen2._same(mt)
 
     def test_randomness(self):
@@ -1529,18 +1620,19 @@ class BGENTests(unittest.TestCase):
             hl.Struct(locus=hl.Locus('1', 100001), alleles=alleles),
         ]
 
-        bgen1 = hl.import_bgen(resource('example.8bits.bgen'),
-                               entry_fields=['GT'],
-                               sample_file=resource('example.sample'),
-                               n_partitions=3)
+        bgen1 = hl.import_bgen(
+            resource('example.8bits.bgen'), entry_fields=['GT'], sample_file=resource('example.sample'), n_partitions=3
+        )
         bgen1 = bgen1.filter_rows(hl.literal(desired_variants).contains(bgen1.row_key))
         c1 = bgen1.filter_entries(hl.rand_bool(0.2, seed=1234))
 
-        bgen2 = hl.import_bgen(resource('example.8bits.bgen'),
-                               entry_fields=['GT'],
-                               sample_file=resource('example.sample'),
-                               n_partitions=5,
-                               variants=desired_variants)
+        bgen2 = hl.import_bgen(
+            resource('example.8bits.bgen'),
+            entry_fields=['GT'],
+            sample_file=resource('example.sample'),
+            n_partitions=5,
+            variants=desired_variants,
+        )
 
         c2 = bgen2.filter_entries(hl.rand_bool(0.2, seed=1234))
         assert c1._same(c2)
@@ -1548,84 +1640,104 @@ class BGENTests(unittest.TestCase):
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):
-        gen = hl.import_gen(resource('example.gen'),
-                            sample_file=resource('example.sample'),
-                            contig_recoding={"01": "1"},
-                            reference_genome = 'GRCh37').rows()
+        gen = hl.import_gen(
+            resource('example.gen'),
+            sample_file=resource('example.sample'),
+            contig_recoding={"01": "1"},
+            reference_genome='GRCh37',
+        ).rows()
         self.assertTrue(gen.all(gen.locus.contig == "1"))
         self.assertEqual(gen.count(), 199)
         self.assertEqual(gen.locus.dtype, hl.tlocus('GRCh37'))
 
     def test_import_gen_no_chromosome_in_file(self):
-        gen = hl.import_gen(resource('no_chromosome.gen'),
-                            resource('skip_invalid_loci.sample'),
-                            chromosome="1",
-                            reference_genome=None,
-                            skip_invalid_loci=True)
+        gen = hl.import_gen(
+            resource('no_chromosome.gen'),
+            resource('skip_invalid_loci.sample'),
+            chromosome="1",
+            reference_genome=None,
+            skip_invalid_loci=True,
+        )
 
         self.assertEqual(gen.aggregate_rows(hl.agg.all(gen.locus.contig == "1")), True)
 
     def test_import_gen_no_reference_specified(self):
-        gen = hl.import_gen(resource('example.gen'),
-                            sample_file=resource('example.sample'),
-                            reference_genome=None)
+        gen = hl.import_gen(resource('example.gen'), sample_file=resource('example.sample'), reference_genome=None)
 
-        self.assertEqual(gen.locus.dtype,
-                         hl.tstruct(contig=hl.tstr, position=hl.tint32))
+        self.assertEqual(gen.locus.dtype, hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
     def test_import_gen_skip_invalid_loci(self):
-        mt = hl.import_gen(resource('skip_invalid_loci.gen'),
-                           resource('skip_invalid_loci.sample'),
-                           reference_genome='GRCh37',
-                           skip_invalid_loci=True)
+        mt = hl.import_gen(
+            resource('skip_invalid_loci.gen'),
+            resource('skip_invalid_loci.sample'),
+            reference_genome='GRCh37',
+            skip_invalid_loci=True,
+        )
         self.assertEqual(mt._force_count_rows(), 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-            mt = hl.import_gen(resource('skip_invalid_loci.gen'),
-                               resource('skip_invalid_loci.sample'))
+            mt = hl.import_gen(resource('skip_invalid_loci.gen'), resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
     @test_timeout(local=4 * 60, batch=8 * 60)
     def test_export_gen(self):
-        gen = hl.import_gen(resource('example.gen'),
-                            sample_file=resource('example.sample'),
-                            contig_recoding={"01": "1"},
-                            reference_genome='GRCh37',
-                            min_partitions=3)
+        gen = hl.import_gen(
+            resource('example.gen'),
+            sample_file=resource('example.sample'),
+            contig_recoding={"01": "1"},
+            reference_genome='GRCh37',
+            min_partitions=3,
+        )
 
         # permute columns so not in alphabetical order!
         import random
+
         indices = list(range(gen.count_cols()))
         random.shuffle(indices)
         gen = gen.choose_cols(indices)
 
         file = new_temp_file()
         hl.export_gen(gen, file)
-        gen2 = hl.import_gen(file + '.gen',
-                             sample_file=file + '.sample',
-                             reference_genome='GRCh37',
-                             min_partitions=3)
+        gen2 = hl.import_gen(file + '.gen', sample_file=file + '.sample', reference_genome='GRCh37', min_partitions=3)
 
-        self.assertTrue(gen._same(gen2, tolerance=3E-4, absolute=True))
+        self.assertTrue(gen._same(gen2, tolerance=3e-4, absolute=True))
 
     def test_export_gen_exprs(self):
-        gen = hl.import_gen(resource('example.gen'),
-                            sample_file=resource('example.sample'),
-                            contig_recoding={"01": "1"},
-                            reference_genome='GRCh37',
-                            min_partitions=3).add_col_index().add_row_index()
+        gen = (
+            hl.import_gen(
+                resource('example.gen'),
+                sample_file=resource('example.sample'),
+                contig_recoding={"01": "1"},
+                reference_genome='GRCh37',
+                min_partitions=3,
+            )
+            .add_col_index()
+            .add_row_index()
+        )
 
         out1 = new_temp_file()
-        hl.export_gen(gen, out1, id1=hl.str(gen.col_idx), id2=hl.str(gen.col_idx), missing=0.5,
-                      varid=hl.str(gen.row_idx), rsid=hl.str(gen.row_idx), gp=[0.0, 1.0, 0.0])
+        hl.export_gen(
+            gen,
+            out1,
+            id1=hl.str(gen.col_idx),
+            id2=hl.str(gen.col_idx),
+            missing=0.5,
+            varid=hl.str(gen.row_idx),
+            rsid=hl.str(gen.row_idx),
+            gp=[0.0, 1.0, 0.0],
+        )
 
-        in1 = (hl.import_gen(out1 + '.gen', sample_file=out1 + '.sample', min_partitions=3)
-               .add_col_index()
-               .add_row_index())
-        self.assertTrue(in1.aggregate_entries(hl.agg.fraction((hl.is_missing(in1.GP) | (in1.GP == [0.0, 1.0, 0.0])) == 1.0)))
-        self.assertTrue(in1.aggregate_rows(hl.agg.fraction((in1.varid == hl.str(in1.row_idx)) &
-                                                           (in1.rsid == hl.str(in1.row_idx)))) == 1.0)
+        in1 = (
+            hl.import_gen(out1 + '.gen', sample_file=out1 + '.sample', min_partitions=3).add_col_index().add_row_index()
+        )
+        self.assertTrue(
+            in1.aggregate_entries(hl.agg.fraction((hl.is_missing(in1.GP) | (in1.GP == [0.0, 1.0, 0.0])) == 1.0))
+        )
+        self.assertTrue(
+            in1.aggregate_rows(hl.agg.fraction((in1.varid == hl.str(in1.row_idx)) & (in1.rsid == hl.str(in1.row_idx))))
+            == 1.0
+        )
         self.assertTrue(in1.aggregate_cols(hl.agg.fraction((in1.s == hl.str(in1.col_idx)))))
 
 
@@ -1646,10 +1758,11 @@ class LocusIntervalTests(unittest.TestCase):
         tmp_file = new_temp_file(prefix="test", extension="interval_list")
         start = t.interval.start
         end = t.interval.end
-        (t
-         .key_by(interval=hl.locus_interval(start.contig, start.position, end.position, True, True))
-         .select()
-         .export(tmp_file, header=False))
+        (
+            t.key_by(interval=hl.locus_interval(start.contig, start.position, end.position, True, True))
+            .select()
+            .export(tmp_file, header=False)
+        )
 
         t2 = hl.import_locus_intervals(tmp_file)
 
@@ -1663,9 +1776,11 @@ class LocusIntervalTests(unittest.TestCase):
 
     def test_import_locus_intervals_recoding(self):
         interval_file = resource('annotinterall.grch38.no.chr.interval_list')
-        t = hl.import_locus_intervals(interval_file,
-                                      contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']},
-                                      reference_genome='GRCh38')
+        t = hl.import_locus_intervals(
+            interval_file,
+            contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']},
+            reference_genome='GRCh38',
+        )
         self.assertEqual(t._force_count(), 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh38'))
 
@@ -1699,21 +1814,27 @@ class LocusIntervalTests(unittest.TestCase):
         t = hl.import_bed(bed_file, reference_genome='GRCh37')
         self.assertEqual(t.interval.dtype.point_type, hl.tlocus('GRCh37'))
         self.assertEqual(list(t.key.dtype), ['interval'])
-        self.assertEqual(list(t.row.dtype), ['interval','target'])
+        self.assertEqual(list(t.row.dtype), ['interval', 'target'])
 
-        expected = [hl.interval(hl.locus('20', 1), hl.locus('20', 11), True, False),   # 20    0 10      gene0
-                    hl.interval(hl.locus('20', 2), hl.locus('20', 14000001), True, False),  # 20    1          14000000  gene1
-                    hl.interval(hl.locus('20', 5), hl.locus('20', 6), False, False),  # 20    5   5   gene4
-                    hl.interval(hl.locus('20', 17000001), hl.locus('20', 18000001), True, False),  # 20    17000000   18000000  gene2
-                    hl.interval(hl.locus('20', 63025511), hl.locus('20', 63025520), True, True)]  # 20    63025510   63025520  gene3
+        expected = [
+            hl.interval(hl.locus('20', 1), hl.locus('20', 11), True, False),  # 20    0 10      gene0
+            hl.interval(hl.locus('20', 2), hl.locus('20', 14000001), True, False),  # 20    1          14000000  gene1
+            hl.interval(hl.locus('20', 5), hl.locus('20', 6), False, False),  # 20    5   5   gene4
+            hl.interval(
+                hl.locus('20', 17000001), hl.locus('20', 18000001), True, False
+            ),  # 20    17000000   18000000  gene2
+            hl.interval(hl.locus('20', 63025511), hl.locus('20', 63025520), True, True),
+        ]  # 20    63025510   63025520  gene3
 
         self.assertEqual(t.interval.collect(), hl.eval(expected))
 
     def test_import_bed_recoding(self):
         bed_file = resource('some-missing-chr-grch38.bed')
-        bed = hl.import_bed(bed_file,
-                            reference_genome='GRCh38',
-                            contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']})
+        bed = hl.import_bed(
+            bed_file,
+            reference_genome='GRCh38',
+            contig_recoding={str(i): f'chr{i}' for i in [*range(1, 23), 'X', 'Y', 'M']},
+        )
         self.assertEqual(bed._force_count(), 5)
         self.assertEqual(bed.interval.dtype.point_type, hl.tlocus('GRCh38'))
 
@@ -1738,17 +1859,17 @@ class LocusIntervalTests(unittest.TestCase):
 
     def test_pass_through_args(self):
         interval_file = resource('example3.interval_list')
-        t = hl.import_locus_intervals(interval_file,
-                                      reference_genome='GRCh37',
-                                      skip_invalid_intervals=True,
-                                      filter=r'target_\d\d')
+        t = hl.import_locus_intervals(
+            interval_file, reference_genome='GRCh37', skip_invalid_intervals=True, filter=r'target_\d\d'
+        )
         assert t.count() == 9
 
 
 class ImportMatrixTableTests(unittest.TestCase):
     def test_import_matrix_table_1(self):
-        mt = hl.import_matrix_table(doctest_resource('matrix1.tsv'),
-                                    row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
+        mt = hl.import_matrix_table(
+            doctest_resource('matrix1.tsv'), row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32}
+        )
         self.assertEqual(mt['Barcode']._indices, mt._row_indices)
         self.assertEqual(mt['Tissue']._indices, mt._row_indices)
         self.assertEqual(mt['Days']._indices, mt._row_indices)
@@ -1759,16 +1880,14 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     def test_import_matrix_table_2(self):
         hl.import_matrix_table(
-            doctest_resource('matrix2.tsv'),
-            row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
-            row_key=[]
+            doctest_resource('matrix2.tsv'), row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32}, row_key=[]
         )._force_count_rows()
 
     def test_import_matrix_table_3(self):
         hl.import_matrix_table(
             doctest_resource('matrix3.tsv'),
             row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
-            no_header=True
+            no_header=True,
         )._force_count_rows()
 
     def test_import_matrix_table_4(self):
@@ -1776,11 +1895,18 @@ class ImportMatrixTableTests(unittest.TestCase):
             doctest_resource('matrix3.tsv'),
             row_fields={'f0': hl.tstr, 'f1': hl.tstr, 'f2': hl.tfloat32},
             no_header=True,
-            row_key=[]
+            row_key=[],
         )._force_count_rows()
 
     def test_import_matrix_table_no_cols(self):
-        fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
+        fields = {
+            'Chromosome': hl.tstr,
+            'Position': hl.tint32,
+            'Ref': hl.tstr,
+            'Alt': hl.tstr,
+            'Rand1': hl.tfloat64,
+            'Rand2': hl.tfloat64,
+        }
         file = resource('sample2_va_nomulti.tsv')
         mt = hl.import_matrix_table(file, row_fields=fields, row_key=['Chromosome', 'Position'])
         t = hl.import_table(file, types=fields, key=['Chromosome', 'Position'])
@@ -1792,88 +1918,72 @@ class ImportMatrixTableTests(unittest.TestCase):
     def test_import_matrix_comment(self):
         no_comment = doctest_resource('matrix1.tsv')
         comment = doctest_resource('matrix1_comment.tsv')
-        row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32}
-        mt1 = hl.import_matrix_table(no_comment,
-                                     row_fields=row_fields,
-                                     row_key=[])
-        mt2 = hl.import_matrix_table(comment,
-                                     row_fields=row_fields,
-                                     row_key=[],
-                                     comment=['#', '%'])
+        row_fields = {'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32}
+        mt1 = hl.import_matrix_table(no_comment, row_fields=row_fields, row_key=[])
+        mt2 = hl.import_matrix_table(comment, row_fields=row_fields, row_key=[], comment=['#', '%'])
         assert mt1._same(mt2)
 
     def test_headers_not_identical(self):
         with pytest.raises(ValueError, match='invalid header: lengths of headers differ'):
-            hl.import_matrix_table([resource("sampleheader1.txt"), resource("sampleheader2.txt")],
-                                   row_fields={'f0': hl.tstr}, row_key=['f0'])
+            hl.import_matrix_table(
+                [resource("sampleheader1.txt"), resource("sampleheader2.txt")],
+                row_fields={'f0': hl.tstr},
+                row_key=['f0'],
+            )
 
     def test_headers_same_len_diff_elem(self):
         with pytest.raises(ValueError, match='invalid header: expected elements to be identical for all input paths'):
-            hl.import_matrix_table([resource("sampleheader2.txt"),
-                                   resource("sampleheaderdiffelem.txt")], row_fields={'f0': hl.tstr}, row_key=['f0'])
+            hl.import_matrix_table(
+                [resource("sampleheader2.txt"), resource("sampleheaderdiffelem.txt")],
+                row_fields={'f0': hl.tstr},
+                row_key=['f0'],
+            )
 
     def test_too_few_entries(self):
         def boom():
-            hl.import_matrix_table(resource("samplesmissing.txt"),
-                                   row_fields={'f0': hl.tstr},
-                                   row_key=['f0']
-                                   )._force_count_rows()
+            hl.import_matrix_table(
+                resource("samplesmissing.txt"), row_fields={'f0': hl.tstr}, row_key=['f0']
+            )._force_count_rows()
+
         with pytest.raises(HailUserError, match='unexpected end of line while reading entries'):
             boom()
 
     def test_wrong_row_field_type(self):
         with pytest.raises(HailUserError, match="error parsing value into int32 at row field 'f0'"):
-            hl.import_matrix_table(resource("sampleheader1.txt"),
-                                   row_fields={'f0': hl.tint32},
-                                   row_key=['f0'])._force_count_rows()
+            hl.import_matrix_table(
+                resource("sampleheader1.txt"), row_fields={'f0': hl.tint32}, row_key=['f0']
+            )._force_count_rows()
 
     def test_wrong_entry_type(self):
         with pytest.raises(HailUserError, match="error parsing value into int32 at column id 'col000003'"):
-            hl.import_matrix_table(resource("samplenonintentries.txt"),
-                                   row_fields={'f0': hl.tstr},
-                                   row_key=['f0'])._force_count_rows()
+            hl.import_matrix_table(
+                resource("samplenonintentries.txt"), row_fields={'f0': hl.tstr}, row_key=['f0']
+            )._force_count_rows()
 
     def test_key_by_after_empty_key_import(self):
-        fields = {'Chromosome':hl.tstr,
-                  'Position': hl.tint32,
-                  'Ref': hl.tstr,
-                  'Alt': hl.tstr}
-        mt = hl.import_matrix_table(resource('sample2_va_nomulti.tsv'),
-                                    row_fields=fields,
-                                    row_key=[],
-                                    entry_type=hl.tfloat)
+        fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr}
+        mt = hl.import_matrix_table(
+            resource('sample2_va_nomulti.tsv'), row_fields=fields, row_key=[], entry_type=hl.tfloat
+        )
         mt = mt.key_rows_by('Chromosome', 'Position')
         assert 0.001 < abs(0.50965 - mt.aggregate_entries(hl.agg.mean(mt.x)))
 
     def test_key_by_after_empty_key_import(self):
-        fields = {'Chromosome':hl.tstr,
-                  'Position': hl.tint32,
-                  'Ref': hl.tstr,
-                  'Alt': hl.tstr}
-        mt = hl.import_matrix_table(resource('sample2_va_nomulti.tsv'),
-                                    row_fields=fields,
-                                    row_key=[],
-                                    entry_type=hl.tfloat)
+        fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr}
+        mt = hl.import_matrix_table(
+            resource('sample2_va_nomulti.tsv'), row_fields=fields, row_key=[], entry_type=hl.tfloat
+        )
         mt = mt.key_rows_by('Chromosome', 'Position')
         mt._force_count_rows()
 
     @test_timeout(local=4 * 60)
     def test_devilish_nine_separated_eight_missing_file(self):
-        fields = {'chr': hl.tstr,
-                  '': hl.tint32,
-                  'ref': hl.tstr,
-                  'alt': hl.tstr}
-        mt = hl.import_matrix_table(resource('import_matrix_table_devlish.ninesv'),
-                                    row_fields=fields,
-                                    row_key=['chr', ''],
-                                    sep='9',
-                                    missing='8')
+        fields = {'chr': hl.tstr, '': hl.tint32, 'ref': hl.tstr, 'alt': hl.tstr}
+        mt = hl.import_matrix_table(
+            resource('import_matrix_table_devlish.ninesv'), row_fields=fields, row_key=['chr', ''], sep='9', missing='8'
+        )
         actual = mt.x.collect()
-        expected = [
-            1, 2, 3, 4,
-            11, 12, 13, 14,
-            21, 22, 23, 24,
-            31, None, None, 34]
+        expected = [1, 2, 3, 4, 11, 12, 13, 14, 21, 22, 23, 24, 31, None, None, 34]
         assert actual == expected
 
         assert mt.count_rows() == len(mt.rows().collect())
@@ -1899,18 +2009,15 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     def test_import_row_id_multiple_partitions(self):
         path = new_temp_file(extension='txt')
-        (hl.utils.range_matrix_table(50, 50)
-         .annotate_entries(x=1)
-         .key_rows_by()
-         .key_cols_by()
-         .x
-         .export(path, header=False, delimiter=' '))
+        (
+            hl.utils.range_matrix_table(50, 50)
+            .annotate_entries(x=1)
+            .key_rows_by()
+            .key_cols_by()
+            .x.export(path, header=False, delimiter=' ')
+        )
 
-        mt = hl.import_matrix_table(path,
-                                    no_header=True,
-                                    entry_type=hl.tint32,
-                                    delimiter=' ',
-                                    min_partitions=10)
+        mt = hl.import_matrix_table(path, no_header=True, entry_type=hl.tint32, delimiter=' ', min_partitions=10)
         assert mt.row_id.collect() == list(range(50))
 
     def test_long_parsing(self):
@@ -1919,7 +2026,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         collected = mt.entries().collect()
         assert collected == [
             hl.utils.Struct(foo=7, row_id=0, col_id='s1', x=1234),
-            hl.utils.Struct(foo=7, row_id=0, col_id='s2', x=2345)
+            hl.utils.Struct(foo=7, row_id=0, col_id='s2', x=2345),
         ]
 
 
@@ -1929,25 +2036,20 @@ class ImportMatrixTableTests(unittest.TestCase):
 @pytest.mark.parametrize("missing", ['.', '9'])
 def test_import_matrix_table_round_trip(missing, delimiter, header, entry_fun):
     mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
-    mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
-    mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
-    mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
+    mt = mt.annotate_entries(x=entry_fun(mt.row_idx * mt.col_idx))
+    mt = mt.annotate_rows(row_str=hl.str(mt.row_idx))
+    mt = mt.annotate_rows(row_float=hl.float(mt.row_idx))
 
     entry_type = mt.x.dtype
 
     path = new_temp_file(extension='tsv')
-    mt.key_rows_by(*mt.row).x.export(path,
-                                     missing=missing,
-                                     delimiter=delimiter,
-                                     header=header)
+    mt.key_rows_by(*mt.row).x.export(path, missing=missing, delimiter=delimiter, header=header)
 
     row_fields = {f: mt.row[f].dtype for f in mt.row}
     row_key = 'row_idx'
 
     if not header:
-        pseudonym = {'row_idx': 'f0',
-                     'row_str': 'f1',
-                     'row_float': 'f2'}
+        pseudonym = {'row_idx': 'f0', 'row_str': 'f1', 'row_float': 'f2'}
         row_fields = {pseudonym[k]: v for k, v in row_fields.items()}
         row_key = pseudonym[row_key]
         mt = mt.rename(pseudonym)
@@ -1961,21 +2063,15 @@ def test_import_matrix_table_round_trip(missing, delimiter, header, entry_fun):
         entry_type=entry_type,
         missing=missing,
         no_header=not header,
-        sep=delimiter)
+        sep=delimiter,
+    )
     actual = actual.rename({'col_id': 'col_idx'})
 
     row_key = mt.row_key
     col_key = mt.col_key
     mt = mt.key_rows_by()
-    mt = mt.annotate_entries(
-        x = hl.if_else(hl.str(mt.x) == missing,
-                       hl.missing(entry_type),
-                       mt.x))
-    mt = mt.annotate_rows(**{
-        f: hl.if_else(hl.str(mt[f]) == missing,
-                      hl.missing(mt[f].dtype),
-                      mt[f])
-        for f in mt.row})
+    mt = mt.annotate_entries(x=hl.if_else(hl.str(mt.x) == missing, hl.missing(entry_type), mt.x))
+    mt = mt.annotate_rows(**{f: hl.if_else(hl.str(mt[f]) == missing, hl.missing(mt[f].dtype), mt[f]) for f in mt.row})
     mt = mt.key_rows_by(*row_key)
     assert mt._same(actual)
 
@@ -2023,7 +2119,10 @@ class ImportTableTests(unittest.TestCase):
         try:
             rows = hl.import_table(resource('empty.tsv')).collect()
         except ValueError as err:
-            assert f'Invalid file: no lines remaining after filters\n Files provided: {resource("empty.tsv")}' in err.args[0]
+            assert (
+                f'Invalid file: no lines remaining after filters\n Files provided: {resource("empty.tsv")}'
+                in err.args[0]
+            )
         else:
             assert False, rows
 
@@ -2040,23 +2139,24 @@ class ImportTableTests(unittest.TestCase):
 
         ht = hl.import_table(resource('variantAnnotations.tsv'), impute=True)
         assert ht.row.dtype == hl.dtype(
-            'struct{Chromosome: int32, Position: int32, Ref: str, Alt: str, Rand1: float64, Rand2: float64, Gene: str}')
+            'struct{Chromosome: int32, Position: int32, Ref: str, Alt: str, Rand1: float64, Rand2: float64, Gene: str}'
+        )
 
         ht = hl.import_table(resource('variantAnnotations.tsv'), impute=True, types={'Chromosome': 'str'})
         assert ht.row.dtype == hl.dtype(
-            'struct{Chromosome: str, Position: int32, Ref: str, Alt: str, Rand1: float64, Rand2: float64, Gene: str}')
+            'struct{Chromosome: str, Position: int32, Ref: str, Alt: str, Rand1: float64, Rand2: float64, Gene: str}'
+        )
 
         ht = hl.import_table(resource('variantAnnotations.alternateformat.tsv'), impute=True)
         assert ht.row.dtype == hl.dtype(
-            'struct{`Chromosome:Position:Ref:Alt`: str, Rand1: float64, Rand2: float64, Gene: str}')
+            'struct{`Chromosome:Position:Ref:Alt`: str, Rand1: float64, Rand2: float64, Gene: str}'
+        )
 
         ht = hl.import_table(resource('sampleAnnotations.tsv'), impute=True)
-        assert ht.row.dtype == hl.dtype(
-            'struct{Sample: str, Status: str, qPhen: int32}')
+        assert ht.row.dtype == hl.dtype('struct{Sample: str, Status: str, qPhen: int32}')
 
         ht = hl.import_table(resource('integer_imputation.txt'), impute=True, delimiter=r'\s+')
-        assert ht.row.dtype == hl.dtype(
-            'struct{A:int64, B:int32}')
+        assert ht.row.dtype == hl.dtype('struct{A:int64, B:int32}')
 
     def test_import_export_identity(self):
         fs = hl.current_backend().fs
@@ -2073,21 +2173,25 @@ class ImportTableTests(unittest.TestCase):
 
     def small_dataset_1(self):
         data = [
-            hl.Struct(Sample='Sample1',field1=5,field2=5),
-            hl.Struct(Sample='Sample2',field1=3,field2=5),
-            hl.Struct(Sample='Sample3',field1=2,field2=5),
-            hl.Struct(Sample='Sample4',field1=1,field2=5),
+            hl.Struct(Sample='Sample1', field1=5, field2=5),
+            hl.Struct(Sample='Sample2', field1=3, field2=5),
+            hl.Struct(Sample='Sample3', field1=2, field2=5),
+            hl.Struct(Sample='Sample4', field1=1, field2=5),
         ]
         return hl.Table.parallelize(data, key='Sample')
 
     def test_source_file(self):
         ht = hl.import_table(resource('variantAnnotations.split.*.tsv'), source_file_field='source')
         ht = ht.add_index()
-        assert ht.aggregate(hl.agg.all(
-            hl.if_else(ht.idx < 239,
-                       ht.source.endswith('variantAnnotations.split.1.tsv'),
-                       ht.source.endswith('variantAnnotations.split.2.tsv'))))
-
+        assert ht.aggregate(
+            hl.agg.all(
+                hl.if_else(
+                    ht.idx < 239,
+                    ht.source.endswith('variantAnnotations.split.1.tsv'),
+                    ht.source.endswith('variantAnnotations.split.2.tsv'),
+                )
+            )
+        )
 
     def test_read_write_identity(self):
         ht = self.small_dataset_1()
@@ -2119,24 +2223,31 @@ class GrepTests(unittest.TestCase):
     @fails_local_backend()
     def test_grep_show_false(self):
         from hail.backend.service_backend import ServiceBackend
+
         if isinstance(hl.current_backend(), ServiceBackend):
             prefix = resource('')
         else:
             prefix = ''
-        expected = {prefix + 'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
-                    prefix + 'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
-                    prefix + 'sampleAnnotations2.tsv': ['HG00120\t3919.8\t19589',
-                                                        'HG00121\t966.4\t4822',
-                                                        'HG00120_B\t3919.8\t19589',
-                                                        'HG00121_B\t966.4\t4822',
-                                                        'HG00120_B_B\t3919.8\t19589',
-                                                        'HG00121_B_B\t966.4\t4822']}
+        expected = {
+            prefix + 'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
+            prefix + 'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
+            prefix
+            + 'sampleAnnotations2.tsv': [
+                'HG00120\t3919.8\t19589',
+                'HG00121\t966.4\t4822',
+                'HG00120_B\t3919.8\t19589',
+                'HG00121_B\t966.4\t4822',
+                'HG00120_B_B\t3919.8\t19589',
+                'HG00121_B_B\t966.4\t4822',
+            ],
+        }
 
         assert hl.grep('HG0012[0-1]', resource('*.tsv'), show=False) == expected
 
 
 class AvroTests(unittest.TestCase):
-    @fails_service_backend(reason='''
+    @fails_service_backend(
+        reason='''
 E                   java.io.NotSerializableException: org.apache.avro.Schema$RecordSchema
 E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1184)
 E                   	at java.io.ObjectOutputStream.writeArray(ObjectOutputStream.java:1378)
@@ -2170,7 +2281,8 @@ E                   	at scala.concurrent.impl.CallbackRunnable.run(Promise.scala
 E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
 E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
 E                   	at java.lang.Thread.run(Thread.java:748)
-''')
+'''
+    )
     def test_simple_avro(self):
         avro_file = resource('avro/weather.avro')
         fs = hl.current_backend().fs

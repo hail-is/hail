@@ -155,8 +155,8 @@ class Aggs(original: IR, rewriteMap: Memo[IR], bindingNodesReferenced: Memo[Unit
       // only support let nodes here -- other binders like stream operators are undefined behavior
       RewriteTopDown.rewriteTopDown(original, {
         case ir if RefEquality(ir) == rewriteRoot =>
-          val Let(name, value, body) = ir
-          Let(name, value, f(rewriteMap.lookup(body)))
+          val Let(bindings, body) = ir
+          Let(bindings, f(rewriteMap.lookup(body)))
       }).asInstanceOf[IR]
     }
   }
@@ -337,7 +337,7 @@ object Extract {
 
   def addLets(ir: IR, lets: Array[AggLet]): IR = {
     assert(lets.areDistinct())
-    lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb) }
+    Let(lets.map(al => al.name -> al.value), ir)
   }
 
   def getResultType(aggSig: AggSignature): Type = aggSig match {
@@ -465,7 +465,7 @@ object Extract {
           val signature = PhysicalAggSig(op, foldStateSig)
           ab += InitOp(i, initOpArgs, signature) -> signature
           // So seqOp has to be able to reference accumName.
-          val seqWithLet = Let(accumName, ResultOp(i, signature), SeqOp(i, seqOpArgs, signature))
+          val seqWithLet = Let(FastSeq(accumName -> ResultOp(i, signature)), SeqOp(i, seqOpArgs, signature))
           seqBuilder += seqWithLet
           i
         })
@@ -531,29 +531,26 @@ object Extract {
         ab += InitOp(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), checkSig) -> checkSig
         seqBuilder +=
           Let(
-            aRef.name, a,
+            FastSeq(aRef.name -> a),
             Begin(FastSeq(
               SeqOp(i, FastSeq(ArrayLen(aRef)), checkSig),
               StreamFor(
                 StreamRange(I32(0), ArrayLen(aRef), I32(1)),
                 indexName,
                 Let(
-                  elementName,
-                  ArrayRef(aRef, Ref(indexName, TInt32)),
+                  FastSeq(elementName -> ArrayRef(aRef, Ref(indexName, TInt32))),
                   addLets(SeqOp(i,
                     FastSeq(Ref(indexName, TInt32), Begin(newSeq.result().toFastSeq)),
                     eltSig), dependent))))))
 
         val rUID = Ref(genUID(), rt)
         Let(
-          rUID.name,
-          GetTupleElement(result, i),
+          FastSeq(rUID.name -> GetTupleElement(result, i)),
           ToArray(StreamMap(
             StreamRange(0, ArrayLen(rUID), 1),
             indexName,
             Let(
-              newRef.name,
-              ArrayRef(rUID, Ref(indexName, TInt32)),
+              FastSeq(newRef.name -> ArrayRef(rUID, Ref(indexName, TInt32))),
               transformed))))
 
       case x: StreamAgg =>

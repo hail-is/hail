@@ -21,7 +21,9 @@ def test_requester_pays_no_settings():
 
 @skip_in_azure
 def test_requester_pays_write_no_settings():
-    random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
+    random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(
+        10
+    )
     try:
         hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
     except Exception as exc:
@@ -36,7 +38,9 @@ def test_requester_pays_write_no_settings():
 def test_requester_pays_write_with_project():
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
-    random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
+    random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(
+        10
+    )
     try:
         hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
     finally:
@@ -48,15 +52,21 @@ def test_requester_pays_write_with_project():
 def test_requester_pays_with_project():
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [
+        hl.Struct(f0='hello')
+    ]
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [
+        hl.Struct(f0='hello')
+    ]
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [
+        hl.Struct(f0='hello')
+    ]
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
@@ -69,7 +79,9 @@ def test_requester_pays_with_project():
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [
+        hl.Struct(f0='hello')
+    ]
 
 
 @skip_in_azure
@@ -99,15 +111,24 @@ def test_requester_pays_with_project_more_than_one_partition():
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+    assert (
+        hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect()
+        == expected_file_contents
+    )
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+    assert (
+        hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect()
+        == expected_file_contents
+    )
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+    assert (
+        hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect()
+        == expected_file_contents
+    )
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
@@ -120,7 +141,10 @@ def test_requester_pays_with_project_more_than_one_partition():
 
     hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
+    assert (
+        hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect()
+        == expected_file_contents
+    )
 
 
 @run_if_azure
@@ -133,6 +157,7 @@ def test_can_access_public_blobs():
     mt = hl.read_matrix_table(public_mt)
     mt.describe()
 
+
 @run_if_azure
 @fails_local_backend
 def test_qob_can_use_sas_tokens():
@@ -141,8 +166,7 @@ def test_qob_can_use_sas_tokens():
 
     sub_id = os.environ['HAIL_AZURE_SUBSCRIPTION_ID']
     rg = os.environ['HAIL_AZURE_RESOURCE_GROUP']
-    creds_file = os.environ['AZURE_APPLICATION_CREDENTIALS']
-    sas_token = asyncio.run(AzureAsyncFS(credential_file=creds_file).generate_sas_token(sub_id, rg, account, "rl"))
+    sas_token = asyncio.run(AzureAsyncFS().generate_sas_token(sub_id, rg, account, "rl"))
 
     mt = hl.import_vcf(f'{vcf}?{sas_token}', min_partitions=4)
     mt._force_count_rows()

@@ -1,16 +1,15 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, SafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.virtual._
 import is.hail.utils.{Interval, IntervalEndpoint, _}
 import is.hail.variant.{Locus, ReferenceGenome}
-
-import scala.Option.option2Iterable
 import org.apache.spark.sql.Row
 
-import scala.collection.{GenTraversableOnce, mutable}
+import scala.Option.option2Iterable
+import scala.collection.mutable
 
 trait Lattice {
   type Value <: AnyRef
@@ -614,7 +613,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
   }
 
-  import AbstractLattice.{ Value => AbstractValue, ConstantValue, KeyField, StructValue, BoolValue, Contig, Position }
+  import AbstractLattice.{BoolValue, ConstantValue, Contig, KeyField, Position, StructValue, Value => AbstractValue}
 
   case class AbstractEnv(keySet: KeySet, env: Env[AbstractValue]) {
     def apply(name: String): AbstractValue =
@@ -722,6 +721,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     case Str(v) => ConstantValue(v, x.typ)
     case NA(_) => ConstantValue(null, x.typ)
     case Literal(_, value) => ConstantValue(value, x.typ)
+    case EncodedLiteral(codec, arrays) =>
+      ConstantValue(ctx.r.getPool().scopedRegion { r =>
+        val (pt, addr) = codec.decodeArrays(ctx, codec.encodedVirtualType, arrays.ba, ctx.r)
+        SafeRow.read(pt, addr)
+      }, x.typ)
     case ApplySpecial("lor", _, _, _, _) => children match {
       case Seq(ConstantValue(l: Boolean), ConstantValue(r: Boolean)) => ConstantValue(l || r, TBoolean)
       case _ => AbstractLattice.top
@@ -751,7 +755,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       .restrict(keySet)
     case (IsNA(_), Seq(b: BoolValue)) => b.isNA.restrict(keySet)
     // collection contains
-    case (ApplyIR("contains", _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
+    case (ApplyIR("contains", _, _, _, _), Seq(ConstantValue(collectionVal), queryVal)) if literalSizeOkay(collectionVal) =>
       if (collectionVal == null) {
         BoolValue.allNA(keySet)
       } else queryVal match {
@@ -811,7 +815,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     var res: AbstractLattice.Value = if (env.keySet == KeySetLattice.bottom)
       AbstractLattice.bottom
     else x match {
-      case Let(name, value, body) => recur(body, env.bind(name -> recur(value)))
+      case Let(bindings, body) =>
+        recur(body, bindings.foldLeft(env) { case (env, (name, value)) =>
+          env.bind(name -> recur(value, env))
+        })
       case Ref(name, _) => env(name)
       case GetField(o, name) => recur(o).asInstanceOf[StructValue](name)
       case MakeStruct(fields) => StructValue(fields.view.map { case (name, field) =>
@@ -831,6 +838,17 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           AbstractLattice.join(res, BoolValue(KeySetLattice.bottom, KeySetLattice.bottom, c.naBound))
         else
           res
+      case Switch(y_, default_, cases_) =>
+        recur(y_) match {
+          case ConstantValue(y: Int) =>
+            recur(if (y >= 0 && y < cases_.length) cases_(y) else default_)
+          case _ =>
+            val res = cases_.foldLeft(recur(default_))((e, c) => AbstractLattice.join(e, recur(c)))
+            if (x.typ == TBoolean)
+              AbstractLattice.join(res, BoolValue(KeySetLattice.bottom, KeySetLattice.bottom, KeySetLattice.top))
+            else
+              res
+        }
       case ToStream(a, _) => recur(a)
       case StreamFold(a, zero, accumName, valueName, body) => recur(a) match {
           case ConstantValue(array) => array.asInstanceOf[Iterable[Any]]
@@ -851,7 +869,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     }
 
     res = if (res == null) {
-      val children = x.children.map(child => recur(child.asInstanceOf[IR])).toFastSeq
+      val children = x.children.map {
+        case child: IR => recur(child)
+        case _ => AbstractLattice.top
+      }.toFastSeq
       val keyOrConstVal = computeKeyOrConst(x, children)
       if (x.typ == TBoolean) {
         if (keyOrConstVal == AbstractLattice.top)

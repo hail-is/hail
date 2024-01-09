@@ -1,17 +1,13 @@
 package is.hail.asm4s
 
-import java.io.PrintWriter
 import is.hail.HailSuite
 import is.hail.asm4s.Code._
-import is.hail.asm4s.FunctionBuilder._
 import is.hail.check.{Gen, Prop}
-import is.hail.utils.HailException
-import org.scalatest.testng.TestNGSuite
+import is.hail.utils.FastSeq
 import org.testng.annotations.Test
 
-import scala.collection.mutable
+import java.io.PrintWriter
 import scala.language.postfixOps
-import scala.util.Random
 
 trait Z2Z { def apply(z:Boolean): Boolean }
 
@@ -313,16 +309,15 @@ class ASM4SSuite extends HailSuite {
       val a = fb.getArg[Int](1)
       val b = fb.getArg[Int](2)
       val c = fb.getArg[Int](3)
-      val res = cb.newLocal[Int]("res")
-      cb.if_(a.ceq(0), {
-        cb.assign(res, add.invoke(cb, b, c))
-      }, {
-        cb.if_(a.ceq(1),
-          cb.assign(res, sub.invoke(cb, b, c)),
-          cb.assign(res, mul.invoke(cb, b, c)))
-      })
+      val res = cb.newLocal[Int]("result")
+      cb.switch(a, cb._fatal("invalid choice"), FastSeq(
+        { () => cb.assign(res, cb.invoke(add, cb.this_, b, c)) },
+        { () => cb.assign(res, cb.invoke(sub, cb.this_, b, c)) },
+        { () => cb.assign(res, cb.invoke(mul, cb.this_, b, c)) }
+      ))
       res
     }
+
     val f = fb.result(ctx.shouldWriteIRFiles(), Some(new PrintWriter(System.out)))(theHailClassLoader)
     assert(f(0, 1, 1) == 2)
     assert(f(1, 5, 1) == 4)
@@ -336,11 +331,17 @@ class ASM4SSuite extends HailSuite {
     val v1 = add.newLocal[Int]()
     val v2 = add.newLocal[Int]()
 
-    add.emit(Code(v1 := add.getArg[Int](1),
-      v2 := add.getArg[Int](2),
-      v1 + v2))
+    add.emit(
+      Code(
+        v1 := add.getArg[Int](1),
+        v2 := add.getArg[Int](2),
+        v1 + v2
+      )
+    )
 
-    fb.emitWithBuilder(add.invoke(_, fb.getArg[Int](1), fb.getArg[Int](2)))
+    fb.emitWithBuilder { cb =>
+      cb.invoke(add, cb.this_, fb.getArg[Int](1), fb.getArg[Int](2))
+    }
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f(1, 1) == 2)
   }
@@ -388,7 +389,9 @@ class ASM4SSuite extends HailSuite {
         case LongInfo => mb.emit(Code(c, longField.load()))
         case BooleanInfo => mb.emit(Code(c, booleanField.load()))
       }
-      fb.emitWithBuilder(mb.invoke(_, fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3)))
+      fb.emitWithBuilder { cb =>
+        cb.invoke(mb, cb.this_, fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3))
+      }
       val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
       f(arg1, arg2, arg3)
     }
@@ -444,6 +447,32 @@ class ASM4SSuite extends HailSuite {
 
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(test() == 1)
+  }
+
+  @Test def testClassInstances(): Unit = {
+    val Counter = FunctionBuilder[Int]("Counter")
+    val x = Counter.genFieldThisRef[Int]("x")
+    Counter.emitInit { x := 0 }
+    Counter.emit {
+      Code(
+        x := x + 1,
+        x
+      )
+    }
+
+    val Main = FunctionBuilder[Int]("Main")
+    Main.emitWithBuilder[Int] { cb =>
+      val a = cb.newLocal("a", Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()))
+      val b = cb.newLocal("b", Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()))
+      cb.invoke[Int](Counter.mb, a)
+      cb.invoke[Int](Counter.mb, a)
+      cb.invoke[Int](Counter.mb, b)
+      cb.invoke[Int](Counter.mb, a) * cb.invoke[Int](Counter.mb, b)
+    }
+
+    Counter.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    assert(test() == 6)
   }
 
   @Test def testIf(): Unit = {

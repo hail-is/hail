@@ -28,22 +28,19 @@ class Tests(unittest.TestCase):
 
         hl.export_vcf(ds, vcf_file)
 
-        utils.run_command(["plink", "--vcf", vcf_file, "--const-fid",
-                           "--check-sex", "--silent", "--out", out_file])
+        utils.run_command(["plink", "--vcf", vcf_file, "--const-fid", "--check-sex", "--silent", "--out", out_file])
 
-        plink_sex = hl.import_table(out_file + '.sexcheck',
-                                    delimiter=' +',
-                                    types={'SNPSEX': hl.tint32,
-                                           'F': hl.tfloat64})
+        plink_sex = hl.import_table(
+            out_file + '.sexcheck', delimiter=' +', types={'SNPSEX': hl.tint32, 'F': hl.tfloat64}
+        )
         plink_sex = plink_sex.select('IID', 'SNPSEX', 'F')
         plink_sex = plink_sex.select(
             s=plink_sex.IID,
-            is_female=hl.if_else(plink_sex.SNPSEX == 2,
-                              True,
-                              hl.if_else(plink_sex.SNPSEX == 1,
-                                      False,
-                                      hl.missing(hl.tbool))),
-            f_stat=plink_sex.F).key_by('s')
+            is_female=hl.if_else(
+                plink_sex.SNPSEX == 2, True, hl.if_else(plink_sex.SNPSEX == 1, False, hl.missing(hl.tbool))
+            ),
+            f_stat=plink_sex.F,
+        ).key_by('s')
 
         sex = sex.select('is_female', 'f_stat')
 
@@ -55,17 +52,19 @@ class Tests(unittest.TestCase):
 
     backend_name = choose_backend()
     # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
-    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
+    linreg_functions = (
+        [hl.linear_regression_rows, hl._linear_regression_rows_nd]
+        if backend_name == "spark"
+        else [hl.linear_regression_rows]
+    )
 
     @qobtest
     @test_timeout(4 * 60)
     def test_linreg_basic(self):
-        phenos = hl.import_table(resource('regressionLinear.pheno'),
-                                 types={'Pheno': hl.tfloat64},
-                                 key='Sample')
-        covs = hl.import_table(resource('regressionLinear.cov'),
-                               types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64},
-                               key='Sample')
+        phenos = hl.import_table(resource('regressionLinear.pheno'), types={'Pheno': hl.tfloat64}, key='Sample')
+        covs = hl.import_table(
+            resource('regressionLinear.cov'), types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64}, key='Sample'
+        )
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
@@ -73,19 +72,17 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             t1 = linreg_function(
-                y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2 + 1 - 1])
+                y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2 + 1 - 1]
+            )
             t1 = t1.select(p=t1.p_value)
 
-            t2 = linreg_function(
-                y=mt.pheno, x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+            t2 = linreg_function(y=mt.pheno, x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
             t2 = t2.select(p=t2.p_value)
 
-            t3 = linreg_function(
-                y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+            t3 = linreg_function(y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
             t3 = t3.select(p=t3.p_value[0])
 
-            t4 = linreg_function(
-                y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+            t4 = linreg_function(y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
             t4a = t4.select(p=t4.p_value[0])
             t4b = t4.select(p=t4.p_value[1])
 
@@ -95,26 +92,26 @@ class Tests(unittest.TestCase):
             self.assertTrue(t1._same(t4b))
 
     def test_linreg_pass_through(self):
-        phenos = hl.import_table(resource('regressionLinear.pheno'),
-                                 types={'Pheno': hl.tfloat64},
-                                 key='Sample')
-        covs = hl.import_table(resource('regressionLinear.cov'),
-                               types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64},
-                               key='Sample')
+        phenos = hl.import_table(resource('regressionLinear.pheno'), types={'Pheno': hl.tfloat64}, key='Sample')
+        covs = hl.import_table(
+            resource('regressionLinear.cov'), types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64}, key='Sample'
+        )
 
-        mt = hl.import_vcf(resource('regressionLinear.vcf')).annotate_rows(foo = hl.struct(bar=hl.rand_norm(0, 1)))
+        mt = hl.import_vcf(resource('regressionLinear.vcf')).annotate_rows(foo=hl.struct(bar=hl.rand_norm(0, 1)))
 
         for linreg_function in self.linreg_functions:
 
             # single group
-            lr_result = linreg_function(phenos[mt.s].Pheno, mt.GT.n_alt_alleles(), [1.0],
-                                        pass_through=['filters', mt.foo.bar, mt.qual])
+            lr_result = linreg_function(
+                phenos[mt.s].Pheno, mt.GT.n_alt_alleles(), [1.0], pass_through=['filters', mt.foo.bar, mt.qual]
+            )
 
             assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == lr_result[mt.row_key].bar))
 
             # chained
-            lr_result = linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
-                                        pass_through=['filters', mt.foo.bar, mt.qual])
+            lr_result = linreg_function(
+                [[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0], pass_through=['filters', mt.foo.bar, mt.qual]
+            )
 
             assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == lr_result[mt.row_key].bar))
 
@@ -129,22 +126,20 @@ class Tests(unittest.TestCase):
             assert lr_result.qual.dtype == mt.qual.dtype
 
             # should run successfully with key fields
-            linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
-                            pass_through=['locus', 'alleles'])
+            linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0], pass_through=['locus', 'alleles'])
 
             # complex expression
             with pytest.raises(ValueError):
-                linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
-                                pass_through=[mt.filters.length()])
+                linreg_function(
+                    [[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0], pass_through=[mt.filters.length()]
+                )
 
     @test_timeout(local=3 * 60)
     def test_linreg_chained(self):
-        phenos = hl.import_table(resource('regressionLinear.pheno'),
-                                 types={'Pheno': hl.tfloat64},
-                                 key='Sample')
-        covs = hl.import_table(resource('regressionLinear.cov'),
-                               types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64},
-                               key='Sample')
+        phenos = hl.import_table(resource('regressionLinear.pheno'), types={'Pheno': hl.tfloat64}, key='Sample')
+        covs = hl.import_table(
+            resource('regressionLinear.cov'), types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64}, key='Sample'
+        )
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
@@ -157,24 +152,27 @@ class Tests(unittest.TestCase):
             def all_eq(*args):
                 pred = True
                 for a in args:
-                    if isinstance(a, hl.expr.Expression) \
-                            and isinstance(a.dtype, hl.tarray) \
-                            and isinstance(a.dtype.element_type, hl.tarray):
-                        pred = pred & (hl.all(lambda x: x,
-                                              hl.map(lambda elt: ((hl.is_nan(elt[0]) & hl.is_nan(elt[1])) | (elt[0] == elt[1])),
-                                                     hl.zip(a[0], a[1]))))
+                    if (
+                        isinstance(a, hl.expr.Expression)
+                        and isinstance(a.dtype, hl.tarray)
+                        and isinstance(a.dtype.element_type, hl.tarray)
+                    ):
+                        pred = pred & (
+                            hl.all(
+                                lambda x: x,
+                                hl.map(
+                                    lambda elt: ((hl.is_nan(elt[0]) & hl.is_nan(elt[1])) | (elt[0] == elt[1])),
+                                    hl.zip(a[0], a[1]),
+                                ),
+                            )
+                        )
                     else:
                         pred = pred & ((hl.is_nan(a[0]) & hl.is_nan(a[1])) | (a[0] == a[1]))
                 return pred
 
-            assert t1.aggregate(hl.agg.all(
-                all_eq(t1.n,
-                       t1.sum_x,
-                       t1.y_transpose_x,
-                       t1.beta,
-                       t1.standard_error,
-                       t1.t_stat,
-                       t1.p_value)))
+            assert t1.aggregate(
+                hl.agg.all(all_eq(t1.n, t1.sum_x, t1.y_transpose_x, t1.beta, t1.standard_error, t1.t_stat, t1.p_value))
+            )
 
             mt2 = mt.filter_cols(mt.cov.Cov2 >= 0)
             mt3 = mt.filter_cols(mt.cov.Cov2 <= 0)
@@ -183,46 +181,56 @@ class Tests(unittest.TestCase):
             t2 = hl.linear_regression_rows(y=mt2.pheno, x=mt2.x, covariates=[1, mt2.cov.Cov1])
             t3 = hl.linear_regression_rows(y=mt3.pheno, x=mt3.x, covariates=[1, mt3.cov.Cov1])
 
-            chained = hl.linear_regression_rows(y=[[hl.case().when(mt.cov.Cov2 >= 0, mt.pheno).or_missing()],
-                                                   [hl.case().when(mt.cov.Cov2 <= 0, mt.pheno).or_missing()]],
-                                                x=mt.x,
-                                                covariates=[1, mt.cov.Cov1])
+            chained = hl.linear_regression_rows(
+                y=[
+                    [hl.case().when(mt.cov.Cov2 >= 0, mt.pheno).or_missing()],
+                    [hl.case().when(mt.cov.Cov2 <= 0, mt.pheno).or_missing()],
+                ],
+                x=mt.x,
+                covariates=[1, mt.cov.Cov1],
+            )
             chained = chained.annotate(r0=t2[chained.key], r1=t3[chained.key])
-            assert chained.aggregate(hl.agg.all(
-                all_eq([chained.n[0], chained.r0.n],
-                       [chained.n[1], chained.r1.n],
-                       [chained.sum_x[0], chained.r0.sum_x],
-                       [chained.sum_x[1], chained.r1.sum_x],
-                       [chained.y_transpose_x[0][0], chained.r0.y_transpose_x],
-                       [chained.y_transpose_x[1][0], chained.r1.y_transpose_x],
-                       [chained.beta[0][0], chained.r0.beta],
-                       [chained.beta[1][0], chained.r1.beta],
-                       [chained.standard_error[0][0], chained.r0.standard_error],
-                       [chained.standard_error[1][0], chained.r1.standard_error],
-                       [chained.t_stat[0][0], chained.r0.t_stat],
-                       [chained.t_stat[1][0], chained.r1.t_stat],
-                       [chained.p_value[0][0], chained.r0.p_value],
-                       [chained.p_value[1][0], chained.r1.p_value])))
+            assert chained.aggregate(
+                hl.agg.all(
+                    all_eq(
+                        [chained.n[0], chained.r0.n],
+                        [chained.n[1], chained.r1.n],
+                        [chained.sum_x[0], chained.r0.sum_x],
+                        [chained.sum_x[1], chained.r1.sum_x],
+                        [chained.y_transpose_x[0][0], chained.r0.y_transpose_x],
+                        [chained.y_transpose_x[1][0], chained.r1.y_transpose_x],
+                        [chained.beta[0][0], chained.r0.beta],
+                        [chained.beta[1][0], chained.r1.beta],
+                        [chained.standard_error[0][0], chained.r0.standard_error],
+                        [chained.standard_error[1][0], chained.r1.standard_error],
+                        [chained.t_stat[0][0], chained.r0.t_stat],
+                        [chained.t_stat[1][0], chained.r1.t_stat],
+                        [chained.p_value[0][0], chained.r0.p_value],
+                        [chained.p_value[1][0], chained.r1.p_value],
+                    )
+                )
+            )
 
             # test differential missingness against each other
-            phenos = [hl.case().when(mt.cov.Cov2 >= -1, mt.pheno).or_missing(),
-                      hl.case().when(mt.cov.Cov2 <= 1, mt.pheno).or_missing()]
+            phenos = [
+                hl.case().when(mt.cov.Cov2 >= -1, mt.pheno).or_missing(),
+                hl.case().when(mt.cov.Cov2 <= 1, mt.pheno).or_missing(),
+            ]
             t4 = hl.linear_regression_rows(phenos, mt.x, covariates=[1])
             t5 = hl.linear_regression_rows([phenos], mt.x, covariates=[1])
 
-            t5 = t5.annotate(**{x: t5[x][0] for x in ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']})
+            t5 = t5.annotate(
+                **{x: t5[x][0] for x in ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']}
+            )
             assert t4._same(t5)
 
     def test_linear_regression_without_intercept(self):
         for linreg_function in self.linreg_functions:
-            pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                    key='Sample',
-                                    missing='0',
-                                    types={'Pheno': hl.tfloat})
+            pheno = hl.import_table(
+                resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
+            )
             mt = hl.import_vcf(resource('regressionLinear.vcf'))
-            ht = linreg_function(y=pheno[mt.s].Pheno,
-                                 x=mt.GT.n_alt_alleles(),
-                                 covariates=[])
+            ht = linreg_function(y=pheno[mt.s].Pheno, x=mt.GT.n_alt_alleles(), covariates=[])
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
             self.assertAlmostEqual(results[1].beta, 1.5, places=6)
             self.assertAlmostEqual(results[1].standard_error, 1.161895, places=6)
@@ -240,20 +248,19 @@ class Tests(unittest.TestCase):
     @pytest.mark.unchecked_allocator
     def test_linear_regression_with_cov(self):
 
-        covariates = hl.import_table(resource('regressionLinear.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'Pheno': hl.tfloat})
+        covariates = hl.import_table(
+            resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
+        )
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
 
         for linreg_function in self.linreg_functions:
-            ht = linreg_function(y=pheno[mt.s].Pheno,
-                                 x=mt.GT.n_alt_alleles(),
-                                 covariates=[1.0] + list(covariates[mt.s].values()))
+            ht = linreg_function(
+                y=pheno[mt.s].Pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -283,21 +290,20 @@ class Tests(unittest.TestCase):
 
     def test_linear_regression_pl(self):
 
-        covariates = hl.import_table(resource('regressionLinear.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'Pheno': hl.tfloat})
+        covariates = hl.import_table(
+            resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
+        )
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
 
         for linreg_function in self.linreg_functions:
 
-            ht = linreg_function(y=pheno[mt.s].Pheno,
-                                 x=hl.pl_dosage(mt.PL),
-                                 covariates=[1.0] + list(covariates[mt.s].values()))
+            ht = linreg_function(
+                y=pheno[mt.s].Pheno, x=hl.pl_dosage(mt.PL), covariates=[1.0] + list(covariates[mt.s].values())
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -318,19 +324,18 @@ class Tests(unittest.TestCase):
 
     def test_linear_regression_with_dosage(self):
 
-        covariates = hl.import_table(resource('regressionLinear.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'Pheno': hl.tfloat})
+        covariates = hl.import_table(
+            resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
+        )
         mt = hl.import_gen(resource('regressionLinear.gen'), sample_file=resource('regressionLinear.sample'))
 
         for linreg_function in self.linreg_functions:
-            ht = linreg_function(y=pheno[mt.s].Pheno,
-                                 x=hl.gp_dosage(mt.GP),
-                                 covariates=[1.0] + list(covariates[mt.s].values()))
+            ht = linreg_function(
+                y=pheno[mt.s].Pheno, x=hl.gp_dosage(mt.GP), covariates=[1.0] + list(covariates[mt.s].values())
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -367,16 +372,16 @@ class Tests(unittest.TestCase):
             self.assertTrue(all(hl.approx_equal(results_t.ds_p_value, results_t.gt_p_value, nan_same=True).collect()))
 
     def test_linear_regression_with_import_fam_boolean(self):
-        covariates = hl.import_table(resource('regressionLinear.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        covariates = hl.import_table(
+            resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
         fam = hl.import_fam(resource('regressionLinear.fam'))
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
 
         for linreg_function in self.linreg_functions:
-            ht = linreg_function(y=fam[mt.s].is_case,
-                                 x=mt.GT.n_alt_alleles(),
-                                 covariates=[1.0] + list(covariates[mt.s].values()))
+            ht = linreg_function(
+                y=fam[mt.s].is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -397,18 +402,16 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[10].standard_error))
 
     def test_linear_regression_with_import_fam_quant(self):
-        covariates = hl.import_table(resource('regressionLinear.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        fam = hl.import_fam(resource('regressionLinear.fam'),
-                            quant_pheno=True,
-                            missing='0')
+        covariates = hl.import_table(
+            resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        fam = hl.import_fam(resource('regressionLinear.fam'), quant_pheno=True, missing='0')
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
 
         for linreg_function in self.linreg_functions:
-            ht = linreg_function(y=fam[mt.s].quant_pheno,
-                                 x=mt.GT.n_alt_alleles(),
-                                 covariates=[1.0] + list(covariates[mt.s].values()))
+            ht = linreg_function(
+                y=fam[mt.s].quant_pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -429,65 +432,71 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[10].standard_error))
 
     def test_linear_regression_multi_pheno_same(self):
-        covariates = hl.import_table(resource('regressionLinear.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'Pheno': hl.tfloat})
+        covariates = hl.import_table(
+            resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
+        )
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
 
         for linreg_function in self.linreg_functions:
-            single = linreg_function(y=pheno[mt.s].Pheno,
-                                     x=mt.GT.n_alt_alleles(),
-                                     covariates=list(covariates[mt.s].values()))
-            multi = linreg_function(y=[pheno[mt.s].Pheno, pheno[mt.s].Pheno],
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=list(covariates[mt.s].values()))
+            single = linreg_function(
+                y=pheno[mt.s].Pheno, x=mt.GT.n_alt_alleles(), covariates=list(covariates[mt.s].values())
+            )
+            multi = linreg_function(
+                y=[pheno[mt.s].Pheno, pheno[mt.s].Pheno],
+                x=mt.GT.n_alt_alleles(),
+                covariates=list(covariates[mt.s].values()),
+            )
 
             def eq(x1, x2):
                 return (hl.is_nan(x1) & hl.is_nan(x2)) | (hl.abs(x1 - x2) < 1e-4)
 
-            combined = single.annotate(multi = multi[single.key])
-            self.assertTrue(combined.aggregate(hl.agg.all(
-                eq(combined.p_value, combined.multi.p_value[0]) &
-                eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
-
+            combined = single.annotate(multi=multi[single.key])
+            self.assertTrue(
+                combined.aggregate(
+                    hl.agg.all(
+                        eq(combined.p_value, combined.multi.p_value[0])
+                        & eq(combined.multi.p_value[0], combined.multi.p_value[1])
+                    )
+                )
+            )
 
     def test_logistic_regression_rows_max_iter_zero(self):
         import hail as hl
+
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
         try:
             ht = hl.logistic_regression_rows(
-                test='wald',
-                y=hl.literal([0, 0, 1])[mt.col_idx],
-                x=mt.x[mt.col_idx],
-                covariates=[1],
-                max_iterations=0
+                test='wald', y=hl.literal([0, 0, 1])[mt.col_idx], x=mt.x[mt.col_idx], covariates=[1], max_iterations=0
             )
             ht.globals.collect()  # null model is a global
         except Exception as exc:
-            assert 'Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge' in exc.args[0]
+            assert (
+                'Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge'
+                in exc.args[0]
+            )
         else:
             assert False
 
     # Outside the spark backend, "logistic_regression_rows" automatically defers to the _ version.
-    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
+    logreg_functions = (
+        [hl.logistic_regression_rows, hl._logistic_regression_rows_nd]
+        if backend_name == "spark"
+        else [hl.logistic_regression_rows]
+    )
 
     def test_logistic_regression_rows_max_iter_explodes(self):
         for logreg in self.logreg_functions:
             import hail as hl
+
             mt = hl.utils.range_matrix_table(1, 3)
             mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
             ht = logreg(
-                test='wald',
-                y=hl.literal([0, 0, 1])[mt.col_idx],
-                x=mt.x[mt.col_idx],
-                covariates=[1],
-                max_iterations=100
+                test='wald', y=hl.literal([0, 0, 1])[mt.col_idx], x=mt.x[mt.col_idx], covariates=[1], max_iterations=100
             )
             fit = ht.collect()[0].fit
             assert fit.n_iterations < 100
@@ -496,14 +505,11 @@ class Tests(unittest.TestCase):
 
     def test_firth_logistic_regression_rows_explodes_in_12_steps(self):
         import hail as hl
+
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
         ht = hl.logistic_regression_rows(
-            test='firth',
-            y=hl.literal([0, 1, 1, 0])[mt.col_idx],
-            x=mt.x[mt.col_idx],
-            covariates=[1],
-            max_iterations=100
+            test='firth', y=hl.literal([0, 1, 1, 0])[mt.col_idx], x=mt.x[mt.col_idx], covariates=[1], max_iterations=100
         )
         fit = ht.collect()[0].fit
         assert fit.n_iterations == 12
@@ -512,14 +518,11 @@ class Tests(unittest.TestCase):
 
     def test_firth_logistic_regression_rows_does_not_converge_with_105_iterations(self):
         import hail as hl
+
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
         ht = hl.logistic_regression_rows(
-            test='firth',
-            y=hl.literal([0, 1, 1])[mt.col_idx],
-            x=mt.x[mt.col_idx],
-            covariates=[1],
-            max_iterations=105
+            test='firth', y=hl.literal([0, 1, 1])[mt.col_idx], x=mt.x[mt.col_idx], covariates=[1], max_iterations=105
         )
         fit = ht.collect()[0].fit
         assert fit.n_iterations == 105
@@ -528,6 +531,7 @@ class Tests(unittest.TestCase):
 
     def test_firth_logistic_regression_rows_does_converge_with_more_iterations(self):
         import hail as hl
+
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
         ht = hl.logistic_regression_rows(
@@ -536,7 +540,7 @@ class Tests(unittest.TestCase):
             x=mt.x[mt.col_idx],
             covariates=[1],
             max_iterations=106,
-            tolerance=1e-6
+            tolerance=1e-6,
         )
         result = ht.collect()[0]
         fit = result.fit
@@ -555,18 +559,19 @@ class Tests(unittest.TestCase):
 
     @test_timeout(3 * 60)
     def test_weighted_linear_regression(self):
-        covariates = hl.import_table(resource('regressionLinear.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'Pheno': hl.tfloat})
+        covariates = hl.import_table(
+            resource('regressionLinear.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
+        )
 
-        weights = hl.import_table(resource('regressionLinear.weights'),
-                                  key='Sample',
-                                  missing='0',
-                                  types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
+        weights = hl.import_table(
+            resource('regressionLinear.weights'),
+            key='Sample',
+            missing='0',
+            types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat},
+        )
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         mt = mt.add_col_index()
@@ -575,20 +580,23 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
         my_covs = [1.0] + list(covariates[mt.s].values())
 
-        ht_with_weights = hl._linear_regression_rows_nd(y=mt.y,
-                                          x=mt.x,
-                                          covariates=my_covs,
-                                          weights=mt.col_idx)
+        ht_with_weights = hl._linear_regression_rows_nd(y=mt.y, x=mt.x, covariates=my_covs, weights=mt.col_idx)
 
-        ht_pre_weighted_1 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx),
-                                          x=mt.x * hl.sqrt(mt.col_idx),
-                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)))
+        ht_pre_weighted_1 = hl._linear_regression_rows_nd(
+            y=mt.y * hl.sqrt(mt.col_idx),
+            x=mt.x * hl.sqrt(mt.col_idx),
+            covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx), my_covs)),
+        )
 
-        ht_pre_weighted_2 = hl._linear_regression_rows_nd(y=mt.y * hl.sqrt(mt.col_idx + 5),
-                                                          x=mt.x * hl.sqrt(mt.col_idx + 5),
-                                                          covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx + 5), my_covs)))
+        ht_pre_weighted_2 = hl._linear_regression_rows_nd(
+            y=mt.y * hl.sqrt(mt.col_idx + 5),
+            x=mt.x * hl.sqrt(mt.col_idx + 5),
+            covariates=list(map(lambda e: e * hl.sqrt(mt.col_idx + 5), my_covs)),
+        )
 
-        ht_from_agg = mt.annotate_rows(my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)).rows()
+        ht_from_agg = mt.annotate_rows(
+            my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)
+        ).rows()
 
         betas_with_weights = ht_with_weights.beta.collect()
         betas_pre_weighted_1 = ht_pre_weighted_1.beta.collect()
@@ -599,10 +607,9 @@ class Tests(unittest.TestCase):
         assert self.equal_with_nans(betas_with_weights, betas_pre_weighted_1)
         assert self.equal_with_nans(betas_with_weights, betas_from_agg)
 
-        ht_with_multiple_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
-                                                                 x=mt.x,
-                                                                 covariates=my_covs,
-                                                                 weights=[mt.col_idx, mt.col_idx + 5])
+        ht_with_multiple_weights = hl._linear_regression_rows_nd(
+            y=[[mt.y], [hl.abs(mt.y)]], x=mt.x, covariates=my_covs, weights=[mt.col_idx, mt.col_idx + 5]
+        )
 
         # Check that preweighted 1 and preweighted 2 match up with fields 1 and 2 of multiple
         multi_weight_betas = ht_with_multiple_weights.beta.collect()
@@ -617,29 +624,41 @@ class Tests(unittest.TestCase):
     @test_timeout(3 * 60)
     def test_weighted_linear_regression__missing_weights_are_excluded(self):
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        pheno = hl.import_table(resource('regressionLinear.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'Pheno': hl.tfloat})
+        pheno = hl.import_table(
+            resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
+        )
         mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
-        weights = hl.import_table(resource('regressionLinear.weights'),
-                                  key='Sample',
-                                  missing='0',
-                                  types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat})
+        weights = hl.import_table(
+            resource('regressionLinear.weights'),
+            key='Sample',
+            missing='0',
+            types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat},
+        )
         mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
-        ht_with_missing_weights = hl._linear_regression_rows_nd(y=[[mt.y], [hl.abs(mt.y)]],
-                                                                 x=mt.x,
-                                                                 covariates=[1],
-                                                                 weights=[weights[mt.s].Weight1, weights[mt.s].Weight2])
+        ht_with_missing_weights = hl._linear_regression_rows_nd(
+            y=[[mt.y], [hl.abs(mt.y)]], x=mt.x, covariates=[1], weights=[weights[mt.s].Weight1, weights[mt.s].Weight2]
+        )
 
-        mt_with_missing_weights = mt.annotate_cols(Weight1 = weights[mt.s].Weight1, Weight2 = weights[mt.s].Weight2)
-        mt_with_missing_weight1_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight1))
-        mt_with_missing_weight2_filtered = mt_with_missing_weights.filter_cols(hl.is_defined(mt_with_missing_weights.Weight2))
+        mt_with_missing_weights = mt.annotate_cols(Weight1=weights[mt.s].Weight1, Weight2=weights[mt.s].Weight2)
+        mt_with_missing_weight1_filtered = mt_with_missing_weights.filter_cols(
+            hl.is_defined(mt_with_missing_weights.Weight1)
+        )
+        mt_with_missing_weight2_filtered = mt_with_missing_weights.filter_cols(
+            hl.is_defined(mt_with_missing_weights.Weight2)
+        )
         ht_from_agg_weight_1 = mt_with_missing_weight1_filtered.annotate_rows(
-            my_linreg=hl.agg.linreg(mt_with_missing_weight1_filtered.y, [1, mt_with_missing_weight1_filtered.x], weight=weights[mt_with_missing_weight1_filtered.s].Weight1)
+            my_linreg=hl.agg.linreg(
+                mt_with_missing_weight1_filtered.y,
+                [1, mt_with_missing_weight1_filtered.x],
+                weight=weights[mt_with_missing_weight1_filtered.s].Weight1,
+            )
         ).rows()
         ht_from_agg_weight_2 = mt_with_missing_weight2_filtered.annotate_rows(
-            my_linreg=hl.agg.linreg(mt_with_missing_weight2_filtered.y, [1, mt_with_missing_weight2_filtered.x], weight=weights[mt_with_missing_weight2_filtered.s].Weight2)
+            my_linreg=hl.agg.linreg(
+                mt_with_missing_weight2_filtered.y,
+                [1, mt_with_missing_weight2_filtered.x],
+                weight=weights[mt_with_missing_weight2_filtered.s].Weight2,
+            )
         ).rows()
 
         multi_weight_missing_results = ht_with_missing_weights.collect()
@@ -688,20 +707,18 @@ class Tests(unittest.TestCase):
         mt = hl.utils.range_matrix_table(20, 10).annotate_entries(x=2)
         mt = mt.annotate_cols(**{f"col_{i}": i for i in range(4)})
 
-        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]],
-                                                                                x=mt.x,
-                                                                                covariates=[1],
-                                                                                weights=[mt.col_2, mt.col_3]))
+        self.assertRaises(
+            ValueError,
+            lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]], x=mt.x, covariates=[1], weights=[mt.col_2, mt.col_3]),
+        )
 
-        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[mt.col_1],
-                                                                                x=mt.x,
-                                                                                covariates=[1],
-                                                                                weights=[mt.col_2]))
+        self.assertRaises(
+            ValueError, lambda: hl._linear_regression_rows_nd(y=[mt.col_1], x=mt.x, covariates=[1], weights=[mt.col_2])
+        )
 
-        self.assertRaises(ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]],
-                                                                            x=mt.x,
-                                                                            covariates=[1],
-                                                                            weights=mt.col_2))
+        self.assertRaises(
+            ValueError, lambda: hl._linear_regression_rows_nd(y=[[mt.col_1]], x=mt.x, covariates=[1], weights=mt.col_2)
+        )
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
@@ -715,20 +732,21 @@ class Tests(unittest.TestCase):
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
     def test_logistic_regression_wald_test(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'isCase': hl.tbool})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLogisticBoolean.pheno'), key='Sample', missing='0', types={'isCase': hl.tbool}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
 
         for logistic_regression_function in self.logreg_functions:
-            ht = logistic_regression_function('wald',
-                                              y=pheno[mt.s].isCase,
-                                              x=mt.GT.n_alt_alleles(),
-                                              covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+            ht = logistic_regression_function(
+                'wald',
+                y=pheno[mt.s].isCase,
+                x=mt.GT.n_alt_alleles(),
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -753,40 +771,45 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[10]))
 
     def test_logistic_regression_wald_test_apply_multi_pheno(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'isCase': hl.tbool})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLogisticBoolean.pheno'), key='Sample', missing='0', types={'isCase': hl.tbool}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
 
         for logistic_regression_function in self.logreg_functions:
 
-            ht = logistic_regression_function('wald',
-                                              y=[pheno[mt.s].isCase],
-                                              x=mt.GT.n_alt_alleles(),
-                                              covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+            ht = logistic_regression_function(
+                'wald',
+                y=[pheno[mt.s].isCase],
+                x=mt.GT.n_alt_alleles(),
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-            self.assertEqual(len(results[1].logistic_regression),1)
+            self.assertEqual(len(results[1].logistic_regression), 1)
             self.assertAlmostEqual(results[1].logistic_regression[0].beta, -0.81226793796, places=6)
             self.assertAlmostEqual(results[1].logistic_regression[0].standard_error, 2.1085483421, places=6)
             self.assertAlmostEqual(results[1].logistic_regression[0].z_stat, -0.3852261396, places=6)
             self.assertAlmostEqual(results[1].logistic_regression[0].p_value, 0.7000698784, places=6)
 
-            self.assertEqual(len(results[2].logistic_regression),1)
+            self.assertEqual(len(results[2].logistic_regression), 1)
             self.assertAlmostEqual(results[2].logistic_regression[0].beta, -0.43659460858, places=6)
             self.assertAlmostEqual(results[2].logistic_regression[0].standard_error, 1.0296902941, places=6)
             self.assertAlmostEqual(results[2].logistic_regression[0].z_stat, -0.4240057531, places=6)
             self.assertAlmostEqual(results[2].logistic_regression[0].p_value, 0.6715616176, places=6)
 
             def is_constant(r):
-                return (not r.logistic_regression[0].fit.converged) or np.isnan(r.logistic_regression[0].p_value) or abs(r.logistic_regression[0].p_value - 1) < 1e-4
+                return (
+                    (not r.logistic_regression[0].fit.converged)
+                    or np.isnan(r.logistic_regression[0].p_value)
+                    or abs(r.logistic_regression[0].p_value - 1) < 1e-4
+                )
 
-            self.assertEqual(len(results[3].logistic_regression),1)
+            self.assertEqual(len(results[3].logistic_regression), 1)
             self.assertFalse(results[3].logistic_regression[0].fit.converged)  # separable
             self.assertTrue(is_constant(results[6]))
             self.assertTrue(is_constant(results[7]))
@@ -795,53 +818,60 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[10]))
 
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
-        covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}).cache()
-        pheno = hl.import_table(resource('regressionLogisticMultiPheno.pheno'),
-                                key='Sample',
-                                missing='NA',
-                                types={'Pheno1': hl.tint32, 'Pheno2': hl.tint32}).cache()
+        covariates = hl.import_table(
+            resource('regressionLogisticMultiPheno.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        ).cache()
+        pheno = hl.import_table(
+            resource('regressionLogisticMultiPheno.pheno'),
+            key='Sample',
+            missing='NA',
+            types={'Pheno1': hl.tint32, 'Pheno2': hl.tint32},
+        ).cache()
         bgen_path = new_temp_file(extension='bgen')
         Env.fs().copy(resource('example.8bits.bgen'), bgen_path)
 
-        hl.index_bgen(bgen_path,
-                      contig_recoding={'01': '1'},
-                      reference_genome='GRCh37')
+        hl.index_bgen(bgen_path, contig_recoding={'01': '1'}, reference_genome='GRCh37')
 
-        mt = hl.import_bgen(bgen_path,
-                                           entry_fields=['dosage'])
+        mt = hl.import_bgen(bgen_path, entry_fields=['dosage'])
 
         for logistic_regression_function in self.logreg_functions:
 
-            ht_single_pheno = logistic_regression_function('wald',
-                                          y=pheno[mt.s].Pheno1,
-                                          x=mt.dosage,
-                                          covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+            ht_single_pheno = logistic_regression_function(
+                'wald',
+                y=pheno[mt.s].Pheno1,
+                x=mt.dosage,
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            )
 
-            ht_multi_pheno = logistic_regression_function('wald',
-                                             y=[pheno[mt.s].Pheno1, pheno[mt.s].Pheno2],
-                                             x=mt.dosage,
-                                             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+            ht_multi_pheno = logistic_regression_function(
+                'wald',
+                y=[pheno[mt.s].Pheno1, pheno[mt.s].Pheno2],
+                x=mt.dosage,
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            )
 
             single_results = dict(hl.tuple([ht_single_pheno.locus.position, ht_single_pheno.row]).collect())
             multi_results = dict(hl.tuple([ht_multi_pheno.locus.position, ht_multi_pheno.row]).collect())
-            self.assertEqual(len(multi_results[1001].logistic_regression),2)
+            self.assertEqual(len(multi_results[1001].logistic_regression), 2)
             self.assertAlmostEqual(multi_results[1001].logistic_regression[0].beta, single_results[1001].beta, places=6)
-            self.assertAlmostEqual(multi_results[1001].logistic_regression[0].standard_error,single_results[1001].standard_error, places=6)
-            self.assertAlmostEqual(multi_results[1001].logistic_regression[0].z_stat, single_results[1001].z_stat, places=6)
-            self.assertAlmostEqual(multi_results[1001].logistic_regression[0].p_value,single_results[1001].p_value, places=6)
-            #TODO test handling of missingness
-
+            self.assertAlmostEqual(
+                multi_results[1001].logistic_regression[0].standard_error, single_results[1001].standard_error, places=6
+            )
+            self.assertAlmostEqual(
+                multi_results[1001].logistic_regression[0].z_stat, single_results[1001].z_stat, places=6
+            )
+            self.assertAlmostEqual(
+                multi_results[1001].logistic_regression[0].p_value, single_results[1001].p_value, places=6
+            )
+            # TODO test handling of missingness
 
     def test_logistic_regression_wald_test_pl(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'isCase': hl.tbool})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLogisticBoolean.pheno'), key='Sample', missing='0', types={'isCase': hl.tbool}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
 
         for logistic_regression_function in self.logreg_functions:
@@ -850,7 +880,8 @@ class Tests(unittest.TestCase):
                 test='wald',
                 y=pheno[mt.s].isCase,
                 x=hl.pl_dosage(mt.PL),
-                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -875,15 +906,13 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[10]))
 
     def test_logistic_regression_wald_dosage(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'isCase': hl.tbool})
-        mt = hl.import_gen(resource('regressionLogistic.gen'),
-                           sample_file=resource('regressionLogistic.sample'))
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLogisticBoolean.pheno'), key='Sample', missing='0', types={'isCase': hl.tbool}
+        )
+        mt = hl.import_gen(resource('regressionLogistic.gen'), sample_file=resource('regressionLogistic.sample'))
 
         for logistic_regression_function in self.logreg_functions:
 
@@ -891,7 +920,8 @@ class Tests(unittest.TestCase):
                 test='wald',
                 y=pheno[mt.s].isCase,
                 x=hl.gp_dosage(mt.GP),
-                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -927,13 +957,12 @@ class Tests(unittest.TestCase):
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
     def test_logistic_regression_lrt(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'isCase': hl.tbool})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLogisticBoolean.pheno'), key='Sample', missing='0', types={'isCase': hl.tbool}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
 
         for logistic_regression_function in self.logreg_functions:
@@ -941,7 +970,8 @@ class Tests(unittest.TestCase):
                 test='lrt',
                 y=pheno[mt.s].isCase,
                 x=mt.GT.n_alt_alleles(),
-                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -974,13 +1004,12 @@ class Tests(unittest.TestCase):
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
     def test_logistic_regression_score(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'isCase': hl.tbool})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLogisticBoolean.pheno'), key='Sample', missing='0', types={'isCase': hl.tbool}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
 
         def is_constant(r):
@@ -991,7 +1020,8 @@ class Tests(unittest.TestCase):
                 test='score',
                 y=pheno[mt.s].isCase,
                 x=mt.GT.n_alt_alleles(),
-                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -1011,21 +1041,22 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[10]))
 
     def test_logreg_pass_through(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
-                                key='Sample',
-                                missing='0',
-                                types={'isCase': hl.tbool})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionLogisticBoolean.pheno'), key='Sample', missing='0', types={'isCase': hl.tbool}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo=hl.struct(bar=hl.rand_norm(0, 1)))
 
         for logreg_function in self.logreg_functions:
-            ht = logreg_function('wald',
-                                 y=pheno[mt.s].isCase,
-                                 x=mt.GT.n_alt_alleles(),
-                                 covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
-                                 pass_through=['filters', mt.foo.bar, mt.qual])
+            ht = logreg_function(
+                'wald',
+                y=pheno[mt.s].isCase,
+                x=mt.GT.n_alt_alleles(),
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+                pass_through=['filters', mt.foo.bar, mt.qual],
+            )
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
@@ -1041,19 +1072,19 @@ class Tests(unittest.TestCase):
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
     def test_poission_regression_wald_test(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionPoisson.pheno'),
-                                key='Sample',
-                                missing='-1',
-                                types={'count': hl.tint32})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionPoisson.pheno'), key='Sample', missing='-1', types={'count': hl.tint32}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
         ht = hl.poisson_regression_rows(
             test='wald',
             y=pheno[mt.s].count,
             x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+        )
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -1078,10 +1109,12 @@ class Tests(unittest.TestCase):
 
     def test_poisson_regression_max_iterations(self):
         import hail as hl
+
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10, 5]))
         ht = hl.poisson_regression_rows(
-            'wald', y=hl.literal([0, 1, 1, 0])[mt.col_idx], x=mt.x[mt.col_idx], covariates=[1], max_iterations=1)
+            'wald', y=hl.literal([0, 1, 1, 0])[mt.col_idx], x=mt.x[mt.col_idx], covariates=[1], max_iterations=1
+        )
         fit = ht.collect()[0].fit
         assert fit.n_iterations == 1
         assert not fit.converged
@@ -1099,19 +1132,19 @@ class Tests(unittest.TestCase):
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
     def test_poisson_regression_lrt(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionPoisson.pheno'),
-                                key='Sample',
-                                missing='-1',
-                                types={'count': hl.tint32})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionPoisson.pheno'), key='Sample', missing='-1', types={'count': hl.tint32}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
         ht = hl.poisson_regression_rows(
             test='lrt',
             y=pheno[mt.s].count,
             x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+        )
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -1143,19 +1176,19 @@ class Tests(unittest.TestCase):
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
     def test_poisson_regression_score_test(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionPoisson.pheno'),
-                                key='Sample',
-                                missing='-1',
-                                types={'count': hl.tint32})
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionPoisson.pheno'), key='Sample', missing='-1', types={'count': hl.tint32}
+        )
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
         ht = hl.poisson_regression_rows(
             test='score',
             y=pheno[mt.s].count,
             x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+        )
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -1178,26 +1211,26 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[10]))
 
     def test_poisson_pass_through(self):
-        covariates = hl.import_table(resource('regressionLogistic.cov'),
-                                     key='Sample',
-                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
-        pheno = hl.import_table(resource('regressionPoisson.pheno'),
-                                key='Sample',
-                                missing='-1',
-                                types={'count': hl.tint32})
-        mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo = hl.struct(bar=hl.rand_norm(0, 1)))
+        covariates = hl.import_table(
+            resource('regressionLogistic.cov'), key='Sample', types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}
+        )
+        pheno = hl.import_table(
+            resource('regressionPoisson.pheno'), key='Sample', missing='-1', types={'count': hl.tint32}
+        )
+        mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo=hl.struct(bar=hl.rand_norm(0, 1)))
         ht = hl.poisson_regression_rows(
             test='wald',
             y=pheno[mt.s].count,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
-            pass_through=['filters', mt.foo.bar, mt.qual])
+            pass_through=['filters', mt.foo.bar, mt.qual],
+        )
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
+        mt = hl.balding_nichols_model(3, n, m, fst=[0.9, 0.9, 0.9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
 
@@ -1229,7 +1262,7 @@ class Tests(unittest.TestCase):
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
         hl.reset_global_randomness()
-        mt = hl.balding_nichols_model(3, n, m, fst=[.9, .9, .9], n_partitions=4)
+        mt = hl.balding_nichols_model(3, n, m, fst=[0.9, 0.9, 0.9], n_partitions=4)
 
         g = BlockMatrix.from_entry_expr(mt.GT.n_alt_alleles()).to_numpy().T
         g_std = self._filter_and_standardize_cols(g)
@@ -1244,23 +1277,25 @@ class Tests(unittest.TestCase):
         self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample.GT))
 
     def test_row_correlation_vs_hardcode(self):
-        data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
-                {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
-                {'v': '1:1:A:C', 's': '3', 'GT': hl.Call([0, 1])},
-                {'v': '1:1:A:C', 's': '4', 'GT': hl.Call([1, 1])},
-                {'v': '1:2:G:T', 's': '1', 'GT': hl.Call([0, 1])},
-                {'v': '1:2:G:T', 's': '2', 'GT': hl.Call([1, 1])},
-                {'v': '1:2:G:T', 's': '3', 'GT': hl.Call([0, 1])},
-                {'v': '1:2:G:T', 's': '4', 'GT': hl.Call([0, 0])},
-                {'v': '1:3:C:G', 's': '1', 'GT': hl.Call([0, 1])},
-                {'v': '1:3:C:G', 's': '2', 'GT': hl.Call([0, 0])},
-                {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
-                {'v': '1:3:C:G', 's': '4', 'GT': hl.missing(hl.tcall)}]
+        data = [
+            {'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
+            {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
+            {'v': '1:1:A:C', 's': '3', 'GT': hl.Call([0, 1])},
+            {'v': '1:1:A:C', 's': '4', 'GT': hl.Call([1, 1])},
+            {'v': '1:2:G:T', 's': '1', 'GT': hl.Call([0, 1])},
+            {'v': '1:2:G:T', 's': '2', 'GT': hl.Call([1, 1])},
+            {'v': '1:2:G:T', 's': '3', 'GT': hl.Call([0, 1])},
+            {'v': '1:2:G:T', 's': '4', 'GT': hl.Call([0, 0])},
+            {'v': '1:3:C:G', 's': '1', 'GT': hl.Call([0, 1])},
+            {'v': '1:3:C:G', 's': '2', 'GT': hl.Call([0, 0])},
+            {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
+            {'v': '1:3:C:G', 's': '4', 'GT': hl.missing(hl.tcall)},
+        ]
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
         mt = ht.to_matrix_table(['v'], ['s'])
 
         actual = hl.row_correlation(mt.GT.n_alt_alleles()).to_numpy()
-        expected = [[1., -0.85280287, 0.42640143], [-0.85280287,  1., -0.5], [0.42640143, -0.5, 1.]]
+        expected = [[1.0, -0.85280287, 0.42640143], [-0.85280287, 1.0, -0.5], [0.42640143, -0.5, 1.0]]
 
         self.assertTrue(np.allclose(actual, expected))
 
@@ -1281,45 +1316,59 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(l, cor))
 
     def get_ld_matrix_mt(self):
-        data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
-                {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
-                {'v': '1:1:A:C',       'cm': 0.1, 's': 'c', 'GT': hl.Call([0, 1])},
-                {'v': '1:1:A:C',       'cm': 0.1, 's': 'd', 'GT': hl.Call([1, 1])},
-                {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'a', 'GT': hl.Call([0, 1])},
-                {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'b', 'GT': hl.Call([1, 1])},
-                {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'c', 'GT': hl.Call([0, 1])},
-                {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'd', 'GT': hl.Call([0, 0])},
-                {'v': '2:1:C:G',       'cm': 0.2, 's': 'a', 'GT': hl.Call([0, 1])},
-                {'v': '2:1:C:G',       'cm': 0.2, 's': 'b', 'GT': hl.Call([0, 0])},
-                {'v': '2:1:C:G',       'cm': 0.2, 's': 'c', 'GT': hl.Call([1, 1])},
-                {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.missing(hl.tcall)}]
+        data = [
+            {'v': '1:1:A:C', 'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
+            {'v': '1:1:A:C', 'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
+            {'v': '1:1:A:C', 'cm': 0.1, 's': 'c', 'GT': hl.Call([0, 1])},
+            {'v': '1:1:A:C', 'cm': 0.1, 's': 'd', 'GT': hl.Call([1, 1])},
+            {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'a', 'GT': hl.Call([0, 1])},
+            {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'b', 'GT': hl.Call([1, 1])},
+            {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'c', 'GT': hl.Call([0, 1])},
+            {'v': '1:2000000:G:T', 'cm': 0.9, 's': 'd', 'GT': hl.Call([0, 0])},
+            {'v': '2:1:C:G', 'cm': 0.2, 's': 'a', 'GT': hl.Call([0, 1])},
+            {'v': '2:1:C:G', 'cm': 0.2, 's': 'b', 'GT': hl.Call([0, 0])},
+            {'v': '2:1:C:G', 'cm': 0.2, 's': 'c', 'GT': hl.Call([1, 1])},
+            {'v': '2:1:C:G', 'cm': 0.2, 's': 'd', 'GT': hl.missing(hl.tcall)},
+        ]
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
         ht = ht.transmute(**hl.parse_variant(ht.v))
         return ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
 
     def test_ld_matrix_1(self):
         mt = self.get_ld_matrix_mt()
-        self.assertTrue(np.allclose(
-            hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6).to_numpy(),
-            [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
+        self.assertTrue(
+            np.allclose(
+                hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1e6).to_numpy(),
+                [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            )
+        )
 
     def test_ld_matrix_2(self):
         mt = self.get_ld_matrix_mt()
-        self.assertTrue(np.allclose(
-            hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6).to_numpy(),
-            [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
+        self.assertTrue(
+            np.allclose(
+                hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=2e6).to_numpy(),
+                [[1.0, -0.85280287, 0.0], [-0.85280287, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            )
+        )
 
     def test_ld_matrix_3(self):
         mt = self.get_ld_matrix_mt()
-        self.assertTrue(np.allclose(
-            hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=0.5, coord_expr=mt.cm).to_numpy(),
-            [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]))
+        self.assertTrue(
+            np.allclose(
+                hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=0.5, coord_expr=mt.cm).to_numpy(),
+                [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            )
+        )
 
     def test_ld_matrix_4(self):
         mt = self.get_ld_matrix_mt()
-        self.assertTrue(np.allclose(
-            hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
-            [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
+        self.assertTrue(
+            np.allclose(
+                hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
+                [[1.0, -0.85280287, 0.0], [-0.85280287, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            )
+        )
 
     @qobtest
     def test_split_multi_hts(self):
@@ -1350,14 +1399,18 @@ class Tests(unittest.TestCase):
     @qobtest
     def test_split_multi_shuffle(self):
         ht = hl.utils.range_table(1)
-        ht = ht.annotate(keys=[hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
-                               hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'G'])])
+        ht = ht.annotate(
+            keys=[
+                hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'C', 'T']),
+                hl.struct(locus=hl.locus('1', 1180), alleles=['A', 'G']),
+            ]
+        )
         ht = ht.explode(ht.keys)
         ht = ht.key_by(**ht.keys).drop('keys')
         alleles = hl.split_multi(ht, permit_shuffle=True).alleles.collect()
         assert alleles == [['A', 'C'], ['A', 'G'], ['A', 'T']]
 
-        ht = ht.annotate_globals(cols = [hl.struct(s='sample1'), hl.struct(s='sample2')])
+        ht = ht.annotate_globals(cols=[hl.struct(s='sample1'), hl.struct(s='sample2')])
         ht = ht.annotate(entries=[hl.struct(GT=hl.call(0, 1)), hl.struct(GT=hl.call(1, 1))])
         mt = ht._unlocalize_entries('entries', 'cols', ['s'])
         mt = hl.split_multi_hts(mt, permit_shuffle=True)
@@ -1367,7 +1420,7 @@ class Tests(unittest.TestCase):
     @qobtest
     def test_issue_4527(self):
         mt = hl.utils.range_matrix_table(1, 1)
-        mt = mt.key_rows_by(locus=hl.locus(hl.str(mt.row_idx+1), mt.row_idx+1), alleles=['A', 'T'])
+        mt = mt.key_rows_by(locus=hl.locus(hl.str(mt.row_idx + 1), mt.row_idx + 1), alleles=['A', 'T'])
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
@@ -1381,14 +1434,16 @@ class Tests(unittest.TestCase):
 
         filtered_ds = ds.filter_rows(hl.is_defined(pruned_table[ds.row_key]))
         filtered_ds = filtered_ds.annotate_rows(stats=agg.stats(filtered_ds.GT.n_alt_alleles()))
-        filtered_ds = filtered_ds.annotate_rows(
-            mean=filtered_ds.stats.mean, sd_reciprocal=1 / filtered_ds.stats.stdev)
+        filtered_ds = filtered_ds.annotate_rows(mean=filtered_ds.stats.mean, sd_reciprocal=1 / filtered_ds.stats.stdev)
 
         n_samples = filtered_ds.count_cols()
-        normalized_mean_imputed_genotype_expr = (
-            hl.if_else(hl.is_defined(filtered_ds['GT']),
-                    (filtered_ds['GT'].n_alt_alleles() - filtered_ds['mean'])
-                    * filtered_ds['sd_reciprocal'] * (1 / hl.sqrt(n_samples)), 0))
+        normalized_mean_imputed_genotype_expr = hl.if_else(
+            hl.is_defined(filtered_ds['GT']),
+            (filtered_ds['GT'].n_alt_alleles() - filtered_ds['mean'])
+            * filtered_ds['sd_reciprocal']
+            * (1 / hl.sqrt(n_samples)),
+            0,
+        )
 
         std_bm = BlockMatrix.from_entry_expr(normalized_mean_imputed_genotype_expr)
 
@@ -1400,10 +1455,10 @@ class Tests(unittest.TestCase):
         entries = entries.annotate(locus_i=index_table[entries.i].locus, locus_j=index_table[entries.j].locus)
 
         bad_pair = (
-            (entries.entry >= r2_threshold) &
-            (entries.locus_i.contig == entries.locus_j.contig) &
-            (hl.abs(entries.locus_j.position - entries.locus_i.position) <= window_size) &
-            (entries.i != entries.j)
+            (entries.entry >= r2_threshold)
+            & (entries.locus_i.contig == entries.locus_j.contig)
+            & (hl.abs(entries.locus_j.position - entries.locus_i.position) <= window_size)
+            & (entries.i != entries.j)
         )
 
         self.assertEqual(entries.filter(bad_pair).count(), 0)
@@ -1462,10 +1517,15 @@ class Tests(unittest.TestCase):
 
     def test_balding_nichols_model(self):
         hl.reset_global_randomness()
-        ds = hl.balding_nichols_model(2, 20, 25, 3,
-                                      pop_dist=[1.0, 2.0],
-                                      fst=[.02, .06],
-                                      af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
+        ds = hl.balding_nichols_model(
+            2,
+            20,
+            25,
+            3,
+            pop_dist=[1.0, 2.0],
+            fst=[0.02, 0.06],
+            af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+        )
 
         ds.entries().show(100, width=200)
 
@@ -1478,36 +1538,43 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.n_samples), 20)
         self.assertEqual(hl.eval(glob.bn.n_variants), 25)
         self.assertEqual(hl.eval(glob.bn.pop_dist), [1, 2])
-        self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
+        self.assertEqual(hl.eval(glob.bn.fst), [0.02, 0.06])
 
     def test_balding_nichols_model_same_results(self):
         for mixture in [True, False]:
             hl.reset_global_randomness()
-            ds1 = hl.balding_nichols_model(2, 20, 25, 3,
-                                           pop_dist=[1.0, 2.0],
-                                           fst=[.02, .06],
-                                           af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
-                                           mixture=mixture)
+            ds1 = hl.balding_nichols_model(
+                2,
+                20,
+                25,
+                3,
+                pop_dist=[1.0, 2.0],
+                fst=[0.02, 0.06],
+                af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+                mixture=mixture,
+            )
             hl.reset_global_randomness()
-            ds2 = hl.balding_nichols_model(2, 20, 25, 3,
-                                           pop_dist=[1.0, 2.0],
-                                           fst=[.02, .06],
-                                           af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
-                                           mixture=mixture)
+            ds2 = hl.balding_nichols_model(
+                2,
+                20,
+                25,
+                3,
+                pop_dist=[1.0, 2.0],
+                fst=[0.02, 0.06],
+                af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+                mixture=mixture,
+            )
             self.assertTrue(ds1._same(ds2))
 
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):
             hl.reset_global_randomness()
             bn = hl.balding_nichols_model(3, 400, 400, af_dist=rand_func)
-            self.assertTrue(
-                bn.aggregate_rows(
-                    hl.agg.all((bn.ancestral_af > min) &
-                               (bn.ancestral_af < max))))
+            self.assertTrue(bn.aggregate_rows(hl.agg.all((bn.ancestral_af > min) & (bn.ancestral_af < max))))
 
-        test_af_range(hl.rand_beta(.01, 2, .2, .8), .2, .8, 0)
-        test_af_range(hl.rand_beta(3, 3, .4, .6), .4, .6, 1)
-        test_af_range(hl.rand_unif(.4, .7), .4, .7, 2)
+        test_af_range(hl.rand_beta(0.01, 2, 0.2, 0.8), 0.2, 0.8, 0)
+        test_af_range(hl.rand_beta(3, 3, 0.4, 0.6), 0.4, 0.6, 1)
+        test_af_range(hl.rand_unif(0.4, 0.7), 0.4, 0.7, 2)
         test_af_range(hl.rand_beta(4, 6), 0, 1, 3)
 
     @test_timeout(batch=6 * 60)
@@ -1524,22 +1591,25 @@ class Tests(unittest.TestCase):
             # test af distribution
             def variance(expr):
                 return hl.bind(lambda mean: hl.mean(hl.map(lambda elt: (elt - mean) ** 2, expr)), hl.mean(expr))
+
             delta_mean = 0.2  # consider alternatives to 0.2
             delta_var = 0.1
-            per_row = hl.bind(lambda mean, var, ancestral:
-                              (ancestral > mean - delta_mean) &
-                              (ancestral < mean + delta_mean) &
-                              (.1 * ancestral * (1 - ancestral) > var - delta_var) &
-                              (.1 * ancestral * (1 - ancestral) < var + delta_var),
-                              hl.mean(bn.af),
-                              variance(bn.af),
-                              bn.ancestral_af)
+            per_row = hl.bind(
+                lambda mean, var, ancestral: (ancestral > mean - delta_mean)
+                & (ancestral < mean + delta_mean)
+                & (0.1 * ancestral * (1 - ancestral) > var - delta_var)
+                & (0.1 * ancestral * (1 - ancestral) < var + delta_var),
+                hl.mean(bn.af),
+                variance(bn.af),
+                bn.ancestral_af,
+            )
             self.assertTrue(bn.aggregate_rows(hl.agg.all(per_row)))
 
             # test genotype distribution
             stats_gt_by_pop = hl.agg.group_by(bn.pop, hl.agg.stats(hl.float(bn.GT.n_alt_alleles()))).values()
-            bn = bn.select_rows(sum_af=hl.sum(bn.af),
-                                sum_mean_gt_by_pop=hl.sum(hl.map(lambda x: x.mean, stats_gt_by_pop)))
+            bn = bn.select_rows(
+                sum_af=hl.sum(bn.af), sum_mean_gt_by_pop=hl.sum(hl.map(lambda x: x.mean, stats_gt_by_pop))
+            )
             sum_af = bn.aggregate_rows(hl.agg.sum(bn.sum_af))
             sum_mean_gt = bn.aggregate_rows(hl.agg.sum(bn.sum_mean_gt_by_pop))
             self.assertAlmostEqual(sum_mean_gt, 2 * sum_af, delta=0.1 * m * k)
@@ -1553,13 +1623,34 @@ class Tests(unittest.TestCase):
         assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
         actual = bn_ds.GT.collect()
         self.assertListEqual(
-            [ c.alleles for c in actual ],
-            [ [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]
-            , [1, 1], [1, 1], [1, 1], [1, 0], [1, 1]
-            , [1, 1], [0, 1], [1, 0], [1, 0], [0, 1]
-            , [0, 0], [0, 0], [0, 0], [0, 0], [1, 0]
-            , [1, 1], [1, 1], [0, 1], [1, 1], [1, 1]
-            ]
+            [c.alleles for c in actual],
+            [
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [1, 1],
+                [1, 1],
+                [1, 1],
+                [1, 0],
+                [1, 1],
+                [1, 1],
+                [0, 1],
+                [1, 0],
+                [1, 0],
+                [0, 1],
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [1, 1],
+                [0, 1],
+                [1, 1],
+                [1, 1],
+            ],
         )
 
     def test_de_novo(self):
@@ -1573,7 +1664,8 @@ class Tests(unittest.TestCase):
             dad_id=r.father.s,
             mom_id=r.mother.s,
             p_de_novo=r.p_de_novo,
-            confidence=r.confidence).key_by('locus', 'alleles', 'kid_id', 'dad_id', 'mom_id')
+            confidence=r.confidence,
+        ).key_by('locus', 'alleles', 'kid_id', 'dad_id', 'mom_id')
 
         truth = hl.import_table(resource('denovo.out'), impute=True, comment='#')
         truth = truth.select(
@@ -1583,7 +1675,8 @@ class Tests(unittest.TestCase):
             dad_id=truth['Dad_ID'],
             mom_id=truth['Mom_ID'],
             p_de_novo=truth['Prob_dn'],
-            confidence=truth['Validation_Likelihood'].split('_')[0]).key_by('locus', 'alleles', 'kid_id', 'dad_id', 'mom_id')
+            confidence=truth['Validation_Likelihood'].split('_')[0],
+        ).key_by('locus', 'alleles', 'kid_id', 'dad_id', 'mom_id')
 
         j = r.join(truth, how='outer')
         self.assertTrue(j.all((j.confidence == j.confidence_1) & (hl.abs(j.p_de_novo - j.p_de_novo_1) < 1e-4)))
@@ -1605,18 +1698,20 @@ class Tests(unittest.TestCase):
         mt = hl.balding_nichols_model(1, 1, 1).add_row_index().add_col_index()
         intercept = hl.float64(1.0)
 
-        for covariates in [[],
-                           [mt.row_idx],
-                           [mt.col_idx],
-                           [mt.GT.n_alt_alleles()],
-                           [mt.row_idx, mt.col_idx, mt.GT.n_alt_alleles()]]:
+        for covariates in [
+            [],
+            [mt.row_idx],
+            [mt.col_idx],
+            [mt.GT.n_alt_alleles()],
+            [mt.row_idx, mt.col_idx, mt.GT.n_alt_alleles()],
+        ]:
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
             self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
 
     def test_regression_field_dependence(self):
         mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.annotate_cols(c1 = hl.literal([x % 2 == 0 for x in range(10)])[mt.col_idx], c2 = hl.rand_norm(0, 1))
-        mt = mt.annotate_entries(e1 = hl.int(hl.rand_norm(0, 1) * 10))
+        mt = mt.annotate_cols(c1=hl.literal([x % 2 == 0 for x in range(10)])[mt.col_idx], c2=hl.rand_norm(0, 1))
+        mt = mt.annotate_entries(e1=hl.int(hl.rand_norm(0, 1) * 10))
 
         x_expr = hl.case().when(mt.c2 < 0, 0).default(mt.e1)
 
@@ -1633,9 +1728,9 @@ def logistic_epacts_mt():
     # Locus("22", 16115882)  # MAC 1207
     # Locus("22", 16117940)  # MAC    7
     # Locus("22", 16117953)  # MAC   21
-    covariates = hl.import_table(resource('regressionLogisticEpacts.cov'),
-                                 key='IND_ID',
-                                 types={'PC1': hl.tfloat, 'PC2': hl.tfloat})
+    covariates = hl.import_table(
+        resource('regressionLogisticEpacts.cov'), key='IND_ID', types={'PC1': hl.tfloat, 'PC2': hl.tfloat}
+    )
     fam = hl.import_fam(resource('regressionLogisticEpacts.fam'))
 
     mt = hl.import_vcf(resource('regressionLogisticEpacts.vcf'))
@@ -1646,10 +1741,8 @@ def logistic_epacts_mt():
 def test_logistic_regression_epacts_wald(logistic_epacts_mt):
     mt = logistic_epacts_mt
     actual = hl.logistic_regression_rows(
-        test='wald',
-        y=mt.is_case,
-        x=mt.GT.n_alt_alleles(),
-        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]).collect()
+        test='wald', y=mt.is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+    ).collect()
 
     assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
     assert actual[0].beta == pytest.approx(-0.097476, rel=1e-4)
@@ -1685,10 +1778,7 @@ def test_logistic_regression_epacts_wald(logistic_epacts_mt):
 def test_logistic_regression_epacts_lrt(logistic_epacts_mt):
     mt = logistic_epacts_mt
     actual = hl.logistic_regression_rows(
-        test='lrt',
-        y=mt.is_case,
-        x=mt.GT.n_alt_alleles(),
-        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+        test='lrt', y=mt.is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
     ).collect()
 
     assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
@@ -1739,10 +1829,7 @@ def test_logistic_regression_epacts_score(logistic_epacts_mt):
     #
     mt = logistic_epacts_mt
     actual = hl.logistic_regression_rows(
-        test='score',
-        y=mt.is_case,
-        x=mt.GT.n_alt_alleles(),
-        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+        test='score', y=mt.is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
     ).collect()
 
     assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
@@ -1769,10 +1856,7 @@ def test_logistic_regression_epacts_score(logistic_epacts_mt):
 def test_logistic_regression_epacts_firth(logistic_epacts_mt):
     mt = logistic_epacts_mt
     actual = hl.logistic_regression_rows(
-        test='firth',
-        y=mt.is_case,
-        x=mt.GT.n_alt_alleles(),
-        covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
+        test='firth', y=mt.is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]
     ).collect()
 
     assert actual[0].locus == hl.Locus("22", 16060511, 'GRCh37')
@@ -1798,13 +1882,8 @@ def test_logistic_regression_epacts_firth(logistic_epacts_mt):
 
 ## issue 13788
 def test_logistic_regression_y_parameter_sanity():
-    mt = hl.utils.range_matrix_table(2,2)
-    mt = mt.annotate_entries(prod = mt.row_idx * mt.col_idx)
+    mt = hl.utils.range_matrix_table(2, 2)
+    mt = mt.annotate_entries(prod=mt.row_idx * mt.col_idx)
 
     with pytest.raises(hl.ExpressionException):
-        hl.logistic_regression_rows(
-            test='wald',
-            x=mt.prod,
-            y=mt.row_idx,
-            covariates=[1.0]
-        ).describe()
+        hl.logistic_regression_rows(test='wald', x=mt.prod, y=mt.row_idx, covariates=[1.0]).describe()

@@ -1,43 +1,20 @@
-FROM --platform=linux/amd64 {{ global.docker_root_image }}
+# syntax=docker/dockerfile:1.3.0-labs
+# ^ necessary to use an ARG in a --mount value with our current version of buildkit
 
-ENV LANG C.UTF-8
+ARG HAIL_UBUNTU
+FROM --platform=linux/amd64 ${HAIL_UBUNTU}
 
-ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
-  apt-get -y install \
-    git \
-    htop \
-    unzip bzip2 zip tar \
-    wget curl \
-    rsync \
-    emacs-nox \
-    mysql-client \
-    xsltproc pandoc \
-    jq \
-    python \
-    python3.9 python3-pip python3.9-dev \
-    liblapack3 && \
-  update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1 && \
-  rm -rf /var/lib/apt/lists/*
+RUN hail-apt-get-install \
+    liblapack3 \
+    openjdk-11-jre-headless \
+    wget
 
-RUN wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | apt-key add - && \
-  echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list && \
-  apt update && \
-  apt -y install temurin-11-jdk
+RUN --mount=src=benchmark/python/pinned-requirements.txt,target=benchmark-requirements.txt \
+    --mount=src=hail/python/pinned-requirements.txt,target=hail-requirements.txt \
+    hail-pip-install -r benchmark-requirements.txt -r hail-requirements.txt
 
-COPY requirements.txt requirements.txt
-RUN python3 -m pip install --upgrade --no-cache-dir --upgrade pip && \
-  python3 -m pip install --upgrade --no-cache-dir setuptools && \
-  python3 -m pip install --upgrade --no-cache-dir -r requirements.txt && \
-  python3 -m pip install --upgrade --no-cache-dir aiomysql && \
-  python3 -m pip check
-
-ARG HAIL_WHEEL
-COPY $HAIL_WHEEL .
-RUN python3 -m pip install --upgrade --no-cache-dir --quiet $HAIL_WHEEL && \
-  python3 -m pip check
-
-ARG BENCHMARK_WHEEL
-COPY $BENCHMARK_WHEEL .
-RUN python3 -m pip install --upgrade --no-cache-dir --quiet $BENCHMARK_WHEEL && \
-  python3 -m pip check
+ARG HAIL_WHEEL_DIR
+RUN --mount=src=${HAIL_WHEEL_DIR},target=${HAIL_WHEEL_DIR} \
+    --mount=src=benchmark/python,target=/benchmark,rw \
+    export HAIL_BENCHMARK_VERSION=$(cat benchmark/version) && \
+    hail-pip-install --no-deps ${HAIL_WHEEL_DIR}/hail-*-py3-none-any.whl /benchmark

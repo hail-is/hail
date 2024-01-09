@@ -86,19 +86,19 @@ class CleanupImages:
         manifests = manifests[:-10]
 
         now = time.time()
-        await asyncio.gather(*[
-            self.cleanup_digest(image, digest, tags)
-            for digest, time_uploaded, tags in manifests
-            if (now - time_uploaded) >= (7 * 24 * 60 * 60) or len(tags) == 0])
+        await asyncio.gather(
+            *[
+                self.cleanup_digest(image, digest, tags)
+                for digest, time_uploaded, tags in manifests
+                if (now - time_uploaded) >= (7 * 24 * 60 * 60) or len(tags) == 0
+            ]
+        )
 
         log.info(f'cleaned up image  {image}')
 
     async def run(self):
         images = await self._executor.submit(self._client.get('/tags/list'))
-        await asyncio.gather(*[
-            self.cleanup_image(image)
-            for image in images['child']
-        ])
+        await asyncio.gather(*[self.cleanup_image(image) for image in images['child']])
 
 
 async def main():
@@ -108,9 +108,7 @@ async def main():
         raise ValueError('usage: cleanup_gcr <project>')
     project = sys.argv[1]
 
-    async with aiogoogle.GoogleContainerClient(
-            project=project,
-            timeout=aiohttp.ClientTimeout(total=5)) as client:
+    async with aiogoogle.GoogleContainerClient(project=project, timeout=aiohttp.ClientTimeout(total=5)) as client:
         cleanup_images = CleanupImages(client)
         try:
             await cleanup_images.run()
@@ -118,4 +116,4 @@ async def main():
             cleanup_images.shutdown()
 
 
-asyncio.get_event_loop().run_until_complete(main())
+asyncio.run(main())

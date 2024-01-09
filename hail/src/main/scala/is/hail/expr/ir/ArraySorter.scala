@@ -33,14 +33,14 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
       cb.while_(i < size, {
         cb.if_(!array.isMissing(i), {
-          cb.if_(newEnd.cne(i), cb += array.update(newEnd, array.apply(i)))
+          cb.if_(newEnd.cne(i), array.update(cb, newEnd, array.apply(i)))
           cb.assign(newEnd, newEnd + 1)
         })
         cb.assign(i, i + 1)
       })
       cb.assign(i, newEnd)
       cb.while_(i < size, {
-        cb += array.setMissing(i, true)
+        array.setMissing(cb, i, true)
         cb.assign(i, i + 1)
       })
 
@@ -100,11 +100,11 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         cb.if_(end - begin > 1, {
           val mid = cb.newLocal[Int]("splitMerge_mid", (begin + end) / 2)
 
-          cb.invokeVoid(splitMergeMB, r, begin, mid, arrayA, arrayB)
-          cb.invokeVoid(splitMergeMB, r, mid, end, arrayA, arrayB)
+          cb.invokeVoid(splitMergeMB, cb.this_, r, begin, mid, arrayA, arrayB)
+          cb.invokeVoid(splitMergeMB, cb.this_,  r, mid, end, arrayA, arrayB)
 
           // result goes in A
-          cb.invokeVoid(mergeMB, r, begin, mid, end, arrayB, arrayA)
+          cb.invokeVoid(mergeMB, cb.this_, r, begin, mid, end, arrayB, arrayA)
         })
       }
 
@@ -122,18 +122,16 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       })
 
       // elements are sorted in workingArray2 after calling splitMergeMB
-      cb.invokeVoid(splitMergeMB, sortMB.getCodeParam[Region](1), const(0), newEnd, workingArray1, workingArray2)
+      cb.invokeVoid(splitMergeMB, cb.this_, sortMB.getCodeParam[Region](1), const(0), newEnd, workingArray1, workingArray2)
 
       cb.assign(i, 0)
       cb.while_(i < newEnd, {
-        cb += array.update(i, arrayRef(workingArray2)(i))
+        array.update(cb, i, arrayRef(workingArray2)(i))
         cb.assign(i, i + 1)
       })
 
     }
-    cb.invokeVoid(sortMB, region)
-
-
+    cb.invokeVoid(sortMB, cb.this_, region)
   }
 
   def toRegion(cb: EmitCodeBuilder, t: Type): SIndexableValue = {
@@ -162,12 +160,12 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
     cb.while_(i < size, {
       cb.if_(!array.isMissing(i), {
         cb.if_(i.cne(n),
-          cb += array.update(n, array(i)))
+          array.update(cb, n, array(i)))
         cb.assign(n, n + 1)
       })
       cb.assign(i, i + 1)
     })
-    cb += array.setSize(n)
+    array.setSize(cb, n)
   }
 
   def distinctFromSorted(cb: EmitCodeBuilder, region: Value[Region], discardNext: (EmitCodeBuilder, Value[Region], EmitCode, EmitCode) => Code[Boolean]): Unit = {
@@ -197,14 +195,14 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         cb.assign(n, n + 1)
 
         cb.if_(i < size && i.cne(n), {
-          cb += array.setMissing(n, array.isMissing(i))
-          cb.if_(!array.isMissing(n), cb += array.update(n, array(i)))
+          array.setMissing(cb, n, array.isMissing(i))
+          cb.if_(!array.isMissing(n), array.update(cb, n, array(i)))
         })
 
       })
-      cb += array.setSize(n)
+      array.setSize(cb, n)
     }
 
-    cb.invokeVoid(distinctMB, region)
+    cb.invokeVoid(distinctMB, cb.this_, region)
   }
 }

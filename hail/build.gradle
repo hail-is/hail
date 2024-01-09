@@ -11,6 +11,8 @@ plugins {
   id 'com.github.johnrengelman.shadow' version '8.1.1'
   id "de.undercouch.download" version "5.4.0"
   id 'eclipse'
+  id  "com.diffplug.spotless" version "6.13.0"
+  id 'io.github.cosmicsilence.scalafix' version '0.2.0'
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
@@ -73,7 +75,10 @@ compileScala {
     ]
 
     if (scalaMajorVersion == "2.12") {
-        scalaCompileOptions.additionalParameters += "-Xlint:-unused"
+        scalaCompileOptions.additionalParameters +=
+            [ "-Xlint:-unused"
+            , "-Ypartial-unification"
+            ]
     }
 
     scalaCompileOptions.forkOptions.with {
@@ -100,13 +105,23 @@ configurations {
     hailJar.extendsFrom implementation
     hailJar {
         exclude group: 'org.scala-lang', module: 'scala-library'
+        exclude group: 'org.scala-lang', module: 'scala-reflect'
         exclude group: 'org.apache.spark'
     }
 
     testImplementation.extendsFrom shadow
 }
 
+
+spotless {
+    scala {
+        // run scalafmt on all scala source files
+        scalafmt('3.7.17').configFile('.scalafmt.conf').scalaMajorVersion(scalaMajorVersion)
+    }
+}
+
 dependencies {
+    scalaCompilerPlugins 'com.olegpy:better-monadic-for_2.12:0.3.1'
     justSpark('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude group: 'org.scalanlp'
     }
@@ -142,8 +157,6 @@ dependencies {
         transitive = false
     }
 
-    implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
-
     def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
     if (elasticMajorVersion != "7" && elasticMajorVersion != "8") {
         throw new UnsupportedOperationException("elasticsearch.major-version must be 7 or 8")
@@ -165,7 +178,7 @@ dependencies {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.27.1') {
+    implementation(group: 'com.google.cloud', name: 'google-cloud-storage', version: '2.30.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -199,7 +212,7 @@ dependencies {
 
     implementation 'com.kohlschutter.junixsocket:junixsocket-core:2.6.1'
 
-    implementation 'com.github.luben:zstd-jni:1.5.5-2'
+    implementation 'com.github.luben:zstd-jni:1.5.5-11'
 
     implementation project(path: ':shadedazure', configuration: 'shadow')
 }

@@ -18,13 +18,11 @@ def plinkify(ds, min=None, max=None):
 
     hl.hadoop_copy(vcf, local_vcf)
 
-    threshold_string = "{} {}".format("--min {}".format(min) if min else "",
-                                      "--max {}".format(max) if max else "")
+    threshold_string = "{} {}".format("--min {}".format(min) if min else "", "--max {}".format(max) if max else "")
 
-    plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}" \
-        .format(utils.uri_path(local_vcf),
-                utils.uri_path(plinkpath),
-                threshold_string)
+    plink_command = "plink --double-id --allow-extra-chr --vcf {} --genome full --out {} {}".format(
+        utils.uri_path(local_vcf), utils.uri_path(plinkpath), threshold_string
+    )
     result_file = utils.uri_path(plinkpath + ".genome")
 
     sp.run(plink_command, check=True, capture_output=True, shell=True)
@@ -40,8 +38,7 @@ def plinkify(ds, min=None, max=None):
         f.readline()
         for line in f:
             row = line.strip().split()
-            results[(row[1], row[3])] = (list(map(float, row[6:10])),
-                                         list(map(int, row[14:17])))
+            results[(row[1], row[3])] = (list(map(float, row[6:10])), list(map(int, row[14:17])))
     return results
 
 

@@ -69,7 +69,7 @@ def start(
         '--location',
         location,
         '--workernode-count',
-        num_workers,
+        str(num_workers),
         '--ssh-password',
         sshuser_password,
         '--ssh-user',

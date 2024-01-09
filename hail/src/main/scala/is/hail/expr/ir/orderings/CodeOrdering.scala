@@ -94,15 +94,16 @@ abstract class CodeOrdering {
 
     val cacheKey = ("ordering", reversed, type1, type2, context)
     val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
-      FastSeq(arg1.st.paramType, arg2.st.paramType), ti) { mb =>
-
+      FastSeq(arg1.st.paramType, arg2.st.paramType),
+      ti
+    ) { mb =>
       mb.emitWithBuilder[T] { cb =>
         val arg1 = mb.getSCodeParam(1)
         val arg2 = mb.getSCodeParam(2)
         f(cb, arg1, arg2)
       }
     }
-    cb.memoize(cb.invokeCode[T](mb, arg1, arg2))
+    cb.invokeCode[T](mb, cb.this_, arg1, arg2)
   }
 
   final def checkedEmitCode[T](cb: EmitCodeBuilder, arg1: EmitValue, arg2: EmitValue, missingEqual: Boolean, context: String,
@@ -114,15 +115,16 @@ abstract class CodeOrdering {
 
     val cacheKey = ("ordering", reversed, arg1.emitType, arg2.emitType, context, missingEqual)
     val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
-      FastSeq(arg1.emitParamType, arg2.emitParamType), ti) { mb =>
-
+      FastSeq(arg1.emitParamType, arg2.emitParamType),
+      ti
+    ) { mb =>
       mb.emitWithBuilder[T] { cb =>
         val arg1 = mb.getEmitParam(cb, 1)
         val arg2 = mb.getEmitParam(cb, 2)
         f(cb, arg1, arg2, missingEqual)
       }
     }
-    cb.memoize(cb.invokeCode[T](mb, arg1, arg2))
+    cb.invokeCode[T](mb, cb.this_, arg1, arg2)
   }
 
 

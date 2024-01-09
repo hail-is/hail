@@ -15,7 +15,7 @@ from ..expr import Expression
 from ..expr.table_type import ttable
 from ..expr.matrix_type import tmatrix
 from ..expr.blockmatrix_type import tblockmatrix
-from ..expr.types import HailType, dtype
+from ..expr.types import HailType, dtype, tvoid
 from ..ir import BaseIR, finalize_randomness
 from ..ir.renderer import CSERenderer
 from ..linalg.blockmatrix import BlockMatrix
@@ -29,15 +29,18 @@ Dataset = TypeVar('Dataset', Table, MatrixTable, BlockMatrix)
 
 def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):
     from .. import __version__
+
     if error_id != -1:
         return FatalError(f'Error summary: {short_message}', error_id)
-    return FatalError(f'''{short_message}
+    return FatalError(
+        f'''{short_message}
 
 Java stack trace:
 {expanded_message}
 Hail version: {__version__}
 Error summary: {short_message}''',
-                      error_id)
+        error_id,
+    )
 
 
 class LocalJarInformation:
@@ -87,13 +90,16 @@ class ActionTag(Enum):
     IMPORT_FAM = 8
     FROM_FASTA_FILE = 9
 
+
 @dataclass
 class ActionPayload:
     pass
 
+
 @dataclass
 class IRTypePayload(ActionPayload):
     ir: str
+
 
 @dataclass
 class ExecutePayload(ActionPayload):
@@ -101,13 +107,16 @@ class ExecutePayload(ActionPayload):
     stream_codec: str
     timed: bool
 
+
 @dataclass
 class LoadReferencesFromDatasetPayload(ActionPayload):
     path: str
 
+
 @dataclass
 class ParseVCFMetadataPayload(ActionPayload):
     path: str
+
 
 @dataclass
 class ImportFamPayload(ActionPayload):
@@ -115,6 +124,7 @@ class ImportFamPayload(ActionPayload):
     quant_pheno: bool
     delimiter: str
     missing: str
+
 
 @dataclass
 class FromFASTAFilePayload(ActionPayload):
@@ -178,7 +188,10 @@ class Backend(abc.ABC):
             result, timings = self._rpc(ActionTag.EXECUTE, payload)
         except FatalError as e:
             raise e.maybe_user_error(ir) from None
-        value = ir.typ._from_encoding(result)
+        if ir.typ == tvoid:
+            value = None
+        else:
+            value = ir.typ._from_encoding(result)
         return (value, timings) if timed else value
 
     @abc.abstractmethod
@@ -231,6 +244,7 @@ class Backend(abc.ABC):
 
     def initialize_references(self):
         from hail.genetics.reference_genome import ReferenceGenome
+
         jar_path = local_jar_information().path
         for path_in_jar in BUILTIN_REFERENCE_RESOURCE_PATHS.values():
             rg_config = orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
@@ -282,6 +296,7 @@ class Backend(abc.ABC):
 
     def persist(self, dataset: Dataset) -> Dataset:
         from hail.context import TemporaryFilename
+
         tempfile = TemporaryFilename(prefix=f'persist_{type(dataset).__name__}')
         persisted = dataset.checkpoint(tempfile.__enter__())
         self._persisted_locations[persisted] = (tempfile, dataset)
@@ -295,13 +310,15 @@ class Backend(abc.ABC):
         return unpersisted
 
     @abc.abstractmethod
-    def register_ir_function(self,
-                             name: str,
-                             type_parameters: Union[Tuple[HailType, ...], List[HailType]],
-                             value_parameter_names: Union[Tuple[str, ...], List[str]],
-                             value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
-                             return_type: HailType,
-                             body: Expression):
+    def register_ir_function(
+        self,
+        name: str,
+        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+        value_parameter_names: Union[Tuple[str, ...], List[str]],
+        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+        return_type: HailType,
+        body: Expression,
+    ):
         pass
 
     @abc.abstractmethod
@@ -313,11 +330,14 @@ class Backend(abc.ABC):
         pass
 
     def _initialize_flags(self, initial_flags: Dict[str, str]) -> None:
-        self.set_flags(**{
-            k: unchecked_configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
-            for k, (deprecated_envvar, default) in Backend._flags_env_vars_and_defaults.items()
-            if k not in initial_flags
-        }, **initial_flags)
+        self.set_flags(
+            **{
+                k: unchecked_configuration_of('query', k, None, default, deprecated_envvar=deprecated_envvar)
+                for k, (deprecated_envvar, default) in Backend._flags_env_vars_and_defaults.items()
+                if k not in initial_flags
+            },
+            **initial_flags,
+        )
 
     @abc.abstractmethod
     def set_flags(self, **flags: str):

@@ -1,31 +1,29 @@
 package is.hail.backend.local
 
-import is.hail.annotations.{Region, SafeRow, UnsafeRow}
+import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.expr.Validate
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
-import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.io.fs._
-import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import is.hail.{HailContext, HailFeatureFlags}
 import org.apache.hadoop
 import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.Serialization
 import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 import java.io.PrintWriter
-import java.nio.charset.StandardCharsets
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
@@ -108,19 +106,18 @@ class LocalBackend(
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer): (ExecuteContext => T) => T =
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags, new BackendContext {
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, flags, new BackendContext {
       override val executionCache: ExecutionCache =
         ExecutionCache.fromFlags(flags, fs, tmpdir)
     })
 
-  def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T = { f =>
+  override def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T =
     ExecutionTimer.logTime(methodName) { timer =>
-      ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, this.references, flags, new BackendContext {
+      ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, flags, new BackendContext {
         override val executionCache: ExecutionCache =
           ExecutionCache.fromFlags(flags, fs, tmpdir)
       })(f)
     }
-  }
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 
@@ -132,7 +129,24 @@ class LocalBackend(
     current
   }
 
-  override def parallelizeAndComputeWithIndex(
+  def parallelizeAndComputeWithIndex(
+    backendContext: BackendContext,
+    fs: FS,
+    collection: Array[Array[Byte]],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
+    val stageId = nextStageId()
+    collection.zipWithIndex.map { case (c, i) =>
+      using(new LocalTaskContext(i, stageId)) { htc =>
+        f(c, htc, theHailClassLoader, fs)
+      }
+    }
+  }
+
+  override def parallelizeAndComputeWithIndexReturnAllErrors(
     backendContext: BackendContext,
     fs: FS,
     collection: IndexedSeq[(Array[Byte], Int)],
@@ -221,7 +235,7 @@ class LocalBackend(
           val elementType = pt.fields(0).typ
           assert(pt.isFieldDefined(off, 0))
           val codec = TypedCodecSpec(
-            EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
+            EType.fromPythonTypeEncoding(elementType.virtualType), elementType.virtualType, bs)
           codec.encode(ctx, elementType, pt.loadField(off, 0))
       }
       result
@@ -257,30 +271,6 @@ class LocalBackend(
       ctx.timer.finish()
       val timings = if (timed) Serialization.write(Map("timings" -> ctx.timer.toMap))(new DefaultFormats {}) else ""
       consume(ctx, res, timings)
-    }
-  }
-
-  def executeEncode(ir: IR, bufferSpecString: String, timed: Boolean): (Array[Byte], String) = {
-    val (bytes, timer) = ExecutionTimer.time("LocalBackend.encodeToBytes") { timer =>
-      val bs = BufferSpec.parseOrDefault(bufferSpecString)
-      withExecuteContext(timer) { ctx =>
-        executeToEncoded(timer, ir, bs)
-      }
-    }
-    (bytes, if (timed) Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}) else "")
-  }
-
-  def decodeToJSON(ptypeString: String, b: Array[Byte], bufferSpecString: String): String = {
-    ExecutionTimer.logTime("LocalBackend.decodeToJSON") { timer =>
-      val t = IRParser.parsePType(ptypeString)
-      val bs = BufferSpec.parseOrDefault(bufferSpecString)
-      val codec = TypedCodecSpec(EType.defaultFromPType(t), t.virtualType, bs)
-      withExecuteContext(timer) { ctx =>
-        val (pt, off) = codec.decode(ctx, t.virtualType, b, ctx.r)
-        assert(pt.virtualType == t.virtualType)
-        JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
-          UnsafeRow.read(pt, ctx.r, off), pt.virtualType))
-      }
     }
   }
 
@@ -320,7 +310,7 @@ class LocalBackend(
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR = {
     ExecutionTimer.logTime("LocalBackend.parse_value_ir") { timer =>
       withExecuteContext(timer) { ctx =>
-        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*), persistedIR.toMap))
+        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, persistedIR.toMap), BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*))
       }
     }
   }

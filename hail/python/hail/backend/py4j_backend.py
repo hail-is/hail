@@ -12,17 +12,17 @@ from py4j.java_gateway import JavaObject, JVMView
 
 import hail
 from hail.expr import construct_expr
-from hail.ir import finalize_randomness, JavaIR
-from hail.ir.renderer import CSERenderer
+from hail.ir import JavaIR
 from hail.utils.java import FatalError, Env, scala_package_object
 
 from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
 from ..hail_logging import Logger
 
 import http.client
+
 # This defaults to 65536 and fails if a header is longer than _MAXLINE
 # The timing json that we output can exceed 65536 bytes so we raise the limit
-http.client._MAXLINE = 2 ** 20
+http.client._MAXLINE = 2**20
 
 
 _installed = False
@@ -52,6 +52,7 @@ def uninstall_exception_handler():
 def handle_java_exception(f):
     def deco(*args, **kwargs):
         import pyspark
+
         try:
             return f(*args, **kwargs)
         except py4j.protocol.Py4JJavaError as e:
@@ -65,9 +66,11 @@ def handle_java_exception(f):
             deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
             raise fatal_error_from_java_error_triplet(deepest, full, error_id) from None
         except pyspark.sql.utils.CapturedException as e:
-            raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                             'Hail version: %s\n'
-                             'Error summary: %s' % (e.desc, e.stackTrace, hail.__version__, e.desc)) from None
+            raise FatalError(
+                '%s\n\nJava stack trace:\n%s\n'
+                'Hail version: %s\n'
+                'Error summary: %s' % (e.desc, e.stackTrace, hail.__version__, e.desc)
+            ) from None
 
     return deco
 
@@ -126,7 +129,8 @@ def connect_logger(utils_package_object, host, port):
 
             if tries >= max_tries:
                 sys.stderr.write(
-                    'WARNING: Could not find a free port for logger, maximum retries {} exceeded.'.format(max_tries))
+                    'WARNING: Could not find a free port for logger, maximum retries {} exceeded.'.format(max_tries)
+                )
                 return
 
     t = Thread(target=server.serve_forever, args=())
@@ -185,9 +189,11 @@ class Py4JBackend(Backend):
         py_version = version()
         jar_version = self._jhc.version()
         if jar_version != py_version:
-            raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
-                               f"  JAR:    {jar_version}\n"
-                               f"  Python: {py_version}")
+            raise RuntimeError(
+                f"Hail version mismatch between JAR and Python library\n"
+                f"  JAR:    {jar_version}\n"
+                f"  Python: {py_version}"
+            )
 
     def jvm(self):
         return self._jvm
@@ -211,15 +217,14 @@ class Py4JBackend(Backend):
         resp = self._requests_session.post(f'http://localhost:{port}{path}', data=data)
         if resp.status_code >= 400:
             error_json = orjson.loads(resp.content)
-            raise fatal_error_from_java_error_triplet(error_json['short'], error_json['expanded'], error_json['error_id'])
+            raise fatal_error_from_java_error_triplet(
+                error_json['short'], error_json['expanded'], error_json['error_id']
+            )
         return resp.content, resp.headers.get('X-Hail-Timings', '')
 
     def persist_expression(self, expr):
         t = expr.dtype
-        return construct_expr(
-            JavaIR(t, self._jbackend.executeLiteral(self._render_ir(expr._ir))),
-            t
-        )
+        return construct_expr(JavaIR(t, self._jbackend.executeLiteral(self._render_ir(expr._ir))), t)
 
     def _is_registered_ir_function_name(self, name: str) -> bool:
         return name in self._registered_ir_function_names
@@ -233,8 +238,9 @@ class Py4JBackend(Backend):
             else:
                 invalid.append(flag)
         if len(invalid) != 0:
-            raise FatalError("Flags {} not valid. Valid flags: \n    {}"
-                             .format(', '.join(invalid), '\n    '.join(available)))
+            raise FatalError(
+                "Flags {} not valid. Valid flags: \n    {}".format(', '.join(invalid), '\n    '.join(available))
+            )
 
     def get_flags(self, *flags) -> Mapping[str, str]:
         return {flag: self._jbackend.getFlag(flag) for flag in flags}
@@ -260,13 +266,6 @@ class Py4JBackend(Backend):
     def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
 
-    def _to_java_ir(self, ir, parse):
-        if not hasattr(ir, '_jir'):
-            r = CSERenderer()
-            # FIXME parse should be static
-            ir._jir = parse(r(finalize_randomness(ir)))
-        return ir._jir
-
     def _parse_value_ir(self, code, ref_map={}):
         return self._jbackend.parse_value_ir(
             code,
@@ -282,11 +281,8 @@ class Py4JBackend(Backend):
     def _parse_blockmatrix_ir(self, code):
         return self._jbackend.parse_blockmatrix_ir(code)
 
-    def _to_java_value_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_value_ir)
-
     def _to_java_blockmatrix_ir(self, ir):
-        return self._to_java_ir(ir, self._parse_blockmatrix_ir)
+        return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def stop(self):
         self._backend_server.stop()

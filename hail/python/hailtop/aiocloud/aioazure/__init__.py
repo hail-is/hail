@@ -1,5 +1,11 @@
-from .client import (AzureComputeClient, AzureGraphClient, AzureNetworkClient, AzureResourcesClient,
-                     AzureResourceManagerClient, AzurePricingClient)
+from .client import (
+    AzureComputeClient,
+    AzureGraphClient,
+    AzureNetworkClient,
+    AzureResourcesClient,
+    AzureResourceManagerClient,
+    AzurePricingClient,
+)
 from .credentials import AzureCredentials
 from .fs import AzureAsyncFS, AzureAsyncFSFactory
 from .session import AzureSession

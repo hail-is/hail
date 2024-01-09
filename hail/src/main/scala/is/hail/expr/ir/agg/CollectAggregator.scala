@@ -52,14 +52,13 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    { (cb, ib) => bll.serialize(cb, region, ib) }
+    (cb, ib) => bll.serialize(cb, region, ib)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    { (cb, ib) =>
+    (cb, ib) =>
       bll.init(cb, region)
       bll.deserialize(cb, region, ib)
-    }
   }
 }
 

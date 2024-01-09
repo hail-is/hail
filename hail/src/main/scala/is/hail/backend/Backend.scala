@@ -77,11 +77,22 @@ abstract class Backend {
   def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
+    collection: Array[Array[Byte]],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]]
+
+  def parallelizeAndComputeWithIndexReturnAllErrors(
+    backendContext: BackendContext,
+    fs: FS,
     collection: IndexedSeq[(Array[Byte], Int)],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None
-  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte])
-  : (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
 
   def stop(): Unit
 
@@ -148,10 +159,10 @@ abstract class Backend {
     analyses: LoweringAnalyses
   ): TableStage
 
-  def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T
+  def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T
 
   final def valueType(s: String): Array[Byte] = {
-    withExecuteContext("tableType") { ctx =>
+    withExecuteContext("valueType") { ctx =>
       val v = IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
       v.typ.toString.getBytes(StandardCharsets.UTF_8)
     }
@@ -228,7 +239,7 @@ abstract class Backend {
     assert(t.size == 1)
     val elementType = t.fields(0).typ
     val codec = TypedCodecSpec(
-      EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
+      EType.fromPythonTypeEncoding(elementType.virtualType), elementType.virtualType, bs)
     assert(t.isFieldDefined(off, 0))
     codec.encode(ctx, elementType, t.loadField(off, 0), os)
   }

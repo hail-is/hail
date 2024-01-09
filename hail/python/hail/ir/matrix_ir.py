@@ -2,7 +2,15 @@ from typing import Optional
 import hail as hl
 from hail.expr.types import HailType, tint64
 from hail.ir.base_ir import BaseIR, MatrixIR
-from hail.ir.utils import modify_deep_field, zip_with_index, zip_with_index_field, default_row_uid, default_col_uid, unpack_row_uid, unpack_col_uid
+from hail.ir.utils import (
+    modify_deep_field,
+    zip_with_index,
+    zip_with_index_field,
+    default_row_uid,
+    default_col_uid,
+    unpack_row_uid,
+    unpack_col_uid,
+)
 import hail.ir.ir as ir
 from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
@@ -42,23 +50,20 @@ class MatrixAggregateRowsByKey(MatrixIR):
             entry_expr = ir.AggLet('sa', old_col, entry_expr, is_scan=False)
             entry_expr = ir.Let('sa', old_col, entry_expr)
         if self.entry_expr.uses_value_randomness:
-            entry_expr = ir.Let('__rng_state',
-                                ir.RNGSplit(ir.RNGStateLiteral(), ir.concat_uids(first_row_uid, col_uid)),
-                                entry_expr)
+            entry_expr = ir.Let(
+                '__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), ir.concat_uids(first_row_uid, col_uid)), entry_expr
+            )
         if self.entry_expr.uses_agg_randomness(is_scan=False):
-            entry_expr = ir.AggLet('__rng_state',
-                                   ir.RNGSplit(ir.RNGStateLiteral(), ir.concat_uids(row_uid, col_uid)),
-                                   entry_expr,
-                                   is_scan=False)
+            entry_expr = ir.AggLet(
+                '__rng_state',
+                ir.RNGSplit(ir.RNGStateLiteral(), ir.concat_uids(row_uid, col_uid)),
+                entry_expr,
+                is_scan=False,
+            )
         if self.row_expr.uses_value_randomness:
-            row_expr = ir.Let('__rng_state',
-                              ir.RNGSplit(ir.RNGStateLiteral(), first_row_uid),
-                              row_expr)
+            row_expr = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), first_row_uid), row_expr)
         if self.row_expr.uses_agg_randomness(is_scan=False):
-            row_expr = ir.AggLet('__rng_state',
-                                 ir.RNGSplit(ir.RNGStateLiteral(), row_uid),
-                                 row_expr,
-                                 is_scan=False)
+            row_expr = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), row_uid), row_expr, is_scan=False)
 
         result = MatrixAggregateRowsByKey(child, entry_expr, row_expr)
         if drop_row_uid:
@@ -80,7 +85,8 @@ class MatrixAggregateRowsByKey(MatrixIR):
             child_typ.col_key,
             child_typ.row_key_type._concat(self.row_expr.typ),
             child_typ.row_key,
-            self.entry_expr.typ)
+            self.entry_expr.typ,
+        )
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -104,14 +110,16 @@ class MatrixAggregateRowsByKey(MatrixIR):
 
 
 class MatrixRead(MatrixIR):
-    def __init__(self,
-                 reader,
-                 drop_cols: bool = False,
-                 drop_rows: bool = False,
-                 drop_row_uids: bool = True,
-                 drop_col_uids: bool = True,
-                 *,
-                 _assert_type: Optional[HailType] = None):
+    def __init__(
+        self,
+        reader,
+        drop_cols: bool = False,
+        drop_rows: bool = False,
+        drop_row_uids: bool = True,
+        drop_col_uids: bool = True,
+        *,
+        _assert_type: Optional[HailType] = None,
+    ):
         super().__init__()
         self.reader = reader
         self.drop_cols = drop_cols
@@ -145,8 +153,8 @@ class MatrixRead(MatrixIR):
                 else:
                     row = ir.Ref('va', self.typ.row_type)
                     result = MatrixMapRows(
-                        result,
-                        ir.InsertFields(row, [(row_uid_field_name, ir.GetField(row, default_row_uid))], None))
+                        result, ir.InsertFields(row, [(row_uid_field_name, ir.GetField(row, default_row_uid))], None)
+                    )
             if rename_col_uid:
                 if self.drop_col_uids:
                     rename = True
@@ -156,7 +164,8 @@ class MatrixRead(MatrixIR):
                     result = MatrixMapCols(
                         result,
                         ir.InsertFields(col, [(col_uid_field_name, ir.GetField(col, default_col_uid))], None),
-                        None)
+                        None,
+                    )
             if rename:
                 result = MatrixRename(result, {}, col_map, row_map, {})
         return result
@@ -173,11 +182,13 @@ class MatrixRead(MatrixIR):
         return f'(MatrixRead {reqType} {self.drop_cols} {self.drop_rows} "{self.reader.render(r)}"'
 
     def _eq(self, other):
-        return (self.reader == other.reader
-                and self.drop_cols == other.drop_cols
-                and self.drop_rows == other.drop_rows
-                and self.drop_row_uids == other.drop_row_uids
-                and self.drop_col_uids == other.drop_col_uids)
+        return (
+            self.reader == other.reader
+            and self.drop_cols == other.drop_cols
+            and self.drop_rows == other.drop_rows
+            and self.drop_row_uids == other.drop_row_uids
+            and self.drop_col_uids == other.drop_col_uids
+        )
 
     def _compute_type(self, deep_typecheck):
         if self._type is None:
@@ -294,7 +305,8 @@ class MatrixMapCols(MatrixIR):
             self.new_key if self.new_key is not None else child_typ.col_key,
             child_typ.row_type,
             child_typ.row_key,
-            child_typ.entry_type)
+            child_typ.entry_type,
+        )
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -331,14 +343,20 @@ class MatrixUnionCols(MatrixIR):
             (left_uid, _) = unpack_col_uid(left.typ.col_type, col_uid_field_name)
             (right_uid, _) = unpack_col_uid(right.typ.col_type, col_uid_field_name)
             uid_type = ir.unify_uid_types((left_uid.typ, right_uid.typ), tag=True)
-            left = MatrixMapCols(left,
-                                 ir.InsertFields(ir.Ref('sa', left.typ.col_type),
-                                                 [(col_uid_field_name, ir.pad_uid(left_uid, uid_type, 0))], None),
-                                 new_key=None)
-            right = MatrixMapCols(right,
-                                  ir.InsertFields(ir.Ref('sa', right.typ.col_type),
-                                                  [(col_uid_field_name, ir.pad_uid(right_uid, uid_type, 1))], None),
-                                  new_key=None)
+            left = MatrixMapCols(
+                left,
+                ir.InsertFields(
+                    ir.Ref('sa', left.typ.col_type), [(col_uid_field_name, ir.pad_uid(left_uid, uid_type, 0))], None
+                ),
+                new_key=None,
+            )
+            right = MatrixMapCols(
+                right,
+                ir.InsertFields(
+                    ir.Ref('sa', right.typ.col_type), [(col_uid_field_name, ir.pad_uid(right_uid, uid_type, 1))], None
+                ),
+                new_key=None,
+            )
 
         result = MatrixUnionCols(left, right, self.join_type)
 
@@ -370,7 +388,8 @@ class MatrixUnionCols(MatrixIR):
             col_key=left_typ.col_key,
             row_type=left_typ.row_type._concat(right_typ.row_value_type),
             row_key=left_typ.row_key,
-            entry_type=left_typ.entry_type)
+            entry_type=left_typ.entry_type,
+        )
 
 
 class MatrixMapEntries(MatrixIR):
@@ -399,7 +418,9 @@ class MatrixMapEntries(MatrixIR):
             col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
             new_entry = ir.Let('sa', old_col, new_entry)
         if self.new_entry.uses_value_randomness:
-            new_entry = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), ir.concat_uids(row_uid, col_uid)), new_entry)
+            new_entry = ir.Let(
+                '__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), ir.concat_uids(row_uid, col_uid)), new_entry
+            )
         result = MatrixMapEntries(child, new_entry)
         if drop_row_uid:
             _, old_row = unpack_row_uid(result.typ.row_type, row_uid_field_name)
@@ -419,7 +440,8 @@ class MatrixMapEntries(MatrixIR):
             child_typ.col_key,
             child_typ.row_type,
             child_typ.row_key,
-            self.new_entry.typ)
+            self.new_entry.typ,
+        )
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
@@ -482,9 +504,7 @@ class MatrixKeyRowsBy(MatrixIR):
         return MatrixKeyRowsBy(child, self.keys, self.is_sorted)
 
     def head_str(self):
-        return '({}) {}'.format(
-            ' '.join([escape_id(x) for x in self.keys]),
-            self.is_sorted)
+        return '({}) {}'.format(' '.join([escape_id(x) for x in self.keys]), self.is_sorted)
 
     def _eq(self, other):
         return self.keys == other.keys and self.is_sorted == other.is_sorted
@@ -498,7 +518,8 @@ class MatrixKeyRowsBy(MatrixIR):
             child_typ.col_key,
             child_typ.row_type,
             self.keys,
-            child_typ.entry_type)
+            child_typ.entry_type,
+        )
 
 
 class MatrixMapRows(MatrixIR):
@@ -520,8 +541,9 @@ class MatrixMapRows(MatrixIR):
         if row_uid_field_name is None:
             row_uid_field_name = default_row_uid
         child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
-        row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name,
-                                          drop_uid=row_uid_field_name not in self.child.typ.row_type)
+        row_uid, old_row = unpack_row_uid(
+            child.typ.row_type, row_uid_field_name, drop_uid=row_uid_field_name not in self.child.typ.row_type
+        )
         new_row = ir.Let('va', old_row, self.new_row)
         if col_uid_field_name is not None:
             col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
@@ -549,7 +571,8 @@ class MatrixMapRows(MatrixIR):
             child_typ.col_key,
             self.new_row.typ,
             child_typ.row_key,
-            child_typ.entry_type)
+            child_typ.entry_type,
+        )
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -590,7 +613,8 @@ class MatrixMapGlobals(MatrixIR):
             child_typ.col_key,
             child_typ.row_type,
             child_typ.row_key,
-            child_typ.entry_type)
+            child_typ.entry_type,
+        )
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.global_env(default_value) if i == 1 else {}
@@ -651,11 +675,13 @@ class MatrixCollectColsByKey(MatrixIR):
         return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_key_type._concat(
-                hl.tstruct(**{f: hl.tarray(t) for f, t in child_typ.col_value_type.items()})),
+                hl.tstruct(**{f: hl.tarray(t) for f, t in child_typ.col_value_type.items()})
+            ),
             child_typ.col_key,
             child_typ.row_type,
             child_typ.row_key,
-            hl.tstruct(**{f: hl.tarray(t) for f, t in child_typ.entry_type.items()}))
+            hl.tstruct(**{f: hl.tarray(t) for f, t in child_typ.entry_type.items()}),
+        )
 
 
 class MatrixAggregateColsByKey(MatrixIR):
@@ -691,25 +717,20 @@ class MatrixAggregateColsByKey(MatrixIR):
             col_expr = ir.AggLet('sa', old_col, col_expr, is_scan=False)
             col_expr = ir.InsertFields(col_expr, [(col_uid_field_name, first_col_uid)], None)
         if self.entry_expr.uses_value_randomness:
-            entry_expr = ir.Let('__rng_state',
-                                ir.RNGSplit(ir.RNGStateLiteral(),
-                                            ir.concat_uids(row_uid, first_col_uid)),
-                                entry_expr)
+            entry_expr = ir.Let(
+                '__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), ir.concat_uids(row_uid, first_col_uid)), entry_expr
+            )
         if self.entry_expr.uses_agg_randomness(is_scan=False):
-            entry_expr = ir.AggLet('__rng_state',
-                                   ir.RNGSplit(ir.RNGStateLiteral(),
-                                               ir.concat_uids(row_uid, col_uid)),
-                                   entry_expr,
-                                   is_scan=False)
+            entry_expr = ir.AggLet(
+                '__rng_state',
+                ir.RNGSplit(ir.RNGStateLiteral(), ir.concat_uids(row_uid, col_uid)),
+                entry_expr,
+                is_scan=False,
+            )
         if self.col_expr.uses_value_randomness:
-            col_expr = ir.Let('__rng_state',
-                              ir.RNGSplit(ir.RNGStateLiteral(), first_col_uid),
-                              col_expr)
+            col_expr = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), first_col_uid), col_expr)
         if self.col_expr.uses_agg_randomness(is_scan=False):
-            col_expr = ir.AggLet('__rng_state',
-                                 ir.RNGSplit(ir.RNGStateLiteral(), col_uid),
-                                 col_expr,
-                                 is_scan=False)
+            col_expr = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(), col_uid), col_expr, is_scan=False)
 
         result = MatrixAggregateColsByKey(child, entry_expr, col_expr)
         if drop_row_uid:
@@ -731,7 +752,8 @@ class MatrixAggregateColsByKey(MatrixIR):
             child_typ.col_key,
             child_typ.row_type,
             child_typ.row_key,
-            self.entry_expr.typ)
+            self.entry_expr.typ,
+        )
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -777,7 +799,19 @@ class MatrixExplodeRows(MatrixIR):
             ir.Ref('va', new_explode.typ.row_type),
             self.path,
             lambda tuple: ir.GetTupleElement(tuple, 0),
-            lambda row, tuple: ir.InsertFields(row, [(row_uid_field_name, ir.concat_uids(ir.GetField(row, row_uid_field_name), ir.Cast(ir.GetTupleElement(tuple, 1), tint64)))], None))
+            lambda row, tuple: ir.InsertFields(
+                row,
+                [
+                    (
+                        row_uid_field_name,
+                        ir.concat_uids(
+                            ir.GetField(row, row_uid_field_name), ir.Cast(ir.GetTupleElement(tuple, 1), tint64)
+                        ),
+                    )
+                ],
+                None,
+            ),
+        )
         return MatrixMapRows(new_explode, new_row)
 
     def head_str(self):
@@ -797,7 +831,8 @@ class MatrixExplodeRows(MatrixIR):
             child_typ.col_key,
             new_row_type,
             child_typ.row_key,
-            child_typ.entry_type)
+            child_typ.entry_type,
+        )
 
 
 class MatrixRepartition(MatrixIR):
@@ -808,7 +843,9 @@ class MatrixRepartition(MatrixIR):
         self.strategy = strategy
 
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
-        return MatrixRepartition(self.child.handle_randomness(row_uid_field_name, col_uid_field_name), self.n, self.strategy)
+        return MatrixRepartition(
+            self.child.handle_randomness(row_uid_field_name, col_uid_field_name), self.n, self.strategy
+        )
 
     def head_str(self):
         return f'{self.n} {self.strategy}'
@@ -827,17 +864,23 @@ class MatrixUnionRows(MatrixIR):
         self.children = children
 
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
-        children = [self.children[0].handle_randomness(row_uid_field_name, col_uid_field_name),
-                    *[child.handle_randomness(row_uid_field_name, None) for child in self.children[1:]]]
+        children = [
+            self.children[0].handle_randomness(row_uid_field_name, col_uid_field_name),
+            *[child.handle_randomness(row_uid_field_name, None) for child in self.children[1:]],
+        ]
 
         if row_uid_field_name is not None:
             uids = [uid for uid, _ in (unpack_row_uid(child.typ.row_type, row_uid_field_name) for child in children)]
             uid_type = ir.unify_uid_types((uid.typ for uid in uids), tag=True)
-            children = [MatrixMapRows(child,
-                                      ir.InsertFields(ir.Ref('va', child.typ.row_type),
-                                                      [(row_uid_field_name, ir.pad_uid(uid, uid_type, i))],
-                                                      None))
-                        for i, (child, uid) in enumerate(zip(children, uids))]
+            children = [
+                MatrixMapRows(
+                    child,
+                    ir.InsertFields(
+                        ir.Ref('va', child.typ.row_type), [(row_uid_field_name, ir.pad_uid(uid, uid_type, i))], None
+                    ),
+                )
+                for i, (child, uid) in enumerate(zip(children, uids))
+            ]
 
         return MatrixUnionRows(*children)
 
@@ -963,7 +1006,19 @@ class MatrixExplodeCols(MatrixIR):
             ir.Ref('sa', new_explode.typ.col_type),
             self.path,
             lambda tuple: ir.GetTupleElement(tuple, 0),
-            lambda col, tuple: ir.InsertFields(col, [(col_uid_field_name, ir.concat_uids(ir.GetField(col, col_uid_field_name), ir.Cast(ir.GetTupleElement(tuple, 1), tint64)))], None))
+            lambda col, tuple: ir.InsertFields(
+                col,
+                [
+                    (
+                        col_uid_field_name,
+                        ir.concat_uids(
+                            ir.GetField(col, col_uid_field_name), ir.Cast(ir.GetTupleElement(tuple, 1), tint64)
+                        ),
+                    )
+                ],
+                None,
+            ),
+        )
         return MatrixMapCols(new_explode, new_col, None)
 
     def head_str(self):
@@ -983,7 +1038,8 @@ class MatrixExplodeCols(MatrixIR):
             child_typ.col_key,
             child_typ.row_type,
             child_typ.row_key,
-            child_typ.entry_type)
+            child_typ.entry_type,
+        )
 
 
 class CastTableToMatrix(MatrixIR):
@@ -996,29 +1052,33 @@ class CastTableToMatrix(MatrixIR):
 
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
         from hail.ir.table_ir import TableMapGlobals
+
         child = self.child
         if col_uid_field_name is not None:
             new_globals = modify_deep_field(
                 ir.Ref('global', child.typ.global_type),
                 [self.cols_field_name],
-                lambda g: zip_with_index_field(g, col_uid_field_name))
+                lambda g: zip_with_index_field(g, col_uid_field_name),
+            )
             child = TableMapGlobals(child, new_globals)
 
-        return CastTableToMatrix(child.handle_randomness(row_uid_field_name),
-                                 self.entries_field_name,
-                                 self.cols_field_name,
-                                 self.col_key)
+        return CastTableToMatrix(
+            child.handle_randomness(row_uid_field_name), self.entries_field_name, self.cols_field_name, self.col_key
+        )
 
     def head_str(self):
         return '{} {} ({})'.format(
             escape_str(self.entries_field_name),
             escape_str(self.cols_field_name),
-            ' '.join([escape_id(id) for id in self.col_key]))
+            ' '.join([escape_id(id) for id in self.col_key]),
+        )
 
     def _eq(self, other):
-        return self.entries_field_name == other.entries_field_name and \
-            self.cols_field_name == other.cols_field_name and \
-            self.col_key == other.col_key
+        return (
+            self.entries_field_name == other.entries_field_name
+            and self.cols_field_name == other.cols_field_name
+            and self.col_key == other.col_key
+        )
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
@@ -1029,7 +1089,8 @@ class CastTableToMatrix(MatrixIR):
             self.col_key,
             child_typ.row_type._drop_fields([self.entries_field_name]),
             child_typ.row_key,
-            child_typ.row_type[self.entries_field_name].element_type)
+            child_typ.row_type[self.entries_field_name].element_type,
+        )
 
 
 class MatrixAnnotateRowsTable(MatrixIR):
@@ -1045,7 +1106,8 @@ class MatrixAnnotateRowsTable(MatrixIR):
             self.child.handle_randomness(row_uid_field_name, col_uid_field_name),
             self.table.handle_randomness(None),
             self.root,
-            self.product)
+            self.product,
+        )
 
     def head_str(self):
         return f'"{escape_str(self.root)}" {self.product}'
@@ -1067,7 +1129,8 @@ class MatrixAnnotateRowsTable(MatrixIR):
             child_typ.col_key,
             child_typ.row_type._insert_field(self.root, value_type),
             child_typ.row_key,
-            child_typ.entry_type)
+            child_typ.entry_type,
+        )
 
 
 class MatrixAnnotateColsTable(MatrixIR):
@@ -1081,7 +1144,8 @@ class MatrixAnnotateColsTable(MatrixIR):
         return MatrixAnnotateColsTable(
             self.child.handle_randomness(row_uid_field_name, col_uid_field_name),
             self.table.handle_randomness(None),
-            self.root)
+            self.root,
+        )
 
     def head_str(self):
         return f'"{escape_str(self.root)}"'
@@ -1099,7 +1163,8 @@ class MatrixAnnotateColsTable(MatrixIR):
             child_typ.col_key,
             child_typ.row_type,
             child_typ.row_key,
-            child_typ.entry_type)
+            child_typ.entry_type,
+        )
 
 
 class MatrixToMatrixApply(MatrixIR):
@@ -1150,20 +1215,24 @@ class MatrixRename(MatrixIR):
         return MatrixRename(child, self.global_map, self.col_map, self.row_map, self.entry_map)
 
     def head_str(self):
-        return f'{parsable_strings(self.global_map.keys())} ' \
-               f'{parsable_strings(self.global_map.values())} ' \
-               f'{parsable_strings(self.col_map.keys())} ' \
-               f'{parsable_strings(self.col_map.values())} ' \
-               f'{parsable_strings(self.row_map.keys())} ' \
-               f'{parsable_strings(self.row_map.values())} ' \
-               f'{parsable_strings(self.entry_map.keys())} ' \
-               f'{parsable_strings(self.entry_map.values())} '
+        return (
+            f'{parsable_strings(self.global_map.keys())} '
+            f'{parsable_strings(self.global_map.values())} '
+            f'{parsable_strings(self.col_map.keys())} '
+            f'{parsable_strings(self.col_map.values())} '
+            f'{parsable_strings(self.row_map.keys())} '
+            f'{parsable_strings(self.row_map.values())} '
+            f'{parsable_strings(self.entry_map.keys())} '
+            f'{parsable_strings(self.entry_map.values())} '
+        )
 
     def _eq(self, other):
-        return self.global_map == other.global_map and \
-            self.col_map == other.col_map and \
-            self.row_map == other.row_map and \
-            self.entry_map == other.entry_map
+        return (
+            self.global_map == other.global_map
+            and self.col_map == other.col_map
+            and self.row_map == other.row_map
+            and self.entry_map == other.entry_map
+        )
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
@@ -1183,7 +1252,7 @@ class MatrixFilterIntervals(MatrixIR):
         return MatrixFilterIntervals(child, self.intervals, self.point_type, self.keep)
 
     def head_str(self):
-        return f'{dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
+        return f'{self.child.typ.row_key_type._parsable_string()} {dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
 
     def _eq(self, other):
         return self.intervals == other.intervals and self.point_type == other.point_type and self.keep == other.keep

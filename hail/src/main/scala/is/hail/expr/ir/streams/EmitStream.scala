@@ -1,19 +1,21 @@
 package is.hail.expr.ir.streams
 
+import is.hail.annotations.Region.REGULAR
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
 import is.hail.expr.ir.functions.IntervalFunctions
+import is.hail.expr.ir.functions.IntervalFunctions.{pointGTIntervalEndpoint, pointLTIntervalEndpoint}
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.lir
 import is.hail.methods.{BitPackedVector, BitPackedVectorBuilder, LocalLDPrune, LocalWhitening}
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
-import is.hail.types.physical.stypes.{EmitType, SSettable}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct, PType}
+import is.hail.types.physical.stypes.{EmitType, SSettable, SValue}
+import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
@@ -21,6 +23,7 @@ import is.hail.variant.Locus
 import org.objectweb.asm.Opcodes._
 
 import java.util
+import scala.language.implicitConversions
 
 
 abstract class StreamProducer {
@@ -177,7 +180,7 @@ object EmitStream {
             "()V",
             false,
             UnitInfo,
-            FastSeq(lir.load(ctor.mb._this.asInstanceOf[LocalRef[_]].l))))
+            FastSeq(lir.load(ctor.mb.this_.asInstanceOf[LocalRef[_]].l))))
         cb += new VCode(L, L, null)
 
         val newEnv = restoreEnv(cb, 3)
@@ -304,10 +307,16 @@ object EmitStream {
             SStreamValue(producer)
           }
 
-      case Let(name, value, body) =>
-        cb.withScopedMaybeStreamValue(EmitCode.fromI(cb.emb)(cb => emit(value, cb)), s"let_$name") { ev =>
-          produce(body, cb, env = env.bind(name, ev))
+      case Let(bindings, body) =>
+        def go(env: EmitEnv): IndexedSeq[(String, IR)] => IEmitCode = {
+          case (name, value) +: rest =>
+            cb.withScopedMaybeStreamValue(EmitCode.fromI(cb.emb)(cb => emit(value, cb, env = env)), s"let_$name") { ev =>
+              go(env.bind(name, ev))(rest)
+            }
+          case Seq() =>
+            produce(body, cb, env = env)
         }
+        go(env)(bindings)
 
       case In(n, _) =>
         // this, Code[Region], ...
@@ -1444,6 +1453,172 @@ object EmitStream {
           }
 
           SStreamValue(producer)
+        }
+
+      case x@StreamLeftIntervalJoin(left, right, lKeyField, rIntrvlName, lName, rName, body) =>
+        produce(left, cb).flatMap(cb) { case lStream: SStreamValue =>
+          produce(right, cb).map(cb) { case rStream: SStreamValue =>
+
+            // map over the keyStream
+            val lProd = lStream.getProducer(mb)
+            val rProd = rStream.getProducer(mb)
+
+            val rElemSTy = SBaseStructPointer(rProd.element.st.storageType().asInstanceOf[PBaseStruct])
+
+            def loadInterval(cb: EmitCodeBuilder, rElem: SValue): SIntervalValue =
+              rElem.asBaseStruct.loadField(cb, rIntrvlName).get(cb).asInterval
+
+            val q: StagedMinHeap =
+              StagedMinHeap(mb.emodb, rElemSTy) {
+                (cb: EmitCodeBuilder, a: SValue, b: SValue) =>
+                  val l = loadInterval(cb, a)
+                  val r = loadInterval(cb, b)
+                  IntervalFunctions.intervalEndpointCompare(cb,
+                    l.loadEnd(cb).get(cb), l.includesEnd,
+                    r.loadEnd(cb).get(cb), r.includesEnd
+                  )
+              }(mb.ecb)
+
+            val lElement: SBaseStructSettable =
+              mb.newPField("LeftElement", lProd.element.st).asInstanceOf[SBaseStructSettable]
+
+            val rElements: SSettable =
+              mb.newPField("RightElements", q.arraySType)
+
+            var jElement: EmitSettable =
+              null
+
+            val rEOS: ThisFieldRef[Boolean] =
+              mb.genFieldThisRef[Boolean]("RightEOS")
+
+            val rPulled: ThisFieldRef[Boolean] =
+              mb.genFieldThisRef[Boolean]("RightPulled")
+
+            SStreamValue {
+              new StreamProducer {
+                override def method: EmitMethodBuilder[_] =
+                  mb
+
+                override val length: Option[EmitCodeBuilder => Code[Int]] =
+                  lProd.length
+
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                  cb.assign(rEOS, false)
+                  cb.assign(rPulled, false)
+
+                  for (p <- FastSeq(lProd, rProd)) {
+                    p.initialize(cb, outerRegion)
+                    cb.assign(p.elementRegion,
+                      if (p.requiresMemoryManagementPerElement) Region.stagedCreate(REGULAR, mb.ecb.pool())
+                      else outerRegion.get
+                    )
+                  }
+
+                  q.init(cb, mb.ecb.pool())
+                }
+
+                override val elementRegion: Settable[Region] =
+                  mb.genFieldThisRef[Region]("IntervalJoinRegion")
+
+                override val requiresMemoryManagementPerElement: Boolean =
+                  lProd.requiresMemoryManagementPerElement || rProd.requiresMemoryManagementPerElement
+
+                override val LproduceElement: CodeLabel =
+                  mb.defineAndImplementLabel { cb =>
+                    if (lProd.requiresMemoryManagementPerElement) {
+                      cb += lProd.elementRegion.clearRegion()
+                    }
+
+                    cb.goto(lProd.LproduceElement)
+                    cb.define(lProd.LproduceElementDone)
+
+                    cb.assign(lElement, lProd.element.toI(cb).get(cb).asBaseStruct)
+                    val point = lElement.loadField(cb, lKeyField).get(cb)
+
+                    /* Drop rows from the priority queue if their interval's right endpoint is
+                     * before the current key.
+                     */
+                    cb.loop { Lrecur =>
+                      cb.if_(q.nonEmpty(cb), {
+                        val interval = loadInterval(cb, q.peek(cb))
+                        val end = interval.loadEnd(cb).get(cb)
+                        cb.if_(pointGTIntervalEndpoint(cb, point, end, interval.includesEnd), {
+                          q.pop(cb)
+                          cb.goto(Lrecur)
+                        })
+                      })
+                    }
+
+                    q.realloc(cb)
+
+                    val LallIntervalsFound = CodeLabel()
+                    cb.if_(rEOS, cb.goto(LallIntervalsFound))
+
+                    val LproduceRightElement = CodeLabel()
+                    cb.if_(!rPulled, cb.goto(LproduceRightElement))
+
+                    cb.loop { Lrecur =>
+                      val rElement = rElemSTy.coerceOrCopy(cb, elementRegion, rProd.element.toI(cb).get(cb), deepCopy = false)
+                      val interval = loadInterval(cb, rElement)
+
+                      // Drop intervals whose right endpoint is before the key
+                      val end = interval.loadEnd(cb).get(cb)
+                      cb.if_(pointGTIntervalEndpoint(cb, point, end, interval.includesEnd),
+                        cb.goto(LproduceRightElement)
+                      )
+
+                      // Stop consuming intervals if the left endpoint is after the key
+                      val start = interval.loadStart(cb).get(cb)
+                      cb.if_(pointLTIntervalEndpoint(cb, point, start, leansRight = !interval.includesStart),
+                        cb.goto(LallIntervalsFound)
+                      )
+
+                      q.push(cb, rElement)
+
+                      cb.define(LproduceRightElement)
+                      if (rProd.requiresMemoryManagementPerElement) {
+                        cb += rProd.elementRegion.clearRegion()
+                      }
+
+                      cb.goto(rProd.LproduceElement)
+                      cb.define(rProd.LproduceElementDone)
+                      cb.assign(rPulled, true)
+                      cb.goto(Lrecur)
+                    }
+
+                    cb.define(rProd.LendOfStream)
+                    cb.assign(rEOS, true)
+
+                    cb.define(LallIntervalsFound)
+                    cb.assign(rElements, q.toArray(cb, elementRegion))
+                    val result = emit(body, cb, region = elementRegion, env = env.bind(
+                      lName -> EmitValue.present(lElement),
+                      rName -> EmitValue.present(rElements)
+                    ))
+
+                    jElement = mb.newEmitField("IntervalJoinResult", result.emitType)
+                    cb.assign(jElement, result)
+                    cb.goto(LproduceElementDone)
+
+                    cb.define(lProd.LendOfStream)
+                    cb.goto(LendOfStream)
+                  }
+
+                override val element: EmitCode =
+                  jElement
+
+                override def close(cb: EmitCodeBuilder): Unit = {
+                  q.close(cb)
+                  for (p <- FastSeq(rProd, lProd)) {
+                    p.close(cb)
+                    if (p.requiresMemoryManagementPerElement) {
+                      cb += p.elementRegion.invalidate()
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
 
       case x@StreamJoinRightDistinct(leftIR, rightIR, lKey, rKey, leftName, rightName, joinIR, joinType) =>

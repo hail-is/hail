@@ -26,9 +26,10 @@ def hl_stop_for_test():
     hl.stop()
 
 
-_test_dir = os.environ.get('HAIL_TEST_RESOURCES_DIR',
-                           os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(hl.__file__))),
-                                        'src/test/resources'))
+_test_dir = os.environ.get(
+    'HAIL_TEST_RESOURCES_DIR',
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(hl.__file__))), 'src/test/resources'),
+)
 _doctest_dir = os.environ.get('HAIL_DOCTEST_DATA_DIR', 'hail/docs/data')
 
 
@@ -68,6 +69,7 @@ def get_dataset():
         _dataset = hl.read_matrix_table(resource('split-multi-sample.vcf.mt')).select_globals()
     return _dataset
 
+
 def assert_time(f, max_duration):
     start = timer()
     x = f()
@@ -75,6 +77,7 @@ def assert_time(f, max_duration):
     assert (start - end) < max_duration
     print(f'took {end - start:.3f}')
     return x
+
 
 def create_all_values():
     return hl.struct(
@@ -89,9 +92,7 @@ def create_all_values():
         md=hl.missing(hl.tdict(hl.tint32, hl.tstr)),
         h38=hl.locus('chr22', 33878978, 'GRCh38'),
         ml=hl.missing(hl.tlocus('GRCh37')),
-        i=hl.interval(
-            hl.locus('1', 999),
-            hl.locus('1', 1001)),
+        i=hl.interval(hl.locus('1', 999), hl.locus('1', 1001)),
         c=hl.call(0, 1),
         mc=hl.missing(hl.tcall),
         t=hl.tuple([hl.call(1, 2, phased=True), 'foo', hl.missing(hl.tstr)]),
@@ -99,24 +100,31 @@ def create_all_values():
         nd=hl.nd.arange(0, 10).reshape((2, 5)),
     )
 
+
 def prefix_struct(s, prefix):
     return hl.struct(**{prefix + k: s[k] for k in s})
 
+
 def create_all_values_table():
     all_values = create_all_values()
-    return (hl.utils.range_table(5, n_partitions=3)
-            .annotate_globals(**prefix_struct(all_values, 'global_'))
-            .annotate(**all_values)
-            .cache())
+    return (
+        hl.utils.range_table(5, n_partitions=3)
+        .annotate_globals(**prefix_struct(all_values, 'global_'))
+        .annotate(**all_values)
+        .cache()
+    )
+
 
 def create_all_values_matrix_table():
     all_values = create_all_values()
-    return (hl.utils.range_matrix_table(3, 2, n_partitions=2)
-            .annotate_globals(**prefix_struct(all_values, 'global_'))
-            .annotate_rows(**prefix_struct(all_values, 'row_'))
-            .annotate_cols(**prefix_struct(all_values, 'col_'))
-            .annotate_entries(**prefix_struct(all_values, 'entry_'))
-            .cache())
+    return (
+        hl.utils.range_matrix_table(3, 2, n_partitions=2)
+        .annotate_globals(**prefix_struct(all_values, 'global_'))
+        .annotate_rows(**prefix_struct(all_values, 'row_'))
+        .annotate_cols(**prefix_struct(all_values, 'col_'))
+        .annotate_entries(**prefix_struct(all_values, 'entry_'))
+        .cache()
+    )
 
 
 def create_all_values_datasets():
@@ -129,6 +137,7 @@ T = TypeVar('T')
 
 def skip_unless_spark_backend(reason='requires Spark'):
     from hail.backend.spark_backend import SparkBackend
+
     @decorator
     def wrapper(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         if isinstance(hl.utils.java.Env.backend(), SparkBackend):
@@ -139,8 +148,22 @@ def skip_unless_spark_backend(reason='requires Spark'):
     return wrapper
 
 
+def skip_when_local_backend(reason='skipping for Local Backend'):
+    from hail.backend.local_backend import LocalBackend
+
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), LocalBackend):
+            raise unittest.SkipTest(reason)
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 def skip_when_service_backend(reason='skipping for Service Backend'):
     from hail.backend.service_backend import ServiceBackend
+
     @decorator
     def wrapper(func, *args, **kwargs):
         if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
@@ -153,6 +176,7 @@ def skip_when_service_backend(reason='skipping for Service Backend'):
 
 def skip_when_service_backend_in_azure(reason='skipping for Service Backend in Azure'):
     from hail.backend.service_backend import ServiceBackend
+
     @decorator
     def wrapper(func, *args, **kwargs):
         if isinstance(hl.utils.java.Env.backend(), ServiceBackend) and os.environ.get('HAIL_CLOUD') == 'azure':
@@ -165,6 +189,7 @@ def skip_when_service_backend_in_azure(reason='skipping for Service Backend in A
 
 def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
     from hail.backend.service_backend import ServiceBackend
+
     @decorator
     def wrapper(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
         if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
@@ -178,21 +203,18 @@ def skip_unless_service_backend(reason='only relevant to service backend', cloud
 
 
 fails_local_backend = pytest.mark.xfail(
-    choose_backend() == 'local',
-    reason="doesn't yet work on local backend",
-    strict=True)
+    choose_backend() == 'local', reason="doesn't yet work on local backend", strict=True
+)
 
 
 fails_service_backend = pytest.mark.xfail(
-    choose_backend() == 'batch',
-    reason="doesn't yet work on service backend",
-    strict=True)
+    choose_backend() == 'batch', reason="doesn't yet work on service backend", strict=True
+)
 
 
 fails_spark_backend = pytest.mark.xfail(
-    choose_backend() == 'spark',
-    reason="doesn't yet work on spark backend",
-    strict=True)
+    choose_backend() == 'spark', reason="doesn't yet work on spark backend", strict=True
+)
 
 
 qobtest = pytest.mark.qobtest
@@ -229,6 +251,7 @@ def with_flags(**flags):
             return func(*args, **kwargs)
         finally:
             hl._set_flags(**prev_flags)
+
     return wrapper
 
 
