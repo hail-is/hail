@@ -32,12 +32,12 @@ class RouterAsyncFS(AsyncFS):
 
     @staticmethod
     def copy_part_size(url: str) -> int:
-        klass, _ = RouterAsyncFS._fs_class(url)
+        klass = RouterAsyncFS._fs_class(url)
         return klass.copy_part_size(url)
 
     @staticmethod
     def parse_url(url: str) -> AsyncFSURL:
-        klass, _ = RouterAsyncFS._fs_class(url)
+        klass = RouterAsyncFS._fs_class(url)
         return klass.parse_url(url)
 
     @staticmethod
