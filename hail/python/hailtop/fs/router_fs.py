@@ -7,7 +7,6 @@ import glob
 import fnmatch
 
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry as AIOFileListEntry, ReadableStream, WritableStream
-from hailtop.aiotools.local_fs import LocalAsyncFSURL
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import bounded_gather2, async_to_blocking
 
@@ -412,7 +411,7 @@ class RouterFS(FS):
 
     def canonicalize_path(self, path: str) -> str:
         url = self.afs.parse_url(path)
-        if isinstance(url, LocalAsyncFSURL):
+        if url.scheme == 'file':
             if path.startswith('file:'):
                 return 'file:' + os.path.realpath(path[5:])
             return 'file:' + os.path.realpath(path)
