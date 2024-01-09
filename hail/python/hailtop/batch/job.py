@@ -59,13 +59,15 @@ class Job:
         cls._counter += 1
         return uid
 
-    def __init__(self,
-                 batch: 'batch.Batch',
-                 token: str,
-                 *,
-                 name: Optional[str] = None,
-                 attributes: Optional[Dict[str, str]] = None,
-                 shell: Optional[str] = None):
+    def __init__(
+        self,
+        batch: 'batch.Batch',
+        token: str,
+        *,
+        name: Optional[str] = None,
+        attributes: Optional[Dict[str, str]] = None,
+        shell: Optional[str] = None,
+    ):
         self._batch = batch
         self._shell = shell
         self._token = token
@@ -593,58 +595,69 @@ class Job:
             if groups['BATCH']:
                 raise BatchException(f"found a reference to a Batch object in command '{command}'.")
             if groups['PYTHON_RESULT'] and not allow_python_results:
-                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
+                raise BatchException(
+                    f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'"
+                )
 
             assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP'] or groups['PYTHON_RESULT']
             r_uid = match_obj.group()
             r = self._batch._resource_map.get(r_uid)
 
             if r is None:
-                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                     f"Hint: resources must be from the same batch as the current job.")
+                raise BatchException(
+                    f"undefined resource '{r_uid}' in command '{command}'.\n"
+                    f"Hint: resources must be from the same batch as the current job."
+                )
 
-            if r._source != self:
+            source = r.source()
+            if source != self:
                 self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
-                        raise BatchException(f"undefined resource '{name}'\n"
-                                             f"Hint: resources must be defined within "
-                                             f"the job methods 'command' or 'declare_resource_group'")
+                if source is not None:
+                    if r not in source._valid:
+                        name = source._resources_inverse[r]
+                        raise BatchException(
+                            f"undefined resource '{name}'\n"
+                            f"Hint: resources must be defined within "
+                            f"the job methods 'command' or 'declare_resource_group'"
+                        )
 
                     if self._always_run:
-                        warnings.warn('A job marked as always run has a resource file dependency on another job. If the dependent job fails, '
-                                      f'the always run job with the following command may not succeed:\n{command}')
+                        warnings.warn(
+                            'A job marked as always run has a resource file dependency on another job. If the dependent job fails, '
+                            f'the always run job with the following command may not succeed:\n{command}'
+                        )
 
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
+                    self._dependencies.add(source)
+                    source._add_internal_outputs(r)
             else:
                 _add_resource_to_set(self._valid, r)
 
             self._mentioned.add(r)
             return '${BATCH_TMPDIR}' + shq(r._get_path(''))
 
-        regexes = [_resource.ResourceFile._regex_pattern,
-                   _resource.ResourceGroup._regex_pattern,
-                   _resource.PythonResult._regex_pattern,
-                   Job._regex_pattern,
-                   batch.Batch._regex_pattern]
+        regexes = [
+            _resource.ResourceFile._regex_pattern,
+            _resource.ResourceGroup._regex_pattern,
+            _resource.PythonResult._regex_pattern,
+            Job._regex_pattern,
+            batch.Batch._regex_pattern,
+        ]
 
-        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
-                               handler,
-                               command)
+        subst_command = re.sub('(' + ')|('.join(regexes) + ')', handler, command)
 
         return subst_command
 
     def _pretty(self):
-        s = f"Job '{self._uid}'" \
-            f"\tName:\t'{self.name}'" \
-            f"\tAttributes:\t'{self.attributes}'" \
-            f"\tImage:\t'{self._image}'" \
-            f"\tCPU:\t'{self._cpu}'" \
-            f"\tMemory:\t'{self._memory}'" \
-            f"\tStorage:\t'{self._storage}'" \
+        s = (
+            f"Job '{self._uid}'"
+            f"\tName:\t'{self.name}'"
+            f"\tAttributes:\t'{self.attributes}'"
+            f"\tImage:\t'{self._image}'"
+            f"\tCPU:\t'{self._cpu}'"
+            f"\tMemory:\t'{self._memory}'"
+            f"\tStorage:\t'{self._storage}'"
             f"\tCommand:\t'{self._command}'"
+        )
         return s
 
     def __str__(self):
@@ -681,13 +694,15 @@ class BashJob(Job):
     or :meth:`.Batch.new_bash_job` instead.
     """
 
-    def __init__(self,
-                 batch: 'batch.Batch',
-                 token: str,
-                 *,
-                 name: Optional[str] = None,
-                 attributes: Optional[Dict[str, str]] = None,
-                 shell: Optional[str] = None):
+    def __init__(
+        self,
+        batch: 'batch.Batch',
+        token: str,
+        *,
+        name: Optional[str] = None,
+        attributes: Optional[Dict[str, str]] = None,
+        shell: Optional[str] = None,
+    ):
         super().__init__(batch, token, name=name, attributes=attributes, shell=shell)
         self._command: List[str] = []
 
@@ -878,7 +893,9 @@ source {code}
         return True
 
 
-UnpreparedArg = Union['_resource.ResourceType', List['UnpreparedArg'], Tuple['UnpreparedArg', ...], Dict[str, 'UnpreparedArg'], Any]
+UnpreparedArg = Union[
+    '_resource.ResourceType', List['UnpreparedArg'], Tuple['UnpreparedArg', ...], Dict[str, 'UnpreparedArg'], Any
+]
 
 PreparedArg = Union[
     Tuple[Literal['py_path'], str],
@@ -887,7 +904,7 @@ PreparedArg = Union[
     Tuple[Literal['list'], List['PreparedArg']],
     Tuple[Literal['dict'], Dict[str, 'PreparedArg']],
     Tuple[Literal['tuple'], Tuple['PreparedArg', ...]],
-    Tuple[Literal['value'], Any]
+    Tuple[Literal['value'], Any],
 ]
 
 
@@ -928,16 +945,20 @@ class PythonJob(Job):
     instead.
     """
 
-    def __init__(self,
-                 batch: 'batch.Batch',
-                 token: str,
-                 *,
-                 name: Optional[str] = None,
-                 attributes: Optional[Dict[str, str]] = None):
+    def __init__(
+        self,
+        batch: 'batch.Batch',
+        token: str,
+        *,
+        name: Optional[str] = None,
+        attributes: Optional[Dict[str, str]] = None,
+    ):
         super().__init__(batch, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
-        self._function_calls: List[Tuple[_resource.PythonResult, int, Tuple[UnpreparedArg, ...], Dict[str, UnpreparedArg]]] = []
+        self._function_calls: List[
+            Tuple[_resource.PythonResult, int, Tuple[UnpreparedArg, ...], Dict[str, UnpreparedArg]]
+        ] = []
         self.n_results = 0
 
     def _get_python_resource(self, item: str) -> '_resource.PythonResult':
@@ -1103,6 +1124,7 @@ class PythonJob(Job):
 
             def run_async(*args, **kwargs):
                 return asyncio.run(unapplied_copy(*args, **kwargs))
+
             unapplied = run_async
 
         for arg in args:
@@ -1167,8 +1189,10 @@ class PythonJob(Job):
             if isinstance(arg, _resource.ResourceFile):
                 return ('path', arg._get_path(local_tmpdir))
             if isinstance(arg, _resource.ResourceGroup):
-                return ('dict_path', {name: resource._get_path(local_tmpdir)
-                                      for name, resource in arg._resources.items()})
+                return (
+                    'dict_path',
+                    {name: resource._get_path(local_tmpdir) for name, resource in arg._resources.items()},
+                )
             if isinstance(arg, list):
                 return ('list', [preserialize(elt) for elt in arg])
             if isinstance(arg, tuple):
@@ -1186,16 +1210,21 @@ class PythonJob(Job):
             del kwargs
 
             args_file = await self._batch._serialize_python_to_input_file(
-                os.path.dirname(result._get_path(remote_tmpdir)), "args", i, (preserialized_args, preserialized_kwargs), dry_run
+                os.path.dirname(result._get_path(remote_tmpdir)),
+                "args",
+                i,
+                (preserialized_args, preserialized_kwargs),
+                dry_run,
             )
 
             json_write, str_write, repr_write = [
-                '' if not output else f'''
+                ''
+                if not output
+                else f'''
         with open('{output}', 'w') as out:
             out.write({formatter}(result) + '\\n')
 '''
-                for output, formatter in
-                [(result._json, "json.dumps"), (result._str, "str"), (result._repr, "repr")]
+                for output, formatter in [(result._json, "json.dumps"), (result._str, "str"), (result._repr, "repr")]
             ]
 
             wrapper_code = f'''python3 -c "

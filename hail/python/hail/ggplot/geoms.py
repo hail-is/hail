@@ -13,12 +13,13 @@ class FigureAttribute(abc.ABC):
 
 
 class Geom(FigureAttribute):
-
     def __init__(self, aes):
         self.aes = aes
 
     @abc.abstractmethod
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         """Add this geometry to the figure and indicate if this geometry demands a static figure."""
         pass
 
@@ -52,23 +53,18 @@ class GeomLineBasic(Geom):
         "color": ("line_color", "black"),
         "size": ("marker_size", None),
         "tooltip": ("hovertext", None),
-        "color_legend": ("name", None)
+        "color_legend": ("name", None),
     }
 
     def __init__(self, aes, color):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
-
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         def plot_group(df):
-            trace_args = {
-                "x": df.x,
-                "y": df.y,
-                "mode": "lines",
-                "row": facet_row,
-                "col": facet_col
-            }
+            trace_args = {"x": df.x, "y": df.y, "mode": "lines", "row": facet_row, "col": facet_col}
 
             self._add_aesthetics_to_trace_args(trace_args, df)
             self._update_legend_trace_args(trace_args, legend_cache)
@@ -142,13 +138,9 @@ class GeomPoint(Geom):
                     "mode": "markers",
                     "row": facet_row,
                     "col": facet_col,
-                    **(
-                        {"showlegend": False}
-                        if legend is None else
-                        {"name": legend, "showlegend": True}
-                    )
+                    **({"showlegend": False} if legend is None else {"name": legend, "showlegend": True}),
                 },
-                **self._map_to_plotly(values)
+                **self._map_to_plotly(values),
             }
         )
 
@@ -164,11 +156,13 @@ class GeomPoint(Geom):
                     "legendgroup": aes_name,
                     "legendgrouptitle_text": aes_name,
                 },
-                **self._map_to_plotly({**self.aes_defaults, aes_name: value})
+                **self._map_to_plotly({**self.aes_defaults, aes_name: value}),
             }
         )
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         traces = []
         legends = {}
         for df in grouped_data:
@@ -178,14 +172,12 @@ class GeomPoint(Geom):
                 category = self._get_aes_value(df, f"{aes_name}_legend")
                 if category is not None:
                     trace_categories.append(category)
-                legends[aes_name] = ({
-                    **legends.get(aes_name, {}),
-                    category: values[aes_name]
-                })
+                legends[aes_name] = {**legends.get(aes_name, {}), category: values[aes_name]}
             traces.append([fig_so_far, df, facet_row, facet_col, values, trace_categories])
 
         non_empty_legend_groups = [
-            legend_group for legend_group in legends.values()
+            legend_group
+            for legend_group in legends.values()
             if len(legend_group) > 1 or (len(legend_group) == 1 and list(legend_group.keys())[0] is not None)
         ]
         dummy_legend = is_faceted or len(non_empty_legend_groups) >= 2
@@ -230,12 +222,13 @@ def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None):
 
 
 class GeomLine(GeomLineBasic):
-
     def __init__(self, aes, color=None):
         super().__init__(aes, color)
         self.color = color
 
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         return super().apply_to_fig(agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache, is_faceted)
 
     def get_stat(self):
@@ -261,7 +254,7 @@ class GeomText(Geom):
         "size": ("marker_size", None),
         "tooltip": ("hovertext", None),
         "color_legend": ("name", None),
-        "alpha": ("marker_opacity", None)
+        "alpha": ("marker_opacity", None),
     }
 
     def __init__(self, aes, color=None, size=None, alpha=None):
@@ -270,16 +263,11 @@ class GeomText(Geom):
         self.size = size
         self.alpha = alpha
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         def plot_group(df):
-            trace_args = {
-                "x": df.x,
-                "y": df.y,
-                "text": df.label,
-                "mode": "text",
-                "row": facet_row,
-                "col": facet_col
-            }
+            trace_args = {"x": df.x, "y": df.y, "text": df.label, "mode": "text", "row": facet_row, "col": facet_col}
 
             self._add_aesthetics_to_trace_args(trace_args, df)
             self._update_legend_trace_args(trace_args, legend_cache)
@@ -313,7 +301,7 @@ class GeomBar(Geom):
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
         "fill_legend": ("name", None),
-        "alpha": ("marker_opacity", None)
+        "alpha": ("marker_opacity", None),
     }
 
     def __init__(self, aes, fill=None, color=None, alpha=None, position="stack", size=None, stat=None):
@@ -328,14 +316,11 @@ class GeomBar(Geom):
             stat = StatCount()
         self.stat = stat
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         def plot_group(df):
-            trace_args = {
-                "x": df.x,
-                "y": df.y,
-                "row": facet_row,
-                "col": facet_col
-            }
+            trace_args = {"x": df.x, "y": df.y, "row": facet_row, "col": facet_col}
 
             self._add_aesthetics_to_trace_args(trace_args, df)
             self._update_legend_trace_args(trace_args, legend_cache)
@@ -384,10 +369,12 @@ class GeomHistogram(Geom):
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
         "fill_legend": ("name", None),
-        "alpha": ("marker_opacity", None)
+        "alpha": ("marker_opacity", None),
     }
 
-    def __init__(self, aes, min_val=None, max_val=None, bins=None, fill=None, color=None, alpha=None, position='stack', size=None):
+    def __init__(
+        self, aes, min_val=None, max_val=None, bins=None, fill=None, color=None, alpha=None, position='stack', size=None
+    ):
         super().__init__(aes)
         self.min_val = min_val
         self.max_val = max_val
@@ -398,7 +385,9 @@ class GeomHistogram(Geom):
         self.position = position
         self.size = size
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         min_val = self.min_val if self.min_val is not None else precomputed.min_val
         max_val = self.max_val if self.max_val is not None else precomputed.max_val
         # This assumes it doesn't really make sense to use another stat for geom_histogram
@@ -429,10 +418,9 @@ class GeomHistogram(Geom):
                 "col": facet_col,
                 "customdata": list(zip(left_xs, right_xs)),
                 "width": bar_width,
-                "hovertemplate":
-                    "Range: [%{customdata[0]:.3f}-%{customdata[1]:.3f})<br>"
-                    "Count: %{y}<br>"
-                    "<extra></extra>",
+                "hovertemplate": "Range: [%{customdata[0]:.3f}-%{customdata[1]:.3f})<br>"
+                "Count: %{y}<br>"
+                "<extra></extra>",
             }
 
             self._add_aesthetics_to_trace_args(trace_args, df)
@@ -449,8 +437,18 @@ class GeomHistogram(Geom):
         return StatBin(self.min_val, self.max_val, self.bins)
 
 
-def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill=None, color=None, alpha=None, position='stack',
-                   size=None):
+def geom_histogram(
+    mapping=aes(),
+    *,
+    min_val=None,
+    max_val=None,
+    bins=None,
+    fill=None,
+    color=None,
+    alpha=None,
+    position='stack',
+    size=None,
+):
     """Creates a histogram.
 
     Note: this function currently does not support same interface as R's ggplot.
@@ -481,7 +479,18 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomHistogram(mapping, min_val=min_val, max_val=max_val, bins=bins, fill=fill, color=color, alpha=alpha, position=position, size=size)
+    return GeomHistogram(
+        mapping,
+        min_val=min_val,
+        max_val=max_val,
+        bins=bins,
+        fill=fill,
+        color=color,
+        alpha=alpha,
+        position=position,
+        size=size,
+    )
+
 
 # Computes the maximum entropy distribution whose cdf is within +- e of the
 # staircase-shaped cdf encoded by min_x, max_x, x, y.
@@ -517,7 +526,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
         if i == len(x):
             return max_x, 1
         else:
-            yi = y[i] + e if upper else y[i+1] - e
+            yi = y[i] + e if upper else y[i + 1] - e
             return x[i], yi
 
     # Result variables:
@@ -600,7 +609,7 @@ class GeomDensity(Geom):
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
         "fill_legend": ("name", None),
-        "alpha": ("marker_opacity", None)
+        "alpha": ("marker_opacity", None),
     }
 
     def __init__(self, aes, k=1000, smoothing=0.5, fill=None, color=None, alpha=None, smoothed=False):
@@ -612,8 +621,11 @@ class GeomDensity(Geom):
         self.alpha = alpha
         self.smoothed = smoothed
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         from hail.expr.functions import _error_from_cdf_python
+
         def plot_group(df, idx):
             data = df.attrs['data']
 
@@ -628,7 +640,9 @@ class GeomDensity(Geom):
                 def f(x, prev):
                     inv_scale = (np.sqrt(n * slope) / self.smoothing) * np.sqrt(prev / weights)
                     diff = x[:, np.newaxis] - values
-                    grid = (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
+                    grid = (
+                        (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
+                    )
                     return np.sum(grid, axis=1)
 
                 round1 = f(values, np.full(len(values), slope))
@@ -641,7 +655,7 @@ class GeomDensity(Geom):
                     "mode": "lines",
                     "fill": "tozeroy",
                     "row": facet_row,
-                    "col": facet_col
+                    "col": facet_col,
                 }
 
                 self._add_aesthetics_to_trace_args(trace_args, df)
@@ -670,7 +684,7 @@ class GeomDensity(Geom):
                     "row": facet_row,
                     "col": facet_col,
                     "width": widths,
-                    "offset": 0
+                    "offset": 0,
                 }
 
                 self._add_aesthetics_to_trace_args(trace_args, df)
@@ -726,18 +740,16 @@ def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None,
 
 
 class GeomHLine(Geom):
-
     def __init__(self, yintercept, linetype="solid", color=None):
         self.yintercept = yintercept
         self.aes = aes()
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
-        line_attributes = {
-            "y": self.yintercept,
-            "line_dash": linetype_plotly_to_gg(self.linetype)
-        }
+    def apply_to_fig(
+        self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
+        line_attributes = {"y": self.yintercept, "line_dash": linetype_plotly_to_gg(self.linetype)}
         if self.color is not None:
             line_attributes["line_color"] = self.color
 
@@ -769,18 +781,16 @@ def geom_hline(yintercept, *, linetype="solid", color=None):
 
 
 class GeomVLine(Geom):
-
     def __init__(self, xintercept, linetype="solid", color=None):
         self.xintercept = xintercept
         self.aes = aes()
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
-        line_attributes = {
-            "x": self.xintercept,
-            "line_dash": linetype_plotly_to_gg(self.linetype)
-        }
+    def apply_to_fig(
+        self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
+        line_attributes = {"x": self.xintercept, "line_dash": linetype_plotly_to_gg(self.linetype)}
         if self.color is not None:
             line_attributes["line_color"] = self.color
 
@@ -812,11 +822,12 @@ def geom_vline(xintercept, *, linetype="solid", color=None):
 
 
 class GeomTile(Geom):
-
     def __init__(self, aes):
         self.aes = aes
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         def plot_group(df):
 
             for idx, row in df.iterrows():
@@ -832,7 +843,7 @@ class GeomTile(Geom):
                     "y1": y_center + height / 2,
                     "row": facet_row,
                     "col": facet_col,
-                    "opacity": row.get('alpha', 1.0)
+                    "opacity": row.get('alpha', 1.0),
                 }
                 if "fill" in df.attrs:
                     shape_args["fillcolor"] = df.attrs["fill"]
@@ -858,7 +869,9 @@ class GeomFunction(GeomLineBasic):
         super().__init__(aes, color)
         self.fun = fun
 
-    def apply_to_fig(self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, agg_result, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         return super().apply_to_fig(agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache, is_faceted)
 
     def get_stat(self):
@@ -874,7 +887,7 @@ class GeomArea(Geom):
         "fill": ("fillcolor", "black"),
         "color": ("line_color", "rgba(0, 0, 0, 0)"),
         "tooltip": ("hovertext", None),
-        "fill_legend": ("name", None)
+        "fill_legend": ("name", None),
     }
 
     def __init__(self, aes, fill, color):
@@ -882,15 +895,11 @@ class GeomArea(Geom):
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         def plot_group(df):
-            trace_args = {
-                "x": df.x,
-                "y": df.y,
-                "row": facet_row,
-                "col": facet_col,
-                "fill": 'tozeroy'
-            }
+            trace_args = {"x": df.x, "y": df.y, "row": facet_row, "col": facet_col, "fill": 'tozeroy'}
 
             self._add_aesthetics_to_trace_args(trace_args, df)
             self._update_legend_trace_args(trace_args, legend_cache)
@@ -931,7 +940,7 @@ class GeomRibbon(Geom):
         "fill": ("fillcolor", "black"),
         "color": ("line_color", "rgba(0, 0, 0, 0)"),
         "tooltip": ("hovertext", None),
-        "fill_legend": ("name", None)
+        "fill_legend": ("name", None),
     }
 
     def __init__(self, aes, fill, color):
@@ -939,7 +948,9 @@ class GeomRibbon(Geom):
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool):
+    def apply_to_fig(
+        self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
+    ):
         def plot_group(df):
 
             trace_args_bottom = {
@@ -948,7 +959,7 @@ class GeomRibbon(Geom):
                 "row": facet_row,
                 "col": facet_col,
                 "mode": "lines",
-                "showlegend": False
+                "showlegend": False,
             }
             self._add_aesthetics_to_trace_args(trace_args_bottom, df)
             self._update_legend_trace_args(trace_args_bottom, legend_cache)
@@ -959,7 +970,7 @@ class GeomRibbon(Geom):
                 "row": facet_row,
                 "col": facet_col,
                 "mode": "lines",
-                "fill": 'tonexty'
+                "fill": 'tonexty',
             }
             self._add_aesthetics_to_trace_args(trace_args_top, df)
             self._update_legend_trace_args(trace_args_top, legend_cache)

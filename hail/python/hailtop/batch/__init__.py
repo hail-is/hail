@@ -8,20 +8,21 @@ from .exceptions import BatchException
 from .utils import concatenate, plink_merge
 from .resource import Resource, ResourceFile, ResourceGroup, PythonResult
 
-__all__ = ['Batch',
-           'LocalBackend',
-           'ServiceBackend',
-           'Backend',
-           'BatchException',
-           'BatchPoolExecutor',
-           'build_python_image',
-           'concatenate',
-           'plink_merge',
-           'PythonResult',
-           'Resource',
-           'ResourceFile',
-           'ResourceGroup',
-           ]
+__all__ = [
+    'Batch',
+    'LocalBackend',
+    'ServiceBackend',
+    'Backend',
+    'BatchException',
+    'BatchPoolExecutor',
+    'build_python_image',
+    'concatenate',
+    'plink_merge',
+    'PythonResult',
+    'Resource',
+    'ResourceFile',
+    'ResourceGroup',
+]
 
 warnings.filterwarnings('once', append=True)
 del warnings

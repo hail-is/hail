@@ -23,13 +23,23 @@ from hail.utils.misc import divide_null, guess_cloud_spark_provider, new_temp_fi
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.ir import TableToTableApply
-from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant, require_alleles_field
+from .misc import (
+    require_biallelic,
+    require_row_key_variant,
+    require_col_key_str,
+    require_table_key_variant,
+    require_alleles_field,
+)
 
 log = logging.getLogger('methods.qc')
 
 
-HAIL_GENETICS_VEP_GRCH37_85_IMAGE = os.environ.get('HAIL_GENETICS_VEP_GRCH37_85_IMAGE', f'hailgenetics/vep-grch37-85:{pip_version()}')
-HAIL_GENETICS_VEP_GRCH38_95_IMAGE = os.environ.get('HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep-grch38-95:{pip_version()}')
+HAIL_GENETICS_VEP_GRCH37_85_IMAGE = os.environ.get(
+    'HAIL_GENETICS_VEP_GRCH37_85_IMAGE', f'hailgenetics/vep-grch37-85:{pip_version()}'
+)
+HAIL_GENETICS_VEP_GRCH38_95_IMAGE = os.environ.get(
+    'HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep-grch38-95:{pip_version()}'
+)
 
 
 @typecheck(mt=MatrixTable, name=str)
@@ -113,17 +123,23 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     allele_ints = {v: k for k, v in allele_enum.items()}
 
     def allele_type(ref, alt):
-        return hl.bind(lambda at: hl.if_else(at == allele_ints['SNP'],
-                                             hl.if_else(hl.is_transition(ref, alt),
-                                                        allele_ints['Transition'],
-                                                        allele_ints['Transversion']),
-                                             at),
-                       _num_allele_type(ref, alt))
+        return hl.bind(
+            lambda at: hl.if_else(
+                at == allele_ints['SNP'],
+                hl.if_else(hl.is_transition(ref, alt), allele_ints['Transition'], allele_ints['Transversion']),
+                at,
+            ),
+            _num_allele_type(ref, alt),
+        )
 
     variant_ac = Env.get_uid()
     variant_atypes = Env.get_uid()
-    mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
-                             variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
+    mt = mt.annotate_rows(
+        **{
+            variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
+            variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt)),
+        }
+    )
 
     bound_exprs = {}
     gq_dp_exprs = {}
@@ -143,51 +159,66 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
 
-    n_rows_ref = hl.expr.construct_expr(hl.ir.Ref('n_rows', hl.tint64), hl.tint64, mt._col_indices,
-                                        hl.utils.LinkedList(hl.expr.expressions.Aggregation))
+    n_rows_ref = hl.expr.construct_expr(
+        hl.ir.Ref('n_rows', hl.tint64), hl.tint64, mt._col_indices, hl.utils.LinkedList(hl.expr.expressions.Aggregation)
+    )
     bound_exprs['n_filtered'] = n_rows_ref - hl.agg.count()
     bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
     bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
-    bound_exprs['n_singleton'] = hl.agg.sum(hl.rbind(mt['GT'], lambda gt: hl.sum(
-        hl.range(0, gt.ploidy).map(lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (mt[variant_ac][gti] == 1))))))
+    bound_exprs['n_singleton'] = hl.agg.sum(
+        hl.rbind(
+            mt['GT'],
+            lambda gt: hl.sum(
+                hl.range(0, gt.ploidy).map(
+                    lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (mt[variant_ac][gti] == 1))
+                )
+            ),
+        )
+    )
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
-        lambda allele_type: hl.tuple(
-            hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))
+        lambda allele_type: hl.tuple(hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))),
+        (
+            hl.range(0, mt['GT'].ploidy)
+            .map(lambda i: mt['GT'][i])
+            .filter(lambda allele_idx: allele_idx > 0)
+            .map(lambda allele_idx: mt[variant_atypes][allele_idx - 1])
         ),
-        (hl.range(0, mt['GT'].ploidy)
-         .map(lambda i: mt['GT'][i])
-         .filter(lambda allele_idx: allele_idx > 0)
-         .map(lambda allele_idx: mt[variant_atypes][allele_idx - 1]))
     )
 
     result_struct = hl.rbind(
         hl.struct(**bound_exprs),
         lambda x: hl.rbind(
-            hl.struct(**{
-                **gq_dp_exprs,
-                'call_rate': hl.float64(x.n_called) / (x.n_called + x.n_not_called + x.n_filtered),
-                'n_called': x.n_called,
-                'n_not_called': x.n_not_called,
-                'n_filtered': x.n_filtered,
-                'n_hom_ref': x.n_hom_ref,
-                'n_het': x.n_het,
-                'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
-                'n_non_ref': x.n_called - x.n_hom_ref,
-                'n_singleton': x.n_singleton,
-                'n_snp': (x.allele_type_counts[allele_ints["Transition"]]
-                          + x.allele_type_counts[allele_ints["Transversion"]]),
-                'n_insertion': x.allele_type_counts[allele_ints["Insertion"]],
-                'n_deletion': x.allele_type_counts[allele_ints["Deletion"]],
-                'n_transition': x.allele_type_counts[allele_ints["Transition"]],
-                'n_transversion': x.allele_type_counts[allele_ints["Transversion"]],
-                'n_star': x.allele_type_counts[allele_ints["Star"]],
-            }),
+            hl.struct(
+                **{
+                    **gq_dp_exprs,
+                    'call_rate': hl.float64(x.n_called) / (x.n_called + x.n_not_called + x.n_filtered),
+                    'n_called': x.n_called,
+                    'n_not_called': x.n_not_called,
+                    'n_filtered': x.n_filtered,
+                    'n_hom_ref': x.n_hom_ref,
+                    'n_het': x.n_het,
+                    'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
+                    'n_non_ref': x.n_called - x.n_hom_ref,
+                    'n_singleton': x.n_singleton,
+                    'n_snp': (
+                        x.allele_type_counts[allele_ints["Transition"]]
+                        + x.allele_type_counts[allele_ints["Transversion"]]
+                    ),
+                    'n_insertion': x.allele_type_counts[allele_ints["Insertion"]],
+                    'n_deletion': x.allele_type_counts[allele_ints["Deletion"]],
+                    'n_transition': x.allele_type_counts[allele_ints["Transition"]],
+                    'n_transversion': x.allele_type_counts[allele_ints["Transversion"]],
+                    'n_star': x.allele_type_counts[allele_ints["Star"]],
+                }
+            ),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
                 r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
-                r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion)
-            )))
+                r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion),
+            ),
+        ),
+    )
 
     mt = mt.annotate_cols(**{name: result_struct})
     mt = mt.drop(variant_ac, variant_atypes)
@@ -290,44 +321,55 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
     bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
-    n_cols_ref = hl.expr.construct_expr(hl.ir.Ref('n_cols', hl.tint32), hl.tint32,
-                                        mt._row_indices, hl.utils.LinkedList(hl.expr.expressions.Aggregation))
+    n_cols_ref = hl.expr.construct_expr(
+        hl.ir.Ref('n_cols', hl.tint32), hl.tint32, mt._row_indices, hl.utils.LinkedList(hl.expr.expressions.Aggregation)
+    )
     bound_exprs['n_filtered'] = hl.int64(n_cols_ref) - hl.agg.count()
     bound_exprs['call_stats'] = hl.agg.call_stats(mt.GT, mt.alleles)
 
-    result = hl.rbind(hl.struct(**bound_exprs),
-                      lambda e1: hl.rbind(
-                          hl.case().when(
-                              hl.len(mt.alleles) == 2,
-                              (hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
-                                                      e1.call_stats.AC[1] - 2
-                                                      * e1.call_stats.homozygote_count[1],
-                                                      e1.call_stats.homozygote_count[1]),
-                               hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
-                                                      e1.call_stats.AC[1] - 2
-                                                      * e1.call_stats.homozygote_count[1],
-                                                      e1.call_stats.homozygote_count[1],
-                                                      one_sided=True))
-                          ).or_missing(),
-                          lambda hwe: hl.struct(**{
-                              **gq_dp_exprs,
-                              **e1.call_stats,
-                              'call_rate': hl.float(e1.n_called) / (e1.n_called + e1.n_not_called + e1.n_filtered),
-                              'n_called': e1.n_called,
-                              'n_not_called': e1.n_not_called,
-                              'n_filtered': e1.n_filtered,
-                              'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
-                              'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
-                              'het_freq_hwe': hwe[0].het_freq_hwe,
-                              'p_value_hwe': hwe[0].p_value,
-                              'p_value_excess_het': hwe[1].p_value})))
+    result = hl.rbind(
+        hl.struct(**bound_exprs),
+        lambda e1: hl.rbind(
+            hl.case()
+            .when(
+                hl.len(mt.alleles) == 2,
+                (
+                    hl.hardy_weinberg_test(
+                        e1.call_stats.homozygote_count[0],
+                        e1.call_stats.AC[1] - 2 * e1.call_stats.homozygote_count[1],
+                        e1.call_stats.homozygote_count[1],
+                    ),
+                    hl.hardy_weinberg_test(
+                        e1.call_stats.homozygote_count[0],
+                        e1.call_stats.AC[1] - 2 * e1.call_stats.homozygote_count[1],
+                        e1.call_stats.homozygote_count[1],
+                        one_sided=True,
+                    ),
+                ),
+            )
+            .or_missing(),
+            lambda hwe: hl.struct(
+                **{
+                    **gq_dp_exprs,
+                    **e1.call_stats,
+                    'call_rate': hl.float(e1.n_called) / (e1.n_called + e1.n_not_called + e1.n_filtered),
+                    'n_called': e1.n_called,
+                    'n_not_called': e1.n_not_called,
+                    'n_filtered': e1.n_filtered,
+                    'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
+                    'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
+                    'het_freq_hwe': hwe[0].het_freq_hwe,
+                    'p_value_hwe': hwe[0].p_value,
+                    'p_value_excess_het': hwe[1].p_value,
+                }
+            ),
+        ),
+    )
 
     return mt.annotate_rows(**{name: result})
 
 
-@typecheck(left=MatrixTable,
-           right=MatrixTable,
-           _localize_global_statistics=bool)
+@typecheck(left=MatrixTable, right=MatrixTable, _localize_global_statistics=bool)
 def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[List[int]], Table, Table]:
     """Calculate call concordance with another dataset.
 
@@ -450,14 +492,16 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     left_bad = [f'{k!r}: {v}' for k, v in left_sample_counter.items() if v > 1]
     right_bad = [f'{k!r}: {v}' for k, v in right_sample_counter.items() if v > 1]
     if left_bad or right_bad:
-        raise ValueError(f"Found duplicate sample IDs:\n"
-                         f"  left:  {', '.join(left_bad)}\n"
-                         f"  right: {', '.join(right_bad)}")
+        raise ValueError(
+            f"Found duplicate sample IDs:\n" f"  left:  {', '.join(left_bad)}\n" f"  right: {', '.join(right_bad)}"
+        )
 
     included = set(left_sample_counter.keys()).intersection(set(right_sample_counter.keys()))
 
-    info(f"concordance: including {len(included)} shared samples "
-         f"({len(left_sample_counter)} total on left, {len(right_sample_counter)} total on right)")
+    info(
+        f"concordance: including {len(included)} shared samples "
+        f"({len(left_sample_counter)} total on left, {len(right_sample_counter)} total on right)"
+    )
 
     left = require_biallelic(left, 'concordance, left')
     right = require_biallelic(right, 'concordance, right')
@@ -472,10 +516,7 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     joined = hl.experimental.full_outer_join_mt(left, right)
 
     def get_idx(struct):
-        return hl.if_else(
-            hl.is_missing(struct),
-            0,
-            hl.coalesce(2 + struct.GT.n_alt_alleles(), 1))
+        return hl.if_else(hl.is_missing(struct), 0, hl.coalesce(2 + struct.GT.n_alt_alleles(), 1))
 
     aggr = hl.agg.counter(get_idx(joined.left_entry) + 5 * get_idx(joined.right_entry))
 
@@ -492,7 +533,8 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
         return hl.sum(
             hl.array(counter)
             .filter(lambda tup: hl.literal(discordant_indices).contains(tup[0]))
-            .map(lambda tup: tup[1]))
+            .map(lambda tup: tup[1])
+        )
 
     glob = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
     if _localize_global_statistics:
@@ -503,11 +545,13 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
         info(f"concordance: total concordance {pct:.2f}%")
 
     per_variant = joined.annotate_rows(concordance=aggr)
-    per_variant = per_variant.select_rows(concordance=concordance_array(per_variant.concordance),
-                                          n_discordant=n_discordant(per_variant.concordance))
+    per_variant = per_variant.select_rows(
+        concordance=concordance_array(per_variant.concordance), n_discordant=n_discordant(per_variant.concordance)
+    )
     per_sample = joined.annotate_cols(concordance=aggr)
-    per_sample = per_sample.select_cols(concordance=concordance_array(per_sample.concordance),
-                                        n_discordant=n_discordant(per_sample.concordance))
+    per_sample = per_sample.select_cols(
+        concordance=concordance_array(per_sample.concordance), n_discordant=n_discordant(per_sample.concordance)
+    )
 
     return glob, per_sample.cols(), per_variant.rows()
 
@@ -516,125 +560,144 @@ vep_json_typ = hl.tstruct(
     assembly_name=hl.tstr,
     allele_string=hl.tstr,
     ancestral=hl.tstr,
-    colocated_variants=hl.tarray(hl.tstruct(
-        aa_allele=hl.tstr,
-        aa_maf=hl.tfloat,
-        afr_allele=hl.tstr,
-        afr_maf=hl.tfloat,
-        allele_string=hl.tstr,
-        amr_allele=hl.tstr,
-        amr_maf=hl.tfloat,
-        clin_sig=hl.tarray(hl.tstr),
-        end=hl.tint32,
-        eas_allele=hl.tstr,
-        eas_maf=hl.tfloat,
-        ea_allele=hl.tstr,
-        ea_maf=hl.tfloat,
-        eur_allele=hl.tstr,
-        eur_maf=hl.tfloat,
-        exac_adj_allele=hl.tstr,
-        exac_adj_maf=hl.tfloat,
-        exac_allele=hl.tstr,
-        exac_afr_allele=hl.tstr,
-        exac_afr_maf=hl.tfloat,
-        exac_amr_allele=hl.tstr,
-        exac_amr_maf=hl.tfloat,
-        exac_eas_allele=hl.tstr,
-        exac_eas_maf=hl.tfloat,
-        exac_fin_allele=hl.tstr,
-        exac_fin_maf=hl.tfloat,
-        exac_maf=hl.tfloat,
-        exac_nfe_allele=hl.tstr,
-        exac_nfe_maf=hl.tfloat,
-        exac_oth_allele=hl.tstr,
-        exac_oth_maf=hl.tfloat,
-        exac_sas_allele=hl.tstr,
-        exac_sas_maf=hl.tfloat,
-        id=hl.tstr,
-        minor_allele=hl.tstr,
-        minor_allele_freq=hl.tfloat,
-        phenotype_or_disease=hl.tint32,
-        pubmed=hl.tarray(hl.tint32),
-        sas_allele=hl.tstr,
-        sas_maf=hl.tfloat,
-        somatic=hl.tint32,
-        start=hl.tint32,
-        strand=hl.tint32)),
+    colocated_variants=hl.tarray(
+        hl.tstruct(
+            aa_allele=hl.tstr,
+            aa_maf=hl.tfloat,
+            afr_allele=hl.tstr,
+            afr_maf=hl.tfloat,
+            allele_string=hl.tstr,
+            amr_allele=hl.tstr,
+            amr_maf=hl.tfloat,
+            clin_sig=hl.tarray(hl.tstr),
+            end=hl.tint32,
+            eas_allele=hl.tstr,
+            eas_maf=hl.tfloat,
+            ea_allele=hl.tstr,
+            ea_maf=hl.tfloat,
+            eur_allele=hl.tstr,
+            eur_maf=hl.tfloat,
+            exac_adj_allele=hl.tstr,
+            exac_adj_maf=hl.tfloat,
+            exac_allele=hl.tstr,
+            exac_afr_allele=hl.tstr,
+            exac_afr_maf=hl.tfloat,
+            exac_amr_allele=hl.tstr,
+            exac_amr_maf=hl.tfloat,
+            exac_eas_allele=hl.tstr,
+            exac_eas_maf=hl.tfloat,
+            exac_fin_allele=hl.tstr,
+            exac_fin_maf=hl.tfloat,
+            exac_maf=hl.tfloat,
+            exac_nfe_allele=hl.tstr,
+            exac_nfe_maf=hl.tfloat,
+            exac_oth_allele=hl.tstr,
+            exac_oth_maf=hl.tfloat,
+            exac_sas_allele=hl.tstr,
+            exac_sas_maf=hl.tfloat,
+            id=hl.tstr,
+            minor_allele=hl.tstr,
+            minor_allele_freq=hl.tfloat,
+            phenotype_or_disease=hl.tint32,
+            pubmed=hl.tarray(hl.tint32),
+            sas_allele=hl.tstr,
+            sas_maf=hl.tfloat,
+            somatic=hl.tint32,
+            start=hl.tint32,
+            strand=hl.tint32,
+        )
+    ),
     context=hl.tstr,
     end=hl.tint32,
     id=hl.tstr,
     input=hl.tstr,
-    intergenic_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
-                                                 consequence_terms=hl.tarray(hl.tstr),
-                                                 impact=hl.tstr,
-                                                 minimised=hl.tint32,
-                                                 variant_allele=hl.tstr)),
+    intergenic_consequences=hl.tarray(
+        hl.tstruct(
+            allele_num=hl.tint32,
+            consequence_terms=hl.tarray(hl.tstr),
+            impact=hl.tstr,
+            minimised=hl.tint32,
+            variant_allele=hl.tstr,
+        )
+    ),
     most_severe_consequence=hl.tstr,
-    motif_feature_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
-                                                    consequence_terms=hl.tarray(hl.tstr),
-                                                    high_inf_pos=hl.tstr,
-                                                    impact=hl.tstr,
-                                                    minimised=hl.tint32,
-                                                    motif_feature_id=hl.tstr,
-                                                    motif_name=hl.tstr,
-                                                    motif_pos=hl.tint32,
-                                                    motif_score_change=hl.tfloat,
-                                                    strand=hl.tint32,
-                                                    variant_allele=hl.tstr)),
-    regulatory_feature_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
-                                                         biotype=hl.tstr,
-                                                         consequence_terms=hl.tarray(hl.tstr),
-                                                         impact=hl.tstr,
-                                                         minimised=hl.tint32,
-                                                         regulatory_feature_id=hl.tstr,
-                                                         variant_allele=hl.tstr)),
+    motif_feature_consequences=hl.tarray(
+        hl.tstruct(
+            allele_num=hl.tint32,
+            consequence_terms=hl.tarray(hl.tstr),
+            high_inf_pos=hl.tstr,
+            impact=hl.tstr,
+            minimised=hl.tint32,
+            motif_feature_id=hl.tstr,
+            motif_name=hl.tstr,
+            motif_pos=hl.tint32,
+            motif_score_change=hl.tfloat,
+            strand=hl.tint32,
+            variant_allele=hl.tstr,
+        )
+    ),
+    regulatory_feature_consequences=hl.tarray(
+        hl.tstruct(
+            allele_num=hl.tint32,
+            biotype=hl.tstr,
+            consequence_terms=hl.tarray(hl.tstr),
+            impact=hl.tstr,
+            minimised=hl.tint32,
+            regulatory_feature_id=hl.tstr,
+            variant_allele=hl.tstr,
+        )
+    ),
     seq_region_name=hl.tstr,
     start=hl.tint32,
     strand=hl.tint32,
-    transcript_consequences=hl.tarray(hl.tstruct(allele_num=hl.tint32,
-                                                 amino_acids=hl.tstr,
-                                                 biotype=hl.tstr,
-                                                 canonical=hl.tint32,
-                                                 ccds=hl.tstr,
-                                                 cdna_start=hl.tint32,
-                                                 cdna_end=hl.tint32,
-                                                 cds_end=hl.tint32,
-                                                 cds_start=hl.tint32,
-                                                 codons=hl.tstr,
-                                                 consequence_terms=hl.tarray(hl.tstr),
-                                                 distance=hl.tint32,
-                                                 domains=hl.tarray(hl.tstruct(db=hl.tstr,
-                                                                              name=hl.tstr)),
-                                                 exon=hl.tstr,
-                                                 gene_id=hl.tstr,
-                                                 gene_pheno=hl.tint32,
-                                                 gene_symbol=hl.tstr,
-                                                 gene_symbol_source=hl.tstr,
-                                                 hgnc_id=hl.tstr,
-                                                 hgvsc=hl.tstr,
-                                                 hgvsp=hl.tstr,
-                                                 hgvs_offset=hl.tint32,
-                                                 impact=hl.tstr,
-                                                 intron=hl.tstr,
-                                                 lof=hl.tstr,
-                                                 lof_flags=hl.tstr,
-                                                 lof_filter=hl.tstr,
-                                                 lof_info=hl.tstr,
-                                                 minimised=hl.tint32,
-                                                 polyphen_prediction=hl.tstr,
-                                                 polyphen_score=hl.tfloat,
-                                                 protein_end=hl.tint32,
-                                                 protein_start=hl.tint32,
-                                                 protein_id=hl.tstr,
-                                                 sift_prediction=hl.tstr,
-                                                 sift_score=hl.tfloat,
-                                                 strand=hl.tint32,
-                                                 swissprot=hl.tstr,
-                                                 transcript_id=hl.tstr,
-                                                 trembl=hl.tstr,
-                                                 uniparc=hl.tstr,
-                                                 variant_allele=hl.tstr)),
-    variant_class=hl.tstr)
+    transcript_consequences=hl.tarray(
+        hl.tstruct(
+            allele_num=hl.tint32,
+            amino_acids=hl.tstr,
+            biotype=hl.tstr,
+            canonical=hl.tint32,
+            ccds=hl.tstr,
+            cdna_start=hl.tint32,
+            cdna_end=hl.tint32,
+            cds_end=hl.tint32,
+            cds_start=hl.tint32,
+            codons=hl.tstr,
+            consequence_terms=hl.tarray(hl.tstr),
+            distance=hl.tint32,
+            domains=hl.tarray(hl.tstruct(db=hl.tstr, name=hl.tstr)),
+            exon=hl.tstr,
+            gene_id=hl.tstr,
+            gene_pheno=hl.tint32,
+            gene_symbol=hl.tstr,
+            gene_symbol_source=hl.tstr,
+            hgnc_id=hl.tstr,
+            hgvsc=hl.tstr,
+            hgvsp=hl.tstr,
+            hgvs_offset=hl.tint32,
+            impact=hl.tstr,
+            intron=hl.tstr,
+            lof=hl.tstr,
+            lof_flags=hl.tstr,
+            lof_filter=hl.tstr,
+            lof_info=hl.tstr,
+            minimised=hl.tint32,
+            polyphen_prediction=hl.tstr,
+            polyphen_score=hl.tfloat,
+            protein_end=hl.tint32,
+            protein_start=hl.tint32,
+            protein_id=hl.tstr,
+            sift_prediction=hl.tstr,
+            sift_score=hl.tfloat,
+            strand=hl.tint32,
+            swissprot=hl.tstr,
+            transcript_id=hl.tstr,
+            trembl=hl.tstr,
+            uniparc=hl.tstr,
+            variant_allele=hl.tstr,
+        )
+    ),
+    variant_class=hl.tstr,
+)
 
 
 class VEPConfig(abc.ABC):
@@ -710,12 +773,9 @@ class VEPConfig(abc.ABC):
     batch_run_csq_header_command: List[str]
 
     @abc.abstractmethod
-    def command(self,
-                consequence: bool,
-                tolerate_parse_error: bool,
-                part_id: int,
-                input_file: Optional[str],
-                output_file: str) -> List[str]:
+    def command(
+        self, consequence: bool, tolerate_parse_error: bool, part_id: int, input_file: Optional[str], output_file: str
+    ) -> List[str]:
         raise NotImplementedError
 
 
@@ -734,14 +794,16 @@ class VEPConfigGRCh37Version85(VEPConfig):
 
     """
 
-    def __init__(self,
-                 *,
-                 data_bucket: str,
-                 data_mount: str,
-                 image: str,
-                 regions: List[str],
-                 cloud: str,
-                 data_bucket_is_requester_pays: bool):
+    def __init__(
+        self,
+        *,
+        data_bucket: str,
+        data_mount: str,
+        image: str,
+        regions: List[str],
+        cloud: str,
+        data_bucket_is_requester_pays: bool,
+    ):
         self.data_bucket = data_bucket
         self.data_mount = data_mount
         self.image = image
@@ -753,13 +815,15 @@ class VEPConfigGRCh37Version85(VEPConfig):
         self.batch_run_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
         self.json_typ = vep_json_typ
 
-    def command(self,
-                *,
-                consequence: bool,
-                tolerate_parse_error: bool,
-                part_id: int,
-                input_file: Optional[str],
-                output_file: str) -> str:
+    def command(
+        self,
+        *,
+        consequence: bool,
+        tolerate_parse_error: bool,
+        part_id: int,
+        input_file: Optional[str],
+        output_file: str,
+    ) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
         return f'''/vep/vep {input_file} \
@@ -793,14 +857,16 @@ class VEPConfigGRCh38Version95(VEPConfig):
 
     """
 
-    def __init__(self,
-                 *,
-                 data_bucket: str,
-                 data_mount: str,
-                 image: str,
-                 regions: List[str],
-                 cloud: str,
-                 data_bucket_is_requester_pays: bool):
+    def __init__(
+        self,
+        *,
+        data_bucket: str,
+        data_mount: str,
+        image: str,
+        regions: List[str],
+        cloud: str,
+        data_bucket_is_requester_pays: bool,
+    ):
         self.data_bucket = data_bucket
         self.data_mount = data_mount
         self.image = image
@@ -810,20 +876,25 @@ class VEPConfigGRCh38Version95(VEPConfig):
         self.cloud = cloud
         self.batch_run_command = ['python3', '/hail-vep/vep.py', 'vep']
         self.batch_run_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
-        self.json_typ = vep_json_typ._insert_field('transcript_consequences', hl.tarray(
-            vep_json_typ['transcript_consequences'].element_type._insert_fields(
-                appris=hl.tstr,
-                tsl=hl.tint32,
-            )
-        ))
+        self.json_typ = vep_json_typ._insert_field(
+            'transcript_consequences',
+            hl.tarray(
+                vep_json_typ['transcript_consequences'].element_type._insert_fields(
+                    appris=hl.tstr,
+                    tsl=hl.tint32,
+                )
+            ),
+        )
 
-    def command(self,
-                *,
-                consequence: bool,
-                tolerate_parse_error: bool,
-                part_id: int,
-                input_file: Optional[str],
-                output_file: str) -> str:
+    def command(
+        self,
+        *,
+        consequence: bool,
+        tolerate_parse_error: bool,
+        part_id: int,
+        input_file: Optional[str],
+        output_file: str,
+    ) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
         return f'''/vep/vep {input_file} \
@@ -872,18 +943,22 @@ def _supported_vep_config(cloud: str, reference_genome: str, *, regions: List[st
         if config_params in supported_vep_configs:
             return supported_vep_configs[config_params]
 
-    raise ValueError(f'could not find a supported vep configuration for reference genome {reference_genome}, '
-                     f'cloud {cloud}, regions {regions}, and domain {domain}')
+    raise ValueError(
+        f'could not find a supported vep configuration for reference genome {reference_genome}, '
+        f'cloud {cloud}, regions {regions}, and domain {domain}'
+    )
 
 
-def _service_vep(backend: ServiceBackend,
-                 ht: Table,
-                 config: Optional[VEPConfig],
-                 block_size: int,
-                 csq: bool,
-                 tolerate_parse_error: bool,
-                 temp_input_directory: str,
-                 temp_output_directory: str) -> hl.Table:
+def _service_vep(
+    backend: ServiceBackend,
+    ht: Table,
+    config: Optional[VEPConfig],
+    block_size: int,
+    csq: bool,
+    tolerate_parse_error: bool,
+    temp_input_directory: str,
+    temp_output_directory: str,
+) -> hl.Table:
     reference_genome = ht.locus.dtype.reference_genome.name
     cloud = backend.bc.cloud()
     regions = backend.regions
@@ -895,9 +970,11 @@ def _service_vep(backend: ServiceBackend,
 
     requester_pays_project = backend.flags.get('gcs_requester_pays_project')
     if requester_pays_project is None and vep_config.data_bucket_is_requester_pays and vep_config.cloud == 'gcp':
-        raise ValueError("No requester pays project has been set. "
-                         "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
-                         "to set the requester pays project to use.")
+        raise ValueError(
+            "No requester pays project has been set. "
+            "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
+            "to set the requester pays project to use."
+        )
 
     if csq:
         vep_typ = hl.tarray(hl.tstr)
@@ -908,7 +985,11 @@ def _service_vep(backend: ServiceBackend,
         if csq:
             local_output_file = '/io/output'
             vep_command = vep_config.command(
-                consequence=csq, part_id=-1, input_file=None, output_file=local_output_file, tolerate_parse_error=tolerate_parse_error
+                consequence=csq,
+                part_id=-1,
+                input_file=None,
+                output_file=local_output_file,
+                tolerate_parse_error=tolerate_parse_error,
             )
             env = {
                 'VEP_BLOCK_SIZE': str(block_size),
@@ -917,18 +998,20 @@ def _service_vep(backend: ServiceBackend,
                 'VEP_TOLERATE_PARSE_ERROR': str(int(tolerate_parse_error)),
                 'VEP_PART_ID': str(-1),
                 'VEP_OUTPUT_FILE': local_output_file,
-                'VEP_COMMAND': vep_command
+                'VEP_COMMAND': vep_command,
             }
             env.update(vep_config.env)
-            b.create_job(vep_config.image,
-                         vep_config.batch_run_csq_header_command,
-                         attributes={'name': 'csq-header'},
-                         resources={'cpu': '1', 'memory': 'standard'},
-                         cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
-                         output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
-                         regions=vep_config.regions,
-                         requester_pays_project=requester_pays_project,
-                         env=env)
+            b.create_job(
+                vep_config.image,
+                vep_config.batch_run_csq_header_command,
+                attributes={'name': 'csq-header'},
+                resources={'cpu': '1', 'memory': 'standard'},
+                cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
+                output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
+                regions=vep_config.regions,
+                requester_pays_project=requester_pays_project,
+                env=env,
+            )
 
         for f in hl.hadoop_ls(vep_input_path):
             path = f['path']
@@ -960,16 +1043,18 @@ def _service_vep(backend: ServiceBackend,
             }
             env.update(vep_config.env)
 
-            b.create_job(vep_config.image,
-                         vep_config.batch_run_command,
-                         attributes={'name': f'vep-{part_id}'},
-                         resources={'cpu': '1', 'memory': 'standard'},
-                         input_files=[(path, local_input_file)],
-                         output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
-                         cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
-                         regions=vep_config.regions,
-                         requester_pays_project=requester_pays_project,
-                         env=env)
+            b.create_job(
+                vep_config.image,
+                vep_config.batch_run_command,
+                attributes={'name': f'vep-{part_id}'},
+                resources={'cpu': '1', 'memory': 'standard'},
+                input_files=[(path, local_input_file)],
+                output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
+                cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
+                regions=vep_config.regions,
+                requester_pays_project=requester_pays_project,
+                env=env,
+            )
 
     hl.export_vcf(ht, temp_input_directory, parallel='header_per_shard')
 
@@ -981,10 +1066,12 @@ def _service_vep(backend: ServiceBackend,
     b.submit(disable_progress_bar=True)
 
     try:
-        status = b.wait(description='vep(...)',
-                        disable_progress_bar=backend.disable_progress_bar,
-                        progress=None,
-                        starting_job=starting_job_id)
+        status = b.wait(
+            description='vep(...)',
+            disable_progress_bar=backend.disable_progress_bar,
+            progress=None,
+            starting_job=starting_job_id,
+        )
     except BaseException as e:
         if isinstance(e, KeyboardInterrupt):
             print("Received a keyboard interrupt, cancelling the batch...")
@@ -995,24 +1082,18 @@ def _service_vep(backend: ServiceBackend,
     if status['n_succeeded'] != status['n_jobs']:
         failing_job = [job for job in b.jobs('!success')][0]
         failing_job = b.get_job(failing_job['job_id'])
-        message = {
-            'batch_status': status,
-            'job_status': failing_job.status(),
-            'log': failing_job.log()
-        }
+        message = {'batch_status': status, 'job_status': failing_job.status(), 'log': failing_job.log()}
         raise FatalError(yamlx.dump(message))
 
-    annotations = hl.import_table(f'{temp_output_directory}/annotations/*',
-                                  types={'variant': hl.tstr,
-                                         'vep': vep_typ,
-                                         'part_id': hl.tint,
-                                         'block_id': hl.tint},
-                                  force=True)
+    annotations = hl.import_table(
+        f'{temp_output_directory}/annotations/*',
+        types={'variant': hl.tstr, 'vep': vep_typ, 'part_id': hl.tint, 'block_id': hl.tint},
+        force=True,
+    )
 
-    annotations = annotations.annotate(vep_proc_id=hl.struct(
-        part_id=annotations.part_id,
-        block_id=annotations.block_id
-    ))
+    annotations = annotations.annotate(
+        vep_proc_id=hl.struct(part_id=annotations.part_id, block_id=annotations.block_id)
+    )
     annotations = annotations.drop('part_id', 'block_id')
     annotations = annotations.key_by(**hl.parse_variant(annotations.variant, reference_genome=reference_genome))
     annotations = annotations.drop('variant')
@@ -1025,18 +1106,22 @@ def _service_vep(backend: ServiceBackend,
     return annotations
 
 
-@typecheck(dataset=oneof(Table, MatrixTable),
-           config=nullable(oneof(str, VEPConfig)),
-           block_size=int,
-           name=str,
-           csq=bool,
-           tolerate_parse_error=bool)
-def vep(dataset: Union[Table, MatrixTable],
-        config: Optional[Union[str, VEPConfig]] = None,
-        block_size: int = 1000,
-        name: str = 'vep',
-        csq: bool = False,
-        tolerate_parse_error: bool = False):
+@typecheck(
+    dataset=oneof(Table, MatrixTable),
+    config=nullable(oneof(str, VEPConfig)),
+    block_size=int,
+    name=str,
+    csq=bool,
+    tolerate_parse_error=bool,
+)
+def vep(
+    dataset: Union[Table, MatrixTable],
+    config: Optional[Union[str, VEPConfig]] = None,
+    block_size: int = 1000,
+    name: str = 'vep',
+    csq: bool = False,
+    tolerate_parse_error: bool = False,
+):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -1158,7 +1243,9 @@ def vep(dataset: Union[Table, MatrixTable],
     if isinstance(backend, ServiceBackend):
         with hl.TemporaryDirectory(prefix='qob/vep/inputs/') as vep_input_path:
             with hl.TemporaryDirectory(prefix='qob/vep/outputs/') as vep_output_path:
-                annotations = _service_vep(backend, ht, config, block_size, csq, tolerate_parse_error, vep_input_path, vep_output_path)
+                annotations = _service_vep(
+                    backend, ht, config, block_size, csq, tolerate_parse_error, vep_input_path, vep_output_path
+                )
                 annotations = annotations.checkpoint(new_temp_file())
     else:
         if config is None:
@@ -1168,21 +1255,27 @@ def vep(dataset: Union[Table, MatrixTable],
                 config = maybe_config
             elif maybe_cloud_spark_provider == 'hdinsight':
                 warning(
-                    'Assuming you are in a hailctl hdinsight cluster. If not, specify the config parameter to `hl.vep`.')
+                    'Assuming you are in a hailctl hdinsight cluster. If not, specify the config parameter to `hl.vep`.'
+                )
                 config = 'file:/vep_data/vep-azure.json'
             else:
                 raise ValueError("No config set and VEP_CONFIG_URI was not set.")
 
-        annotations = Table(TableToTableApply(ht._tir,
-                                              {'name': 'VEP',
-                                               'config': config,
-                                               'csq': csq,
-                                               'blockSize': block_size,
-                                               'tolerateParseError': tolerate_parse_error})).persist()
+        annotations = Table(
+            TableToTableApply(
+                ht._tir,
+                {
+                    'name': 'VEP',
+                    'config': config,
+                    'csq': csq,
+                    'blockSize': block_size,
+                    'tolerateParseError': tolerate_parse_error,
+                },
+            )
+        ).persist()
 
     if csq:
-        dataset = dataset.annotate_globals(
-            **{name + '_csq_header': annotations.index_globals()['vep_csq_header']})
+        dataset = dataset.annotate_globals(**{name + '_csq_header': annotations.index_globals()['vep_csq_header']})
 
     if isinstance(dataset, MatrixTable):
         vep = annotations[dataset.row_key]
@@ -1192,10 +1285,7 @@ def vep(dataset: Union[Table, MatrixTable],
         return dataset.annotate(**{name: vep.vep, name + '_proc_id': vep.vep_proc_id})
 
 
-@typecheck(dataset=oneof(Table, MatrixTable),
-           config=str,
-           block_size=int,
-           name=str)
+@typecheck(dataset=oneof(Table, MatrixTable), config=str, block_size=int, name=str)
 def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name='nirvana'):
     """Annotate variants using `Nirvana <https://github.com/Illumina/Nirvana>`_.
 
@@ -1523,11 +1613,9 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         require_table_key_variant(dataset, 'nirvana')
         ht = dataset.select()
 
-    annotations = Table(TableToTableApply(ht._tir,
-                                          {'name': 'Nirvana',
-                                           'config': config,
-                                           'blockSize': block_size}
-                                          )).persist()
+    annotations = Table(
+        TableToTableApply(ht._tir, {'name': 'Nirvana', 'config': config, 'blockSize': block_size})
+    ).persist()
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})
@@ -1594,6 +1682,7 @@ class _VariantSummary(object):
         contig_idx = {contig: i for i, contig in enumerate(self.rg.contigs)}
 
         import html
+
         builder = []
         builder.append('<p><b>Variant summary:</b></p>')
         builder.append('<ul>')
@@ -1706,15 +1795,20 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
 
     def explode_result(alleles):
         ref, alt = alleles
-        return (hl.agg.counter(hl.allele_type(ref, alt)),
-                hl.agg.count_where(hl.is_transition(ref, alt)),
-                hl.agg.count_where(hl.is_transversion(ref, alt)))
+        return (
+            hl.agg.counter(hl.allele_type(ref, alt)),
+            hl.agg.count_where(hl.is_transition(ref, alt)),
+            hl.agg.count_where(hl.is_transversion(ref, alt)),
+        )
 
     (allele_types, nti, ntv), contigs, allele_counts, n_variants = ht.aggregate(
-        (hl.agg.explode(explode_result, allele_pairs),
-         hl.agg.counter(ht.locus.contig),
-         hl.agg.counter(hl.len(ht.alleles)),
-         hl.agg.count()))
+        (
+            hl.agg.explode(explode_result, allele_pairs),
+            hl.agg.counter(ht.locus.contig),
+            hl.agg.counter(hl.len(ht.alleles)),
+            hl.agg.count(),
+        )
+    )
     rg = ht.locus.dtype.reference_genome
     if show:
         summary = _VariantSummary(rg, n_variants, allele_counts, contigs, allele_types, nti, ntv)
@@ -1722,28 +1816,32 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
             handler = hl.utils.default_handler()
         handler(summary)
     else:
-        return hl.Struct(allele_types=allele_types,
-                         contigs=contigs,
-                         allele_counts=allele_counts,
-                         n_variants=n_variants,
-                         r_ti_tv=nti / ntv)
+        return hl.Struct(
+            allele_types=allele_types,
+            contigs=contigs,
+            allele_counts=allele_counts,
+            n_variants=n_variants,
+            r_ti_tv=nti / ntv,
+        )
 
 
-@typecheck(ds=oneof(hl.MatrixTable, lambda: hl.vds.VariantDataset),
-           min_af=numeric,
-           max_af=numeric,
-           min_dp=int,
-           max_dp=int,
-           min_gq=int,
-           ref_AF=nullable(expr_float64))
+@typecheck(
+    ds=oneof(hl.MatrixTable, lambda: hl.vds.VariantDataset),
+    min_af=numeric,
+    max_af=numeric,
+    min_dp=int,
+    max_dp=int,
+    min_gq=int,
+    ref_AF=nullable(expr_float64),
+)
 def compute_charr(
-        ds: Union[hl.MatrixTable, 'hl.vds.VariantDataset'],
-        min_af: float = 0.05,
-        max_af: float = 0.95,
-        min_dp: int = 10,
-        max_dp: int = 100,
-        min_gq: int = 20,
-        ref_AF: Optional[hl.Float64Expression] = None
+    ds: Union[hl.MatrixTable, 'hl.vds.VariantDataset'],
+    min_af: float = 0.05,
+    max_af: float = 0.95,
+    min_dp: int = 10,
+    max_dp: int = 100,
+    min_gq: int = 20,
+    ref_AF: Optional[hl.Float64Expression] = None,
 ):
     """Compute CHARR, the DNA sample contamination estimator.
 
@@ -1802,19 +1900,21 @@ def compute_charr(
         ad_field = 'AD'
         gt_field = 'GT'
     else:
-        raise ValueError(f"'compute_charr': require a VDS or MatrixTable with fields LAD/LAD/LGT/GQ/DP or AD/GT/GQ/DP,"
-                         f" found entry fields {list(mt.entry)}")
+        raise ValueError(
+            f"'compute_charr': require a VDS or MatrixTable with fields LAD/LAD/LGT/GQ/DP or AD/GT/GQ/DP,"
+            f" found entry fields {list(mt.entry)}"
+        )
     # Annotate reference allele frequency when it is not defined in the original data, and name it 'ref_AF'.
     ref_af_field = '__ref_af'
     if ref_AF is None:
         n_samples = mt.count_cols()
         if n_samples < 10000:
-            raise ValueError("'compute_charr': with fewer than 10,000 samples, require a reference AF in 'reference_data_source'.")
+            raise ValueError(
+                "'compute_charr': with fewer than 10,000 samples, require a reference AF in 'reference_data_source'."
+            )
 
         n_alleles = 2 * n_samples
-        mt = mt.annotate_rows(
-            **{ref_af_field: 1 - hl.agg.sum(mt[gt_field].n_alt_alleles()) / n_alleles}
-        )
+        mt = mt.annotate_rows(**{ref_af_field: 1 - hl.agg.sum(mt[gt_field].n_alt_alleles()) / n_alleles})
     else:
         mt = mt.annotate_rows(**{ref_af_field: ref_AF})
 
@@ -1836,14 +1936,10 @@ def compute_charr(
 
     # Filter to variant calls with GQ above min_gq and DP within the range (min_dp, max_dp)
     ad_dp = mt['DP'] if 'DP' in mt.entry else hl.sum(mt[ad_field])
-    mt = mt.filter_entries(
-        mt[gt_field].is_hom_var() & (mt.GQ >= min_gq) & (ad_dp >= min_dp) & (ad_dp <= max_dp)
-    )
+    mt = mt.filter_entries(mt[gt_field].is_hom_var() & (mt.GQ >= min_gq) & (ad_dp >= min_dp) & (ad_dp <= max_dp))
 
     # Compute CHARR
-    mt = mt.select_cols(
-        charr=hl.agg.mean((mt[ad_field][0] / (mt[ad_field][0] + mt[ad_field][1])) / mt[ref_af_field])
-    )
+    mt = mt.select_cols(charr=hl.agg.mean((mt[ad_field][0] / (mt[ad_field][0] + mt[ad_field][1])) / mt[ref_af_field]))
 
     mt = mt.select_globals(
         af_min=min_af,

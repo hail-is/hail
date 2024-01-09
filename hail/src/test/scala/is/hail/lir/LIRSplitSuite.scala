@@ -1,8 +1,9 @@
 package is.hail.lir
 
 import is.hail.HailSuite
-import is.hail.expr.ir.{EmitFunctionBuilder, ParamType}
 import is.hail.asm4s._
+import is.hail.expr.ir.{EmitFunctionBuilder, ParamType}
+
 import org.testng.annotations.Test
 
 class LIRSplitSuite extends HailSuite {
@@ -15,11 +16,9 @@ class LIRSplitSuite extends HailSuite {
         val arg = mb.getCodeParam[Long](1)
 
         cb.assign(arg, 1000L)
-        (0 until 1000).foreach { i =>
-          cb.if_(arg.cne(1000L), cb._fatal(s"bad split at $i!"))
-        }
+        (0 until 1000).foreach(i => cb.if_(arg.cne(1000L), cb._fatal(s"bad split at $i!")))
       }
-      cb.invokeVoid(mb, const(1L))
+      cb.invokeVoid(mb, cb.this_, const(1L))
       Code._empty
     }
     f.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()

@@ -4,9 +4,7 @@ from hail.expr.functions import _func
 from hail.typecheck import typecheck
 
 
-@typecheck(format=expr_str,
-           time=expr_int64,
-           zone_id=expr_str)
+@typecheck(format=expr_str, time=expr_int64, zone_id=expr_str)
 def strftime(format, time, zone_id):
     """
     Convert Unix timestamp to a formatted datetime string.
@@ -51,9 +49,7 @@ def strftime(format, time, zone_id):
     return _func("strftime", hl.tstr, format, time, zone_id)
 
 
-@typecheck(time=expr_str,
-           format=expr_str,
-           zone_id=expr_str)
+@typecheck(time=expr_str, format=expr_str, zone_id=expr_str)
 def strptime(time, format, zone_id):
     """
     Interpret a formatted datetime string as a Unix timestamp (number of seconds since 1970-01-01T00:00Z (ISO)).

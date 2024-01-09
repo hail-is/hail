@@ -28,7 +28,7 @@ object Children {
     case Consume(value) => FastSeq(value)
     case If(cond, cnsq, altr) =>
       Array(cond, cnsq, altr)
-    case s@Switch(x, default, cases) =>
+    case s @ Switch(x, default, cases) =>
       val children = Array.ofDim[BaseIR](s.size)
       children(0) = x
       children(1) = default
@@ -193,7 +193,8 @@ object Children {
       Array(array, aggBody)
     case AggGroupBy(key, aggIR, _) =>
       Array(key, aggIR)
-    case AggArrayPerElement(a, _, _, aggBody, knownLength, _) => Array(a, aggBody) ++ knownLength.toArray[IR]
+    case AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
+      Array(a, aggBody) ++ knownLength.toArray[IR]
     case MakeStruct(fields) =>
       fields.map(_._2).toFastSeq
     case SelectFields(old, fields) =>
@@ -257,7 +258,8 @@ object Children {
     case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
-    case CollectDistributedArray(ctxs, globals, _, _, body, dynamicID, _, _) => Array(ctxs, globals, body, dynamicID)
+    case CollectDistributedArray(ctxs, globals, _, _, body, dynamicID, _, _) =>
+      Array(ctxs, globals, body, dynamicID)
     case ReadPartition(path, _, _) => Array(path)
     case WritePartition(stream, ctx, _) => Array(stream, ctx)
     case WriteMetadata(writeAnnotations, _) => Array(writeAnnotations)

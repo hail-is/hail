@@ -9,10 +9,14 @@ from .client import (
     GoogleStorageClient,
     GCSRequesterPaysConfiguration,
     GoogleStorageAsyncFS,
-    GoogleStorageAsyncFSFactory
+    GoogleStorageAsyncFSFactory,
 )
-from .credentials import GoogleCredentials, GoogleApplicationDefaultCredentials, GoogleServiceAccountCredentials, GoogleInstanceMetadataCredentials
-from .session import GoogleSession
+from .credentials import (
+    GoogleCredentials,
+    GoogleApplicationDefaultCredentials,
+    GoogleServiceAccountCredentials,
+    GoogleInstanceMetadataCredentials,
+)
 from .user_config import get_gcs_requester_pays_configuration
 
 
@@ -22,7 +26,6 @@ __all__ = [
     'GoogleApplicationDefaultCredentials',
     'GoogleServiceAccountCredentials',
     'GoogleInstanceMetadataCredentials',
-    'GoogleSession',
     'GoogleBigQueryClient',
     'GoogleBillingClient',
     'GoogleContainerClient',

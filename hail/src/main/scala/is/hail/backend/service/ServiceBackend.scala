@@ -1,17 +1,20 @@
 package is.hail.backend.service
 
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
+import is.hail.expr.ir.{
+  Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck,
+}
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.{Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
-import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient
@@ -22,19 +25,21 @@ import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import is.hail.{HailContext, HailFeatureFlags}
-import org.apache.log4j.Logger
+
+import org.json4s.{DefaultFormats, Extraction, Formats}
 import org.json4s.JsonAST._
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.json4s.{DefaultFormats, Extraction, Formats}
 
 import java.io._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 import scala.annotation.switch
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.higherKinds
 import scala.reflect.ClassTag
+
+import org.apache.log4j.Logger
 
 class ServiceBackendContext(
   val billingProject: String,
@@ -46,8 +51,7 @@ class ServiceBackendContext(
   val cloudfuseConfig: Array[CloudfuseConfig],
   val profile: Boolean,
   val executionCache: ExecutionCache,
-) extends BackendContext with Serializable {
-}
+) extends BackendContext with Serializable {}
 
 object ServiceBackend {
   private val log = Logger.getLogger(getClass.getName())
@@ -59,12 +63,12 @@ object ServiceBackend {
     batchClient: BatchClient,
     batchId: Option[Long],
     scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
-    rpcConfig: ServiceBackendRPCPayload
+    rpcConfig: ServiceBackendRPCPayload,
   ): ServiceBackend = {
 
     val flags = HailFeatureFlags.fromMap(rpcConfig.flags)
     val shouldProfile = flags.get("profile") != null
-    val fs = FS.cloudSpecificFS(s"${scratchDir}/secrets/gsa-key/key.json", Some(flags))
+    val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", Some(flags))
 
     val backendContext = new ServiceBackendContext(
       rpcConfig.billing_project,
@@ -75,7 +79,7 @@ object ServiceBackend {
       rpcConfig.regions,
       rpcConfig.cloudfuse_configs,
       shouldProfile,
-      ExecutionCache.fromFlags(flags, fs, rpcConfig.remote_tmpdir)
+      ExecutionCache.fromFlags(flags, fs, rpcConfig.remote_tmpdir),
     )
 
     val backend = new ServiceBackend(
@@ -88,13 +92,11 @@ object ServiceBackend {
       rpcConfig.tmp_dir,
       fs,
       backendContext,
-      scratchDir
+      scratchDir,
     )
     backend.addDefaultReferences()
 
-    rpcConfig.custom_references.foreach { s =>
-      backend.addReference(ReferenceGenome.fromJSON(s))
-    }
+    rpcConfig.custom_references.foreach(s => backend.addReference(ReferenceGenome.fromJSON(s)))
     rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
       liftoversForSource.foreach { case (destGenome, chainFile) =>
         backend.addLiftover(sourceGenome, chainFile, destGenome)
@@ -132,9 +134,9 @@ class ServiceBackend(
 
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = {
     using(new ObjectOutputStream(new ByteArrayOutputStream())) { os =>
-      try {
+      try
         os.writeObject(_value)
-      } catch {
+      catch {
         case e: Exception =>
           fatal(_value.toString, e)
       }
@@ -151,18 +153,18 @@ class ServiceBackend(
     new String(bytes, StandardCharsets.UTF_8)
   }
 
-  override def parallelizeAndComputeWithIndex(
+  private[this] def submitAndWaitForBatch(
     _backendContext: BackendContext,
     fs: FS,
-    collection: IndexedSeq[(Array[Byte], Int)],
+    collection: Array[Array[Byte]],
     stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None
-  )(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+    dependency: Option[TableStageDependency] = None,
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
+  ): (String, String, Int) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
     val token = tokenUrlSafe(32)
-    val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
+    val root = s"${backendContext.remoteTmpDir}parallelizeAndComputeWithIndex/$token"
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
@@ -170,7 +172,7 @@ class ServiceBackend(
     val uploadFunction = executor.submit[Unit](() =>
       retryTransientErrors {
         fs.writePDOS(s"$root/f") { fos =>
-          using(new ObjectOutputStream(fos)) { oos => oos.writeObject(f) }
+          using(new ObjectOutputStream(fos))(oos => oos.writeObject(f))
         }
       }
     )
@@ -179,19 +181,13 @@ class ServiceBackend(
       retryTransientErrors {
         fs.writePDOS(s"$root/contexts") { os =>
           var o = 12L * n
-
-          // write header of context offsets and lengths
-          for ((context, _) <- collection) {
+          collection.foreach { context =>
             val len = context.length
             os.writeLong(o)
             os.writeInt(len)
             o += len
           }
-
-          // write context arrays themselves
-          for ((context, _) <- collection) {
-            os.write(context)
-          }
+          collection.foreach(context => os.write(context))
         }
       }
     )
@@ -199,7 +195,7 @@ class ServiceBackend(
     uploadFunction.get()
     uploadContexts.get()
 
-    val jobs = collection.map { case (_, i) =>
+    val jobs = collection.zipWithIndex.map { case (_, i) =>
       var resources = JObject("preemptible" -> JBool(true))
       if (backendContext.workerCores != "None") {
         resources = resources.merge(JObject("cpu" -> JString(backendContext.workerCores)))
@@ -208,9 +204,9 @@ class ServiceBackend(
         resources = resources.merge(JObject("memory" -> JString(backendContext.workerMemory)))
       }
       if (backendContext.storageRequirement != "0Gi") {
-        resources = resources.merge(JObject("storage" -> JString(backendContext.storageRequirement)))
+        resources =
+          resources.merge(JObject("storage" -> JString(backendContext.storageRequirement)))
       }
-
       JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
@@ -218,19 +214,19 @@ class ServiceBackend(
         "process" -> JObject(
           "jar_spec" -> JObject(
             "type" -> JString("jar_url"),
-            "value" -> JString(jarLocation)
+            "value" -> JString(jarLocation),
           ),
           "command" -> JArray(List(
             JString(Main.WORKER),
             JString(root),
             JString(s"$i"),
-            JString(s"$n")
+            JString(s"$n"),
           )),
           "type" -> JString("jvm"),
           "profile" -> JBool(backendContext.profile),
         ),
         "attributes" -> JObject(
-          "name" -> JString(s"${ name }_stage${ stageCount }_${ stageIdentifier }_job$i"),
+          "name" -> JString(s"${name}_stage${stageCount}_${stageIdentifier}_job$i")
         ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
@@ -239,9 +235,9 @@ class ServiceBackend(
           JObject(
             "bucket" -> JString(config.bucket),
             "mount_path" -> JString(config.mount_path),
-            "read_only" -> JBool(config.read_only)
+            "read_only" -> JBool(config.read_only),
           )
-        }.toList)
+        }.toList),
       )
     }
 
@@ -250,16 +246,15 @@ class ServiceBackend(
     val (batchId, updateId) = curBatchId match {
       case Some(id) =>
         (id, batchClient.update(id, token, jobs))
-
       case None =>
         val batchId = batchClient.create(
           JObject(
             "billing_project" -> JString(backendContext.billingProject),
             "n_jobs" -> JInt(n),
             "token" -> JString(token),
-            "attributes" -> JObject("name" -> JString(name + "_" + stageCount))
+            "attributes" -> JObject("name" -> JString(name + "_" + stageCount)),
           ),
-          jobs
+          jobs,
         )
         (batchId, 1L)
     }
@@ -273,31 +268,78 @@ class ServiceBackend(
       throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
     }
 
+    (token, root, n)
+  }
+
+  private[this] def readResult(root: String, i: Int): Array[Byte] = {
+    val bytes = fs.readNoCompression(s"$root/result.$i")
+    if (bytes(0) != 0) {
+      bytes.slice(1, bytes.length)
+    } else {
+      val errorInformationBytes = bytes.slice(1, bytes.length)
+      val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+      val shortMessage = readString(is)
+      val expandedMessage = readString(is)
+      val errorId = is.readInt()
+      throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
+    }
+  }
+
+  override def parallelizeAndComputeWithIndex(
+    _backendContext: BackendContext,
+    fs: FS,
+    collection: Array[Array[Byte]],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None,
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
+    val (token, root, n) =
+      submitAndWaitForBatch(_backendContext, fs, collection, stageIdentifier, dependency, f)
+
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
-
     val startTime = System.nanoTime()
+    val results =
+      try
+        executor.invokeAll[Array[Byte]](
+          IndexedSeq.range(0, n).map { i =>
+            (() => readResult(root, i)): Callable[Array[Byte]]
+          }.asJavaCollection
+        ).asScala.map(_.get).toArray
+      catch {
+        case exc: ExecutionException if exc.getCause() != null => throw exc.getCause()
+      }
+    val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
+    val rate = results.length / resultsReadingSeconds
+    val byterate = results.map(_.length).sum / resultsReadingSeconds / 1024 / 1024
+    log.info(s"all results read. $resultsReadingSeconds s. $rate result/s. $byterate MiB/s.")
+    results
+  }
 
-    val r@(_, results) = runAllKeepFirstError(executor) {
-      collection.map { case (_, i) =>
-        (
-          () => {
-            val bytes = fs.readNoCompression(s"$root/result.$i")
-            if (bytes(0) != 0) {
-              bytes.slice(1, bytes.length)
-            } else {
-              val errorInformationBytes = bytes.slice(1, bytes.length)
-              val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-              val shortMessage = readString(is)
-              val expandedMessage = readString(is)
-              val errorId = is.readInt()
-              throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
-            }
-          },
-          i
-        )
+  override def parallelizeAndComputeWithIndexReturnAllErrors(
+    _backendContext: BackendContext,
+    fs: FS,
+    collection: IndexedSeq[(Array[Byte], Int)],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None,
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+    val (token, root, n) = submitAndWaitForBatch(
+      _backendContext,
+      fs,
+      collection.map(_._1).toArray,
+      stageIdentifier,
+      dependency,
+      f,
+    )
+    log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
+    val startTime = System.nanoTime()
+    val r @ (_, results) = runAllKeepFirstError(executor) {
+      collection.zipWithIndex.map { case ((_, i), jobIndex) =>
+        (() => readResult(root, jobIndex), i)
       }
     }
-
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
     val byterate = results.map(_._1.length).sum / resultsReadingSeconds / 1024 / 1024
@@ -314,27 +356,33 @@ class ServiceBackend(
     val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
-      val (_, f) = Compile[AsmFunction1RegionUnit](ctx,
+      val (_, f) = Compile[AsmFunction1RegionUnit](
+        ctx,
         FastSeq(),
-        FastSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
+        FastSeq[TypeInfo[_]](classInfo[Region]),
+        UnitInfo,
         x,
-        optimize = true)
+        optimize = true,
+      )
 
       ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       Array()
     } else {
-      val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = Compile[AsmFunction1RegionLong](ctx,
+      val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = Compile[AsmFunction1RegionLong](
+        ctx,
         FastSeq(),
-        FastSeq(classInfo[Region]), LongInfo,
+        FastSeq(classInfo[Region]),
+        LongInfo,
         MakeTuple.ordered(FastSeq(x)),
-        optimize = true)
+        optimize = true,
+      )
       val retPType = pt.asInstanceOf[PBaseStruct]
       val elementType = pt.fields(0).typ
       val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       val codec = TypedCodecSpec(
         EType.fromPythonTypeEncoding(elementType.virtualType),
         elementType.virtualType,
-        BufferSpec.parseOrDefault(bufferSpecString)
+        BufferSpec.parseOrDefault(bufferSpecString),
       )
       assert(pt.isFieldDefined(off, 0))
       codec.encode(ctx, elementType, pt.loadField(off, 0))
@@ -345,9 +393,9 @@ class ServiceBackend(
     ctx: ExecuteContext,
     code: String,
     token: String,
-    bufferSpecString: String
+    bufferSpecString: String,
   ): Array[Byte] = {
-    log.info(s"executing: ${token} ${ctx.fs.getConfiguration()}")
+    log.info(s"executing: $token ${ctx.fs.getConfiguration()}")
     val ir = IRParser.parse_value_ir(ctx, code)
     ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
     execute(ctx, ir, bufferSpecString)
@@ -358,10 +406,12 @@ class ServiceBackend(
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable,
-    nPartitions: Option[Int]
-  ): TableReader = LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, nPartitions)
+    nPartitions: Option[Int],
+  ): TableReader =
+    LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, nPartitions)
 
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
+  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String)
+    : Unit = ???
 
   def unpersist(backendContext: BackendContext, id: String): Unit = ???
 
@@ -369,14 +419,11 @@ class ServiceBackend(
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
 
-  def tableToTableStage(ctx: ExecuteContext,
-    inputIR: TableIR,
-    analyses: LoweringAnalyses
-  ): TableStage = {
+  def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+    : TableStage =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
-  }
 
-  def withExecuteContext[T](methodName: String): (ExecuteContext => T) => T = { f =>
+  override def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T =
     ExecutionTimer.logTime(methodName) { timer =>
       ExecuteContext.scoped(
         tmpdir,
@@ -386,24 +433,20 @@ class ServiceBackend(
         timer,
         null,
         theHailClassLoader,
-        references,
         flags,
-        serviceBackendContext
+        serviceBackendContext,
       )(f)
     }
-  }
 
-  def addLiftover(name: String, chainFile: String, destRGName: String): Unit = {
+  def addLiftover(name: String, chainFile: String, destRGName: String): Unit =
     withExecuteContext("addLiftover") { ctx =>
       references(name).addLiftover(ctx, chainFile, destRGName)
     }
-  }
 
-  def addSequence(name: String, fastaFile: String, indexFile: String): Unit = {
+  def addSequence(name: String, fastaFile: String, indexFile: String): Unit =
     withExecuteContext("addSequence") { ctx =>
       references(name).addSequence(ctx, fastaFile, indexFile)
     }
-  }
 }
 
 class EndOfInputException extends RuntimeException
@@ -426,14 +469,16 @@ object ServiceBackendAPI {
 
     val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
     val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/secrets/deploy-config/deploy-config.json")
+      s"$scratchDir/secrets/deploy-config/deploy-config.json"
+    )
     DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
 
     val batchClient = new BatchClient(s"$scratchDir/secrets/gsa-key/key.json")
     log.info("BatchClient allocated.")
 
-    var batchId = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
+    var batchId =
+      BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
     log.info("BatchConfig parsed.")
 
     implicit val formats: Formats = DefaultFormats
@@ -442,8 +487,13 @@ object ServiceBackendAPI {
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = ServiceBackend(
-      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchClient, batchId, scratchDir,
-      rpcConfig
+      jarLocation,
+      name,
+      new HailClassLoader(getClass().getClassLoader()),
+      batchClient,
+      batchId,
+      scratchDir,
+      rpcConfig,
     )
     log.info("ServiceBackend allocated.")
     if (HailContext.isInitialized) {
@@ -466,9 +516,8 @@ private class HailSocketAPIOutputStream(
   private[this] var closed: Boolean = false
   private[this] val dummy = new Array[Byte](8)
 
-  def writeBool(b: Boolean): Unit = {
+  def writeBool(b: Boolean): Unit =
     out.write(if (b) 1 else 0)
-  }
 
   def writeInt(v: Int): Unit = {
     Memory.storeInt(dummy, 0, v)
@@ -487,12 +536,11 @@ private class HailSocketAPIOutputStream(
 
   def writeString(s: String): Unit = writeBytes(s.getBytes(StandardCharsets.UTF_8))
 
-  def close(): Unit = {
+  def close(): Unit =
     if (!closed) {
       out.close()
       closed = true
     }
-  }
 }
 
 case class CloudfuseConfig(bucket: String, mount_path: String, read_only: Boolean)
@@ -593,14 +641,14 @@ class ServiceBackendAPI(
           fastaPayload.x_contigs,
           fastaPayload.y_contigs,
           fastaPayload.mt_contigs,
-          fastaPayload.par
+          fastaPayload.par,
         )
     }
   }
 
   private[this] def withIRFunctionsReadFromInput(
     serializedFunctions: Array[SerializedIRFunction],
-    ctx: ExecuteContext
+    ctx: ExecuteContext,
   )(
     body: () => Array[Byte]
   ): Array[Byte] = {
@@ -613,13 +661,12 @@ class ServiceBackendAPI(
           func.value_parameter_names,
           func.value_parameter_types,
           func.return_type,
-          func.rendered_body
+          func.rendered_body,
         )
       }
       body()
-    } finally {
+    } finally
       IRFunctionRegistry.clearUserFunctions()
-    }
   }
 
   def executeOneCommand(action: Int, payload: JValue): Unit = {
@@ -643,7 +690,9 @@ class ServiceBackendAPI(
             output.writeInt(exc.errorId)
           }
         }
-        log.error("A worker failed. The exception was written for Python but we will also throw an exception to fail this driver job.")
+        log.error(
+          "A worker failed. The exception was written for Python but we will also throw an exception to fail this driver job."
+        )
         throw exc
       case t: Throwable =>
         val (shortMessage, expandedMessage, errorId) = handleForPython(t)
@@ -656,7 +705,9 @@ class ServiceBackendAPI(
             output.writeInt(errorId)
           }
         }
-        log.error("An exception occurred in the driver. The exception was written for Python but we will re-throw to fail this driver job.")
+        log.error(
+          "An exception occurred in the driver. The exception was written for Python but we will re-throw to fail this driver job."
+        )
         throw t
     }
   }

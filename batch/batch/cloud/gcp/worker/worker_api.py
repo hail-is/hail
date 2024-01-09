@@ -1,3 +1,4 @@
+import base64
 import os
 import tempfile
 from typing import Dict, List
@@ -7,16 +8,16 @@ from aiohttp import web
 
 from hailtop import httpx
 from hailtop.aiocloud import aiogoogle
+from hailtop.auth.auth import IdentityProvider
 from hailtop.utils import check_exec_output
 
 from ....globals import HTTP_CLIENT_MAX_SIZE
 from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials, HailMetadataServer
 from ..instance_config import GCPSlimInstanceConfig
-from .credentials import GCPUserCredentials
 from .disk import GCPDisk
 
 
-class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
+class GCPWorkerAPI(CloudWorkerAPI):
     nameserver_ip = '169.254.169.254'
 
     # async because GoogleSession must be created inside a running event loop
@@ -26,8 +27,7 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
         zone = os.environ['ZONE'].rsplit('/', 1)[1]
         worker_credentials = aiogoogle.GoogleInstanceMetadataCredentials()
         http_session = httpx.ClientSession()
-        google_session = aiogoogle.GoogleSession(credentials=worker_credentials, http_session=http_session)
-        return GCPWorkerAPI(project, zone, worker_credentials, http_session, google_session)
+        return GCPWorkerAPI(project, zone, worker_credentials, http_session)
 
     def __init__(
         self,
@@ -35,19 +35,21 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
         zone: str,
         worker_credentials: aiogoogle.GoogleInstanceMetadataCredentials,
         http_session: httpx.ClientSession,
-        session: aiogoogle.GoogleSession,
     ):
         self.project = project
         self.zone = zone
         self._http_session = http_session
-        self._google_session = session
-        self._compute_client = aiogoogle.GoogleComputeClient(project, session=session)
+        self._compute_client = aiogoogle.GoogleComputeClient(project)
         self._gcsfuse_credential_files: Dict[str, str] = {}
         self._worker_credentials = worker_credentials
 
     @property
     def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
-        return []
+        idp_json = orjson.dumps({'idp': IdentityProvider.GOOGLE.value}).decode('utf-8')
+        return [
+            'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json',
+            f'HAIL_IDENTITY_PROVIDER_JSON={idp_json}',
+        ]
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> GCPDisk:
         return GCPDisk(
@@ -60,20 +62,15 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
             compute_client=self._compute_client,
         )
 
-    def get_cloud_async_fs(self) -> aiogoogle.GoogleStorageAsyncFS:
-        return aiogoogle.GoogleStorageAsyncFS(session=self._google_session)
-
-    def user_credentials(self, credentials: Dict[str, str]) -> GCPUserCredentials:
-        return GCPUserCredentials(credentials)
-
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         access_token = await self._worker_credentials.access_token()
         return {'username': 'oauth2accesstoken', 'password': access_token}
 
-    async def user_container_registry_credentials(
-        self, user_credentials: GCPUserCredentials
-    ) -> ContainerRegistryCredentials:
-        return {'username': '_json_key', 'password': user_credentials.key}
+    async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
+        key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
+        async with aiogoogle.GoogleServiceAccountCredentials(key) as sa_credentials:
+            access_token = await sa_credentials.access_token()
+        return {'username': 'oauth2accesstoken', 'password': access_token}
 
     def metadata_server(self) -> 'GoogleHailMetadataServer':
         return GoogleHailMetadataServer(self.project, self._http_session)
@@ -81,16 +78,16 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
 
-    def _write_gcsfuse_credentials(self, credentials: GCPUserCredentials, mount_base_path_data: str) -> str:
+    def _write_gcsfuse_credentials(self, credentials: Dict[str, str], mount_base_path_data: str) -> str:
         if mount_base_path_data not in self._gcsfuse_credential_files:
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
-                credsfile.write(credentials.key)
+                credsfile.write(base64.b64decode(credentials['key.json']).decode())
                 self._gcsfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._gcsfuse_credential_files[mount_base_path_data]
 
     async def _mount_cloudfuse(
         self,
-        credentials: GCPUserCredentials,
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
@@ -140,28 +137,27 @@ class GCPWorkerAPI(CloudWorkerAPI[GCPUserCredentials]):
         return f'project={self.project} zone={self.zone}'
 
 
-ContainerCredentials = Dict[str, aiogoogle.GoogleServiceAccountCredentials]
-
-
-class GoogleHailMetadataServer(HailMetadataServer[GCPUserCredentials, ContainerCredentials]):
+class GoogleHailMetadataServer(HailMetadataServer[aiogoogle.GoogleServiceAccountCredentials]):
     def __init__(self, project: str, http_session: httpx.ClientSession):
         super().__init__()
         self._project = project
         self._metadata_server_client = aiogoogle.GoogleMetadataServerClient(http_session)
+        self._ip_container_credentials: Dict[str, aiogoogle.GoogleServiceAccountCredentials] = {}
 
-    def _create_container_credentials(self, default_credentials: GCPUserCredentials):
-        default_sa_creds = aiogoogle.GoogleServiceAccountCredentials(orjson.loads(default_credentials.key))
-        credentials = {}
-        for name in ('default', default_sa_creds.email):
-            credentials[name] = default_sa_creds
-        return credentials
+    def set_container_credentials(self, ip: str, credentials: Dict[str, str]):
+        key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
+        self._ip_container_credentials[ip] = aiogoogle.GoogleServiceAccountCredentials(key)
 
-    async def _close_container_credentials(self, container_credentials: ContainerCredentials):
-        for credential in container_credentials.values():
-            await credential.close()
+    async def clear_container_credentials(self, ip: str):
+        await self._ip_container_credentials.pop(ip).close()
 
-    def _container_credentials(self, request: web.Request) -> ContainerCredentials:
-        return request['credentials']
+    def _container_credentials(self, request: web.Request) -> Dict[str, aiogoogle.GoogleServiceAccountCredentials]:
+        assert request.remote
+        try:
+            credentials = self._ip_container_credentials[request.remote]
+        except KeyError:
+            raise web.HTTPBadRequest()
+        return {'default': credentials, credentials.email: credentials}
 
     def _user_credentials(self, request: web.Request) -> aiogoogle.GoogleServiceAccountCredentials:
         email = request.match_info.get('gsa') or 'default'
@@ -200,7 +196,7 @@ class GoogleHailMetadataServer(HailMetadataServer[GCPUserCredentials, ContainerC
     async def user_token(self, request: web.Request):
         gsa_email = request.match_info['gsa']
         creds = self._container_credentials(request)[gsa_email]
-        access_token = await creds.access_token_obj()
+        access_token = await creds._get_access_token()
         return web.json_response(
             {
                 'access_token': access_token.token,
@@ -233,7 +229,7 @@ class GoogleHailMetadataServer(HailMetadataServer[GCPUserCredentials, ContainerC
     def create_app(self) -> web.Application:
         metadata_app = web.Application(
             client_max_size=HTTP_CLIENT_MAX_SIZE,
-            middlewares=[self.set_request_credentials, self.configure_response],
+            middlewares=[self.configure_response],
         )
         metadata_app.add_routes(
             [

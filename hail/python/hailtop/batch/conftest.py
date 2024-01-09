@@ -11,9 +11,11 @@ def patch_doctest_check_output(monkeypatch):
     base_check_output = doctest.OutputChecker.check_output
 
     def patched_check_output(self, want, got, optionflags):
-        return ((not want)
-                or (want.strip() == 'None')
-                or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
+        return (
+            (not want)
+            or (want.strip() == 'None')
+            or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE)
+        )
 
     monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)
     yield
@@ -28,8 +30,7 @@ def init(doctest_namespace):
     doctest_namespace['Batch'] = batch.Batch
 
     olddir = os.getcwd()
-    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                          "docs"))
+    os.chdir(os.path.join(os.path.dirname(os.path.realpath(__file__)), "docs"))
     try:
         print("finished setting up doctest...")
         yield

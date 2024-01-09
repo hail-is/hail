@@ -16,7 +16,7 @@ trait PArrayIterator {
 
 abstract class PArray extends PContainer {
   lazy val virtualType: TArray = TArray(elementType.virtualType)
-  protected[physical] final val elementRequired = elementType.required
+  final protected[physical] val elementRequired = elementType.required
 
   def elementIterator(aoff: Long, length: Int): PArrayIterator
 

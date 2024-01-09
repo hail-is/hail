@@ -1,10 +1,11 @@
 package is.hail.expr.ir
 
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
-import is.hail.{ExecStrategy, HailSuite}
+
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -20,7 +21,7 @@ class DictFunctionsSuite extends HailSuite {
     Array(IndexedSeq((1, 3), (2, null), null, (null, 1), (3, 7))),
     Array(IndexedSeq()),
     Array(IndexedSeq(null)),
-    Array(null)
+    Array(null),
   )
 
   @Test(dataProvider = "basic")
@@ -31,23 +32,31 @@ class DictFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "basic")
   def dictFromSet(a: IndexedSeq[(Integer, Integer)]) {
-    assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))), tuplesToMap(a))
+    assertEvalsTo(
+      invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))),
+      tuplesToMap(a),
+    )
   }
 
   @Test(dataProvider = "basic")
   def isEmpty(a: IndexedSeq[(Integer, Integer)]) {
-    assertEvalsTo(invoke("isEmpty", TBoolean, toIRDict(a)),
-      Option(a).map(_.forall(_ == null)).orNull)
+    assertEvalsTo(
+      invoke("isEmpty", TBoolean, toIRDict(a)),
+      Option(a).map(_.forall(_ == null)).orNull,
+    )
   }
 
   @DataProvider(name = "dictToArray")
   def dictToArrayData(): Array[Array[Any]] = Array(
     Array(FastSeq(1 -> 3, 2 -> 7), FastSeq(Row(1, 3), Row(2, 7))),
-    Array(FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
-      FastSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1))),
+    Array(
+      FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
+      FastSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1)),
+    ),
     Array(FastSeq(), FastSeq()),
     Array(FastSeq(null), FastSeq()),
-    Array(null, null))
+    Array(null, null),
+  )
 
   @Test(dataProvider = "dictToArray")
   def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: (IndexedSeq[Row])) {
@@ -57,31 +66,40 @@ class DictFunctionsSuite extends HailSuite {
   @DataProvider(name = "keysAndValues")
   def keysAndValuesData(): Array[Array[Any]] = Array(
     Array(FastSeq(1 -> 3, 2 -> 7), FastSeq(1, 2), FastSeq(3, 7)),
-    Array(FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
-      FastSeq(1, 2, 3, null), FastSeq(3, null, 7, 1)),
+    Array(
+      FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
+      FastSeq(1, 2, 3, null),
+      FastSeq(3, null, 7, 1),
+    ),
     Array(FastSeq(), FastSeq(), FastSeq()),
     Array(FastSeq(null), FastSeq(), FastSeq()),
-    Array(null, null, null))
+    Array(null, null, null),
+  )
 
   @Test(dataProvider = "keysAndValues")
-  def keySet(a: IndexedSeq[(Integer, Integer)],
+  def keySet(
+    a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
-    values: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)),
-      Option(keys).map(_.toSet).orNull)
+    values: IndexedSeq[Integer],
+  ) {
+    assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)), Option(keys).map(_.toSet).orNull)
   }
 
   @Test(dataProvider = "keysAndValues")
-  def keys(a: IndexedSeq[(Integer, Integer)],
+  def keys(
+    a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
-    values: IndexedSeq[Integer]) {
+    values: IndexedSeq[Integer],
+  ) {
     assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
   }
 
   @Test(dataProvider = "keysAndValues")
-  def values(a: IndexedSeq[(Integer, Integer)],
+  def values(
+    a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
-    values: IndexedSeq[Integer]) {
+    values: IndexedSeq[Integer],
+  ) {
     assertEvalsTo(invoke("values", TArray(TInt32), toIRDict(a)), values)
   }
 

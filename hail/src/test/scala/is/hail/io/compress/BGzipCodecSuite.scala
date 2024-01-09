@@ -1,20 +1,21 @@
 package is.hail.io.compress
 
-import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import is.hail.HailSuite
 import is.hail.TestUtils._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr.ir.GenericLines
 import is.hail.utils._
-import org.apache.commons.io.IOUtils
-import org.apache.spark.sql.Row
-import org.apache.{hadoop => hd}
-import org.testng.annotations.Test
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.io.Source
+
+import htsjdk.samtools.util.BlockCompressedFilePointerUtil
+import org.apache.{hadoop => hd}
+import org.apache.commons.io.IOUtils
+import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
   override def getSplits(job: hd.mapreduce.JobContext): java.util.List[hd.mapreduce.InputSplit] = {
@@ -38,7 +39,13 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
       val splitSize = e - s
 
       val blkIndex = getBlockIndex(blkLocations, s)
-      splits += makeSplit(path, s, splitSize, blkLocations(blkIndex).getHosts, blkLocations(blkIndex).getCachedHosts)
+      splits += makeSplit(
+        path,
+        s,
+        splitSize,
+        blkLocations(blkIndex).getHosts,
+        blkLocations(blkIndex).getCachedHosts,
+      )
     }
 
     splits.asJava
@@ -51,14 +58,12 @@ class BGzipCodecSuite extends HailSuite {
   // is actually a bgz file
   val gzPath = "src/test/resources/sample.vcf.gz"
 
-  /*
-   * bgz.test.sample.vcf.bgz was created as follows:
-   *  - split sample.vcf into 60-line chunks: `split -l 60 sample.vcf sample.vcf.`
-   *  - move the line boundary on two chunks by 1 character in different directions
-   *  - bgzip compressed the chunks
-   *  - stripped the empty terminate block in chunks except ad and ag (the last)
-   *  - concatenated the chunks
-   */
+  /* bgz.test.sample.vcf.bgz was created as follows:
+   * - split sample.vcf into 60-line chunks: `split -l 60 sample.vcf sample.vcf.`
+   * - move the line boundary on two chunks by 1 character in different directions
+   * - bgzip compressed the chunks
+   * - stripped the empty terminate block in chunks except ad and ag (the last)
+   * - concatenated the chunks */
   val compPath = "src/test/resources/bgz.test.sample.vcf.bgz"
 
   def compareLines(lines2: IndexedSeq[String], lines: IndexedSeq[String]): Unit = {
@@ -75,12 +80,13 @@ class BGzipCodecSuite extends HailSuite {
   @Test def testGenericLinesSimpleUncompressed() {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
-    val uncompStatus = fs.fileListEntry(uncompPath)
+    val uncompStatus = fs.fileStatus(uncompPath)
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
         fs,
-        GenericLines.read(fs, Array(uncompStatus), Some(i), None, None, false, false))
+        GenericLines.read(fs, Array(uncompStatus), Some(i), None, None, false, false),
+      )
       compareLines(lines2, lines)
       i += 1
     }
@@ -89,12 +95,13 @@ class BGzipCodecSuite extends HailSuite {
   @Test def testGenericLinesSimpleBGZ() {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
-    val compStatus = fs.fileListEntry(compPath)
+    val compStatus = fs.fileStatus(compPath)
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
         fs,
-        GenericLines.read(fs, Array(compStatus), Some(i), None, None, false, false))
+        GenericLines.read(fs, Array(compStatus), Some(i), None, None, false, false),
+      )
       compareLines(lines2, lines)
       i += 1
     }
@@ -104,16 +111,17 @@ class BGzipCodecSuite extends HailSuite {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     // won't split, just run once
-    val gzStatus = fs.fileListEntry(gzPath)
+    val gzStatus = fs.fileStatus(gzPath)
     val lines2 = GenericLines.collect(
       fs,
-      GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, true))
+      GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, true),
+    )
     compareLines(lines2, lines)
   }
 
   @Test def testGenericLinesRefuseGZ() {
     interceptFatal("Cowardly refusing") {
-      val gzStatus = fs.fileListEntry(gzPath)
+      val gzStatus = fs.fileStatus(gzPath)
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, false)
     }
   }
@@ -122,21 +130,25 @@ class BGzipCodecSuite extends HailSuite {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compLength = 195353
-    val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310, 112477, 112505, 124593,
+    val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310,
+      112477, 112505, 124593,
       136405, 144293, 157375, 169172, 175174, 186973, 195325)
 
-    val g = for (n <- Gen.oneOfGen(
-      Gen.choose(0, 10),
-      Gen.choose(0, 100));
-      rawSplits <- Gen.buildableOfN[Array](n,
-        Gen.oneOfGen(Gen.choose(0L, compLength),
-          Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1),
-            Gen.oneOfSeq(compSplits)))))
-      yield
-        (Array(0L, compLength) ++ rawSplits).distinct.sorted
+    val g = for {
+      n <- Gen.oneOfGen(
+        Gen.choose(0, 10),
+        Gen.choose(0, 100),
+      )
+      rawSplits <- Gen.buildableOfN[Array](
+        n,
+        Gen.oneOfGen(
+          Gen.choose(0L, compLength),
+          Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1), Gen.oneOfSeq(compSplits)),
+        ),
+      )
+    } yield (Array(0L, compLength) ++ rawSplits).distinct.sorted
 
     val p = forAll(g) { splits =>
-
       val contexts = (0 until (splits.length - 1))
         .map { i =>
           val end = makeVirtualOffset(splits(i + 1), 0)
@@ -174,21 +186,25 @@ class BGzipCodecSuite extends HailSuite {
     }
 
     val compLength = 195353
-    val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310, 112477, 112505, 124593,
+    val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310,
+      112477, 112505, 124593,
       136405, 144293, 157375, 169172, 175174, 186973, 195325)
 
-    val g = for (n <- Gen.oneOfGen(
-      Gen.choose(0, 10),
-      Gen.choose(0, 100));
-      rawSplits <- Gen.buildableOfN[Array](n,
-        Gen.oneOfGen(Gen.choose(0L, compLength),
-          Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1),
-            Gen.oneOfSeq(compSplits)))))
-      yield
-        (Array(0L, compLength) ++ rawSplits).distinct.sorted
+    val g = for {
+      n <- Gen.oneOfGen(
+        Gen.choose(0, 10),
+        Gen.choose(0, 100),
+      )
+      rawSplits <- Gen.buildableOfN[Array](
+        n,
+        Gen.oneOfGen(
+          Gen.choose(0L, compLength),
+          Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1), Gen.oneOfSeq(compSplits)),
+        ),
+      )
+    } yield (Array(0L, compLength) ++ rawSplits).distinct.sorted
 
     val p = forAll(g) { splits =>
-
       val jobConf = new hd.conf.Configuration(sc.hadoopConfiguration)
       jobConf.set("bgz.test.splits", splits.mkString(","))
       val rdd = sc.newAPIHadoopFile[hd.io.LongWritable, hd.io.Text, TestFileInputFormat](
@@ -196,7 +212,8 @@ class BGzipCodecSuite extends HailSuite {
         classOf[TestFileInputFormat],
         classOf[hd.io.LongWritable],
         classOf[hd.io.Text],
-        jobConf)
+        jobConf,
+      )
 
       val rddLines = rdd.map(_._2.toString).collectOrdered()
       rddLines.sameElements(lines)
@@ -206,10 +223,16 @@ class BGzipCodecSuite extends HailSuite {
 
   @Test def testVirtualSeek() {
     // real offsets of the start of some blocks, paired with the offset to the next block
-    val blockStarts = Array[(Long, Long)]((0, 14653), (69140, 82949), (133703, 146664), (181362, 192983 /* end of file */))
+    val blockStarts = Array[(Long, Long)](
+      (0, 14653),
+      (69140, 82949),
+      (133703, 146664),
+      (181362, 192983 /* end of file */ ),
+    )
     // NOTE: maxBlockSize is the length of all blocks other than the last
     val maxBlockSize = 65280
-    // number determined by counting bytes from sample.vcf from uncompBlockStarts.last to the end of the file
+    /* number determined by counting bytes from sample.vcf from uncompBlockStarts.last to the end of
+     * the file */
     val lastBlockLen = 55936
     // offsets into the uncompressed file
     val uncompBlockStarts = Array[Int](0, 326400, 652800, 913920)
@@ -219,77 +242,87 @@ class BGzipCodecSuite extends HailSuite {
 
     using(fs.openNoCompression(uncompPath)) { uncompIS =>
       using(new BGzipInputStream(fs.openNoCompression(compPath))) { decompIS =>
-
-      val fromEnd = 48 // arbitrary number of bytes from the end of block to attempt to seek to
-      for (((cOff, nOff), uOff) <- blockStarts.zip(uncompBlockStarts);
-           e <- Seq(0, 1024, maxBlockSize - fromEnd)) {
-        val decompData = new Array[Byte](100)
-        val uncompData = new Array[Byte](100)
-        val extra = if (cOff == blockStarts.last._1 && e == maxBlockSize - fromEnd)
+        val fromEnd = 48 // arbitrary number of bytes from the end of block to attempt to seek to
+        for {
+          ((cOff, nOff), uOff) <- blockStarts.zip(uncompBlockStarts)
+          e <- Seq(0, 1024, maxBlockSize - fromEnd)
+        } {
+          val decompData = new Array[Byte](100)
+          val uncompData = new Array[Byte](100)
+          val extra = if (cOff == blockStarts.last._1 && e == maxBlockSize - fromEnd)
             lastBlockLen - fromEnd
           else
             e
-        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra)
+          val vOff = BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra)
 
-        decompIS.virtualSeek(vOff)
-        assert(decompIS.getVirtualOffset() == vOff);
-        uncompIS.seek(uOff + extra)
+          decompIS.virtualSeek(vOff)
+          assert(decompIS.getVirtualOffset() == vOff);
+          uncompIS.seek(uOff + extra)
 
-        val decompRead = decompIS.readRepeatedly(decompData)
-        val uncompRead = uncompIS.readRepeatedly(uncompData)
+          val decompRead = decompIS.readRepeatedly(decompData)
+          val uncompRead = uncompIS.readRepeatedly(uncompData)
 
-        assert(decompRead == uncompRead, s"""compressed offset: ${ cOff }
-          |decomp bytes read: ${ decompRead }
-          |uncomp bytes read: ${ uncompRead }\n""".stripMargin)
-        assert(decompData sameElements uncompData, s"data differs for compressed offset: ${ cOff }")
-        val expectedVirtualOffset = if (extra == lastBlockLen - fromEnd)
+          assert(
+            decompRead == uncompRead,
+            s"""compressed offset: $cOff
+               |decomp bytes read: $decompRead
+               |uncomp bytes read: $uncompRead\n""".stripMargin,
+          )
+          assert(decompData sameElements uncompData, s"data differs for compressed offset: $cOff")
+          val expectedVirtualOffset = if (extra == lastBlockLen - fromEnd)
             BlockCompressedFilePointerUtil.makeFilePointer(nOff, 0)
           else if (extra == maxBlockSize - fromEnd)
             BlockCompressedFilePointerUtil.makeFilePointer(nOff, decompRead - fromEnd)
           else
             BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra + decompRead)
-        assert(expectedVirtualOffset == decompIS.getVirtualOffset())
-      }
+          assert(expectedVirtualOffset == decompIS.getVirtualOffset())
+        }
 
-      // here we test reading from the middle of a block to it's end
-      val decompData = new Array[Byte](maxBlockSize)
-      val toSkip = 20000
-      val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(2)._1, toSkip)
-      decompIS.virtualSeek(vOff)
-      assert(decompIS.getVirtualOffset() == vOff)
-      assert(decompIS.read(decompData) == maxBlockSize - 20000)
-      assert(decompIS.getVirtualOffset() == BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(2)._2, 0))
-
-      // Trying to seek to the end of a block should fail
-      intercept[java.io.IOException] {
-        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(1)._1, maxBlockSize)
+        // here we test reading from the middle of a block to it's end
+        val decompData = new Array[Byte](maxBlockSize)
+        val toSkip = 20000
+        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(2)._1, toSkip)
         decompIS.virtualSeek(vOff)
-      }
+        assert(decompIS.getVirtualOffset() == vOff)
+        assert(decompIS.read(decompData) == maxBlockSize - 20000)
+        assert(decompIS.getVirtualOffset() == BlockCompressedFilePointerUtil.makeFilePointer(
+          blockStarts(2)._2,
+          0,
+        ))
 
-      // Trying to seek past the end of a block should fail
-      intercept[java.io.IOException] {
-        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(0)._1, maxBlockSize + 1)
-        decompIS.virtualSeek(vOff)
-      }
+        // Trying to seek to the end of a block should fail
+        intercept[java.io.IOException] {
+          val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(1)._1, maxBlockSize)
+          decompIS.virtualSeek(vOff)
+        }
 
-      // Trying to seek to the end of the last block should fail
-      intercept[java.io.IOException] {
-        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._1, lastBlockLen)
-        decompIS.virtualSeek(vOff)
-      }
+        // Trying to seek past the end of a block should fail
+        intercept[java.io.IOException] {
+          val vOff =
+            BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(0)._1, maxBlockSize + 1)
+          decompIS.virtualSeek(vOff)
+        }
 
-      // trying to seek to the end of file should succeed
-      decompIS.virtualSeek(0)
-      val eofOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._2, 0)
-      decompIS.virtualSeek(eofOffset)
-      assert(-1 == decompIS.read())
+        // Trying to seek to the end of the last block should fail
+        intercept[java.io.IOException] {
+          val vOff =
+            BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._1, lastBlockLen)
+          decompIS.virtualSeek(vOff)
+        }
 
-      // seeking past end of file directly should fail
-      decompIS.virtualSeek(0)
-      intercept[java.io.IOException] {
-        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._2, 1)
-        decompIS.virtualSeek(vOff)
+        // trying to seek to the end of file should succeed
+        decompIS.virtualSeek(0)
+        val eofOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._2, 0)
+        decompIS.virtualSeek(eofOffset)
+        assert(-1 == decompIS.read())
+
+        // seeking past end of file directly should fail
+        decompIS.virtualSeek(0)
+        intercept[java.io.IOException] {
+          val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._2, 1)
+          decompIS.virtualSeek(vOff)
+        }
       }
-    }}
+    }
   }
 }

@@ -1,8 +1,7 @@
 from bisect import bisect_right
 import json
 import re
-from hail.typecheck import typecheck_method, sequenceof, dictof, oneof, \
-    sized_tupleof, nullable, transformed, lazy
+from hail.typecheck import typecheck_method, sequenceof, dictof, oneof, sized_tupleof, nullable, transformed, lazy
 from hail.utils.misc import wrap_to_list
 from hail.utils.java import Env
 import hail as hl
@@ -83,24 +82,29 @@ class ReferenceGenome:
         def par_tuple(p):
             assert p['start']['contig'] == p['end']['contig']
             return (p['start']['contig'], p['start']['position'], p['end']['position'])
-        contigs = config['contigs']
-        return ReferenceGenome(config['name'],
-                               [c['name'] for c in contigs],
-                               {c['name']: c['length'] for c in contigs},
-                               config['xContigs'],
-                               config['yContigs'],
-                               config['mtContigs'],
-                               [par_tuple(p) for p in config['par']],
-                               _builtin)
 
-    @typecheck_method(name=str,
-                      contigs=sequenceof(str),
-                      lengths=dictof(str, int),
-                      x_contigs=oneof(str, sequenceof(str)),
-                      y_contigs=oneof(str, sequenceof(str)),
-                      mt_contigs=oneof(str, sequenceof(str)),
-                      par=sequenceof(sized_tupleof(str, int, int)),
-                      _builtin=bool)
+        contigs = config['contigs']
+        return ReferenceGenome(
+            config['name'],
+            [c['name'] for c in contigs],
+            {c['name']: c['length'] for c in contigs},
+            config['xContigs'],
+            config['yContigs'],
+            config['mtContigs'],
+            [par_tuple(p) for p in config['par']],
+            _builtin,
+        )
+
+    @typecheck_method(
+        name=str,
+        contigs=sequenceof(str),
+        lengths=dictof(str, int),
+        x_contigs=oneof(str, sequenceof(str)),
+        y_contigs=oneof(str, sequenceof(str)),
+        mt_contigs=oneof(str, sequenceof(str)),
+        par=sequenceof(sized_tupleof(str, int, int)),
+        _builtin=bool,
+    )
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[], _builtin=False):
 
         contigs = wrap_to_list(contigs)
@@ -114,7 +118,7 @@ class ReferenceGenome:
             'xContigs': x_contigs,
             'yContigs': y_contigs,
             'mtContigs': mt_contigs,
-            'par': [{'start': {'contig': c, 'position': s}, 'end': {'contig': c, 'position': e}} for (c, s, e) in par]
+            'par': [{'start': {'contig': c, 'position': s}, 'end': {'contig': c, 'position': e}} for (c, s, e) in par],
         }
 
         self._contigs = contigs
@@ -134,8 +138,15 @@ class ReferenceGenome:
         return self._config['name']
 
     def __repr__(self):
-        return 'ReferenceGenome(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
-               (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self._par_tuple)
+        return 'ReferenceGenome(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % (
+            self.name,
+            self.contigs,
+            self.lengths,
+            self.x_contigs,
+            self.y_contigs,
+            self.mt_contigs,
+            self._par_tuple,
+        )
 
     def __eq__(self, other):
         return isinstance(other, ReferenceGenome) and self._config == other._config
@@ -304,7 +315,7 @@ class ReferenceGenome:
 
     @typecheck_method(output=str)
     def write(self, output):
-        """"Write this reference genome to a file in JSON format.
+        """ "Write this reference genome to a file in JSON format.
 
         Examples
         --------
@@ -326,8 +337,7 @@ class ReferenceGenome:
         with hl.utils.hadoop_open(output, 'w') as f:
             json.dump(self._config, f)
 
-    @typecheck_method(fasta_file=str,
-                      index_file=nullable(str))
+    @typecheck_method(fasta_file=str, index_file=nullable(str))
     def add_sequence(self, fasta_file, index_file=None):
         """Load the reference sequence from a FASTA file.
 
@@ -396,15 +406,16 @@ class ReferenceGenome:
         Env.backend().remove_sequence(self.name)
 
     @classmethod
-    @typecheck_method(name=str,
-                      fasta_file=str,
-                      index_file=str,
-                      x_contigs=oneof(str, sequenceof(str)),
-                      y_contigs=oneof(str, sequenceof(str)),
-                      mt_contigs=oneof(str, sequenceof(str)),
-                      par=sequenceof(sized_tupleof(str, int, int)))
-    def from_fasta_file(cls, name, fasta_file, index_file,
-                        x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
+    @typecheck_method(
+        name=str,
+        fasta_file=str,
+        index_file=str,
+        x_contigs=oneof(str, sequenceof(str)),
+        y_contigs=oneof(str, sequenceof(str)),
+        mt_contigs=oneof(str, sequenceof(str)),
+        par=sequenceof(sized_tupleof(str, int, int)),
+    )
+    def from_fasta_file(cls, name, fasta_file, index_file, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
         """Create reference genome from a FASTA file.
 
         Parameters
@@ -429,7 +440,9 @@ class ReferenceGenome:
         :class:`.ReferenceGenome`
         """
         par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
-        config = Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
+        config = Env.backend().from_fasta_file(
+            name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings
+        )
 
         rg = ReferenceGenome._from_config(config)
         rg.add_sequence(fasta_file, index_file)
@@ -462,8 +475,7 @@ class ReferenceGenome:
             del self._liftovers[dest_reference_genome.name]
             Env.backend().remove_liftover(self.name, dest_reference_genome.name)
 
-    @typecheck_method(chain_file=str,
-                      dest_reference_genome=reference_genome_type)
+    @typecheck_method(chain_file=str, dest_reference_genome=reference_genome_type)
     def add_liftover(self, chain_file, dest_reference_genome):
         """Register a chain file for liftover.
 
@@ -515,7 +527,7 @@ class ReferenceGenome:
 
     @typecheck_method(global_pos=int)
     def locus_from_global_position(self, global_pos: int) -> 'hl.Locus':
-        """"
+        """ "
         Constructs a locus from a global position in reference genome.
         The inverse of :meth:`.Locus.position`.
 
@@ -553,9 +565,7 @@ class ReferenceGenome:
         contig_pos = self.global_positions_dict[contig]
 
         if global_pos >= contig_pos + self.lengths[contig]:
-            raise ValueError(
-                f"global_pos {global_pos} exceeds length of reference genome {self}."
-            )
+            raise ValueError(f"global_pos {global_pos} exceeds length of reference genome {self}.")
 
         return hl.Locus(contig, global_pos - contig_pos + 1, self)
 

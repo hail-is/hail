@@ -70,7 +70,7 @@ def copy_test_configurations():
                                 'dest_basename': dest_basename,
                                 'treat_dest_as': treat_dest_as,
                                 'src_trailing_slash': src_trailing_slash,
-                                'dest_trailing_slash': dest_trailing_slash
+                                'dest_trailing_slash': dest_trailing_slash,
                             }
 
 
@@ -121,7 +121,7 @@ async def copy_test_specs():
     test_specs = []
 
     with ThreadPoolExecutor() as thread_pool:
-        async with RouterAsyncFS(filesystems=[LocalAsyncFS(thread_pool)]) as fs:
+        async with RouterAsyncFS(local_kwargs={'thread_pool': thread_pool}) as fs:
             for config in copy_test_configurations():
                 token = secrets.token_hex(16)
 

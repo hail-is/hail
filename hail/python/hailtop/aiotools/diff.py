@@ -13,6 +13,7 @@ from .fs import AsyncFS, FileStatus
 
 try:
     import uvloop
+
     uvloop_install = uvloop.install
 except ImportError as e:
     if not sys.platform.startswith('win32'):
@@ -22,16 +23,17 @@ except ImportError as e:
         pass
 
 
-async def diff(*,
-               max_simultaneous: Optional[int] = None,
-               local_kwargs: Optional[dict] = None,
-               gcs_kwargs: Optional[dict] = None,
-               azure_kwargs: Optional[dict] = None,
-               s3_kwargs: Optional[dict] = None,
-               source: str,
-               target: str,
-               verbose: bool = False,
-               ) -> List[dict]:
+async def diff(
+    *,
+    max_simultaneous: Optional[int] = None,
+    local_kwargs: Optional[dict] = None,
+    gcs_kwargs: Optional[dict] = None,
+    azure_kwargs: Optional[dict] = None,
+    s3_kwargs: Optional[dict] = None,
+    source: str,
+    target: str,
+    verbose: bool = False,
+) -> List[dict]:
     with ThreadPoolExecutor() as thread_pool:
         if max_simultaneous is None:
             max_simultaneous = 500
@@ -47,15 +49,10 @@ async def diff(*,
         if 'max_pool_connections' not in s3_kwargs:
             s3_kwargs['max_pool_connections'] = max_simultaneous * 2
 
-        async with RouterAsyncFS(local_kwargs=local_kwargs,
-                                 gcs_kwargs=gcs_kwargs,
-                                 azure_kwargs=azure_kwargs,
-                                 s3_kwargs=s3_kwargs) as fs:
-            with SimpleCopyToolProgressBar(
-                    description='files',
-                    transient=True,
-                    total=0,
-                    disable=not verbose) as pbar:
+        async with RouterAsyncFS(
+            local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
+        ) as fs:
+            with SimpleCopyToolProgressBar(description='files', transient=True, total=0, disable=not verbose) as pbar:
                 return await do_diff(source, target, fs, max_simultaneous, pbar)
 
 
@@ -68,7 +65,9 @@ class DiffException(ValueError):
     pass
 
 
-async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneous: int, pbar: SimpleCopyToolProgressBarTask) -> List[dict]:
+async def do_diff(
+    top_source: str, top_target: str, fs: AsyncFS, max_simultaneous: int, pbar: SimpleCopyToolProgressBarTask
+) -> List[dict]:
     if await fs.isfile(top_source):
         result = await diff_one(top_source, top_target, fs)
         if result is None:
@@ -123,6 +122,7 @@ async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneou
 
     return different
 
+
 T = TypeVar('T')
 
 
@@ -149,18 +149,18 @@ async def diff_one(source_url: str, target_url: str, fs: AsyncFS) -> Optional[di
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description='Hail size diff tool. Recursively finds files which differ in size or are entirely missing.')
-    parser.add_argument('--requester-pays-project', type=str, nargs='?',
-                        help='The Google project to which to charge egress costs.')
-    parser.add_argument('source', type=str,
-                        help='The source of truth file or directory.')
-    parser.add_argument('target', type=str,
-                        help='The target file or directory to which to compare.')
-    parser.add_argument('--max-simultaneous', type=int,
-                        help='The limit on the number of simultaneous diff operations.')
-    parser.add_argument('-v', '--verbose', action='store_const',
-                        const=True, default=False,
-                        help='show logging information')
+    parser = argparse.ArgumentParser(
+        description='Hail size diff tool. Recursively finds files which differ in size or are entirely missing.'
+    )
+    parser.add_argument(
+        '--requester-pays-project', type=str, nargs='?', help='The Google project to which to charge egress costs.'
+    )
+    parser.add_argument('source', type=str, help='The source of truth file or directory.')
+    parser.add_argument('target', type=str, help='The target file or directory to which to compare.')
+    parser.add_argument('--max-simultaneous', type=int, help='The limit on the number of simultaneous diff operations.')
+    parser.add_argument(
+        '-v', '--verbose', action='store_const', const=True, default=False, help='show logging information'
+    )
     args = parser.parse_args()
 
     if args.verbose:
@@ -175,7 +175,7 @@ async def main() -> None:
             gcs_kwargs=gcs_kwargs,
             source=args.source,
             target=args.target,
-            verbose=args.verbose
+            verbose=args.verbose,
         )
     except DiffException as exc:
         print(exc.args[0], file=sys.stderr)

@@ -9,7 +9,8 @@ import is.hail.types.virtual.TString
 abstract class PString extends PType {
   lazy val virtualType: TString.type = TString
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = PCanonicalBinary(required).unsafeOrdering(sm)
+  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
+    PCanonicalBinary(required).unsafeOrdering(sm)
 
   val binaryRepresentation: PBinary
 
@@ -23,5 +24,6 @@ abstract class PString extends PType {
 
   def allocateAndStoreString(region: Region, str: String): Long
 
-  def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String]): Value[Long]
+  def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String])
+    : Value[Long]
 }

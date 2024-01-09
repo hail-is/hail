@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import com.fasterxml.jackson.core.JsonParseException
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr._
@@ -15,23 +14,25 @@ import is.hail.types.physical.PType
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
-import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
+
 import org.json4s.{Formats, JValue}
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
+import com.fasterxml.jackson.core.JsonParseException
+import org.apache.spark.sql.Row
+
 case class VEPConfiguration(
   command: Array[String],
   env: Map[String, String],
-  vep_json_schema: TStruct)
+  vep_json_schema: TStruct,
+)
 
 object VEP {
   def readConfiguration(fs: FS, path: String): VEPConfiguration = {
-    val jv = using(fs.open(path)) { in =>
-      JsonMethods.parse(in)
-    }
+    val jv = using(fs.open(path))(in => JsonMethods.parse(in))
     implicit val formats: Formats = defaultJSONFormats + new TStructSerializer
     jv.extract[VEPConfiguration]
   }
@@ -69,7 +70,7 @@ object VEP {
     val rc = proc.waitFor()
 
     if (rc != 0) {
-      fatal(s"VEP command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc\n" +
+      fatal(s"VEP command '${cmd.mkString(" ")}' failed with non-zero exit status $rc\n" +
         "  VEP Error output:\n" + err.toString)
     }
   }
@@ -80,10 +81,12 @@ object VEP {
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
 
-    val (jt, err, proc) = List((Locus("1", 13372), FastSeq("G", "C"))).iterator.pipe(pb,
+    val (jt, err, proc) = List((Locus("1", 13372), FastSeq("G", "C"))).iterator.pipe(
+      pb,
       printContext,
       printElement,
-      _ => ())
+      _ => (),
+    )
 
     val csqHeader = jt.flatMap(s => csqHeaderRegex.findFirstMatchIn(s).map(m => m.group(1)))
     waitFor(proc, err, cmd)
@@ -101,11 +104,12 @@ object VEP {
     new VEP(params, conf)
   }
 
-  def apply(fs: FS, config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean): VEP =
+  def apply(fs: FS, config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean)
+    : VEP =
     VEP(fs, VEPParameters(config, csq, blockSize, tolerateParseError))
 
   def fromJValue(fs: FS, jv: JValue): VEP = {
-    log.info(s"vep config json: ${ jv.toString }")
+    log.info(s"vep config json: ${jv.toString}")
     implicit val formats: Formats = RelationalFunctions.formats
     val params = jv.extract[VEPParameters]
     VEP(fs, params)
@@ -124,9 +128,11 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
   override def typ(childType: TableType): TableType = {
     val vepType = if (params.csq) TArray(TString) else vepSignature
     val globType = if (params.csq) TStruct("vep_csq_header" -> TString) else TStruct.empty
-    TableType(childType.rowType ++ TStruct("vep" -> vepType, "vep_proc_id" -> procIDType),
+    TableType(
+      childType.rowType ++ TStruct("vep" -> vepType, "vep_proc_id" -> procIDType),
       childType.key,
-      globType)
+      globType,
+    )
   }
 
   override def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
@@ -141,7 +147,8 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
       if (s == "__OUTPUT_FORMAT_FLAG__")
         if (csq) "--vcf" else "--json"
       else
-        s)
+        s
+    )
 
     val csqHeader = if (csq) getCSQHeaderDefinition(cmd, localConf.env) else None
 
@@ -175,12 +182,9 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
           .zipWithIndex
           .flatMap { case (block, blockIdx) =>
             val procID = Annotation(partIdx, blockIdx)
-            val (jt, err, proc) = block.iterator.pipe(pb,
-              printContext,
-              printElement,
-              _ => ())
+            val (jt, err, proc) = block.iterator.pipe(pb, printContext, printElement, _ => ())
 
-            val nonStarToOriginalVariant = block.map { case v@(locus, alleles) =>
+            val nonStarToOriginalVariant = block.map { case v @ (locus, alleles) =>
               (locus, alleles.filter(_ != "*")) -> v
             }.toMap
 
@@ -188,37 +192,47 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
               .filter(s => !s.isEmpty && s(0) != '#')
               .flatMap { s =>
                 if (csq) {
-                  val vepv@(vepLocus, vepAlleles) = variantFromInput(s)
+                  val vepv @ (vepLocus, vepAlleles) = variantFromInput(s)
                   nonStarToOriginalVariant.get(vepv) match {
-                    case Some(v@(locus, alleles)) =>
+                    case Some(v @ (locus, alleles)) =>
                       val x = csqRegex.findFirstIn(s)
                       val a = x match {
                         case Some(value) =>
                           value.substring(4).split(",").toFastSeq
                         case None =>
-                          warn(s"No CSQ INFO field for VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) }.\nVEP output: $s.")
+                          warn(
+                            s"No CSQ INFO field for VEP output variant ${VariantMethods.locusAllelesToString(vepLocus, vepAlleles)}.\nVEP output: $s."
+                          )
                           null
                       }
                       Some((Annotation(locus, alleles), a))
                     case None =>
-                      fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
+                      fatal(
+                        s"VEP output variant ${VariantMethods.locusAllelesToString(vepLocus, vepAlleles)} not found in original variants.\nVEP output: $s"
+                      )
                   }
                 } else {
                   try {
                     val jv = JsonMethods.parse(s)
-                    val a = JSONAnnotationImpex.importAnnotation(jv, localVepSignature, warnContext = warnContext)
+                    val a = JSONAnnotationImpex.importAnnotation(
+                      jv,
+                      localVepSignature,
+                      warnContext = warnContext,
+                    )
                     val variantString = inputQuery(a).asInstanceOf[String]
                     if (variantString == null)
                       fatal(s"VEP generated null variant string" +
                         s"\n  json:   $s" +
                         s"\n  parsed: $a")
-                    val vepv@(vepLocus, vepAlleles) = variantFromInput(variantString)
+                    val vepv @ (vepLocus, vepAlleles) = variantFromInput(variantString)
 
                     nonStarToOriginalVariant.get(vepv) match {
-                      case Some(v@(locus, alleles)) =>
+                      case Some(v @ (locus, alleles)) =>
                         Some((Annotation(locus, alleles), a))
                       case None =>
-                        fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
+                        fatal(
+                          s"VEP output variant ${VariantMethods.locusAllelesToString(vepLocus, vepAlleles)} not found in original variants.\nVEP output: $s"
+                        )
                     }
                   } catch {
                     case e: JsonParseException if localTolerateParseError =>
@@ -240,9 +254,11 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
 
     val vepType: Type = if (params.csq) TArray(TString) else vepSignature
 
-    val vepRVDType = prev.typ.copy(rowType = prev.rowPType
-      .appendKey("vep", PType.canonical(vepType))
-      .appendKey("vep_proc_id", PType.canonical(procIDType, true, true)))
+    val vepRVDType = prev.typ.copy(rowType =
+      prev.rowPType
+        .appendKey("vep", PType.canonical(vepType))
+        .appendKey("vep_proc_id", PType.canonical(procIDType, true, true))
+    )
 
     val vepRowType = vepRVDType.rowType
 
@@ -263,7 +279,8 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
 
           rvb.end()
         }
-      })
+      },
+    )
 
     val globalValue =
       if (params.csq)
@@ -272,15 +289,11 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
         Row()
 
     val newTT = typ(tv.typ)
-    TableValue(ctx,
-      newTT,
-      BroadcastRow(ctx, globalValue, newTT.globalType),
-      vepRVD)
+    TableValue(ctx, newTT, BroadcastRow(ctx, globalValue, newTT.globalType), vepRVD)
   }
 
-  override def toJValue: JValue = {
+  override def toJValue: JValue =
     decomposeWithName(params, "VEP")(RelationalFunctions.formats)
-  }
 
   override def hashCode(): Int = params.hashCode()
 

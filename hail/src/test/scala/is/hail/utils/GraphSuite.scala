@@ -1,11 +1,10 @@
 package is.hail.utils
 
-import org.scalatest.Matchers._
-import org.scalatest._
-import org.testng.annotations.Test
-
 import scala.collection.mutable
 
+import org.scalatest._
+import org.scalatest.Matchers._
+import org.testng.annotations.Test
 
 class GraphSuite {
 
@@ -29,7 +28,10 @@ class GraphSuite {
 
     {
       val actual = maximalIndependentSet(Array(0 -> 1, 0 -> 2, 3 -> 1, 3 -> 2))
-      actual should ((contain theSameElementsAs Array(1, 2)) or (contain theSameElementsAs Array(0, 3)))
+      actual should ((contain theSameElementsAs Array(1, 2)) or (contain theSameElementsAs Array(
+        0,
+        3,
+      )))
     }
 
     {
@@ -59,9 +61,8 @@ class GraphSuite {
     val expected = 0 until 10
 
     val m = new mutable.HashMap[Int, mutable.Set[Int]]() with mutable.MultiMap[Int, Int]
-    for (i <- expected) {
+    for (i <- expected)
       m.put(i, mutable.Set())
-    }
 
     val actual = maximalIndependentSet(m)
 
@@ -103,7 +104,6 @@ class GraphSuite {
     assert(actual.length == 10)
     assert(actual.forall(_ < 10))
   }
-
 
   @Test def tieBreakingInLongCycleWorks() {
     val g = mkGraph(0 -> 1, 1 -> 2, 2 -> 3, 3 -> 4, 4 -> 5, 5 -> 6, 6 -> 0)

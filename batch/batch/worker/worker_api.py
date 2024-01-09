@@ -1,18 +1,14 @@
 import abc
 from typing import Dict, Generic, List, TypedDict, TypeVar
 
-import aiohttp.typedefs
 from aiohttp import web
 
 from hailtop import httpx
-from hailtop.aiotools.fs import AsyncFS
 from hailtop.utils import CalledProcessError, sleep_before_try
 
 from ..instance_config import InstanceConfig
-from .credentials import CloudUserCredentials
 from .disk import CloudDisk
 
-CredsType = TypeVar("CredsType", bound=CloudUserCredentials)
 ContainerCredentials = TypeVar("ContainerCredentials")
 
 
@@ -21,39 +17,21 @@ class ContainerRegistryCredentials(TypedDict):
     password: str
 
 
-class HailMetadataServer(abc.ABC, Generic[CredsType, ContainerCredentials]):
-    def __init__(self):
-        self._ip_container_credentials: Dict[str, ContainerCredentials] = {}
+class HailMetadataServer(abc.ABC, Generic[ContainerCredentials]):
+    @abc.abstractmethod
+    def set_container_credentials(self, ip: str, credentials: Dict[str, str]):
+        raise NotImplementedError
 
-    def set_container_credentials(self, ip: str, default_credentials: CredsType):
-        self._ip_container_credentials[ip] = self._create_container_credentials(default_credentials)
-
+    @abc.abstractmethod
     async def clear_container_credentials(self, ip: str):
-        creds = self._ip_container_credentials.pop(ip)
-        await self._close_container_credentials(creds)
-
-    @abc.abstractmethod
-    def _create_container_credentials(self, default_credentials: CredsType) -> ContainerCredentials:
         raise NotImplementedError
-
-    @abc.abstractmethod
-    async def _close_container_credentials(self, container_credentials: ContainerCredentials):
-        raise NotImplementedError
-
-    @web.middleware
-    async def set_request_credentials(self, request: web.Request, handler: aiohttp.typedefs.Handler):
-        assert request.remote
-        if credentials := self._ip_container_credentials.get(request.remote):
-            request['credentials'] = credentials
-            return await handler(request)
-        raise web.HTTPBadRequest()
 
     @abc.abstractmethod
     def create_app(self) -> web.Application:
         raise NotImplementedError
 
 
-class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
+class CloudWorkerAPI(abc.ABC):
     nameserver_ip: str
 
     @property
@@ -66,23 +44,15 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_cloud_async_fs(self) -> AsyncFS:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def user_credentials(self, credentials: Dict[str, str]) -> CredsType:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def user_container_registry_credentials(self, user_credentials: CredsType) -> ContainerRegistryCredentials:
+    async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def metadata_server(self) -> HailMetadataServer[CredsType, object]:
+    def metadata_server(self) -> HailMetadataServer:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -92,7 +62,7 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
     @abc.abstractmethod
     async def _mount_cloudfuse(
         self,
-        credentials: CredsType,
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
@@ -101,7 +71,7 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
 
     async def mount_cloudfuse(
         self,
-        credentials: CredsType,
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,

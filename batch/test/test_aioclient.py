@@ -4,8 +4,6 @@ from hailtop.batch_client.aioclient import BatchClient
 
 from .utils import DOCKER_ROOT_IMAGE, create_batch
 
-pytestmark = pytest.mark.asyncio
-
 
 @pytest.fixture
 async def client():

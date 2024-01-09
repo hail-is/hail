@@ -5,10 +5,28 @@ import pandas as pd
 import hail
 import hail as hl
 from hail.expr import expressions
-from hail.expr.types import HailType, is_numeric, is_compound, is_setlike, tint32, \
-    tint64, tfloat32, tfloat64, tstr, tbool, tarray, \
-    tndarray, tset, tdict, tstruct, ttuple, tinterval, \
-    tlocus, tcall, from_numpy
+from hail.expr.types import (
+    HailType,
+    is_numeric,
+    is_compound,
+    is_setlike,
+    tint32,
+    tint64,
+    tfloat32,
+    tfloat64,
+    tstr,
+    tbool,
+    tarray,
+    tndarray,
+    tset,
+    tdict,
+    tstruct,
+    ttuple,
+    tinterval,
+    tlocus,
+    tcall,
+    from_numpy,
+)
 from hail import ir
 from hail.typecheck import typecheck_method, nullable, anyfunc, linked_list
 from hail.utils.java import Env
@@ -69,6 +87,7 @@ class Summary(object):
 
     def _html_string(self, prefix):
         import html
+
         summary = ''
         if self.header:
             summary += f'<p>{self.header}</p>'
@@ -107,6 +126,7 @@ class NamedSummary(object):
 
     def _repr_html_(self):
         import html
+
         s = self.summary._html_string(prefix=self.name)
         if self.header:
             s = f'<h3>{html.escape(self.header)}</h3>' + s
@@ -139,8 +159,7 @@ def _impute_type(x, partial_type):
         if t is None:
             return refined
         if not isinstance(t, type(refined)):
-            raise ExpressionException(
-                "Incompatible partial_type, {}, for value {}".format(partial_type, x))
+            raise ExpressionException("Incompatible partial_type, {}, for value {}".format(partial_type, x))
         return t
 
     if isinstance(x, Expression):
@@ -170,8 +189,12 @@ def _impute_type(x, partial_type):
         return t
     elif isinstance(x, tuple):
         partial_type = refine(partial_type, hl.ttuple())
-        return ttuple(*[_impute_type(element, partial_type[index] if index < len(partial_type) else None)
-                        for index, element in enumerate(x)])
+        return ttuple(
+            *[
+                _impute_type(element, partial_type[index] if index < len(partial_type) else None)
+                for index, element in enumerate(x)
+            ]
+        )
     elif isinstance(x, list):
         partial_type = refine(partial_type, hl.tarray(None))
         if len(x) == 0:
@@ -179,8 +202,9 @@ def _impute_type(x, partial_type):
         ts = {_impute_type(element, partial_type.element_type) for element in x}
         unified_type = super_unify_types(*ts)
         if unified_type is None:
-            raise ExpressionException("Hail does not support heterogeneous arrays: "
-                                      "found list with elements of types {} ".format(list(ts)))
+            raise ExpressionException(
+                "Hail does not support heterogeneous arrays: " "found list with elements of types {} ".format(list(ts))
+            )
         return tarray(unified_type)
 
     elif is_setlike(x):
@@ -190,8 +214,9 @@ def _impute_type(x, partial_type):
         ts = {_impute_type(element, partial_type.element_type) for element in x}
         unified_type = super_unify_types(*ts)
         if not unified_type:
-            raise ExpressionException("Hail does not support heterogeneous sets: "
-                                      "found set with elements of types {} ".format(list(ts)))
+            raise ExpressionException(
+                "Hail does not support heterogeneous sets: " "found set with elements of types {} ".format(list(ts))
+            )
         return tset(unified_type)
 
     elif isinstance(x, Mapping):
@@ -204,14 +229,17 @@ def _impute_type(x, partial_type):
         unified_key_type = super_unify_types(*kts)
         unified_value_type = super_unify_types(*vts)
         if unified_key_type is None:
-            raise ExpressionException("Hail does not support heterogeneous dicts: "
-                                      "found dict with keys {} of types {} ".format(list(x.keys()), list(kts)))
+            raise ExpressionException(
+                "Hail does not support heterogeneous dicts: "
+                "found dict with keys {} of types {} ".format(list(x.keys()), list(kts))
+            )
         if not unified_value_type:
             if unified_key_type == hl.tstr and user_partial_type is None:
                 return tstruct(**{k: _impute_type(x[k], None) for k in x})
 
-            raise ExpressionException("Hail does not support heterogeneous dicts: "
-                                      "found dict with values of types {} ".format(list(vts)))
+            raise ExpressionException(
+                "Hail does not support heterogeneous dicts: " "found dict with values of types {} ".format(list(vts))
+            )
         return tdict(unified_key_type, unified_value_type)
     elif isinstance(x, np.generic):
         return from_numpy(x.dtype)
@@ -221,8 +249,9 @@ def _impute_type(x, partial_type):
     elif x is None or pd.isna(x):
         return partial_type
     elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
-        raise ExpressionException("'switch' and 'case' expressions must end with a call to either"
-                                  "'default' or 'or_missing'")
+        raise ExpressionException(
+            "'switch' and 'case' expressions must end with a call to either" "'default' or 'or_missing'"
+        )
     else:
         raise ExpressionException("Hail cannot automatically impute type of {}: {}".format(type(x), x))
 
@@ -316,11 +345,13 @@ def _to_expr(e, dtype):
         if not found_expr:
             return e
         else:
-            exprs = [new_fields[i] if isinstance(new_fields[i], Expression)
-                     else hl.literal(new_fields[i], dtype[i])
-                     for i in range(len(new_fields))]
+            exprs = [
+                new_fields[i] if isinstance(new_fields[i], Expression) else hl.literal(new_fields[i], dtype[i])
+                for i in range(len(new_fields))
+            ]
             fields = {name: expr for name, expr in zip(dtype.keys(), exprs)}
             from .typed_expressions import StructExpression
+
             return StructExpression._from_fields(fields)
 
     elif isinstance(dtype, tarray):
@@ -334,9 +365,10 @@ def _to_expr(e, dtype):
             return e
         else:
             assert len(elements) > 0
-            exprs = [element if isinstance(element, Expression)
-                     else hl.literal(element, dtype.element_type)
-                     for element in elements]
+            exprs = [
+                element if isinstance(element, Expression) else hl.literal(element, dtype.element_type)
+                for element in elements
+            ]
             indices, aggregations = unify_all(*exprs)
         x = ir.MakeArray([e._ir for e in exprs], None)
         return expressions.construct_expr(x, dtype, indices, aggregations)
@@ -351,9 +383,10 @@ def _to_expr(e, dtype):
             return e
         else:
             assert len(elements) > 0
-            exprs = [element if isinstance(element, Expression)
-                     else hl.literal(element, dtype.element_type)
-                     for element in elements]
+            exprs = [
+                element if isinstance(element, Expression) else hl.literal(element, dtype.element_type)
+                for element in elements
+            ]
             indices, aggregations = unify_all(*exprs)
             x = ir.ToSet(ir.toStream(ir.MakeArray([e._ir for e in exprs], None)))
             return expressions.construct_expr(x, dtype, indices, aggregations)
@@ -368,9 +401,10 @@ def _to_expr(e, dtype):
         if not found_expr:
             return e
         else:
-            exprs = [elements[i] if isinstance(elements[i], Expression)
-                     else hl.literal(elements[i], dtype.types[i])
-                     for i in range(len(elements))]
+            exprs = [
+                elements[i] if isinstance(elements[i], Expression) else hl.literal(elements[i], dtype.types[i])
+                for i in range(len(elements))
+            ]
             indices, aggregations = unify_all(*exprs)
             x = ir.MakeTuple([expr._ir for expr in exprs])
             return expressions.construct_expr(x, dtype, indices, aggregations)
@@ -409,17 +443,19 @@ def unify_all(*exprs) -> Tuple[Indices, LinkedList]:
     except ExpressionException:
         # source mismatch
         from collections import defaultdict
+
         sources = defaultdict(lambda: [])
         for e in exprs:
             from .expression_utils import get_refs
+
             for name, inds in get_refs(e, *[e for a in e._aggregations for e in a.exprs]).items():
                 sources[inds.source].append(str(name))
         raise ExpressionException(
             "Cannot combine expressions from different source objects."
             "\n    Found fields from {n} objects:{fields}".format(
-                n=len(sources),
-                fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
-            )) from None
+                n=len(sources), fields=''.join("\n        {}: {}".format(src, fds) for src, fds in sources.items())
+            )
+        ) from None
     first, rest = exprs[0], exprs[1:]
     aggregations = first._aggregations
     for e in rest:
@@ -483,8 +519,7 @@ def super_unify_types(*ts):
         return tdict(kt, vt)
     if isinstance(t0, tstruct):
         keys = [k for t in ts for k in t.fields]
-        kvs = {k: super_unify_types(*[t.get(k, None) for t in ts])
-               for k in keys}
+        kvs = {k: super_unify_types(*[t.get(k, None) for t in ts]) for k in keys}
         return tstruct(**kvs)
     if all(t0 == t for t in ts):
         return t0
@@ -515,11 +550,9 @@ class Expression(object):
     __array_ufunc__ = None  # disable NumPy coercions, so Hail coercions take priority
 
     @typecheck_method(x=ir.IR, type=nullable(HailType), indices=Indices, aggregations=linked_list(Aggregation))
-    def __init__(self,
-                 x: ir.IR,
-                 type: HailType,
-                 indices: Indices = Indices(),
-                 aggregations: LinkedList = LinkedList(Aggregation)):
+    def __init__(
+        self, x: ir.IR, type: HailType, indices: Indices = Indices(), aggregations: LinkedList = LinkedList(Aggregation)
+    ):
 
         self._ir: ir.IR = x
         self._type = type
@@ -534,28 +567,34 @@ class Expression(object):
             for a in self._aggregations:
                 agg_indices = agg_indices.union(a.indices.axes)
             agg_tag = ' (aggregated)'
-            agg_str = f'Includes aggregation with index {list(agg_indices)}\n' \
-                      f'    (Aggregation index may be promoted based on context)'
+            agg_str = (
+                f'Includes aggregation with index {list(agg_indices)}\n'
+                f'    (Aggregation index may be promoted based on context)'
+            )
         else:
             agg_tag = ''
             agg_str = ''
 
         bar = '--------------------------------------------------------'
-        s = '{bar}\n' \
-            'Type:\n' \
-            '    {t}\n' \
-            '{bar}\n' \
-            'Source:\n' \
-            '    {src}\n' \
-            'Index:\n' \
-            '    {inds}{agg_tag}{maybe_bar}{agg}\n' \
-            '{bar}'.format(bar=bar,
-                           t=self.dtype.pretty(indent=4),
-                           src=self._indices.source,
-                           inds=list(self._indices.axes),
-                           maybe_bar='\n' + bar + '\n' if agg_str else '',
-                           agg_tag=agg_tag,
-                           agg=agg_str)
+        s = (
+            '{bar}\n'
+            'Type:\n'
+            '    {t}\n'
+            '{bar}\n'
+            'Source:\n'
+            '    {src}\n'
+            'Index:\n'
+            '    {inds}{agg_tag}{maybe_bar}{agg}\n'
+            '{bar}'.format(
+                bar=bar,
+                t=self.dtype.pretty(indent=4),
+                src=self._indices.source,
+                inds=list(self._indices.axes),
+                maybe_bar='\n' + bar + '\n' if agg_str else '',
+                agg_tag=agg_tag,
+                agg=agg_str,
+            )
+        )
         handler(s)
 
     def __lt__(self, other):
@@ -575,7 +614,8 @@ class Expression(object):
             "The truth value of an expression is undefined\n"
             "    Hint: instead of 'if x', use 'hl.if_else(x, ...)'\n"
             "    Hint: instead of 'x and y' or 'x or y', use 'x & y' or 'x | y'\n"
-            "    Hint: instead of 'not x', use '~x'")
+            "    Hint: instead of 'not x', use '~x'"
+        )
 
     def __iter__(self):
         raise ExpressionException(f"{repr(self)} object is not iterable")
@@ -584,8 +624,9 @@ class Expression(object):
         other = to_expr(other)
         left, right, success = unify_exprs(self, other)
         if not success:
-            raise TypeError(f"Invalid '{op}' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
+            raise TypeError(
+                f"Invalid '{op}' comparison, cannot compare expressions " f"of type '{self.dtype}' and '{other.dtype}'"
+            )
         res = left._bin_op(op, right, hl.tbool)
         return res
 
@@ -669,7 +710,9 @@ class Expression(object):
         return to_expr(other)._bin_op_numeric(name, self, ret_type_f)
 
     def _unary_op(self, name):
-        return expressions.construct_expr(ir.ApplyUnaryPrimOp(name, self._ir), self._type, self._indices, self._aggregations)
+        return expressions.construct_expr(
+            ir.ApplyUnaryPrimOp(name, self._ir), self._type, self._indices, self._aggregations
+        )
 
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
@@ -679,10 +722,7 @@ class Expression(object):
         elif name in {"==", "!=", "<", "<=", ">", ">="}:
             op = ir.ApplyComparisonOp(name, self._ir, other._ir)
         else:
-            d = {
-                '+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '//': 'floordiv',
-                '%': 'mod', '**': 'pow'
-            }
+            d = {'+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '//': 'floordiv', '%': 'mod', '**': 'pow'}
             op = ir.Apply(d.get(name, name), ret_type, self._ir, other._ir)
         return expressions.construct_expr(op, ret_type, indices, aggregations)
 
@@ -703,7 +743,8 @@ class Expression(object):
         args = (to_expr(arg)._ir for arg in args)
         new_id = Env.get_uid()
         lambda_result = to_expr(
-            f(expressions.construct_variable(new_id, input_type, self._indices, self._aggregations)))
+            f(expressions.construct_variable(new_id, input_type, self._indices, self._aggregations))
+        )
 
         indices, aggregations = unify_all(self, lambda_result)
         x = irf(self._ir, new_id, lambda_result._ir, *args)
@@ -714,8 +755,11 @@ class Expression(object):
         new_id1 = Env.get_uid()
         new_id2 = Env.get_uid()
         lambda_result = to_expr(
-            f(expressions.construct_variable(new_id1, input_type1, self._indices, self._aggregations),
-              expressions.construct_variable(new_id2, input_type2, other._indices, other._aggregations)))
+            f(
+                expressions.construct_variable(new_id1, input_type1, self._indices, self._aggregations),
+                expressions.construct_variable(new_id2, input_type2, other._indices, other._aggregations),
+            )
+        )
         indices, aggregations = unify_all(self, other, lambda_result)
         x = irf(self._ir, other._ir, new_id1, new_id2, lambda_result._ir, *args)
         return expressions.construct_expr(x, ret_type_f(lambda_result._type), indices, aggregations)
@@ -732,7 +776,9 @@ class Expression(object):
         return self._type
 
     def __bool__(self):
-        raise TypeError("'Expression' objects cannot be converted to a 'bool'. Use 'hl.if_else' instead of Python if statements.")
+        raise TypeError(
+            "'Expression' objects cannot be converted to a 'bool'. Use 'hl.if_else' instead of Python if statements."
+        )
 
     def __len__(self):
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
@@ -859,21 +905,16 @@ class Expression(object):
                 ds = source.select_entries(**named_self).select_globals().select_cols().select_rows()
         return name, ds
 
-    @typecheck_method(n=nullable(int),
-                      width=nullable(int),
-                      truncate=nullable(int),
-                      types=bool,
-                      handler=nullable(anyfunc),
-                      n_rows=nullable(int),
-                      n_cols=nullable(int))
-    def show(self,
-             n=None,
-             width=None,
-             truncate=None,
-             types=True,
-             handler=None,
-             n_rows=None,
-             n_cols=None):
+    @typecheck_method(
+        n=nullable(int),
+        width=nullable(int),
+        truncate=nullable(int),
+        types=bool,
+        handler=nullable(anyfunc),
+        n_rows=nullable(int),
+        n_cols=nullable(int),
+    )
+    def show(self, n=None, width=None, truncate=None, types=True, handler=None, n_rows=None, n_cols=None):
         """Print the first few records of the expression to the console.
 
         If the expression refers to a value on a keyed axis of a table or matrix
@@ -923,8 +964,14 @@ class Expression(object):
             Print an extra header line with the type of each field.
         """
         kwargs = {
-            'n': n, 'width': width, 'truncate': truncate, 'types': types,
-            'handler': handler, 'n_rows': n_rows, 'n_cols': n_cols}
+            'n': n,
+            'width': width,
+            'truncate': truncate,
+            'types': types,
+            'handler': handler,
+            'n_rows': n_rows,
+            'n_cols': n_cols,
+        }
         if kwargs.get('n_rows') is None:
             kwargs['n_rows'] = kwargs['n']
         del kwargs['n']
@@ -962,31 +1009,30 @@ class Expression(object):
         >>> with open('output/gt.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        locus      alleles 0       1       2       3
-        1:1        ["A","C"]       0/1     0/1     1/1     0/0
-        1:2        ["A","C"]       1/1     1/1     0/1     1/1
-        1:3        ["A","C"]       0/0     0/0     1/1     0/1
-        1:4        ["A","C"]       0/0     0/0     0/0     1/1
+        locus	alleles	0	1	2	3
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
         >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        1:1        ["A","C"]       0/1     0/1     1/1     0/0
-        1:2        ["A","C"]       1/1     1/1     0/1     1/1
-        1:3        ["A","C"]       0/0     0/0     1/1     0/1
-        1:4        ["A","C"]       0/0     0/0     0/0     1/1
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
         >>> small_mt.pop.export('output/pops.tsv')
         >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        sample_idx      pop
-        0       0
-        1       0
-        2       2
-        3       0
-        <BLANKLINE>
+        sample_idx	pop
+        0	1
+        1	2
+        2	2
+        3	2
 
         >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
         >>> with open('output/ancestral_af.tsv', 'r') as f:
@@ -1021,12 +1067,11 @@ class Expression(object):
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        locus   alleles {"s":0,"family":"fam1"} {"s":1,"family":"fam1"} {"s":2,"family":"fam1"} {"s":3,"family":"fam1"}
-        1:1     ["A","C"]       0/1     0/1     1/1     0/0
-        1:2     ["A","C"]       1/1     1/1     0/1     1/1
-        1:3     ["A","C"]       0/0     0/0     1/1     0/1
-        1:4     ["A","C"]       0/0     0/0     0/0     1/1
-        <BLANKLINE>
+        locus	alleles	{"s":0,"family":"fam1"}	{"s":1,"family":"fam1"}	{"s":2,"family":"fam1"}	{"s":3,"family":"fam1"}
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
 
         Parameters
@@ -1053,19 +1098,20 @@ class Expression(object):
             entry_array = t[entries]
             if self_name:
                 entry_array = hl.map(lambda x: x[self_name], entry_array)
-            entry_array = hl.map(lambda x: hl.if_else(hl.is_missing(x), missing, hl.str(x)),
-                                 entry_array)
+            entry_array = hl.map(lambda x: hl.if_else(hl.is_missing(x), missing, hl.str(x)), entry_array)
             file_contents = t.select(
-                **{k: hl.str(t[k]) for k in ds.row_key},
-                **{output_col_name: hl.delimit(entry_array, delimiter)})
+                **{k: hl.str(t[k]) for k in ds.row_key}, **{output_col_name: hl.delimit(entry_array, delimiter)}
+            )
             if header:
                 col_key = t[cols]
                 if len(ds.col_key) == 1:
                     col_key = hl.map(lambda x: x[0], col_key)
                 column_names = hl.map(hl.str, col_key).collect(_localize=False)[0]
-                header_table = hl.utils.range_table(1).key_by().select(
-                    **{k: k for k in ds.row_key},
-                    **{output_col_name: hl.delimit(column_names, delimiter)})
+                header_table = (
+                    hl.utils.range_table(1)
+                    .key_by()
+                    .select(**{k: k for k in ds.row_key}, **{output_col_name: hl.delimit(column_names, delimiter)})
+                )
                 file_contents = header_table.union(file_contents)
             file_contents.export(path, delimiter=delimiter, header=False)
 
@@ -1104,9 +1150,11 @@ class Expression(object):
     @overload
     def collect(self) -> List[Any]:
         ...
+
     @overload
     def collect(self, _localize=False) -> 'Expression':
         ...
+
     @typecheck_method(_localize=bool)
     def collect(self, _localize=True):
         """Collect all records of an expression into a local list.
@@ -1151,8 +1199,11 @@ class Expression(object):
         defined_value_str = str(n_defined) if n_defined == 0 else f'{n_defined} ({(n_defined / tot) * 100:.2f}%)'
         if n_defined == 0:
             return {'Non-missing': defined_value_str, 'Missing': missing_value_str}, {}
-        return {'Non-missing': defined_value_str, 'Missing': missing_value_str,
-                **self._extra_summary_fields(agg_result[2])}, self._nested_summary(agg_result[2], top)
+        return {
+            'Non-missing': defined_value_str,
+            'Missing': missing_value_str,
+            **self._extra_summary_fields(agg_result[2]),
+        }, self._nested_summary(agg_result[2], top)
 
     def _nested_summary(self, agg_result, top):
         return {}
@@ -1161,10 +1212,13 @@ class Expression(object):
         return hl.missing(hl.tint32)
 
     def _all_summary_aggs(self):
-        return hl.tuple((
-            hl.agg.filter(hl.is_missing(self), hl.agg.count()),
-            hl.agg.filter(hl.is_defined(self), hl.agg.count()),
-            self._summary_aggs()))
+        return hl.tuple(
+            (
+                hl.agg.filter(hl.is_missing(self), hl.agg.count()),
+                hl.agg.filter(hl.is_defined(self), hl.agg.count()),
+                self._summary_aggs(),
+            )
+        )
 
     def _summarize(self, agg_res=None, *, name=None, header=None, top=False):
         src = self._indices.source

@@ -1,40 +1,47 @@
 package is.hail.annotations
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
+import is.hail.backend.HailStateManager
+import is.hail.rvd.RVDContext
+import is.hail.types.physical.{PStruct, PType}
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
 import scala.collection.generic.Growable
 import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
 
-import is.hail.backend.HailStateManager
-import is.hail.types.physical.{PStruct, PType}
-import is.hail.rvd.RVDContext
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object WritableRegionValue {
-  def apply(sm: HailStateManager, t: PType, initial: RegionValue, region: Region): WritableRegionValue =
+  def apply(sm: HailStateManager, t: PType, initial: RegionValue, region: Region)
+    : WritableRegionValue =
     WritableRegionValue(sm, t, initial.region, initial.offset, region)
 
-  def apply(sm: HailStateManager, t: PType, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
+  def apply(sm: HailStateManager, t: PType, initialOffset: Long, targetRegion: Region)
+    : WritableRegionValue = {
     val wrv = WritableRegionValue(sm, t, targetRegion)
     wrv.set(initialOffset, deepCopy = true)
     wrv
   }
 
-  def apply(sm: HailStateManager, t: PType, initialRegion: Region, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
+  def apply(
+    sm: HailStateManager,
+    t: PType,
+    initialRegion: Region,
+    initialOffset: Long,
+    targetRegion: Region,
+  ): WritableRegionValue = {
     val wrv = WritableRegionValue(sm, t, targetRegion)
     wrv.set(initialRegion, initialOffset)
     wrv
   }
 
-  def apply(sm: HailStateManager, t: PType, region: Region): WritableRegionValue = {
+  def apply(sm: HailStateManager, t: PType, region: Region): WritableRegionValue =
     new WritableRegionValue(t, region, sm)
-  }
 }
 
 class WritableRegionValue private (
   val t: PType,
   val region: Region,
-  sm: HailStateManager
+  sm: HailStateManager,
 ) extends UnKryoSerializable {
   val value = RegionValue(region, 0)
   private val rvb: RegionValueBuilder = new RegionValueBuilder(sm, region)
@@ -80,18 +87,19 @@ class WritableRegionValue private (
 
   def pretty: String = value.pretty(t)
 
-  private def writeObject(s: ObjectOutputStream): Unit = {
+  private def writeObject(s: ObjectOutputStream): Unit =
     throw new NotImplementedException()
-  }
 
-  private def readObject(s: ObjectInputStream): Unit = {
+  private def readObject(s: ObjectInputStream): Unit =
     throw new NotImplementedException()
-  }
 }
 
-class RegionValuePriorityQueue(sm: HailStateManager, val t: PType, ctx: RVDContext, ord: Ordering[RegionValue])
-  extends Iterable[RegionValue]
-{
+class RegionValuePriorityQueue(
+  sm: HailStateManager,
+  val t: PType,
+  ctx: RVDContext,
+  ord: Ordering[RegionValue],
+) extends Iterable[RegionValue] {
   private val queue = new PriorityQueue[RegionValue]()(ord)
   private val rvb = new RegionValueBuilder(sm)
 
@@ -123,7 +131,7 @@ class RegionValuePriorityQueue(sm: HailStateManager, val t: PType, ctx: RVDConte
 }
 
 class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
-  extends Iterable[RegionValue] with Growable[RegionValue] {
+    extends Iterable[RegionValue] with Growable[RegionValue] {
 
   val value = RegionValue(region, 0)
 
@@ -132,9 +140,8 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
 
   def length = idx.length
 
-  def +=(rv: RegionValue): this.type = {
+  def +=(rv: RegionValue): this.type =
     this.append(rv.region, rv.offset)
-  }
 
   def append(fromRegion: Region, fromOffset: Long): this.type = {
     rvb.start(t)
@@ -146,7 +153,8 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
   def appendSelect(
     fromT: PStruct,
     fromFieldIdx: Array[Int],
-    fromRV: RegionValue): this.type = {
+    fromRV: RegionValue,
+  ): this.type = {
 
     (t: @unchecked) match {
       case t: PStruct =>
@@ -164,12 +172,14 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
   }
 
   private var itIdx = 0
+
   private val it = new Iterator[RegionValue] {
     def next(): RegionValue = {
       value.setOffset(idx(itIdx))
       itIdx += 1
       value
     }
+
     def hasNext: Boolean = itIdx < idx.size
   }
 

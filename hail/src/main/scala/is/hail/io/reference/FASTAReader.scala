@@ -1,22 +1,30 @@
 package is.hail.io.reference
 
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.io.fs.FS
+import is.hail.utils._
+import is.hail.variant.{Locus, ReferenceGenome}
+
 import java.util
 import java.util.Map.Entry
 import java.util.concurrent.locks.{Lock, ReentrantLock}
-import htsjdk.samtools.reference.{ReferenceSequenceFile, ReferenceSequenceFileFactory}
-import is.hail.backend.{BroadcastValue, ExecuteContext}
-import is.hail.utils._
-import is.hail.variant.{Locus, ReferenceGenome}
-import is.hail.io.fs.FS
-
-import scala.language.postfixOps
 import scala.collection.concurrent
+import scala.language.postfixOps
 
-case class FASTAReaderConfig(tmpdir: String, fs: FS, rg: ReferenceGenome,
-  fastaFile: String, indexFile: String, blockSize: Int = 4096, capacity: Int = 100
+import htsjdk.samtools.reference.{ReferenceSequenceFile, ReferenceSequenceFileFactory}
+
+case class FASTAReaderConfig(
+  tmpdir: String,
+  fs: FS,
+  rg: ReferenceGenome,
+  fastaFile: String,
+  indexFile: String,
+  blockSize: Int = 4096,
+  capacity: Int = 100,
 ) {
   if (blockSize <= 0)
     fatal(s"'blockSize' must be greater than 0. Found $blockSize.")
+
   if (capacity <= 0)
     fatal(s"'capacity' must be greater than 0. Found $capacity.")
 
@@ -29,11 +37,13 @@ object FASTAReader {
 
   def getLocalFastaFile(tmpdir: String, fs: FS, fastaFile: String, indexFile: String): String = {
     localFastaLock.lock()
-    try {
-      localFastaFiles.getOrElseUpdate(fastaFile, FASTAReader.setup(tmpdir, fs, fastaFile, indexFile))
-    } finally {
+    try
+      localFastaFiles.getOrElseUpdate(
+        fastaFile,
+        FASTAReader.setup(tmpdir, fs, fastaFile, indexFile),
+      )
+    finally
       localFastaLock.unlock()
-    }
   }
 
   def setup(tmpdir: String, fs: FS, fastaFile: String, indexFile: String): String = {
@@ -51,10 +61,12 @@ object FASTAReader {
       fs.copyRecode(indexFile, localIndexFile)
     }
 
-    if (!fs.exists(localFastaFile))
+    if (!fs.isFile(localFastaFile))
       fatal(s"Error while copying FASTA file to local file system. Did not find '$localFastaFile'.")
-    if (!fs.exists(localIndexFile))
-      fatal(s"Error while copying FASTA index file to local file system. Did not find '$localIndexFile'.")
+    if (!fs.isFile(localIndexFile))
+      fatal(
+        s"Error while copying FASTA index file to local file system. Did not find '$localIndexFile'."
+      )
 
     localFastaFile
   }
@@ -70,17 +82,18 @@ class FASTAReader(val cfg: FASTAReaderConfig) {
 
   private[this] var reader: ReferenceSequenceFile = newReader()
 
-  @transient private[this] lazy val cache = new util.LinkedHashMap[Int, String](capacity, 0.75f, true) {
-    override def removeEldestEntry(eldest: Entry[Int, String]): Boolean = size() > capacity
-  }
+  @transient private[this] lazy val cache =
+    new util.LinkedHashMap[Int, String](capacity, 0.75f, true) {
+      override def removeEldestEntry(eldest: Entry[Int, String]): Boolean = size() > capacity
+    }
 
   private def hash(pos: Long): Int = (pos / blockSize).toInt
 
   private def getSequence(contig: String, start: Int, end: Int): String = {
     val maxEnd = rg.contigLength(contig)
-    try {
+    try
       reader.getSubsequenceAt(contig, start, if (end > maxEnd) maxEnd else end).getBaseString
-    } catch {
+    catch {
       // One retry, to refresh the file
       case e: htsjdk.samtools.SAMException =>
         reader = newReader()

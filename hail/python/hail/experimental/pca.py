@@ -1,12 +1,15 @@
 import hail as hl
 from hail.typecheck import typecheck
-from hail.expr.expressions import expr_call, expr_numeric, expr_array, \
-    raise_unless_entry_indexed, raise_unless_row_indexed
+from hail.expr.expressions import (
+    expr_call,
+    expr_numeric,
+    expr_array,
+    raise_unless_entry_indexed,
+    raise_unless_row_indexed,
+)
 
 
-@typecheck(call_expr=expr_call,
-           loadings_expr=expr_array(expr_numeric),
-           af_expr=expr_numeric)
+@typecheck(call_expr=expr_call, loadings_expr=expr_array(expr_numeric), af_expr=expr_numeric)
 def pc_project(call_expr, loadings_expr, af_expr):
     """Projects genotypes onto pre-computed PCs. Requires loadings and
     allele-frequency from a reference dataset (see example). Note that
@@ -48,8 +51,9 @@ def pc_project(call_expr, loadings_expr, af_expr):
     loadings_expr = _get_expr_or_join(loadings_expr, loadings_source, gt_source, '_loadings')
     af_expr = _get_expr_or_join(af_expr, af_source, gt_source, '_af')
 
-    mt = gt_source._annotate_all(row_exprs={'_loadings': loadings_expr, '_af': af_expr},
-                                 entry_exprs={'_call': call_expr})
+    mt = gt_source._annotate_all(
+        row_exprs={'_loadings': loadings_expr, '_af': af_expr}, entry_exprs={'_call': call_expr}
+    )
 
     if isinstance(loadings_source, hl.MatrixTable):
         n_variants = loadings_source.count_rows()

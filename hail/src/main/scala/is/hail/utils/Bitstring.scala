@@ -48,15 +48,13 @@ case class Bitstring(contents: IndexedSeq[Long], bitsInLastWord: Int) {
     if (bitsInLastWord < 64) {
       val newNumWords = (length + rhs.length + 63) >> 6
       val newContents = Array.ofDim[Long](newNumWords)
-      for (i <- 0 until (numWords - 2)) {
+      for (i <- 0 until (numWords - 2))
         newContents(i) = contents(i)
-      }
       newContents(numWords - 1) = contents.last & (rhs.contents.head >>> bitsInLastWord)
-      for (i <- 0 until (rhs.numWords - 2)) {
+      for (i <- 0 until (rhs.numWords - 2))
         newContents(numWords + i) =
           (rhs.contents(i) << (64 - bitsInLastWord)) &
             (rhs.contents(i + 1) >>> bitsInLastWord)
-      }
       var newBitsInLastWord = bitsInLastWord + rhs.bitsInLastWord
       if (newBitsInLastWord > 64) {
         newContents(numWords + rhs.numWords - 1) = rhs.contents.last << (64 - bitsInLastWord)

@@ -1,13 +1,13 @@
 package is.hail.io
 
+import is.hail.annotations.{Memory, Region}
+import is.hail.io.compress.LZ4
+import is.hail.utils._
+
 import java.io._
 import java.util
 import java.util.UUID
 import java.util.function.Supplier
-
-import is.hail.annotations.{Memory, Region}
-import is.hail.io.compress.LZ4
-import is.hail.utils._
 
 import com.github.luben.zstd.{Zstd, ZstdDecompressCtx}
 
@@ -100,9 +100,8 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
     Memory.loadByte(buff, 0)
   }
 
-  override def read(buf: Array[Byte], toOff: Int, n: Int): Unit = {
+  override def read(buf: Array[Byte], toOff: Int, n: Int): Unit =
     in.readFully(buf, toOff, n)
-  }
 
   def readInt(): Int = {
     in.readFully(buff, 0, 4)
@@ -124,13 +123,11 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
     Memory.loadDouble(buff, 0)
   }
 
-  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit =
     Region.storeBytes(toOff, readBytesArray(n))
-  }
 
-  def readBytesArray(n: Int): Array[Byte] = {
+  def readBytesArray(n: Int): Array[Byte] =
     Array.tabulate(n)(_ => readByte())
-  }
 
   def skipByte(): Unit = {
     val bytesRead = in.skip(1)
@@ -216,9 +213,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   def seek(offset: Long): Unit = in.seek(offset)
 
-  def readByte(): Byte = {
+  def readByte(): Byte =
     in.readByte()
-  }
 
   override def read(buf: Array[Byte], toOff: Int, n: Int) = in.read(buf, toOff, n)
 
@@ -322,39 +318,31 @@ final class TracingInputBuffer(
     Memory.loadDouble(bytes, 0)
   }
 
-  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit =
     Region.storeBytes(toOff, readBytesArray(n))
-  }
 
-  def readBytesArray(n: Int): Array[Byte] = {
+  def readBytesArray(n: Int): Array[Byte] =
     Array.tabulate(n)(_ => readByte())
-  }
 
   override def skipBoolean(): Unit = skipByte()
 
-  def skipByte(): Unit = {
+  def skipByte(): Unit =
     readBytesArray(1)
-  }
 
-  def skipInt(): Unit = {
+  def skipInt(): Unit =
     readBytesArray(4)
-  }
 
-  def skipLong(): Unit = {
+  def skipLong(): Unit =
     readBytesArray(8)
-  }
 
-  def skipFloat(): Unit = {
+  def skipFloat(): Unit =
     readBytesArray(4)
-  }
 
-  def skipDouble(): Unit = {
+  def skipDouble(): Unit =
     readBytesArray(8)
-  }
 
-  def skipBytes(n: Int): Unit = {
+  def skipBytes(n: Int): Unit =
     readBytesArray(n)
-  }
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
     var i = 0
@@ -395,7 +383,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   def seek(offset: Long): Unit = {
     in.seek(offset)
     end = in.readBlock(buf)
-    off = (offset & 0xFFFF).asInstanceOf[Int]
+    off = (offset & 0xffff).asInstanceOf[Int]
     assert(off <= end)
   }
 
@@ -556,7 +544,8 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   }
 }
 
-final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer)
+    extends InputBlockBuffer {
   private[this] val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
   def close() {
@@ -598,7 +587,8 @@ final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) 
   }
 }
 
-final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer)
+    extends InputBlockBuffer {
   private[this] val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
   private[this] var lim = 0
 
@@ -632,16 +622,17 @@ final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in
 }
 
 object ZstdDecompressLib {
-  val instance = ThreadLocal.withInitial(new Supplier[ZstdDecompressCtx]() { def get: ZstdDecompressCtx = new ZstdDecompressCtx() })
+  val instance = ThreadLocal.withInitial(new Supplier[ZstdDecompressCtx]() {
+    def get: ZstdDecompressCtx = new ZstdDecompressCtx()
+  })
 }
 
 final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
   private[this] val zstd = ZstdDecompressLib.instance.get
   private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
 
-  def close(): Unit = {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = in.seek(offset)
 
@@ -658,13 +649,13 @@ final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends I
   }
 }
 
-final class ZstdSizedBasedInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
+final class ZstdSizedBasedInputBlockBuffer(blockSize: Int, in: InputBlockBuffer)
+    extends InputBlockBuffer {
   private[this] val zstd = ZstdDecompressLib.instance.get
   private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
 
-  def close(): Unit = {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = in.seek(offset)
 

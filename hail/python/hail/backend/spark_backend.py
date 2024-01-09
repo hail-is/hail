@@ -26,13 +26,27 @@ def append_to_comma_separated_list(conf: pyspark.SparkConf, k: str, *new_values:
 
 
 class SparkBackend(Py4JBackend):
-    def __init__(self, idempotent, sc, spark_conf, app_name, master,
-                 local, log, quiet, append, min_block_size,
-                 branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations,
-                 *,
-                 gcs_requester_pays_project: Optional[str] = None,
-                 gcs_requester_pays_buckets: Optional[str] = None
-                 ):
+    def __init__(
+        self,
+        idempotent,
+        sc,
+        spark_conf,
+        app_name,
+        master,
+        local,
+        log,
+        quiet,
+        append,
+        min_block_size,
+        branching_factor,
+        tmpdir,
+        local_tmpdir,
+        skip_logging_configuration,
+        optimizer_iterations,
+        *,
+        gcs_requester_pays_project: Optional[str] = None,
+        gcs_requester_pays_buckets: Optional[str] = None
+    ):
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         try:
@@ -52,35 +66,22 @@ class SparkBackend(Py4JBackend):
 
             if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
                 import sparkmonitor
+
                 jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
                 append_to_comma_separated_list(
-                    conf,
-                    'spark.extraListeners',
-                    'sparkmonitor.listener.JupyterSparkMonitorListener'
+                    conf, 'spark.extraListeners', 'sparkmonitor.listener.JupyterSparkMonitorListener'
                 )
 
-            append_to_comma_separated_list(
-                conf,
-                'spark.jars',
-                *jars
-            )
+            append_to_comma_separated_list(conf, 'spark.jars', *jars)
             if os.environ.get('AZURE_SPARK') == '1':
                 print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')
                 # Setting extraClassPath in HDInsight overrides the classpath entirely so you can't
                 # load the Scala standard library. Interestingly, setting extraClassPath is not
                 # necessary in HDInsight.
             else:
+                append_to_comma_separated_list(conf, 'spark.driver.extraClassPath', *jars, *extra_classpath)
                 append_to_comma_separated_list(
-                    conf,
-                    'spark.driver.extraClassPath',
-                    *jars,
-                    *extra_classpath
-                )
-                append_to_comma_separated_list(
-                    conf,
-                    'spark.executor.extraClassPath',
-                    './hail-all-spark.jar',
-                    *extra_classpath
+                    conf, 'spark.executor.extraClassPath', './hail-all-spark.jar', *extra_classpath
                 )
 
             if sc is None:
@@ -92,7 +93,8 @@ class SparkBackend(Py4JBackend):
                     '  e.g. /path/to/python/site-packages/hail:\n'
                     '    spark.jars=HAIL_DIR/backend/hail-all-spark.jar\n'
                     '    spark.driver.extraClassPath=HAIL_DIR/backend/hail-all-spark.jar\n'
-                    '    spark.executor.extraClassPath=./hail-all-spark.jar')
+                    '    spark.executor.extraClassPath=./hail-all-spark.jar'
+                )
         else:
             pyspark.SparkContext._ensure_initialized()
 
@@ -105,16 +107,38 @@ class SparkBackend(Py4JBackend):
 
         if idempotent:
             jbackend = hail_package.backend.spark.SparkBackend.getOrCreate(
-                jsc, app_name, master, local, log, True, append, skip_logging_configuration, min_block_size, tmpdir, local_tmpdir,
-                gcs_requester_pays_project, gcs_requester_pays_buckets)
-            jhc = hail_package.HailContext.getOrCreate(
-                jbackend, branching_factor, optimizer_iterations)
+                jsc,
+                app_name,
+                master,
+                local,
+                log,
+                True,
+                append,
+                skip_logging_configuration,
+                min_block_size,
+                tmpdir,
+                local_tmpdir,
+                gcs_requester_pays_project,
+                gcs_requester_pays_buckets,
+            )
+            jhc = hail_package.HailContext.getOrCreate(jbackend, branching_factor, optimizer_iterations)
         else:
             jbackend = hail_package.backend.spark.SparkBackend.apply(
-                jsc, app_name, master, local, log, True, append, skip_logging_configuration, min_block_size, tmpdir, local_tmpdir,
-                gcs_requester_pays_project, gcs_requester_pays_buckets)
-            jhc = hail_package.HailContext.apply(
-                jbackend, branching_factor, optimizer_iterations)
+                jsc,
+                app_name,
+                master,
+                local,
+                log,
+                True,
+                append,
+                skip_logging_configuration,
+                min_block_size,
+                tmpdir,
+                local_tmpdir,
+                gcs_requester_pays_project,
+                gcs_requester_pays_buckets,
+            )
+            jhc = hail_package.HailContext.apply(jbackend, branching_factor, optimizer_iterations)
 
         self._jsc = jbackend.sc()
         if sc:
@@ -177,9 +201,11 @@ class SparkBackend(Py4JBackend):
         self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
             [ta._parsable_string() for ta in type_parameters],
-            argument_names, [pt._parsable_string() for pt in argument_types],
+            argument_names,
+            [pt._parsable_string() for pt in argument_types],
             return_type._parsable_string(),
-            jbody)
+            jbody,
+        )
 
     @property
     def requires_lowering(self):

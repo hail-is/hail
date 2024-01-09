@@ -3,20 +3,18 @@ package is.hail.linalg
 import org.apache.spark.Partitioner
 
 object RowPartitioner {
-  /**
-    * a represents a partitioning of the (mathematical) integers into intervals
-    * with interval j given by [a(j), a(j+1)).
+
+  /** a represents a partitioning of the (mathematical) integers into intervals with interval j
+    * given by [a(j), a(j+1)).
     *
-    * -infty   -1    a(0)   0   a(1)   1         len-2   a(len-1)   len-1   infty
-    *    (-----------)[---------)[-------- ... ------------)[-----------------)  
-    *  
+    * -infty -1 a(0) 0 a(1) 1 len-2 a(len-1) len-1 infty (-----------)[---------)[-------- ...
+    * ------------)[-----------------)
+    *
     * a must be non-decreasing; repeated values correspond to empty intervals.
     *
-    * Returns interval containing key:
-    *      -1 iff a is empty or key < a(0)
-    *       j iff a(j) <= key < a(j + 1)
-    *   len-1 iff a(len - 1) < key
-    **/
+    * Returns interval containing key: -1 iff a is empty or key < a(0) j iff a(j) <= key < a(j + 1)
+    * len-1 iff a(len - 1) < key
+    */
   def findInterval(a: Array[Long], key: Long): Int = {
     var lo = 0
     var hi = a.length - 1

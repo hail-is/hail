@@ -3,14 +3,13 @@ package is.hail.backend
 import is.hail.HailFeatureFlags
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.io.fs.FS
-import is.hail.utils.{Logging, using}
+import is.hail.utils.{using, Logging}
 
 import java.io.{FileNotFoundException, OutputStream}
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import scala.io.Source
 import scala.util.control.NonFatal
-
 
 trait ExecutionCache extends Serializable {
   def lookup(s: SemanticHash.Type): IndexedSeq[(Array[Byte], Int)]
@@ -25,10 +24,16 @@ case object ExecutionCache {
 
   def fromFlags(flags: HailFeatureFlags, fs: FS, tmpdir: String): ExecutionCache =
     if (Option(flags.get(Flags.UseFastRestarts)).isEmpty) noCache
-    else fsCache(fs, Option(flags.get(Flags.Cachedir)).getOrElse(s"$tmpdir/hail/${is.hail.HAIL_PIP_VERSION}"))
+    else fsCache(
+      fs,
+      Option(flags.get(Flags.Cachedir)).getOrElse(s"$tmpdir/hail/${is.hail.HAIL_PIP_VERSION}"),
+    )
 
   def fsCache(fs: FS, cachedir: String): ExecutionCache = {
-    assert(fs.validUrl(cachedir), s"""Invalid execution cache location (${fs.getClass.getSimpleName}): "$cachedir".""")
+    assert(
+      fs.validUrl(cachedir),
+      s"""Invalid execution cache location (${fs.getClass.getSimpleName}): "$cachedir".""",
+    )
     FSExecutionCache(fs, cachedir)
   }
 
@@ -51,9 +56,7 @@ case object ExecutionCache {
   }
 }
 
-private case class FSExecutionCache(fs: FS, cacheDir: String)
-  extends ExecutionCache
-    with Logging {
+private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionCache with Logging {
 
   private val base64Encode: Array[Byte] => Array[Byte] =
     Base64.getUrlEncoder.encode
@@ -62,11 +65,11 @@ private case class FSExecutionCache(fs: FS, cacheDir: String)
     Base64.getUrlDecoder.decode
 
   override def lookup(s: SemanticHash.Type): IndexedSeq[(Array[Byte], Int)] =
-    try {
+    try
       using(fs.open(at(s))) {
         Source.fromInputStream(_).getLines().map(Line.read).toIndexedSeq
       }
-    } catch {
+    catch {
       case _: FileNotFoundException =>
         IndexedSeq.empty
 
@@ -76,13 +79,14 @@ private case class FSExecutionCache(fs: FS, cacheDir: String)
     }
 
   override def put(s: SemanticHash.Type, r: IndexedSeq[(Array[Byte], Int)]): Unit =
-    fs.write(at(s)) { ostream => r.foreach(Line.write(_, ostream)) }
+    fs.write(at(s))(ostream => r.foreach(Line.write(_, ostream)))
 
   private def at(s: SemanticHash.Type): String =
     s"$cacheDir/${base64Encode(s.toString.getBytes).mkString}"
 
   private case object Line {
     private type Type = (Array[Byte], Int)
+
     def write(entry: Type, ostream: OutputStream): Unit = {
       ostream.write(entry._2.toString.getBytes)
       ostream.write(','.toInt)

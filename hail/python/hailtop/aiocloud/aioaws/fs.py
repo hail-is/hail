@@ -1,5 +1,4 @@
-from typing import (Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional,
-                    Set, Tuple, Type, ClassVar)
+from typing import Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional, Set, Tuple, Type
 from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -13,14 +12,23 @@ import botocore.config
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
-from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-                                 AsyncFSURL, MultiPartCreate, FileAndDirectoryError)
+from hailtop.aiotools.fs import (
+    FileStatus,
+    FileListEntry,
+    ReadableStream,
+    WritableStream,
+    AsyncFS,
+    AsyncFSURL,
+    MultiPartCreate,
+    FileAndDirectoryError,
+)
 from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 from hailtop.aiotools.fs.stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
     async_writable_blocking_collect_pair,
-    blocking_readable_stream_to_async)
+    blocking_readable_stream_to_async,
+)
 
 
 log = logging.getLogger(__name__)
@@ -41,19 +49,25 @@ class PageIterator:
 
     async def __anext__(self):
         if self._page is None:
-            self._page = await blocking_to_async(self._fs._thread_pool, self._fs._s3.list_objects_v2,  # type: ignore
-                                                 Bucket=self._bucket,
-                                                 Prefix=self._prefix,
-                                                 **self._kwargs)
+            self._page = await blocking_to_async(
+                self._fs._thread_pool,
+                self._fs._s3.list_objects_v2,  # type: ignore
+                Bucket=self._bucket,
+                Prefix=self._prefix,
+                **self._kwargs,
+            )
             return self._page
 
         next_continuation_token = self._page.get('NextContinuationToken')
         if next_continuation_token is not None:
-            self._page = await blocking_to_async(self._fs._thread_pool, self._fs._s3.list_objects_v2,
-                                                 Bucket=self._bucket,
-                                                 Prefix=self._prefix,
-                                                 ContinuationToken=next_continuation_token,
-                                                 **self._kwargs)
+            self._page = await blocking_to_async(
+                self._fs._thread_pool,
+                self._fs._s3.list_objects_v2,
+                Bucket=self._bucket,
+                Prefix=self._prefix,
+                ContinuationToken=next_continuation_token,
+                **self._kwargs,
+            )
             return self._page
 
         raise StopAsyncIteration
@@ -127,9 +141,11 @@ class S3CreateManager(AsyncContextManager[WritableStream]):
         return async_writable
 
     async def __aexit__(
-            self, exc_type: Optional[Type[BaseException]] = None,
-            exc_value: Optional[BaseException] = None,
-            exc_traceback: Optional[TracebackType] = None) -> None:
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        exc_traceback: Optional[TracebackType] = None,
+    ) -> None:
         assert self.async_writable
         assert self._put_thread
         await self.async_writable.wait_closed()
@@ -191,7 +207,8 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
                     Key=self._mpc._name,
                     PartNumber=self._number + 1,
                     UploadId=self._mpc._upload_id,
-                    Body=b)
+                    Body=b,
+                )
                 self._mpc._etags[self._number] = resp['ETag']
             except BaseException as e:
                 self._exc = e
@@ -201,9 +218,11 @@ class S3CreatePartManager(AsyncContextManager[WritableStream]):
         return async_writable
 
     async def __aexit__(
-            self, exc_type: Optional[Type[BaseException]] = None,
-            exc_value: Optional[BaseException] = None,
-            exc_traceback: Optional[TracebackType] = None) -> None:
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        exc_traceback: Optional[TracebackType] = None,
+    ) -> None:
         assert self._async_writable is not None
         assert self._put_thread is not None
         await self._async_writable.wait_closed()
@@ -229,40 +248,47 @@ class S3MultiPartCreate(MultiPartCreate):
         self._etags: List[Optional[str]] = [None] * num_parts
 
     async def __aenter__(self) -> 'S3MultiPartCreate':
-        resp = await blocking_to_async(self._fs._thread_pool, self._fs._s3.create_multipart_upload,
-                                       Bucket=self._bucket,
-                                       Key=self._name)
+        resp = await blocking_to_async(
+            self._fs._thread_pool, self._fs._s3.create_multipart_upload, Bucket=self._bucket, Key=self._name
+        )
         self._upload_id = resp['UploadId']
         return self
 
     async def __aexit__(
-            self, exc_type: Optional[Type[BaseException]] = None,
-            exc_value: Optional[BaseException] = None,
-            exc_traceback: Optional[TracebackType] = None) -> None:
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        exc_traceback: Optional[TracebackType] = None,
+    ) -> None:
         if exc_value is not None:
-            await blocking_to_async(self._fs._thread_pool, self._fs._s3.abort_multipart_upload,
-                                    Bucket=self._bucket,
-                                    Key=self._name,
-                                    UploadId=self._upload_id)
+            await blocking_to_async(
+                self._fs._thread_pool,
+                self._fs._s3.abort_multipart_upload,
+                Bucket=self._bucket,
+                Key=self._name,
+                UploadId=self._upload_id,
+            )
             return
 
         parts = []
         part_number = 1
         for etag in self._etags:
             assert etag is not None
-            parts.append({
-                'ETag': etag,
-                'PartNumber': part_number
-            })
+            parts.append({'ETag': etag, 'PartNumber': part_number})
             part_number += 1
 
-        await blocking_to_async(self._fs._thread_pool, self._fs._s3.complete_multipart_upload,
-                                Bucket=self._bucket,
-                                Key=self._name,
-                                MultipartUpload={'Parts': parts},
-                                UploadId=self._upload_id)
+        await blocking_to_async(
+            self._fs._thread_pool,
+            self._fs._s3.complete_multipart_upload,
+            Bucket=self._bucket,
+            Key=self._name,
+            MultipartUpload={'Parts': parts},
+            UploadId=self._upload_id,
+        )
 
-    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> S3CreatePartManager:  # pylint: disable=unused-argument
+    async def create_part(
+        self, number: int, start: int, size_hint: Optional[int] = None
+    ) -> S3CreatePartManager:  # pylint: disable=unused-argument
         if size_hint is None:
             size_hint = 256 * 1024
         return S3CreatePartManager(self, number, size_hint)
@@ -297,9 +323,13 @@ class S3AsyncFSURL(AsyncFSURL):
 
 
 class S3AsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'s3'}
-
-    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None, *, max_pool_connections: int = 10):
+    def __init__(
+        self,
+        thread_pool: Optional[ThreadPoolExecutor] = None,
+        max_workers: Optional[int] = None,
+        *,
+        max_pool_connections: int = 10,
+    ):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
@@ -309,11 +339,22 @@ class S3AsyncFS(AsyncFS):
         self._s3 = boto3.client('s3', config=config)
 
     @staticmethod
+    def schemes() -> Set[str]:
+        return {'s3'}
+
+    @staticmethod
+    def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
+        # Because the S3 upload_part API call requires the entire part
+        # be loaded into memory, use a smaller part size.
+        return 32 * 1024 * 1024
+
+    @staticmethod
     def valid_url(url: str) -> bool:
         return url.startswith('s3://')
 
-    def parse_url(self, url: str) -> S3AsyncFSURL:
-        return S3AsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> S3AsyncFSURL:
+        return S3AsyncFSURL(*S3AsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
@@ -325,22 +366,20 @@ class S3AsyncFS(AsyncFS):
         if scheme != 's3':
             raise ValueError(f'invalid scheme, expected s3: {scheme}')
 
-        rest = url[(colon_index + 1):]
+        rest = url[(colon_index + 1) :]
         if not rest.startswith('//'):
             raise ValueError(f's3 URI must be of the form: s3://bucket/key, found: {url}')
 
         end_of_bucket = rest.find('/', 2)
         bucket = rest[2:end_of_bucket]
-        name = rest[(end_of_bucket + 1):]
+        name = rest[(end_of_bucket + 1) :]
 
         return (bucket, name)
 
     async def open(self, url: str) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
         try:
-            resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
-                                           Bucket=bucket,
-                                           Key=name)
+            resp = await blocking_to_async(self._thread_pool, self._s3.get_object, Bucket=bucket, Key=name)
             return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
@@ -352,10 +391,9 @@ class S3AsyncFS(AsyncFS):
             assert length >= 1
             range_str += str(start + length - 1)
         try:
-            resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
-                                           Bucket=bucket,
-                                           Key=name,
-                                           Range=range_str)
+            resp = await blocking_to_async(
+                self._thread_pool, self._s3.get_object, Bucket=bucket, Key=name, Range=range_str
+            )
             return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
@@ -364,7 +402,9 @@ class S3AsyncFS(AsyncFS):
                 raise UnexpectedEOFError from e
             raise
 
-    async def create(self, url: str, *, retry_writes: bool = True) -> S3CreateManager:  # pylint: disable=unused-argument
+    async def create(
+        self, url: str, *, retry_writes: bool = True
+    ) -> S3CreateManager:  # pylint: disable=unused-argument
         # It may be possible to write a more efficient version of this
         # that takes advantage of retry_writes=False.  Here's the
         # background information:
@@ -408,11 +448,7 @@ class S3AsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         return S3CreateManager(self, bucket, name)
 
-    async def multi_part_create(
-            self,
-            sema: asyncio.Semaphore,
-            url: str,
-            num_parts: int) -> MultiPartCreate:
+    async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
         bucket, name = self.get_bucket_and_name(url)
         return S3MultiPartCreate(sema, self, bucket, name, num_parts)
 
@@ -425,9 +461,7 @@ class S3AsyncFS(AsyncFS):
     async def statfile(self, url: str) -> FileStatus:
         bucket, name = self.get_bucket_and_name(url)
         try:
-            resp = await blocking_to_async(self._thread_pool, self._s3.head_object,
-                                           Bucket=bucket,
-                                           Key=name)
+            resp = await blocking_to_async(self._thread_pool, self._s3.head_object, Bucket=bucket, Key=name)
             return S3HeadObjectFileStatus(resp)
         except botocore.exceptions.ClientError as e:
             if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
@@ -455,11 +489,9 @@ class S3AsyncFS(AsyncFS):
                 for item in contents:
                     yield S3FileListEntry(bucket, item['Key'], item)
 
-    async def listfiles(self,
-                        url: str,
-                        recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True
-                        ) -> AsyncIterator[FileListEntry]:
+    async def listfiles(
+        self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
+    ) -> AsyncIterator[FileListEntry]:
         bucket, name = self.get_bucket_and_name(url)
         if name and not name.endswith('/'):
             name += '/'
@@ -505,9 +537,7 @@ class S3AsyncFS(AsyncFS):
     async def isfile(self, url: str) -> bool:
         try:
             bucket, name = self.get_bucket_and_name(url)
-            await blocking_to_async(self._thread_pool, self._s3.head_object,
-                                    Bucket=bucket,
-                                    Key=name)
+            await blocking_to_async(self._thread_pool, self._s3.head_object, Bucket=bucket, Key=name)
             return True
         except botocore.exceptions.ClientError as e:
             if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
@@ -525,16 +555,9 @@ class S3AsyncFS(AsyncFS):
     async def remove(self, url: str) -> None:
         try:
             bucket, name = self.get_bucket_and_name(url)
-            await blocking_to_async(self._thread_pool, self._s3.delete_object,
-                                    Bucket=bucket,
-                                    Key=name)
+            await blocking_to_async(self._thread_pool, self._s3.delete_object, Bucket=bucket, Key=name)
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
 
     async def close(self) -> None:
         del self._s3
-
-    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
-        # Because the S3 upload_part API call requires the entire part
-        # be loaded into memory, use a smaller part size.
-        return 32 * 1024 * 1024

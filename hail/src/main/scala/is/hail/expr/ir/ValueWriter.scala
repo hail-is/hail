@@ -14,18 +14,21 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 
 object ValueWriter {
-  implicit val formats: Formats = new DefaultFormats() {
-    override val typeHints = ShortTypeHints(List(
-      classOf[ETypeValueWriter],
-      classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]),
-      typeHintFieldName = "name"
-    ) + BufferSpec.shortTypeHints
-  }  +
-    new TStructSerializer +
-    new TypeSerializer +
-    new PTypeSerializer +
-    new ETypeSerializer
+  implicit val formats: Formats =
+    new DefaultFormats() {
+      override val typeHints = ShortTypeHints(
+        List(
+          classOf[ETypeValueWriter],
+          classOf[AbstractTypedCodecSpec],
+          classOf[TypedCodecSpec],
+        ),
+        typeHintFieldName = "name",
+      ) + BufferSpec.shortTypeHints
+    } +
+      new TStructSerializer +
+      new TypeSerializer +
+      new PTypeSerializer +
+      new ETypeSerializer
 }
 
 abstract class ValueWriter {

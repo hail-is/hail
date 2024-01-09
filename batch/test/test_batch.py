@@ -11,6 +11,7 @@ from hailtop import httpx
 from hailtop.auth import get_userinfo, hail_credentials
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
+from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
 from hailtop.batch_client.client import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.test_utils import skip_in_azure
@@ -1009,7 +1010,7 @@ def test_client_max_size(client: BatchClient):
     b.submit()
 
 
-def test_restartable_insert(client: BatchClient):
+async def test_restartable_insert():
     i = 0
 
     def every_third_time():
@@ -1019,19 +1020,19 @@ def test_restartable_insert(client: BatchClient):
             return True
         return False
 
-    with FailureInjectingClientSession(every_third_time) as session:
-        client = BatchClient('test', session=session)
+    async with FailureInjectingClientSession(every_third_time) as session:
+        client = await AioBatchClient.create('test', session=session)
         b = create_batch(client)
 
         for _ in range(9):
             b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a'])
 
-        b.submit(max_bunch_size=1)
-        b = client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
-        status = b.wait()
-        assert status['state'] == 'success', str((status, b.debug_info()))
-        jobs = list(b.jobs())
-        assert len(jobs) == 9, str((jobs, b.debug_info()))
+        await b.submit(max_bunch_size=1)
+        b = await client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
+        status = await b.wait()
+        assert status['state'] == 'success', str((status, await b.debug_info()))
+        jobs = [x async for x in b.jobs()]
+        assert len(jobs) == 9, str((jobs, await b.debug_info()))
 
 
 def test_create_idempotence(client: BatchClient):
@@ -1173,7 +1174,6 @@ backend.close()
     j = b.create_job(
         HAIL_GENETICS_HAILTOP_IMAGE,
         ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
-        mount_tokens=True,
     )
     b.submit()
     status = j.wait()
@@ -1181,7 +1181,7 @@ backend.close()
 
 
 def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient, remote_tmpdir: str):
-    DOMAIN = os.environ['HAIL_DOMAIN']
+    DOMAIN = os.environ['HAIL_PRODUCTION_DOMAIN']
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
     script = f'''import hailtop.batch as hb
@@ -1202,8 +1202,12 @@ backend.close()
             f'''
 python3 -c \'{script}\'''',
         ],
-        env={'HAIL_DOMAIN': DOMAIN, 'HAIL_DEFAULT_NAMESPACE': 'default', 'HAIL_LOCATION': 'external'},
-        mount_tokens=True,
+        env={
+            'HAIL_DOMAIN': DOMAIN,
+            'HAIL_DEFAULT_NAMESPACE': 'default',
+            'HAIL_LOCATION': 'external',
+            'HAIL_BASE_PATH': '',
+        },
     )
     b.submit()
     status = j.wait()

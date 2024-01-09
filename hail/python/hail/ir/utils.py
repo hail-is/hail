@@ -6,6 +6,7 @@ from hail.expr.types import tint32, tint64
 
 def finalize_randomness(x):
     import hail.ir.ir as ir
+
     if isinstance(x, ir.IR):
         x = ir.Let('__rng_state', ir.RNGStateLiteral(), x)
     elif isinstance(x, ir.TableIR):
@@ -21,6 +22,7 @@ default_col_uid = '__col_uid'
 
 def unpack_row_uid(new_row_type, uid_field_name, drop_uid=True):
     import hail.ir.ir as ir
+
     new_row = ir.Ref('va', new_row_type)
     if uid_field_name in new_row_type.fields:
         uid = ir.GetField(new_row, uid_field_name)
@@ -33,17 +35,18 @@ def unpack_row_uid(new_row_type, uid_field_name, drop_uid=True):
 
 def unpack_col_uid(new_col_type, uid_field_name):
     import hail.ir.ir as ir
+
     new_row = ir.Ref('sa', new_col_type)
     if uid_field_name in new_col_type.fields:
         uid = ir.GetField(new_row, uid_field_name)
     else:
         uid = ir.NA(tint64)
-    return uid, \
-        ir.SelectFields(new_row, [field for field in new_col_type.fields if not field == uid_field_name])
+    return uid, ir.SelectFields(new_row, [field for field in new_col_type.fields if not field == uid_field_name])
 
 
 def modify_deep_field(struct, path, new_deep_field, new_struct=None):
     import hail.ir.ir as ir
+
     refs = [struct]
     for i in range(len(path)):
         refs.append(ir.Ref(Env.get_uid(), refs[i].typ[path[i]]))
@@ -60,31 +63,41 @@ def modify_deep_field(struct, path, new_deep_field, new_struct=None):
 
 def zip_with_index(array):
     import hail.ir.ir as ir
+
     elt = Env.get_uid()
     inner_row_uid = Env.get_uid()
     iota = ir.StreamIota(ir.I32(0), ir.I32(1))
-    return ir.toArray(ir.StreamZip(
-        [ir.toStream(array), iota],
-        [elt, inner_row_uid],
-        ir.MakeTuple((ir.Ref(elt, array.typ.element_type), ir.Ref(inner_row_uid, tint32))),
-        'TakeMinLength'))
+    return ir.toArray(
+        ir.StreamZip(
+            [ir.toStream(array), iota],
+            [elt, inner_row_uid],
+            ir.MakeTuple((ir.Ref(elt, array.typ.element_type), ir.Ref(inner_row_uid, tint32))),
+            'TakeMinLength',
+        )
+    )
 
 
 def zip_with_index_field(array, idx_field_name):
     import hail.ir.ir as ir
+
     elt = Env.get_uid()
     inner_row_uid = Env.get_uid()
     iota = ir.StreamIota(ir.I32(0), ir.I32(1))
-    return ir.toArray(ir.StreamZip(
-        [ir.toStream(array), iota],
-        [elt, inner_row_uid],
-        ir.InsertFields(ir.Ref(elt, array.typ.element_type), [(idx_field_name, ir.Cast(ir.Ref(inner_row_uid, tint32), tint64))], None),
-        'TakeMinLength'))
+    return ir.toArray(
+        ir.StreamZip(
+            [ir.toStream(array), iota],
+            [elt, inner_row_uid],
+            ir.InsertFields(
+                ir.Ref(elt, array.typ.element_type),
+                [(idx_field_name, ir.Cast(ir.Ref(inner_row_uid, tint32), tint64))],
+                None,
+            ),
+            'TakeMinLength',
+        )
+    )
 
 
-def impute_type_of_partition_interval_array(
-        intervals: Optional[List[Any]]
-) -> Tuple[Optional[List[Any]], Any]:
+def impute_type_of_partition_interval_array(intervals: Optional[List[Any]]) -> Tuple[Optional[List[Any]], Any]:
     if intervals is None:
         return None, None
     if len(intervals) == 0:
@@ -99,10 +112,7 @@ def impute_type_of_partition_interval_array(
         return intervals, t
 
     struct_intervals = [
-        hl.Interval(hl.Struct(__point=i.start),
-                    hl.Struct(__point=i.end),
-                    i.includes_start,
-                    i.includes_end)
+        hl.Interval(hl.Struct(__point=i.start), hl.Struct(__point=i.end), i.includes_start, i.includes_end)
         for i in intervals
     ]
     struct_intervals_type = hl.tarray(hl.tinterval(hl.tstruct(__point=pt)))
@@ -111,6 +121,7 @@ def impute_type_of_partition_interval_array(
 
 def filter_predicate_with_keep(ir_pred, keep):
     import hail.ir.ir as ir
+
     return ir.Coalesce(ir_pred if keep else ir.ApplyUnaryPrimOp('!', ir_pred), ir.FalseIR())
 
 
@@ -120,11 +131,7 @@ def make_filter_and_replace(filter, find_replace):
         replace = None
     else:
         find, replace = find_replace
-    return {
-        'filterPattern': filter,
-        'findPattern': find,
-        'replacePattern': replace
-    }
+    return {'filterPattern': filter, 'findPattern': find, 'replacePattern': replace}
 
 
 def parse_type(string_expr, ttype):
