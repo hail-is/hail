@@ -2885,7 +2885,7 @@ def import_vcf(
     ##INFO=<ID=C,Number=3,Type=Float,Description="">
     ##INFO=<ID=D,Number=.,Type=Float,Description="">
     #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE1
-    1	123456	.	A	C	.	.	A=1,.;B=.,2,.;C=.	GT:X:Y:Z	0/0:1,.,1:.:
+    1	123456	.	A	C	.	.	A=1,.;B=.,2,.;C=.	GT:X:Y:Z	0/0:1,.,1:.
 
     >>> ds = hl.import_vcf('data/missing-values-in-array-fields.vcf', array_elements_required=False)
     >>> ds.show(n_rows=1, n_cols=1, include_row_fields=True)
@@ -2894,9 +2894,9 @@ def import_vcf(
     +---------------+------------+------+-----------+----------+--------------+------------------+----------------+
     | locus<GRCh37> | array<str> | str  |   float64 | set<str> | array<int32> | array<float64>   | array<float64> |
     +---------------+------------+------+-----------+----------+--------------+------------------+----------------+
-    | 1:123456      | ["A","C"]  | NA   | -1.00e+01 | NA       | [1,NA]       | [2.00e+00,NA,NA] | NA             |
+    | 1:123456      | ["A","C"]  | NA   | -1.00e+01 | NA       | [1,NA]       | [NA,2.00e+00,NA] | NA             |
     +---------------+------------+------+-----------+----------+--------------+------------------+----------------+
-
+    <BLANKLINE>
     +----------------+--------------+--------------+--------------+--------------+
     | info.D         | 'SAMPLE1'.GT | 'SAMPLE1'.X  | 'SAMPLE1'.Y  | 'SAMPLE1'.Z  |
     +----------------+--------------+--------------+--------------+--------------+

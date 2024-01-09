@@ -222,7 +222,7 @@ class VCFTests(unittest.TestCase):
 
     def test_import_vcf_array_elements_required_is_false_parses_info_fields_with_missing_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
-        mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
+        mt = mt.select_rows(**mt.info.FOO)
         expected = hl.Table.parallelize(
             [
                 {
