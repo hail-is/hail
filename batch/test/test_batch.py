@@ -1010,7 +1010,7 @@ def test_client_max_size(client: BatchClient):
     b.submit()
 
 
-async def test_restartable_insert(client: BatchClient):
+async def test_restartable_insert():
     i = 0
 
     def every_third_time():
@@ -1021,7 +1021,7 @@ async def test_restartable_insert(client: BatchClient):
         return False
 
     async with FailureInjectingClientSession(every_third_time) as session:
-        client = AioBatchClient('test', session=session)
+        client = await AioBatchClient.create('test', session=session)
         b = create_batch(client)
 
         for _ in range(9):
