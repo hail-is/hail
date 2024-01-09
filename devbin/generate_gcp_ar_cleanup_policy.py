@@ -21,7 +21,7 @@ class DeletePolicy(CleanupPolicy):
         version_name_prefixes: Optional[List[str]] = None,
         package_name_prefixes: Optional[List[str]] = None,
         older_than: Optional[str] = None,
-        newer_than: Optional[str] = None
+        newer_than: Optional[str] = None,
     ):
         self.name = name
         self.tag_state = tag_state
@@ -57,7 +57,7 @@ class ConditionalKeepPolicy(CleanupPolicy):
         version_name_prefixes: Optional[List[str]] = None,
         package_name_prefixes: Optional[List[str]] = None,
         older_than: Optional[str] = None,
-        newer_than: Optional[str] = None
+        newer_than: Optional[str] = None,
     ):
         self.name = name
         self.tag_state = tag_state

@@ -153,11 +153,9 @@ def table_read_force_count_strings(ht_path):
 
 @benchmark(args=many_ints_table.handle('tsv'))
 def table_import_ints(tsv):
-    hl.import_table(tsv,
-                    types={'idx': 'int',
-                           **{f'i{i}': 'int' for i in range(5)},
-                           **{f'array{i}': 'array<int>' for i in range(2)}}
-                    )._force_count()
+    hl.import_table(
+        tsv, types={'idx': 'int', **{f'i{i}': 'int' for i in range(5)}, **{f'array{i}': 'array<int>' for i in range(2)}}
+    )._force_count()
 
 
 @benchmark(args=many_ints_table.handle('tsv'))
@@ -173,9 +171,13 @@ def table_import_strings(tsv):
 @benchmark(args=many_ints_table.handle('ht'))
 def table_aggregate_int_stats(ht_path):
     ht = hl.read_table(ht_path)
-    ht.aggregate(tuple([*(hl.agg.stats(ht[f'i{i}']) for i in range(5)),
-                        *(hl.agg.stats(hl.sum(ht[f'array{i}'])) for i in range(2)),
-                        *(hl.agg.explode(lambda elt: hl.agg.stats(elt), ht[f'array{i}']) for i in range(2))]))
+    ht.aggregate(
+        tuple([
+            *(hl.agg.stats(ht[f'i{i}']) for i in range(5)),
+            *(hl.agg.stats(hl.sum(ht[f'array{i}'])) for i in range(2)),
+            *(hl.agg.explode(lambda elt: hl.agg.stats(elt), ht[f'array{i}']) for i in range(2)),
+        ])
+    )
 
 
 @benchmark()
@@ -194,7 +196,11 @@ def table_range_array_range_force_count():
 @benchmark(args=random_doubles.handle('mt'))
 def table_aggregate_approx_cdf(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    mt.aggregate_entries((hl.agg.approx_cdf(mt.x), hl.agg.approx_cdf(mt.x ** 2, k=500), hl.agg.approx_cdf(1 / mt.x, k=1000)))
+    mt.aggregate_entries((
+        hl.agg.approx_cdf(mt.x),
+        hl.agg.approx_cdf(mt.x**2, k=500),
+        hl.agg.approx_cdf(1 / mt.x, k=1000),
+    ))
 
 
 @benchmark(args=many_strings_table.handle('ht'))
@@ -230,8 +236,7 @@ def table_aggregate_downsample_sparse():
 @benchmark(args=many_ints_table.handle('ht'))
 def table_aggregate_linreg(ht_path):
     ht = hl.read_table(ht_path)
-    ht.aggregate(hl.agg.array_agg(lambda i: hl.agg.linreg(ht.i0 + i, [ht.i1, ht.i2, ht.i3, ht.i4]),
-                                  hl.range(75)))
+    ht.aggregate(hl.agg.array_agg(lambda i: hl.agg.linreg(ht.i0 + i, [ht.i1, ht.i2, ht.i3, ht.i4]), hl.range(75)))
 
 
 @benchmark(args=many_strings_table.handle('ht'))

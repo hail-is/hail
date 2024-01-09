@@ -51,8 +51,9 @@ def combine(output, files):
                 data['p-value'] = p_value
                 if p_value < 0.001:
                     logging.warning(
-                        f'benchmark {name} had significantly different trial distributions (p={p_value}, F={f_stat}):' +
-                        ''.join('\n  ' + ', '.join([f'{x:.2f}s' for x in trial]) for trial in data['trials']))
+                        f'benchmark {name} had significantly different trial distributions (p={p_value}, F={f_stat}):'
+                        + ''.join('\n  ' + ', '.join([f'{x:.2f}s' for x in trial]) for trial in data['trials'])
+                    )
             else:
                 data['f-stat'] = float('nan')
                 data['p-value'] = float('nan')
@@ -65,16 +66,8 @@ def combine(output, files):
 
 def register_main(subparser) -> 'None':
     parser = subparser.add_parser(
-        'combine',
-        help='Combine parallelized benchmark metrics.',
-        description='Combine parallelized benchmark metrics.'
+        'combine', help='Combine parallelized benchmark metrics.', description='Combine parallelized benchmark metrics.'
     )
-    parser.add_argument("--output", "-o",
-                        type=str,
-                        required=True,
-                        help="Output file.")
-    parser.add_argument("files",
-                        type=str,
-                        nargs='*',
-                        help="JSON files to çombine.")
+    parser.add_argument("--output", "-o", type=str, required=True, help="Output file.")
+    parser.add_argument("files", type=str, nargs='*', help="JSON files to çombine.")
     parser.set_defaults(main=lambda args: combine(args.output, args.files))
