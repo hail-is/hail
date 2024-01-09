@@ -13,14 +13,6 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
 @pytest.fixture(scope='module')
-def event_loop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope='module')
 async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
     token = secrets.token_hex(16)
 

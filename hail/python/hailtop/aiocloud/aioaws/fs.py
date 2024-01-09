@@ -354,11 +354,18 @@ class S3AsyncFS(AsyncFS):
         self._s3 = boto3.client('s3', config=config)
 
     @staticmethod
+    def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
+        # Because the S3 upload_part API call requires the entire part
+        # be loaded into memory, use a smaller part size.
+        return 32 * 1024 * 1024
+
+    @staticmethod
     def valid_url(url: str) -> bool:
         return url.startswith('s3://')
 
-    def parse_url(self, url: str) -> S3AsyncFSURL:
-        return S3AsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> S3AsyncFSURL:
+        return S3AsyncFSURL(*S3AsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
@@ -565,8 +572,3 @@ class S3AsyncFS(AsyncFS):
 
     async def close(self) -> None:
         del self._s3
-
-    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
-        # Because the S3 upload_part API call requires the entire part
-        # be loaded into memory, use a smaller part size.
-        return 32 * 1024 * 1024
