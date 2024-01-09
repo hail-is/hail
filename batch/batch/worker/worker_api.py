@@ -35,9 +35,7 @@ class CloudWorkerAPI(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def user_container_registry_credentials(
-        self, user_credentials: Dict[str, str]
-    ) -> ContainerRegistryCredentials:
+    async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod
