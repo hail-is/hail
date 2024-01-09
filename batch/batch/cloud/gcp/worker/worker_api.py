@@ -179,6 +179,8 @@ class GoogleHailMetadataServer(HailMetadataServer[aiogoogle.GoogleServiceAccount
         gsa_email = self._user_credentials(request).email
         recursive = request.query.get('recursive')
         # https://cloud.google.com/compute/docs/metadata/querying-metadata
+        # token is not included in the recursive version, presumably as that
+        # is not simple metadata but requires requesting an access token
         if recursive == 'true':
             return web.json_response(
                 {
