@@ -1290,10 +1290,11 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
+              --ignore=$HAIL_LOCATION/test \
               --ignore=$HAIL_LOCATION/docs/conf.py \
               --ignore=$HAIL_LOCATION/docs/doctest_write_data.py \
               --rootdir $HAIL_LOCATION \
-              $HAIL_LOCATION/docs
+              $HAIL_LOCATION
     inputs:
       - from: /repo/hail/python/hail/docs
         to: /io/docs
