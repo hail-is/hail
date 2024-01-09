@@ -80,6 +80,7 @@ class GeomLineBasic(Geom):
 
 
 class GeomPoint(Geom):
+
     aes_to_plotly = {
         "color": "marker_color",
         "size": "marker_size",
@@ -294,6 +295,7 @@ def geom_text(mapping=aes(), *, color=None, size=None, alpha=None):
 
 
 class GeomBar(Geom):
+
     aes_to_arg = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
@@ -827,6 +829,7 @@ class GeomTile(Geom):
         self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
     ):
         def plot_group(df):
+
             for idx, row in df.iterrows():
                 x_center = row['x']
                 y_center = row['y']
@@ -949,6 +952,7 @@ class GeomRibbon(Geom):
         self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
     ):
         def plot_group(df):
+
             trace_args_bottom = {
                 "x": df.x,
                 "y": df.ymin,

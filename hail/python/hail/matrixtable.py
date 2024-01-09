@@ -682,7 +682,6 @@ class MatrixTable(ExprContainer):
             A MatrixTable assembled from inputs whose rows are keyed by `row_idx`
             and columns are keyed by `col_idx`.
         """
-
         # General idea: build a `Table` representation matching that returned by
         # `MatrixTable.localize_entries` and then call `_unlocalize_entries`. In
         # this form, the column table is bundled with the globals and the entries
@@ -3417,6 +3416,7 @@ class MatrixTable(ExprContainer):
         entry_exprs={},
         global_exprs={},
     ) -> 'MatrixTable':
+
         all_names = list(itertools.chain(row_exprs.keys(), col_exprs.keys(), entry_exprs.keys(), global_exprs.keys()))
         uids = {k: Env.get_uid() for k in all_names}
 

@@ -3304,6 +3304,7 @@ def import_avro(paths, *, key=None, intervals=None):
         raise ValueError('key and intervals must either be both defined or both undefined')
 
     with hl.current_backend().fs.open(paths[0], 'rb') as avro_file:
+
         # monkey patch DataFileReader.determine_file_length to account for bug in Google HadoopFS
 
         def patched_determine_file_length(self) -> int:

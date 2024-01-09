@@ -191,6 +191,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 
 def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
+
     row_fields = dict(zip(mt.row_key.keys(), mt.row_key.keys()))
     for f in pass_through:
         if isinstance(f, str):

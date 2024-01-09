@@ -1102,7 +1102,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.arr_sum, [None] + [[i * 1, i * 2, 0] for i in range(1, 10)])
         self.assertEqual(r.bind_agg, [(i + 1) // 2 for i in range(10)])
         self.assertEqual(r.foo, [min(sum(range(i)), 3) for i in range(10)])
-        for x, y in zip(r.fraction_odd, [None] + [((i + 1) // 2) / i for i in range(1, 10)]):
+        for (x, y) in zip(r.fraction_odd, [None] + [((i + 1) // 2) / i for i in range(1, 10)]):
             self.assertAlmostEqual(x, y)
 
         table = hl.utils.range_table(10)
@@ -1213,7 +1213,7 @@ class Tests(unittest.TestCase):
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
         # FIXME: add boolean when function registry is removed
-        for f, typ in [
+        for (f, typ) in [
             (lambda x: hl.int32(x), tint32),
             (lambda x: hl.int64(x), tint64),
             (lambda x: hl.float32(x), tfloat32),
@@ -1229,7 +1229,7 @@ class Tests(unittest.TestCase):
 
     def test_aggregators_sum_product(self):
         table = hl.utils.range_table(5)
-        for f, typ in [
+        for (f, typ) in [
             (lambda x: hl.int32(x), tint32),
             (lambda x: hl.int64(x), tint64),
             (lambda x: hl.float32(x), tfloat32),
@@ -2549,6 +2549,7 @@ class Tests(unittest.TestCase):
         )
 
     def test_call_unphase(self):
+
         calls = [
             hl.Call([0], phased=True),
             hl.Call([0], phased=False),
@@ -4026,7 +4027,7 @@ class Tests(unittest.TestCase):
 
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]
-        for htyp, pytyp in collection_types:
+        for (htyp, pytyp) in collection_types:
             x = htyp([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
             assert hl.eval(x.a) == pytyp(['foo', 'bar'])
 
@@ -4493,6 +4494,7 @@ def test_to_relational_row_and_col_refs():
 
 
 def test_locus_addition():
+
     rg = hl.get_reference('GRCh37')
     len_1 = rg.lengths['1']
     loc = hl.locus('1', 5, reference_genome='GRCh37')

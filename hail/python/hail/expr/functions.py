@@ -693,7 +693,7 @@ def bind(f: Callable, *exprs, _ctx=None):
         indices, aggregations = unify_all(*exprs, lambda_result)
 
     res_ir = lambda_result._ir
-    for uid, value_ir in builtins.zip(uids, irs):
+    for (uid, value_ir) in builtins.zip(uids, irs):
         if _ctx == 'agg':
             res_ir = ir.AggLet(uid, value_ir, res_ir, is_scan=False)
         elif _ctx == 'scan':

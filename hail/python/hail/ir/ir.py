@@ -3060,6 +3060,7 @@ P = ParamSpec('P')
 
 
 def udf(*param_types: HailType) -> Callable[[Callable[P, T]], Callable[P, T]]:
+
     uid = Env.get_uid()
 
     @decorator
@@ -3353,6 +3354,7 @@ class PartitionReader(object):
 
 
 class GVCFPartitionReader(PartitionReader):
+
     entries_field_name = '__entries'
 
     def __init__(

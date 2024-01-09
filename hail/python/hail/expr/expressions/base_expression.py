@@ -553,6 +553,7 @@ class Expression(object):
     def __init__(
         self, x: ir.IR, type: HailType, indices: Indices = Indices(), aggregations: LinkedList = LinkedList(Aggregation)
     ):
+
         self._ir: ir.IR = x
         self._type = type
         self._indices = indices
@@ -1042,6 +1043,7 @@ class Expression(object):
         1:2     ["A","C"]       7.0588e-01
         1:3     ["A","C"]       4.9991e-01
         1:4     ["A","C"]       3.9616e-01
+        <BLANKLINE>
 
         >>> small_mt.bn.export('output/bn.tsv')
         >>> with open('output/bn.tsv', 'r') as f:
@@ -1049,6 +1051,7 @@ class Expression(object):
         ...         print(line, end='')
         bn
         {"n_populations":3,"n_samples":4,"n_variants":4,"n_partitions":4,"pop_dist":[1,1,1],"fst":[0.1,0.1,0.1],"mixture":false}
+        <BLANKLINE>
 
 
         Notes

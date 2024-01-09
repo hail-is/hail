@@ -25,6 +25,7 @@ class Trio(object):
 
     @typecheck_method(s=str, fam_id=nullable(str), pat_id=nullable(str), mat_id=nullable(str), is_female=nullable(bool))
     def __init__(self, s, fam_id=None, pat_id=None, mat_id=None, is_female=None):
+
         self._fam_id = fam_id
         self._s = s
         self._pat_id = pat_id
