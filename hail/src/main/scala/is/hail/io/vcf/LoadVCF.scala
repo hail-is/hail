@@ -739,7 +739,9 @@ final class VCFLine(
   def parseArrayElement[T](ab: MissingArrayBuilder[T], eltParser: () => T) {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
+        parseError(
+          "Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'."
+        )
       ab.addMissing()
       pos += 1
     } else {
@@ -750,7 +752,9 @@ final class VCFLine(
   def parseArrayIntElement() {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
+        parseError(
+          "Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'."
+        )
       abi.addMissing()
       pos += 1
     } else {
@@ -761,7 +765,9 @@ final class VCFLine(
   def parseFloatArrayElement() {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
+        parseError(
+          "Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'."
+        )
       abf.addMissing()
       pos += 1
     } else {
@@ -772,7 +778,9 @@ final class VCFLine(
   def parseArrayDoubleElement() {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
+        parseError(
+          "Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'."
+        )
       abd.addMissing()
       pos += 1
     } else {
@@ -783,7 +791,9 @@ final class VCFLine(
   def parseArrayStringElement() {
     if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError("Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
+        parseError(
+          "Missing value in FORMAT array. Use 'hl.import_vcf(..., array_elements_required=False)'."
+        )
       abs.addMissing()
       pos += 1
     } else {
@@ -986,7 +996,9 @@ final class VCFLine(
   def parseInfoArrayIntElement() {
     if (infoArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError("Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
+        parseError(
+          "Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'."
+        )
       abi.addMissing()
       pos += 1 // dot
     } else
@@ -996,7 +1008,9 @@ final class VCFLine(
   def parseInfoArrayStringElement() {
     if (infoArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError("Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
+        parseError(
+          "Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'."
+        )
       abs.addMissing()
       pos += 1 // dot
     } else
@@ -1006,7 +1020,9 @@ final class VCFLine(
   def parseInfoArrayDoubleElement() {
     if (infoArrayElementMissing()) {
       if (arrayElementsRequired)
-        parseError("Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'.")
+        parseError(
+          "Missing value in INFO array. Use 'hl.import_vcf(..., array_elements_required=False)'."
+        )
       abd.addMissing()
       pos += 1
     } else {
@@ -1020,7 +1036,7 @@ final class VCFLine(
       assert(abi.length == 0)
       parseInfoArrayIntElement()
       while (!endInfoField()) {
-        pos += 1  // comma
+        pos += 1 // comma
         parseInfoArrayIntElement()
       }
 
@@ -1044,7 +1060,7 @@ final class VCFLine(
       assert(abs.length == 0)
       parseInfoArrayStringElement()
       while (!endInfoField()) {
-        pos += 1  // comma
+        pos += 1 // comma
         parseInfoArrayStringElement()
       }
 
@@ -1068,7 +1084,7 @@ final class VCFLine(
       assert(abd.length == 0)
       parseInfoArrayDoubleElement()
       while (!endInfoField()) {
-        pos += 1  // comma
+        pos += 1 // comma
         parseInfoArrayDoubleElement()
       }
 
