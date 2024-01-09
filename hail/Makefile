@@ -28,6 +28,7 @@ JAR ?= jar
 endif
 
 PYTEST_TARGET ?= test/hail test/hailtop
+DOCTEST_TARGET ?= hail
 PYTEST_INTER_CLOUD_TARGET ?= test/hailtop/inter_cloud
 
 # not perfect, not robust to simdpp changes, but probably fine
@@ -251,10 +252,11 @@ pytest-qob: upload-qob-jar upload-remote-test-resources install-editable
             $(PYTEST_ARGS)
 
 
-.PHONY: doctest
-doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-doctest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
-	cd python && $(HAIL_PYTHON3) -m pytest \
+.PHONY: doctest-query
+doctest-query: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
+doctest-query: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
+	cd python && \
+          $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
@@ -275,7 +277,7 @@ doctest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
             --ignore=hail/docs/doctest_write_data.py \
             --ignore=hail/docs/getting_started_developing.rst \
             --ignore=hail/docs/getting_started.rst \
-            $(PYTEST_TARGET) \
+            $(DOCTEST_TARGET) \
             $(PYTEST_ARGS)
 
 
@@ -489,9 +491,9 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
-.PHONY: hail-docs-no-test
-hail-docs-no-test: install-editable
-hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
+.PHONY: hail-docs-do-not-render-notebooks
+hail-docs-do-not-render-notebooks: install-editable
+hail-docs-do-not-render-notebooks: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
 	        html

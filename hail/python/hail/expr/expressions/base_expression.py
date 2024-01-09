@@ -1009,31 +1009,30 @@ class Expression(object):
         >>> with open('output/gt.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        locus      alleles 0       1       2       3
-        1:1        ["A","C"]       0/1     0/1     1/1     0/0
-        1:2        ["A","C"]       1/1     1/1     0/1     1/1
-        1:3        ["A","C"]       0/0     0/0     1/1     0/1
-        1:4        ["A","C"]       0/0     0/0     0/0     1/1
+        locus	alleles	0	1	2	3
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
         >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        1:1        ["A","C"]       0/1     0/1     1/1     0/0
-        1:2        ["A","C"]       1/1     1/1     0/1     1/1
-        1:3        ["A","C"]       0/0     0/0     1/1     0/1
-        1:4        ["A","C"]       0/0     0/0     0/0     1/1
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
         >>> small_mt.pop.export('output/pops.tsv')
         >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        sample_idx      pop
-        0       0
-        1       0
-        2       2
-        3       0
-        <BLANKLINE>
+        sample_idx	pop
+        0	1
+        1	2
+        2	2
+        3	2
 
         >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
         >>> with open('output/ancestral_af.tsv', 'r') as f:
@@ -1068,12 +1067,11 @@ class Expression(object):
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        locus   alleles {"s":0,"family":"fam1"} {"s":1,"family":"fam1"} {"s":2,"family":"fam1"} {"s":3,"family":"fam1"}
-        1:1     ["A","C"]       0/1     0/1     1/1     0/0
-        1:2     ["A","C"]       1/1     1/1     0/1     1/1
-        1:3     ["A","C"]       0/0     0/0     1/1     0/1
-        1:4     ["A","C"]       0/0     0/0     0/0     1/1
-        <BLANKLINE>
+        locus	alleles	{"s":0,"family":"fam1"}	{"s":1,"family":"fam1"}	{"s":2,"family":"fam1"}	{"s":3,"family":"fam1"}
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
 
         Parameters
