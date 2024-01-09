@@ -174,7 +174,8 @@ hail-0.1-docs-5a6778710097.tar.gz:
 	gcloud storage cp gs://hail-common/builds/0.1/docs/$@ .
 
 hail/build/www: hail-0.1-docs-5a6778710097.tar.gz $(shell git ls-files hail)
-	$(MAKE) -C hail hail-docs-no-test batch-docs
+	@echo !!! This target does not render the notebooks because it takes a long time !!!
+	$(MAKE) -C hail hail-docs-do-not-render-notebooks batch-docs
 	mkdir -p hail/build/www/docs/0.1
 	tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
 	touch $@  # Copying into the dir does not necessarily touch it

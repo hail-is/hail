@@ -343,6 +343,12 @@ class S3AsyncFS(AsyncFS):
         return {'s3'}
 
     @staticmethod
+    def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
+        # Because the S3 upload_part API call requires the entire part
+        # be loaded into memory, use a smaller part size.
+        return 32 * 1024 * 1024
+
+    @staticmethod
     def valid_url(url: str) -> bool:
         return url.startswith('s3://')
 
@@ -555,8 +561,3 @@ class S3AsyncFS(AsyncFS):
 
     async def close(self) -> None:
         del self._s3
-
-    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
-        # Because the S3 upload_part API call requires the entire part
-        # be loaded into memory, use a smaller part size.
-        return 32 * 1024 * 1024
