@@ -5,6 +5,7 @@ import mill.scalalib._
 import mill.scalalib.Assembly._
 import mill.scalalib.TestModule.TestNg
 import mill.scalalib.scalafmt.ScalafmtModule
+import mill.util.Jvm
 
 def hailMajorMinorVersion = "0.2"
 def hailPatchVersion = "126"
@@ -115,14 +116,15 @@ trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { o
     override def ivyDeps =
       super.ivyDeps() ++ outer.compileIvyDeps() ++ Agg(
         ivy"org.scalatest::scalatest:3.0.5",
-        ivy"org.testng:testng:7.6.0",
+//        ivy"org.testng:testng:7.6.0",
+        ivy"org.testng:testng:6.8.21",
       )
   }
 }
 
 object main extends Cross[MainModule]("debug", "release")
 
-trait MainModule extends Cross.Module[String] with HailScalaModule {
+trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
   override def millSourcePath = millOuterCtx.millSourcePath / os.up
 
   override def sources = T.sources {
@@ -132,12 +134,17 @@ trait MainModule extends Cross.Module[String] with HailScalaModule {
   override def resources = T {
     super.resources() ++ Seq(
       buildInfo(),
-      PathRef(millSourcePath / os.up / "prebuilt" / "lib"),
+      PathRef(millSourcePath / "prebuilt" / "lib"),
     )
   }
 
   override def unmanagedClasspath = T {
     Agg(shadedazure.assembly())
+  }
+
+  // omit unmanagedClasspath from the jar
+  override def jar: T[PathRef] = T {
+    Jvm.createJar((resources() ++ Agg(compile().classes)).map(_.path).filter(os.exists), manifest())
   }
 
   override def ivyDeps = Agg(
@@ -149,7 +156,7 @@ trait MainModule extends Cross.Module[String] with HailScalaModule {
     ivy"com.github.samtools:htsjdk:3.0.5".excludeOrg("*"),
     ivy"net.sourceforge.jdistlib:jdistlib:0.4.5".excludeOrg("*"),
     ivy"org.freemarker:freemarker:2.3.31",
-    ivy"org.elasticsearch::elasticsearch-spark-30:8.4.3".excludeOrg("org.apache.spark"),
+    ivy"org.elasticsearch::elasticsearch-spark-30:8.4.3", // .excludeOrg("org.apache.spark"),
     ivy"com.google.cloud:google-cloud-storage:2.30.1".excludeOrg("com.fasterxml.jackson.core"),
     ivy"net.java.dev.jna:jna:5.13.0",
   )
@@ -201,5 +208,14 @@ trait MainModule extends Cross.Module[String] with HailScalaModule {
     "-Xfatal-warnings"
   )
 
-  object test extends HailTests
+  object test extends HailTests {
+    override def assemblyRules = outer.assemblyRules ++ Seq(
+      Rule.Relocate("org.codehaus.jackson.**", "is.hail.relocated.@0")
+//      Rule.Relocate("org.codehaus.stax2.**", "is.hail.relocated.@0"),
+    )
+
+    override def ivyDeps = super.ivyDeps() ++ Seq(
+      ivy"com.fasterxml.jackson.core:jackson-core:2.14.2"
+    )
+  }
 }
