@@ -85,7 +85,6 @@ from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
-from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
 # import uvloop
@@ -396,7 +395,7 @@ class ReadOnlyCloudfuseManager:
         destination: str,
         *,
         user: str,
-        credentials: CloudUserCredentials,
+        credentials: Dict[str, str],
         tmp_path: str,
         config: dict,
     ):
@@ -423,7 +422,7 @@ class ReadOnlyCloudfuseManager:
         self,
         destination: str,
         *,
-        credentials: CloudUserCredentials,
+        credentials: Dict[str, str],
         tmp_path: str,
         config: dict,
     ):
@@ -484,7 +483,7 @@ class Image:
     def __init__(
         self,
         name: str,
-        credentials: Union[CloudUserCredentials, 'JVMUserCredentials', 'CopyStepCredentials'],
+        credentials: Optional[Dict[str, str]],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
@@ -537,9 +536,7 @@ class Image:
                     await self._ensure_image_is_pulled()
                 elif self.is_public_image:
                     await self._ensure_image_is_pulled(auth=self._batch_worker_registry_credentials)
-                elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
-                    self.credentials, (JVMUserCredentials, CopyStepCredentials)
-                ):
+                elif self.image_ref_str == BATCH_WORKER_IMAGE and self.credentials is None:
                     pass
                 else:
                     # Pull to verify this user has access to this
@@ -613,7 +610,7 @@ class Image:
         return await CLOUD_WORKER_API.worker_container_registry_credentials(self.client_session)
 
     async def _current_user_registry_credentials(self) -> ContainerRegistryCredentials:
-        assert self.credentials and isinstance(self.credentials, CloudUserCredentials)
+        assert self.credentials
         assert CLOUD_WORKER_API
         return await CLOUD_WORKER_API.user_container_registry_credentials(self.credentials)
 
@@ -1353,8 +1350,8 @@ class Container:
         assert CLOUD_WORKER_API
         env = (
             (self.image.image_config['Config']['Env'] or [])
-            + self.env
             + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
+            + self.env  # User-defined env variables should take precedence
         )
         machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
         if is_gpu(machine_family):
@@ -1461,13 +1458,12 @@ def copy_container(
         task_manager=job.task_manager,
         fs=job.worker.fs,
         name=job.container_name(task_name),
-        image=Image(BATCH_WORKER_IMAGE, CopyStepCredentials(), client_session, job.pool),
+        image=Image(BATCH_WORKER_IMAGE, None, client_session, job.pool),
         scratch_dir=f'{scratch}/{task_name}',
         command=command,
         cpu_in_mcpu=cpu_in_mcpu,
         memory_in_bytes=memory_in_bytes,
         volume_mounts=volume_mounts,
-        env=[f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
         stdin=json.dumps(files),
     )
 
@@ -1502,8 +1498,8 @@ class Job(abc.ABC):
     @staticmethod
     def create(
         batch_id,
-        user,
-        credentials: CloudUserCredentials,
+        user: str,
+        credentials: Dict[str, str],
         job_spec: dict,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1523,7 +1519,7 @@ class Job(abc.ABC):
         self,
         batch_id: int,
         user: str,
-        credentials: CloudUserCredentials,
+        credentials: Dict[str, str],
         job_spec,
         format_version: BatchFormatVersion,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1714,7 +1710,7 @@ class DockerJob(Job):
         self,
         batch_id: int,
         user: str,
-        credentials: CloudUserCredentials,
+        credentials: Dict[str, str],
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
@@ -1737,7 +1733,6 @@ class DockerJob(Job):
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
             {'name': 'HAIL_JOB_ID', 'value': str(self.job_id)},
             {'name': 'HAIL_ATTEMPT_ID', 'value': str(self.attempt_id)},
-            {'name': 'HAIL_IDENTITY_PROVIDER_JSON', 'value': json.dumps(self.credentials.identity_provider_json)},
         ]
         self.env += hail_extra_env
 
@@ -2102,7 +2097,7 @@ class JVMJob(Job):
         self,
         batch_id: int,
         user: str,
-        credentials: CloudUserCredentials,
+        credentials: Dict[str, str],
         job_spec,
         format_version,
         task_manager: aiotools.BackgroundTaskManager,
@@ -2471,14 +2466,6 @@ class IncompleteJVMCleanupError(Exception):
     pass
 
 
-class JVMUserCredentials:
-    pass
-
-
-class CopyStepCredentials:
-    pass
-
-
 class JVMContainer:
     @staticmethod
     async def create_and_start(
@@ -2556,7 +2543,7 @@ class JVMContainer:
             task_manager=task_manager,
             fs=fs,
             name=f'jvm-{index}',
-            image=Image(BATCH_WORKER_IMAGE, JVMUserCredentials(), client_session, pool),
+            image=Image(BATCH_WORKER_IMAGE, None, client_session, pool),
             scratch_dir=f'{root_dir}/container',
             command=command,
             cpu_in_mcpu=n_cores * 1000,
@@ -3098,13 +3085,10 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
-        assert CLOUD_WORKER_API
-        credentials = CLOUD_WORKER_API.user_credentials(body['gsa_key'])
-
         job = Job.create(
             batch_id,
             body['user'],
-            credentials,
+            body['gsa_key'],
             job_spec,
             format_version,
             self.task_manager,
