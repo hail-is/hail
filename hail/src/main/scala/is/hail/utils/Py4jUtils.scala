@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.io.fs.{FileListEntry, FS, SeekableDataInputStream}
+import is.hail.io.fs.{FileListEntry, FileStatus, FS, SeekableDataInputStream}
 import is.hail.types.virtual.Type
 
 import org.json4s.JsonAST._
@@ -56,16 +56,20 @@ trait Py4jUtils {
     JsonMethods.compact(JArray(statuses.map(fs => fileListEntryToJson(fs)).toList))
   }
 
+  def fileStatus(fs: FS, path: String): String = {
+    val stat = fs.fileStatus(path)
+    JsonMethods.compact(fileStatusToJson(stat))
+  }
+
   def fileListEntry(fs: FS, path: String): String = {
     val stat = fs.fileListEntry(path)
     JsonMethods.compact(fileListEntryToJson(stat))
   }
 
-  private def fileListEntryToJson(fs: FileListEntry): JObject = {
+  private def fileStatusToJson(fs: FileStatus): JObject = {
     JObject(
       "path" -> JString(fs.getPath.toString),
       "size" -> JInt(fs.getLen),
-      "is_dir" -> JBool(fs.isDirectory),
       "is_link" -> JBool(fs.isSymlink),
       "modification_time" ->
         (if (fs.getModificationTime != null)
@@ -84,6 +88,9 @@ trait Py4jUtils {
       ),
     )
   }
+
+  private def fileListEntryToJson(fs: FileListEntry): JObject =
+    JObject(fileStatusToJson(fs).obj :+ ("is_dir" -> JBool(fs.isDirectory)))
 
   private val kilo: Long = 1024
   private val mega: Long = kilo * 1024

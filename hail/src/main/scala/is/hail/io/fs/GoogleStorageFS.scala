@@ -8,9 +8,7 @@ import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.Paths
-import scala.jdk.CollectionConverters.{
-  asJavaIterableConverter, asScalaIteratorConverter, iterableAsScalaIterableConverter,
-}
+import scala.jdk.CollectionConverters._
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.auth.oauth2.ServiceAccountCredentials
@@ -46,7 +44,7 @@ object GoogleStorageFS {
   private[this] val GCS_URI_REGEX = "^gs:\\/\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
   def parseUrl(filename: String): GoogleStorageFSURL = {
-    val scheme = new URI(filename).getScheme
+    val scheme = filename.split(":")(0)
     if (scheme == null || scheme != "gs") {
       throw new IllegalArgumentException(s"Invalid scheme, expected gs: $scheme")
     }
@@ -68,10 +66,8 @@ object GoogleStorageFileListEntry {
   def apply(blob: Blob): BlobStorageFileListEntry = {
     val isDir = blob.isDirectory
 
-    val name = dropTrailingSlash(blob.getName)
-
     new BlobStorageFileListEntry(
-      s"gs://${blob.getBucket}/$name",
+      s"gs://${blob.getBucket}/${blob.getName}",
       if (isDir)
         null
       else
@@ -80,6 +76,9 @@ object GoogleStorageFileListEntry {
       isDir,
     )
   }
+
+  def dir(url: GoogleStorageFSURL): BlobStorageFileListEntry =
+    return new BlobStorageFileListEntry(url.toString, null, 0, true)
 }
 
 object RequesterPaysConfiguration {
@@ -467,35 +466,51 @@ class GoogleStorageFS(
       .toArray
   }
 
-  override def fileListEntry(url: URL): FileListEntry = retryTransientErrors {
-    val path = dropTrailingSlash(url.path)
+  private[this] def getBlob(url: URL) = retryTransientErrors {
+    handleRequesterPays(
+      (options: Seq[BlobGetOption]) =>
+        storage.get(url.bucket, url.path, options: _*),
+      BlobGetOption.userProject _,
+      url.bucket,
+    )
+  }
 
+  override def fileStatus(url: URL): FileStatus = retryTransientErrors {
     if (url.path == "")
-      return new BlobStorageFileListEntry(s"gs://${url.bucket}", null, 0, true)
+      return GoogleStorageFileListEntry.dir(url)
 
-    val blobs = retryTransientErrors {
+    val blob = getBlob(url)
+
+    if (blob == null) {
+      throw new FileNotFoundException(url.toString)
+    }
+
+    new BlobStorageFileStatus(
+      url.toString,
+      blob.getUpdateTimeOffsetDateTime.toInstant().toEpochMilli(),
+      blob.getSize,
+    )
+  }
+
+  override def fileListEntry(url: URL): FileListEntry = {
+    if (url.getPath == "") {
+      return GoogleStorageFileListEntry.dir(url)
+    }
+
+    val prefix = dropTrailingSlash(url.path)
+    val it = retryTransientErrors {
       handleRequesterPays(
         (options: Seq[BlobListOption]) =>
           storage.list(
             url.bucket,
-            (BlobListOption.prefix(path) +: BlobListOption.currentDirectory() +: options): _*
+            (BlobListOption.prefix(prefix) +: BlobListOption.currentDirectory() +: options): _*
           ),
-        BlobListOption.userProject,
+        BlobListOption.userProject _,
         url.bucket,
       )
-    }
+    }.iterateAll().asScala.map(GoogleStorageFileListEntry.apply(_)).iterator
 
-    val it = blobs.getValues.iterator.asScala
-    while (it.hasNext) {
-      val b = it.next()
-      var name = b.getName
-      while (name.endsWith("/"))
-        name = name.dropRight(1)
-      if (name == path)
-        return GoogleStorageFileListEntry(b)
-    }
-
-    throw new FileNotFoundException(url.toString())
+    fileListEntryFromIterator(url, it)
   }
 
   override def eTag(url: URL): Some[String] = {

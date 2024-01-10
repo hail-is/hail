@@ -10,7 +10,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 
-import java.io.OutputStreamWriter
+import java.io.{FileNotFoundException, OutputStreamWriter}
 import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 
@@ -36,15 +36,22 @@ object RelationalSpec {
       new MatrixTypeSerializer
 
   def readMetadata(fs: FS, path: String): JValue = {
-    if (!fs.isDir(path)) {
-      if (!fs.exists(path)) {
-        fatal(s"No file or directory found at $path")
-      } else {
-        fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
-      }
-    }
     val metadataFile = path + "/metadata.json.gz"
-    val jv = using(fs.open(metadataFile))(in => parse(in))
+    val jv =
+      try
+        using(fs.open(metadataFile))(in => parse(in))
+      catch {
+        case exc: FileNotFoundException =>
+          if (fs.isFile(path)) {
+            fatal(s"MatrixTable and Table files are directories; path '$path' is a file.")
+          } else {
+            if (fs.isDir(path)) {
+              fatal(s"MatrixTable is corrupted: $path/metadata.json.gz is missing.")
+            } else {
+              fatal(s"No file or directory found at $path.")
+            }
+          }
+      }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)

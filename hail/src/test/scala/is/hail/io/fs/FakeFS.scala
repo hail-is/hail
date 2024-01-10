@@ -2,6 +2,7 @@ package is.hail.io.fs
 
 case class FakeURL(path: String) extends FSURL {
   def getPath(): String = path
+  def getActualUrl(): String = path
 }
 
 abstract class FakeFS extends FS {
@@ -13,6 +14,7 @@ abstract class FakeFS extends FS {
   override def createNoCompression(url: FakeURL): PositionedDataOutputStream = ???
   override def delete(url: FakeURL, recursive: Boolean): Unit = ???
   override def eTag(url: FakeURL): Option[String] = ???
+  override def fileStatus(url: FakeURL): FileStatus = ???
   override def fileListEntry(url: FakeURL): FileListEntry = ???
   override def glob(url: FakeURL): Array[FileListEntry] = ???
   override def listDirectory(url: FakeURL): Array[FileListEntry] = ???

@@ -16,6 +16,8 @@ class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
 
   def getPath: String = fs.getPath.toString
 
+  def getActualUrl: String = fs.getPath.toString
+
   def getModificationTime: java.lang.Long = fs.getModificationTime
 
   def getLen: Long = fs.getLen
@@ -71,14 +73,15 @@ object HadoopFS {
     }
 }
 
-case class HadoopFSURL(val path: String, conf: SerializableHadoopConfiguration) extends FSURL {
-  val hadoopPath = new hadoop.fs.Path(path)
-  val hadoopFs = hadoopPath.getFileSystem(conf.value)
+case class HadoopFSURL(path: String, conf: SerializableHadoopConfiguration) extends FSURL {
+  private[this] val unqualifiedHadoopPath = new hadoop.fs.Path(path)
+  val hadoopFs = unqualifiedHadoopPath.getFileSystem(conf.value)
+  val hadoopPath = hadoopFs.makeQualified(unqualifiedHadoopPath)
 
-  def addPathComponent(c: String): HadoopFSURL = HadoopFSURL(s"$path/$c", conf)
-  def getPath: String = path
+  def addPathComponent(c: String): HadoopFSURL = HadoopFSURL(s"${hadoopPath.toString}/$c", conf)
+  def getPath: String = hadoopPath.toString
   def fromString(s: String): HadoopFSURL = HadoopFSURL(s, conf)
-  override def toString(): String = path
+  override def toString(): String = hadoopPath.toString
 }
 
 class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends FS {
@@ -151,10 +154,10 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
 
   override def globAll(filenames: Iterable[String]): Array[FileListEntry] = {
     filenames.flatMap { filename =>
-      val statuses = glob(filename)
-      if (statuses.isEmpty)
+      val fles = glob(filename)
+      if (fles.isEmpty)
         warn(s"'$filename' refers to no files")
-      statuses
+      fles
     }.toArray
   }
 
@@ -166,6 +169,14 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
       s"globbing path $url returned ${files.length} files: ${files.map(_.getPath.getName).mkString(",")}"
     )
     files.map(fileListEntry => new HadoopFileListEntry(fileListEntry))
+  }
+
+  override def fileStatus(url: URL): FileStatus = {
+    val fle = fileListEntry(url)
+    if (fle.isDirectory) {
+      throw new FileNotFoundException(url.getPath)
+    }
+    fle
   }
 
   def fileListEntry(url: URL): FileListEntry =

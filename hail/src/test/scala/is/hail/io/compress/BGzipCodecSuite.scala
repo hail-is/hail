@@ -80,7 +80,7 @@ class BGzipCodecSuite extends HailSuite {
   @Test def testGenericLinesSimpleUncompressed() {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
-    val uncompStatus = fs.fileListEntry(uncompPath)
+    val uncompStatus = fs.fileStatus(uncompPath)
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
@@ -95,7 +95,7 @@ class BGzipCodecSuite extends HailSuite {
   @Test def testGenericLinesSimpleBGZ() {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
-    val compStatus = fs.fileListEntry(compPath)
+    val compStatus = fs.fileStatus(compPath)
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
@@ -111,7 +111,7 @@ class BGzipCodecSuite extends HailSuite {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     // won't split, just run once
-    val gzStatus = fs.fileListEntry(gzPath)
+    val gzStatus = fs.fileStatus(gzPath)
     val lines2 = GenericLines.collect(
       fs,
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, true),
@@ -121,7 +121,7 @@ class BGzipCodecSuite extends HailSuite {
 
   @Test def testGenericLinesRefuseGZ() {
     interceptFatal("Cowardly refusing") {
-      val gzStatus = fs.fileListEntry(gzPath)
+      val gzStatus = fs.fileStatus(gzPath)
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, false)
     }
   }
