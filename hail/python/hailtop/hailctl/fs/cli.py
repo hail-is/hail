@@ -4,15 +4,9 @@ from datetime import datetime
 from typing import List, Optional, Annotated as Ann
 
 import humanize
-import tabulate
 import typer
 
 from typer import Option as Opt, Argument as Arg
-
-import hailtop.fs.fs_utils
-
-from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.utils import async_to_blocking
 
 app = typer.Typer(
     name='fs',
@@ -22,7 +16,7 @@ app = typer.Typer(
 )
 
 
-async def async_du(fs: RouterAsyncFS, path: str, human_readable: bool, summarize: bool) -> int:
+async def async_du(fs, path: str, human_readable: bool, summarize: bool) -> int:
     total_size = 0
     async for item in await fs.listfiles(path):
         url, is_dir = await asyncio.gather(item.url(), item.is_dir())
@@ -48,6 +42,9 @@ def du(paths: Ann[Optional[List[str]], Arg()] = None,
     '''
     Display storage resourse usage
     '''
+    from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
+
     if not paths:
         paths = ['.']
     fs = RouterAsyncFS()
@@ -69,6 +66,10 @@ def ls(paths: Ann[Optional[List[str]], Arg()] = None,
     '''
     List objects
     '''
+    import tabulate  # pylint: disable=import-outside-toplevel
+    import hailtop.fs.fs_utils  # pylint: disable=import-outside-toplevel
+    from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
+
     def display_bytes(size):
         if size is None or size <= 0:
             return None
