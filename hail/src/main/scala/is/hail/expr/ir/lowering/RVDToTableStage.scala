@@ -15,8 +15,8 @@ import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.TStruct
 import is.hail.utils.FastSeq
 
-import org.json4s.JsonAST.JString
 import org.json4s.JValue
+import org.json4s.JsonAST.JString
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 

@@ -13,7 +13,7 @@ import scala.util.Random
 import org.apache.http.HttpEntity
 import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost}
 import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
-import org.apache.log4j.{Logger, LogManager}
+import org.apache.log4j.{LogManager, Logger}
 
 class NoBodyException(message: String, cause: Throwable) extends Exception(message, cause) {
   def this() = this(null, null)
@@ -227,7 +227,7 @@ class BatchClient(
     bunches
   }
 
-  private def addBunchBytes(b: ByteArrayBuilder, bunch: Array[Array[Byte]]) {
+  private def addBunchBytes(b: ByteArrayBuilder, bunch: Array[Array[Byte]]): Unit = {
     var j = 0
     b += '['
     while (j < bunch.length) {

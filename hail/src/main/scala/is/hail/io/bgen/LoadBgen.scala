@@ -12,7 +12,7 @@ import is.hail.expr.ir.{
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
-import is.hail.io.fs.{FileListEntry, FS, SeekableDataInputStream}
+import is.hail.io.fs.{FS, FileListEntry, SeekableDataInputStream}
 import is.hail.io.index.{IndexReader, StagedIndexReader}
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.RVDPartitioner
@@ -147,7 +147,7 @@ object LoadBgen {
     )
   }
 
-  def checkVersionTwo(headers: Array[BgenHeader]) {
+  def checkVersionTwo(headers: Array[BgenHeader]): Unit = {
     val notVersionTwo = headers.filter(_.version != 2).map(x => x.path -> x.version)
     if (notVersionTwo.length > 0)
       fatal(

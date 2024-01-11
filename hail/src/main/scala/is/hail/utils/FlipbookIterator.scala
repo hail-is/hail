@@ -106,7 +106,7 @@ object FlipbookIterator {
         i += 1
       }
 
-      def advance() {
+      def advance(): Unit = {
         var i = 0;
         while (i < value.length) {
           val j = value(i)._2
@@ -149,7 +149,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
   def valueOrElse(default: A): A =
     if (isValid) value else default
 
-  def exhaust() { while (isValid) advance() }
+  def exhaust(): Unit = while (isValid) advance()
 
   def toStagingIterator: StagingIterator[A]
 
@@ -158,9 +158,8 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       def value = self.value
       def isValid = self.isValid
 
-      def advance() {
+      def advance(): Unit =
         do self.advance() while (self.isValid && !pred(self.value))
-      }
 
       while (self.isValid && !pred(self.value)) self.advance()
     }
@@ -174,7 +173,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       if (self.isValid) value = f(self.value)
       def isValid = self.isValid
 
-      def advance() {
+      def advance(): Unit = {
         self.advance()
         if (self.isValid) value = f(self.value)
       }
@@ -190,17 +189,16 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         def value: B = it.value
         def isValid = self.isValid
 
-        def advance() {
+        def advance(): Unit = {
           it.advance()
           findNextValid
         }
 
-        def findNextValid() {
+        def findNextValid(): Unit =
           while (self.isValid && !it.isValid) {
             self.advance()
             if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
           }
-        }
       }
     )
 
@@ -273,7 +271,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     val sm = new StateMachine[Muple[A, B]] {
       val value = Muple(leftDefault, rightDefault)
       var isValid = true
-      def advance() {
+      def advance(): Unit = {
         left.stage()
         right.stage()
         val c = {
@@ -328,7 +326,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     val sm = new StateMachine[Muple[A, B]] {
       val value = Muple(leftDefault, rightDefault)
       var isValid = true
-      def setValue() {
+      def setValue(): Unit = {
         if (!left.isValid)
           isValid = false
         else {
@@ -341,7 +339,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
             value.set(left.value, right.value)
         }
       }
-      def advance() {
+      def advance(): Unit = {
         left.advance()
         setValue()
       }
@@ -439,7 +437,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     class MergeStateMachine extends StateMachine[A] {
       var value: A = _
       var isValid = true
-      def advance() {
+      def advance(): Unit = {
         left.stage()
         right.stage()
         val c = {

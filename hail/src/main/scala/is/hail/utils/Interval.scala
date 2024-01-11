@@ -4,10 +4,8 @@ import is.hail.annotations._
 import is.hail.check._
 import is.hail.types.virtual.TBoolean
 
-import org.json4s.JsonAST.JObject
 import org.json4s.JValue
-
-import scala.language.implicitConversions
+import org.json4s.JsonAST.JObject
 
 import org.apache.spark.sql.Row
 

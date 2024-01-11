@@ -4,14 +4,12 @@ import is.hail.asm4s._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.stypes.concrete.SStackStruct
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual._
-import is.hail.utils._
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
+import java.io.OutputStream
 
 object ValueWriter {
   implicit val formats: Formats =

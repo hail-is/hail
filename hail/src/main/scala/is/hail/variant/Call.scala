@@ -7,7 +7,6 @@ import is.hail.utils._
 import java.io.Serializable
 import scala.annotation.switch
 import scala.collection.JavaConverters._
-import scala.language.implicitConversions
 
 object Call0 {
   def apply(phased: Boolean = false): Call =
@@ -469,7 +468,7 @@ object Call extends Serializable {
     }
   }
 
-  def check(c: Call, nAlleles: Int) {
+  def check(c: Call, nAlleles: Int): Unit = {
     (ploidy(c): @switch) match {
       case 0 =>
       case 1 =>

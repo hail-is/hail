@@ -13,7 +13,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.language.{existentials, postfixOps}
 
 import org.apache.spark.TaskContext
 

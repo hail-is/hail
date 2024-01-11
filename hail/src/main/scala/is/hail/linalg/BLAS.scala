@@ -165,8 +165,8 @@ object BLAS {
 }
 
 trait BLASLibrary extends Library {
-  def dcopy(n: IntByReference, X: Long, incX: IntByReference, Y: Long, incY: IntByReference)
-  def dscal(n: IntByReference, alpha: DoubleByReference, X: Long, incX: IntByReference)
+  def dcopy(n: IntByReference, X: Long, incX: IntByReference, Y: Long, incY: IntByReference): Unit
+  def dscal(n: IntByReference, alpha: DoubleByReference, X: Long, incX: IntByReference): Unit
 
   def dgemv(
     TRANS: String,
@@ -180,7 +180,7 @@ trait BLASLibrary extends Library {
     BETA: DoubleByReference,
     Y: Long,
     INCY: IntByReference,
-  )
+  ): Unit
 
   def sgemm(
     TRANSA: String,
@@ -196,7 +196,7 @@ trait BLASLibrary extends Library {
     BETA: FloatByReference,
     C: Long,
     LDC: IntByReference,
-  )
+  ): Unit
 
   def dgemm(
     TRANSA: String,
@@ -212,7 +212,7 @@ trait BLASLibrary extends Library {
     BETA: DoubleByReference,
     C: Long,
     LDC: IntByReference,
-  )
+  ): Unit
 
   def dtrmm(
     side: String,
@@ -226,7 +226,7 @@ trait BLASLibrary extends Library {
     ldA: IntByReference,
     B: Long,
     ldB: IntByReference,
-  )
+  ): Unit
 
   def dnrm2(N: IntByReference, X: Array[Double], INCX: IntByReference): Double
 }

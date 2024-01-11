@@ -145,9 +145,8 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   def rmtree(dirname: String): Unit =
     getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true)
 
-  def delete(url: URL, recursive: Boolean) {
+  def delete(url: URL, recursive: Boolean): Unit =
     url.hadoopFs.delete(url.hadoopPath, recursive)
-  }
 
   override def globAll(filenames: Iterable[String]): Array[FileListEntry] = {
     filenames.flatMap { filename =>

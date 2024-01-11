@@ -1,6 +1,6 @@
 package is.hail.io
 
-import is.hail.annotations.{Memory, Region}
+import is.hail.annotations.Memory
 
 import java.util
 
@@ -14,14 +14,13 @@ final class MemoryBuffer extends Serializable {
   def invalidate(): Unit =
     mem = null
 
-  def clear() {
+  def clear(): Unit = {
     pos = 0
     end = 0
   }
 
-  def clearPos() {
+  def clearPos(): Unit =
     pos = 0
-  }
 
   def set(bytes: Array[Byte]): Unit = {
     mem = bytes
@@ -35,52 +34,51 @@ final class MemoryBuffer extends Serializable {
     dst
   }
 
-  def grow(n: Int) {
+  def grow(n: Int): Unit =
     mem = util.Arrays.copyOf(mem, math.max(capacity * 2, end + n))
-  }
 
-  def copyFrom(src: MemoryBuffer) {
+  def copyFrom(src: MemoryBuffer): Unit = {
     mem = util.Arrays.copyOf(src.mem, src.capacity)
     end = src.end
     pos = src.pos
   }
 
-  def writeByte(b: Byte) {
+  def writeByte(b: Byte): Unit = {
     if (end + 1 > capacity)
       grow(1)
     Memory.storeByte(mem, end, b)
     end += 1
   }
 
-  def writeInt(i: Int) {
+  def writeInt(i: Int): Unit = {
     if (end + 4 > capacity)
       grow(4)
     Memory.storeInt(mem, end, i)
     end += 4
   }
 
-  def writeLong(i: Long) {
+  def writeLong(i: Long): Unit = {
     if (end + 8 > capacity)
       grow(8)
     Memory.storeLong(mem, end, i)
     end += 8
   }
 
-  def writeFloat(i: Float) {
+  def writeFloat(i: Float): Unit = {
     if (end + 4 > capacity)
       grow(4)
     Memory.storeFloat(mem, end, i)
     end += 4
   }
 
-  def writeDouble(i: Double) {
+  def writeDouble(i: Double): Unit = {
     if (end + 8 > capacity)
       grow(8)
     Memory.storeDouble(mem, end, i)
     end += 8
   }
 
-  def writeBytes(off: Long, n: Int) {
+  def writeBytes(off: Long, n: Int): Unit = {
     if (end + n > capacity)
       grow(n)
     Memory.memcpy(mem, end, off, n)
@@ -122,44 +120,44 @@ final class MemoryBuffer extends Serializable {
     d
   }
 
-  def readBytes(toOff: Long, n: Int) {
+  def readBytes(toOff: Long, n: Int): Unit = {
     assert(pos + n <= end)
     Memory.memcpy(toOff, mem, pos, n)
     pos += n
   }
 
-  def readBytesArray(dst: Array[Byte], n: Int) {
+  def readBytesArray(dst: Array[Byte], n: Int): Unit = {
     assert(pos + n <= end)
     System.arraycopy(mem, pos, dst, 0, n);
     pos += n
   }
 
-  def skipByte() {
+  def skipByte(): Unit = {
     assert(pos + 1 <= end)
     pos += 1
   }
 
-  def skipInt() {
+  def skipInt(): Unit = {
     assert(pos + 4 <= end)
     pos += 4
   }
 
-  def skipLong() {
+  def skipLong(): Unit = {
     assert(pos + 8 <= end)
     pos += 8
   }
 
-  def skipFloat() {
+  def skipFloat(): Unit = {
     assert(pos + 4 <= end)
     pos += 4
   }
 
-  def skipDouble() {
+  def skipDouble(): Unit = {
     assert(pos + 8 <= end)
     pos += 8
   }
 
-  def skipBytes(n: Int) {
+  def skipBytes(n: Int): Unit = {
     assert(pos + n <= end)
     pos += n
   }

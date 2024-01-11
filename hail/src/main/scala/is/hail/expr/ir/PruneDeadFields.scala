@@ -337,7 +337,7 @@ object PruneDeadFields {
     tir: TableIR,
     requestedType: TableType,
     memo: ComputeMutableState,
-  ) {
+  ): Unit = {
     memo.requestedType.bind(tir, requestedType)
     tir match {
       case TableRead(_, _, _) =>
@@ -782,7 +782,7 @@ object PruneDeadFields {
     mir: MatrixIR,
     requestedType: MatrixType,
     memo: ComputeMutableState,
-  ) {
+  ): Unit = {
     memo.requestedType.bind(mir, requestedType)
     mir match {
       case MatrixFilterCols(child, pred) =>

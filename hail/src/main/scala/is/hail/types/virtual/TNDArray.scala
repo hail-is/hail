@@ -53,7 +53,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   def _toPretty = s"NDArray[$elementType,$nDims]"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("NDArray[")
     elementType.pretty(sb, indent, compact)
     sb.append(",")

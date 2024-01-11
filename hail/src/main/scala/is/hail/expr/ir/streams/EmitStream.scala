@@ -26,7 +26,6 @@ import is.hail.utils._
 import is.hail.variant.Locus
 
 import java.util
-import scala.language.implicitConversions
 
 import org.objectweb.asm.Opcodes._
 

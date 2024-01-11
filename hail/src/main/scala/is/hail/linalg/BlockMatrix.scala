@@ -95,7 +95,7 @@ class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix])
     Iterator.single(m)
   }
 
-  override def clearDependencies() {
+  override def clearDependencies(): Unit = {
     super.clearDependencies()
     bms = null
   }
@@ -196,12 +196,11 @@ object BlockMatrix {
 
   val metadataRelativePath = "/metadata.json"
 
-  def checkWriteSuccess(fs: FS, uri: String) {
+  def checkWriteSuccess(fs: FS, uri: String): Unit =
     if (!fs.isFile(uri + "/_SUCCESS"))
       fatal(
         s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri"
       )
-  }
 
   def readMetadata(fs: FS, uri: String): BlockMatrixMetadata =
     using(fs.open(uri + metadataRelativePath)) { is =>
@@ -230,9 +229,8 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
-  private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
+  private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]): Unit =
     assert(lm.isCompact)
-  }
 
   private[linalg] def block(
     bm: BlockMatrix,
@@ -720,7 +718,7 @@ class BlockMatrix(
     rectangles: Array[Array[Long]],
     delimiter: String,
     binary: Boolean,
-  ) {
+  ): Unit = {
 
     val writeRectangleBinary = (uos: OutputStream, dm: BDM[Double]) => {
       val os = new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
@@ -956,7 +954,7 @@ class BlockMatrix(
     overwrite: Boolean = false,
     forceRowMajor: Boolean = false,
     stageLocally: Boolean = false,
-  ) {
+  ): Unit = {
     val fs = ctx.fs
     if (overwrite)
       fs.delete(uri, recursive = true)
@@ -1067,7 +1065,7 @@ class BlockMatrix(
     new BDM(nRowsInt, nColsInt, data)
   }
 
-  private def requireZippable(that: M, name: String = "operation") {
+  private def requireZippable(that: M, name: String = "operation"): Unit = {
     require(
       nRows == that.nRows,
       s"$name requires same number of rows, but actually: ${nRows}x$nCols, ${that.nRows}x${that.nCols}",
@@ -2071,7 +2069,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
       },
     )
 
-  def fma(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]) {
+  def fma(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]): Unit = {
     assert(_a.cols == _b.rows)
 
     val a =

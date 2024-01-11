@@ -33,7 +33,7 @@ class ReorderedPartitionsRDD[T](
     override def getParents(partitionId: Int): Seq[Int] = FastSeq(oldIndices(partitionId))
   })
 
-  override def clearDependencies() {
+  override def clearDependencies(): Unit = {
     super.clearDependencies()
     prev = null
   }

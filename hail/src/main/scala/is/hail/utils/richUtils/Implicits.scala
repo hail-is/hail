@@ -1,9 +1,8 @@
 package is.hail.utils.richUtils
 
-import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{JoinedRegionValue, Region, RegionValue}
 import is.hail.asm4s.{Code, Value}
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDLong, RichContextRDDRegionValue}
-import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
 

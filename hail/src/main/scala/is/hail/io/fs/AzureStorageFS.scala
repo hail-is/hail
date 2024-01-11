@@ -19,7 +19,6 @@ import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
 import java.io.{ByteArrayOutputStream, FileNotFoundException, OutputStream}
-import java.net.URI
 import java.nio.file.Paths
 import java.time.Duration
 import scala.collection.JavaConverters._

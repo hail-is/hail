@@ -8,7 +8,6 @@ import is.hail.utils._
 import org.json4s._
 
 import scala.collection.JavaConverters._
-import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}

@@ -33,7 +33,6 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 import scala.annotation.switch
 import scala.collection.JavaConverters._
-import scala.language.higherKinds
 import scala.reflect.ClassTag
 
 import org.apache.log4j.Logger

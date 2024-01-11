@@ -144,7 +144,7 @@ object ArrayFunctions extends RegistryFunctions {
     )
   }
 
-  def registerAll() {
+  def registerAll(): Unit = {
     registerIR1("isEmpty", TArray(tv("T")), TBoolean)((_, a, _) => isEmpty(a))
 
     registerIR2("extend", TArray(tv("T")), TArray(tv("T")), TArray(tv("T")))((_, a, b, _) =>

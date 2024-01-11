@@ -23,9 +23,8 @@ object RichIterable {
 }
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
-  def foreachBetween(f: (T) => Unit)(g: => Unit) {
+  def foreachBetween(f: (T) => Unit)(g: => Unit): Unit =
     i.iterator.foreachBetween(f)(g)
-  }
 
   def intersperse[S >: T](sep: S): Iterable[S] = new Iterable[S] {
     def iterator = i.iterator.intersperse(sep)

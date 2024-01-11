@@ -2,11 +2,10 @@ package is.hail.backend
 
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{BaseIR, IRParser}
 import is.hail.expr.ir.{
-  CodeCacheKey, CompiledFunction, LoweringAnalyses, SortField, TableIR, TableReader,
+  BaseIR, CodeCacheKey, CompiledFunction, IRParser, IRParserEnvironment, LoweringAnalyses,
+  SortField, TableIR, TableReader,
 }
-import is.hail.expr.ir.IRParserEnvironment
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -16,7 +15,6 @@ import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.types.virtual.TFloat64
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
@@ -112,7 +110,7 @@ abstract class Backend {
   def addDefaultReferences(): Unit =
     references = ReferenceGenome.builtinReferences()
 
-  def addReference(rg: ReferenceGenome) {
+  def addReference(rg: ReferenceGenome): Unit = {
     references.get(rg.name) match {
       case Some(rg2) =>
         if (rg != rg2) {

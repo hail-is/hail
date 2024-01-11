@@ -1,14 +1,8 @@
 package is.hail.io.gen
 
-import is.hail.HailContext
-import is.hail.annotations.Region
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.MatrixValue
 import is.hail.types.physical.{PString, PStruct}
 import is.hail.utils._
-import is.hail.variant.{ArrayGenotypeView, Locus, RegionValueVariant, VariantMethods, View}
-
-import org.apache.spark.sql.Row
+import is.hail.variant.{Locus, VariantMethods, View}
 
 object ExportGen {
   val spaceRegex = """\s+""".r
@@ -66,7 +60,7 @@ class GenAnnotationView(rowType: PStruct) extends View {
   private var cachedVarid: String = _
   private var cachedRsid: String = _
 
-  def set(offset: Long) {
+  def set(offset: Long): Unit = {
     assert(rowType.isFieldDefined(offset, varidIdx))
     assert(rowType.isFieldDefined(offset, rsidIdx))
     this.rsidOffset = rowType.loadField(offset, rsidIdx)

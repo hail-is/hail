@@ -338,12 +338,12 @@ object Nirvana {
     )),
   )
 
-  def printContext(w: (String) => Unit) {
+  def printContext(w: (String) => Unit): Unit = {
     w("##fileformat=VCFv4.1")
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(vaSignature: PType)(w: (String) => Unit, v: (Locus, Array[String])) {
+  def printElement(vaSignature: PType)(w: (String) => Unit, v: (Locus, Array[String])): Unit = {
     val (locus, alleles) = v
 
     val sb = new StringBuilder()

@@ -18,7 +18,7 @@ final case class Case(name: String, typ: Type, index: Int) {
       typ.unify(cf.typ) &&
       index == cf.index
 
-  def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append(prettyIdentifier(name))
       sb.append(":")
@@ -106,7 +106,7 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
     sb.append('}')
   }
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append("Union{")
       cases.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')

@@ -1,9 +1,7 @@
 package is.hail.utils.richUtils
 
-import is.hail.HailContext
-import is.hail.annotations.{Region, RegionPool}
-import is.hail.backend.{ExecuteContext, HailTaskContext}
-import is.hail.backend.spark.SparkTaskContext
+import is.hail.annotations.RegionPool
+import is.hail.backend.ExecuteContext
 import is.hail.io.FileWriteMetadata
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
@@ -14,9 +12,7 @@ import is.hail.utils._
 import java.io._
 import scala.reflect.ClassTag
 
-import org.apache.hadoop.conf.{Configuration => HadoopConf}
 import org.apache.spark.TaskContext
-import org.apache.spark.rdd.RDD
 
 object RichContextRDD {
   def writeParts[T](

@@ -698,7 +698,7 @@ trait FS extends Serializable {
     deleteSource: Boolean = true,
     header: Boolean = true,
     partFilesOpt: Option[IndexedSeq[String]] = None,
-  ) {
+  ): Unit = {
     if (!exists(sourceFolder + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
@@ -745,7 +745,7 @@ trait FS extends Serializable {
     srcFileStatuses: Array[_ <: FileStatus],
     destFilename: String,
     deleteSource: Boolean = true,
-  ) {
+  ): Unit = {
     val codec = Option(getCodecFromPath(destFilename))
     val isBGzip = codec.exists(_ == BGZipCompressionCodec)
 

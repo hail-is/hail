@@ -4,7 +4,6 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 import java.io.StringWriter
-import java.nio.charset.StandardCharsets
 import java.text._
 import java.util.function._
 import scala.collection.mutable.ArrayBuffer

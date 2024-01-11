@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
 

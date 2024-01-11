@@ -12,8 +12,6 @@ import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.language.existentials
-
 object ImputeTypeState {
   val resultVirtualType = TStruct(
     "anyNonMissing" -> TBoolean,

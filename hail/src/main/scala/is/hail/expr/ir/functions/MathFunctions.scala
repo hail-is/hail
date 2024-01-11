@@ -110,7 +110,7 @@ object MathFunctions extends RegistryFunctions {
 
   val mathPackageClass: Class[_] = Class.forName("scala.math.package$")
 
-  def registerAll() {
+  def registerAll(): Unit = {
     val thisClass = getClass
     val statsPackageClass = Class.forName("is.hail.stats.package$")
     val jMathClass = classOf[java.lang.Math]

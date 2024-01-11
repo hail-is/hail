@@ -25,7 +25,7 @@ class IRRandomness(seed: Long) {
   private[this] def hash(pidx: Int): Long =
     seed ^ java.lang.Math.floorMod(pidx * 11399L, 2147483647L)
 
-  def reset(partitionIdx: Int) {
+  def reset(partitionIdx: Int): Unit = {
     val combinedSeed = hash(partitionIdx)
     random.setSeed(combinedSeed)
   }
@@ -111,7 +111,7 @@ object RandomSeededFunctions extends RegistryFunctions {
     )
   }
 
-  def registerAll() {
+  def registerAll(): Unit = {
     registerSCode3(
       "rand_unif",
       TRNGState,

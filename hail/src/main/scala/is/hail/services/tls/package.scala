@@ -10,7 +10,7 @@ import java.io.{File, FileInputStream}
 import java.security.KeyStore
 
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
-import org.apache.log4j.{Logger, LogManager}
+import org.apache.log4j.{LogManager, Logger}
 
 class NoSSLConfigFound(
   message: String,

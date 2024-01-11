@@ -16,7 +16,7 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 
 object NDArrayFunctions extends RegistryFunctions {
-  override def registerAll() {
+  override def registerAll(): Unit = {
     for ((stringOp, argType, retType, irOp) <- ArrayFunctions.arrayOps) {
       val nDimVar = NatVariable()
       registerIR2(stringOp, TNDArray(argType, nDimVar), argType, TNDArray(retType, nDimVar)) {

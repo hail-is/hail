@@ -151,15 +151,13 @@ abstract class Type extends BaseType with Serializable {
     else
       (this, identity[Annotation])
 
-  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     _pretty(sb, indent, compact)
-  }
 
   def _toPretty: String
 
-  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb.append(_toPretty)
-  }
 
   def schema: DataType = SparkAnnotationImpex.exportType(this)
 

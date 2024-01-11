@@ -1,7 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder, LongMissingArrayBuilder}
-import is.hail.types.physical.{PCanonicalNDArray, PNDArray}
+import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder}
 import is.hail.utils._
 
 final class RegionMemory(pool: RegionPool) extends AutoCloseable {

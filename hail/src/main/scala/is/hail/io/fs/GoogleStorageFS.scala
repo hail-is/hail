@@ -5,7 +5,6 @@ import is.hail.services.{isTransientError, retryTransientErrors}
 import is.hail.utils._
 
 import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
-import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.Paths
 import scala.jdk.CollectionConverters._

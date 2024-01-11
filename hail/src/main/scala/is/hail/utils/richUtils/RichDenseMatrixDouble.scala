@@ -1,6 +1,5 @@
 package is.hail.utils.richUtils
 
-import is.hail.HailContext
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
@@ -79,7 +78,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     BlockMatrix.fromBreezeMatrix(m, bm.blockSize).dot(bm)
   }
 
-  def forceSymmetry() {
+  def forceSymmetry(): Unit = {
     require(m.rows == m.cols, "only square matrices can be made symmetric")
 
     var i = 0
@@ -105,7 +104,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   }
 
   // caller must close
-  def write(os: OutputStream, forceRowMajor: Boolean, bufferSpec: BufferSpec) {
+  def write(os: OutputStream, forceRowMajor: Boolean, bufferSpec: BufferSpec): Unit = {
     val (data, isTranspose) = m.toCompactData(forceRowMajor)
     assert(data.length == m.rows * m.cols)
 
@@ -118,9 +117,8 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     out.flush()
   }
 
-  def write(fs: FS, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec) {
+  def write(fs: FS, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec): Unit =
     using(fs.create(path))(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
-  }
 
   def writeBlockMatrix(
     fs: FS,
@@ -128,7 +126,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     blockSize: Int,
     forceRowMajor: Boolean = false,
     overwrite: Boolean = false,
-  ) {
+  ): Unit = {
     if (overwrite)
       fs.delete(path, recursive = true)
     else if (fs.exists(path))

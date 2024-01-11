@@ -5,8 +5,7 @@ import is.hail.compatibility.LZ4BlockBufferSpec
 import is.hail.io.compress.LZ4
 import is.hail.rvd.AbstractRVDSpec
 
-import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
-import org.json4s.{Extraction, JValue}
+import org.json4s.{JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
 
 import java.io._

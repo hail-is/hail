@@ -3,8 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
-import is.hail.types.physical.PType
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
 
@@ -15,9 +14,9 @@ abstract class StagedAggregator {
   def initOpTypes: Seq[Type]
   def seqOpTypes: Seq[Type]
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit
 
   protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: State, other: State): Unit
 

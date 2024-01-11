@@ -38,12 +38,12 @@ final class ArrayGenotypeView(rvType: PStruct) {
   private var gOffset: Long = _
   var gIsDefined: Boolean = _
 
-  def set(offset: Long) {
+  def set(offset: Long): Unit = {
     gsOffset = rvType.loadField(offset, entriesIndex)
     gsLength = tgs.loadLength(gsOffset)
   }
 
-  def setGenotype(idx: Int) {
+  def setGenotype(idx: Int): Unit = {
     require(idx >= 0 && idx < gsLength)
     gIsDefined = tgs.isElementDefined(gsOffset, idx)
     gOffset = tgs.loadElement(gsOffset, gsLength, idx)
@@ -101,12 +101,12 @@ final class HardCallView(rvType: PStruct, callField: String) {
   var gsLength: Int = _
   var gIsDefined: Boolean = _
 
-  def set(offset: Long) {
+  def set(offset: Long): Unit = {
     gsOffset = rvType.loadField(offset, entriesIndex)
     gsLength = tgs.loadLength(gsOffset)
   }
 
-  def setGenotype(idx: Int) {
+  def setGenotype(idx: Int): Unit = {
     require(idx >= 0 && idx < gsLength)
     gIsDefined = tgs.isElementDefined(gsOffset, idx)
     gOffset = tgs.loadElement(gsOffset, gsLength, idx)

@@ -533,7 +533,7 @@ object Interpret {
             c < 0 || (c == 0 && li < ri)
           }
 
-          def advance(i: Int) {
+          def advance(i: Int): Unit = {
             heads(i) += 1
             var winner = if (heads(i) < streams(i).length) i else k
             var j = (i + k) / 2
@@ -574,7 +574,7 @@ object Interpret {
 
           def get(i: Int): Row = streams(i)(heads(i))
 
-          def advance(i: Int) {
+          def advance(i: Int): Unit = {
             heads(i) += 1
             var winner = if (heads(i) < streams(i).length) i else k
             var j = (i + k) / 2
@@ -1007,7 +1007,7 @@ object Interpret {
           class WrappedByteArray(_bytes: Array[Byte]) {
             private var ref: Array[Byte] = _bytes
             def bytes: Array[Byte] = ref
-            def clear() { ref = null }
+            def clear(): Unit = ref = null
           }
 
           // creates a region, giving ownership to the caller

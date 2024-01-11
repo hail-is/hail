@@ -194,7 +194,7 @@ class HailContext private (
       .groupBy(_.source.file)
   }
 
-  def grepPrint(fs: FS, regex: String, files: Seq[String], maxLines: Int) {
+  def grepPrint(fs: FS, regex: String, files: Seq[String], maxLines: Int): Unit = {
     fileAndLineCounts(fs, regex, files, maxLines).foreach { case (file, lines) =>
       info(s"$file: ${lines.length} ${plural(lines.length, "match", "matches")}:")
       lines.map(_.value).foreach { line =>

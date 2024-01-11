@@ -12,7 +12,6 @@ import is.hail.utils.{toRichBoolean, Logging, TreeTraversal}
 import java.io.FileNotFoundException
 import java.nio.ByteBuffer
 import scala.collection.mutable
-import scala.language.implicitConversions
 import scala.util.control.NonFatal
 
 import org.apache.commons.codec.digest.MurmurHash3

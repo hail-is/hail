@@ -9,7 +9,6 @@ import java.util
 import java.util.Map.Entry
 import java.util.concurrent.locks.{Lock, ReentrantLock}
 import scala.collection.concurrent
-import scala.language.postfixOps
 
 import htsjdk.samtools.reference.{ReferenceSequenceFile, ReferenceSequenceFileFactory}
 

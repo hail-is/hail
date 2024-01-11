@@ -13,7 +13,6 @@ import org.json4s.jackson.JsonMethods.parse
 import java.io.{FileNotFoundException, OutputStreamWriter}
 import scala.annotation.nowarn
 import scala.collection.mutable
-import scala.language.{existentials, implicitConversions}
 
 abstract class ComponentSpec
 
@@ -206,13 +205,12 @@ case class MatrixTableSpecParameters(
   components: Map[String, ComponentSpec],
 ) {
 
-  def write(fs: FS, path: String) {
+  def write(fs: FS, path: String): Unit =
     using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
       out.write(
         JsonMethods.compact(decomposeWithName(this, "MatrixTableSpec")(RelationalSpec.formats))
       )
     }
-  }
 
 }
 

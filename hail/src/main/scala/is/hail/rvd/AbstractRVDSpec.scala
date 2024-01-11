@@ -272,12 +272,11 @@ abstract class AbstractRVDSpec {
         )
   }
 
-  def write(fs: FS, path: String) {
+  def write(fs: FS, path: String): Unit =
     using(fs.create(path + "/metadata.json.gz")) { out =>
       import AbstractRVDSpec.formats
       Serialization.write(this, out)
     }
-  }
 }
 
 trait AbstractIndexSpec {

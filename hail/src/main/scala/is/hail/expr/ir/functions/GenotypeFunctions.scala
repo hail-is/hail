@@ -9,7 +9,7 @@ import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object GenotypeFunctions extends RegistryFunctions {
 
-  def registerAll() {
+  def registerAll(): Unit = {
     registerSCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: SType) => SInt32) {
       case (_, cb, _, pl: SIndexableValue, errorID) =>
         val m = cb.newLocal[Int]("m", 99)

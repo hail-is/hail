@@ -3,7 +3,6 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
-import is.hail.types.physical.PDict
 import is.hail.utils._
 
 import org.json4s.jackson.JsonMethods
@@ -39,7 +38,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     sb.append('>')
   }
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("Dict[")
     keyType.pretty(sb, indent, compact)
     if (compact)

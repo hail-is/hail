@@ -7,7 +7,7 @@ import java.io.InputStream
 
 object BGZipBlocks {
   // Print block starts of block gzip (bgz) file
-  def apply(fs: FS, file: String) {
+  def apply(fs: FS, file: String): Unit = {
     val buf = new Array[Byte](64 * 1024)
 
     // position of 'buf[0]' in input stream
@@ -16,7 +16,7 @@ object BGZipBlocks {
     var bufSize = 0
     var posInBuf = 0
 
-    def fillBuf(is: InputStream) {
+    def fillBuf(is: InputStream): Unit = {
       val newSize = bufSize - posInBuf
       assert(newSize >= 0)
 
@@ -25,7 +25,7 @@ object BGZipBlocks {
       bufSize = newSize
       posInBuf = 0
 
-      def f() {
+      def f(): Unit = {
         val needed = buf.length - bufSize
         if (needed > 0) {
           val result = is.read(buf, bufSize, needed)

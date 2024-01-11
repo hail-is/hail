@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import java.io.{InterruptedIOException, IOException, ObjectOutputStream, OutputStream}
+import java.io.{IOException, InterruptedIOException, ObjectOutputStream, OutputStream}
 import java.net.{ConnectException, InetAddress, Socket}
 
 import org.apache.log4j.{AppenderSkeleton, PatternLayout}
@@ -81,7 +81,7 @@ class StringSocketAppender() extends AppenderSkeleton {
     }
   }
 
-  override def append(event: LoggingEvent) {
+  override def append(event: LoggingEvent): Unit = {
     if (!initialized) return
     if (event == null) return
     if (address == null) {
@@ -108,7 +108,7 @@ class StringSocketAppender() extends AppenderSkeleton {
       }
   }
 
-  private def fireConnector() {
+  private def fireConnector(): Unit = {
     if (connector == null) {
       LogLog.debug("Starting a new connector thread.")
       connector = new SocketConnector
@@ -124,7 +124,7 @@ class StringSocketAppender() extends AppenderSkeleton {
   class SocketConnector extends Thread {
     var interrupted = false
 
-    override def run() {
+    override def run(): Unit = {
       var socket: Socket = null
       var c = true
       while (c && !interrupted)

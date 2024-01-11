@@ -22,7 +22,7 @@ object Combiner {
 }
 
 abstract class Combiner[U] {
-  def combine(i: Int, value0: U)
+  def combine(i: Int, value0: U): Unit
 
   def result(): U
 }
@@ -43,7 +43,7 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
   // U it holds.
   private val t = new java.util.TreeMap[Int, TreeValue]()
 
-  def combine(i: Int, value0: U) {
+  def combine(i: Int, value0: U): Unit = {
     log.info(s"at result $i, AssociativeCombiner contains ${t.size()} queued results")
     var value = value0
     var end = i

@@ -128,7 +128,7 @@ object LocusFunctions extends RegistryFunctions {
         )
     }
 
-  def registerAll() {
+  def registerAll(): Unit = {
     val locusClass = Locus.getClass
 
     registerSCode1(

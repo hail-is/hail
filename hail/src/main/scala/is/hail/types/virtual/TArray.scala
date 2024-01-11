@@ -29,7 +29,7 @@ final case class TArray(elementType: Type) extends TContainer {
 
   override def subst() = TArray(elementType.subst())
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("Array[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")

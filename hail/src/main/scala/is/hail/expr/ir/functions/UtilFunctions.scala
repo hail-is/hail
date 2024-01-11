@@ -199,7 +199,7 @@ object UtilFunctions extends RegistryFunctions {
         )
     }
 
-  def registerAll() {
+  def registerAll(): Unit = {
     val thisClass = getClass
 
     registerSCode4(

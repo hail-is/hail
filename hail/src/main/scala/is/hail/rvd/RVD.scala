@@ -17,7 +17,6 @@ import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
 
 import java.util
-import scala.language.existentials
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Partitioner, SparkContext, TaskContext}

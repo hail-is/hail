@@ -3,7 +3,7 @@ package is.hail
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import is.hail.expr.ir.ByteArrayBuilder
-import is.hail.io.fs.{FileListEntry, FS}
+import is.hail.io.fs.{FS, FileListEntry}
 
 import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
 import org.json4s.JsonAST.{JArray, JString}
@@ -21,7 +21,7 @@ import scala.annotation.tailrec
 import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
-import scala.language.{higherKinds, implicitConversions}
+import scala.language.higherKinds
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
@@ -130,7 +130,7 @@ package object utils
     forceGZ: Boolean,
     gzAsBGZ: Boolean,
     maxSizeMB: Int = 128,
-  ) {
+  ): Unit = {
     if (!forceGZ && !gzAsBGZ)
       fatal(
         s"""Cannot load file '${fileListEntry.getPath}'
@@ -176,9 +176,8 @@ package object utils
     math.ceil(math.log(nPartitions) / math.log(branchingFactor)).toInt
   }
 
-  def simpleAssert(p: Boolean) {
+  def simpleAssert(p: Boolean): Unit =
     if (!p) throw new AssertionError
-  }
 
   def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A])
     : Unit =
@@ -816,7 +815,7 @@ package object utils
     }
   }
 
-  def dumpClassLoader(cl: ClassLoader) {
+  def dumpClassLoader(cl: ClassLoader): Unit = {
     System.err.println(s"ClassLoader ${cl.getClass.getCanonicalName}:")
     cl match {
       case cl: URLClassLoader =>

@@ -27,7 +27,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     indexstk.clear()
   }
 
-  def set(newRegion: Region) {
+  def set(newRegion: Region): Unit = {
     assert(inactive)
     region = newRegion
   }
@@ -60,12 +60,12 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     }
   }
 
-  def start(newRoot: PType) {
+  def start(newRoot: PType): Unit = {
     assert(inactive)
     root = newRoot
   }
 
-  def allocateRoot() {
+  def allocateRoot(): Unit = {
     assert(typestk.isEmpty)
     root match {
       case _: PArray =>
@@ -82,12 +82,11 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     start
   }
 
-  def advance() {
+  def advance(): Unit =
     if (indexstk.nonEmpty)
       indexstk(0) = indexstk(0) + 1
-  }
 
-  def startBaseStruct(init: Boolean = true, setMissing: Boolean = false) {
+  def startBaseStruct(init: Boolean = true, setMissing: Boolean = false): Unit = {
     val t = currentType().asInstanceOf[PBaseStruct]
     if (typestk.isEmpty)
       allocateRoot()
@@ -101,7 +100,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
       t.initialize(off, setMissing)
   }
 
-  def endBaseStruct() {
+  def endBaseStruct(): Unit = {
     val t = typestk.top.asInstanceOf[PBaseStruct]
     typestk.pop()
     offsetstk.pop()
@@ -111,40 +110,39 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def startStruct(init: Boolean = true, setMissing: Boolean = false) {
+  def startStruct(init: Boolean = true, setMissing: Boolean = false): Unit = {
     assert(currentType().isInstanceOf[PStruct])
     startBaseStruct(init, setMissing)
   }
 
-  def endStruct() {
+  def endStruct(): Unit = {
     assert(typestk.top.isInstanceOf[PStruct])
     endBaseStruct()
   }
 
-  def startTuple(init: Boolean = true) {
+  def startTuple(init: Boolean = true): Unit = {
     assert(currentType().isInstanceOf[PTuple])
     startBaseStruct(init)
   }
 
-  def endTuple() {
+  def endTuple(): Unit = {
     assert(typestk.top.isInstanceOf[PTuple])
     endBaseStruct()
   }
 
-  def startArray(length: Int, init: Boolean = true) {
+  def startArray(length: Int, init: Boolean = true): Unit =
     startArrayInternal(length, init, false)
-  }
 
   // using this function, rather than startArray will set all elements of the array to missing by
   // default, you will need to use setPresent to add a value to this array.
-  def startMissingArray(length: Int, init: Boolean = true) {
+  def startMissingArray(length: Int, init: Boolean = true): Unit = {
     val t = currentType().asInstanceOf[PArray]
     if (t.elementType.required)
       fatal(s"cannot use random array pattern for required type ${t.elementType}")
     startArrayInternal(length, init, true)
   }
 
-  private def startArrayInternal(length: Int, init: Boolean, setMissing: Boolean) {
+  private def startArrayInternal(length: Int, init: Boolean, setMissing: Boolean): Unit = {
     val t = currentType() match {
       case abc: PArrayBackedContainer => abc.arrayRep
       case arr: PArray => arr
@@ -166,7 +164,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
       t.initialize(aoff, length, setMissing)
   }
 
-  def endArray() {
+  def endArray(): Unit = {
     val t = typestk.top.asInstanceOf[PArray]
     val aoff = offsetstk.top
     val length = t.loadLength(aoff)
@@ -175,7 +173,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     endArrayUnchecked()
   }
 
-  def endArrayUnchecked() {
+  def endArrayUnchecked(): Unit = {
     typestk.pop()
     offsetstk.pop()
     elementsOffsetstk.pop()
@@ -184,17 +182,17 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def setArrayIndex(newI: Int) {
+  def setArrayIndex(newI: Int): Unit = {
     assert(typestk.top.isInstanceOf[PArray])
     indexstk(0) = newI
   }
 
-  def setFieldIndex(newI: Int) {
+  def setFieldIndex(newI: Int): Unit = {
     assert(typestk.top.isInstanceOf[PBaseStruct])
     indexstk(0) = newI
   }
 
-  def setMissing() {
+  def setMissing(): Unit = {
     val i = indexstk.top
     typestk.top match {
       case t: PBaseStruct =>
@@ -209,7 +207,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def setPresent() {
+  def setPresent(): Unit = {
     val i = indexstk.top
     typestk.top match {
       case t: PBaseStruct =>
@@ -219,7 +217,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     }
   }
 
-  def addBoolean(b: Boolean) {
+  def addBoolean(b: Boolean): Unit = {
     assert(currentType().isInstanceOf[PBoolean])
     if (typestk.isEmpty)
       allocateRoot()
@@ -228,7 +226,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def addInt(i: Int) {
+  def addInt(i: Int): Unit = {
     assert(currentType().isInstanceOf[PInt32])
     addIntInternal(i)
   }
@@ -238,7 +236,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     addIntInternal(c)
   }
 
-  def addIntInternal(i: Int) {
+  def addIntInternal(i: Int): Unit = {
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
@@ -246,7 +244,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def addLong(l: Long) {
+  def addLong(l: Long): Unit = {
     assert(currentType().isInstanceOf[PInt64])
     if (typestk.isEmpty)
       allocateRoot()
@@ -255,7 +253,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def addFloat(f: Float) {
+  def addFloat(f: Float): Unit = {
     assert(currentType().isInstanceOf[PFloat32])
     if (typestk.isEmpty)
       allocateRoot()
@@ -264,7 +262,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def addDouble(d: Double) {
+  def addDouble(d: Double): Unit = {
     assert(currentType().isInstanceOf[PFloat64])
     if (typestk.isEmpty)
       allocateRoot()
@@ -273,7 +271,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def addString(s: String) {
+  def addString(s: String): Unit = {
     assert(currentType().isInstanceOf[PString])
     currentType().asInstanceOf[PString].unstagedStoreJavaObjectAtAddress(
       sm,
@@ -290,18 +288,16 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
+  def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int): Unit =
     addField(t, fromOff, i, region.ne(fromRegion))
-  }
 
-  def addField(t: PBaseStruct, fromOff: Long, i: Int, deepCopy: Boolean) {
+  def addField(t: PBaseStruct, fromOff: Long, i: Int, deepCopy: Boolean): Unit =
     if (t.isFieldDefined(fromOff, i))
       addRegionValue(t.types(i), t.loadField(fromOff, i), deepCopy)
     else
       setMissing()
-  }
 
-  def skipFields(n: Int) {
+  def skipFields(n: Int): Unit = {
     var i = 0
     while (i < n) {
       setMissing()
@@ -309,7 +305,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     }
   }
 
-  def addAllFields(t: PBaseStruct, fromRegion: Region, fromOff: Long) {
+  def addAllFields(t: PBaseStruct, fromRegion: Region, fromOff: Long): Unit = {
     var i = 0
     while (i < t.size) {
       addField(t, fromRegion, fromOff, i)
@@ -317,11 +313,10 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     }
   }
 
-  def addAllFields(t: PBaseStruct, fromRV: RegionValue) {
+  def addAllFields(t: PBaseStruct, fromRV: RegionValue): Unit =
     addAllFields(t, fromRV.region, fromRV.offset)
-  }
 
-  def addFields(t: PBaseStruct, fromRegion: Region, fromOff: Long, fieldIdx: Array[Int]) {
+  def addFields(t: PBaseStruct, fromRegion: Region, fromOff: Long, fieldIdx: Array[Int]): Unit = {
     var i = 0
     while (i < fieldIdx.length) {
       addField(t, fromRegion, fromOff, fieldIdx(i))
@@ -329,15 +324,14 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     }
   }
 
-  def addFields(t: PBaseStruct, fromRV: RegionValue, fieldIdx: Array[Int]) {
+  def addFields(t: PBaseStruct, fromRV: RegionValue, fieldIdx: Array[Int]): Unit =
     addFields(t, fromRV.region, fromRV.offset, fieldIdx)
-  }
 
-  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
+  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue): Unit =
     selectRegionValue(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
-  }
 
-  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], region: Region, offset: Long) {
+  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], region: Region, offset: Long)
+    : Unit = {
     // too expensive!
     // val t = fromT.typeAfterSelect(fromFieldIdx)
     // assert(currentType().setRequired(true) == t.setRequired(true), s"${currentType()} != ${t}")
@@ -347,15 +341,13 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     endStruct()
   }
 
-  def addRegionValue(t: PType, rv: RegionValue) {
+  def addRegionValue(t: PType, rv: RegionValue): Unit =
     addRegionValue(t, rv.region, rv.offset)
-  }
 
-  def addRegionValue(t: PType, fromRegion: Region, fromOff: Long) {
+  def addRegionValue(t: PType, fromRegion: Region, fromOff: Long): Unit =
     addRegionValue(t, fromOff, region.ne(fromRegion))
-  }
 
-  def addRegionValue(t: PType, fromOff: Long, deepCopy: Boolean) {
+  def addRegionValue(t: PType, fromOff: Long, deepCopy: Boolean): Unit = {
     val toT = currentType()
 
     if (typestk.isEmpty) {
@@ -372,7 +364,7 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def addAnnotation(t: Type, a: Annotation) {
+  def addAnnotation(t: Type, a: Annotation): Unit = {
     assert(typestk.nonEmpty)
     if (a == null) {
       setMissing()

@@ -25,7 +25,7 @@ object IRFunctionRegistry {
   private val userAddedFunctions: mutable.Set[(String, (Type, Seq[Type], Seq[Type]))] =
     mutable.HashSet.empty
 
-  def clearUserFunctions() {
+  def clearUserFunctions(): Unit = {
     userAddedFunctions.foreach { case (name, (rt, typeParameters, valueParameterTypes)) =>
       removeIRFunction(name, rt, typeParameters, valueParameterTypes)
     }
@@ -461,7 +461,7 @@ abstract class RegistryFunctions {
     typeParameters: Array[Type] = Array.empty,
   )(
     impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, Array[SValue], Value[Int]) => SValue
-  ) {
+  ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes,
         returnType, calculateReturnType) {
@@ -486,7 +486,7 @@ abstract class RegistryFunctions {
     typeParameters: Array[Type] = Array.empty,
   )(
     impl: (EmitRegion, EmitCodeBuilder, SType, Array[Type], Array[SValue]) => Value[_]
-  ) {
+  ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes,
         returnType, calculateReturnType) {
@@ -514,7 +514,7 @@ abstract class RegistryFunctions {
     typeParameters: Array[Type] = Array.empty,
   )(
     impl: (EmitRegion, SType, Value[Int], Array[EmitCode]) => EmitCode
-  ) {
+  ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType,
         calculateReturnType) {
@@ -540,7 +540,7 @@ abstract class RegistryFunctions {
     typeParameters: Array[Type] = Array.empty,
   )(
     impl: (EmitCodeBuilder, Value[Region], SType, Value[Int], Array[EmitCode]) => IEmitCode
-  ) {
+  ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType,
         calculateReturnType) {
@@ -580,7 +580,7 @@ abstract class RegistryFunctions {
   )(
     cls: Class[_],
     method: String,
-  ) {
+  ): Unit = {
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) {
       case (_, cb, _, rt, args, _) =>
         val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
@@ -606,7 +606,7 @@ abstract class RegistryFunctions {
   )(
     cls: Class[_],
     method: String,
-  ) {
+  ): Unit = {
     def ct(typ: Type): ClassTag[_] = typ match {
       case TString => classTag[String]
       case TArray(TInt32) => classTag[IndexedSeq[Int]]
@@ -721,7 +721,7 @@ abstract class RegistryFunctions {
   )(
     cls: Class[_],
     method: String,
-  ) {
+  ): Unit = {
     registerCode(name, valueParameterTypes, returnType, pt) { case (_, cb, _, _, args) =>
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
       val ct = PrimitiveTypeToIRIntermediateClassTag(returnType)

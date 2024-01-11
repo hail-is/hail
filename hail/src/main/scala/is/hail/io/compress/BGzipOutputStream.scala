@@ -60,7 +60,7 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
   val noCompressionDeflater = new Deflater(Deflater.NO_COMPRESSION, true)
   val crc32 = new CRC32
 
-  def write(b: Int) {
+  def write(b: Int): Unit = {
     require(numUncompressedBytes < uncompressedBuffer.length)
     uncompressedBuffer(numUncompressedBytes) = b.toByte
     numUncompressedBytes += 1
@@ -69,7 +69,7 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
       deflateBlock()
   }
 
-  override def write(bytes: Array[Byte], offset: Int, length: Int) {
+  override def write(bytes: Array[Byte], offset: Int, length: Int): Unit = {
     require(numUncompressedBytes < uncompressedBuffer.length)
 
     var currentPosition = offset
