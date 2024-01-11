@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, Generic, List, TypedDict, TypeVar
+from typing import Dict, List, TypedDict
 
 from aiohttp import web
 
@@ -9,15 +9,13 @@ from hailtop.utils import CalledProcessError, sleep_before_try
 from ..instance_config import InstanceConfig
 from .disk import CloudDisk
 
-ContainerCredentials = TypeVar("ContainerCredentials")
-
 
 class ContainerRegistryCredentials(TypedDict):
     username: str
     password: str
 
 
-class HailMetadataServer(abc.ABC, Generic[ContainerCredentials]):
+class HailMetadataServer(abc.ABC):
     @abc.abstractmethod
     def set_container_credentials(self, ip: str, credentials: Dict[str, str]):
         raise NotImplementedError

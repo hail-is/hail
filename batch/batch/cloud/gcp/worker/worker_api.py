@@ -137,7 +137,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
         return f'project={self.project} zone={self.zone}'
 
 
-class GoogleHailMetadataServer(HailMetadataServer[aiogoogle.GoogleServiceAccountCredentials]):
+class GoogleHailMetadataServer(HailMetadataServer):
     def __init__(self, project: str, http_session: httpx.ClientSession):
         super().__init__()
         self._project = project
