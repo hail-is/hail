@@ -1,7 +1,6 @@
 import abc
 from dataclasses import dataclass
-import jinja2
-from typing import Dict, Optional, Union
+from typing import Optional, Union
 
 
 @dataclass

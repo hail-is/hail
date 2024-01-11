@@ -51,14 +51,14 @@ class SAIGE:
         self,
         *,
         mt_path: str,
-        output_dir: str,
+        output: str,
         phenotypes: List[Phenotype],
         covariates: List[str],
         variant_chunks: List[VariantChunk],
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
         run_kwargs: Optional[dict] = None,
-    ) -> hl.Table:
+    ):
         with hl.TemporaryDirectory() as temp_dir:
             if b is None:
                 b = hb.Batch(name=self.config.name, attributes=self.config.attributes)
@@ -136,7 +136,7 @@ class SAIGE:
             else:
                 results = results_tables[0].union(*results_tables[1:])
 
-            results.write(f'{output_dir}/saige_results.ht', overwrite=True)
+            results.write(output, overwrite=True)
 
         return results
 
@@ -147,7 +147,7 @@ async def async_run_saige(
     phenotypes: List[Phenotype],
     covariates: List[str],
     variant_chunks: List[VariantChunk],
-    output_dir: str,
+    output: str,
     batch: Optional[hb.Batch] = None,
     checkpoint_dir: Optional[str] = None,
     run_kwargs: Optional[dict] = None,
@@ -161,7 +161,7 @@ async def async_run_saige(
             phenotypes=phenotypes,
             covariates=covariates,
             variant_chunks=variant_chunks,
-            output_dir=output_dir,
+            output=output,
             b=batch,
             checkpoint_dir=checkpoint_dir,
             run_kwargs=run_kwargs,
@@ -174,7 +174,7 @@ def run_saige(
     phenotypes: List[Phenotype],
     covariates: List[str],
     variant_chunks: List[VariantChunk],
-    output_dir: str,
+    output: str,
     batch: Optional[hb.Batch] = None,
     checkpoint_dir: Optional[str] = None,
     run_kwargs: Optional[dict] = None,
@@ -188,7 +188,7 @@ def run_saige(
             phenotypes=phenotypes,
             covariates=covariates,
             variant_chunks=variant_chunks,
-            output_dir=output_dir,
+            output=output,
             batch=batch,
             checkpoint_dir=checkpoint_dir,
             run_kwargs=run_kwargs,
