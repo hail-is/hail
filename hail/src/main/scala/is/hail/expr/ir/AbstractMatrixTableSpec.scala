@@ -42,7 +42,7 @@ object RelationalSpec {
       try
         using(fs.open(metadataFile))(in => parse(in))
       catch {
-        case exc: FileNotFoundException =>
+        case _: FileNotFoundException =>
           if (fs.isFile(path)) {
             fatal(s"MatrixTable and Table files are directories; path '$path' is a file.")
           } else {

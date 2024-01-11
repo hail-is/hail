@@ -678,13 +678,13 @@ object ReferenceGenome {
       try
         fs.listDirectory(path)
       catch {
-        case exc: FileNotFoundException =>
+        case _: FileNotFoundException =>
           return Array()
       }
 
     val rgs = mutable.Set[ReferenceGenome]()
     refs.foreach { fileSystem =>
-      val rgPath = fileSystem.getPath.toString
+      val rgPath = fileSystem.getPath
       val rg = using(fs.open(rgPath))(read)
       val name = rg.name
       if (!rgs.contains(rg) && !hailReferences.contains(name))
@@ -696,7 +696,7 @@ object ReferenceGenome {
   def writeReference(fs: FS, path: String, rg: ReferenceGenome) {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.isFile(rgPath))
-      rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
+      rg.write(fs, rgPath)
   }
 
   def getReferences(t: Type): Set[String] = {
