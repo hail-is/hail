@@ -266,7 +266,7 @@ class AzureFileStatus(FileStatus):
         self._url = url
 
     def basename(self) -> str:
-        return os.path.basename(self.url().rstrip('/'))
+        return os.path.basename(self._url.base.rstrip('/'))
 
     def url(self) -> str:
         return str(self._url)
