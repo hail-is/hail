@@ -749,8 +749,7 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      time retry sh millw --version
       time retry make shadowJar wheel
 
       # Check wheel size is small enough for pypi (< 200 MiB)
@@ -765,7 +764,7 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark.jar
+      - from: /io/repo/hail/out/main/release/assembly.dest/out.jar
         to: /hail.jar
       - from: /io/wheel
         to: /wheel
@@ -782,8 +781,7 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      time retry sh millw --version
       time retry make jars wheel HAIL_DEBUG_MODE=1
       mkdir /io/debug-wheel
       mv build/deploy/dist/hail-*-py3-none-any.whl /io/debug-wheel/
@@ -791,7 +789,7 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
+      - from: /io/repo/hail/out/main/debug/test/assembly.dest/out.jar
         to: /hail-debug-test.jar
       - from: /io/debug-wheel
         to: /debug-wheel
@@ -808,8 +806,7 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      time retry sh millw --version
       time retry make shadowTestJar
 
       time tar czf test.tar.gz -C python test
@@ -821,7 +818,7 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
+      - from: /io/repo/hail/out/main/release/test/assembly.dest/out.jar
         to: /hail-test.jar
       - from: /io/repo/hail/test.tar.gz
         to: /test.tar.gz
@@ -844,8 +841,7 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      time retry sh millw --version
       export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
       time retry make wheel
 
@@ -3265,8 +3261,7 @@ steps:
       fi
 
       cd hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      time retry sh millw --version
       make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37
     dependsOn:
       - ci_utils_image
@@ -3307,8 +3302,7 @@ steps:
       fi
 
       cd hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      time retry sh millw --version
       make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38
     dependsOn:
       - ci_utils_image
@@ -3358,8 +3352,7 @@ steps:
           exit 0
       fi
 
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      time retry sh millw --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
       bash scripts/release.sh $(cat /io/hail_pip_version) \

@@ -60,6 +60,7 @@ ifdef HAIL_DEBUG_MODE
 build_type = debug
 else
 build_type = release
+endif
 
 SHADOW_JAR := out/main/$(build_type)/assembly.dest/out.jar
 $(SHADOW_JAR):
