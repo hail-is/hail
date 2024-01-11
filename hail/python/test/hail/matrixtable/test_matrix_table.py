@@ -265,7 +265,7 @@ class Tests(unittest.TestCase):
                     mean=agg.mean(ds[name]),
                 )
             )
-            self.assertEqual(convert_struct_to_dict(r), {u'x': 15, u'y': 13, u'z': 40, u'mean': 2.0})
+            self.assertEqual(convert_struct_to_dict(r), {'x': 15, 'y': 13, 'z': 40, 'mean': 2.0})
 
             r = f(5)
             self.assertEqual(r, 5)
@@ -1306,28 +1306,24 @@ class Tests(unittest.TestCase):
         mt = mt.transmute_rows(y=hl.agg.mean(mt.x))
 
     def test_agg_explode(self):
-        t = hl.Table.parallelize(
-            [
-                hl.struct(a=[1, 2]),
-                hl.struct(a=hl.empty_array(hl.tint32)),
-                hl.struct(a=hl.missing(hl.tarray(hl.tint32))),
-                hl.struct(a=[3]),
-                hl.struct(a=[hl.missing(hl.tint32)]),
-            ]
-        )
+        t = hl.Table.parallelize([
+            hl.struct(a=[1, 2]),
+            hl.struct(a=hl.empty_array(hl.tint32)),
+            hl.struct(a=hl.missing(hl.tarray(hl.tint32))),
+            hl.struct(a=[3]),
+            hl.struct(a=[hl.missing(hl.tint32)]),
+        ])
         self.assertCountEqual(t.aggregate(hl.agg.explode(lambda elt: hl.agg.collect(elt), t.a)), [1, 2, None, 3])
 
     def test_agg_call_stats(self):
-        t = hl.Table.parallelize(
-            [
-                hl.struct(c=hl.call(0, 0)),
-                hl.struct(c=hl.call(0, 1)),
-                hl.struct(c=hl.call(0, 2, phased=True)),
-                hl.struct(c=hl.call(1)),
-                hl.struct(c=hl.call(0)),
-                hl.struct(c=hl.call()),
-            ]
-        )
+        t = hl.Table.parallelize([
+            hl.struct(c=hl.call(0, 0)),
+            hl.struct(c=hl.call(0, 1)),
+            hl.struct(c=hl.call(0, 2, phased=True)),
+            hl.struct(c=hl.call(1)),
+            hl.struct(c=hl.call(0)),
+            hl.struct(c=hl.call()),
+        ])
         actual = t.aggregate(hl.agg.call_stats(t.c, ['A', 'T', 'G']))
         expected = hl.struct(AC=[5, 2, 1], AF=[5.0 / 8.0, 2.0 / 8.0, 1.0 / 8.0], AN=8, homozygote_count=[1, 0, 0])
 
@@ -1708,20 +1704,16 @@ class Tests(unittest.TestCase):
         mt = mt.filter_entries((mt.row_idx % 4 == 0) & (mt.col_idx % 4 == 0), keep=False)
         mt = mt.compute_entry_filter_stats()
 
-        row_expected = hl.dict(
-            {
-                True: hl.struct(n_filtered=5, n_remaining=15, fraction_filtered=hl.float32(0.25)),
-                False: hl.struct(n_filtered=0, n_remaining=20, fraction_filtered=hl.float32(0.0)),
-            }
-        )
+        row_expected = hl.dict({
+            True: hl.struct(n_filtered=5, n_remaining=15, fraction_filtered=hl.float32(0.25)),
+            False: hl.struct(n_filtered=0, n_remaining=20, fraction_filtered=hl.float32(0.0)),
+        })
         assert mt.aggregate_rows(hl.agg.all(mt.entry_stats_row == row_expected[mt.row_idx % 4 == 0]))
 
-        col_expected = hl.dict(
-            {
-                True: hl.struct(n_filtered=10, n_remaining=30, fraction_filtered=hl.float32(0.25)),
-                False: hl.struct(n_filtered=0, n_remaining=40, fraction_filtered=hl.float32(0.0)),
-            }
-        )
+        col_expected = hl.dict({
+            True: hl.struct(n_filtered=10, n_remaining=30, fraction_filtered=hl.float32(0.25)),
+            False: hl.struct(n_filtered=0, n_remaining=40, fraction_filtered=hl.float32(0.0)),
+        })
         assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
 
     def test_annotate_col_agg_lowering(self):

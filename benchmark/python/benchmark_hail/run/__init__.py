@@ -18,4 +18,5 @@ __all__ = [
     'methods_benchmarks',
     'shuffle_benchmarks',
     'combiner_benchmarks',
-    'sentinel_benchmarks']
+    'sentinel_benchmarks',
+]

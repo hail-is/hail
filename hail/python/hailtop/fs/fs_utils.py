@@ -16,7 +16,7 @@ def open(
     mode: str = 'r',
     buffer_size: int = 8192,
     *,
-    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
+    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
 ) -> io.IOBase:
     """Open a file from the local filesystem of from blob storage. Supported
     blob storage providers are GCS, S3 and ABS.

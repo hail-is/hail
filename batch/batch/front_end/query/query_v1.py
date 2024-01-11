@@ -26,31 +26,31 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
 
         if '=' in t:
             k, v = t.split('=', 1)
-            condition = '''
+            condition = """
 ((batches.id) IN
  (SELECT batch_id FROM job_group_attributes
   WHERE `key` = %s AND `value` = %s))
-'''
+"""
             args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
-            condition = '''
+            condition = """
 ((batches.id) IN
  (SELECT batch_id FROM job_group_attributes
   WHERE `key` = %s))
-'''
+"""
             args = [k]
         elif t.startswith('user:'):
             k = t[5:]
-            condition = '''
+            condition = """
 (batches.`user` = %s)
-'''
+"""
             args = [k]
         elif t.startswith('billing_project:'):
             k = t[16:]
-            condition = '''
+            condition = """
 (billing_projects.name_cs = %s)
-'''
+"""
             args = [k]
         elif t == 'open':
             condition = "(`state` = 'open')"
@@ -83,7 +83,7 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
         where_conditions.append(condition)
         where_args.extend(args)
 
-    sql = f'''
+    sql = f"""
 WITH base_t AS (
   SELECT batches.*,
     job_groups_cancelled.id IS NOT NULL AS cancelled,
@@ -116,7 +116,7 @@ LEFT JOIN LATERAL (
   GROUP BY batch_id
 ) AS cost_t ON TRUE
 ORDER BY id DESC;
-'''
+"""
 
     return (sql, where_args)
 
@@ -147,19 +147,19 @@ def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int])
                 condition = '(jobs.job_id = %s)'
                 args = [v]
             else:
-                condition = '''
+                condition = """
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
   WHERE `key` = %s AND `value` = %s))
-'''
+"""
                 args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
-            condition = '''
+            condition = """
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
   WHERE `key` = %s))
-'''
+"""
             args = [k]
         elif t in job_state_search_term_to_states:
             values = job_state_search_term_to_states[t]
@@ -175,7 +175,7 @@ def parse_batch_jobs_query_v1(batch_id: int, q: str, last_job_id: Optional[int])
         where_conditions.append(condition)
         where_args.extend(args)
 
-    sql = f'''
+    sql = f"""
 WITH base_t AS
 (
   SELECT jobs.*, batches.user, batches.billing_project, batches.format_version,
@@ -202,6 +202,6 @@ FROM (SELECT aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.j
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY usage_t.batch_id, usage_t.job_id
 ) AS cost_t ON TRUE;
-'''
+"""
 
     return (sql, where_args)

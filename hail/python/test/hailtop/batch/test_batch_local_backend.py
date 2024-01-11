@@ -415,7 +415,7 @@ def test_python_job(batch):
 
         b.write_output(tail.ofile, output_file.name)
         b.run()
-        assert open(output_file.name).read() == '3\n5\n30\n{\"x\": 3, \"y\": 5}\n'
+        assert open(output_file.name).read() == '3\n5\n30\n{"x": 3, "y": 5}\n'
 
 
 def test_backend_context_manager():

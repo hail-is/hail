@@ -12,9 +12,9 @@ def split_lines(
         .when(hl.len(split_array) == len(fields), split_array)
         .or_error(
             hl.format(
-                f'''error in number of fields found: in file %s
+                f"""error in number of fields found: in file %s
 Expected {len(fields)} {plural("field", len(fields))}, found %d %s on line:
-%s''',
+%s""",
                 row.file,
                 hl.len(split_array),
                 hl_plural("field", hl.len(split_array)),

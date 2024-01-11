@@ -85,7 +85,6 @@ class GCPWorkerAPI(CloudWorkerAPI):
         mount_base_path_tmp: str,
         config: dict,
     ):  # pylint: disable=unused-argument
-
         fuse_credentials_path = self._write_gcsfuse_credentials(credentials, mount_base_path_data)
 
         bucket = config['bucket']

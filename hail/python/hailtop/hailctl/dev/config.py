@@ -18,7 +18,7 @@ class DevConfigProperty(str, Enum):
 
 @app.command()
 def set(property: DevConfigProperty, value: str):
-    '''Set dev config property PROPERTY to value VALUE.'''
+    """Set dev config property PROPERTY to value VALUE."""
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
     deploy_config = get_deploy_config()
@@ -34,7 +34,7 @@ def set(property: DevConfigProperty, value: str):
 
 @app.command()
 def list():
-    '''List the settings in the dev config.'''
+    """List the settings in the dev config."""
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
     deploy_config = get_deploy_config()

@@ -77,14 +77,14 @@ def build_python_image(
 
             with open(f'{docker_path}/Dockerfile', 'w', encoding='utf-8') as f:
                 f.write(
-                    f'''
+                    f"""
 FROM {base_image}
 
 COPY requirements.txt .
 
 RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
-'''
+"""
                 )
 
             sync_check_exec('docker', 'build', '-t', fullname, docker_path, capture_output=not show_docker_output)

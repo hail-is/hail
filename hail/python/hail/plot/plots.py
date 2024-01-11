@@ -842,12 +842,11 @@ def _collect_scatter_plot_data(
     n_divisions: Optional[int] = None,
     missing_label: str = 'NA',
 ) -> pd.DataFrame:
-
     expressions = dict()
     if fields is not None:
-        expressions.update(
-            {k: hail.or_else(v, missing_label) if isinstance(v, StringExpression) else v for k, v in fields.items()}
-        )
+        expressions.update({
+            k: hail.or_else(v, missing_label) if isinstance(v, StringExpression) else v for k, v in fields.items()
+        })
 
     if n_divisions is None:
         collect_expr = hail.struct(**dict((k, v) for k, v in (x, y)), **expressions)
@@ -870,15 +869,13 @@ def _collect_scatter_plot_data(
                 x[1], y[1], label=list(expressions.values()) if expressions else None, n_divisions=n_divisions
             )
         )
-        source_pd = pd.DataFrame(
-            [
-                dict(
-                    **{x[0]: point[0], y[0]: point[1]},
-                    **(dict(zip(expressions, point[2])) if point[2] is not None else {}),
-                )
-                for point in res
-            ]
-        )
+        source_pd = pd.DataFrame([
+            dict(
+                **{x[0]: point[0], y[0]: point[1]},
+                **(dict(zip(expressions, point[2])) if point[2] is not None else {}),
+            )
+            for point in res
+        ])
         source_pd = source_pd.astype(numeric_expr, copy=False)
 
     return source_pd
@@ -914,7 +911,6 @@ def _get_scatter_plot_elements(
     Tuple[Plot, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]],
     Tuple[Plot, None, None, None, None, None],
 ]:
-
     if not source_pd.shape[0]:
         print("WARN: No data to plot.")
         return sp, None, None, None, None, None
@@ -1360,7 +1356,6 @@ def joint_plot(
         continuous_cols: List[str],
         factor_cols: List[str],
     ):
-
         density_renderers = []
         max_densities = {}
         if not factor_cols or continuous_cols:
@@ -1385,9 +1380,11 @@ def joint_plot(
                 edges = edges[:-1]
                 xy = (edges, dens) if x_axis else (dens, edges)
                 cds = ColumnDataSource({'x': xy[0], 'y': xy[1]})
-                density_renderers.append(
-                    (factor_col, factor, p.line('x', 'y', color=factor_colors.get(factor, 'gray'), source=cds))
-                )
+                density_renderers.append((
+                    factor_col,
+                    factor,
+                    p.line('x', 'y', color=factor_colors.get(factor, 'gray'), source=cds),
+                ))
                 max_densities[factor_col] = np.max(list(dens) + [max_densities.get(factor_col, 0)])
 
         p.grid.visible = False
@@ -1427,7 +1424,6 @@ def joint_plot(
 
     # If multiple labels, create JS call back selector
     if len(label_cols) > 1:
-
         for factor_col, _, renderer in density_renderers:
             renderer.visible = factor_col == label_cols[0]
 
@@ -1621,9 +1617,10 @@ def qq(
     )
     from hail.methods.statgen import _lambda_gc_agg
 
-    lambda_gc, max_p = ht.aggregate(
-        (_lambda_gc_agg(ht['p_value']), hail.agg.max(hail.max(ht.observed_p, ht.expected_p)))
-    )
+    lambda_gc, max_p = ht.aggregate((
+        _lambda_gc_agg(ht['p_value']),
+        hail.agg.max(hail.max(ht.observed_p, ht.expected_p)),
+    ))
     if isinstance(p, Column):
         qq = p.children[1]
     else:

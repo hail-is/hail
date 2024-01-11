@@ -382,21 +382,30 @@ async def test_billing_project_accrued_costs(
     b2_status = await b2.status()
 
     b1_expected_cost = (await j1_1.status())['cost'] + (await j1_2.status())['cost']
-    assert approx_equal(b1_expected_cost, b1_status['cost']), str(
-        (b1_expected_cost, b1_status['cost'], await b1.debug_info(), await b2.debug_info())
-    )
+    assert approx_equal(b1_expected_cost, b1_status['cost']), str((
+        b1_expected_cost,
+        b1_status['cost'],
+        await b1.debug_info(),
+        await b2.debug_info(),
+    ))
 
     b2_expected_cost = (await j2_1.status())['cost'] + (await j2_2.status())['cost']
-    assert approx_equal(b2_expected_cost, b2_status['cost']), str(
-        (b2_expected_cost, b2_status['cost'], await b1.debug_info(), await b2.debug_info())
-    )
+    assert approx_equal(b2_expected_cost, b2_status['cost']), str((
+        b2_expected_cost,
+        b2_status['cost'],
+        await b1.debug_info(),
+        await b2.debug_info(),
+    ))
 
     cost_by_batch = b1_status['cost'] + b2_status['cost']
     cost_by_billing_project = (await dev_client.get_billing_project(project))['accrued_cost']
 
-    assert approx_equal(cost_by_batch, cost_by_billing_project), str(
-        (cost_by_batch, cost_by_billing_project, await b1.debug_info(), await b2.debug_info())
-    )
+    assert approx_equal(cost_by_batch, cost_by_billing_project), str((
+        cost_by_batch,
+        cost_by_billing_project,
+        await b1.debug_info(),
+        await b2.debug_info(),
+    ))
 
 
 async def test_billing_limit_zero(

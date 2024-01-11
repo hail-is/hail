@@ -278,7 +278,7 @@ class NetworkNamespace:
 
     async def create_netns(self):
         await check_shell(
-            f'''
+            f"""
 ip netns add {self.network_ns_name} && \
 ip link add name {self.veth_host} type veth peer name {self.veth_job} && \
 ip link set dev {self.veth_host} up && \
@@ -287,22 +287,22 @@ ip address add {self.host_ip}/24 dev {self.veth_host}
 ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
 ip -n {self.network_ns_name} link set dev lo up && \
 ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
-ip -n {self.network_ns_name} route add default via {self.host_ip}'''
+ip -n {self.network_ns_name} route add default via {self.host_ip}"""
         )
 
     async def enable_iptables_forwarding(self):
         await check_shell(
-            f'''
+            f"""
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT"""
         )
 
     async def mark_packets(self):
         await check_shell(
-            f'''
+            f"""
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11
-'''
+"""
         )
 
     async def expose_port(self, port, host_port):
@@ -328,9 +328,9 @@ iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interfac
         self.host_port = None
         self.port = None
         await check_shell(
-            f'''
+            f"""
 ip link delete {self.veth_host} && \
-ip netns delete {self.network_ns_name}'''
+ip netns delete {self.network_ns_name}"""
         )
         await self.create_netns()
 
@@ -1261,14 +1261,12 @@ class Container:
                 os.makedirs(v_host_path)
                 if uid != 0 or gid != 0:
                     os.chown(v_host_path, uid, gid)
-                external_volumes.append(
-                    {
-                        'source': v_host_path,
-                        'destination': v_absolute_container_path,
-                        'type': 'none',
-                        'options': ['bind', 'rw', 'private'],
-                    }
-                )
+                external_volumes.append({
+                    'source': v_host_path,
+                    'destination': v_absolute_container_path,
+                    'type': 'none',
+                    'options': ['bind', 'rw', 'private'],
+                })
 
         mounts = (
             self.volume_mounts
@@ -1741,14 +1739,12 @@ class DockerJob(Job):
                 assert config['read_only']
                 assert config['mount_path'] != '/io'
                 bucket = config['bucket']
-                self.main_volume_mounts.append(
-                    {
-                        'source': f'{self.cloudfuse_data_path(bucket)}',
-                        'destination': config['mount_path'],
-                        'type': 'none',
-                        'options': ['bind', 'rw', 'private'],
-                    }
-                )
+                self.main_volume_mounts.append({
+                    'source': f'{self.cloudfuse_data_path(bucket)}',
+                    'destination': config['mount_path'],
+                    'type': 'none',
+                    'options': ['bind', 'rw', 'private'],
+                })
 
         if self.secrets:
             for secret in self.secrets:
@@ -3183,17 +3179,15 @@ class Worker:
 
     async def run(self):
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
-        app.add_routes(
-            [
-                web.post('/api/v1alpha/kill', self.kill),
-                web.post('/api/v1alpha/batches/jobs/create', self.create_job),
-                web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
-                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}', self.get_job_container_log),
-                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage', self.get_job_resource_usage),
-                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
-                web.get('/healthcheck', self.healthcheck),
-            ]
-        )
+        app.add_routes([
+            web.post('/api/v1alpha/kill', self.kill),
+            web.post('/api/v1alpha/batches/jobs/create', self.create_job),
+            web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
+            web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}', self.get_job_container_log),
+            web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage', self.get_job_resource_usage),
+            web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
+            web.get('/healthcheck', self.healthcheck),
+        ])
 
         self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
 
@@ -3410,13 +3404,11 @@ class Worker:
             for (batch_id, job_id), job in self.jobs.items():
                 if not job.marked_job_started or job.end_time is not None:
                     continue
-                running_attempts.append(
-                    {
-                        'batch_id': batch_id,
-                        'job_id': job_id,
-                        'attempt_id': job.attempt_id,
-                    }
-                )
+                running_attempts.append({
+                    'batch_id': batch_id,
+                    'job_id': job_id,
+                    'attempt_id': job.attempt_id,
+                })
 
             if running_attempts:
                 billing_update_data = {'timestamp': update_timestamp, 'attempts': running_attempts}

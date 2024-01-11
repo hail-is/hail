@@ -51,7 +51,7 @@ def _assert_close(a, b):
 
 
 def _assert_rectangles_eq(expected, rect_path, export_rects, binary=False):
-    for (i, r) in enumerate(export_rects):
+    for i, r in enumerate(export_rects):
         piece_path = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
 
         with hl.current_backend().fs.open(piece_path, mode='rb' if binary else 'r') as file:
@@ -395,9 +395,8 @@ def block_matrix_bindings():
         ('m + nx', 'm + x'),
         ('m + nc', 'm + c'),
         ('m + nr', 'm + r'),
-        ('m + nm', 'm + m')
+        ('m + nm', 'm + m'),
         # subtraction
-        ,
         ('-m', '0 - m'),
         ('x - e', 'nx - e'),
         ('c - e', 'nc - e'),
@@ -434,9 +433,8 @@ def block_matrix_bindings():
         ('m - nx', 'm - x'),
         ('m - nc', 'm - c'),
         ('m - nr', 'm - r'),
-        ('m - nm', 'm - m')
+        ('m - nm', 'm - m'),
         # multiplication
-        ,
         ('x * e', 'nx * e'),
         ('c * e', 'nc * e'),
         ('r * e', 'nr * e'),
@@ -530,9 +528,8 @@ def test_block_matrix_elementwise_arithmetic(block_matrix_bindings, x, y):
         ('m / nx', 'm / x'),
         ('m / nc', 'm / c'),
         ('m / nr', 'm / r'),
-        ('m / nm', 'm / m')
+        ('m / nm', 'm / m'),
         # other ops
-        ,
         ('m ** 3', 'nm ** 3'),
         ('m.sqrt()', 'np.sqrt(nm)'),
         ('m.ceil()', 'np.ceil(nm)'),
@@ -732,15 +729,13 @@ def test_block_matrix_illegal_indexing(block_matrix_bindings, expr):
 
 
 def test_diagonal_sparse():
-    nd = np.array(
-        [
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-            [9.0, 10.0, 11.0, 12.0],
-            [13.0, 14.0, 15.0, 16.0],
-            [17.0, 18.0, 19.0, 20.0],
-        ]
-    )
+    nd = np.array([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0],
+        [13.0, 14.0, 15.0, 16.0],
+        [17.0, 18.0, 19.0, 20.0],
+    ])
     bm = BlockMatrix.from_numpy(nd, block_size=2)
     bm = bm.sparsify_row_intervals([0, 0, 0, 0, 0], [2, 2, 2, 2, 2])
 

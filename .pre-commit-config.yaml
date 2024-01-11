@@ -9,6 +9,12 @@ repos:
         language: system
         types: [python]
         require_serial: true
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff format
+        language: system
+        types: [python]
+        require_serial: true
       - id: pyright
         name: pyright
         entry: pyright
@@ -23,11 +29,6 @@ repos:
     hooks:
       - id: end-of-file-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/psf/black
-    rev: 22.3.0
-    hooks:
-      - id: black
-        language_version: python3
   - repo: https://github.com/thibaudcolas/curlylint
     rev: v0.13.1
     hooks:

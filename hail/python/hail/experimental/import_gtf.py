@@ -138,19 +138,17 @@ def import_gtf(
         force=force,
     )
 
-    ht = ht.rename(
-        {
-            'f0': 'seqname',
-            'f1': 'source',
-            'f2': 'feature',
-            'f3': 'start',
-            'f4': 'end',
-            'f5': 'score',
-            'f6': 'strand',
-            'f7': 'frame',
-            'f8': 'attribute',
-        }
-    )
+    ht = ht.rename({
+        'f0': 'seqname',
+        'f1': 'source',
+        'f2': 'feature',
+        'f3': 'start',
+        'f4': 'end',
+        'f5': 'score',
+        'f6': 'strand',
+        'f7': 'frame',
+        'f8': 'attribute',
+    })
 
     def parse_attributes(unparsed_attributes):
         def parse_attribute(attribute):

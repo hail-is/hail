@@ -25,12 +25,12 @@ async def delete(paths: Iterator[str]) -> None:
 async def main() -> None:
     parser = argparse.ArgumentParser(
         description='Delete the given files and directories.',
-        epilog='''Examples:
+        epilog="""Examples:
 
     python3 -m hailtop.aiotools.delete dir1/ file1 dir2/file1 dir2/file3 dir3
 
     python3 -m hailtop.aiotools.delete gs://bucket1/dir1 gs://bucket1/file1 gs://bucket2/abc/123
-''',
+""",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(

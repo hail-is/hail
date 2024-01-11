@@ -42,7 +42,7 @@ def deploy(
     ] = None,
     open: Ann[bool, Opt('--open', '-o', help='Open the deploy batch page in a web browser.')] = False,
 ):
-    '''Deploy a branch.'''
+    """Deploy a branch."""
     asyncio.run(_deploy(branch, steps, excluded_steps or [], extra_config or [], open))
 
 
