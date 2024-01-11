@@ -1,6 +1,7 @@
 import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
 import de.tobiasroeser.mill.vcs.version.VcsVersion
 import mill._
+import mill.api.Result
 import mill.scalalib._
 import mill.scalalib.Assembly._
 import mill.scalalib.TestModule.TestNg
@@ -14,20 +15,31 @@ def hailPatchVersion = "126"
 def millw() = T.command {
   val target =
     mill.util.Util.download("https://raw.githubusercontent.com/lefou/millw/main/millw")
-  val millw = build.millSourcePath / "millw"
+  val millw = T.workspace / "millw"
   os.copy.over(target.path, millw)
   os.perms.set(millw, os.perms(millw) + java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE)
   target
 }
 
+def scalaVersion = T.input {
+  val v = T.ctx().env.getOrElse("SCALA_VERSION", "2.12.15")
+  if (!v.startsWith("2.12"))
+    Result.Failure("Hail currently supports only Scala 2.12")
+  else
+    v
+}
+
+def sparkVersion = T.input {
+  T.ctx().env.getOrElse("SPARK_VERSION", "3.3.0")
+}
+
 def buildInfo: T[PathRef] = T {
   val revision = VcsVersion.vcsState().currentRevision
-  val sparkVersion = sys.env.getOrElse("SPARK_VERSION", "3.3.0")
   os.write(
     T.dest / "build-info.properties",
     s"""[Build Metadata]
        |revision=$revision
-       |sparkVersion=$sparkVersion
+       |sparkVersion=${sparkVersion()}
        |hailPipVersion=$hailMajorMinorVersion.$hailPatchVersion
        |""".stripMargin,
   )
@@ -70,8 +82,12 @@ object shadedazure extends JavaModule {
 trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { outer =>
   def crossValue: String
   def debugBuild: Boolean = crossValue == "debug"
-  def scalaVersion = "2.12.15"
-  def sparkVersion = "3.3.0"
+
+  override def scalaVersion: T[String] = build.scalaVersion()
+
+  def scalaPatchVersion: Task[String] = T.task {
+    scalaVersion().stripPrefix("2.12")
+  }
   def asmVersion = "7.3.1"
 
   override def javacOptions: T[Seq[String]] = Seq(
@@ -105,7 +121,11 @@ trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { o
     )
   }
 
-  trait HailTests extends SbtModuleTests with TestNg {
+  def printRunClasspath(): Command[Unit] = T.command {
+    println(runClasspath().map(_.path).mkString(":"))
+  }
+
+  trait HailTests extends SbtModuleTests with TestNg with ScalafmtModule {
     override def scalacOptions = outer.coreCompilerFlags ++ Seq(
       "-Ywarn-unused:-patvars,-locals,-privates",
       "-Xlint:-infer-any,-nullary-unit,-nullary-override",
@@ -156,7 +176,7 @@ trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
     ivy"com.github.samtools:htsjdk:3.0.5".excludeOrg("*"),
     ivy"net.sourceforge.jdistlib:jdistlib:0.4.5".excludeOrg("*"),
     ivy"org.freemarker:freemarker:2.3.31",
-    ivy"org.elasticsearch::elasticsearch-spark-30:8.4.3", // .excludeOrg("org.apache.spark"),
+    ivy"org.elasticsearch::elasticsearch-spark-30:8.4.3".excludeOrg("org.apache.spark"),
     ivy"com.google.cloud:google-cloud-storage:2.30.1".excludeOrg("com.fasterxml.jackson.core"),
     ivy"net.java.dev.jna:jna:5.13.0",
   )
@@ -179,8 +199,8 @@ trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
   override def compileIvyDeps = Agg(
     ivy"org.apache.logging.log4j:log4j-1.2-api:2.17.2",
     ivy"org.apache.hadoop:hadoop-client:3.3.4",
-    ivy"org.apache.spark::spark-core:$sparkVersion",
-    ivy"org.apache.spark::spark-mllib:$sparkVersion",
+    ivy"org.apache.spark::spark-core:${sparkVersion()}",
+    ivy"org.apache.spark::spark-mllib:${sparkVersion()}",
     ivy"org.scalanlp::breeze:1.1",
     //      ivy"org.scalanlp::breeze-natives:1.1",
   )
