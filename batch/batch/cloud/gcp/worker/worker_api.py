@@ -139,7 +139,6 @@ class GCPWorkerAPI(CloudWorkerAPI):
 
 class GoogleHailMetadataServer(HailMetadataServer):
     def __init__(self, project: str, http_session: httpx.ClientSession):
-        super().__init__()
         self._project = project
         self._metadata_server_client = aiogoogle.GoogleMetadataServerClient(http_session)
         self._ip_container_credentials: Dict[str, aiogoogle.GoogleServiceAccountCredentials] = {}
@@ -207,7 +206,7 @@ class GoogleHailMetadataServer(HailMetadataServer):
         )
 
     @web.middleware
-    async def configure_response(self, request: web.Request, handler):
+    async def middleware(self, request: web.Request, handler):
         credentials = self._container_credentials(request)
         gsa = request.match_info.get('gsa', 'default')
         if gsa not in credentials:
@@ -230,7 +229,7 @@ class GoogleHailMetadataServer(HailMetadataServer):
     def create_app(self) -> web.Application:
         metadata_app = web.Application(
             client_max_size=HTTP_CLIENT_MAX_SIZE,
-            middlewares=[self.configure_response],
+            middlewares=[self.middleware],
         )
         metadata_app.add_routes(
             [
