@@ -349,13 +349,13 @@ upload-artifacts: $(WHEEL)
 # > rm upload-remote-test-resources
 upload-remote-test-resources: $(shell git ls-files src/test/resources)
 upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
-	gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
-	gcloud storage cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
-	# # In Azure, use the following instead of gcloud storage cp
-	# python3 -m hailtop.aiotools.copy -vvv 'null' '[\
-        #      {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
-        #      {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
-        # ]'
+	# # If hailtop.aiotools.copy gives you trouble:
+	# gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
+	# gcloud storage cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
+	python3 -m hailtop.aiotools.copy -vvv 'null' '[\
+             {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
+             {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
+        ]' --timeout 600
 	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
@@ -505,13 +505,6 @@ hail-docs-do-not-render-notebooks: $(PYTHON_VERSION_INFO) python/hail/docs/chang
 	     -type f \
 	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: file://$(HAIL_HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
-
-.PHONY: upload-docs
-upload-docs: hail-docs batch-docs
-	cd build && tar czf www.tar.gz www
-	gcloud storage cp build/www.tar.gz $(docs_location)
-	gcloud storage objects update -r $(docs_location) --temporary-hold
-	gcloud storage objects update -r $(docs_location) --add-acl-grant=entity=AllUsers,role=READER
 
 .PHONY: test
 test: pytest jvm-test doctest
