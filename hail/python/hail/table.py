@@ -587,10 +587,17 @@ class Table(ExprContainer):
 
         >>> t = hl.Table.parallelize(
         ...     [{'a': 5, 'b': 10}, {'a': 0, 'b': 200}],
-        ...     schema=hl.tstruct(a=hl.tint, b=hl.tint),
         ...     key='a'
         ... )
         >>> t.show()
+        +-------+-------+
+        |     a |     b |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     0 |   200 |
+        |     5 |    10 |
+        +-------+-------+
 
         You may also specify only a handful of types in `partial_type`. Hail will automatically
         deduce the types of the other fields. Hail _cannot_ deduce the type of a field which only
